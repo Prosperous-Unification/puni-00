@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/k3d-creation-journal.test.ts:
+234 | ] as const) {
+235 |   it(`refuses ${fault} after real Docker command without continuing creation`, async () => {
+236 |     const { calls, invoke } = await fixture(fault);
+237 |     const invocation = invoke('up');
+238 |     const stderr = await new Response(invocation.stderr).text();
+239 |     expect(await invocation.exited).not.toBe(0);
+                                              ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-creation-journal.test.ts:239:41)
+(fail) refuses network-wrong-name after real Docker command without continuing creation [700.06ms]
+234 | ] as const) {
+235 |   it(`refuses ${fault} after real Docker command without continuing creation`, async () => {
+236 |     const { calls, invoke } = await fixture(fault);
+237 |     const invocation = invoke('up');
+238 |     const stderr = await new Response(invocation.stderr).text();
+239 |     expect(await invocation.exited).not.toBe(0);
+                                              ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/k3d-creation-journal.test.ts:239:41)
+(fail) refuses registry-wrong-name after real Docker command without continuing creation [677.85ms]
+
+ 0 pass
+ 9 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [1.62s]

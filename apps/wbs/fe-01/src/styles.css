@@ -1532,14 +1532,10 @@
      screen, and a list 945px wide under a 390px sheet made the sheet itself
      scroll sideways when the active line was scrolled into view: the title
      and the first chips cut at the left, the names at the right. The lines
-     end in an ellipsis instead (`creatable-picker.tsx`).
-     Proof: without this rule, `a long option is cut with an ellipsis and
-     never scrolls the sheet sideways` (`e2e/reference-cells.spec.ts`) failed
-     on `the sheet scrolled sideways`, `Received: 73`. Watched 2026-10-16.
-     This is also the one rule behind the reference round-trip's `scrollLeft`
-     guard from #504, which fixed the same flake by wrapping the lines in
-     bottom sheets instead; the two were merged into this one rule set
-     (truncate, the app's chip rule) and #504's wrap rules dropped. */
+     wrap whole on bottom sheets; compact surfaces keep an ellipsis.
+     Proof: without this rule, the standalone #515 long-option regression
+     (`e2e/reference-cells.spec.ts`) failed on `the sheet scrolled sideways`,
+     `Received: 73`. Watched 2026-10-16. */
   [data-modal-surface] [data-picker-list] {
     max-width: 100%;
   }
@@ -1874,14 +1870,10 @@
     align-items: center;
   }
 
-  /* A picker's lines stay blocks, because an ellipsis is drawn only by a
-     block container: the rule above makes every option a flex row, which
-     turns the name into an anonymous flex item that is cut without one (UI
-     review F-092). The padding keeps the same 44px target with the word
-     centred: a 20px line and 12px above and below.
-     Proof: without this rule `e2e/reference-cells.spec.ts` failed on `a cut
-     option is a flex row, which draws no ellipsis`, all 27 cut lines
-     listed. Watched 2026-10-16. */
+  /* Block rows let a bottom sheet wrap its whole option name. Equal 12px
+     padding keeps the words centred with a 44px minimum tap target.
+     Proof: restoring inline padding made the long-directory sheet regression
+     measure 2px instead of 12px above and below its words. */
   [data-modal-surface] [data-picker-list] [role='option'] {
     display: block;
     padding-block: 12px;
@@ -2104,4 +2096,29 @@
 
 [data-sheet-rows] > details[open] > summary::after {
   transform: rotate(90deg);
+}
+
+[data-picker-list] [role='option'] {
+  padding: 2px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Intrinsic option widths let scrollIntoView pan the sheet and clip its chips.
+   Proof: removing these sheet rules failed the 390x844 reference round-trip
+   with a long directory tag and eight filler tags: expected scrollLeft 0, received 73. */
+[data-modal-surface='bottom'] [data-picker-list] {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Full names are painted on the sheet, where touch has no hover fallback.
+   Proof: restoring inline nowrap failed the 25-long-name regression on
+   text Range fragments extending beyond the first option's painted box. */
+[data-modal-surface='bottom'] [data-picker-list] [role='option'] {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }

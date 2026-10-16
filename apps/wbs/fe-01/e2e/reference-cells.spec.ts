@@ -662,10 +662,45 @@ test('rests every reference row on one line and opens a crowded cell to reach ev
   ).toHaveCount(0);
 });
 
-test.describe('390x844 reference sheets', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+test('exposes the active priority option at the scrolling table edge', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const seeded = await seed(page);
+  await commands(
+    page,
+    seeded.projectId,
+    Array.from({ length: 35 }, (_, index) => ({
+      kind: 'createWorkItem',
+      ref: `edge-${String(index)}`,
+      parentId: null,
+      ...(index === 0 ? { afterId: null } : { afterRef: `edge-${String(index - 1)}` }),
+      name: `Table edge ${String(index)}`,
+    })),
+  );
+  await page.reload();
+  const priority = page.getByLabel('Priority for 350', { exact: true });
+  await priority.scrollIntoViewIfNeeded();
+  await priority.evaluate((box) => {
+    let frame = box.parentElement;
+    while (frame !== null && getComputedStyle(frame).overflowY !== 'auto')
+      frame = frame.parentElement;
+    if (frame === null) throw new Error('the priority cell has no scrolling table frame');
+    frame.scrollTop +=
+      box.getBoundingClientRect().bottom - frame.getBoundingClientRect().bottom + 4;
+  });
+  await priority.click();
+  const active = page
+    .getByRole('listbox', { name: 'Priority bands for 350' })
+    .locator('[data-picker-take]');
+  await expect(active).toBeVisible();
+  expect(await hitsItself(active), 'the active priority option is clipped by the table edge').toBe(
+    true,
+  );
+});
 
-  test('a long option is cut with an ellipsis and never scrolls the sheet sideways', async ({
+test.describe('390x844 reference sheets', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('long directory names stay fully visible without panning the reference sheet', async ({
     page,
   }) => {
     const seeded = await seed(page);
@@ -689,7 +724,7 @@ test.describe('390x844 reference sheets', () => {
     const dialog = page.getByRole('dialog', { name: /^Tags for / });
     await expect(dialog).toBeVisible();
     const box = dialog.getByRole('combobox', { name: 'Tags for 010', exact: true });
-    await box.focus();
+    await box.tap();
     // The active line is the first, and arrows walk it down the list: the
     // scroll that carried the sheet sideways was this line's `scrollIntoView`.
     for (let step = 0; step < 6; step += 1) await box.press('ArrowDown');
@@ -703,78 +738,82 @@ test.describe('390x844 reference sheets', () => {
       if (listBox === null) throw new Error('the picker list is not open');
       const options = [...listBox.querySelectorAll<HTMLElement>('[role="option"]')];
       const sheet = surface.getBoundingClientRect();
-      // Wider than its line (cut), or a line wider than the sheet (the old
-      // list, which grew to its longest name instead).
-      const cut = options.filter(
-        (option) =>
-          option.scrollWidth > option.clientWidth ||
-          option.getBoundingClientRect().width > sheet.width,
-      );
       const listRect = listBox.getBoundingClientRect();
       return {
         scrollLeft: surface.scrollLeft,
         sideways: surface.scrollWidth - surface.clientWidth,
         listPastSheet: Math.round(listRect.right - sheet.right),
-        cut: cut.length,
-        cutWithoutEllipsis: cut
-          .filter((option) => getComputedStyle(option).textOverflow !== 'ellipsis')
-          .map((option) => option.textContent.slice(0, 30)),
-        cutAsFlexRow: cut
-          .filter((option) => getComputedStyle(option).display !== 'block')
-          .map((option) => option.textContent.slice(0, 30)),
-        cutWithoutWords: cut
-          .filter((option) => option.getAttribute('data-fact') !== option.textContent)
-          .map((option) => option.textContent.slice(0, 30)),
+        listSideways: listBox.scrollWidth - listBox.clientWidth,
+        lines: options.map((option) => {
+          const style = getComputedStyle(option);
+          const box = option.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(option);
+          const fragments = [...text.getClientRects()];
+          return {
+            name: option.textContent,
+            wrapped: fragments.length > 1,
+            clipped: fragments.some(
+              (fragment) =>
+                fragment.left < box.left - 1 ||
+                fragment.right > box.right + 1 ||
+                fragment.top < box.top - 1 ||
+                fragment.bottom > box.bottom + 1,
+            ),
+            paddingTop: parseFloat(style.paddingTop),
+            paddingBottom: parseFloat(style.paddingBottom),
+          };
+        }),
       };
     });
-    // The precondition: the long names really are wider than the sheet, so
-    // the bounds below are about a list that had to be cut.
-    expect(measured.cut, 'no option outgrew the sheet, so nothing below is proved').toBeGreaterThan(
-      20,
-    );
-    // Proof: on the old list (`white-space: nowrap`, no bound, no ellipsis)
-    // this failed on `Expected: 0, Received: 73` — the dialog scrolled 73px
-    // sideways, cutting its title and the first chips at the left. Watched
-    // 2026-10-16.
     expect(measured.scrollLeft, 'the sheet scrolled sideways').toBe(0);
     expect(measured.sideways, 'the sheet is wider inside than it is').toBeLessThanOrEqual(0);
     expect(measured.listPastSheet, 'the list reaches past the sheet').toBeLessThanOrEqual(0);
-    // Proof: `textOverflow: 'clip'` back on the line failed on `a cut option
-    // has no ellipsis` with all 27 cut lines listed; `data-fact` dropped from
-    // the line failed `a cut option does not carry its whole name` the same
-    // way. Watched 2026-10-16.
-    expect(measured.cutWithoutEllipsis, 'a cut option has no ellipsis').toEqual([]);
-    // `text-overflow` is computed on a flex row too, and drawn by nothing:
-    // the ellipsis is a block container's, so the line has to stay one.
-    expect(measured.cutAsFlexRow, 'a cut option is a flex row, which draws no ellipsis').toEqual(
-      [],
-    );
-    expect(measured.cutWithoutWords, 'a cut option does not carry its whole name').toEqual([]);
-
-    // The whole words are read in the line's fact card, so the card has to be
-    // painted above the sheet it opens over. A card takes no pointer, which a
-    // hit test skips, so the probe lends it one for the measurement only.
-    // The active line, which the arrows already scrolled into view: hovering
-    // a line out of view scrolls the list, and a scroll closes every card.
-    const cutLine = list.locator('[data-picker-take]');
-    const words = await cutLine.getAttribute('data-fact');
+    expect(measured.listSideways, 'the list needs horizontal panning').toBeLessThanOrEqual(0);
+    for (const name of long) {
+      const line = measured.lines.find((option) => option.name === name);
+      expect(line, 'a long directory name is missing').toBeDefined();
+      expect(line?.clipped, `${name} is visibly clipped`).toBe(false);
+      expect(line?.wrapped, `${name} does not wrap into view`).toBe(true);
+      expect(
+        line?.paddingTop,
+        `${name} has too little space above its words`,
+      ).toBeGreaterThanOrEqual(12);
+      expect(
+        line?.paddingBottom,
+        `${name} has too little space below its words`,
+      ).toBeGreaterThanOrEqual(12);
+    }
+    // A line still carries its whole words as a fact card, and the card has to
+    // be painted above the sheet it opens over (UI review F-131): at the old
+    // `zIndex: 20` every card for a control on a modal surface was drawn under
+    // it. A card takes no pointer, which a hit test skips, so the probe lends
+    // it one for the measurement only. The active line, which the arrows
+    // already scrolled into view: hovering a line out of view scrolls the
+    // list, and a scroll closes every card.
+    const take = list.locator('[data-picker-take]');
+    const words = await take.getAttribute('data-fact');
     if (words === null) throw new Error('the active line carries no words');
     await page.waitForTimeout(300);
-    await cutLine.hover();
+    await take.hover();
     const card = page.getByRole('tooltip').filter({ hasText: words });
     await expect(card).toHaveCount(1);
     const painted = await card.evaluate((node) => {
       if (!(node instanceof HTMLElement)) throw new Error('the card is not an HTML element');
       node.style.pointerEvents = 'auto';
-      const box = node.getBoundingClientRect();
-      const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      const cardBox = node.getBoundingClientRect();
+      const top = document.elementFromPoint(
+        cardBox.left + cardBox.width / 2,
+        cardBox.top + cardBox.height / 2,
+      );
       node.style.pointerEvents = '';
       return { onTop: top !== null && node.contains(top), drawn: top?.outerHTML.slice(0, 80) };
     });
     // Proof: at the card's old `zIndex: 20` under the sheet's
     // `--layer-modal` (50) this failed on `the fact card is painted under
     // <div role="dialog" … data-modal-surface="bottom"` — the sheet itself.
-    // Watched 2026-10-16.
+    // Watched 2026-10-16 on a cut line, and again on main's wrapped line
+    // 2026-10-17.
     expect(painted.onTop, `the fact card is painted under ${String(painted.drawn)}`).toBe(true);
   });
 

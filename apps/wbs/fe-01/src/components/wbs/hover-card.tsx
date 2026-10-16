@@ -795,10 +795,10 @@ export function HoverCard({
         // review F-131). In a cell it keeps 20, measured against the table's
         // own sticky layers.
         //
-        // Proof: at 20 for both, `a long option is cut with an ellipsis and
-        // never scrolls the sheet sideways` (`e2e/reference-cells.spec.ts`)
+        // Proof: at 20 for both, `long directory names stay fully visible
+        // without panning the reference sheet` (`e2e/reference-cells.spec.ts`)
         // failed on `the fact card is painted under <div role="dialog" …
-        // data-modal-surface="bottom"`. Watched 2026-10-16.
+        // data-modal-surface="bottom"`. Watched 2026-10-16 and 2026-10-17.
         zIndex: portalled ? 'var(--layer-card)' : 20,
         minWidth: compact ? undefined : CARD_MIN_WIDTH_PX,
         background: 'var(--popover)',

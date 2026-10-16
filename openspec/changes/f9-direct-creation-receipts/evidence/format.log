@@ -1,0 +1,3 @@
+Command: NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx format:check --all
+Exit: 0
+stdout/stderr: empty

@@ -1,0 +1,99 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unresolved"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:109:11)
+(fail) leaves malformed Docker response pending ("") [28.90ms]
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unresolved"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:109:11)
+(fail) leaves malformed Docker response pending ("name") [6.30ms]
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unresolved"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:109:11)
+(fail) leaves malformed Docker response pending ("aaaaaaaaaaaa") [4.96ms]
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unresolved"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:109:11)
+(fail) leaves malformed Docker response pending ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ncccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n") [4.77ms]
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unresolved"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:109:11)
+(fail) leaves malformed Docker response pending (" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") [5.01ms]
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "unresolved"
+Received: "Error: must not create"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:109:11)
+(fail) leaves malformed Docker response pending ("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\n") [5.56ms]
+
+ 0 pass
+ 30 filtered out
+ 6 fail
+ 30 expect() calls
+Ran 6 tests across 1 file. [314.00ms]

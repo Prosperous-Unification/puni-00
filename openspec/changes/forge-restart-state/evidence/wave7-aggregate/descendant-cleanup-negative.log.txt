@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-recovery-lab.test.ts:
+348 |   expect(receipt.timedOut).toBe(false);
+349 |   const pid = Number(await readFile(join(path, 'child-pid'), 'utf8'));
+350 |   const stopped = () => isStopped(() => readFile(`/proc/${String(pid)}/stat`, 'utf8'));
+351 |   const deadline = Date.now() + 300;
+352 |   while (!(await stopped()) && Date.now() < deadline) await Bun.sleep(5);
+353 |   expect(await stopped()).toBe(true);
+                                ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-wave7-aggregate-sol-oct16/tools/tool-devsync/src/k3s/forge-recovery-lab.test.ts:353:27)
+(fail) terminates local descendants when a command exits before its deadline [330.27ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [382.00ms]

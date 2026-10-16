@@ -35,16 +35,24 @@ SHALL carry the whole name in its fact card. The open change
 - **WHEN** a reader with `Twilight Shipyards roadmap 2026 (imported 15 Oct)` and `Twilight Shipyards roadmap 2026 (imported 15 Oct, 2)` opens the project list at 1440, 1024 or 375px
 - **THEN** both names are drawn whole, dates included, on at most two lines, and the list ends inside the window
 
-### Requirement: Picker lines end in an ellipsis and never widen a sheet
+### Requirement: Picker names stay readable without widening a sheet
 
-Every line of a picker's option list SHALL be one line that ends in an ellipsis
-where it is cut, and SHALL carry its whole words in its fact card. On a modal
-surface the list SHALL be no wider than its box, and moving the active line
-SHALL NOT scroll the surface sideways. On the phone's surfaces each line SHALL
+A picker on a bottom sheet SHALL show each option's whole name, wrapping it
+inside the list without clipping or requiring hover. On a modal surface the
+list SHALL be no wider than its box, and moving the active line SHALL NOT
+scroll the surface sideways. Compact lists outside bottom sheets MAY truncate
+with an ellipsis and carry their whole words in a fact card. On phone surfaces
+picker rows SHALL have at least 12px of padding above and below their words and
 be at least 44px tall.
 
 #### Scenario: twenty-five long tags on a phone
 
-- **WHEN** a reader at 390×844 opens a card's Tags sheet with 25 tags whose names are wider than the sheet and walks the list with the arrow keys
-- **THEN** the sheet's horizontal scroll stays at 0, the list ends inside the sheet, and every cut line ends in an ellipsis and carries its whole name
-- **AND** a mouse resting on a cut line opens its fact card drawn above the sheet
+- **WHEN** a reader at 390×844 taps a card's Tags search with 25 tags whose names exceed the sheet width and walks the list with arrow keys
+- **THEN** the sheet's horizontal scroll stays at 0 and the list fits inside it without horizontal panning
+- **AND** every long name wraps visibly inside its option with at least 12px padding above and below
+- **AND** a mouse resting on the active line opens its fact card drawn above the sheet
+
+#### Scenario: an active priority option at the table edge
+
+- **WHEN** a reader opens a priority picker beside the bottom edge of the scrolling table
+- **THEN** native active-option scrolling exposes the option inside the table viewport

@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+20 |   operation: Promise<unknown>,
+21 |   expected?: string | RegExp,
+22 | ): Promise<void> {
+23 |   const refusal: unknown = await operation.then(
+24 |     () => {
+25 |       throw new Error('Expected refusal');
+                     ^
+error: Expected refusal
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:25:17)
+(fail) refuses earlier operation schema v1 instead of adopting unbound receipts [22.03ms]
+
+ 0 pass
+ 57 filtered out
+ 1 fail
+Ran 1 test across 1 file. [298.00ms]

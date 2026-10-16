@@ -1,0 +1,69 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation kind mismatch"
+Received: "Error: Direct creation remains unresolved"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses network pending receipt kind mismatch during assessment [30.72ms]
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation kind mismatch"
+Received: "Error: Docker inspected kind mismatch"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses network created receipt kind mismatch during assessment [12.54ms]
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation kind mismatch"
+Received: "Error: Direct creation remains unresolved"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses registry pending receipt kind mismatch during assessment [18.01ms]
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "operation kind mismatch"
+Received: "Error: Docker inspected kind mismatch"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:488:15)
+(fail) refuses registry created receipt kind mismatch during assessment [12.67ms]
+
+ 0 pass
+ 54 filtered out
+ 4 fail
+ 8 expect() calls
+Ran 4 tests across 1 file. [363.00ms]

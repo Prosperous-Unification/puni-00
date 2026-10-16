@@ -24,9 +24,10 @@ chips (F-092, also the cause of the `reference-cells.spec.ts` phone flake).
   width less its margins. The open change `project-dropdown-details` is amended
   to the same rule. The closed picker keeps its ellipsis and
   its fact card naming the whole project.
-- A picker list on a modal surface is never wider than its box; every picker
-  line is one line ending in an ellipsis, with its whole words in its fact card.
-  On the phone's surfaces the lines stay 44px tall.
+- A picker list on a modal surface is never wider than its box; bottom sheets wrap each
+  option's whole name so touch users can read it without a fact card. Compact
+  lists retain an ellipsis. Phone rows have symmetric 12px vertical padding
+  and a minimum 44px target.
 
 ## Non-goals
 

@@ -16,9 +16,9 @@ export interface PickerOption {
   key: string;
   label: ReactNode;
   /**
-   * The line's whole words, as its fact card says them: a line wider than its
-   * list ends in an ellipsis, and this is where the rest is read (UI review
-   * F-092). Absent on lines that are never long — a status, a mention.
+   * The line's whole words for a compact list's fact card (UI review F-092).
+   * Bottom sheets draw these words whole without requiring a hover. Absent
+   * on lines that are never long — a status, a mention.
    */
   words?: string;
   /** Whether this is the entry currently in force, for `aria-selected`. */
@@ -103,7 +103,7 @@ export const PICKER_PANEL_STYLE = {
   overflowY: 'auto',
 } as const satisfies CSSProperties;
 
-/** Directory options scroll to the active row; on a modal surface a line is cut with an ellipsis within the search width. */
+/** Directory options scroll to the active row; bottom sheets wrap names within the search width. */
 export function PickerList({
   id,
   label,
@@ -125,6 +125,8 @@ export function PickerList({
   // the eye is. jsdom has no scrollIntoView, hence the typeof — that boundary
   // is the test environment, not a browser this will meet. (Same guard the
   // depends list uses in `wbs-table.tsx`.)
+  // Proof: omitting this native call failed `exposes the active priority
+  // option at the scrolling table edge` on a clipped option's hit test.
   const scrollToActive = (element: HTMLLIElement | null, active: boolean) => {
     if (active && element !== null && typeof element.scrollIntoView === 'function') {
       element.scrollIntoView({ block: 'nearest' });
@@ -176,18 +178,9 @@ export function PickerList({
             // the lines under it by a pixel as the typing narrows the list.
             data-picker-take={active ? '' : undefined}
             data-fact={option.words}
-            // One line, cut with an ellipsis where the list is narrower than
-            // the name — the chips' rule. The list is as wide as its longest
-            // line until something bounds it; on a modal surface `styles.css`
-            // does (`[data-modal-surface] [data-picker-list]`), because a
-            // phone's sheet is 390px and a list 945px wide made the sheet
-            // scroll sideways under `scrollIntoView` (UI review F-092).
+            // Compact lists truncate; bottom sheets wrap the whole name.
+            // Static layout lives in styles.css so the sheet can override it.
             style={{
-              padding: '2px 6px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
               background: active ? 'var(--accent)' : undefined,
             }}
             onClick={option.take}
