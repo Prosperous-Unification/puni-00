@@ -1,0 +1,34 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /home/runner/work/puni-00/puni-00/candidate/apps/wbs/fe-01
+
+ ❯ src/components/wbs/column-resize.test.tsx (3 tests | 1 failed) 110ms
+   ❯ the extracted column resize gesture (3)
+     × uses the initial width across multiple moves and commits only on matching release 87ms
+     ✓ abandons a cancelled gesture without committing and ignores later events 13ms
+     ✓ measures an unresolved Name once and clamps its width 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/column-resize.test.tsx > the extracted column resize gesture > uses the initial width across multiple moves and commits only on matching release
+AssertionError: expected "vi.fn()" to be called 2 times, but got 3 times
+ ❯ src/components/wbs/column-resize.test.tsx:66:25
+     64|     point(separator, 'pointermove', 8, 90);
+     65|     point(separator, 'pointerup', 8, 90);
+     66|     expect(resize.drag).toHaveBeenCalledTimes(2);
+       |                         ^
+     67|     expect(resize.commit).not.toHaveBeenCalled();
+     68|     point(separator, 'pointerup', 7, 60);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 2 passed (3)
+   Start at  06:25:21
+   Duration  1.23s (environment 33%, transform 30%, import 21%, tests 9%, setup 6%)
+
+
+::error file=/home/runner/work/puni-00/puni-00/candidate/apps/wbs/fe-01/src/components/wbs/column-resize.test.tsx,title=src/components/wbs/column-resize.test.tsx > the extracted column resize gesture > uses the initial width across multiple moves and commits only on matching release,line=66,column=25::AssertionError: expected "vi.fn()" to be called 2 times, but got 3 times%0A ❯ src/components/wbs/column-resize.test.tsx:66:25%0A%0A

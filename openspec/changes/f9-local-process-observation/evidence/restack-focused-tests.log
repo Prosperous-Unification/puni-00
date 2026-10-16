@@ -1,0 +1,71 @@
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+[0m[32m✓[0m[0m[1m records response identity and root marker without retaining response content[0m [0m[2m[7.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains denial status and refuses a missing root marker[0m [0m[2m[4.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m bounds both missing headers and a response body that never ends[0m [0m[2m[[1m82.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses oversized and redirected responses[0m [0m[2m[4.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m convergence preserves immediate failure despite later success and uses GET only[0m [0m[2m[[1m102.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m permanent denial converges to bounded refusal[0m [0m[2m[[1m72.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects external authority, credentials, non-root paths and invalid bounds before fetching[0m [0m[2m[1.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checker first failure emits evidence before any mutating phase[0m [0m[2m[[1m689.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects credentials before opening the local fixture connection[0m [0m[2m[1.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects invalid request deadline without fetching[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only CLI refuses mutation arguments before opening a connection[0m [0m[2m[[1m13.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records connection refusal with absent response evidence[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only observer sends GET and refuses even a local redirect[0m [0m[2m[1.88ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m production checker transport deadline and body-limit failures never earn ingress credit[0m [0m[2m[[1m3953.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains a split root marker when the response later hangs or resets[0m [0m[2m[[1m213.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains root marker in the allowed prefix of an oversized chunk[0m [0m[2m[1.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m convergence clamps slow initial and final requests and oversized pauses to its window[0m [0m[2m[[1m242.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real checker metadata cannot spoof an authoritative ingress failure line[0m [0m[2m[[1m659.94ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+[0m[32m✓[0m[0m[1m records stable Vite identity and memory without raw arguments or verdicts[0m [0m[2m[[1m16.48ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown launcher arguments cannot impersonate the Vite launcher[0m [0m[2m[4.39ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses absent and unreadable required memory state[0m [0m[2m[4.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed counters, PID identity, status and cgroup membership[0m [0m[2m[[1m20.67ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses oversized files and more than 256 exact members[0m [0m[2m[3.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign directories and symlink escapes[0m [0m[2m[2.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid bounds before inspecting filesystem[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m deadline refuses an interval exceeding remaining budget[0m [0m[2m[[1m41.69ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m CLI rejects extra lifecycle arguments before reading files[0m [0m[2m[[1m22.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses identity and membership changes after command inspection[0m [0m[2m[[1m81.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m CLI local watchdog exits during a stalled required read[0m [0m[2m[[1m64.86ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsafe executable text instead of logging it[0m [0m[2m[4.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses cgroup directory replacement during process inspection[0m [0m[2m[[1m29.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m library deadline rejects a stalled read and leaves no long pause running[0m [0m[2m[[1m131.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses exec changes within the same PID start time[0m [0m[2m[[1m35.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unreadable required state independently from absent state[0m [0m[2m[2.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing required event counters and malformed process fields[0m [0m[2m[[1m11.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses nonregular required state[0m [0m[2m[2.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects a FIFO required file without leaving a blocked reader[0m [0m[2m[[1m32.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a nondirectory cgroup path before reading member files[0m [0m[2m[2.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains only complete emitted observations when a later sample fails[0m [0m[2m[3.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a changed executable target with the same basename and stable PID argv[0m [0m[2m[[1m34.67ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+[0m[32m✓[0m[0m[1m accepts MCP ingress refusal and executes restored full positive[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves first OOM even when a later automatic container becomes ready[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects cold restart without an observed OOM[0m [0m[2m[[1m50.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign Pod UID after PID1 termination[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unchanged container after PID1 termination[0m [0m[2m[4.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unchanged restart count after PID1 termination[0m [0m[2m[5.00ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects omitted ingress negative even when both positive checkers pass[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unrelated checker failure as ingress proof[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects policy restoration mismatch and still cleans up[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records cleanup refusal independently and denies overall acceptance[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m parses first-container OOM before a replacement status exists[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects malformed status rather than inventing a ready identity[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m models not-yet-created container status as pending startup[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not credit ingress negative when preceding positive checker failed[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not label a deliberate SIGKILL exit 137 as an OOM[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts captured API edge-proxy denial after an immediately preceding full positive[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses platform-only memory samples as first forge-container evidence[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires memory current, peak, events and RSS in the first source cgroup[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses inline escaped-newline and Unicode-separator ingress markers[0m [0m[2m[0.72ms[0m[2m][0m
+
+[0m[32m 59 pass[0m
+[0m[2m 0 fail[0m
+ 147 expect() calls
+Ran 59 tests across 3 files. [0m[2m[[1m6.75s[0m[2m][0m

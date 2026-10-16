@@ -1209,6 +1209,14 @@ export function ProjectPage({
                 // is too, whatever be-01 answers with. Entries wrap inside it
                 // (UI review F-086), so the width never decides what is read.
                 //
+                // Below `md` the window's width less its margins instead (UI
+                // review F-130): the project row is the header's own row there
+                // and the input starts at the margin, so that width is bounded
+                // too, and at the input's 175px a name took three lines.
+                // Proof: `two imports of one long name read apart at every
+                // width` (`e2e/header.spec.ts`) failed on `[3,3]` lines at 375
+                // without it. Watched 2026-10-16.
+                //
                 // Proof: back to `min-w-full`, `the widest entry be-01 permits
                 // stays inside the window` in `e2e/header.spec.ts` failed at
                 // every one of 1280, 1024 and 900 on the precondition —
@@ -1216,7 +1224,7 @@ export function ProjectPage({
                 // as wide as the text — and, with that precondition relaxed to
                 // read the bound underneath, on `the listbox reaches 46px past
                 // the window at 900px`. Watched in Chromium, 2026-08-09.
-                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 w-full max-w-[calc(100vw-1rem)] list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md"
+                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 w-full max-w-[calc(100vw-1rem)] list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md max-md:w-[calc(100vw-2rem)]"
               >
                 {entries.map((entry) => (
                   // The ARIA combobox pattern is the boundary that makes this

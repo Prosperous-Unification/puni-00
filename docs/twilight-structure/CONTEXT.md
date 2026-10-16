@@ -477,6 +477,14 @@ A revision of a task's measured usage or checkbox state, distinct from the
 approved task definition.
 _Avoid_: Completion receipt, status
 
+**Bound progress receipt**:
+A progress receipt tied to one complete exported plan reference.
+_Avoid_: Fresh receipt, authenticated receipt
+
+**Selected accepted reference**:
+The plan reference a caller independently chooses as the acceptance basis for local progress admission.
+_Avoid_: Current WBS state, live authority
+
 **Planning broker**:
 The one principal per repository that validates and publishes accepted planning
 revisions.
@@ -517,6 +525,21 @@ _Avoid_: Working copy, the plan, checkout
 **Candidate**:
 The exact revision or artifact an approval, verification, or release names.
 _Avoid_: Version, latest
+
+**Evaluation coverage**:
+The recorded applicability and actual judgment of each registered rule for each
+selected candidate subject.
+_Avoid_: Infrastructure health, certification, inventory completeness
+
+**Coverage subject**:
+One committed candidate path together with its Git mode and object identity,
+explicitly selected for evaluation coverage.
+_Avoid_: File family, extension group, inferred scope
+
+**Coverage exclusion**:
+A reviewed explanation that a registered rule does not apply to one coverage
+subject; it supplies no judgment of that subject.
+_Avoid_: Passed check, evaluation, waiver
 
 **Task export**:
 The leaf tasks of an accepted plan with their ancestry, estimates and dependencies, bound by the plan reference.

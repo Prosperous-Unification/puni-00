@@ -1861,7 +1861,10 @@ await import(${JSON.stringify(productionSnapshotter)});
     // measurements behind both are in docs/findings/ci-gate-duration.md.
     // Proof (2026-09-28): with `gate_tool_wiki` set back to 20 minutes this failed on
     // `Expected: 50 · Received: 20`.
-    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(60);
+    // Proof (2026-10-16): hosted run 38864988637 failed the stale 60-minute expectation
+    // against the restored 90-minute workflow. Regressing that production value to 60
+    // failed this focused test with `Expected: 90 · Received: 60`; restoring 90 passed.
+    expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
     expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(50);
   });
 

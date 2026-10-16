@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+(pass) records response identity and root marker without retaining response content [7.69ms]
+(pass) retains denial status and refuses a missing root marker [6.74ms]
+(pass) bounds both missing headers and a response body that never ends [87.07ms]
+(pass) refuses oversized and redirected responses [4.13ms]
+(pass) convergence preserves immediate failure despite later success and uses GET only [105.22ms]
+(pass) permanent denial converges to bounded refusal [73.56ms]
+(pass) rejects external authority, credentials, non-root paths and invalid bounds before fetching [2.31ms]
+(pass) checker first failure emits evidence before any mutating phase [1183.62ms]
+(pass) rejects credentials before opening the local fixture connection [1.23ms]
+(pass) rejects invalid request deadline without fetching [1.01ms]
+(pass) read-only CLI refuses mutation arguments before opening a connection [20.03ms]
+(pass) records connection refusal with absent response evidence [1.87ms]
+(pass) read-only observer sends GET and refuses even a local redirect [6.82ms]
+
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+(pass) accepts MCP ingress refusal and executes restored full positive [3.04ms]
+(pass) preserves first OOM even when a later automatic container becomes ready [0.38ms]
+(pass) rejects cold restart without an observed OOM [50.46ms]
+(pass) rejects foreign Pod UID after PID1 termination [0.31ms]
+(pass) rejects unchanged container after PID1 termination [4.27ms]
+(pass) rejects unchanged restart count after PID1 termination [4.96ms]
+(pass) rejects omitted ingress negative even when both positive checkers pass [0.37ms]
+(pass) rejects unrelated checker failure as ingress proof [0.21ms]
+(pass) rejects policy restoration mismatch and still cleans up [0.22ms]
+(pass) records cleanup refusal independently and denies overall acceptance [0.19ms]
+(pass) parses first-container OOM before a replacement status exists [0.34ms]
+(pass) rejects malformed status rather than inventing a ready identity [0.08ms]
+(pass) models not-yet-created container status as pending startup [0.02ms]
+(pass) does not credit ingress negative when preceding positive checker failed [0.17ms]
+(pass) does not label a deliberate SIGKILL exit 137 as an OOM [0.05ms]
+(pass) accepts captured API edge-proxy denial after an immediately preceding full positive [0.25ms]
+(pass) refuses platform-only memory samples as first forge-container evidence [0.14ms]
+(pass) requires memory current, peak, events and RSS in the first source cgroup [0.13ms]
+
+ 31 pass
+ 0 fail
+ 67 expect() calls
+Ran 31 tests across 2 files. [1.65s]

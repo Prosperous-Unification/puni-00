@@ -5472,3 +5472,251 @@ feasible baseline and shared-person responses; its temporary runtime cleanup com
 The no-argument build branch and application source were unchanged by this correction, so the
 previous real build smoke and project source lint were retained without repetition. Canonical
 h2puni gate, CI and current-release/installed binding acceptance remain unverified.
+
+## Installed dev supervisor acceptance command (010.4.16, slice 9.5)
+
+Implemented in an isolated shared clone of exact #514 head
+`f3686898014b9488b33081aa7003acac470b0b51` at `/tmp/capacity-installed-acceptance`.
+`check-installed-solver.ts` is a host command and bundled build artifact; its client executes inside
+existing `wbs-dev-src` and reuses `solver-image-scenario.ts`. The command holds
+`poll.lock` → `devsync.lock` → production `deploy.lock`, observes installed source/config/health,
+checks compatibility and local image identity, inspects exact managed children before binding,
+requires both revalidated feasible scenarios, reads back token-owned child absence, and verifies
+stable service PID and systemd InvocationID. The receipt distinguishes backend `sourceSha` from
+compatible `imageSourceSha`; no persistent settings, database, image or service changes occur.
+
+Focused test commands use only fake Docker programs and temporary Unix sockets. The initial
+host/client stubs failed their positive contracts (`/tmp/capacity-installed-{host,client}-red.log`).
+Review corrections were separately RED then GREEN: canonical full caller label, the direct devsync
+writer lock, and service restart identity (`/tmp/capacity-installed-{caller-canonical,devsync-lock,service-restart}-{red,green}.log`).
+The full 64-hex label comes from the production start-frame decoder's authenticated peer ID;
+the client reports its original 12-hex Docker hostname claim.
+
+Focused validation:
+
+- `bun test tools/tool-remote-scripts/src/check-installed-solver.test.ts apps/wbs/be-01/scripts/solver-installed-client.test.ts apps/wbs/be-01/scripts/solver-image-scenario.test.ts`:
+  65 passed, zero failed, 537 assertions (`/tmp/capacity-installed-tests.log`).
+- Scoped ESLint for both new implementations and tests, with an Nx graph available; scoped
+  `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json apps/wbs/be-01/tsconfig.tools.json`;
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:build --skip-nx-cache`;
+  scoped Prettier and `git diff --check`: all exited zero after final source restoration
+  (`/tmp/capacity-installed-{lint,types,build,format}.log`). The bundled command also ran from
+  `/tmp` outside its checkout and refused a non-full source SHA before any host observation.
+- Pinned OpenSpec 1.12.0 at
+  `/tmp/puni-ci-repair-openspec-tool/node_modules/@fission-ai/openspec/bin/openspec.js`, executed
+  with Bun and `validate --all --json`: 224/224, zero failed
+  (`/tmp/capacity-installed-openspec.log`). Bare `bunx openspec` was unavailable in the read-only
+  default Bun temporary/cache location; the existing pinned installation resolved that prerequisite.
+
+The restricted sandbox denies subprocess socketpair stdin traffic: fake-Docker handshake tests
+initially saw EOF/EPERM. The same local tests passed after automatic approval allowed execution
+outside that sandbox. They contacted no Docker daemon or live host.
+
+Watched production guard omissions, restored after each targeted test, are captured in
+`/tmp/capacity-installed-mutation-receipts.json` and numbered
+`/tmp/capacity-installed-mutation-*.log`. All 34 receipts record a nonzero failing targeted test run:
+
+| Removed guard or behavior                                                              | Observed negative                                                                     |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Full SHA / explicit registry digest arguments                                          | Refusal happened after observation, violating the before-observation assertion        |
+| Each of poll, devsync and production locks independently                               | Observation reached fewer than three held locks                                       |
+| Evidence root, current source, clean tracked source, compatible tree/object IDs        | Malformed or mismatching trusted evidence was accepted or lost its boundary diagnosis |
+| Dev caller identity, installed mapping/socket, local digest, active service            | A mismatching installed prerequisite reached acceptance                               |
+| Mounted source / backend health source                                                 | Wrong deployed source reached acceptance                                              |
+| Client started identity                                                                | Foreign caller claim reached bind                                                     |
+| Exact child ID/name/running state/ref/actual image/PID/managed/token/full caller label | Each independent fault reached bind and acceptance                                    |
+| Exact accepted token/scenario/PID/feasible status                                      | Foreign/non-feasible response reached receipt                                         |
+| Bounded child-removal refusal                                                          | A surviving token-owned child reached receipt                                         |
+| Stable service invocation identity                                                     | A changed service PID/InvocationID reached receipt                                    |
+| Host command exit/output limits                                                        | Refused tools or oversized observations lost their diagnosis                          |
+| Client process EOF/size/exit/trailing output / socket inode type                       | Failed client evidence or a regular file was accepted                                 |
+| Host abort / terminal exit/deadline/OOM / exact request revalidation                   | Aborted, unsuccessful or overlapping feasible attempt reached acceptance              |
+| Client CLI argument boundary                                                           | Wrong socket/scenario/token/extra arguments reached connection                        |
+
+Attended installed acceptance remains task 9.6. This scope performed no live host inspection,
+installation, push, deploy, API/browser acceptance or shared-mode activation. Availability of the
+live source, binding, selected local digest, service and dev caller is unverified; the command
+refuses any missing prerequisite. The h2puni canonical gate was not run because live host operations
+were outside this scope. Full repository test/lint/typecheck gates were not run; focused evidence
+and the existing image scenario were used for this slice.
+
+## Real process crash/replay acceptance (2026-10-16)
+
+Base: published #522 head `5bffd8ebefff8ad2da4820db89d0aa409a542cdb`, copied from
+`/tmp/capacity-installed-acceptance` into isolated `/tmp/capacity-crash-replay-sol`.
+The earlier `coldProcess()` helper made another composition inside the test process; it is
+now named `coldComposition()` and its test describes that boundary accurately.
+
+`capacity-fanout-process.db.test.ts` now owns two actual Bun subprocesses and one disposable,
+migrated SQLite file. The writer seeds ranked A above B, both assigned Ana, Fast selected and
+optimization disabled. Shared mode is seeded only in this test fixture; the production
+`SUPPORTED_CAPACITY_MODES` remains unchanged. Both children call `bootBe01`, keep its actual
+composition and mounted routes, and replace only socket listening. Native signed credentials
+select organizations through the mounted selection route; no project or membership authority
+is replaced.
+
+Before editing, the writer reads B's mounted tree and records its cursor (-1). It sends the
+mounted authenticated command changing A's estimate from 1 to 3. Its transport enters a held
+fetch promise after commit. The parent opens its own SQLite connection and checks A=3 and
+exactly one durable `project:B` event, seq 0, `elsewhere_changed B←A`, while the writer is alive.
+It sends SIGKILL only to that owned child and awaits its signaled death. The reader has a
+separate PID and fresh composition, and verifies its replay buffer cannot cover B's event.
+Mounted authenticated `/internal/resume` from the pre-edit cursor returns the original event
+once. A repeat from seq 0 returns no event. The mounted B tree places Ana at [3,4), names A's
+work item as the elsewhere holder and reports `waitingElsewhere=1`.
+
+Reads/resumes leave event rows, sequences, command history, optimization cache/generation,
+queue/slot state, organization/shared-people audits, projects and estimates byte-equivalent to
+the pre-read SQL snapshot. A foreign organization's principal and the original principal after
+membership removal both receive forbidden replay outcomes. Parent polling and reader execution
+have 15-second bounds; publication after release has a 3-second bound. Owned-process cleanup
+runs in `finally`, within a 45-second test budget.
+
+### Watched production faults
+
+Each mutation was applied independently, run against the actual subprocess acceptance, and
+restored. Logs are in `/tmp/capacity-crash-evidence/` (local evidence, not repository artifacts).
+
+| Fault                                            | Observed failure                                       | Log                       |
+| ------------------------------------------------ | ------------------------------------------------------ | ------------------------- |
+| Skip `recordCommittedFanout` recipients          | Parent found no durable B row                          | `skip-fanout.log`         |
+| Remove `ReplayOrchestrator` durable log fallback | Cold resume denied `out_of_range`                      | `memory-only-replay.log`  |
+| Record again inside `pushRecorded`               | Parent found an extra B event at seq 1                 | `duplicate-recording.log` |
+| Compose services with unbound source             | Parent found no durable B row                          | `suppress-binding.log`    |
+| Ignore Fast scheduler's shared input             | B ran [0,1), with no elsewhere holder or wait count    | `ignore-shared-input.log` |
+| Admit all resume subscriptions                   | Both foreign and removed principals replayed B's cause | `bypass-membership.log`   |
+
+The initial test-first run failed because the child executable did not yet exist; the six
+production mutations above supply the behavioral negative evidence. Adjacent `Proof:` comments
+name their faults and observed failures.
+
+### Local validation
+
+- `bun test apps/wbs/be-01/src/capacity-fanout-process.db.test.ts apps/wbs/be-01/src/services.db.test.ts --test-name-pattern 'replays committed capacity fanout|shared-person replay closure'`:
+  5 passed, 130 filtered, 0 failed, 32 assertions. The push-failure regression deliberately emits
+  its existing gateway-unreachable warning. Log: `final-tests.log`.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
+  Nx could not create sandbox worker sockets and used its documented in-process fallback;
+  the target completed successfully. Log: `lint.log`.
+- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
+  Log: `format.log`.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: module checks and backend TypeScript build
+  passed, 0/2 cache hits. Log: `typecheck.log`.
+- `bun build apps/wbs/be-01/src/main.ts --target=bun --outfile=/tmp/capacity-crash-evidence/be-01.js`:
+  passed, 1434 modules, 4.21 MB bundle. Log: `build.log`.
+- `bun /tmp/puni-ci-repair-openspec-tool/node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json`:
+  all 224 entries passed (206 changes, 18 specs), 0 failed. Log: `openspec.log`. The tool was
+  absent from PATH and the repo dependencies; this existing complete tool installation was used
+  after the no-install lookup and an incomplete cache copy refused to execute.
+
+No installed/live acceptance, Browser hold, F9, ledger or supervisor file was changed. No push,
+publication, live-host operation, canonical h2puni gate, full repository gate or CI run occurred.
+Independent review remains required; this checkpoint records scoped local acceptance only.
+
+### Review repair: atomic one-shot marker publication
+
+Astra high review of `6ff577483b77447bca25da2fb824fd617dff6ec5` identified that the writer's
+unawaited direct `Bun.write(committed.json)` made existence observable before complete content.
+The writer now awaits writing a private PID-scoped staging file, waits at a parent-controlled
+publication barrier, then atomically renames it to `committed.json`. The parent proves the final
+path is absent while staging is held, releases publication, and reads only the renamed marker.
+One shared publication promise prevents transport retries from rewriting or republishing the
+marker. The test waits for a real PushClient retry and verifies unchanged marker inode and
+nanosecond modification time, plus absence of the consumed staging path. The directory is newly
+created and test-owned for every run; the marker must identify the owned writer PID.
+
+The expanded acceptance was RED against the original direct writer (`marker-direct-write-initial-red.log`),
+then GREEN after the staging fix (`marker-green.log`: 1 pass, 14 assertions). Three independent
+child-path mutations were watched and restored:
+
+| Fault                             | Observed failure                                                       | Log in `/tmp/capacity-crash-evidence/` |
+| --------------------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
+| Write directly to final path      | Final marker visible before publication release                        | `marker-direct-write.log`              |
+| Omit atomic rename                | Final marker absent; bounded publication wait killed and reaped writer | `marker-no-rename.log`                 |
+| Remove one-shot publication guard | Actual transport retry replaced the published marker inode             | `marker-republication.log`             |
+
+Adjacent `Proof:` comments identify these faults. The lint/format bullets accidentally inserted
+in three historical checkpoints by the earlier documentation edit were removed; the current
+local validation bullets above are retained only in this checkpoint.
+
+## Organization browser/pixel acceptance (010.4.16, 2026-10-16)
+
+Test-only local acceptance extends `apps/wbs/fe-01/e2e/organization.spec.ts` at reviewed PR #525
+head `bc93b25d69378ff8de5791324d9bb1aa6d3d67a6` (tree
+`00307a0f40f5c8a552936abc577da141eec8ccb8`) in isolated clone
+`/tmp/puni-capacity-org-ui-sol-20261016`. The existing ordinary target builds the frontend
+and serves Vite production preview alongside isolated be/gw servers. Browser fixtures answer
+organization resources, including explicit session-policy and provisioning-token GETs; they
+prove rendered acceptance, not backend authorization or installed organization activation.
+
+The matrix uses 375×812 and 1280×900 in light/dark. Isolated/unavailable replies with both
+`canSwitch` values must show the exact isolated explanation plus release-unavailable sentence,
+no switch or confirmation, and no PATCH after reload. A synthetic supported-release reply with
+`canSwitch:false` must show the permission explanation and no controls. Every state checks the
+painted theme, positive visible panel bounds and no document/main/panel horizontal overflow,
+then captures and attaches `shared-people.png`.
+
+Architect correction: `GET 403 {error:'forbidden'}` is unsupported contract input, not a modeled
+permission refusal. The initial requested permission-alert assertion failed with the observed
+`The server returned an unexpected response. Try again.` `readCapacityMode` permits reads by
+any current member; only `switchCapacityMode` models `forbidden`. After review the browser case
+requires that exact generic alert, no success/isolated explanation and no controls. This is a
+test correction with no product/contract delta; GET 200 `canSwitch:false` covers caller permission.
+Initial failure output is `/tmp/capacity-org-evidence/initial-focused.log`.
+
+Commands use `CI=1 E2E_PORT_SHIFT=184` and the ordinary config's `retries:0`. Ports
+3284/3384/4384 were checked free by successful local socket binds before startup. The 12-case
+independent unavailable/permission matrix passed (`--grep 'Shared people' --grep-invert forbidden`,
+1.5m; `/tmp/capacity-org-independent.log`). Final focused/full checks and mutation receipts follow.
+
+Watched production mutations, run sequentially with each source restored in `finally` before the
+next run. Every command was `CI=1 E2E_PORT_SHIFT=184 bunx nx run wbs-fe-01:e2e -- --grep '<pattern>'`,
+zero retries. Patterns select `Shared people at 375px in light.*canSwitch true`, except permission
+(`Shared people at 375px in light.*supported-release permission`) and malformed GET
+(`Shared people at 375px in light.*unsupported forbidden`). Each run collected exactly one test
+and exited 1 with the intended assertion failure, not a build/setup failure:
+
+| Production fault                               | Observed browser failure                              | Log under `/tmp/`                              |
+| ---------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------- |
+| Omit `SharingPanel` from page composition      | Shared people region absent at visibility assertion   | `capacity-org-mutation-panel.log`              |
+| Replace isolated explanation                   | Exact paragraph array differs                         | `capacity-org-mutation-explanation.log`        |
+| Bypass unavailable branch                      | Release-unavailable paragraph absent; switch exposed  | `capacity-org-mutation-unavailable.log`        |
+| Bypass `canSwitch` branch                      | Super-admin paragraph absent; switch exposed          | `capacity-org-mutation-permission.log`         |
+| Wrap production panel in `min-width:600px`     | Right edge 600 exceeds viewport 375                   | `capacity-org-mutation-overflow.log`           |
+| Add `forbidden` to `readCapacityMode.refusals` | Generic alert expected, super-admin sentence received | `capacity-org-mutation-forbidden-contract.log` |
+
+Adjacent `Proof:` comments name the observed failures. Production source paths have no retained
+changes; no capability, route contract or activation behavior changed.
+
+Scoped ESLint (`bunx eslint apps/wbs/fe-01/e2e/organization.spec.ts`) passed with no diagnostics.
+Strict focused OpenSpec validation passed using the repository-pinned
+`bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`.
+`/tmp/puni-ci-repair-openspec-tool/node_modules/.bin/openspec validate --all --json` exited 0:
+224 passed, 0 failed (206 changes, 18 specs; existing archive warnings remain non-fatal).
+A bare `bunx openspec` attempt was unavailable; the repository-pinned package and installed
+absolute executable above supplied the required checks.
+
+Final focused command:
+`CI=1 E2E_PORT_SHIFT=184 bunx nx run wbs-fe-01:e2e -- --grep 'Shared people'`
+exited 0: **16 passed** (1.8m; `/tmp/capacity-org-final-focused.log`). All cases now include
+panel screenshots and geometry, including synthetic caller permission and malformed response.
+
+Final full organization command:
+`CI=1 E2E_PORT_SHIFT=184 bunx nx run wbs-fe-01:e2e -- organization.spec.ts`
+exited 0: **30 passed** (2.8m; `/tmp/capacity-org-final-full.log`), including all 14 existing
+organization cases and the 16 new matrix cases. Both final runs rebuilt production preview;
+no existing dev server was reused. No browser retries were enabled.
+
+All 16 panel captures are attached in the Playwright report and stored under
+`apps/wbs/fe-01/test-results/organization-Shared-people-*/shared-people.png`; copies remain in
+`/tmp/capacity-org-evidence/organization-Shared-people-*/shared-people.png` to survive later runs.
+Representative unavailable, permission and unsupported-response panels were visually inspected
+at both widths in both themes: wrapped copy, readable spacing, no clipping or controls. These
+are captured panel images plus geometry assertions, without a screenshot baseline comparison.
+Phone ready panels measure 343×209; desktop ready panels 704×166. Failure panels measure
+343×124 and 704×104 respectively.
+
+Final scoped ESLint and three-file Prettier checks passed; `git diff --check` passed. The local
+production-preview browser build is covered by the commands above. No broader unit/typecheck
+suite, canonical host gate, CI, installed dev caller/binding, attended dev-stack eye review or
+live delivery/activation was performed in this slice. WBS 010.4.16 remains `in_progress`.

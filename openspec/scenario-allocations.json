@@ -1032,6 +1032,120 @@
       "id": "TEST-AXES-124",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser levels bind canonical identity and installed dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-125",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance admits explicit reviewed-empty selected scope"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-126",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance refuses contradictory empty authority"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-127",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser Performance preserves committed authority versions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-128",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios preserve complete outcomes and unobserved rows"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-129",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios diagnose only terminal active citations"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-130",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios refuse authority and selection drift"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-131",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser scenarios preserve installed dispatch and canonical identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-132",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger retains complete observations and v1 compatibility"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-133",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger refuses closed authority and exact observation join faults"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-134",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger preserves outcomes and source debt without cross-level credit"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-135",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger validates the full tree and installed dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-136",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger preserves full observations without Performance execution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-137",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger refuses strict authorities and broken observation joins"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-138",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger retains outcomes manual observations and labelled debt"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-139",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger validates full tree installed dispatch and legacy compatibility"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-140",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 retains the complete citation partition and diagnostic identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-141",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 separates citation observations from ledger debt and command status"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-142",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 refuses invalid joins and incomplete or conflicting partitions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-143",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 preserves source installed parity and strict trusted boundaries"
     }
   ]
 }

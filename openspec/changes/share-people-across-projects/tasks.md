@@ -414,7 +414,7 @@ does not fan out twice`. R5: fan out on any insertion, compare only input hash, 
       Reconciled on the merged integration branch in
       [the 6j/6k reconciliation](verify.md#6j-and-6k-reconciliation-on-current-main-batch-10).
 - [x] 6l. **Replay and release closure.** RED real event-log/realtime and mounted tests:
-      `crash after commit before push replays from a cold process`, `pushRecorded preserves
+      `commit before push replays from a cold composition`, `pushRecorded preserves
 sequence`, `push failure retains durable event`, `expired replay requires snapshot` and
       `unauthorized subscription cannot replay cause`. R5: skip durable insert, allocate another
       sequence during push, depend on memory-only replay and bypass replay authority separately.
@@ -428,6 +428,19 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       declared dependency (Fable decision, 2026-10-11): replay authorization owed by
       organization-ownership-and-access 6.1/6.2; `unauthorized subscription cannot replay cause`
       moves there and is not built here.
+
+- [x] 6l.process. **Real process crash/replay acceptance (WBS 010.4.16).**
+      On published #522 head `5bffd8ebefff8ad2da4820db89d0aa409a542cdb`, add a disposable
+      migrated A/B shared-person fixture with Fast and optimization off. Start an authenticated
+      mounted command in an actual Bun writer, observe its committed estimate and exact durable
+      B←A row independently before transport returns, SIGKILL only that owned process and await
+      its death. A different-PID fresh production composition with an empty replay buffer resumes
+      from the mounted pre-edit tree cursor and reads B's Ana slice [3,4), holder A and one
+      elsewhere wait. Repeated resume produces no event or persistence change; foreign and removed
+      principals are denied. Watch skipped fan-out, removed durable fallback, duplicate recording,
+      suppressed binding, ignored shared input and bypassed membership fail separately.
+      See [the process acceptance checkpoint](verify.md#real-process-crashreplay-acceptance-2026-10-16).
+      This is local acceptance evidence; canonical host gate, CI and review remain separate.
 
 ## 7. fe
 
@@ -444,8 +457,12 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       lets a shared organization stop sharing, and confirms before switching. After Fable's review
       of #324 the reply also carries `canSwitch` (super-admin in person); everyone else reads why
       there is no switch, and the confirm line says switching back restores the dates.
-      Owed (recorded, not done): an eye review of `/organization` on the dev stack and an
-      e2e/pixel screen of it; no screens capture covers that page yet.
+      Local browser/pixel acceptance is recorded in verify.md under "Organization browser/pixel
+      acceptance (010.4.16, 2026-10-16)". The ordinary production-preview `/organization` fixture
+      covers release-unavailable precedence, supported-release caller permission, malformed GET
+      refusal, reload/no PATCH, geometry and panel captures at 375/1280 in light/dark.
+      An attended eye review on the dev stack remains owed; local fixtures do not prove installed
+      dev binding, shared activation, live delivery or the remaining 010.4.16 work.
 - [x] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card. Done as a holder the
       read does not label: `GanttDataError`, not a sentence blaming nobody; and in be-01 a slice
       naming an unlabelled holder fails the read. Evidence: verify.md "UI 7 port (batch 10)".
@@ -496,6 +513,15 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       registry-qualified solver digest; record the exact reference and both feasible responses.
       Accepted the existing docker.io/library/puni-compose-backend digest on pop-os, 2026-10-16;
       exact reference and temporary-supervisor receipt are recorded in verify.md.
+
+- [x] 9.5 Add installed dev supervisor acceptance with explicit expected source/digest, ordered
+      poll/devsync/production locks, installed prerequisite observation, existing-caller handshake,
+      pre-bound exact managed-child inspection, both feasible revalidated scenarios, bounded owned
+      child-removal readback and stable service invocation receipt. Record focused TDD and watched
+      production negatives separately from attended installed acceptance.
+- [ ] 9.6 Run attended installed dev supervisor acceptance on its host after the expected source,
+      compatible installed binding, local selected image and existing dev caller are available.
+      Record the structured receipt; this proves neither API/browser acceptance nor shared activation.
 
 ## 10. Audited shared backup restore activation
 

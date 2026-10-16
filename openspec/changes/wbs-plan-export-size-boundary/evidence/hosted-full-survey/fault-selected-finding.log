@@ -1,0 +1,20 @@
+25 |     },
+26 |   ],
+27 |   'baseline selected finding differs',
+28 | );
+29 | // Proof: the hosted production baseline used as a candidate must fail this assertion.
+30 | assert(
+     ^
+AssertionError: selected plan-export finding remains
+ generatedMessage: false,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-proof/assert-full.mjs:30:1
+
+::error file=proof/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-proof/assert-full.mjs,line=30,col=1,title=AssertionError: selected plan-export finding remains::%0A      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-proof/assert-full.mjs:30:1
+
+Bun v1.4.2 (Linux x64)

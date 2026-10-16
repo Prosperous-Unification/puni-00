@@ -39,6 +39,18 @@ export interface TeamWithServices extends ServiceTeam {
 }
 
 /**
+ * A change to one team: a new name, a new owned set, or both.
+ *
+ * `serviceIds` is a full replacement: an absent field leaves the map alone,
+ * while an empty array makes the team own nothing. A patch naming neither
+ * is refused rather than answered as a no-op.
+ */
+export interface TeamPatch {
+  name?: string;
+  serviceIds?: readonly string[];
+}
+
+/**
  * Somebody who does work. Not an account on this tool.
  *
  * `kind` is **required, because every row read back carries one**: the column is

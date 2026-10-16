@@ -232,6 +232,9 @@
     },
     {
       "file": "vitest.view-level.test.ts"
+    },
+    {
+      "file": "src/components/wbs/hover-card-placement.test.ts"
     }
   ]
 }

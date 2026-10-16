@@ -2,8 +2,10 @@
 
 ### Requirement: Toasts are drawn above every modal surface
 
-A toast SHALL be drawn above any open modal surface, dialog or sheet, so that the
-point at a toast's centre hit-tests to the toast. A toast's dismiss control SHALL
+A toast SHALL be drawn above any open modal surface, including Project settings
+and the keyboard shortcuts sheet, so that the point at a toast's centre hit-tests
+to the toast. A portalled hint or fact opened from a control on a modal surface
+SHALL be drawn above that surface and below toasts. A toast's dismiss control SHALL
 answer a tap while a modal surface is open, and dismissing it SHALL leave that
 surface open.
 
@@ -13,18 +15,34 @@ surface open.
 - **THEN** the toast `This file is not JSON.` is drawn above the still-open sheet
 - **AND** tapping its dismiss control removes the toast and leaves the sheet open
 
+#### Scenario: a toast over Project settings
+
+- **WHEN** an error toast stands while Project settings is open, alone or over the phone's Plan actions sheet
+- **THEN** tapping its dismiss control leaves Project settings and the sheet under it open
+
+#### Scenario: a toast over keyboard shortcuts
+
+- **WHEN** an error toast stands while the keyboard shortcuts sheet is open
+- **THEN** the point at the toast's centre hit-tests to the toast
+
+#### Scenario: a fact card over a reference sheet
+
+- **WHEN** a reader with a mouse rests on an option in a phone reference sheet
+- **THEN** its fact card is painted above that sheet and below toasts
+
 ### Requirement: The project list shows every name whole
 
 Each entry in the header's project list SHALL show the project's whole name,
 wrapping onto further lines when it is wider than the list, and SHALL NOT cut
 the name at the list's edge. The list SHALL stay inside the window and the page
-SHALL NOT scroll sideways. The closed picker SHALL carry the whole name in its
-fact card.
+SHALL NOT scroll sideways. Below 768px the list SHALL use the window's width
+less its margins. The closed picker SHALL carry the whole name in its fact card.
+The open change `project-dropdown-details` follows the same wrapping rule.
 
 #### Scenario: two imports of one long plan
 
 - **WHEN** a reader with `Twilight Shipyards roadmap 2026 (imported 15 Oct)` and `Twilight Shipyards roadmap 2026 (imported 15 Oct, 2)` opens the project list at 1440, 1024 or 375px
-- **THEN** both names are drawn whole, dates included, and the list ends inside the window
+- **THEN** both names are drawn whole, dates included, on at most two lines, and the list ends inside the window
 
 ### Requirement: Picker names stay readable without widening a sheet
 

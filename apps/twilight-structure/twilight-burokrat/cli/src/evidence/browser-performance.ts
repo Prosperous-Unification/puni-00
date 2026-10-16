@@ -8,18 +8,32 @@ import { readExternalArtifact } from '../policy/trust';
 import { compareCanonicalText, hashBytes, hashCanonical } from './content-manifest';
 import { inspectTestReports } from './test-reports';
 
-const Authority = type({
-  schemaVersion: '1',
+const Identity = {
   revision: /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/,
   candidate: /^[0-9a-f]{64}$/,
   mode: "'ordinary'|'packaged'|'portable'",
   reportObservationDigest: /^[0-9a-f]{64}$/,
+  projectRoot: RelativePath,
+  projectManifest: type({ path: RelativePath, digest: /^[0-9a-f]{64}$/ }).onUndeclaredKey('reject'),
+} as const;
+const Declaration = {
   declaration: type({ path: RelativePath, digest: /^[0-9a-f]{64}$/ }).onUndeclaredKey('reject'),
   config: type({ path: RelativePath, digest: /^[0-9a-f]{64}$/ }).onUndeclaredKey('reject'),
   project: 'string>=1',
-  projectRoot: RelativePath,
-  projectManifest: type({ path: RelativePath, digest: /^[0-9a-f]{64}$/ }).onUndeclaredKey('reject'),
-}).onUndeclaredKey('reject');
+} as const;
+// Proof: making disposition or empty kind optional failed TEST-AXES-126's named production schema refusals.
+// Proof: widening v2 version/disposition or removing outer/empty/committed closure failed TEST-AXES-126/127's production schema refusals.
+const Authority = type({ schemaVersion: '1', ...Identity, ...Declaration })
+  .onUndeclaredKey('reject')
+  .or(
+    type({
+      schemaVersion: '2',
+      ...Identity,
+      performance: type({ kind: "'reviewed-empty'" })
+        .onUndeclaredKey('reject')
+        .or(type({ kind: "'committed'", ...Declaration }).onUndeclaredKey('reject')),
+    }).onUndeclaredKey('reject'),
+  );
 
 function decodeJson(bytes: Uint8Array, subject: string): unknown {
   let text: string;
@@ -38,7 +52,8 @@ function decodeJson(bytes: Uint8Array, subject: string): unknown {
 }
 
 /**
- * Joins a complete Browser report to one pinned project's entire decoded Performance declaration.
+ * Joins a complete Browser report to one pinned project's committed or explicitly reviewed-empty Performance membership.
+ * Version 1 retains committed behavior; version 2 requires a closed explicit disposition.
  * Reads selected Git bytes without executing candidate code. Other memberships remain unknown;
  * overlap or its absence establishes no classification, isolation, execution, coverage or admission.
  * @throws when authority, report, selected sources or the Performance declaration cannot be joined exactly.
@@ -118,9 +133,14 @@ export function inspectBrowserPerformance(
     )
   )
     throw new Error('Browser Performance collection escapes declared project scope');
+  const membership =
+    authority.schemaVersion === 1
+      ? { kind: 'committed' as const, ...authority }
+      : authority.performance;
   // Proof: removing this guard lost TEST-AXES-113's duplicate pinned-path refusal.
   if (
-    new Set([authority.projectManifest.path, authority.declaration.path, authority.config.path])
+    membership.kind === 'committed' &&
+    new Set([authority.projectManifest.path, membership.declaration.path, membership.config.path])
       .size !== 3
   )
     throw new Error('Browser Performance pinned paths must be distinct');
@@ -182,46 +202,71 @@ export function inspectBrowserPerformance(
     Array.isArray(manifest.targets)
   )
     throw new Error('Browser Performance project manifest is malformed');
-  const declarationSource = readSource(authority.declaration.path);
-  // Proof: removing this guard lost TEST-AXES-113's declaration byte-pin refusal.
-  if (declarationSource.contentDigest !== authority.declaration.digest)
-    throw new Error('Browser Performance declaration digest differs from selected blob');
-  // Proof: bypassing shared decoding lost TEST-AXES-114's malformed declaration refusals.
-  const declaration = decodePerformanceCases(
-    decodeJson(declarationSource.bytes, 'Browser Performance declaration'),
-  );
-  // Proof: substituting its digest failed TEST-AXES-112; TEST-AXES-114 also refuses a negative-zero threshold.
-  const declarationDigest = digestPerformanceDeclaration(declaration);
-  // Proof: removing this guard lost TEST-AXES-114's declaration/config mismatch refusal.
-  if (declaration.config !== authority.config.path)
-    throw new Error('Browser Performance declaration config differs from authority');
-  // Proof: removing this guard lost TEST-AXES-113's declaration/project mismatch refusal.
-  if (declaration.project !== authority.project)
-    throw new Error('Browser Performance declaration project differs from authority');
-  const configSource = readSource(authority.config.path);
-  // Proof: removing this guard lost TEST-AXES-113's config byte-pin refusal.
-  if (configSource.contentDigest !== authority.config.digest)
-    throw new Error('Browser Performance config digest differs from selected blob');
-  // Proof: removing this guard lost TEST-AXES-114's empty-fixture selection refusal.
-  if (declaration.cases.length === 0)
-    throw new Error('Browser Performance fixture selection is empty');
-  // Proof: omitting complete reads accepted TEST-AXES-114's missing disjoint fixture despite working repair.
-  for (const performanceCase of declaration.cases) readSource(performanceCase.fixture);
-  // Proof: reversing fixtures or retaining duplicates failed TEST-AXES-112's complete fixture-set assertion.
-  const selectedFiles = [
-    ...new Set(declaration.cases.map((performanceCase) => performanceCase.fixture)),
-  ].sort(compareCanonicalText);
-  const performanceMembership = {
-    kind: 'committed' as const,
-    ...authority.declaration,
-    declaration,
-    declarationDigest,
-    config: authority.config,
-    project: authority.project,
-    selectedFiles,
-    // Proof: returning all fixtures populated TEST-AXES-112's disjoint intersection.
-    files: selectedFiles.filter((path) => collection.includes(path)),
-  };
+  const performanceMembership = (() => {
+    // Proof: treating every v2 authority as empty failed TEST-AXES-127's committed parity assertion.
+    if (membership.kind === 'reviewed-empty') {
+      // Proof: independently removing either target check failed TEST-AXES-126 despite a working manifest repair.
+      if (
+        Object.hasOwn(manifest.targets, 'test:performance') ||
+        Object.hasOwn(manifest.targets, 'test:performance:level')
+      )
+        throw new Error(
+          'Browser Performance reviewed-empty contradicts committed Performance target',
+        );
+      const declarationPath = `${authority.projectRoot}/performance-cases.json`;
+      // Proof: independently dropping exact-file or descendant matching failed TEST-AXES-126's selected declaration contradictions.
+      if (
+        selected.entries.some(
+          (entry) => entry.path === declarationPath || entry.path.startsWith(`${declarationPath}/`),
+        )
+      )
+        throw new Error(
+          'Browser Performance reviewed-empty contradicts committed Performance declaration',
+        );
+      // Proof: emitting unknown failed TEST-AXES-125's exact reviewed-empty membership assertion.
+      return { kind: 'reviewed-empty' as const };
+    }
+    const declarationSource = readSource(membership.declaration.path);
+    // Proof: removing this guard lost TEST-AXES-113's declaration byte-pin refusal.
+    if (declarationSource.contentDigest !== membership.declaration.digest)
+      throw new Error('Browser Performance declaration digest differs from selected blob');
+    // Proof: bypassing shared decoding lost TEST-AXES-114's malformed declaration refusals.
+    const declaration = decodePerformanceCases(
+      decodeJson(declarationSource.bytes, 'Browser Performance declaration'),
+    );
+    // Proof: substituting its digest failed TEST-AXES-112; TEST-AXES-114 also refuses a negative-zero threshold.
+    const declarationDigest = digestPerformanceDeclaration(declaration);
+    // Proof: removing this guard lost TEST-AXES-114's declaration/config mismatch refusal.
+    if (declaration.config !== membership.config.path)
+      throw new Error('Browser Performance declaration config differs from authority');
+    // Proof: removing this guard lost TEST-AXES-113's declaration/project mismatch refusal.
+    if (declaration.project !== membership.project)
+      throw new Error('Browser Performance declaration project differs from authority');
+    const configSource = readSource(membership.config.path);
+    // Proof: removing this guard lost TEST-AXES-113's config byte-pin refusal.
+    if (configSource.contentDigest !== membership.config.digest)
+      throw new Error('Browser Performance config digest differs from selected blob');
+    // Proof: removing this guard lost TEST-AXES-114's empty-fixture selection refusal.
+    if (declaration.cases.length === 0)
+      throw new Error('Browser Performance fixture selection is empty');
+    // Proof: omitting complete reads accepted TEST-AXES-114's missing disjoint fixture despite working repair.
+    for (const performanceCase of declaration.cases) readSource(performanceCase.fixture);
+    // Proof: reversing fixtures or retaining duplicates failed TEST-AXES-112's complete fixture-set assertion.
+    const selectedFiles = [
+      ...new Set(declaration.cases.map((performanceCase) => performanceCase.fixture)),
+    ].sort(compareCanonicalText);
+    return {
+      kind: 'committed' as const,
+      ...membership.declaration,
+      declaration,
+      declarationDigest,
+      config: membership.config,
+      project: membership.project,
+      selectedFiles,
+      // Proof: returning all fixtures populated TEST-AXES-112's disjoint intersection.
+      files: selectedFiles.filter((path) => collection.includes(path)),
+    };
+  })();
   const observation = {
     schemaVersion: 1 as const,
     kind: 'browser-performance' as const,

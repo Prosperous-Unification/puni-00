@@ -1,7 +1,14 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { diagonalPlacement, HoverCard, sidewaysPlacement, surfacePlacement } from './hover-card';
+import {
+  besidePlacement,
+  diagonalPlacement,
+  HoverCard,
+  sidewaysPlacement,
+  surfacePlacement,
+} from './hover-card';
+import * as placement from './hover-card-placement';
 import { HoverPreview } from './hover-preview';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -321,5 +328,14 @@ describe('a hint card past its cell and past its row', () => {
         bottom: 100,
       }),
     ).toEqual({ left: 0, top: 40 });
+  });
+});
+
+describe('the component module preserves its placement exports', () => {
+  it('reexports the same four geometry functions', () => {
+    expect(diagonalPlacement).toBe(placement.diagonalPlacement);
+    expect(surfacePlacement).toBe(placement.surfacePlacement);
+    expect(besidePlacement).toBe(placement.besidePlacement);
+    expect(sidewaysPlacement).toBe(placement.sidewaysPlacement);
   });
 });

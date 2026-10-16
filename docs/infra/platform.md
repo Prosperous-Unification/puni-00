@@ -375,8 +375,10 @@ exposition captured from the pinned image, or when the pinned image changes
 without a new capture.
 
 Follow-up: the loss ends when a collector-contrib release retries timed-out
-bulk requests. None did up to v0.162.0 (2026-09-29): `esclient.go` still refuses
-`context.DeadlineExceeded` and `factory.go` registers no `WithRetry`. Before
+bulk requests. The source audit now extends through v0.163.0 (released
+2026-10-14, checked 2026-10-16): `esclient.go` still refuses
+`context.DeadlineExceeded` and `factory.go` registers no `WithRetry`
+([primary-source audit](../../openspec/changes/log-failure-records/verify.md#upstream-audit-2026-10-16)). Before
 bumping the pinned image, rerun the 60 s hung-connection drill from the
 [log-failure-records verify record](../../openspec/changes/log-failure-records/verify.md),
 recapture the exposition, and keep the old version unless the drill shows zero

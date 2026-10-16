@@ -1,5 +1,55 @@
 ## ADDED Requirements
 
+### Requirement: Browser scenario observations join isolated publication and whole-tree specifications
+
+`inspect-browser-scenarios` SHALL join the real isolated Browser levels observation to complete B3 specification evaluation before filtering the requested capability. It SHALL require exact committed revision, candidate, mode, policy and canonical upstream digest identity and explicit external scenarios authority. It SHALL preserve full nested levels and specifications reports and policy identity. Only a terminal title prefix `[SCENARIO-ID] ` SHALL cite an adopted active scenario. Missing, malformed and inactive citations SHALL remain findings with case identity and outcome; active citations for other capabilities SHALL remain visible. Every adopted requested scenario SHALL have its observed cases with original passed/failed/skipped outcomes or unobserved-in-selection. Findings SHALL emit JSON and exit one; unobserved rows alone SHALL exit zero. Refusals SHALL emit stderr without JSON. The schema-1 envelope SHALL bind the complete canonical digest, absent authentication and false certification. Candidate files SHALL never execute and supplied observation JSON SHALL not be accepted. No coverage or admission follows.
+
+#### Scenario: [TEST-AXES-128] Browser scenarios preserve complete outcomes and unobserved rows
+
+- **GIVEN** an isolated real Browser publication and adopted requested scenarios
+- **WHEN** production joins complete B3 selection
+- **THEN** all passed failed skipped observations and unobserved rows remain visible with full noncertifying identity
+
+#### Scenario: [TEST-AXES-129] Browser scenarios diagnose only terminal active citations
+
+- **GIVEN** missing malformed unknown retired and other-capability citations
+- **WHEN** production reads terminal titles only
+- **THEN** invalid citations produce findings and other active capability observations remain visible
+
+#### Scenario: [TEST-AXES-130] Browser scenarios refuse authority and selection drift
+
+- **GIVEN** identity digest policy isolation or whole-tree B3 disagreement
+- **WHEN** production joins its real dependencies
+- **THEN** it refuses by name without partial JSON
+
+#### Scenario: [TEST-AXES-131] Browser scenarios preserve installed dispatch and canonical identity
+
+- **GIVEN** supported and unsupported operands and the built installed executable
+- **WHEN** scenario inspection runs
+- **THEN** source and installed observations agree and every envelope field is digest bound
+
+### Requirement: Browser Performance explicitly reviewed-empty membership
+
+Version 1 Browser Performance authority SHALL retain its committed behavior and output. Version 2 SHALL require the same revision/candidate/mode/report/project-root/manifest identity and a closed `performance` disposition: `{kind:'reviewed-empty'}` or `{kind:'committed',declaration,config,project}` with the existing path/digest pins. It SHALL validate every Browser selected source and pinned manifest before membership. Reviewed-empty SHALL reject any own `test:performance` or `test:performance:level` target, and any selected entry at `<projectRoot>/performance-cases.json` or beneath that path, including malformed, symlink or directory declarations. Working-tree replacement or deletion SHALL not repair selected contradictions. Empty authority SHALL emit exactly reviewed-empty membership with complete Browser/manifest source union, preserving all report outcomes, unknown unrelated rows, absent authentication, false certification and full-envelope digest. It SHALL not claim a Performance execution or coverage result.
+
+#### Scenario: [TEST-AXES-125] Browser Performance admits explicit reviewed-empty selected scope
+
+- **GIVEN** exact real Browser publication and explicit v2 empty authority over a committed manifest without Performance target or declaration
+- **WHEN** source and installed commands inspect selected Git bytes
+- **THEN** they preserve complete report identity and outcomes and emit only reviewed-empty Performance membership with false certification
+
+#### Scenario: [TEST-AXES-126] Browser Performance refuses contradictory empty authority
+
+- **GIVEN** selected Performance targets or a declaration entry, malformed authority or mismatched source identity
+- **WHEN** reviewed-empty authority is inspected despite working repairs
+- **THEN** production refuses by name without JSON
+
+#### Scenario: [TEST-AXES-127] Browser Performance preserves committed authority versions
+
+- **GIVEN** equivalent v1 and explicit v2 committed authorities
+- **WHEN** production inspects the entire declaration and source selection
+- **THEN** committed membership remains identical and legacy output remains unchanged
+
 ### Requirement: Browser level composition joins complete real observations
 
 `inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>` SHALL invoke the real Browser Memberships, Conformance, Architecture and Performance readers and accept no supplied observation JSON. It SHALL require an exact committed requested snapshot, matching revision/candidate/mode, independently correct full report and observation digests, identical complete nonempty sorted unique collection, matching project roots and manifest pins and agreeing overlapping selected-source tuples. Missing, extra or duplicate collection or source identities, missing Browser or pinned manifest source tuples, unreadable authority and inherited upstream refusals SHALL refuse without JSON. A final real Browser report read SHALL refuse any publication identity, complete collection or digest drift during composition.
@@ -977,3 +1027,77 @@ The observation SHALL retain the complete Browser report and outcomes, parsed au
 
 - **WHEN** complete report cases, shared fixtures, authority bytes, selected bytes, outcomes or bounded command arguments change
 - **THEN** complete canonical observation identity and sorted unique arrays reflect all relevant changes, and source and installed dispatch preserve named refusals and noncertifying output
+
+### Requirement: Version two scenario ledger joins Browser observations
+
+The unchanged ledger command SHALL accept a closed version-2 external authority retaining all version-1 fields and requiring `browser` with mode, canonical absolute external reviewAuthorityPath, conformanceAuthorityPath, architectureAuthorityPath, performanceAuthorityPath and observationDigest. It SHALL invoke the real Browser scenario inspector with all four authorities even without Browser obligations. Supplied observation bodies SHALL refuse. Version-1 inputs, outputs, digest and refusals SHALL remain unchanged.
+
+Before assigning obligations, version two SHALL verify complete canonical Browser, levels and report digests; exact revision, candidate, capability, mode, policy and nested report identities; absent authentication and false certification; identical full Performance/Browser B3 reports and requested scenario inventories. It SHALL preserve both full observations in a schema-2 envelope. Only automated Browser lowest-level obligations SHALL use complete Browser cases: all passed means passing-in-selection, any failed means failed-in-selection, otherwise any skipped means skipped-in-selection, and absence means unobserved-in-selection. Failed, skipped and unobserved verdicts SHALL remain debt. Other levels SHALL receive no Browser satisfaction. Both citation sources SHALL retain source labels, shared unidentified B3 debt SHALL appear once, valid debt SHALL exit one with JSON, refusal SHALL emit stderr without JSON, and zero debt SHALL remain noncertifying.
+
+#### Scenario: [TEST-AXES-132] Browser ledger retains complete observations and v1 compatibility
+
+- **WHEN** a version-two obligation authority selects real Browser and Performance observations
+- **THEN** complete upstream observations and canonical identity remain, and version one retains its exact behavior
+
+#### Scenario: [TEST-AXES-133] Browser ledger refuses closed authority and exact observation join faults
+
+- **WHEN** external authority, nested identities, digests, diagnostic boundaries or complete B3 inventories differ
+- **THEN** the production command refuses before obligations without partial JSON even after repinning outer digests
+
+#### Scenario: [TEST-AXES-134] Browser ledger preserves outcomes and source debt without cross-level credit
+
+- **WHEN** Browser cases pass, fail, skip or remain unobserved and either citation source has debt
+- **THEN** full cases and outcomes remain, only Browser obligations receive their verdicts, source citation debt remains and shared unidentified debt appears once
+
+#### Scenario: [TEST-AXES-135] Browser ledger validates the full tree and installed dispatch
+
+- **WHEN** an unrelated B3 conflict exists or the installed executable consumes the same version-two authority
+- **THEN** the conflict refuses before capability filtering and installed output, digest and exit behavior match source dispatch
+
+### Requirement: Browser-only capability scenario ledger
+
+The system SHALL provide `inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` and typed `inspectBrowserScenarioLedger`. Its closed schema-one authority SHALL contain revision, candidate, capability, Browser mode/four membership authority paths/observation digest, and the existing closed obligation dispositions. It SHALL call the real Browser scenario inspector without requiring separate Performance execution evidence or level authority. All four Browser membership authorities, including Performance membership, SHALL remain mandatory. Existing scenario-ledger v1/v2 output and refusals SHALL remain unchanged.
+
+#### Scenario: [TEST-AXES-136] Browser-only ledger preserves full observations without Performance execution
+
+- **WHEN** real Browser/JUnit/B3 evidence and four Browser membership authorities exist without a Performance execution publication or level authority
+- **THEN** every adopted requested row and complete Browser observation is retained, obligations sort canonically, authentication is absent, certification is false and the digest binds the complete diagnostic
+
+#### Scenario: [TEST-AXES-137] Browser-only ledger refuses strict authorities and broken observation joins
+
+- **WHEN** authority schema/path/readability/UTF8, exact SHA/identity/policy/mode/digest or complete B3 joins fail, including with no Browser obligations
+- **THEN** the production command refuses without partial JSON and every Browser authority remains mandatory
+
+#### Scenario: [TEST-AXES-138] Browser-only ledger retains outcomes manual observations and labelled debt
+
+- **WHEN** Browser cases pass, fail, skip or are absent, obligations are missing/inapplicable/unsupported, Manual reports are evaluated, or unrelated B3 and citation debt exists
+- **THEN** only automated Browser lowest-level obligations receive Browser credit, real Manual joins retain outcomes and debt, citation debt is labelled Browser once, and debt emits complete JSON with exit one
+
+#### Scenario: [TEST-AXES-139] Browser-only ledger validates full tree installed dispatch and legacy compatibility
+
+- **WHEN** unrelated competing overlays exist or source and installed commands inspect passing/debt/refused inputs
+- **THEN** full-tree conflicts refuse before capability filtering and installed dispatch agrees with source while old v1/v2 behavior remains exact
+
+### Requirement: Browser T2 diagnostic consumer
+
+The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` and typed `inspectBrowserT2`, consuming `inspectBrowserScenarioLedger` directly. It SHALL retain exact revision/candidate/capability/instant/publication scope, complete nested ledger with digest and policy identity, complete original citation findings, absent authentication, false certification and a canonical complete-payload digest. It SHALL enumerate every Browser ReportCase exactly once sorted by caseId, preserving the full record and a citation verdict `cited` with scenarioId, `missing`, `malformed` or `inactive`.
+
+#### Scenario: [TEST-AXES-140] Browser T2 retains the complete citation partition and diagnostic identity
+
+- **WHEN** real committed Browser evidence includes active citations in the requested or another capability, missing/malformed/inactive terminal citations and passed/failed/skipped cases
+- **THEN** every report case has exactly one complete sorted row and correct verdict, original findings and nested ledger remain complete, and the full digest identifies only a noncertifying diagnostic
+
+#### Scenario: [TEST-AXES-141] Browser T2 separates citation observations from ledger debt and command status
+
+- **WHEN** real Browser ledger obligations create unassigned/unsupported/unobserved/manual or outcome debt, with or without invalid citations
+- **THEN** a valid T2 diagnostic retains all ledger debt and original findings and exits zero without allowed, covered or passed admission claims
+
+#### Scenario: [TEST-AXES-142] Browser T2 refuses invalid joins and incomplete or conflicting partitions
+
+- **WHEN** returned ledger or nested Browser/report identity, policy, scope, authentication, certification or digest differs, or citations/findings omit, duplicate, conflict with or alter a report case
+- **THEN** production dispatch exits one with a named refusal and no partial JSON
+
+#### Scenario: [TEST-AXES-143] Browser T2 preserves source installed parity and strict trusted boundaries
+
+- **WHEN** source and built installed dispatch inspect valid debt-bearing evidence, or a required authority is missing/unreadable/malformed or CLI selection/instant/arity is invalid
+- **THEN** valid JSON and exit behavior match exactly, and invalid trusted state refuses with no partial JSON through both entry points

@@ -1,3 +1,4 @@
+import { ADMIT_PROGRESS_FLAGS, runAdmitProgress } from './admit-progress';
 import { PLAN_REFERENCE_FLAGS, runPlanReference } from './plan-reference';
 import { RECEIPT_TO_COMMANDS_FLAGS, runReceiptToCommands } from './receipt-to-commands';
 
@@ -13,6 +14,7 @@ export class UsageRefusal extends Error {
 export type FlagValues<Flag extends string> = (flag: Flag) => string;
 
 const COMMAND_FLAGS = {
+  'admit-progress': ADMIT_PROGRESS_FLAGS,
   'plan-reference': PLAN_REFERENCE_FLAGS,
   'receipt-to-commands': RECEIPT_TO_COMMANDS_FLAGS,
 } as const;
@@ -75,6 +77,8 @@ function parseFlags<const Flag extends string>(
 export async function runNavigator(argv: readonly string[]): Promise<string> {
   const [name = '', ...flagArguments] = argv;
   switch (name) {
+    case 'admit-progress':
+      return await runAdmitProgress(parseFlags(ADMIT_PROGRESS_FLAGS, flagArguments));
     case 'plan-reference':
       return await runPlanReference(parseFlags(PLAN_REFERENCE_FLAGS, flagArguments));
     case 'receipt-to-commands':

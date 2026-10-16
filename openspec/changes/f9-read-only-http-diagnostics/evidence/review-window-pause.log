@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+(fail) convergence clamps slow initial and final requests and oversized pauses to its window [1503.74ms]
+  ^ this test timed out after 1500ms.
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1.61s]

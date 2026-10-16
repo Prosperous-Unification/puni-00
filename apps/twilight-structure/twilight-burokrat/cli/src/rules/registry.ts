@@ -48,6 +48,7 @@ const classificationRule: RegisteredRule = {
 };
 
 const directEntriesRule: RegisteredRule = {
+  coverageExclusionCodes: ['not-index-declaration'],
   id: 'MOD-DIRECT-ENTRIES',
   family: 'modules',
   statement: 'A module index declares no more direct entries than the reviewed limit.',
@@ -139,6 +140,7 @@ const relationshipsRule: RegisteredRule = {
 };
 
 const sizeRatchetRule: RegisteredRule = {
+  coverageExclusionCodes: ['outside-size-input'],
   id: 'F7',
   family: 'code-shape',
   statement:

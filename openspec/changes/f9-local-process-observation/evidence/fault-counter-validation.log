@@ -1,0 +1,67 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [18.45ms]
+(pass) unknown launcher arguments cannot impersonate the Vite launcher [4.39ms]
+(pass) refuses absent and unreadable required memory state [4.14ms]
+ 96 |     const { cgroup, proc, roots } = await fixture();
+ 97 |     const path = file.startsWith('../proc/')
+ 98 |       ? join(proc, file.slice('../proc/42/'.length))
+ 99 |       : join(cgroup, file);
+100 |     await writeFile(path, text);
+101 |     await rejects(observeProcesses({ cgroup, samples: 1, intervalMs: 0, windowMs: 1000 }, roots));
+                ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: undefined,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:101:11
+(fail) refuses malformed counters, PID identity, status and cgroup membership [21.19ms]
+(pass) refuses oversized files and more than 256 exact members [6.77ms]
+(pass) refuses foreign directories and symlink escapes [3.39ms]
+(pass) refuses invalid bounds before inspecting filesystem [0.68ms]
+(pass) deadline refuses an interval exceeding remaining budget [42.07ms]
+(pass) CLI rejects extra lifecycle arguments before reading files [20.20ms]
+(pass) refuses identity and membership changes after command inspection [63.41ms]
+(pass) CLI local watchdog exits during a stalled required read [65.26ms]
+(pass) refuses unsafe executable text instead of logging it [3.92ms]
+(pass) refuses cgroup directory replacement during process inspection [31.25ms]
+(pass) library deadline rejects a stalled read and leaves no long pause running [134.05ms]
+(pass) refuses exec changes within the same PID start time [31.75ms]
+(pass) refuses unreadable required state independently from absent state [2.50ms]
+(pass) refuses missing required event counters and malformed process fields [7.48ms]
+(pass) refuses nonregular required state [1.81ms]
+(pass) rejects a FIFO required file without leaving a blocked reader [32.06ms]
+(pass) refuses a nondirectory cgroup path before reading member files [1.89ms]
+404 |
+405 | test('retains only complete emitted observations when a later sample fails', async () => {
+406 |   const { cgroup, roots } = await fixture();
+407 |   const { writeFileSync } = await import('node:fs');
+408 |   const emitted: unknown[] = [];
+409 |   await rejects(observeProcesses({ cgroup, samples: 2, intervalMs: 0, windowMs: 1000 }, roots, (sample) => {
+              ^
+AssertionError: Missing expected rejection.
+ generatedMessage: false,
+     actual: undefined,
+   expected: /malformed memory counter/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at innerFail (node:assert:50:27)
+      at expectsError (node:assert:385:14)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:409:9
+(fail) retains only complete emitted observations when a later sample fails [4.63ms]
+
+ 19 pass
+ 2 fail
+ 34 expect() calls
+Ran 21 tests across 1 file. [537.00ms]

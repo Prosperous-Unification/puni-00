@@ -1,0 +1,16 @@
+{
+  "executable": "/home/runner/work/puni-00/puni-00/consumer/node_modules/.bin/twib",
+  "argv": [
+    "check",
+    "committed",
+    "/home/runner/work/puni-00/puni-00/candidate",
+    "26732f5440eed8123540202b6dc8eba966835244",
+    "/home/runner/work/puni-00/puni-00/receipts/recovery-full-policy.json"
+  ],
+  "revision": "26732f5440eed8123540202b6dc8eba966835244",
+  "policySha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c",
+  "startedAt": "2026-10-16T06:55:50.008Z",
+  "endedAt": "2026-10-16T06:59:21.929Z",
+  "exitCode": 1,
+  "signal": null
+}

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+108 |   expect(calls).toBe(0);
+109 | });
+110 |
+111 | test('rejects invalid request deadline without fetching', async () => {
+112 |   const origin = serve(() => new Response('<div id="root"></div>'));
+113 |   await expect(observeWeb(origin, 0)).rejects.toThrow('deadline');
+                                                    ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:113:47)
+(fail) rejects invalid request deadline without fetching [5.24ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [39.00ms]

@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:
+killed 1 dangling process
+(fail) bounds and sanitizes runtime stall [2006.85ms]
+  ^ this test timed out after 2000ms.
+
+ 0 pass
+ 69 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.08s]

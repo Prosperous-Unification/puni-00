@@ -201,21 +201,4 @@ export async function verifyRecoveryCleanup(
 }
 
 if (import.meta.main) await runRecoveryLab(process.argv.slice(2));
-/** Refuses unrelated platform samples as evidence about the first observed forge container. */
-export function requireMemoryEvidence(samples: string, pod: PodObservation): void {
-  const source = samples
-    .split('/sys/fs/cgroup/')
-    .filter((sample) =>
-      sample.split('\n')[0]?.includes(`pod${pod.uid}/${pod.container.slice(13)}`),
-    );
-  // Proof: platform-only and missing-peak samples fail their first-source evidence tests.
-  if (
-    !source.some((sample) =>
-      ['memory.current', 'memory.peak', 'memory.events', 'VmRSS:'].every((metric) =>
-        sample.includes(metric),
-      ),
-    )
-  ) {
-    throw new Error('first source container memory/RSS evidence absent');
-  }
-}
+export { validateSourceMemory as requireMemoryEvidence } from './forge-source-memory-evidence';

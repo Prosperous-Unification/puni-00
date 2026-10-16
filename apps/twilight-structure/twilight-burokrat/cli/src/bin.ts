@@ -32,11 +32,15 @@ const validatorCommands = new Set([
   'inspect-manual',
   // Proof: removing registration made the installed executable reject the documented command.
   'inspect-manual-observation',
+  // Proof: omitting registration made the built coverage dispatch test report unknown command before installed authority.
+  'inspect-evaluation-coverage',
   'inspect-performance',
   // Proof: removing this registration made the built executable reject the command before
   // the validator's named usage refusal (installed-dispatch.test.ts).
   'inspect-performance-sources',
   'inspect-test-reports',
+  // Proof: removing registration failed TEST-AXES-131's built installed Browser scenario dispatch.
+  'inspect-browser-scenarios',
   // Proof: removing registration failed TEST-AXES-124's built installed Browser level dispatch.
   'inspect-browser-levels',
   'inspect-test-sources',
@@ -51,6 +55,10 @@ const validatorCommands = new Set([
   'inspect-performance-scenarios',
   // Proof: removing registration failed TEST-AXES-106's built installed ledger dispatch.
   'inspect-scenario-ledger',
+  // Proof: removing registration failed TEST-AXES-139's real built installed dispatch.
+  'inspect-browser-scenario-ledger',
+  // Proof: registration removal failed TEST-AXES-143's built installed diagnostic parity.
+  'inspect-browser-t2',
   // Proof: removing this registration failed TEST-AXES-095's real installed executable success.
   'inspect-browser-memberships',
   // Proof: removing registration failed TEST-AXES-115's real built installed executable dispatch.
@@ -70,7 +78,9 @@ commands:
   twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
+  twilight-burokrat inspect-evaluation-coverage <repository> <full-sha> <external-rule-policy> <external-coverage-review>
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
+  twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>
   twilight-burokrat inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
@@ -79,6 +89,8 @@ commands:
   twilight-burokrat inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
   twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
+  twilight-burokrat inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>
+  twilight-burokrat inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>
   twilight-burokrat inspect-scenario-ledger <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability> <external-ledger-authority> --now <UTC instant>
   twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>
   twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
