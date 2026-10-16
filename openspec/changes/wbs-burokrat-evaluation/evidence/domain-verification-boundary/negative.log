@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/domain-organization.controller.db.test.ts:
+{"level":"error","time":1792162619608,"service":"be-01","err":{"occurrence_id":"AE_65B1G4Z7V0XZ6KX0JP4YCR1GMT","fingerprint":"fp1_ca89ab395a40731e73051197bfba160b","stack":["Error: owned domain 977950cd-7b4c-407a-ba2c-e30f405f5b35 lacks retained proof state","    at <anonymous> (/tmp/puni-domain-verification-sol/libs/wbs/adapters/store-sqlite/src/domain-claim.ts:363:27)","    at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-restore-activation-sol/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/home/df/wd/puni/puni-00/.worktrees/shared-restore-activation-sol/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/puni-domain-verification-sol/libs/wbs/adapters/store-sqlite/src/domain-claim.ts:302:24)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+259 |     };
+260 |     expect(
+261 |       await harness.call('owner', 'POST', `/api/organization/domains/${issued.id}/verify`),
+262 |     ).toEqual({ status: 500, body: 'Internal Server Error' });
+263 |     // The commit guard would also throw; zero lookups pins the throw to capture.
+264 |     expect(lookups).toBe(0);
+                          ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-domain-verification-sol/apps/wbs/be-01/src/controller/domain-organization.controller.db.test.ts:264:21)
+(fail) mounted organization domain challenges > throws when a suspended claim lacks retained timestamps at capture [132.97ms]
+
+ 0 pass
+ 52 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1.86s]
