@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts:
+116 |     '@types/react',
+117 |     '@types/react-dom',
+118 |     'arktype/node_modules/@ark/schema',
+119 |     'arktype/node_modules/@ark/util',
+120 |   ])
+121 |     expect(names).toContain(name);
+                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "yaml"
+Received: [
+  "@ark/schema", "@ark/util", "@babel/code-frame", "@babel/helper-validator-identifier",
+  "@babel/runtime", "@hono/node-server", "@jridgewell/resolve-uri", "@jridgewell/sourcemap-codec",
+  "@jridgewell/trace-mapping", "@modelcontextprotocol/sdk", "@modelcontextprotocol/sdk/node_modules/zod",
+  "@noble/hashes", "@opentelemetry/api", "@opentelemetry/core", "@opentelemetry/exporter-prometheus",
+  "@opentelemetry/resources", "@opentelemetry/sdk-metrics", "@opentelemetry/semantic-conventions",
+  "@oxc-project/types", "@pinojs/redact", "@radix-ui/primitive", "@radix-ui/react-compose-refs",
+  "@radix-ui/react-context", "@radix-ui/react-dialog", "@radix-ui/react-dismissable-layer",
+  "@radix-ui/react-focus-guards", "@radix-ui/react-focus-scope", "@radix-ui/react-id", "@radix-ui/react-portal",
+  "@radix-ui/react-presence", "@radix-ui/react-primitive", "@radix-ui/react-slot", "@radix-ui/react-use-callback-ref",
+  "@radix-ui/react-use-controllable-state", "@radix-ui/react-use-effect-event", "@radix-ui/react-use-layout-effect",
+  "@rolldown/pluginutils", "@sinclair/typebox", "@tanstack/history", "@tanstack/react-router",
+  "@tanstack/react-router/node_modules/@tanstack/react-store", "@tanstack/react-router/node_modules/@tanstack/react-store/node_modules/@tanstack/store",
+  "@tanstack/react-store", "@tanstack/react-table", "@tanstack/router-core", "@tanstack/store",
+  "@tanstack/table-core", "@testing-library/dom", "@testing-library/dom/node_modules/aria-query",
+  "@testing-library/dom/node_modules/dom-accessibility-api", "@testing-library/react",
+  "@types/aria-query", "@types/chai", "@types/debug", "@types/deep-eql", "@types/estree-jsx",
+  "@types/estree-jsx/node_modules/@types/estree", "@types/hast", "@types/mdast", "@types/ms",
+  "@types/node", "@types/react", "@types/react-dom", "@types/unist", "@typescript/old", "@ungap/structured-clone",
+  "@vitest/mocker", "@vitest/spy", "accepts", "accepts/node_modules/mime-types", "accepts/node_modules/mime-types/node_modules/mime-db",
+  "ajv", "ajv-formats", "ansi-regex", "application-exception", "aria-hidden", "arkregex", "arkregex/node_modules/@ark/util",
+  "arktype", "arktype/node_modules/@ark/schema", "arktype/node_modules/@ark/util", "assertion-error",
+  "atomic-sleep", "bail", "body-parser", "body-parser/node_modules/content-type", "body-parser/node_modules/iconv-lite",
+  "bun-types", "bytes", "call-bind-apply-helpers", "call-bound", "caught-object-report-json",
+  "ccount", "chai", "character-entities", "character-entities-html4", "character-entities-legacy",
+  "character-reference-invalid", "class-variance-authority", "clsx",
+  ... 250 more items
+]
+
+      at <anonymous> (/tmp/puni-wbs120-yaml-closure-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts:121:19)
+(fail) the release closure includes the reviewed supported declaration roots and nested Ark instances [14.67ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [455.00ms]

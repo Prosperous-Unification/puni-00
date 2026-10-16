@@ -1,0 +1,17 @@
+Command: ["bun", "test", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts", "--test-name-pattern", "extracts supported vendor relationships and public declarations outside the checkout"]
+CWD: /tmp/puni-wbs120-yaml-closure-sol-20261016
+Source HEAD: acb0a68a86848bea0ad00fe5e3a7f3b7eed0ddac
+Source tree: 8aa11026f2a6d4fd7b84c2a2de996e4e2f013beb
+Production blob: f458eb59a6a40234f71ef1f4db499ad366d78a38
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:
+(pass) packed Twilight Burokrat installation > extracts supported vendor relationships and public declarations outside the checkout [8535.08ms]
+
+ 1 pass
+ 9 filtered out
+ 0 fail
+ 24 expect() calls
+Ran 1 test across 1 file. [9.18s]
+
+Exit: 0

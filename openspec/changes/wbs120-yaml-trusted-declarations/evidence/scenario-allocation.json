@@ -1,0 +1,22 @@
+{
+  "events": [
+    {
+      "kind": "allocate",
+      "id": "YAML-TRUSTED-DECLARATIONS-001",
+      "source": "openspec/changes/wbs120-yaml-trusted-declarations/specs/yaml-trusted-declarations/spec.md",
+      "title": "Installed consumer resolves the real YAML parser"
+    },
+    {
+      "kind": "allocate",
+      "id": "YAML-TRUSTED-DECLARATIONS-002",
+      "source": "openspec/changes/wbs120-yaml-trusted-declarations/specs/yaml-trusted-declarations/spec.md",
+      "title": "Missing or altered trusted YAML is refused"
+    },
+    {
+      "kind": "allocate",
+      "id": "YAML-TRUSTED-DECLARATIONS-003",
+      "source": "openspec/changes/wbs120-yaml-trusted-declarations/specs/yaml-trusted-declarations/spec.md",
+      "title": "Unsupported candidate dependency stays outside the closure"
+    }
+  ]
+}

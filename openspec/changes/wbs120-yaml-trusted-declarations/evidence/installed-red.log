@@ -1,0 +1,32 @@
+Command: ["bun", "test", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts", "--test-name-pattern", "extracts supported vendor relationships and public declarations outside the checkout"]
+CWD: /tmp/puni-wbs120-yaml-closure-sol-20261016
+Source HEAD: acb0a68a86848bea0ad00fe5e3a7f3b7eed0ddac
+Source tree: 8aa11026f2a6d4fd7b84c2a2de996e4e2f013beb
+Production blob: c9ccee6159ee73b8481145988b14b57e7f9c7b5f
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:
+333 |     const extracted = invokeWithoutWorkspace(
+334 |       executable,
+335 |       ['extract-relationships', 'committed', repository, revision, request],
+336 |       consumer,
+337 |     );
+338 |     expect(extracted.exitCode, extracted.stderr.toString()).toBe(0);
+                                                                  ^
+error: TypeScript import unresolved: src/index.ts -> 'yaml'
+Twilight Burokrat validator exited 1
+
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-wbs120-yaml-closure-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:338:61)
+(fail) packed Twilight Burokrat installation > extracts supported vendor relationships and public declarations outside the checkout [3478.23ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [4.09s]
+
+Exit: 1
