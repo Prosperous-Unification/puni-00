@@ -326,7 +326,7 @@ async function facts(setup: Setup) {
 function writeAuthority(setup: Setup, authority: unknown = setup.authority) {
   writeFileSync(setup.authorityPath, JSON.stringify(authority));
 }
-async function commit(setup: Setup) {
+async function commit(setup: Setup, manifest: 'readable' | 'absent' = 'readable') {
   git(setup.root, ['add', projectRoot]);
   git(setup.root, ['commit', '-m', 'selection change']);
   setup.revision = git(setup.root, ['rev-parse', 'HEAD']);
@@ -342,7 +342,10 @@ async function commit(setup: Setup) {
   setup.authority.revision = setup.revision;
   setup.authority.candidate = setup.report['candidate'];
   setup.authority.reportObservationDigest = setup.report['observationDigest'];
-  setup.authority.projectManifest.digest = hashBytes(readFileSync(join(setup.root, manifestPath)));
+  if (manifest === 'readable')
+    setup.authority.projectManifest.digest = hashBytes(
+      readFileSync(join(setup.root, manifestPath)),
+    );
   writeAuthority(setup);
 }
 function target(setup: Setup, replacement: unknown) {
@@ -354,6 +357,210 @@ function target(setup: Setup, replacement: unknown) {
 const envelope = (command: string) => ({
   executor: 'nx:run-commands',
   options: { command, cwd: projectRoot, forwardAllArgs: false },
+});
+
+function authorityV2(setup: Setup, kind: 'committed' | 'reviewed-empty') {
+  return { ...setup.authority, schemaVersion: 2, conformance: { kind } };
+}
+
+async function prepareEmpty() {
+  const setup = await prepare();
+  writeFileSync(join(setup.root, manifestPath), JSON.stringify({ targets: {} }));
+  await commit(setup);
+  writeAuthority(setup, authorityV2(setup, 'reviewed-empty'));
+  return setup;
+}
+
+test('[TEST-AXES-116] explicit reviewed-empty binds complete Browser and manifest sources', async () => {
+  const setup = await prepareEmpty();
+  target(setup, envelope(command)); // Working target does not contradict committed absence.
+  const observed = await facts(setup);
+  expect(observed['schemaVersion']).toBe(1);
+  expect(observed['report']).toEqual(setup.report);
+  expect(observed['collection']).toEqual([file]);
+  expect(observed['projectRoot']).toBe(projectRoot);
+  expect(observed['projectManifest']).toEqual(setup.authority.projectManifest);
+  expect(observed['memberships']).toEqual({
+    conformance: { kind: 'reviewed-empty' },
+    manual: { kind: 'unknown' },
+    architecture: { kind: 'unknown' },
+    performance: { kind: 'unknown' },
+  });
+  expect(observed['sources']).toEqual([
+    { path: file, mode: '100644', contentDigest: hashBytes(readFileSync(join(setup.root, file))) },
+    { path: manifestPath, mode: '100644', contentDigest: setup.authority.projectManifest.digest },
+  ]);
+  expect(observed['authentication']).toEqual({ kind: 'absent' });
+  expect(observed['certifies']).toBe(false);
+  expect(observed['authorityDigest']).toBe(hashBytes(readFileSync(setup.authorityPath)));
+  const { observationDigest, ...payload } = observed;
+  expect(observationDigest).toBe(hashCanonical(payload));
+});
+
+test('[TEST-AXES-117] closed versions and explicit dispositions refuse invalid authority', async () => {
+  const setup = await prepareEmpty();
+  const valid = authorityV2(setup, 'reviewed-empty');
+  for (const authority of [
+    { ...setup.authority, schemaVersion: 2 },
+    { ...valid, schemaVersion: 3 },
+    { ...valid, schemaVersion: 1 },
+    { ...valid, extra: true },
+    { ...valid, conformance: null },
+    { ...valid, conformance: {} },
+    { ...valid, conformance: { kind: 'unknown' } },
+    { ...valid, conformance: { kind: 'reviewed-empty', files: [] } },
+    { ...valid, conformance: { kind: 'committed', extra: true } },
+  ]) {
+    writeAuthority(setup, authority);
+    await refuse(setup, 'Browser Conformance authority is invalid');
+  }
+  const committed = await prepare();
+  for (const authority of [
+    { ...authorityV2(committed, 'committed'), schemaVersion: 3 },
+    { ...authorityV2(committed, 'committed'), conformance: { kind: 'unknown' } },
+  ]) {
+    writeAuthority(committed, authority);
+    await refuse(committed, 'Browser Conformance authority is invalid');
+  }
+});
+
+test('[TEST-AXES-117] every present committed Conformance value contradicts reviewed-empty', async () => {
+  const setup = await prepare();
+  for (const replacement of [null, false, {}, [], 'unsupported', envelope(command)]) {
+    target(setup, replacement);
+    await commit(setup);
+    writeAuthority(setup, authorityV2(setup, 'reviewed-empty'));
+    writeFileSync(join(setup.root, manifestPath), JSON.stringify({ targets: {} }));
+    await refuse(setup, 'Browser Conformance reviewed-empty contradicts committed target');
+  }
+});
+
+test('[TEST-AXES-117] reviewed-empty retains malformed and unreadable manifest refusals', async () => {
+  for (const [bytes, diagnostic] of [
+    ['{}', 'project manifest is malformed'],
+    ['{"targets":null}', 'project manifest is malformed'],
+    ['{"targets":false}', 'project manifest is malformed'],
+    ['{"targets":[]}', 'project manifest is malformed'],
+    ['{', 'project manifest JSON is malformed'],
+    [new Uint8Array([0xff]), 'project manifest is not UTF-8'],
+  ] as const) {
+    const setup = await prepare();
+    writeFileSync(join(setup.root, manifestPath), bytes);
+    await commit(setup);
+    writeAuthority(setup, authorityV2(setup, 'reviewed-empty'));
+    writeFileSync(join(setup.root, manifestPath), JSON.stringify({ targets: {} }));
+    await refuse(setup, diagnostic);
+  }
+  const setup = await prepareEmpty();
+  fault(
+    setup,
+    '../inventory/read-blob.ts',
+    `readSelectedBlob: (...args) => { if(args[3] === ${JSON.stringify(manifestPath)}) throw new Error('injected unreadable empty manifest'); return actual.readSelectedBlob(...args); }`,
+    'Browser Conformance cannot read selected blob',
+  );
+});
+
+test('[TEST-AXES-117] reviewed-empty refuses absent nonregular manifest and absent unreadable authority', async () => {
+  for (const kind of ['missing', 'symlink'] as const) {
+    const setup = await prepareEmpty();
+    rmSync(join(setup.root, manifestPath));
+    if (kind === 'symlink') symlinkSync('case.test.ts', join(setup.root, manifestPath));
+    await commit(setup, 'absent');
+    writeAuthority(setup, authorityV2(setup, 'reviewed-empty'));
+    rmSync(join(setup.root, manifestPath), { force: true });
+    writeFileSync(join(setup.root, manifestPath), JSON.stringify({ targets: {} }));
+    await refuse(setup, 'Browser Conformance source is not a selected regular blob');
+  }
+  const setup = await prepareEmpty();
+  rmSync(setup.authorityPath);
+  await refuse(setup, 'ENOENT');
+  mkdirSync(setup.authorityPath);
+  await refuse(setup, 'EISDIR');
+});
+
+test('[TEST-AXES-118] legacy output bytes and explicit committed disjoint membership remain stable', async () => {
+  const setup = await prepare();
+  const legacy = {
+    schemaVersion: 1,
+    kind: 'browser-conformance',
+    report: setup.report,
+    authorityDigest: hashBytes(readFileSync(setup.authorityPath)),
+    projectRoot,
+    projectManifest: setup.authority.projectManifest,
+    collection: [file],
+    sources: [file, manifestPath, other].map((path) => ({
+      path,
+      mode: '100644',
+      contentDigest: hashBytes(readFileSync(join(setup.root, path))),
+    })),
+    memberships: {
+      conformance: {
+        kind: 'committed',
+        target: 'test:conformance',
+        selectedFiles: [file, other],
+        files: [file],
+      },
+      manual: { kind: 'unknown' },
+      architecture: { kind: 'unknown' },
+      performance: { kind: 'unknown' },
+    },
+    authentication: { kind: 'absent' },
+    certifies: false,
+  };
+  expect((await inspectConformance(setup)).stdout).toBe(
+    `${JSON.stringify({ ...legacy, observationDigest: hashCanonical(legacy) })}\n`,
+  );
+  target(setup, envelope('bun test ./z.test.ts --timeout=1'));
+  await commit(setup);
+  writeAuthority(setup, authorityV2(setup, 'committed'));
+  const observed = await facts(setup);
+  expect(observed['memberships']).toEqual({
+    ...legacy.memberships,
+    conformance: {
+      kind: 'committed',
+      target: 'test:conformance',
+      selectedFiles: [other],
+      files: [],
+    },
+  });
+  expect(observed['sources']).toHaveLength(3);
+  const empty = await prepareEmpty();
+  writeAuthority(empty, authorityV2(empty, 'committed'));
+  await refuse(empty, 'Conformance target is unsupported');
+});
+
+test('[TEST-AXES-119] reviewed-empty retains complete identity outcomes and raw authority digest', async () => {
+  const setup = await prepareEmpty();
+  publishCases(setup, [
+    { title: 'failed', status: 'failed' },
+    { title: 'skipped', status: 'skipped' },
+  ]);
+  setup.report = await observation(setup);
+  setup.authority.reportObservationDigest = setup.report['observationDigest'];
+  const valid = authorityV2(setup, 'reviewed-empty');
+  writeAuthority(setup, valid);
+  const original = await facts(setup);
+  expect(original['report']).toEqual(setup.report);
+  writeFileSync(setup.authorityPath, JSON.stringify(valid, null, 2));
+  const changed = await facts(setup);
+  expect(changed['authorityDigest']).not.toBe(original['authorityDigest']);
+  expect(changed['observationDigest']).not.toBe(original['observationDigest']);
+  const { observationDigest, ...payload } = changed;
+  expect(observationDigest).toBe(hashCanonical(payload));
+  for (const [key, value, diagnostic] of [
+    ['revision', '0'.repeat(40), 'authority revision differs'],
+    ['candidate', '0'.repeat(64), 'authority candidate differs'],
+    ['mode', 'portable', 'authority mode differs'],
+    ['reportObservationDigest', '0'.repeat(64), 'authority report digest differs'],
+    [
+      'projectManifest',
+      { ...valid.projectManifest, digest: '0'.repeat(64) },
+      'manifest digest differs',
+    ],
+  ] as const) {
+    writeAuthority(setup, { ...valid, [key]: value });
+    await refuse(setup, diagnostic);
+  }
 });
 
 test('[TEST-AXES-100] complete overlap binds selected Git sources without executing candidate code', async () => {
@@ -714,7 +921,7 @@ test('[TEST-AXES-102] missing nonregular and unreadable selected manifest cannot
   }
 });
 
-test('[TEST-AXES-103] built installed executable dispatches the complete observation and named usage', async () => {
+test('[TEST-AXES-119] built installed executable dispatches legacy and reviewed-empty observations and named refusals', async () => {
   const setup = await prepare();
   const packageRoot = mkdtempSync(join(tmpdir(), 'browser-conformance-package-'));
   scratch.push(packageRoot);
@@ -735,6 +942,43 @@ test('[TEST-AXES-103] built installed executable dispatches the complete observa
   );
   expect(call.exitCode, call.stderr.toString()).toBe(0);
   expect(JSON.parse(call.stdout.toString())).toEqual(await facts(setup));
+  const empty = await prepareEmpty();
+  const reviewed = Bun.spawnSync(
+    [
+      process.execPath,
+      executable,
+      'inspect-browser-conformance',
+      empty.root,
+      empty.revision,
+      empty.policyPath,
+      mode,
+      empty.authorityPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(reviewed.exitCode, reviewed.stderr.toString()).toBe(0);
+  expect(reviewed.stdout.toString()).toBe((await inspectConformance(empty)).stdout);
+  target(empty, null);
+  await commit(empty);
+  writeAuthority(empty, authorityV2(empty, 'reviewed-empty'));
+  const contradiction = Bun.spawnSync(
+    [
+      process.execPath,
+      executable,
+      'inspect-browser-conformance',
+      empty.root,
+      empty.revision,
+      empty.policyPath,
+      mode,
+      empty.authorityPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(contradiction.exitCode).toBe(1);
+  expect(contradiction.stdout.toString()).toBe('');
+  expect(contradiction.stderr.toString()).toContain(
+    'Browser Conformance reviewed-empty contradicts committed target',
+  );
   const unsupported = Bun.spawnSync([process.execPath, executable, 'inspect-browser-conformance'], {
     stdout: 'pipe',
     stderr: 'pipe',
