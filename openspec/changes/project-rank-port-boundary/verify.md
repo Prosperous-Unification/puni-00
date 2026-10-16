@@ -93,7 +93,7 @@ core/backend TypeScript builds. Nx reported denied worker sockets and used its
 supported in-process plugin fallback. No typecheck task was skipped.
 
 OpenSpec validation: **215 items passed, 0 failed** (197 changes, 18 specs).
-Raw scoped output is retained in `evidence/`.
+Scoped output is retained in `evidence/`; the lint transcript normalizes CRLF.
 Core scoped Nx lint passed with zero errors. Prettier check passed for both
 production files and all change Markdown files; `git diff --check` passed.
 
