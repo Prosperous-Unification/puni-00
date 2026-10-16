@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+87 |     '--kubeconfig', '/missing-kubeconfig', '--context', 'unused', '--pod', 'dev-test'],
+88 |     { cwd: new URL('../../../../', import.meta.url).pathname, stdout: 'pipe', stderr: 'pipe' });
+89 |   const output = await new Response(child.stderr).text();
+90 |   expect(await child.exited).not.toBe(0);
+91 |   expect(output).toContain('CHECK FAILED: web serves index.html');
+92 |   expect(output).toContain('"path":"/"');
+                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "\"path\":\"/\""
+Received: "71 |     ),\n72 |   };\n73 | }\n74 | \n75 | function check(condition: boolean, message: string): void {\n76 |   if (!condition) throw new Error(`CHECK FAILED: ${message}`);\n                                 ^\nerror: CHECK FAILED: web serves index.html\n      at check (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/dev-environment-check.ts:76:29)\n      at checkHttp (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/dev-environment-check.ts:140:3)\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:92:18)
+(fail) checker first failure emits evidence before any mutating phase [962.16ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [990.00ms]

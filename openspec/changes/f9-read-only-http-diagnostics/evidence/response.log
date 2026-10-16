@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+23 |   expect(JSON.stringify(observation)).not.toContain('private');
+24 | });
+25 |
+26 | test('retains denial status and refuses a missing root marker', async () => {
+27 |   expect(await observeWeb(serve(() => new Response('denied', { status: 403 })), 1000))
+28 |     .toMatchObject({ status: 403, rootMarker: false, failure: 'response' });
+          ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "failure": "response",
++   "contentType": "text/plain;charset=utf-8",
++   "durationMs": 1.7112860000000012,
++   "failure": null,
++   "path": "/",
+    "rootMarker": false,
+    "status": 403,
+  }
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:28:6)
+(fail) retains denial status and refuses a missing root marker [4.51ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [35.00ms]

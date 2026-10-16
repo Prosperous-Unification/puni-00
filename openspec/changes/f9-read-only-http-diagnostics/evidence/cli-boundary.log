@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+185 |   );
+186 |   const timeout = setTimeout(() => child.kill('SIGKILL'), 1000);
+187 |   try {
+188 |     const stderr = await new Response(child.stderr).text();
+189 |     expect(await child.exited).not.toBe(0);
+190 |     expect(stderr).toContain('Usage: forge-http-observation.ts');
+                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Usage: forge-http-observation.ts"
+Received: ""
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:190:20)
+(fail) read-only CLI refuses mutation arguments before opening a connection [1004.41ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1033.00ms]

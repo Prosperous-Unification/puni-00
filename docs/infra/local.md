@@ -270,6 +270,21 @@ listed in [verification](../../openspec/changes/forge-restart-state/verify.md#on
 No later lab or warm retry replaces them. The CLI will remain unavailable until the lab owner's
 creation-receipt contract is designed and proven, including partial creation and name races.
 
+### Read-only HTTP observation
+
+The first web check now bounds headers and body and includes status, path, content type,
+root-marker presence and duration on failure. To observe later availability separately:
+
+```sh
+bun tools/tool-devsync/src/k3s/forge-http-observation.ts http://<slug>.localhost:<port>
+```
+
+This issues GET / only for a fixed 30-second window and retains the immediate verdict even
+when later responses succeed. Its exit status reflects that immediate verdict. It never
+runs the full checker, which writes the database and edits files. Responses are limited to
+64KiB, redirects are refused, and response content is not logged. This HTTP slice supplies
+no process/cgroup identity or remote sampler and does not explain the historical failures.
+
 ### Creation attempts and manual recovery
 
 Each k3d `up` durably reserves a distinct creation journal before creating resources, then

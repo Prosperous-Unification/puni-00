@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+222 |     if (new URL(request.url).pathname === '/') {
+223 |       return new Response(null, { status: 302, headers: { location: '/other' } });
+224 |     }
+225 |     return new Response('<div id="root"></div>');
+226 |   });
+227 |   expect(await observeWeb(origin, 1000)).toMatchObject({ status: 302, failure: 'response' });
+                                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "failure": "response",
+-   "status": 302,
++   "contentType": "text/plain;charset=utf-8",
++   "durationMs": 1.6314040000000034,
++   "failure": null,
++   "path": "/",
++   "rootMarker": true,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 6
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:227:42)
+(fail) read-only observer sends GET and refuses even a local redirect [4.72ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [39.00ms]
