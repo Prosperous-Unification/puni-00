@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { type PodObservation, type RecoveryDriver, rehearseRecovery } from './forge-recovery-check';
-import { observePod, requireMemoryEvidence } from './forge-recovery-lab';
+import { observePod } from './forge-recovery-lab';
 
 const initial: PodObservation = {
   uid: 'owned-pod',
@@ -223,26 +223,6 @@ test('accepts captured API edge-proxy denial after an immediately preceding full
   expect(report.ingressNegative).toBe('pass');
   expect(report.policyRestored).toBe('pass');
   expect(checks).toContain('restored');
-});
-
-test('refuses platform-only memory samples as first forge-container evidence', () => {
-  expect(() => {
-    requireMemoryEvidence(
-      '/sys/fs/cgroup/kubepods/platform\nmemory.current\n1\nmemory.peak\n2\nmemory.events\noom 0\nVmRSS: 1 kB',
-      initial,
-    );
-  }).toThrow('first source container memory/RSS evidence absent');
-});
-
-test('requires memory current, peak, events and RSS in the first source cgroup', () => {
-  const sample =
-    '/sys/fs/cgroup/kubepods/podowned-pod/first\nmemory.current\n1\nmemory.peak\n2\nmemory.events\noom 0\nVmRSS: 1 kB';
-  expect(() => {
-    requireMemoryEvidence(sample, initial);
-  }).not.toThrow();
-  expect(() => {
-    requireMemoryEvidence(sample.replace('memory.peak', 'omitted'), initial);
-  }).toThrow();
 });
 
 test('refuses inline escaped-newline and Unicode-separator ingress markers', async () => {

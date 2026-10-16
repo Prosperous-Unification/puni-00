@@ -1,0 +1,457 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+(pass) returns complete first-container evidence without readiness or OOM verdicts [0.86ms]
+(pass) refuses binding foreign Pod [0.09ms]
+(pass) refuses binding replacement container [0.01ms]
+(pass) refuses binding warm container
+(pass) refuses binding container prefix
+(pass) refuses binding empty Pod UID
+(pass) refuses binding invalid init PID
+(pass) refuses binding invalid init starttime
+(pass) refuses binding unsafe init PID
+(pass) refuses binding root cgroup [0.03ms]
+(pass) refuses binding dot cgroup [0.01ms]
+(pass) refuses binding relative cgroup
+(pass) refuses binding invalid device
+(pass) refuses binding invalid inode
+(pass) refuses sample sibling cgroup [0.05ms]
+(pass) refuses sample prefix cgroup
+(pass) refuses sample device
+(pass) refuses sample inode
+(pass) refuses absent or reused init [] [0.03ms]
+(pass) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.03ms]
+(pass) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: undefined,
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max undefined [0.50ms]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "max",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max max [0.12ms]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max  [0.08ms]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "-1",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max -1 [0.08ms]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2Gi",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max 2Gi [0.14ms]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483649",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max 2147483649 [0.06ms]
+100 |       requireMemoryEvidence(
+101 |         [{ ...sample, memory: { ...sample.memory, max } } as CgroupObservation],
+102 |         first,
+103 |         binding,
+104 |       ),
+105 |     ).toThrow('2Gi');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "2Gi"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "02147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:105:7)
+(fail) refuses invalid memory.max 02147483648 [0.06ms]
+(pass) refuses empty samples [0.08ms]
+(pass) refuses incomplete current [0.04ms]
+(pass) refuses incomplete peak [0.01ms]
+(pass) refuses incomplete missing oom
+(pass) refuses incomplete events [0.02ms]
+(pass) refuses incomplete event count
+(pass) refuses incomplete RSS [0.01ms]
+(pass) refuses incomplete threads
+(pass) refuses incomplete PPID
+(pass) refuses incomplete PID
+(pass) refuses incomplete starttime
+(pass) refuses incomplete executable
+(pass) refuses incomplete role
+(pass) refuses incomplete duplicate PID [0.19ms]
+(pass) refuses incomplete event name [0.06ms]
+(pass) refuses incomplete timestamp [0.03ms]
+(pass) refuses incomplete elapsed [0.02ms]
+(pass) refuses incomplete negative elapsed [0.01ms]
+(pass) refuses an incomplete later sample instead of crediting one complete sample [0.28ms]
+(pass) omits credential argv and injected restored success from returned evidence [0.30ms]
+
+7 tests failed:
+(fail) refuses invalid memory.max undefined [0.50ms]
+(fail) refuses invalid memory.max max [0.12ms]
+(fail) refuses invalid memory.max  [0.08ms]
+(fail) refuses invalid memory.max -1 [0.08ms]
+(fail) refuses invalid memory.max 2Gi [0.14ms]
+(fail) refuses invalid memory.max 2147483649 [0.06ms]
+(fail) refuses invalid memory.max 02147483648 [0.06ms]
+
+ 41 pass
+ 7 fail
+ 53 expect() calls
+Ran 48 tests across 1 file. [43.00ms]
