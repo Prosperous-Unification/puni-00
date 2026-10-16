@@ -147,19 +147,29 @@ export function sessionReadFault(
 }
 
 /**
- * The signed-out column's top padding per card: half the column's height above
- * the window's middle, never under 1rem. Literal classes, so Tailwind sees them.
+ * The signed-out column's top padding: half the refused sign-in column's height
+ * (about 31.5rem at 1440 and 375) above the window's middle, never under 1rem,
+ * so the resting sign-in page sits 12px high and a refusal only adds below.
+ * Literal, so Tailwind sees it.
  *
- * - `sign-in`: 15.5rem, half the refused sign-in column (about 31.5rem at 1440
- *   and 375; 29.5rem at rest, so the resting page sits 12px high).
- * - `outage`: 9.5rem, half the server-unavailable column (308px at 1440 and
- *   375), which does not grow. Under the sign-in anchor it stood 188px above
- *   true centre at 1440 (F-093).
+ * **One anchor for every card** (UI review F-125, decision D11): the word mark
+ * is the signed-out page's fixed point. Each card once padded by half its own
+ * height (9.5rem for the server-unavailable card), which centred each column
+ * on its own and dropped the word mark 96px between sign-in and outage at every
+ * width — so a Try again that succeeded jumped the page's one landmark. Under
+ * this anchor the outage card stands about 188px above true centre at 1440
+ * (the F-093 trade, now taken the other way): surfaces grow downward from the
+ * word mark (D3), whichever card is under it.
+ *
+ * Proof: `e2e/sign-in.spec.ts` `stands at one height on every signed-out card`
+ * failed at 1440, 1024 and 375 on `server unavailable: the word mark moved ·
+ * Expected: <= 0.5 · Received: 96` with the per-card paddings. Watched
+ * 2026-10-16.
  */
-const COLUMN_ANCHOR = {
-  'sign-in': 'pt-[max(1rem,calc(50dvh-15.5rem))]',
-  outage: 'pt-[max(1rem,calc(50dvh-9.5rem))]',
-} as const;
+const COLUMN_ANCHOR = 'pt-[max(1rem,calc(50dvh-15.5rem))]';
+
+/** Which card the signed-out column holds: a hook for tests, never a layout input. */
+type SignedOutCard = 'sign-in' | 'outage';
 
 /**
  * The signed-out page's one column (UI review F-052): the word mark, one line
@@ -170,7 +180,7 @@ const COLUMN_ANCHOR = {
  * grow downward): a centred column re-centred when the refusal line opened,
  * lifting the heading 16px. The top sits half the column's height above the
  * window's middle, so at rest it reads as centred and anything that opens only
- * adds below. The half is per card, in {@link COLUMN_ANCHOR}.
+ * adds below. Every card shares that one anchor, {@link COLUMN_ANCHOR}.
  *
  * The heading is the tracer for the Tailwind integration, and still the
  * assertion `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
@@ -188,14 +198,15 @@ function SignedOutPage({
   card,
   children,
 }: {
-  card: keyof typeof COLUMN_ANCHOR;
+  card: SignedOutCard;
   children: React.ReactNode;
 }): React.JSX.Element {
   return (
     <main
+      data-signed-out={card}
       className={cn(
         'bg-background text-foreground grid min-h-full items-start justify-items-center px-4 pb-4 font-sans sm:px-8',
-        COLUMN_ANCHOR[card],
+        COLUMN_ANCHOR,
       )}
     >
       <div data-sign-in className="grid w-full max-w-sm gap-6">
