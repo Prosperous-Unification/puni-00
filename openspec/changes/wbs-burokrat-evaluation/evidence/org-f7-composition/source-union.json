@@ -1,0 +1,60 @@
+{
+  "base": "87a2b7edbfaabae889d91daa823f16f520a51cec",
+  "head": "6da1e00a3d528ea4a31291c0b69a32fdcc4467c7",
+  "tree": "04999f7f556789e5b00f4c761b2a763db7f91ca4",
+  "sources": [
+    "9fbd972477f878ec3a847e4452f380cdca89b2cd",
+    "c46cb8313848f498722d0b7a47e7c7cdf9380354",
+    "7f52ba5093030c40f765a2197c55203b18d1bd89"
+  ],
+  "ancestor_exit_codes": {
+    "9fbd972477f878ec3a847e4452f380cdca89b2cd": 0,
+    "c46cb8313848f498722d0b7a47e7c7cdf9380354": 0,
+    "7f52ba5093030c40f765a2197c55203b18d1bd89": 0
+  },
+  "paths_checked": 7239,
+  "preserved_paths": 7235,
+  "multi_source_paths": [
+    {
+      "path": "CONTEXT.md",
+      "base": ["100644", "20910c6db86337aabe4db245baf3b9d5fa9c6845"],
+      "sources": [
+        ["100644", "fe9ab9b68609543f41c28431b547b6f4a6ddcc7d"],
+        ["100644", "20910c6db86337aabe4db245baf3b9d5fa9c6845"],
+        ["100644", "27597e08269f91cd311f7d47cc9ea839580d3cad"]
+      ],
+      "combined": ["100644", "c0b7ec59d6bc6d643eea411ce84ffe505dd4c8ff"]
+    },
+    {
+      "path": "docs/wiki-policy/bootstrap-policy.json",
+      "base": ["100644", "f203115013cc4f01892cd001676c753bfc5da768"],
+      "sources": [
+        ["100644", "f452b28458fe0af391f5a9e69d367dc53000b651"],
+        ["100644", "f203115013cc4f01892cd001676c753bfc5da768"],
+        ["100644", "223d560f1605fe82d9f7cee7f75e0594c64d6b8c"]
+      ],
+      "combined": ["100644", "74636e011404af841d0addc5d8a9730ac2502a87"]
+    },
+    {
+      "path": "docs/wiki-policy/policy.json",
+      "base": ["100644", "9d01590339cd3325e00f2daa98d9b0b7511e168d"],
+      "sources": [
+        ["100644", "196abd573ea079c7946b8ef4e69ce42c949d12b0"],
+        ["100644", "9d01590339cd3325e00f2daa98d9b0b7511e168d"],
+        ["100644", "5daec3d47e5ca92047795475e0efddcfed9908d0"]
+      ],
+      "combined": ["100644", "1b757e28917fc4da340f8f916c64e6ea65c06f16"]
+    },
+    {
+      "path": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "base": ["100644", "cf7973df76b9c54f6637e1377ab5211f64cf7d50"],
+      "sources": [
+        ["100644", "cf7973df76b9c54f6637e1377ab5211f64cf7d50"],
+        ["100644", "2f85737817101349a0ac2bccd756bd18aa43582b"],
+        ["100644", "6897abec822dd3acae56b5e9be67987d55e2a4e7"]
+      ],
+      "combined": ["100644", "6668580f861d77d8433101cf87dd9385c144e9bc"]
+    }
+  ],
+  "unexpected_paths": []
+}

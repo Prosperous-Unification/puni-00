@@ -183,3 +183,11 @@ the evidence-only commit also runs normal hooks with its outcome in
 `/tmp/organization-release-evidence-commit.log`. Exact successor review remains
 pending; no hosted-gate, full local gate, publication or external activation
 acceptance is inferred from these local results.
+
+## Local prerequisite and F7 composition
+
+The later unpublished composition preserves this aggregate and F7 ancestry;
+its exact source audit, declaration repairs, watched negatives and bounded
+verification limits are recorded in the
+[composition receipt](../wbs-burokrat-evaluation/evidence/org-f7-composition/verify.md).
+Full host, installed Tool Wiki and live organization acceptance remain pending.

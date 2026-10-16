@@ -1,0 +1,88 @@
+{
+  "base": "6da1e00a3d528ea4a31291c0b69a32fdcc4467c7",
+  "policies": "Each equals merge JSON plus exactly two gzip declarations; all baselines and source revisions preserved",
+  "memoryIndex": "Adds only memory-stores.ts membership",
+  "preservedWbs120Evidence": [
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/closure-green.log",
+      "blob": "8579a2f642a885ee130a2610397ee994fd7d899c"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/closure-red.log",
+      "blob": "8153e72511bb6e11487940707ffd70f345bbc8c3"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green-build-memory.jsonl",
+      "blob": "6cbd55b6d6a01ea6a133bdb7e57dd6ca435496a9"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green-build.log",
+      "blob": "c1600a67086ec04f5e27458a598aad5801616e20"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green-memory.jsonl",
+      "blob": "67627b48ce0c923456be7016f6713a515df28226"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green-pack-memory.jsonl",
+      "blob": "4beb4d53ced3fbd9f3e63a0ebe78f4ef2de71f8f"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green-pack.log.gz",
+      "blob": "5ea3a09047b89c5a03b97790d22ba19e0300c418"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-green.log",
+      "blob": "589a0e000844b312233b3ed53d0f3896223f8ba1"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-proof-runner.py",
+      "blob": "1ee9b3f01bdaede3a9fa70ba793850fa9e591baf"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-proof.json",
+      "blob": "ec7a69aa524b8e42e1eb5fd296443f123881d521"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red-build-memory.jsonl",
+      "blob": "1964b8c26f43e2227366bc0d1065818fb60c63f5"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red-build.log",
+      "blob": "d2e9513560512203264e165a813270c7f4b180bc"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red-memory.jsonl",
+      "blob": "ae6650b9cb33e19477f2b6c1eb6e86c25f08088d"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red-pack-memory.jsonl",
+      "blob": "0c5ea4317f4a15f1b931d49b90f0db9b97fd20ba"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red-pack.log.gz",
+      "blob": "399df12c54ce32827988e40a5d20650d6cf959dc"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/installed-red.log",
+      "blob": "0366b82257614e02c6a6d6d690dcb6d8aeccc25f"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/openspec-all.json",
+      "blob": "eb3f52362cfb398618fdf561395c18b8c75093a5"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/openspec-strict.json",
+      "blob": "710317f88da37ad4b5d1f070ab4d410724e6fe48"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/scenario-allocation.json",
+      "blob": "5450e221cbd3756f421087c9354d6a499d2a3666"
+    },
+    {
+      "path": "openspec/changes/wbs120-yaml-trusted-declarations/evidence/scoped-eslint.log",
+      "blob": "eb1b97389a8f6a491fcb6af63e701e752b92e7bf"
+    }
+  ],
+  "artifactCount": 20
+}
