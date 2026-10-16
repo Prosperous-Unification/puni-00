@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+341 |         setTimeout(() => {
+342 |           void server.stop(true);
+343 |         }, 60),
+344 |       );
+345 |     try {
+346 |       expect(await observeWeb(origin, 150)).toMatchObject({
+                                                  ^
+error: expect(received).toMatchObject(expected)
+
+  {
++   "contentType": null,
++   "durationMs": 150.79026499999998,
+    "failure": "deadline",
+-   "rootMarker": true,
++   "path": "/",
++   "rootMarker": false,
+    "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:346:45)
+(fail) retains a split root marker when the response later hangs or resets [158.45ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [199.00ms]

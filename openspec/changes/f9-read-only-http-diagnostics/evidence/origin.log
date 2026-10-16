@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+102 |   let calls = 0;
+103 |   const origin = serve(() => {
+104 |     calls += 1;
+105 |     return new Response('<div id="root"></div>');
+106 |   });
+107 |   await expect(observeWeb(origin.replace('http://', 'http://user@'), 50)).rejects.toThrow('loopback HTTP origin');
+                                                                                        ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:107:83)
+(fail) rejects credentials before opening the local fixture connection [5.86ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [39.00ms]

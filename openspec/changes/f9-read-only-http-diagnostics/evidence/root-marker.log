@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+50 |   expect(
+51 |     await observeWeb(
+52 |       serve(() => new Response('missing')),
+53 |       1000,
+54 |     ),
+55 |   ).toMatchObject({ status: 200, rootMarker: false, failure: 'response' });
+         ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "failure": "response",
++   "contentType": "text/plain;charset=utf-8",
++   "durationMs": 0.3628059999999991,
++   "failure": null,
++   "path": "/",
+    "rootMarker": false,
+    "status": 200,
+  }
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/f9-diagnostic-sol-oct16/tools/tool-devsync/src/k3s/forge-http-observation.test.ts:55:5)
+(fail) retains denial status and refuses a missing root marker [6.25ms]
+
+ 0 pass
+ 12 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [59.00ms]

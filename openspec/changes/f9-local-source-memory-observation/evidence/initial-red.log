@@ -1,0 +1,67 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:
+2 | import type { SourceMemoryEvidence } from './forge-source-memory-evidence';
+3 | interface LocalRuntime { readonly executable: string; readonly endpoint: string; readonly windowMs: number; }
+4 | interface LocalRoots { readonly procRoot: string; readonly cgroupRoot: string; }
+5 | export async function observeSourceMemory(_first: PodObservation, _runtime: LocalRuntime, _roots?: LocalRoots): Promise<SourceMemoryEvidence> {
+6 |   await Promise.resolve();
+7 |   throw new Error('local runtime observation not implemented');
+                ^
+error: local runtime observation not implemented
+      at observeSourceMemory (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.ts:7:13)
+      at async <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:85:26)
+(fail) discovers stable local source init and returns one sanitized validated sample [4.42ms]
+(pass) refuses foreign or malformed runtime identity {"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"} [2.71ms]
+(pass) refuses foreign or malformed runtime identity {"id":"aaaa"} [1.95ms]
+(pass) refuses foreign or malformed runtime identity {"metadata":{"name":"other"}} [1.71ms]
+(pass) refuses foreign or malformed runtime identity {"metadata":{}} [1.53ms]
+(pass) refuses foreign or malformed runtime identity {"state":"CONTAINER_EXITED"} [1.63ms]
+(pass) refuses foreign or malformed runtime identity {"labels":{"io.kubernetes.pod.uid":"foreign"}} [1.42ms]
+(pass) refuses runtime init PID 0 [1.89ms]
+(pass) refuses runtime init PID 1 [1.27ms]
+(pass) refuses runtime init PID -1 [1.56ms]
+(pass) refuses runtime init PID 1.5 [1.72ms]
+(pass) refuses runtime init PID 42 [1.76ms]
+(pass) refuses runtime init PID null [1.64ms]
+(pass) refuses second runtime inspection change {"info":{"pid":43}} [1.79ms]
+(pass) refuses second runtime inspection change {"status":{"state":"CONTAINER_EXITED"}} [1.53ms]
+(pass) refuses second runtime inspection change {"status":{"metadata":{"name":"other"}}} [1.39ms]
+(pass) refuses second runtime inspection change {"status":{"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}} [1.28ms]
+(pass) refuses second runtime inspection change {"status":{"labels":{"io.kubernetes.pod.uid":"foreign"}}} [1.71ms]
+(pass) refuses post-sample process identity change stat [1.44ms]
+(pass) refuses post-sample process identity change status [1.43ms]
+(pass) refuses post-sample process identity change cgroup [1.24ms]
+(pass) refuses replacement cgroup directory with the same path and files [1.51ms]
+(pass) refuses invalid unified membership "0::/../escape\n" [1.46ms]
+(pass) refuses invalid unified membership "0::/\n" [1.21ms]
+(pass) refuses invalid unified membership "1:memory:/source\n" [0.97ms]
+(pass) refuses invalid unified membership "0::/source\n1:cpu:/source\n" [1.21ms]
+(pass) refuses absent and unreadable required init stat [2.03ms]
+(pass) refuses absent and unreadable required init status [1.22ms]
+(pass) refuses absent and unreadable required init cgroup [1.54ms]
+(pass) refuses non-PID1 init before sampling [1.29ms]
+(pass) refuses oversized and symlink init state [2.02ms]
+(pass) bounds and sanitizes runtime malformed [2.03ms]
+(pass) bounds and sanitizes runtime oversize [1.45ms]
+(pass) bounds and sanitizes runtime stderr-oversize [1.42ms]
+(pass) bounds and sanitizes runtime exit [1.29ms]
+(pass) bounds and sanitizes runtime stall [1.39ms]
+(pass) refuses nonlocal or Docker endpoint tcp://host:1234 [1.48ms]
+(pass) refuses nonlocal or Docker endpoint ssh://host/run/containerd.sock [1.17ms]
+(pass) refuses nonlocal or Docker endpoint unix://host/run/containerd.sock [1.38ms]
+(pass) refuses nonlocal or Docker endpoint unix:///run/../docker.sock [1.37ms]
+(pass) refuses nonlocal or Docker endpoint unix:///run/docker.sock [1.26ms]
+(pass) refuses nonlocal or Docker endpoint  [1.77ms]
+(pass) refuses wrapper executable /usr/bin/docker [1.79ms]
+(pass) refuses wrapper executable /usr/bin/ssh [1.70ms]
+(pass) refuses wrapper executable crictl [1.30ms]
+(pass) refuses sampler failures and final missing init state without exposing paths [2.60ms]
+
+1 tests failed:
+(fail) discovers stable local source init and returns one sanitized validated sample [4.42ms]
+
+ 45 pass
+ 1 fail
+ 19 expect() calls
+Ran 46 tests across 1 file. [109.00ms]

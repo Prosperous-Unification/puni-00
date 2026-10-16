@@ -156,6 +156,95 @@ are recorded in
 [`forge-restart-state/verify.md`](../../openspec/changes/forge-restart-state/verify.md).
 Cold-start reliability remains an open F9 acceptance gap.
 
+### Local process observations
+
+For an attended diagnostic on Linux, explicitly select the exact cgroup-v2 directory
+in the same namespace as `/proc`, then run:
+
+```sh
+bun tools/tool-devsync/src/k3s/forge-process-observation.ts /sys/fs/cgroup/<exact-cgroup>
+```
+
+The command emits one JSON line per completed observation, at most 30 samples with
+one-second pauses inside a 30-second local deadline. Redirect stdout to a private evidence
+file outside the checkout. Required files must be readable. A missing, unreadable,
+malformed, oversized or changing identity fails the command; previous completed lines remain.
+Exit zero proves only that these observations completed.
+
+Each line records UTC time, elapsed time, the cgroup path/device/inode, memory current/peak/max/events, and exact
+`cgroup.procs` members with PID/start-time, PPID, executable basename, RSS in KiB, threads
+and a launcher role hint. Known second-argument Vite/Nx launcher paths yield `vite`/`nx`;
+other commands remain `unknown`. Raw argv, environment and command argument basenames
+are omitted. The hint is observational and cannot authenticate what code a process runs.
+
+The collector checks process identity, command/executable and exact membership around
+inspection and cgroup directory identity before emitting. Samples are sequential observations,
+not atomic snapshots. It does not enumerate descendant cgroups; their charges can appear in
+memory counters without appearing in the exact member list. Summed RSS is not cgroup usage.
+Use retained container identity and termination evidence separately when interpreting OOM.
+
+This command neither discovers nor launches a remote sampler and performs no lab lifecycle,
+restart, capacity or acceptance operation. Its deadline is local, subject to scheduler tolerance;
+it does not prove termination of a remote process or kernel uninterruptible IO. Do not place
+it behind `docker exec` or SSH and claim a remote hard deadline from the local exit.
+Offline fixtures and watched negatives are recorded in
+[`f9-local-process-observation/verify.md`](../../openspec/changes/f9-local-process-observation/verify.md).
+The historical first cold-start OOM and complete F9 acceptance remain unresolved.
+
+### First source memory evidence
+
+`requireMemoryEvidence(samples, first, source)` in `forge-recovery-lab.ts` now accepts
+structured `CgroupObservation` values from `observeProcesses`, an expected first
+`PodObservation`, and an explicit `SourceBinding`. The binding supplies Pod UID, the full
+`containerd://` ID, init PID/starttime, and exact cgroup membership path/device/inode.
+The path uses the sampler's `/kubepods/...` form, without `/sys/fs/cgroup`.
+The caller must independently establish the binding from the intended source container;
+this validator checks consistency and cannot authenticate that supplied assertion.
+
+Every sample must match that cgroup identity, include the same init PID/starttime, contain
+complete memory/process metrics, and report `memory.max` exactly `2147483648` (2Gi).
+Empty samples or a foreign, replacement, sibling, reused or incomplete identity throw.
+Returned evidence copies declared fields only, omitting argv and caller-supplied verdicts.
+There is no JSON file adapter: raw sampler JSON must not be cast into this typed interface.
+The source API consumes in-process observations; historical text logs remain historical.
+
+Evidence validation does not establish readiness, first-attempt success, OOM cause,
+restored-checker success or F9 acceptance. `runRecoveryLab` remains disabled.
+Offline checks and watched guard removals are recorded in
+[`f9-source-memory-evidence/verify.md`](../../openspec/changes/f9-source-memory-evidence/verify.md).
+
+### Local runtime source memory observation
+
+`observeSourceMemory(first, runtime, roots?)` in `forge-source-memory-observation.ts`
+adds current local runtime discovery to the typed validator. Supply the expected first
+`PodObservation` and `{ executable, endpoint, windowMs }`: an absolute standalone `crictl`
+path, explicit `unix:///.../*.sock` containerd CRI endpoint, and a 1–30000ms local window.
+The executable is resolved once; only fixed `inspect --output json <full-id>` arguments are
+used, with `/dev/null` config, explicit endpoint and a two-second CRI timeout. Docker/SSH
+executables, Docker socket names and remote endpoint schemes are refused. The observer
+accepts the versioned upstream containerd/cri-tools response contract described in its
+[design](../../openspec/changes/f9-local-source-memory-observation/design.md); it does not
+assert an installed runtime version.
+
+Both runtime inspections must match the expected full container ID, Pod UID, metadata name
+`source`, running state and init PID. Local `/proc` must identify that init's PID/starttime,
+final namespace PID 1 and exact cgroup-v2 membership. The observer resolves and records that
+cgroup's device/inode, takes one complete sample through `observeProcesses`, then reinspects
+the runtime, init and cgroup before calling `validateSourceMemory`. Required init reads and
+combined runtime stdout/stderr are capped at 64KiB. Missing, unreadable, malformed, changing,
+oversized or stalled state throws a fixed sanitized error; raw runtime config, argv,
+environment, paths and verdict fields are never returned.
+
+This is a library API with offline fixture roots; production defaults use `/proc` and
+`/sys/fs/cgroup`. Its operator must establish that these local roots correspond to the
+selected runtime's namespace. Selection and matching observations cannot authenticate that
+assertion, cluster authority or historical first-attempt ownership. Reads remain sequential,
+so changes that revert entirely between checks may escape detection. The window bounds local
+waits with scheduler tolerance; it does not establish remote or uninterruptible-IO termination.
+No historical first-attempt, readiness, OOM attribution, restored-checker or F9 acceptance
+claim follows. `runRecoveryLab` remains disabled. Offline tests and watched faults are in
+[f9-local-source-memory-observation/verify.md](../../openspec/changes/f9-local-source-memory-observation/verify.md).
+
 ### Forge namespace admission prerequisite
 
 Admission reserves `puni-forge` and `puni-forge-<slug>`. The suffix uses the existing
@@ -269,6 +358,21 @@ Its original cold OOM and restored-checker failures remain in the immutable exte
 listed in [verification](../../openspec/changes/forge-restart-state/verify.md#one-instrumented-fresh-worktree-lab).
 No later lab or warm retry replaces them. The CLI will remain unavailable until the lab owner's
 creation-receipt contract is designed and proven, including partial creation and name races.
+
+### Read-only HTTP observation
+
+The first web check now bounds headers and body and includes status, path, content type,
+root-marker presence and duration on failure. To observe later availability separately:
+
+```sh
+bun tools/tool-devsync/src/k3s/forge-http-observation.ts http://<slug>.localhost:<port>
+```
+
+This issues GET / only for a fixed 30-second window and retains the immediate verdict even
+when later responses succeed. Its exit status reflects that immediate verdict. It never
+runs the full checker, which writes the database and edits files. Responses are limited to
+64KiB, redirects are refused, and response content is not logged. This HTTP slice supplies
+no process/cgroup identity or remote sampler and does not explain the historical failures.
 
 ### Creation attempts and manual recovery
 

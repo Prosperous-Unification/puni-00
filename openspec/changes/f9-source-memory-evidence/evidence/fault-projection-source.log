@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+(pass) returns complete first-container evidence without readiness or OOM verdicts [1.67ms]
+(pass) refuses binding foreign Pod [0.18ms]
+(pass) refuses binding replacement container [0.03ms]
+(pass) refuses binding warm container [0.02ms]
+(pass) refuses binding container prefix [0.01ms]
+(pass) refuses binding empty Pod UID [0.01ms]
+(pass) refuses binding invalid init PID [0.01ms]
+(pass) refuses binding invalid init starttime [0.01ms]
+(pass) refuses binding unsafe init PID
+(pass) refuses binding root cgroup [0.06ms]
+(pass) refuses binding dot cgroup [0.03ms]
+(pass) refuses binding relative cgroup [0.01ms]
+(pass) refuses binding invalid device [0.02ms]
+(pass) refuses binding invalid inode [0.02ms]
+(pass) refuses sample sibling cgroup [0.15ms]
+(pass) refuses sample prefix cgroup [0.03ms]
+(pass) refuses sample device [0.02ms]
+(pass) refuses sample inode [0.01ms]
+(pass) refuses absent or reused init [] [0.12ms]
+(pass) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.06ms]
+(pass) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}] [0.02ms]
+(pass) refuses invalid memory.max undefined [0.19ms]
+(pass) refuses invalid memory.max max [0.03ms]
+(pass) refuses invalid memory.max  [0.02ms]
+(pass) refuses invalid memory.max -1 [0.01ms]
+(pass) refuses invalid memory.max 2Gi [0.01ms]
+(pass) refuses invalid memory.max 2147483649 [0.03ms]
+(pass) refuses invalid memory.max 02147483648 [0.02ms]
+(pass) refuses empty samples [0.20ms]
+(pass) refuses incomplete current [0.11ms]
+(pass) refuses incomplete peak [0.03ms]
+(pass) refuses incomplete missing oom [0.02ms]
+(pass) refuses incomplete events [0.02ms]
+(pass) refuses incomplete event count [0.05ms]
+(pass) refuses incomplete RSS [0.06ms]
+(pass) refuses incomplete threads [0.05ms]
+(pass) refuses incomplete PPID [0.04ms]
+(pass) refuses incomplete PID [0.03ms]
+(pass) refuses incomplete starttime [0.03ms]
+(pass) refuses incomplete executable [0.02ms]
+(pass) refuses incomplete role [0.02ms]
+(pass) refuses incomplete duplicate PID [0.04ms]
+(pass) refuses incomplete event name [0.03ms]
+(pass) refuses incomplete timestamp [0.02ms]
+(pass) refuses incomplete elapsed [0.22ms]
+(pass) refuses incomplete negative elapsed [0.08ms]
+(pass) refuses an incomplete later sample instead of crediting one complete sample [0.23ms]
+167 |       processes: sample.processes.map((process) => ({ ...process, argv: [credential] })),
+168 |     },
+169 |   ];
+170 |   const suppliedBinding = { ...binding, argv: [credential], acceptancePassed: true };
+171 |   const evidence = requireMemoryEvidence(supplied, first, suppliedBinding);
+172 |   expect(JSON.stringify(evidence)).not.toContain(credential);
+                                             ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "private-token-credential"
+Received: "{\"source\":{\"uid\":\"owned-pod\",\"container\":\"containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"init\":{\"pid\":42,\"starttime\":\"1234\"},\"cgroup\":\"/kubepods/podowned-pod/source\",\"device\":\"29\",\"inode\":\"200\",\"argv\":[\"private-token-credential\"],\"acceptancePassed\":true},\"samples\":[{\"sampledAt\":\"2026-10-16T00:00:00.000Z\",\"elapsedMs\":5,\"cgroup\":\"/kubepods/podowned-pod/source\",\"device\":\"29\",\"inode\":\"200\",\"memory\":{\"current\":\"2000\",\"peak\":\"3000\",\"max\":\"2147483648\",\"events\":{\"oom\":\"1\",\"oom_kill\":\"1\"}},\"processes\":[{\"pid\":42,\"starttime\":\"1234\",\"ppid\":1,\"executable\":\"bun\",\"role\":\"unknown\",\"rssKiB\":2,\"threads\":1}]}]}"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:172:40)
+(fail) omits credential argv and injected restored success from returned evidence [0.68ms]
+
+1 tests failed:
+(fail) omits credential argv and injected restored success from returned evidence [0.68ms]
+
+ 47 pass
+ 1 fail
+ 50 expect() calls
+Ran 48 tests across 1 file. [80.00ms]

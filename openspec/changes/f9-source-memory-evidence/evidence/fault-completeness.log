@@ -1,0 +1,1133 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+(pass) returns complete first-container evidence without readiness or OOM verdicts [0.85ms]
+(pass) refuses binding foreign Pod [0.09ms]
+(pass) refuses binding replacement container [0.01ms]
+(pass) refuses binding warm container
+(pass) refuses binding container prefix
+(pass) refuses binding empty Pod UID
+(pass) refuses binding invalid init PID
+(pass) refuses binding invalid init starttime
+(pass) refuses binding unsafe init PID
+(pass) refuses binding root cgroup [0.02ms]
+(pass) refuses binding dot cgroup [0.01ms]
+(pass) refuses binding relative cgroup
+(pass) refuses binding invalid device
+(pass) refuses binding invalid inode
+(pass) refuses sample sibling cgroup [0.04ms]
+(pass) refuses sample prefix cgroup
+(pass) refuses sample device
+(pass) refuses sample inode
+(pass) refuses absent or reused init [] [0.05ms]
+(pass) refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+(pass) refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+(pass) refuses invalid memory.max undefined [0.23ms]
+(pass) refuses invalid memory.max max [0.01ms]
+(pass) refuses invalid memory.max
+(pass) refuses invalid memory.max -1
+(pass) refuses invalid memory.max 2Gi
+(pass) refuses invalid memory.max 2147483649
+(pass) refuses invalid memory.max 02147483648 [0.06ms]
+(pass) refuses empty samples [0.04ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: undefined,
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete current [0.30ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "-1",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete peak [0.14ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom_kill: "0",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete missing oom [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "0",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete events [0.06ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "0",
+          oom_kill: "bad",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete event count [0.06ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: undefined,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete RSS [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: NaN,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete threads [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: -1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete PPID [0.04ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }, {
+          pid: 0,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete PID [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }, {
+          pid: 43,
+          starttime: "bad",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete starttime [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "/private/credential",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete executable [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "invented",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete role [0.06ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }, {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete duplicate PID [0.06ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "0",
+          oom_kill: "0",
+          "not valid": "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete event name [0.07ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "bad",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete timestamp [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: Infinity,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete elapsed [0.05ms]
+140 |       requireMemoryEvidence(
+141 |         [{ ...sample, ...changed } as unknown as CgroupObservation],
+142 |         first,
+143 |         binding,
+144 |       ),
+145 |     ).toThrow('complete sample');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: -1,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:145:7)
+(fail) refuses incomplete negative elapsed [0.04ms]
+151 |     requireMemoryEvidence(
+152 |       [sample, { ...sample, memory: { ...sample.memory, peak: '' } }],
+153 |       first,
+154 |       binding,
+155 |     ),
+156 |   ).toThrow('complete sample');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "complete sample"
+
+Received function did not throw
+Received value: {
+  source: {
+    uid: "owned-pod",
+    container: "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    init: {
+      pid: 42,
+      starttime: "1234",
+    },
+    cgroup: "/kubepods/podowned-pod/source",
+    device: "29",
+    inode: "200",
+  },
+  samples: [
+    {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "3000",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }, {
+      sampledAt: "2026-10-16T00:00:00.000Z",
+      elapsedMs: 5,
+      cgroup: "/kubepods/podowned-pod/source",
+      device: "29",
+      inode: "200",
+      memory: {
+        current: "2000",
+        peak: "",
+        max: "2147483648",
+        events: {
+          oom: "1",
+          oom_kill: "1",
+        },
+      },
+      processes: [
+        {
+          pid: 42,
+          starttime: "1234",
+          ppid: 1,
+          executable: "bun",
+          role: "unknown",
+          rssKiB: 2,
+          threads: 1,
+        }
+      ],
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:156:5)
+(fail) refuses an incomplete later sample instead of crediting one complete sample [0.12ms]
+(pass) omits credential argv and injected restored success from returned evidence [0.13ms]
+
+18 tests failed:
+(fail) refuses incomplete current [0.30ms]
+(fail) refuses incomplete peak [0.14ms]
+(fail) refuses incomplete missing oom [0.05ms]
+(fail) refuses incomplete events [0.06ms]
+(fail) refuses incomplete event count [0.06ms]
+(fail) refuses incomplete RSS [0.05ms]
+(fail) refuses incomplete threads [0.05ms]
+(fail) refuses incomplete PPID [0.04ms]
+(fail) refuses incomplete PID [0.05ms]
+(fail) refuses incomplete starttime [0.05ms]
+(fail) refuses incomplete executable [0.05ms]
+(fail) refuses incomplete role [0.06ms]
+(fail) refuses incomplete duplicate PID [0.06ms]
+(fail) refuses incomplete event name [0.07ms]
+(fail) refuses incomplete timestamp [0.05ms]
+(fail) refuses incomplete elapsed [0.05ms]
+(fail) refuses incomplete negative elapsed [0.04ms]
+(fail) refuses an incomplete later sample instead of crediting one complete sample [0.12ms]
+
+ 30 pass
+ 18 fail
+ 53 expect() calls
+Ran 48 tests across 1 file. [44.00ms]

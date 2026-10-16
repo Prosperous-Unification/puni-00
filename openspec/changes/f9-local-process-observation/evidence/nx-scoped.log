@@ -1,0 +1,74 @@
+
+ NX   Running targets lint, typecheck, build for project tool-devsync and 6 tasks it depends on:
+
+- tool-devsync
+
+
+
+> nx run tool-test-scratch:build
+
+> bunx tsc --build --force tools/test/scratch/tsconfig.lib.json
+
+
+> nx run wbs-solver-supervisor-protocol:build
+
+> bunx tsc --build --force libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json
+
+
+> nx run shared-test-levels:build
+
+> bunx tsc --build --force libs/shared/domain/test-levels/tsconfig.lib.json
+
+
+> nx run tool-compose:build
+
+> bun run tools/tool-compose/src/render.ts --outDir=dist/tools/tool-compose
+
+rendered 2 file(s) into dist/tools/tool-compose
+
+> nx run tool-remote-scripts:build
+
+> bun build tools/tool-remote-scripts/src/swap.ts --target=bun --outfile dist/tool-remote-scripts/swap.js
+
+[32mBundled 110 modules in 24ms[0m
+
+  [34mswap.js[33m  255.91 KB  [2m(entry point)[0m
+
+> bun build tools/tool-remote-scripts/src/solver-supervisor.ts --target=bun --outfile dist/tool-remote-scripts/solver-supervisor.js
+
+[32mBundled 17 modules in 17ms[0m
+
+  [34msolver-supervisor.js[0m  56.47 KB  [2m(entry point)[0m
+
+
+> nx run shared-test-evidence:build
+
+> bunx tsc --build --force libs/shared/domain/test-evidence/tsconfig.lib.json
+
+
+> nx run tool-devsync:typecheck
+
+> bunx tsc --build --force tools/tool-devsync/tsconfig.json
+
+
+> nx run tool-devsync:build
+
+> command -v shellcheck >/dev/null 2>&1 || { echo '[tool-devsync] shellcheck is required but not installed. macOS: brew install shellcheck. Debian/Ubuntu: apt-get install shellcheck.' >&2; exit 1; }
+
+> shellcheck -s bash bin/dev.sh bin/dev-ports.sh bin/dev-deploy.sh bin/dev-be-probe.sh bin/dev-mcp-preflight.sh bin/dev-mcp-probe.sh bin/dev-poll.sh bin/dev-poll-sync.sh
+
+
+> nx run tool-devsync:lint
+
+> bunx eslint tools/tool-devsync/src tools/tool-devsync/workspace-projects.mjs tools/tool-devsync/workspace-inventory.mjs
+
+
+
+
+ NX   Successfully ran targets lint, typecheck, build for project tool-devsync and 6 tasks it depends on
+
+
+  Run duration:      16.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     16.6s (1 task)
+  Recoverable time:  288ms (2% of the run)

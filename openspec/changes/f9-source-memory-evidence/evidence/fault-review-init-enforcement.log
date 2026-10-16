@@ -1,0 +1,192 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+111 |   { pid: Number.MAX_SAFE_INTEGER + 1, starttime: '1234' },
+112 |   { pid: 42, starttime: 'bad' },
+113 | ]) {
+114 |   test(`refuses co-mutated malformed init across enforcement path ${JSON.stringify(init)}`, () => {
+115 |     const processes = sample.processes.map((process) => ({ ...process, ...init }));
+116 |     expect(observeValidation([{ ...sample, processes }], first, { ...binding, init })).toEqual({
+                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 0,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 0,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:116:88)
+(fail) refuses co-mutated malformed init across enforcement path {"pid":0,"starttime":"1234"} [1.20ms]
+111 |   { pid: Number.MAX_SAFE_INTEGER + 1, starttime: '1234' },
+112 |   { pid: 42, starttime: 'bad' },
+113 | ]) {
+114 |   test(`refuses co-mutated malformed init across enforcement path ${JSON.stringify(init)}`, () => {
+115 |     const processes = sample.processes.map((process) => ({ ...process, ...init }));
+116 |     expect(observeValidation([{ ...sample, processes }], first, { ...binding, init })).toEqual({
+                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 9007199254740992,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "1234",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 9007199254740992,
++         "starttime": "1234",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:116:88)
+(fail) refuses co-mutated malformed init across enforcement path {"pid":9007199254740992,"starttime":"1234"} [0.19ms]
+111 |   { pid: Number.MAX_SAFE_INTEGER + 1, starttime: '1234' },
+112 |   { pid: 42, starttime: 'bad' },
+113 | ]) {
+114 |   test(`refuses co-mutated malformed init across enforcement path ${JSON.stringify(init)}`, () => {
+115 |     const processes = sample.processes.map((process) => ({ ...process, ...init }));
+116 |     expect(observeValidation([{ ...sample, processes }], first, { ...binding, init })).toEqual({
+                                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/kubepods/podowned-pod/source",
++         "device": "29",
++         "elapsedMs": 5,
++         "inode": "200",
++         "memory": {
++           "current": "2000",
++           "events": {
++             "oom": "1",
++             "oom_kill": "1",
++           },
++           "max": "2147483648",
++           "peak": "3000",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 2,
++             "starttime": "bad",
++             "threads": 1,
++           },
++         ],
++         "sampledAt": "2026-10-16T00:00:00.000Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/kubepods/podowned-pod/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "29",
++       "init": {
++         "pid": 42,
++         "starttime": "bad",
++       },
++       "inode": "200",
++       "uid": "owned-pod",
++     },
++   },
++   "rejected": false,
+  }
+
+- Expected  - 1
++ Received  + 43
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:116:88)
+(fail) refuses co-mutated malformed init across enforcement path {"pid":42,"starttime":"bad"} [0.12ms]
+
+ 0 pass
+ 57 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [78.00ms]

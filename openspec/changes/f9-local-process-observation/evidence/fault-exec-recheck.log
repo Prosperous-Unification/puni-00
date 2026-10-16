@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [19.37ms]
+(pass) unknown launcher arguments cannot impersonate the Vite launcher [4.72ms]
+(pass) refuses absent and unreadable required memory state [4.48ms]
+(pass) refuses malformed counters, PID identity, status and cgroup membership [18.68ms]
+(pass) refuses oversized files and more than 256 exact members [4.73ms]
+(pass) refuses foreign directories and symlink escapes [2.68ms]
+(pass) refuses invalid bounds before inspecting filesystem [0.68ms]
+(pass) deadline refuses an interval exceeding remaining budget [42.33ms]
+(pass) CLI rejects extra lifecycle arguments before reading files [23.36ms]
+(pass) refuses identity and membership changes after command inspection [83.67ms]
+(pass) CLI local watchdog exits during a stalled required read [77.24ms]
+(pass) refuses unsafe executable text instead of logging it [4.24ms]
+(pass) refuses cgroup directory replacement during process inspection [41.33ms]
+(pass) library deadline rejects a stalled read and leaves no long pause running [154.99ms]
+313 |       join(import.meta.dir, 'forge-process-observation.fault.preload.ts'),
+314 |       runner,
+315 |     ],
+316 |     { env: { ...process.env, FORGE_PROCESS_FAULT: 'exec' }, stdout: 'pipe', stderr: 'pipe' },
+317 |   );
+318 |   expect(await child.exited).not.toBe(0);
+                                       ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:318:34)
+(fail) refuses exec changes within the same PID start time [47.32ms]
+(pass) refuses unreadable required state independently from absent state [2.75ms]
+(pass) refuses missing required event counters and malformed process fields [13.37ms]
+(pass) refuses nonregular required state [2.20ms]
+(pass) rejects a FIFO required file without leaving a blocked reader [30.56ms]
+(pass) refuses a nondirectory cgroup path before reading member files [1.80ms]
+
+ 19 pass
+ 1 fail
+ 32 expect() calls
+Ran 20 tests across 1 file. [636.00ms]

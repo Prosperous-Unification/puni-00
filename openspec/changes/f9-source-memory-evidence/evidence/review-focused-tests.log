@@ -1,0 +1,157 @@
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+tools/tool-devsync/src/k3s/forge-http-observation.test.ts:
+[0m[32m✓[0m[0m[1m records response identity and root marker without retaining response content[0m [0m[2m[5.12ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains denial status and refuses a missing root marker[0m [0m[2m[4.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m bounds both missing headers and a response body that never ends[0m [0m[2m[[1m84.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses oversized and redirected responses[0m [0m[2m[6.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m convergence preserves immediate failure despite later success and uses GET only[0m [0m[2m[[1m101.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m permanent denial converges to bounded refusal[0m [0m[2m[[1m70.74ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects external authority, credentials, non-root paths and invalid bounds before fetching[0m [0m[2m[2.38ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checker first failure emits evidence before any mutating phase[0m [0m[2m[[1m811.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects credentials before opening the local fixture connection[0m [0m[2m[1.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects invalid request deadline without fetching[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only CLI refuses mutation arguments before opening a connection[0m [0m[2m[[1m20.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records connection refusal with absent response evidence[0m [0m[2m[2.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m read-only observer sends GET and refuses even a local redirect[0m [0m[2m[2.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m production checker transport deadline and body-limit failures never earn ingress credit[0m [0m[2m[[1m4733.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains a split root marker when the response later hangs or resets[0m [0m[2m[[1m218.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains root marker in the allowed prefix of an oversized chunk[0m [0m[2m[2.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m convergence clamps slow initial and final requests and oversized pauses to its window[0m [0m[2m[[1m242.55ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m real checker metadata cannot spoof an authoritative ingress failure line[0m [0m[2m[[1m863.30ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+[0m[32m✓[0m[0m[1m returns complete first-container evidence without readiness or OOM verdicts[0m [0m[2m[0.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses binding foreign Pod[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses binding replacement container[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses binding warm container[0m
+[0m[32m✓[0m[0m[1m refuses binding container prefix[0m
+[0m[32m✓[0m[0m[1m refuses binding empty Pod UID[0m
+[0m[32m✓[0m[0m[1m refuses binding invalid init PID[0m
+[0m[32m✓[0m[0m[1m refuses binding invalid init starttime[0m
+[0m[32m✓[0m[0m[1m refuses binding unsafe init PID[0m
+[0m[32m✓[0m[0m[1m refuses binding root cgroup[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses binding dot cgroup[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses binding relative cgroup[0m
+[0m[32m✓[0m[0m[1m refuses binding invalid device[0m
+[0m[32m✓[0m[0m[1m refuses binding invalid inode[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed binding root cgroup[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed binding dot cgroup[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed binding relative cgroup[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed binding empty segment cgroup[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed binding invalid device[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed binding invalid inode[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed expected identity {"uid":""}[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed expected identity {"container":"containerd://aaaa"}[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed expected identity {"container":"docker://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}[0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed init across enforcement path {"pid":0,"starttime":"1234"}[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed init across enforcement path {"pid":9007199254740992,"starttime":"1234"}[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses co-mutated malformed init across enforcement path {"pid":42,"starttime":"bad"}[0m
+[0m[32m✓[0m[0m[1m refuses sample sibling cgroup[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sample prefix cgroup[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sample device[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses sample inode[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses absent or reused init [][0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}][0m
+[0m[32m✓[0m[0m[1m refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}][0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max undefined[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max max[0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max [0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max -1[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max 2Gi[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max 2147483649[0m
+[0m[32m✓[0m[0m[1m refuses invalid memory.max 02147483648[0m
+[0m[32m✓[0m[0m[1m refuses empty samples[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete current[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete peak[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete missing oom[0m
+[0m[32m✓[0m[0m[1m refuses incomplete events[0m
+[0m[32m✓[0m[0m[1m refuses incomplete event count[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete RSS[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete threads[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete PPID[0m
+[0m[32m✓[0m[0m[1m refuses incomplete PID[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete starttime[0m
+[0m[32m✓[0m[0m[1m refuses incomplete executable[0m
+[0m[32m✓[0m[0m[1m refuses incomplete role[0m
+[0m[32m✓[0m[0m[1m refuses incomplete duplicate PID[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete event name[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses incomplete timestamp[0m
+[0m[32m✓[0m[0m[1m refuses incomplete elapsed[0m
+[0m[32m✓[0m[0m[1m refuses incomplete negative elapsed[0m
+[0m[32m✓[0m[0m[1m refuses an incomplete later sample instead of crediting one complete sample[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m omits credential argv and injected restored success from returned evidence[0m [0m[2m[0.14ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+[0m[32m✓[0m[0m[1m records stable Vite identity and memory without raw arguments or verdicts[0m [0m[2m[[1m12.95ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unknown launcher arguments cannot impersonate the Vite launcher[0m [0m[2m[3.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses absent and unreadable required memory state[0m [0m[2m[3.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed counters, PID identity, status and cgroup membership[0m [0m[2m[[1m20.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses oversized files and more than 256 exact members[0m [0m[2m[5.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign directories and symlink escapes[0m [0m[2m[3.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses invalid bounds before inspecting filesystem[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m deadline refuses an interval exceeding remaining budget[0m [0m[2m[[1m42.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m CLI rejects extra lifecycle arguments before reading files[0m [0m[2m[[1m21.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses identity and membership changes after command inspection[0m [0m[2m[[1m74.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m CLI local watchdog exits during a stalled required read[0m [0m[2m[[1m64.47ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unsafe executable text instead of logging it[0m [0m[2m[4.45ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses cgroup directory replacement during process inspection[0m [0m[2m[[1m37.64ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m library deadline rejects a stalled read and leaves no long pause running[0m [0m[2m[[1m137.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses exec changes within the same PID start time[0m [0m[2m[[1m40.85ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unreadable required state independently from absent state[0m [0m[2m[2.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing required event counters and malformed process fields[0m [0m[2m[[1m13.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses nonregular required state[0m [0m[2m[2.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects a FIFO required file without leaving a blocked reader[0m [0m[2m[[1m47.65ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a nondirectory cgroup path before reading member files[0m [0m[2m[3.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains only complete emitted observations when a later sample fails[0m [0m[2m[6.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a changed executable target with the same basename and stable PID argv[0m [0m[2m[[1m38.13ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-recovery-lab.test.ts:
+[0m[32m✓[0m[0m[1m hard deadline kills a real TERM-ignoring process and its descendant[0m [0m[2m[[1m509.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses pre-existing labelled container without up or down[0m [0m[2m[[1m44.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses pre-existing labelled network without up or down[0m [0m[2m[[1m46.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses pre-existing labelled volume without up or down[0m [0m[2m[[1m48.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m disabled provisioner preserves a resource appearing after inventory[0m [0m[2m[[1m73.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses foreign UID at the command boundary before kill[0m [0m[2m[[1m14.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses node PID one at the command boundary before kill[0m [0m[2m[[1m17.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses node PID zero at the command boundary before kill[0m [0m[2m[[1m13.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses non PID1 at the command boundary before kill[0m [0m[2m[[1m26.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m valid owned node PID1 reaches the real command boundary kill[0m [0m[2m[[1m46.88ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m surviving namespace fails cleanup while every later verification still runs[0m [0m[2m[[1m94.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m surviving Lease fails cleanup while every later verification still runs[0m [0m[2m[[1m82.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m surviving container fails cleanup while every later verification still runs[0m [0m[2m[[1m75.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m surviving network fails cleanup while every later verification still runs[0m [0m[2m[[1m74.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m surviving volume fails cleanup while every later verification still runs[0m [0m[2m[[1m77.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m global kubeconfig mutation fails cleanup[0m [0m[2m[[1m75.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m absent owned resources and unchanged kubeconfig pass cleanup verification[0m [0m[2m[[1m77.96ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m surviving lab state fails cleanup after every resource probe[0m [0m[2m[[1m88.99ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m terminates local descendants when a command exits before its deadline[0m [0m[2m[[1m13.66ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unbounded or nonpositive deadline 0[0m [0m[2m[0.68ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unbounded or nonpositive deadline -1[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unbounded or nonpositive deadline Infinity[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses unbounded or nonpositive deadline NaN[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m unreadable lab state fails cleanup and later kubeconfig verification still runs[0m [0m[2m[[1m78.66ms[0m[2m][0m
+[0m
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+[0m[32m✓[0m[0m[1m accepts MCP ingress refusal and executes restored full positive[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves first OOM even when a later automatic container becomes ready[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects cold restart without an observed OOM[0m [0m[2m[[1m50.03ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects foreign Pod UID after PID1 termination[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unchanged container after PID1 termination[0m [0m[2m[4.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unchanged restart count after PID1 termination[0m [0m[2m[5.00ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects omitted ingress negative even when both positive checkers pass[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects unrelated checker failure as ingress proof[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects policy restoration mismatch and still cleans up[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m records cleanup refusal independently and denies overall acceptance[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m parses first-container OOM before a replacement status exists[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects malformed status rather than inventing a ready identity[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m models not-yet-created container status as pending startup[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not credit ingress negative when preceding positive checker failed[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not label a deliberate SIGKILL exit 137 as an OOM[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts captured API edge-proxy denial after an immediately preceding full positive[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses inline escaped-newline and Unicode-separator ingress markers[0m [0m[2m[0.75ms[0m[2m][0m
+
+[0m[32m 141 pass[0m
+[0m[2m 0 fail[0m
+ 299 expect() calls
+Ran 141 tests across 5 files. [0m[2m[[1m9.47s[0m[2m][0m

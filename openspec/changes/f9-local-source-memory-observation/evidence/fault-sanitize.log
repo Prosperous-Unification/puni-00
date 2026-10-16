@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:
+351 |     observeSourceMemory(first, runtime, {
+352 |       ...roots,
+353 |       procRoot: join(directory, 'private-token-credential'),
+354 |     }),
+355 |     (error) => {
+356 |       expect(String(error)).not.toMatch(/private-token|ENOENT|forge-source-observation/);
+                                      ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /private-token|ENOENT|forge-source-observation/
+Received: "Error: ENOENT: no such file or directory, open '/tmp/forge-source-observation-NDDMz1/private-token-credential/42/stat'"
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:356:33)
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:17:7)
+(fail) sanitizes filesystem failure containing credential path text [45.67ms]
+
+ 0 pass
+ 69 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [118.00ms]
