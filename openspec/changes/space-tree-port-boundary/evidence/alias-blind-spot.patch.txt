@@ -1,0 +1,41 @@
+diff --git a/libs/wbs/application/core/src/ports/tree-read.ts b/libs/wbs/application/core/src/ports/tree-read.ts
+index 81948f0f5..5530948d7 100644
+--- a/libs/wbs/application/core/src/ports/tree-read.ts
++++ b/libs/wbs/application/core/src/ports/tree-read.ts
+@@ -1,34 +1,2 @@
+-import type { ResourceAccess } from './organization-access';
+-import type { PlanTree } from './plan-tree';
+-import type { EngineUnavailable } from './scheduler';
+-import type { AccessRefused } from './shared-people-values';
+-
+-/** Project tree reads through the caller's resolved access, independent of the resource. */
+-export interface TreeRead {
+-  /** The project page's tree, with scoped assignee names and existing read refusals. */
+-  treeWithin(
+-    projectId: string,
+-    access: ResourceAccess,
+-  ): Promise<PlanTree | EngineUnavailable | null | AccessRefused>;
+-
+-  /** The shared aggregate projection captured for load and space cache admission. */
+-  sharedTreesWithin(
+-    actorId: string,
+-    access: ResourceAccess,
+-  ): Promise<
+-    | AccessRefused
+-    | { readonly kind: 'isolated' }
+-    | {
+-        readonly kind: 'shared';
+-        readonly entries: readonly {
+-          readonly projectId: string;
+-          readonly name: string;
+-          readonly rank: number;
+-          readonly revision: number;
+-          readonly seq: number;
+-          readonly basis: string | null;
+-          readonly tree: PlanTree | EngineUnavailable;
+-        }[];
+-      }
+-  >;
+-}
++import type { WorkItemService } from '../module/work-item/work-item.resource';
++export type TreeRead = Pick<WorkItemService, 'treeWithin' | 'sharedTreesWithin'>;

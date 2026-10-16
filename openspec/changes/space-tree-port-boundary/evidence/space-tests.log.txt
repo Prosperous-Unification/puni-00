@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/space.resource.test.ts:
+(pass) SpaceResource > omits a project the caller cannot open from the rows and the count [2.00ms]
+(pass) SpaceResource > answers a project the caller cannot open as not_found, adding nothing [0.14ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to place a project after it, as if it were not a member [0.52ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to move it, or to move another after it [0.26ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to remove it [0.34ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > still places, moves and removes around it by visible members [0.60ms]
+(pass) SpaceResource > answers another organization's space as not_found to its members [0.54ms]
+(pass) SpaceResource > refuses a viewer every write and lets the viewer read [0.17ms]
+(pass) SpaceResource > answers every write to all as virtual_space and reads all as the project list [0.17ms]
+(pass) SpaceResource > uses the legacy organization under legacy access, and answers organization_required without one [0.19ms]
+(pass) SpaceResource > trims a name and refuses a blank or over-long one [0.14ms]
+(pass) SpaceResource > counts revisions: rename, two adds and a move, not a refused add [0.23ms]
+(pass) SpaceResource roll-ups > rolls each requested member up from its tree [1.28ms]
+(pass) SpaceResource roll-ups > answers a command's new total on the next read, and serves an unchanged one from the cache [0.25ms]
+(pass) SpaceResource roll-ups > expires a roll-up after the TTL even at the same sequence [0.27ms]
+(pass) SpaceResource roll-ups > answers no roll-up for a project the caller cannot open [0.15ms]
+(pass) SpaceResource roll-ups > answers not_found for a non-member and for a foreign space [0.17ms]
+(pass) SpaceResource roll-ups > marks an unavailable engine and never caches it [0.20ms]
+(pass) SpaceResource roll-ups > lists the leaves in progress across readable members, by end date then place then number [0.83ms]
+(pass) SpaceResource roll-ups > cuts the list at the limit and says it was cut [3.50ms]
+(pass) SpaceResource roll-ups > takes nothing from a member the caller cannot open, and names unavailable engines [0.60ms]
+(pass) SpaceResource roll-ups > keeps a legacy read's assignee names from a scoped reader [0.48ms]
+(pass) SpaceResource roll-ups > names no unavailable engine of a member the caller cannot open [0.16ms]
+
+ 23 pass
+ 0 fail
+ 72 expect() calls
+Ran 23 tests across 1 file. [175.00ms]
