@@ -1,0 +1,210 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:
+✓ discovers stable local source init and returns one sanitized validated sample [56.66ms]
+✓ refuses foreign or malformed runtime identity {"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"} [20.99ms]
+✓ refuses foreign or malformed runtime identity {"id":"aaaa"} [29.13ms]
+✓ refuses foreign or malformed runtime identity {"metadata":{"name":"other"}} [31.33ms]
+✓ refuses foreign or malformed runtime identity {"metadata":{}} [25.22ms]
+✓ refuses foreign or malformed runtime identity {"state":"CONTAINER_EXITED"} [24.18ms]
+✓ refuses foreign or malformed runtime identity {"labels":{"io.kubernetes.pod.uid":"foreign"}} [25.56ms]
+✓ refuses runtime init PID 0 [26.03ms]
+✓ refuses runtime init PID 1 [20.07ms]
+✓ refuses runtime init PID -1 [29.29ms]
+✓ refuses runtime init PID 1.5 [27.52ms]
+✓ refuses runtime init PID 42 [25.14ms]
+✓ refuses runtime init PID null [25.02ms]
+✓ refuses second runtime inspection change {"info":{"pid":43}} [52.18ms]
+✓ refuses second runtime inspection change {"status":{"state":"CONTAINER_EXITED"}} [51.76ms]
+✓ refuses second runtime inspection change {"status":{"metadata":{"name":"other"}}} [45.34ms]
+✓ refuses second runtime inspection change {"status":{"id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}} [43.49ms]
+✓ refuses second runtime inspection change {"status":{"labels":{"io.kubernetes.pod.uid":"foreign"}}} [52.05ms]
+✓ refuses post-sample process identity change stat [51.07ms]
+✓ refuses post-sample process identity change status [54.10ms]
+✓ refuses post-sample process identity change cgroup [51.25ms]
+✓ refuses replacement cgroup directory with the same path and files [61.51ms]
+✓ refuses invalid unified membership "0::/../escape\n" [25.97ms]
+✓ refuses invalid unified membership "0::/\n" [22.92ms]
+✓ refuses invalid unified membership "1:memory:/source\n" [30.16ms]
+✓ refuses invalid unified membership "0::/source\n1:cpu:/source\n" [29.32ms]
+✓ refuses absent and unreadable required init stat [54.74ms]
+✓ refuses absent and unreadable required init status [57.70ms]
+✓ refuses absent and unreadable required init cgroup [51.01ms]
+✓ refuses non-PID1 init before sampling [31.66ms]
+✓ refuses oversized and symlink init state [57.77ms]
+✓ bounds and sanitizes runtime malformed [32.34ms]
+✓ bounds and sanitizes runtime invalid-utf8 [33.75ms]
+✓ bounds and sanitizes runtime oversize [22.13ms]
+✓ bounds and sanitizes runtime stderr-oversize [31.39ms]
+✓ bounds and sanitizes runtime exit [19.32ms]
+✓ bounds and sanitizes runtime stall [155.16ms]
+✓ refuses nonlocal or Docker endpoint tcp://host:1234 [2.39ms]
+✓ refuses nonlocal or Docker endpoint ssh://host/run/containerd.sock [1.48ms]
+✓ refuses nonlocal or Docker endpoint unix://host/run/containerd.sock [1.54ms]
+✓ refuses nonlocal or Docker endpoint unix:///run/../docker.sock [1.21ms]
+✓ refuses nonlocal or Docker endpoint unix:///run/docker.sock [1.08ms]
+✓ refuses nonlocal or Docker endpoint  [1.27ms]
+✓ refuses wrapper executable /usr/bin/docker [1.43ms]
+✓ refuses wrapper executable /usr/bin/ssh [1.22ms]
+✓ refuses wrapper executable crictl [1.14ms]
+✓ refuses non-2Gi sampler evidence [53.54ms]
+✓ refuses missing init after sampling [66.54ms]
+✓ refuses invalid window 0 [2.50ms]
+✓ refuses invalid window -1 [1.82ms]
+✓ refuses invalid window NaN [1.55ms]
+✓ refuses invalid window Infinity [1.71ms]
+✓ refuses invalid window 30001 [1.46ms]
+✓ refuses malformed expected identity {"container":"containerd://aaaa"} [1.88ms]
+✓ refuses malformed expected identity {"uid":""} [1.55ms]
+✓ refuses executable symlink resolving to a wrapper [2.03ms]
+✓ refuses malformed init stat 42 (bun) S 1 [30.65ms]
+✓ refuses malformed init stat 43 (bun) S 1 [30.61ms]
+✓ refuses malformed init stat malformed [23.05ms]
+✓ refuses malformed init status [30.87ms]
+✓ refuses membership symlink escaping selected cgroup root [32.60ms]
+✓ refuses directory in place of required init file [26.36ms]
+✓ refuses changed parent after sampling [51.36ms]
+✓ refuses oversized valid init status after sampling [45.87ms]
+✓ refuses symlink to valid init status after sampling [60.15ms]
+✓ sanitizes filesystem failure containing credential path text [26.42ms]
+✓ refuses runtime host PID1 even with otherwise consistent local files [42.83ms]
+✓ refuses otherwise working executable named docker [6.97ms]
+✓ refuses otherwise working relative executable path [7.33ms]
+✓ refuses missing required runtime executable without discovering a fallback [6.83ms]
+✓ terminates the stalled local inspect child at deadline [166.91ms]
+
+tools/tool-devsync/src/k3s/forge-source-memory-evidence.test.ts:
+✓ returns complete first-container evidence without readiness or OOM verdicts [0.16ms]
+✓ refuses binding foreign Pod [0.06ms]
+✓ refuses binding replacement container
+✓ refuses binding warm container
+✓ refuses binding container prefix
+✓ refuses binding empty Pod UID
+✓ refuses binding invalid init PID
+✓ refuses binding invalid init starttime
+✓ refuses binding unsafe init PID
+✓ refuses binding root cgroup
+✓ refuses binding dot cgroup
+✓ refuses binding relative cgroup
+✓ refuses binding invalid device
+✓ refuses binding invalid inode [0.01ms]
+✓ refuses co-mutated malformed binding root cgroup [0.10ms]
+✓ refuses co-mutated malformed binding dot cgroup
+✓ refuses co-mutated malformed binding relative cgroup
+✓ refuses co-mutated malformed binding empty segment cgroup
+✓ refuses co-mutated malformed binding invalid device [0.01ms]
+✓ refuses co-mutated malformed binding invalid inode
+✓ refuses co-mutated malformed expected identity {"uid":""} [0.02ms]
+✓ refuses co-mutated malformed expected identity {"container":"containerd://aaaa"}
+✓ refuses co-mutated malformed expected identity {"container":"docker://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+✓ refuses co-mutated malformed init across enforcement path {"pid":0,"starttime":"1234"} [0.06ms]
+✓ refuses co-mutated malformed init across enforcement path {"pid":9007199254740992,"starttime":"1234"}
+✓ refuses co-mutated malformed init across enforcement path {"pid":42,"starttime":"bad"} [0.01ms]
+✓ refuses sample sibling cgroup [0.05ms]
+✓ refuses sample prefix cgroup
+✓ refuses sample device [0.01ms]
+✓ refuses sample inode [0.02ms]
+✓ refuses absent or reused init [] [0.03ms]
+✓ refuses absent or reused init [{"pid":43,"starttime":"1234","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+✓ refuses absent or reused init [{"pid":42,"starttime":"5678","ppid":1,"executable":"bun","role":"unknown","rssKiB":2,"threads":1}]
+✓ refuses invalid memory.max undefined [0.04ms]
+✓ refuses invalid memory.max max
+✓ refuses invalid memory.max
+✓ refuses invalid memory.max -1
+✓ refuses invalid memory.max 2Gi
+✓ refuses invalid memory.max 2147483649
+✓ refuses invalid memory.max 02147483648
+✓ refuses empty samples [0.02ms]
+✓ refuses incomplete current [0.04ms]
+✓ refuses incomplete peak
+✓ refuses incomplete missing oom
+✓ refuses incomplete events
+✓ refuses incomplete event count [0.02ms]
+✓ refuses incomplete RSS
+✓ refuses incomplete threads
+✓ refuses incomplete PPID [0.01ms]
+✓ refuses incomplete PID [0.01ms]
+✓ refuses incomplete starttime
+✓ refuses incomplete executable
+✓ refuses incomplete role [0.02ms]
+✓ refuses incomplete duplicate PID [0.01ms]
+✓ refuses incomplete event name [0.01ms]
+✓ refuses incomplete timestamp
+✓ refuses incomplete elapsed [0.01ms]
+✓ refuses incomplete negative elapsed
+✓ refuses an incomplete later sample instead of crediting one complete sample [0.04ms]
+✓ omits credential argv and injected restored success from returned evidence [0.13ms]
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+✓ records stable Vite identity and memory without raw arguments or verdicts [10.60ms]
+✓ unknown launcher arguments cannot impersonate the Vite launcher [4.39ms]
+✓ refuses absent and unreadable required memory state [3.96ms]
+✓ refuses malformed counters, PID identity, status and cgroup membership [17.35ms]
+✓ refuses oversized files and more than 256 exact members [4.34ms]
+✓ refuses foreign directories and symlink escapes [2.59ms]
+✓ refuses invalid bounds before inspecting filesystem [0.50ms]
+✓ deadline refuses an interval exceeding remaining budget [42.10ms]
+✓ CLI rejects extra lifecycle arguments before reading files [28.27ms]
+✓ refuses identity and membership changes after command inspection [72.74ms]
+✓ CLI local watchdog exits during a stalled required read [64.50ms]
+✓ refuses unsafe executable text instead of logging it [4.33ms]
+✓ refuses cgroup directory replacement during process inspection [32.20ms]
+✓ library deadline rejects a stalled read and leaves no long pause running [132.23ms]
+✓ refuses exec changes within the same PID start time [35.32ms]
+✓ refuses unreadable required state independently from absent state [2.49ms]
+✓ refuses missing required event counters and malformed process fields [7.85ms]
+✓ refuses nonregular required state [2.03ms]
+✓ rejects a FIFO required file without leaving a blocked reader [29.09ms]
+✓ refuses a nondirectory cgroup path before reading member files [1.96ms]
+✓ retains only complete emitted observations when a later sample fails [4.67ms]
+✓ refuses a changed executable target with the same basename and stable PID argv [36.40ms]
+
+tools/tool-devsync/src/k3s/forge-recovery-lab.test.ts:
+✓ hard deadline kills a real TERM-ignoring process and its descendant [507.57ms]
+✓ refuses pre-existing labelled container without up or down [64.53ms]
+✓ refuses pre-existing labelled network without up or down [41.84ms]
+✓ refuses pre-existing labelled volume without up or down [40.53ms]
+✓ disabled provisioner preserves a resource appearing after inventory [85.10ms]
+✓ refuses foreign UID at the command boundary before kill [20.57ms]
+✓ refuses node PID one at the command boundary before kill [14.63ms]
+✓ refuses node PID zero at the command boundary before kill [20.10ms]
+✓ refuses non PID1 at the command boundary before kill [25.78ms]
+✓ valid owned node PID1 reaches the real command boundary kill [41.53ms]
+✓ surviving namespace fails cleanup while every later verification still runs [69.27ms]
+✓ surviving Lease fails cleanup while every later verification still runs [74.51ms]
+✓ surviving container fails cleanup while every later verification still runs [89.42ms]
+✓ surviving network fails cleanup while every later verification still runs [79.37ms]
+✓ surviving volume fails cleanup while every later verification still runs [76.41ms]
+✓ global kubeconfig mutation fails cleanup [79.43ms]
+✓ absent owned resources and unchanged kubeconfig pass cleanup verification [83.46ms]
+✓ surviving lab state fails cleanup after every resource probe [70.29ms]
+✓ terminates local descendants when a command exits before its deadline [16.45ms]
+✓ refuses unbounded or nonpositive deadline 0 [0.57ms]
+✓ refuses unbounded or nonpositive deadline -1 [0.37ms]
+✓ refuses unbounded or nonpositive deadline Infinity [0.33ms]
+✓ refuses unbounded or nonpositive deadline NaN [0.29ms]
+✓ unreadable lab state fails cleanup and later kubeconfig verification still runs [91.40ms]
+
+tools/tool-devsync/src/k3s/forge-recovery-check.test.ts:
+✓ accepts MCP ingress refusal and executes restored full positive [3.14ms]
+✓ preserves first OOM even when a later automatic container becomes ready [0.35ms]
+✓ rejects cold restart without an observed OOM [50.05ms]
+✓ rejects foreign Pod UID after PID1 termination [0.35ms]
+✓ rejects unchanged container after PID1 termination [4.12ms]
+✓ rejects unchanged restart count after PID1 termination [4.93ms]
+✓ rejects omitted ingress negative even when both positive checkers pass [0.31ms]
+✓ rejects unrelated checker failure as ingress proof [0.19ms]
+✓ rejects policy restoration mismatch and still cleans up [0.25ms]
+✓ records cleanup refusal independently and denies overall acceptance [0.24ms]
+✓ parses first-container OOM before a replacement status exists [0.27ms]
+✓ rejects malformed status rather than inventing a ready identity [0.07ms]
+✓ models not-yet-created container status as pending startup [0.02ms]
+✓ does not credit ingress negative when preceding positive checker failed [0.18ms]
+✓ does not label a deliberate SIGKILL exit 137 as an OOM [0.05ms]
+✓ accepts captured API edge-proxy denial after an immediately preceding full positive [0.20ms]
+✓ refuses inline escaped-newline and Unicode-separator ingress markers [0.82ms]
+
+ 194 pass
+ 0 fail
+ 348 expect() calls
+Ran 194 tests across 5 files. [4.51s]

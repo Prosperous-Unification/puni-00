@@ -1,0 +1,70 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:
+16 |     (error: unknown) => {
+17 |       inspectError?.(error);
+18 |       return { rejected: true };
+19 |     },
+20 |   );
+21 |   expect(outcome).toEqual({ rejected: true });
+                       ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "rejected": true,
++   "evidence": {
++     "samples": [
++       {
++         "cgroup": "/source",
++         "device": "66307",
++         "elapsedMs": 7.125248999999997,
++         "inode": "23540018",
++         "memory": {
++           "current": "2048",
++           "events": {
++             "oom": "0",
++             "oom_kill": "0",
++           },
++           "max": "2147483648",
++           "peak": "4096",
++         },
++         "processes": [
++           {
++             "executable": "bun",
++             "pid": 42,
++             "ppid": 1,
++             "role": "unknown",
++             "rssKiB": 1024,
++             "starttime": "1234",
++             "threads": 2,
++           },
++         ],
++         "sampledAt": "2026-10-16T02:13:12.499Z",
++       },
++     ],
++     "source": {
++       "cgroup": "/source",
++       "container": "containerd://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++       "device": "66307",
++       "init": {
++         "pid": 42,
++         "starttime": "1234",
++       },
++       "inode": "23540018",
++       "uid": "owned-pod",
++     },
++   },
+  }
+
+- Expected  - 1
++ Received  + 42
+
+      at refuseEvidence (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:21:19)
+      at async <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:386:9)
+(fail) refuses otherwise working relative executable path [91.57ms]
+
+ 0 pass
+ 69 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [148.00ms]
