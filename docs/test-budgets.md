@@ -118,6 +118,23 @@ On the loaded run these timed out at their own budget. They were raised by the r
   replay passed at 15.79 s with the scoped 30 s budget. Worker operations retain
   their separate 10 s deadlines.
 
+- `apps/twilight-structure/twilight-burokrat/cli/src/packaging/{install,consumer-bootstrap}.test.ts`,
+  package fixture cleanup hooks: inherited 60 to explicit 180 s (2026-10-16).
+  Hosted PR #556 run `38902638885` passed all 48 named package tests but reported
+  these two unnamed teardown failures at 60.002 and 84.828 s. Each hook removes
+  multiple installed dependency trees. A focused replay of each extracted hook
+  callback, with small filesystem roots and a 65 s synchronous delay in injected
+  fixture disposal, reproduced the inherited timeout; the explicit 180 s replay
+  passed and removed both real scratch roots. Without the delay, both focused
+  replays finished in 0.012 s; these are harness times, not full package teardown
+  measurements. Package tests retain the
+  target's 60 s default and their existing individual budgets.
+  Bun reports synchronous hook timeouts after the callback returns; this budget
+  cannot interrupt a blocked filesystem call. In the old-budget install replay,
+  Bun killed the cleanup subprocess and left its scratch tree. A separate `rm`
+  shim exiting 73 proved that the install hook must assert the removal exit code:
+  the old hook passed with leftovers, while the asserted hook failed visibly.
+
 ## Vitest (fe-01), WBS 080.16
 
 Vitest also ends a test at 5 seconds, and a hook at 10. The gate reached that on fe-01: a keyboard
