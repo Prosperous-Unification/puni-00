@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+344 |   ['ratchet', ['apps/example', 'apps/example/src', 'future/path'], 'refusal'],
+345 | ] as const)
+346 |   test(`[BROWSER-T2-POLICY-PREVIEW-006] same citation produces ${effect} under ${mode} ${prefixes.join(',')}`, async () => {
+347 |     const setup = fixture(mode, [...prefixes]);
+348 |     const call = await invokeCli(setup.argv);
+349 |     expect(call.exitCode, call.stderr).toBe(effect === 'refusal' ? 1 : 0);
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:349:40)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1381.80ms]
+
+ 0 pass
+ 89 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.36s]

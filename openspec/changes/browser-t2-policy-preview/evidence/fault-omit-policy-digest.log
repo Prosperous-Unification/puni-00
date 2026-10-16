@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+87 |   expect(observed.kind).toBe('browser-t2-policy-preview');
+88 |   expect(observed.schemaVersion).toBe(1);
+89 |   for (const field of ['revision','candidate','capability','evaluatedAt','scope','policyId','policyDigest'] as const) expect(observed[field]).toEqual(setup.browserT2[field]);
+90 |   expect(observed.browserT2).toEqual(setup.browserT2);
+91 |   expect(observed.proposedPolicy).toEqual(setup.proposal);
+92 |   expect(observed.proposedPolicyDigest).toBe(hashBytes(readFileSync(setup.proposalPath)));
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: "5cdf60e61f2cbdfdec9044618449ae128079c283512e483fda1334e248d32e2c"
+Received: undefined
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:92:41)
+(fail) [BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1439.66ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 14 expect() calls
+Ran 1 test across 1 file. [2.43s]

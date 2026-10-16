@@ -1,0 +1,409 @@
+[
+  {
+    "fault": "canonical-path",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-003] refuses relative proposed policy [1083.43ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-003] refuses noncanonical proposed policy [1291.49ms]"
+    ],
+    "pattern": "refuses (relative|noncanonical) proposed policy"
+  },
+  {
+    "fault": "symlink",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-003] refuses symlink proposed policy [1051.31ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-003] refuses ancestor symlink proposed policy [1234.39ms]"
+    ],
+    "pattern": "refuses (symlink|ancestor symlink) proposed policy"
+  },
+  {
+    "fault": "regular-file",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-003] refuses directory proposed policy [1093.90ms]"],
+    "pattern": "refuses directory proposed policy"
+  },
+  {
+    "fault": "fatal-utf8",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-003] refuses utf8 proposed policy [1323.63ms]"],
+    "pattern": "refuses utf8 proposed policy"
+  },
+  {
+    "fault": "closed-schemas",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema root key [1402.88ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema binding key [1291.68ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema disposition key [1243.52ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema observe prefixes [1246.24ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema enforce prefixes [1267.22ms]"
+    ],
+    "pattern": "refuses proposal schema (root key|binding key|disposition key|observe prefixes|enforce prefixes)"
+  },
+  {
+    "fault": "schema-version",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema version [1397.75ms]"],
+    "pattern": "refuses proposal schema version"
+  },
+  {
+    "fault": "schema-kind",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema kind [1398.44ms]"],
+    "pattern": "refuses proposal schema kind"
+  },
+  {
+    "fault": "schema-digest",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema digest syntax [1326.26ms]"
+    ],
+    "pattern": "refuses proposal schema digest syntax"
+  },
+  {
+    "fault": "schema-capability",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema blank capability [1427.85ms]"
+    ],
+    "pattern": "refuses proposal schema blank capability"
+  },
+  {
+    "fault": "canonical-instant",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema noncanonical time [1405.68ms]"
+    ],
+    "pattern": "refuses proposal schema noncanonical time"
+  },
+  {
+    "fault": "unique-prefixes",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema duplicate prefixes [1439.00ms]"
+    ],
+    "pattern": "refuses proposal schema duplicate prefixes"
+  },
+  {
+    "fault": "canonical-prefixes",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema . [1407.32ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema src/../foo [1244.69ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema src/./foo [1290.11ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema src/ [1275.53ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema src/* [1244.06ms]"
+    ],
+    "pattern": "refuses proposal schema (src/\\*|src/\\.\\./foo|src/\\./foo|src/|\\.)$"
+  },
+  {
+    "fault": "upstream-digest",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream digest [2427.77ms]"],
+    "pattern": "refuses resealed upstream digest"
+  },
+  {
+    "fault": "upstream-authentication",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream authentication [2428.15ms]"
+    ],
+    "pattern": "refuses resealed upstream authentication"
+  },
+  {
+    "fault": "upstream-certification",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream certification true [2414.85ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream certification null [2351.85ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream certification 0 [2298.98ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream certification \"\" [2058.25ms]"
+    ],
+    "pattern": "refuses resealed upstream certification"
+  },
+  {
+    "fault": "upstream-revision",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream revision [2419.34ms]"],
+    "pattern": "refuses resealed upstream revision"
+  },
+  {
+    "fault": "upstream-capability",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream capability [2447.76ms]"
+    ],
+    "pattern": "refuses resealed upstream capability"
+  },
+  {
+    "fault": "upstream-evaluatedAt",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream instant [2474.99ms]"],
+    "pattern": "refuses resealed upstream instant"
+  },
+  {
+    "fault": "proposal-binding",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual revision [1315.58ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual candidate [1281.10ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual capability [1305.29ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual evaluatedAt [1285.44ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual rulePolicyDigest [1274.02ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-004] proposal binds actual browserT2ObservationDigest [1257.57ms]"
+    ],
+    "pattern": "proposal binds actual"
+  },
+  {
+    "fault": "unique-originals",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream duplicate original [2425.82ms]"
+    ],
+    "pattern": "refuses resealed upstream duplicate original"
+  },
+  {
+    "fault": "original-findings",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream original findings [2466.26ms]"
+    ],
+    "pattern": "refuses resealed upstream original findings"
+  },
+  {
+    "fault": "unique-findings",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream duplicate finding [2454.65ms]"
+    ],
+    "pattern": "refuses resealed upstream duplicate finding"
+  },
+  {
+    "fault": "unique-cases",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream duplicate case [2438.76ms]"
+    ],
+    "pattern": "refuses resealed upstream duplicate case"
+  },
+  {
+    "fault": "case-equality",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream foreign case [2430.54ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream altered case [2356.99ms]"
+    ],
+    "pattern": "refuses resealed upstream (foreign case|altered case)"
+  },
+  {
+    "fault": "cited-conflict",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream conflicting cited finding [2458.57ms]"
+    ],
+    "pattern": "refuses resealed upstream conflicting cited finding"
+  },
+  {
+    "fault": "finding-kind",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream finding kind [2454.94ms]"
+    ],
+    "pattern": "refuses resealed upstream finding kind"
+  },
+  {
+    "fault": "finding-title",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream finding title [2460.07ms]"
+    ],
+    "pattern": "refuses resealed upstream finding title"
+  },
+  {
+    "fault": "finding-status",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream finding status [2446.37ms]"
+    ],
+    "pattern": "refuses resealed upstream finding status"
+  },
+  {
+    "fault": "partition-completeness",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream omitted case [2424.93ms]"
+    ],
+    "pattern": "refuses resealed upstream omitted case"
+  },
+  {
+    "fault": "impossible-citation",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream impossible citation [2325.87ms]"
+    ],
+    "pattern": "refuses resealed upstream impossible citation"
+  },
+  {
+    "fault": "mode-enforce",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under enforce  [1413.87ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example/src [1336.97ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example/src/browser.test.ts [1282.66ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example,apps/example/src,future/path [1246.98ms]"
+    ],
+    "pattern": "same citation produces refusal"
+  },
+  {
+    "fault": "mode-observe",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1392.80ms]"
+    ],
+    "pattern": "same citation produces debt under observe"
+  },
+  {
+    "fault": "ratchet-boundary",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet apps/example/sr [1427.55ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet apps/example/src/browser [1287.71ms]"
+    ],
+    "pattern": "same citation produces debt under ratchet apps/example/(sr|src/browser)"
+  },
+  {
+    "fault": "sort-findings",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1416.22ms]"
+    ],
+    "pattern": "same citation produces debt under observe"
+  },
+  {
+    "fault": "digest-completeness",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1421.29ms]"
+    ],
+    "pattern": "previews an exact"
+  },
+  {
+    "fault": "preserve-upstream",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1424.49ms]"
+    ],
+    "pattern": "previews an exact"
+  },
+  {
+    "fault": "certification-boundary",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1431.72ms]"
+    ],
+    "pattern": "previews an exact"
+  },
+  {
+    "fault": "arity",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-002] refuses extra operands [1403.75ms]"],
+    "pattern": "refuses extra operands"
+  },
+  {
+    "fault": "now-flag",
+    "exit": 1,
+    "failures": ["[BROWSER-T2-POLICY-PREVIEW-002] refuses flag operands [1447.13ms]"],
+    "pattern": "refuses flag operands"
+  },
+  {
+    "fault": "exit-status",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under enforce  [1377.70ms]"
+    ],
+    "pattern": "same citation produces refusal under enforce"
+  },
+  {
+    "fault": "installed-registration",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] source and installed previews retain identity and only citation refusals exit one [4067.60ms]"
+    ],
+    "pattern": "source and installed"
+  },
+  {
+    "fault": "installed-status",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] source and installed previews retain identity and only citation refusals exit one [8453.97ms]"
+    ],
+    "pattern": "source and installed"
+  },
+  {
+    "fault": "drop-failed-skipped",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1387.47ms]"
+    ],
+    "pattern": "same citation produces debt under observe"
+  },
+  {
+    "fault": "invent-admission",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1138.96ms]"
+    ],
+    "pattern": "previews an exact"
+  },
+  {
+    "fault": "omit-policy-digest",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1439.66ms]"
+    ],
+    "pattern": "previews an exact"
+  },
+  {
+    "fault": "existing-debt-status",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-013] existing diagnostic and rule-policy contracts are unchanged [1122.36ms]"
+    ],
+    "pattern": "existing diagnostic and rule-policy"
+  },
+  {
+    "fault": "register-t2",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-013] existing diagnostic and rule-policy contracts are unchanged [0.63ms]"
+    ],
+    "pattern": "existing diagnostic and rule-policy"
+  },
+  {
+    "fault": "cached-upstream-bypass",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-001] real upstream remains required after proposal capture: publication [1096.35ms]"
+    ],
+    "pattern": "real upstream remains required after proposal capture: publication"
+  },
+  {
+    "fault": "effect-observe",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under observe  [1381.80ms]"
+    ],
+    "pattern": "same citation produces debt under observe"
+  },
+  {
+    "fault": "effect-outside-ratchet",
+    "exit": 1,
+    "failures": [
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet  [1389.18ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet apps/example/sr [1293.08ms]",
+      "[BROWSER-T2-POLICY-PREVIEW-006] same citation produces debt under ratchet apps/example/src/browser [1263.92ms]"
+    ],
+    "pattern": "same citation produces debt under ratchet"
+  }
+]

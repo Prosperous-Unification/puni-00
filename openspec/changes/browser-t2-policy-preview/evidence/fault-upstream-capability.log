@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+453 |     const boundary: Record<string, string> = {
+454 |       digest: 'upstream digest differs', revision: 'upstream selection or instant differs', capability: 'upstream selection or instant differs', instant: 'upstream selection or instant differs',
+455 |       'duplicate case': 'duplicate case', 'foreign case': 'case differs from original report', 'altered case': 'case differs from original report',
+456 |       'conflicting cited finding': 'cited case has a finding', 'impossible citation': 'impossible citation variant',
+457 |     };
+458 |     expect(call.stderr.toString()).toContain(boundary[name] ?? 'Browser T2');
+                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "upstream selection or instant differs"
+Received: "Browser T2 proposed policy binding differs from actual observation\n"
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:458:36)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream capability [2447.76ms]
+
+ 0 pass
+ 85 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [3.45s]

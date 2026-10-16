@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+482 | ] as const;
+483 | for (const [name, mutation, reseal, repin] of upstreamFaults)
+484 |   test(`[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream ${name}`, () => {
+485 |     const setup = fixture();
+486 |     const call = inject(setup, mutation, reseal, repin);
+487 |     expect(call.exitCode, call.stderr.toString()).toBe(1);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:487:51)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream cited scenario [2401.70ms]
+482 | ] as const;
+483 | for (const [name, mutation, reseal, repin] of upstreamFaults)
+484 |   test(`[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream ${name}`, () => {
+485 |     const setup = fixture();
+486 |     const call = inject(setup, mutation, reseal, repin);
+487 |     expect(call.exitCode, call.stderr.toString()).toBe(1);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:487:51)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream missing cited scenario [2345.45ms]
+482 | ] as const;
+483 | for (const [name, mutation, reseal, repin] of upstreamFaults)
+484 |   test(`[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream ${name}`, () => {
+485 |     const setup = fixture();
+486 |     const call = inject(setup, mutation, reseal, repin);
+487 |     expect(call.exitCode, call.stderr.toString()).toBe(1);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:487:51)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream invalid cited scenario [2339.00ms]
+
+ 0 pass
+ 87 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [8.07s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+449 | ] as const;
+450 | for (const [name, mutation, reseal, repin] of upstreamFaults)
+451 |   test(`[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream ${name}`, () => {
+452 |     const setup = fixture();
+453 |     const call = inject(setup, mutation, reseal, repin);
+454 |     expect(call.exitCode, call.stderr.toString()).toBe(1);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:454:51)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream finding title [2460.07ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.43s]

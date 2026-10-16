@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+91 |   expect(observed.proposedPolicy).toEqual(setup.proposal);
+92 |   expect(observed.proposedPolicyDigest).toBe(hashBytes(readFileSync(setup.proposalPath)));
+93 |   expect(observed.browserT2ObservationDigest).toBe(setup.browserT2.observationDigest);
+94 |   expect(observed.proposedDisposition).toEqual({ kind: 'no-citation-refusals' });
+95 |   expect(observed.authentication).toEqual({ kind: 'absent' });
+96 |   expect(observed.certifies).toBe(false);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:96:30)
+(fail) [BROWSER-T2-POLICY-PREVIEW-012] previews an exact captured proposed citation policy [1431.72ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 18 expect() calls
+Ran 1 test across 1 file. [2.43s]

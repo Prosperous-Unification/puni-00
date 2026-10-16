@@ -1,0 +1,30 @@
+{
+  "preservedJournalEvents": 195,
+  "allocated": 13,
+  "calls": [
+    {
+      "fault": "control",
+      "exit": 0,
+      "stdout": "{\"unidentified\":[]}\n",
+      "stderr": ""
+    },
+    {
+      "fault": "omitted allocation",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "scenario identifier lacks current allocator provenance: BROWSER-T2-POLICY-PREVIEW-001\n"
+    },
+    {
+      "fault": "reused identifier",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "duplicate scenario identifier: BROWSER-T2-POLICY-PREVIEW-001\n"
+    },
+    {
+      "fault": "omitted heading id",
+      "exit": 0,
+      "stdout": "{\"unidentified\":[\"Real upstream inspection remains required\"]}\n",
+      "stderr": ""
+    }
+  ]
+}
