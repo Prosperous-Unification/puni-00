@@ -17,6 +17,7 @@ import { type } from 'arktype';
 
 import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
+import { executeDirectCreation } from './creation-receipts';
 import { buildObjectStore, importObjectStore, readObjectStoreLock } from './object-store-image';
 
 type K3dLabAction = 'up' | 'down' | 'status';
@@ -764,28 +765,32 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
   try {
     const announcement = await executeCreationAttempt(attempts, identity, async () => {
       const started = Date.now();
-      await run('docker', [
-        'network',
-        'create',
-        '--label',
-        `${LAB_LABEL}=${request.labId}`,
-        names.network,
-      ]);
-      await run('docker', [
-        'run',
-        '--detach',
-        '--name',
-        names.registry,
-        '--label',
-        `${LAB_LABEL}=${request.labId}`,
-        '--network',
-        names.network,
-        '--publish',
-        '127.0.0.1::5000',
-        '--restart',
-        'unless-stopped',
-        registryImage,
-      ]);
+      await executeDirectCreation(attempts, identity, 'network', () =>
+        run('docker', [
+          'network',
+          'create',
+          '--label',
+          `${LAB_LABEL}=${request.labId}`,
+          names.network,
+        ]),
+      );
+      await executeDirectCreation(attempts, identity, 'registry', () =>
+        run('docker', [
+          'run',
+          '--detach',
+          '--name',
+          names.registry,
+          '--label',
+          `${LAB_LABEL}=${request.labId}`,
+          '--network',
+          names.network,
+          '--publish',
+          '127.0.0.1::5000',
+          '--restart',
+          'unless-stopped',
+          registryImage,
+        ]),
+      );
       const published = await run('docker', ['port', names.registry]);
       requireLoopbackPublished(names.registry, published);
       const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));

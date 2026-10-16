@@ -8,7 +8,27 @@ import { readCreationAttempt } from './creation-journal';
 
 const ROOT = join(import.meta.dir, '../../..');
 
-async function fixture(failCreation: 'none' | 'network' | 'cluster') {
+async function journalNames(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const names: string[] = [];
+  for (const entry of entries) {
+    if (entry.isFile() && /^[0-9a-f-]{36}\.json$/.test(entry.name)) names.push(entry.name);
+    else if (!entry.isDirectory() || !/^[0-9a-f-]{36}\.operations$/.test(entry.name))
+      throw new Error(`Unexpected attempt-history entry: ${entry.name}`);
+  }
+  return names;
+}
+
+async function fixture(
+  failCreation:
+    | 'none'
+    | 'network'
+    | 'cluster'
+    | 'network-malformed'
+    | 'registry'
+    | 'registry-malformed'
+    | 'foreign-race',
+) {
   const root = await scratchAsync('k3d-creation-caller-');
   const binaries = join(root, 'bin');
   await mkdir(binaries, { mode: 0o700 });
@@ -32,12 +52,15 @@ case "$*" in
   'ps '*) if test -f '${present}'; then printf 'k3d-puni-f9-platform-server-0\\tf9\\tpuni-f9-platform\\npuni-f9-registry\\tf9\\t\\n'; fi ;;
   'network ls '*) if test -f '${present}'; then printf 'puni-f9\\tf9\\t\\n'; fi ;;
   'port '*) printf '5000/tcp -> 127.0.0.1:40000\\n' ;;
-  'run '*) printf '%064d\\n' 1 ;;
+  'run '*)
+    grep -q '"state":"created"' '${attempts}'/*.operations/network.json || { echo 'network receipt not durable' >&2; exit 88; }
+    ${failCreation === 'registry' ? "echo 'injected registry failure' >&2; exit 73" : failCreation === 'registry-malformed' ? "printf 'not-an-id\\n'" : "printf '%064d\\n' 1"} ;;
   'rm '*) ;;
   'network rm '*) rm '${present}' ;;
   'network create '*)
     test -n "$(find '${attempts}' -name '*.json' -print -quit)" || { echo 'missing reservation' >&2; exit 89; }
-    ${failCreation === 'network' ? "echo 'injected create failure' >&2; exit 71" : `touch '${present}'; printf '%064d\\n' 2`} ;;
+    grep -q '"state":"pending"' '${attempts}'/*.operations/network.json || { echo 'missing pending operation' >&2; exit 87; }
+    ${failCreation === 'network' ? "echo 'injected create failure' >&2; exit 71" : failCreation === 'foreign-race' ? `touch '${present}'; echo 'foreign name race' >&2; exit 74` : failCreation === 'network-malformed' ? `touch '${present}'; printf 'not-an-id\\n'` : `touch '${present}'; printf '%064d\\n' 2`} ;;
   *) echo 'unexpected command' >&2; exit 99 ;;
 esac
 `,
@@ -104,7 +127,7 @@ it('reserves a journal before real up creates resources and records a creation f
   expect(stderr).not.toContain('missing reservation');
   expect(stderr).not.toContain('lab -- down');
   expect(stderr).toContain('not cleanup authority');
-  const journals = await readdir(attempts);
+  const journals = await journalNames(attempts);
   expect(journals).toHaveLength(1);
   const attemptId = journals.at(0)?.replace(/\.json$/, '');
   expect(typeof attemptId).toBe('string');
@@ -112,6 +135,10 @@ it('reserves a journal before real up creates resources and records a creation f
   expect(
     (await readCreationAttempt(attempts, { labId: 'f9', daemonId: 'daemon-1', attemptId })).state,
   ).toBe('failed');
+  const operation: unknown = JSON.parse(
+    await readFile(join(attempts, `${attemptId}.operations`, 'network.json'), 'utf8'),
+  );
+  expect(operation).toMatchObject({ state: 'pending' });
   const commands = await readFile(calls, 'utf8');
   expect(commands).not.toContain('delete');
   expect(commands).not.toMatch(/(^|\n)(network )?rm /);
@@ -124,7 +151,7 @@ it('keeps old attempt journals across ordinary up down up', async () => {
     const stderr = await new Response(invocation.stderr).text();
     expect({ code: await invocation.exited, stderr }).toEqual({ code: 0, stderr: '' });
   }
-  const journals = await readdir(attempts);
+  const journals = await journalNames(attempts);
   expect(journals).toHaveLength(2);
   for (const name of journals) {
     const attemptId = name.replace(/\.json$/, '');
@@ -149,7 +176,7 @@ it('disables k3d rollback when cluster creation fails and leaves its partial fix
   expect(commands).not.toContain('internal rollback');
   expect(commands).not.toContain('cluster delete');
   expect(commands).not.toMatch(/(^|\n)(network )?rm /);
-  const journals = await readdir(attempts);
+  const journals = await journalNames(attempts);
   expect(journals).toHaveLength(1);
   const attemptId = journals.at(0)?.replace(/\.json$/, '');
   if (attemptId === undefined) throw new Error('Missing journal filename');
@@ -157,3 +184,32 @@ it('disables k3d rollback when cluster creation fails and leaves its partial fix
     (await readCreationAttempt(attempts, { labId: 'f9', daemonId: 'daemon-1', attemptId })).state,
   ).toBe('failed');
 });
+
+for (const fault of [
+  'network-malformed',
+  'registry',
+  'registry-malformed',
+  'foreign-race',
+] as const) {
+  it(`leaves unresolved ${fault} evidence through real up without adoption or cleanup`, async () => {
+    const { calls, attempts, invoke } = await fixture(fault);
+    const invocation = invoke('up');
+    const stderr = await new Response(invocation.stderr).text();
+    expect(await invocation.exited).not.toBe(0);
+    expect(stderr).toContain('not cleanup authority');
+    const journals = await journalNames(attempts);
+    expect(journals).toHaveLength(1);
+    const attemptId = journals.at(0)?.replace(/\.json$/, '');
+    if (attemptId === undefined) throw new Error('Missing attempt');
+    const slot = fault.startsWith('registry') ? 'registry' : 'network';
+    const operation: unknown = JSON.parse(
+      await readFile(join(attempts, `${attemptId}.operations`, `${slot}.json`), 'utf8'),
+    );
+    expect(operation).toMatchObject({ state: 'pending' });
+    const commands = await readFile(calls, 'utf8');
+    expect(commands).not.toContain('cluster create');
+    expect(commands).not.toContain('delete');
+    expect(commands).not.toMatch(/(^|\n)(network )?rm /);
+    if (slot === 'network') expect(commands).not.toMatch(/(^|\n)run /);
+  });
+}

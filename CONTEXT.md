@@ -1936,3 +1936,12 @@ _Avoid_: lab generation, recovery session
 The durable lifecycle record of one creation attempt. Its completion describes the attempt's
 outcome and does not establish ownership of individual resources.
 _Avoid_: ownership receipt, deletion authority
+
+**Direct creation receipt**:
+Durable evidence that one creation attempt received the full identity of a directly created
+Docker network or registry container. It does not cover attached volumes or grant deletion authority.
+_Avoid_: ownership claim, cleanup authorization
+
+**Pending creation operation**:
+A reserved direct creation whose outcome has not been durably recorded. The external resource may exist.
+_Avoid_: failed creation, absent resource

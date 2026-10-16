@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+19 |   operation: Promise<unknown>,
+20 |   expected?: string | RegExp,
+21 | ): Promise<void> {
+22 |   const refusal: unknown = await operation.then(
+23 |     () => {
+24 |       throw new Error('Expected refusal');
+                     ^
+error: Expected refusal
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:24:17)
+(fail) refuses daemon from Docker without cleanup [18.51ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+Ran 1 test across 1 file. [272.00ms]

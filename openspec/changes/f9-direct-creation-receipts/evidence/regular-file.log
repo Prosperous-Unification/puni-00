@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+374 |     const [stdout, stderr, code] = await Promise.all([
+375 |       new Response(invocation.stdout).text(),
+376 |       new Response(invocation.stderr).text(),
+377 |       invocation.exited,
+378 |     ]);
+379 |     expect({ code, stderr }).toEqual({ code: 0, stderr: '' });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "code": 0,
+-   "stderr": "",
++   "code": 1,
++   "stderr": 
++ "19 |         }});
++ 20 |       }}));
++ 21 |       const { assessCreationReceipts } = await import("/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.ts");
++ 22 |       try {
++ 23 |         await assessCreationReceipts("/tmp/wbs-test-134-JIKdTr/creation-receipts-tnZIfz", {"labId":"f9","attemptId":"cdd167d5-f9b2-4b94-9200-776445bf8b19","daemonId":"daemon-1"}, 'daemon-1', (slot, id) => Promise.resolve({ id, labId: 'f9', peerIds: [slot === 'network' ? "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"] }));
++ 24 |         throw new Error('fault ignored');
++                        ^
++ error: fault ignored
++       at /tmp/f9-receipts-sol-oct16/[eval]:24:19
++ 
++ Bun v1.4.2 (Linux x64)
++ "
++ ,
+  }
+
+- Expected  - 2
++ Received  + 15
+
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:379:30)
+(fail) refuses injected operation descriptor regular-file during assessment [424.68ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [653.00ms]

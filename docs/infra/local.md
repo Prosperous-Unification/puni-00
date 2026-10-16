@@ -278,10 +278,18 @@ records ready or failed. Journals are owner-only files under
 They record the creation attempt and Docker daemon identity, not ownership of individual
 containers, networks or volumes.
 
+Direct network and registry creation also reserve pending operations under
+`.puni/fleet-labs/k3d/.attempts/<lab-id>/<attempt-id>.operations/`. Each successful command
+records the full Docker ID it returned before the next creation starts. Errors and malformed or
+lost responses leave pending evidence; never resolve them by adopting a name or label. These
+receipts do not cover k3d-created resources or the registry's volumes. Read-only receipt assessment
+requires the same daemon, exact inspected IDs and no foreign attachments; it grants no cleanup
+authority. Ordinary `down` preserves this evidence alongside the journal.
+
 A failed `up` reports its attempt and journal path. Its resource inventory is unknown: resources
 may remain, and the journal does not identify them. `up` disables k3d v5.9.0 automatic failure
 rollback with `--no-rollback`; the wrapper never starts cleanup. Inspect exact resource identities
 manually before cleanup. Ordinary `down` still derives its targets from names and
 labels; a journal does not make that teardown safe for recovery or prove which attempt created
 an object. The separate journal-consuming lifecycle refuses deletion, and the F9 recovery CLI
-remains disabled pending creation ownership receipts and an identity-safe executor.
+remains disabled pending complete resource evidence and an identity-safe executor.
