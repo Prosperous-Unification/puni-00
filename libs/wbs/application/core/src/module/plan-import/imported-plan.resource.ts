@@ -1,6 +1,7 @@
 import type { PriorityBand, StoredStepBlockage } from '@wbs/domain';
 
 import type { CalendarMarker } from '../../ports/calendar-marker-store';
+import type { ImportDirectory } from '../../ports/import-directory';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { NewProject } from '../../ports/project-values';
@@ -12,11 +13,10 @@ import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
 import type { WorkItemPatch } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
-import type { DirectoryService } from '../directory/directory.resource';
 
-/** The directory resource and tree announcement one import reconciles and publishes through. */
+/** The ports one import uses to reconcile directory entries and announce its tree. */
 export interface ImportServices {
-  directory: DirectoryService;
+  directory: ImportDirectory;
   workItems: TreeAnnouncement;
 }
 
