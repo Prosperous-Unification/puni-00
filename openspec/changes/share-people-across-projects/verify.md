@@ -5539,3 +5539,102 @@ live source, binding, selected local digest, service and dev caller is unverifie
 refuses any missing prerequisite. The h2puni canonical gate was not run because live host operations
 were outside this scope. Full repository test/lint/typecheck gates were not run; focused evidence
 and the existing image scenario were used for this slice.
+
+## Real process crash/replay acceptance (2026-10-16)
+
+Base: published #522 head `5bffd8ebefff8ad2da4820db89d0aa409a542cdb`, copied from
+`/tmp/capacity-installed-acceptance` into isolated `/tmp/capacity-crash-replay-sol`.
+The earlier `coldProcess()` helper made another composition inside the test process; it is
+now named `coldComposition()` and its test describes that boundary accurately.
+
+`capacity-fanout-process.db.test.ts` now owns two actual Bun subprocesses and one disposable,
+migrated SQLite file. The writer seeds ranked A above B, both assigned Ana, Fast selected and
+optimization disabled. Shared mode is seeded only in this test fixture; the production
+`SUPPORTED_CAPACITY_MODES` remains unchanged. Both children call `bootBe01`, keep its actual
+composition and mounted routes, and replace only socket listening. Native signed credentials
+select organizations through the mounted selection route; no project or membership authority
+is replaced.
+
+Before editing, the writer reads B's mounted tree and records its cursor (-1). It sends the
+mounted authenticated command changing A's estimate from 1 to 3. Its transport enters a held
+fetch promise after commit. The parent opens its own SQLite connection and checks A=3 and
+exactly one durable `project:B` event, seq 0, `elsewhere_changed B←A`, while the writer is alive.
+It sends SIGKILL only to that owned child and awaits its signaled death. The reader has a
+separate PID and fresh composition, and verifies its replay buffer cannot cover B's event.
+Mounted authenticated `/internal/resume` from the pre-edit cursor returns the original event
+once. A repeat from seq 0 returns no event. The mounted B tree places Ana at [3,4), names A's
+work item as the elsewhere holder and reports `waitingElsewhere=1`.
+
+Reads/resumes leave event rows, sequences, command history, optimization cache/generation,
+queue/slot state, organization/shared-people audits, projects and estimates byte-equivalent to
+the pre-read SQL snapshot. A foreign organization's principal and the original principal after
+membership removal both receive forbidden replay outcomes. Parent polling and reader execution
+have 15-second bounds; publication after release has a 3-second bound. Owned-process cleanup
+runs in `finally`, within a 45-second test budget.
+
+### Watched production faults
+
+Each mutation was applied independently, run against the actual subprocess acceptance, and
+restored. Logs are in `/tmp/capacity-crash-evidence/` (local evidence, not repository artifacts).
+
+| Fault                                            | Observed failure                                       | Log                       |
+| ------------------------------------------------ | ------------------------------------------------------ | ------------------------- |
+| Skip `recordCommittedFanout` recipients          | Parent found no durable B row                          | `skip-fanout.log`         |
+| Remove `ReplayOrchestrator` durable log fallback | Cold resume denied `out_of_range`                      | `memory-only-replay.log`  |
+| Record again inside `pushRecorded`               | Parent found an extra B event at seq 1                 | `duplicate-recording.log` |
+| Compose services with unbound source             | Parent found no durable B row                          | `suppress-binding.log`    |
+| Ignore Fast scheduler's shared input             | B ran [0,1), with no elsewhere holder or wait count    | `ignore-shared-input.log` |
+| Admit all resume subscriptions                   | Both foreign and removed principals replayed B's cause | `bypass-membership.log`   |
+
+The initial test-first run failed because the child executable did not yet exist; the six
+production mutations above supply the behavioral negative evidence. Adjacent `Proof:` comments
+name their faults and observed failures.
+
+### Local validation
+
+- `bun test apps/wbs/be-01/src/capacity-fanout-process.db.test.ts apps/wbs/be-01/src/services.db.test.ts --test-name-pattern 'replays committed capacity fanout|shared-person replay closure'`:
+  5 passed, 130 filtered, 0 failed, 32 assertions. The push-failure regression deliberately emits
+  its existing gateway-unreachable warning. Log: `final-tests.log`.
+- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
+  Nx could not create sandbox worker sockets and used its documented in-process fallback;
+  the target completed successfully. Log: `lint.log`.
+- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
+  Log: `format.log`.
+- `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: module checks and backend TypeScript build
+  passed, 0/2 cache hits. Log: `typecheck.log`.
+- `bun build apps/wbs/be-01/src/main.ts --target=bun --outfile=/tmp/capacity-crash-evidence/be-01.js`:
+  passed, 1434 modules, 4.21 MB bundle. Log: `build.log`.
+- `bun /tmp/puni-ci-repair-openspec-tool/node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json`:
+  all 224 entries passed (206 changes, 18 specs), 0 failed. Log: `openspec.log`. The tool was
+  absent from PATH and the repo dependencies; this existing complete tool installation was used
+  after the no-install lookup and an incomplete cache copy refused to execute.
+
+No installed/live acceptance, Browser hold, F9, ledger or supervisor file was changed. No push,
+publication, live-host operation, canonical h2puni gate, full repository gate or CI run occurred.
+Independent review remains required; this checkpoint records scoped local acceptance only.
+
+### Review repair: atomic one-shot marker publication
+
+Astra high review of `6ff577483b77447bca25da2fb824fd617dff6ec5` identified that the writer's
+unawaited direct `Bun.write(committed.json)` made existence observable before complete content.
+The writer now awaits writing a private PID-scoped staging file, waits at a parent-controlled
+publication barrier, then atomically renames it to `committed.json`. The parent proves the final
+path is absent while staging is held, releases publication, and reads only the renamed marker.
+One shared publication promise prevents transport retries from rewriting or republishing the
+marker. The test waits for a real PushClient retry and verifies unchanged marker inode and
+nanosecond modification time, plus absence of the consumed staging path. The directory is newly
+created and test-owned for every run; the marker must identify the owned writer PID.
+
+The expanded acceptance was RED against the original direct writer (`marker-direct-write-initial-red.log`),
+then GREEN after the staging fix (`marker-green.log`: 1 pass, 14 assertions). Three independent
+child-path mutations were watched and restored:
+
+| Fault                             | Observed failure                                                       | Log in `/tmp/capacity-crash-evidence/` |
+| --------------------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
+| Write directly to final path      | Final marker visible before publication release                        | `marker-direct-write.log`              |
+| Omit atomic rename                | Final marker absent; bounded publication wait killed and reaped writer | `marker-no-rename.log`                 |
+| Remove one-shot publication guard | Actual transport retry replaced the published marker inode             | `marker-republication.log`             |
+
+Adjacent `Proof:` comments identify these faults. The lint/format bullets accidentally inserted
+in three historical checkpoints by the earlier documentation edit were removed; the current
+local validation bullets above are retained only in this checkpoint.
