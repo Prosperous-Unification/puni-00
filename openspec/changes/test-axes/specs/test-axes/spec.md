@@ -1053,3 +1053,27 @@ Before assigning obligations, version two SHALL verify complete canonical Browse
 
 - **WHEN** an unrelated B3 conflict exists or the installed executable consumes the same version-two authority
 - **THEN** the conflict refuses before capability filtering and installed output, digest and exit behavior match source dispatch
+
+### Requirement: Browser-only capability scenario ledger
+
+The system SHALL provide `inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` and typed `inspectBrowserScenarioLedger`. Its closed schema-one authority SHALL contain revision, candidate, capability, Browser mode/four membership authority paths/observation digest, and the existing closed obligation dispositions. It SHALL call the real Browser scenario inspector without requiring separate Performance execution evidence or level authority. All four Browser membership authorities, including Performance membership, SHALL remain mandatory. Existing scenario-ledger v1/v2 output and refusals SHALL remain unchanged.
+
+#### Scenario: [TEST-AXES-136] Browser-only ledger preserves full observations without Performance execution
+
+- **WHEN** real Browser/JUnit/B3 evidence and four Browser membership authorities exist without a Performance execution publication or level authority
+- **THEN** every adopted requested row and complete Browser observation is retained, obligations sort canonically, authentication is absent, certification is false and the digest binds the complete diagnostic
+
+#### Scenario: [TEST-AXES-137] Browser-only ledger refuses strict authorities and broken observation joins
+
+- **WHEN** authority schema/path/readability/UTF8, exact SHA/identity/policy/mode/digest or complete B3 joins fail, including with no Browser obligations
+- **THEN** the production command refuses without partial JSON and every Browser authority remains mandatory
+
+#### Scenario: [TEST-AXES-138] Browser-only ledger retains outcomes manual observations and labelled debt
+
+- **WHEN** Browser cases pass, fail, skip or are absent, obligations are missing/inapplicable/unsupported, Manual reports are evaluated, or unrelated B3 and citation debt exists
+- **THEN** only automated Browser lowest-level obligations receive Browser credit, real Manual joins retain outcomes and debt, citation debt is labelled Browser once, and debt emits complete JSON with exit one
+
+#### Scenario: [TEST-AXES-139] Browser-only ledger validates full tree installed dispatch and legacy compatibility
+
+- **WHEN** unrelated competing overlays exist or source and installed commands inspect passing/debt/refused inputs
+- **THEN** full-tree conflicts refuse before capability filtering and installed dispatch agrees with source while old v1/v2 behavior remains exact

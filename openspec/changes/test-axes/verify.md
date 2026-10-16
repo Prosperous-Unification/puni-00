@@ -4502,3 +4502,159 @@ Final restored targeted confirmation: `bun test --preload ./tools/test/scratch/p
 All local draft evidence above remains noncertifying. Independent Astra high review, exact-commit coordinator gate/CI and publication have not run in this child. No push, live/browser deployment, source reconciliation, F9/capacity/frontend change, global T2/coverage or certification claim was made. Task 4.1c.3 remains unchecked.
 
 Final metadata checks: changed-file Prettier reported `All matched files use Prettier code style!`; `git diff --check` exited 0. Fresh production scenario provenance returned `{"unidentified":[]}`. Pinned `OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json` passed 1/1 with zero failures; `validate --all --json` passed 219/219 (201 changes, 18 specs), zero failures (`/tmp/browser-ledger-{final-format-check.log,provenance.json,openspec-strict.json,openspec-all.json}`). A fresh comparison to exact base #521 again preserved 179 journal events plus exactly four new allocations. The isolated clone initially had no installed Git hook; `bunx lefthook install` installed its standard pre-commit and agent-trailer hooks before the normal commit, with no bypass.
+
+## 4.1c.5 Browser-only capability scenario ledger — local diagnostic candidate
+
+Work began in isolated `/tmp/wbs-browser-ledger-sol` at exact approved #526 head
+`9494a96c023d61de430ca427f69b78d288374a83`, tree
+`7248a83763674b4cebe4794ca979b398aa3ef922`. The local clone fetched that exact
+object from the existing Browser scenario checkout without changing either that
+checkout or the coordinator tree. No push, host gate, live Browser execution or
+certification is part of this packet. WBS080.39 and the parent ledgers remain open.
+
+The production CLI RED was observed before adding the new command:
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-scenario-ledger.test.ts --timeout=120000`
+failed **0 pass, 1 fail** with `unknown command: inspect-browser-scenario-ledger`
+(`/tmp/browser-only-ledger-red.log`). The same initial positive then passed **1
+pass, 0 fail, 15 assertions** after implementation
+(`/tmp/browser-only-ledger-green.log`). Its fixture removes the separate
+Performance publication directory, pointer and level authority before inspection;
+all four real Browser membership authorities, including Performance membership,
+remain present. Candidate Browser config/test source throws if executed.
+
+The bounded new intent, design and four delta scenarios were added to the existing
+change. The real production `scenario allocate` command proposed the allocation;
+its returned `specMarkdown` and `journal` were applied. Fresh comparison against
+the exact base preserved all **183 existing journal events**, followed only by
+`TEST-AXES-136..139`. Production provenance returned `{"unidentified":[]}`
+(`/tmp/browser-only-provenance.json`). Initial strict pinned OpenSpec validation
+passed 1/1; all validation passed **219/219** (201 changes and 18 specs), zero
+failures (`/tmp/browser-only-openspec-{strict,all}.json`). Final checks follow below.
+
+Early targeted validation exposed fixture issues: a root Browser config was
+outside the Manual fixture's declared module index, so the new fixture config was
+placed under its indexed `apps/example/` scope; the requested-unidentified case
+initially deleted allocated rows and reached provenance refusal first, so it now
+appends an unidentified row while preserving adopted rows. An internal-path test
+was corrected to assert the actual named `inside selected candidate` refusal.
+The corrected three cases passed **3 pass, 0 fail, 9 assertions**
+(`/tmp/browser-only-ledger-targeted.log`). These failed intermediate runs are not
+counted as acceptance. The initial 88-case Browser authority/outcome/fault/installed
+suite passed **88 pass, 0 fail, 293 assertions** before the added Manual/schema
+cases (`/tmp/browser-only-ledger-owning-1.log`).
+
+The coordinator's fresh #526 hosted check exposed an inherited failure in the
+shared clock scanner. A fresh read with
+`gh run view 38842532527 --repo Prosperous-Unification/puni-00 --job 116785778489 --log-failed`
+confirmed **1733 pass, 1 fail** in `the Burokrat package reads no clock`
+(`/tmp/browser-ledger-parent-ci-failure.log`,
+[hosted job](https://github.com/Prosperous-Unification/puni-00/actions/runs/38842532527/job/116785778489)).
+The reported identifiers were local `performance` observations in the existing v2
+ledger and fixture, rather than runtime clock reads. The AST detector classified
+every value identifier with that spelling as the global, although member keys
+were already excluded. The new focused detector test and actual package scan
+reproduced RED (`/tmp/browser-ledger-clock-red.log`).
+
+The fix resolves only `performance` identifier bindings through a single-file
+TypeScript Program with `noLib` and `noResolve`. Real local runtime bindings are
+permitted; unresolved/ambient/declaration-file/import-alias bindings retain clock
+classification. Shorthand properties resolve their value symbol. Initializers and
+defaults are still visited; all other clock identifiers and the member/import/module
+rules remain unchanged. No domain axis was renamed. The detector JSDoc records
+this exact boundary and its existing limits. This restores the existing runtime
+clock contract, without adding an exemption list.
+
+The detector plus Burokrat and Dash package scans passed **5 pass, 0 fail**
+(`/tmp/browser-ledger-clock-green.log`). Seven watched probes removed local scope
+resolution, admitted ambient performance, removed declaration-file/declare
+boundaries, used the shorthand property symbol, widened the exemption to other
+globals, or appended actual `performance.now()` to the real legacy ledger. Every
+probe caused the expected test assertion failure
+(`/tmp/browser-ledger-clock-mutations{.json,.log}` and
+`/tmp/browser-ledger-clock-mutation-performance-name.log`). The legacy file was
+restored exactly, SHA-256
+`3b7aa7105805e48295c64a1a6a2249c6f7d5fe2a3a8bd985e5d8bb534fc61113`.
+Final owning/adjacent and tool-scoped validation below uses the restored sources.
+
+For the new Browser ledger, **79 watched mutations** all produced production-path
+assertion failures: 67 main probes, nine schema/upstream/path/full-tree/installed
+probes and three snapshot/inventory/case completeness probes
+(`/tmp/browser-only-mutations{.json,.log}`,
+`/tmp/browser-only-mutations-extra{.json,.log}`,
+`/tmp/browser-only-mutations-completeness.json`). Each temporary edit was restored
+before the next probe. The new production module returned exactly to SHA-256
+`baeaf5dda2f72c9d4c88561e3068356d5a00fc37824a5c61b6bbf72444bbca87`
+after each batch; subsequent production edits add adjacent Proof comments only.
+Probes cover closed/required/version/mode/ID/digest authority schema, canonical
+paths/symlinks/nonregular files/fatal UTF8, exact SHA and broken committed readers,
+missing scenarios and absent/unidentified requested capability, all outer and
+nested Browser identities/policies/digests/diagnostic boundaries/pins/isolation/B3
+and inventory joins, normalized obligations, foreign/duplicate/blank dispositions,
+Browser-only level credit, absence and complete mixed outcomes, every Manual join
+and pin, each scenario/Manual/citation/unidentified debt path, once-labelled
+Browser debt, complete observations/digests, CLI arity/debt exits and installed
+registration. Direct missing/unreadable/malformed/UTF8 authority and real Manual
+report negatives run through the production command; no fallback is introduced.
+
+Final owning validation ran from the isolated checkout root with
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-scenario-ledger.test.ts --timeout=120000`:
+**160 pass, 0 fail, 536 assertions**, 220.67 seconds
+(`/tmp/browser-only-ledger-owning-final.log`). This includes real installed dispatch
+with success, skipped debt and schema refusal. The initial source lint found only
+import order, dot notation and an unnecessary test `async`; those were corrected,
+without changing assertions or production behavior. Final detector assertions were
+strengthened to name the exact ambient value-use line. A fresh detector/Burokrat/Dash
+three-file run then passed **5 pass, 0 fail, 26 assertions**, 1.73 seconds
+(`/tmp/browser-ledger-clock-final.log`).
+
+Scoped uncached Nx checks all returned exit zero with successful target output,
+using `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run <project>:<target> --skip-nx-cache --output-style=static`:
+
+- `twilight-burokrat:lint:source`: 34.6 seconds
+  (`/tmp/browser-only-lint-final-restored.log`).
+- `twilight-burokrat:typecheck`
+  (`/tmp/browser-only-typecheck-final.log`).
+- `twilight-burokrat:build`: 3.9 seconds, including three dependencies
+  (`/tmp/browser-only-build-final.log`).
+- `tool-test-clock-reads:lint`, `:typecheck` and `:build`
+  (`/tmp/browser-only-clock-{lint,typecheck,build}-final.log`).
+- `twilight-burokrat:lint`: exit zero with explicit `status:inactive`,
+  `certified:false`, external activation root not provisioned
+  (`/tmp/browser-only-policy-lint-final.log`). This proves only the optional inactive
+  route, rather than semantic policy admission or certification.
+
+The standard Git pre-commit and agent-trailer hooks were installed with
+`bunx lefthook install` (`/tmp/browser-only-hooks-install.log`); no hook bypass is
+used. Final adjacent regression and metadata evidence follow below.
+
+Final adjacent regression ran from the isolated checkout root:
+
+```sh
+TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/{scenario-ledger,scenario-ledger-browser,browser-scenarios,browser-levels,performance-scenarios,performance-levels,manual,test-reports}.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/rules/specifications.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts ./apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts ./tools/test/clock-reads/detector.test.ts --timeout=120000
+```
+
+It returned exit zero: **504 pass, 0 fail, 3067 assertions across 12 actual
+collected files**, 555.09 seconds (`/tmp/browser-only-ledger-adjacent-final.log`).
+Together with the independent owning run, this is **160 new + 504 adjacent tests**,
+with no failed acceptance tests. It includes complete old ledger v1/v2 and real
+Manual/Browser/Performance/B3 regressions, installed dispatch, and both package
+clock scans. No nonexistent file is counted. After strengthening the detector's
+exact runtime value-use assertions, its scoped uncached lint and typecheck were
+repeated and both returned exit zero
+(`/tmp/browser-only-clock-{lint,typecheck}-assertions-final.log`).
+
+Final changed-file Prettier reported `All matched files use Prettier code style!`
+(`/tmp/browser-only-format-final-check.log`); `git diff --check` returned zero.
+Fresh production scenario provenance returned `{"unidentified":[]}`. Pinned strict
+OpenSpec validation passed **1/1**, all validation passed **219/219**, zero failures
+(`/tmp/browser-only-{provenance-final.json,openspec-strict-final.json,openspec-all-final.json}`).
+Fresh byte comparison again proved the existing production ledger and original
+v2 Browser fixture/test unchanged against exact #526; the Manual fixture only adds
+an optional committed-files input, preserving the original call shape and defaults.
+Fresh allocator comparison preserved the exact 183-event prefix plus four events.
+
+Independent Astra review and coordinator exact-commit CI/host gate/release acceptance
+have not run in this child. No push, host gate, live Browser execution, deployment,
+source reconciliation, coverage/global T2 or certification claim was made. The local
+packet remains an unauthenticated, noncertifying diagnostic and does not close
+WBS080.39 or parent Tasks 2.1/2.2a/2.2/4.1/4.1c.3.
