@@ -5472,3 +5472,70 @@ feasible baseline and shared-person responses; its temporary runtime cleanup com
 The no-argument build branch and application source were unchanged by this correction, so the
 previous real build smoke and project source lint were retained without repetition. Canonical
 h2puni gate, CI and current-release/installed binding acceptance remain unverified.
+
+## Installed dev supervisor acceptance command (010.4.16, slice 9.5)
+
+Implemented in an isolated shared clone of exact #514 head
+`f3686898014b9488b33081aa7003acac470b0b51` at `/tmp/capacity-installed-acceptance`.
+`check-installed-solver.ts` is a host command and bundled build artifact; its client executes inside
+existing `wbs-dev-src` and reuses `solver-image-scenario.ts`. The command holds
+`poll.lock` → `devsync.lock` → production `deploy.lock`, observes installed source/config/health,
+checks compatibility and local image identity, inspects exact managed children before binding,
+requires both revalidated feasible scenarios, reads back token-owned child absence, and verifies
+stable service PID and systemd InvocationID. The receipt distinguishes backend `sourceSha` from
+compatible `imageSourceSha`; no persistent settings, database, image or service changes occur.
+
+Focused test commands use only fake Docker programs and temporary Unix sockets. The initial
+host/client stubs failed their positive contracts (`/tmp/capacity-installed-{host,client}-red.log`).
+Review corrections were separately RED then GREEN: canonical full caller label, the direct devsync
+writer lock, and service restart identity (`/tmp/capacity-installed-{caller-canonical,devsync-lock,service-restart}-{red,green}.log`).
+The full 64-hex label comes from the production start-frame decoder's authenticated peer ID;
+the client reports its original 12-hex Docker hostname claim.
+
+Focused validation:
+
+- `bun test tools/tool-remote-scripts/src/check-installed-solver.test.ts apps/wbs/be-01/scripts/solver-installed-client.test.ts apps/wbs/be-01/scripts/solver-image-scenario.test.ts`:
+  65 passed, zero failed, 537 assertions (`/tmp/capacity-installed-tests.log`).
+- Scoped ESLint for both new implementations and tests, with an Nx graph available; scoped
+  `bunx tsc --build --force tools/tool-remote-scripts/tsconfig.json apps/wbs/be-01/tsconfig.tools.json`;
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run tool-remote-scripts:build --skip-nx-cache`;
+  scoped Prettier and `git diff --check`: all exited zero after final source restoration
+  (`/tmp/capacity-installed-{lint,types,build,format}.log`). The bundled command also ran from
+  `/tmp` outside its checkout and refused a non-full source SHA before any host observation.
+- Pinned OpenSpec 1.12.0 at
+  `/tmp/puni-ci-repair-openspec-tool/node_modules/@fission-ai/openspec/bin/openspec.js`, executed
+  with Bun and `validate --all --json`: 224/224, zero failed
+  (`/tmp/capacity-installed-openspec.log`). Bare `bunx openspec` was unavailable in the read-only
+  default Bun temporary/cache location; the existing pinned installation resolved that prerequisite.
+
+The restricted sandbox denies subprocess socketpair stdin traffic: fake-Docker handshake tests
+initially saw EOF/EPERM. The same local tests passed after automatic approval allowed execution
+outside that sandbox. They contacted no Docker daemon or live host.
+
+Watched production guard omissions, restored after each targeted test, are captured in
+`/tmp/capacity-installed-mutation-receipts.json` and numbered
+`/tmp/capacity-installed-mutation-*.log`. All 34 receipts record a nonzero failing targeted test run:
+
+| Removed guard or behavior                                                              | Observed negative                                                                     |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Full SHA / explicit registry digest arguments                                          | Refusal happened after observation, violating the before-observation assertion        |
+| Each of poll, devsync and production locks independently                               | Observation reached fewer than three held locks                                       |
+| Evidence root, current source, clean tracked source, compatible tree/object IDs        | Malformed or mismatching trusted evidence was accepted or lost its boundary diagnosis |
+| Dev caller identity, installed mapping/socket, local digest, active service            | A mismatching installed prerequisite reached acceptance                               |
+| Mounted source / backend health source                                                 | Wrong deployed source reached acceptance                                              |
+| Client started identity                                                                | Foreign caller claim reached bind                                                     |
+| Exact child ID/name/running state/ref/actual image/PID/managed/token/full caller label | Each independent fault reached bind and acceptance                                    |
+| Exact accepted token/scenario/PID/feasible status                                      | Foreign/non-feasible response reached receipt                                         |
+| Bounded child-removal refusal                                                          | A surviving token-owned child reached receipt                                         |
+| Stable service invocation identity                                                     | A changed service PID/InvocationID reached receipt                                    |
+| Host command exit/output limits                                                        | Refused tools or oversized observations lost their diagnosis                          |
+| Client process EOF/size/exit/trailing output / socket inode type                       | Failed client evidence or a regular file was accepted                                 |
+| Host abort / terminal exit/deadline/OOM / exact request revalidation                   | Aborted, unsuccessful or overlapping feasible attempt reached acceptance              |
+| Client CLI argument boundary                                                           | Wrong socket/scenario/token/extra arguments reached connection                        |
+
+Attended installed acceptance remains task 9.6. This scope performed no live host inspection,
+installation, push, deploy, API/browser acceptance or shared-mode activation. Availability of the
+live source, binding, selected local digest, service and dev caller is unverified; the command
+refuses any missing prerequisite. The h2puni canonical gate was not run because live host operations
+were outside this scope. Full repository test/lint/typecheck gates were not run; focused evidence
+and the existing image scenario were used for this slice.
