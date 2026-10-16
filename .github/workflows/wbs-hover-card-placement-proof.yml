@@ -32,6 +32,9 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: 1.4.2
+      - name: Prove cleanup with missing tools and failed swapoff
+        working-directory: proof
+        run: bun test openspec/changes/wbs-hover-card-placement-boundary/evidence/hosted-proof/cleanup.test.mjs
       - name: Pin exact sources and reserve ephemeral runner swap
         shell: bash
         run: |
@@ -104,7 +107,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if awk 'NR > 1 { print $1 }' /proc/swaps | rg --fixed-strings --line-regexp /mnt/wbs-hover-card-proof.swap; then
+          # Proof: the production block under a PATH without rg failed the active-swap
+          # shell regression by attempting rm before swapoff. Required state/tool and
+          # swapoff failures now stop before rm (cleanup.test.mjs, 2026-10-16).
+          swap_active=$(awk 'NR > 1 && $1 == "/mnt/wbs-hover-card-proof.swap" { active = 1 } END { print active ? 1 : 0 }' /proc/swaps)
+          if [[ "$swap_active" == 1 ]]; then
             sudo swapoff /mnt/wbs-hover-card-proof.swap
           fi
           if [[ -f /mnt/wbs-hover-card-proof.swap ]]; then
