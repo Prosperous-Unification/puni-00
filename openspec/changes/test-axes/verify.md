@@ -4383,3 +4383,122 @@ No full h2puni host gate, exact-head hosted CI, push, merge, release or independ
 - Final uncached scoped Nx `twilight-burokrat:lint:source`, with daemon/plugin isolation disabled: exit 0 with `Successfully ran target lint:source` (`/tmp/browser-scenarios-lint-last.log`). Includes the final test addition and dispatch registration Proof placement.
 - Broad regression from the CLI directory: `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-scenarios.test.ts ./src/evidence/browser-levels.test.ts ./src/evidence/browser-performance.test.ts ./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/browser-memberships.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/performance-levels.test.ts ./src/evidence/performance-scenarios.test.ts ./src/rules/specifications.test.ts --timeout=120000`: exit 0, **263 pass, 0 fail, 3486 assertions across 9 actual files**, 562.80 seconds (`/tmp/browser-scenarios-focused-final.log`). The listed `browser-memberships.test.ts` does not exist at this head and Bun silently did not collect it; Browser membership TEST-AXES-093..095 cases live in `test-reports.test.ts` and did run. This broad run started with the 28-test Browser scenario file; the final additional unobserved case is covered separately and in the final owning run below. Mechanical test lint fixes and adjacent Proof comments overlapped the broad run. A separate installed-registration fault probe also ran after this run had finished its Browser scenario file; that probe was restored and its owning installed case was rerun successfully. This broad run is adjacent regression evidence, not frozen whole-repository acceptance. The final owning run below uses the fully restored final files.
 - Final complete restored owning file: `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-scenarios.test.ts --timeout=120000` from the CLI directory: exit 0, **29 pass, 0 fail, 208 assertions**, 66.17 seconds (`/tmp/browser-scenarios-owning-29-final.log`). This supersedes the earlier 28-plus-one split for final owning-file acceptance and includes source and built installed dispatch after every production fault was restored.
+
+## Browser scenario ledger slice 4.1c.4 — local draft evidence
+
+Base: published #521 `4c5a35a211c6331aa9a75994b6066cf5feb6eef2`, isolated
+`/tmp/wbs-browser-scenarios-sol`. This packet implements only version-two Browser
+composition in the diagnostic capability ledger. It does not close 4.1c.3, parent
+4.1, T2, source reconciliation, WBS080.39, coverage or certification. Publication,
+host gate and independent Astra acceptance belong to the coordinator.
+
+The production allocator emitted TEST-AXES-132..135. Fresh predecessor comparison
+preserved all 179 prior journal events and appended exactly four allocations.
+Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`
+returned `{"unidentified":[]}` (`/tmp/browser-ledger-provenance.json`). Fixture
+repositories use the production allocator over a committed predecessor and successor;
+the Browser and disjoint Performance source/config fixtures throw if executed.
+
+Production RED: `bun test .../scenario-ledger-browser.test.ts --test-name-pattern
+'v2 preserves' --timeout=60000` failed 0 pass/1 fail because version one rejected
+schemaVersion 2 and the Browser member (`/tmp/browser-ledger-red.log`). Later
+`WATCH_scope`/`WATCH_isolation` tests failed 0 pass/3 fail with accepted JSON before
+the scope/isolation guard (`/tmp/browser-ledger-scope-red.log`); restoration produced
+named refusals. The first owning pass reported 81 pass/0 fail across one actual
+collected file (`/tmp/browser-ledger-owning-final.log`); subsequent mandatory-member
+and unconditional-inspection tests are included in the final regression below.
+
+The paired fixture emits immutable real Performance and Browser discovery/execution,
+normalized/raw JUnit and manifests over one exact committed candidate and external
+policy. Complete Browser/Performance B3 reports must match before obligations. A
+full-tree conflict test commits unrelated competing overlays and repins the
+Performance publication candidate/revision/evidence before requiring the named B3
+conflict refusal. Each of four Browser authority paths has separate missing,
+chmod-unreadable, directory, symlink, relative, noncanonical, internal, malformed
+JSON and invalid-UTF8 cases. Closed mandatory-member, supplied-body, mode, authority
+pin and inherited failure tests refuse without partial JSON.
+
+The broken-dependency harness first calls the real Browser inspector, mutates and
+reseals its output, coherently updates unchanged nested report/digest pins, repins
+the external ledger authority, then enters the real production CLI. It retains
+intentionally broken digest/pin faults. Thus candidate/revision/mode/policy,
+authentication/certification, nested report, complete B3 and requested ID/title
+faults cannot rely on a stale outer pin for their refusal. Installed dispatch uses
+a fresh real package and matches source JSON/digest/exit for zero-debt and skipped
+debt, plus no JSON on refusal. The existing installed launcher writes its generic
+`Twilight Burokrat validator exited 1` stderr for valid debt; source stderr is empty.
+
+Intermediate checks: scoped uncached Nx typecheck succeeded with explicit successful
+target output. Initial default Nx attempted denied sockets without target output;
+acceptance uses `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. An early full source lint
+returned exit one without diagnostics; changed-file ESLint found and corrected
+import sorting, typed test JSON, and a void-expression helper. The initial installed
+fixture attempted an all-skipped publication, which the inherited real Browser
+inspector correctly refused; the corrected test includes a passing companion case.
+No acceptance was claimed from these failed attempts.
+
+Watched R5 proofs: 36 unique production guard/schema/outcome/output/exit mutations
+all caused their named assertions to fail, then were restored
+(`/tmp/browser-ledger-mutations.json`, `/tmp/browser-ledger-mutations-extra.json`,
+`/tmp/browser-ledger-mutations-level.json`, individual `/tmp/browser-ledger-mutation-*.log`). They cover complete Browser/levels/
+report digests; revision/candidate/mode and diagnostic boundaries; capability and
+policy ID/digests; scope/mode/invocation/isolation; authority and nested pins;
+complete report identity, B3 and requested inventories; failed/skipped verdict and
+debt mapping; required/closed Browser and outer authority; strict paths; exact v1
+refusal/version; both citation source labels; embedded Browser/full digest; and
+production CLI debt exit. The final two probes widen Browser credit to every automated level and turn unobserved rows into passing rows; each failed the existing TEST-AXES-134 absence/cross-level assertion, then restored the exact source bytes. Two harness setup passes stopped before injection on a
+nonunique source needle; matches were narrowed, source restored in `finally`, and
+all remaining named mutations completed. No failed setup was counted as proof.
+
+The final boundary extraction separates canonical path/lstat checks from JSON
+reading: Browser authorities are decoded only by their real owning inspectors.
+A restored targeted run passed 37 tests, 114 assertions across one file (51
+intentionally filtered); removing the final strict-path call again made the
+noncanonical-path production assertion fail
+(`/tmp/browser-ledger-boundary-green.log`,
+`/tmp/browser-ledger-mutation-strict-paths-final.log`). The preliminary broad run
+was interrupted and restarted after that extraction, with no acceptance from the
+interrupted run. ESLint then found one unused local left by the extraction; it was
+removed during the restarted regression before the owning ledger file loaded.
+No other executable changes overlapped that final run.
+
+Scoped uncached checks use `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`:
+
+- `bunx nx run twilight-burokrat:lint:source --skip-nx-cache --output-style=static`:
+  exit 0 with `Successfully ran target lint:source`, 37.6 seconds
+  (`/tmp/browser-ledger-lint-final.log`).
+- `bunx nx run twilight-burokrat:typecheck --skip-nx-cache --output-style=static`:
+  exit 0 with successful target output (`/tmp/browser-ledger-typecheck-final.log`).
+- `bunx nx run twilight-burokrat:build --skip-nx-cache --output-style=static`:
+  exit 0 with successful build and its three dependencies, 4.3 seconds
+  (`/tmp/browser-ledger-build-final.log`).
+- `bunx nx run twilight-burokrat:lint --skip-nx-cache --output-style=static`:
+  exit 0, explicitly `status:inactive`, `certified:false`, external activation root
+  not provisioned (`/tmp/browser-ledger-policy-lint-final.log`). This proves its
+  optional inactive route only, not policy admission or semantic certification.
+
+Final completed owning/adjacent regression: from the isolated checkout root,
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/rules/specifications.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/{test-sources,performance-sources,browser-scenarios,browser,browser-architecture,level-facts,scenario-ledger,browser-performance,manual,performance-scenarios,scenario-ledger-browser,test-reports,performance,performance-levels,performance-bundle,browser-conformance,browser-levels}.test.ts --timeout=120000`
+returned exit 0: **802 pass, 0 fail, 5503 assertions across 18 actual collected
+files**, 922.89 seconds (`/tmp/browser-ledger-regression-final.log`, exact argv in
+`/tmp/browser-ledger-regression-command.json`). All listed files existed before
+launch; the Bun summary and 18 observed file headers agree. This includes **all
+88 tests in scenario-ledger-browser.test.ts**, plus complete legacy ledger, Manual,
+Browser, Performance and specifications regression. No nonexistent membership
+filename was counted.
+
+After that completed regression the two additional level/absence mutation probes
+ran sequentially. SHA-256 comparison proved production ledger bytes restored to
+`db1dcf62d2da8be803a37600a72b48fa3a4a28fa82a5698c446d62c59c1a1c64` after both
+probes. An extra full owning rerun then terminated with exit 143 without a Bun
+summary or assertion failure; its termination cause is unverified and that rerun
+is not counted as acceptance (`/tmp/browser-ledger-owning-restored-final.log`).
+The completed 802-test regression remains the broad acceptance evidence; final
+restored targeted confirmation is recorded below. Subsequent production edits are
+Proof comments only. A final fresh scoped uncached typecheck passed in 2.8 seconds.
+
+Final restored targeted confirmation: `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger-browser.test.ts --test-name-pattern 'absence remains unobserved|v2 preserves|installed dispatch' --timeout=120000` exited 0: **3 pass, 0 fail, 43 assertions across one file**, 85 intentionally filtered, 30.11 seconds (`/tmp/browser-ledger-restored-targeted-final.log`). This rechecks the last two probes' restored level/absence behavior, complete v2/v1 envelope/digest/refusal behavior, and real source/installed zero-debt, skipped-debt and refusal dispatch.
+
+All local draft evidence above remains noncertifying. Independent Astra high review, exact-commit coordinator gate/CI and publication have not run in this child. No push, live/browser deployment, source reconciliation, F9/capacity/frontend change, global T2/coverage or certification claim was made. Task 4.1c.3 remains unchecked.
+
+Final metadata checks: changed-file Prettier reported `All matched files use Prettier code style!`; `git diff --check` exited 0. Fresh production scenario provenance returned `{"unidentified":[]}`. Pinned `OPENSPEC_TELEMETRY=0 bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json` passed 1/1 with zero failures; `validate --all --json` passed 219/219 (201 changes, 18 specs), zero failures (`/tmp/browser-ledger-{final-format-check.log,provenance.json,openspec-strict.json,openspec-all.json}`). A fresh comparison to exact base #521 again preserved 179 journal events plus exactly four new allocations. The isolated clone initially had no installed Git hook; `bunx lefthook install` installed its standard pre-commit and agent-trailer hooks before the normal commit, with no bypass.
