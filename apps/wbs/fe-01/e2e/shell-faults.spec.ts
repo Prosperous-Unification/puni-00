@@ -128,9 +128,11 @@ test.describe('the connection pill (D9)', () => {
 
 /**
  * The contrast of a row's drop edge against the cell it is drawn on, per edge:
- * the strongest inset shadow at least 2px deep on the top (`above`) or the
- * bottom (`below`) of the target row's cells, rasterised through a canvas for
- * `external-refs.spec.ts`' reason (`oklch(…)` has no luminance as a string).
+ * the strongest inset shadow at least 2px deep on the top or the bottom of the
+ * target row's cells (`into`'s outline), or the line laid over the row on that
+ * edge (`above`, `below`: `[data-drop-line]`, UI review F-128), rasterised
+ * through a canvas for `external-refs.spec.ts`' reason (`oklch(…)` has no
+ * luminance as a string).
  */
 function dropEdgeContrast(page: Page, number: string): Promise<{ top: number; bottom: number }> {
   return page.evaluate((rowNumber) => {
@@ -177,6 +179,13 @@ function dropEdgeContrast(page: Page, number: string): Promise<{ top: number; bo
       const edge = depth >= 2 ? 'top' : depth <= -2 ? 'bottom' : null;
       if (edge !== null) edges[edge] = Math.max(edges[edge], ratio(rgbOf(colour), ground));
     }
+    const line = document.querySelector('[data-drop-line]');
+    const lineEdge = line?.getAttribute('data-drop-line');
+    if (line !== null && (lineEdge === 'top' || lineEdge === 'bottom'))
+      edges[lineEdge] = Math.max(
+        edges[lineEdge],
+        ratio(rgbOf(getComputedStyle(line).backgroundColor), ground),
+      );
     return edges;
   }, number);
 }

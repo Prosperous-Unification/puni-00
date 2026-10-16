@@ -421,6 +421,34 @@ export function HintLayer(): React.JSX.Element {
      * did not move" is the claim being made.
      */
     let pressedAt: { x: number; y: number } | null = null;
+    /**
+     * Whether a drag has begun and the cursor has not moved since it ended.
+     *
+     * A native drag takes the pointer away from the page: Chromium fires
+     * `pointercancel` and no pointer event until the drop, and its idea of where
+     * the cursor is stays at the last position before the drag. When the drop
+     * re-renders the rows under that position, Chromium reports a `pointerover`
+     * there — on the handle of whichever row now stands where the drag began —
+     * and the layer read it as a reader resting on that handle: a wait ring
+     * beside a handle 300px from the real cursor, then "Drag to move this row"
+     * two seconds later (UI review F-129, a real pointer drag in Chromium).
+     *
+     * So from `dragstart` the layer ignores `pointerover` until the first
+     * `pointermove`, which only a cursor that has really moved sends; that move
+     * attends whatever is under it. The `pointermove` listener is added for
+     * that one move and taken off again, so a page at rest still does no
+     * per-move work.
+     *
+     * The focus a drop leaves behind is ignored for the same span. The handle
+     * took the focus on the press, and the reorder hands it back to the moved
+     * row's handle (`focusin` on `Reorder 010.4`, measured 190ms after the
+     * release) — the page's doing, not a keyboard's, so it opens no card. A key
+     * pressed once the drag is over ends the span, so Tab after a drop still
+     * opens the card of whatever it reaches.
+     */
+    let dragged = false;
+    /** Between `dragstart` and `dragend`, when keys belong to the drag. */
+    let midDrag = false;
     let opening: ReturnType<typeof setTimeout> | null = null;
     let ringing: ReturnType<typeof setTimeout> | null = null;
 
@@ -518,6 +546,7 @@ export function HintLayer(): React.JSX.Element {
 
     const pointed = (event: PointerEvent): void => {
       if (event.pointerType !== 'mouse') return;
+      if (dragged) return;
       if (pressedAt !== null) {
         // The cursor is where it was left: whatever this event says is under it
         // now, the reader has not moved and the press still stands. Returning
@@ -537,6 +566,31 @@ export function HintLayer(): React.JSX.Element {
       // would make a hint on a control with children unreachable.
       if (at.node === attending) return;
       attend(at, { left: event.clientX, top: event.clientY });
+    };
+    /** The first real move after a drag: the cursor is where this event says. */
+    const resumed = (event: PointerEvent): void => {
+      if (event.pointerType !== 'mouse') return;
+      document.removeEventListener('pointermove', resumed);
+      dragged = false;
+      pointed(event);
+    };
+    /**
+     * A drag began: whatever was waited for or shown is over, and nothing is
+     * attended until the cursor moves again ({@link dragged}).
+     *
+     * Proof: with this listener not added, `e2e/drop-cue.spec.ts` `a drop leaves
+     * no tool hint waiting where the drag began` failed on `the wait ring after
+     * the drop · Expected: 0 · Received: 1`. Watched 2026-10-16.
+     */
+    const dragging = (): void => {
+      dragged = true;
+      midDrag = true;
+      pressedAt = null;
+      clear();
+      document.addEventListener('pointermove', resumed);
+    };
+    const dropped = (): void => {
+      midDrag = false;
     };
     const left = (): void => {
       // The pointer leaving the window is a departure nothing has to be
@@ -584,6 +638,12 @@ export function HintLayer(): React.JSX.Element {
       // schedule un"`, `94 focusout BUTTON`, `99 focusin TEXTAREA`, and no
       // card at ten seconds.
       if (at === null) return;
+      // A drop handing the focus back to the moved row's handle ({@link dragged}).
+      // Proof: with this guard removed, `e2e/drop-cue.spec.ts` `a drop leaves no
+      // tool hint waiting where the drag began` failed on `a hint card after the
+      // drop · Expected: 0 · Received: 1` ("Drag to move this row"). Watched
+      // 2026-10-16.
+      if (dragged) return;
       // The pointer got here first — a click, most likely. Its own rules apply,
       // wait and all.
       if (at.node === attending) return;
@@ -599,6 +659,10 @@ export function HintLayer(): React.JSX.Element {
       clear();
     };
     const escaped = (event: KeyboardEvent): void => {
+      if (dragged && !midDrag) {
+        dragged = false;
+        document.removeEventListener('pointermove', resumed);
+      }
       if (event.key === 'Escape') clear();
     };
     /**
@@ -636,6 +700,9 @@ export function HintLayer(): React.JSX.Element {
 
     document.addEventListener('pointerover', pointed);
     document.addEventListener('pointerdown', pressed);
+    // Capture, so a handle that stops the event's propagation still ends the wait.
+    document.addEventListener('dragstart', dragging, true);
+    document.addEventListener('dragend', dropped, true);
     document.addEventListener('pointerleave', left);
     document.addEventListener('focusin', focused);
     document.addEventListener('focusout', blurred);
@@ -650,6 +717,9 @@ export function HintLayer(): React.JSX.Element {
     return () => {
       document.removeEventListener('pointerover', pointed);
       document.removeEventListener('pointerdown', pressed);
+      document.removeEventListener('dragstart', dragging, true);
+      document.removeEventListener('dragend', dropped, true);
+      document.removeEventListener('pointermove', resumed);
       document.removeEventListener('pointerleave', left);
       document.removeEventListener('focusin', focused);
       document.removeEventListener('focusout', blurred);

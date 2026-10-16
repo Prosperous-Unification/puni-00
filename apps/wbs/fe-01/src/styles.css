@@ -908,8 +908,8 @@
    * Anything added to the two rules below has to join this chain, and its
    * negative has to hover the row it is about.
    *
-   * `[data-drop='into']` and not `[data-drop]`: `above` and `below` draw an
-   * edge on the `<td>`s and leave `--cell-bg` alone, so a row being dragged
+   * `[data-drop='into']` and not `[data-drop]`: `above` and `below` draw a
+   * line laid over the row and leave `--cell-bg` alone, so a row being dragged
    * past keeps its hover.
    */
   [data-grid]
@@ -1547,9 +1547,11 @@
    * Where a dropped row would land. Last, so these beat the separators above
    * them — same specificity, and the cascade reads source order.
    *
-   * `above` and `below` draw a 2px line on that edge of the target; `into` draws
-   * the target's whole outline and tints it, because "inside this row" is the
-   * whole row taking the dragged one as a child. The ink is `--primary`, the
+   * `into` draws the target's whole outline and tints it, because "inside this
+   * row" is the whole row taking the dragged one as a child. `above` and `below`
+   * are not drawn here: their 2px line starts at the depth the drop lands at,
+   * which only the row's measured outline knows, so `wbs-table.tsx` lays it
+   * over the table (`dropLineOf`, UI review F-128) in this same ink. The ink is `--primary`, the
    * strongest the palette has, and not `--ring`: a `--ring` line measured 2.6:1
    * against the lit row in light, under the 3:1 WCAG 1.4.11 asks of a graphical
    * cue, and the `into` tint alone was the same grey as the pointed row's light,
@@ -1582,16 +1584,6 @@
       inset -2px 0 0 var(--grid-drop-edge),
       inset 0 2px 0 var(--grid-drop-edge),
       inset 0 -2px 0 var(--grid-drop-edge);
-  }
-
-  [data-grid] tbody tr[data-drop='above'] td {
-    box-shadow:
-      inset 0 2px 0 var(--grid-drop-edge),
-      inset 0 -1px 0 var(--border);
-  }
-
-  [data-grid] tbody tr[data-drop='below'] td {
-    box-shadow: inset 0 -2px 0 var(--grid-drop-edge);
   }
 
   /*
