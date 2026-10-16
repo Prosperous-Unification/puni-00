@@ -4856,6 +4856,40 @@ describe('the detail switch', () => {
     },
   );
 
+  /**
+   * A project switch hands the panel generation 0 before the next plan's first
+   * read; with nothing remembered the default is decided again from that read,
+   * both ways (ui-review F-088).
+   *
+   * Proof: on the code before F-088 (the latch kept once set), this failed on
+   * `expected 'false' to be 'true'` after the read with links. Watched
+   * 2026-10-16.
+   */
+  itDom('decides the never-said detail again for the next plan, both ways', () => {
+    const drawnAt = (generation: number, plan: GanttPlan) => (
+      <GanttPanel
+        plan={plan}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={generation}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />
+    );
+    const unread = planOf({ rows: [], slices: [] });
+    const drawn = render(drawnAt(4, unread));
+    expect(theSwitch().getAttribute('aria-pressed'), 'setup: no links, so off').toBe('false');
+    drawn.rerender(drawnAt(0, unread));
+    drawn.rerender(drawnAt(1, everyGatedMark()));
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(countOf('[data-gantt-arrow]')).toBeGreaterThan(0);
+    drawn.rerender(drawnAt(0, unread));
+    drawn.rerender(drawnAt(1, unread));
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('false');
+  });
+
   itDom('opens with both families on a plan with edges, and hides them when asked', () => {
     drawEveryMark();
     const toggle = theSwitch();
