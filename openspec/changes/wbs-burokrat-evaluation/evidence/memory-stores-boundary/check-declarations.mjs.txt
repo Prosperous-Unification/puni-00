@@ -1,0 +1,48 @@
+import ts from 'typescript';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+const root=process.cwd();
+const prior=execFileSync('git',['show','87a2b7edb:libs/wbs/adapters/store-memory/src/source.ts'],{cwd:root,encoding:'utf8'});
+const source=readFileSync(root+'/libs/wbs/adapters/store-memory/src/source.ts','utf8');
+const stores=readFileSync(root+'/libs/wbs/adapters/store-memory/src/memory-stores.ts','utf8');
+function declarations(bytes){
+ const parsed=ts.createSourceFile('source.ts',bytes,ts.ScriptTarget.Latest,true);
+ return parsed.statements.filter(node=>!ts.isImportDeclaration(node)&&!ts.isExportDeclaration(node)).map(node=>{
+  const names=ts.isVariableStatement(node)?node.declarationList.declarations.map(part=>part.name.getText(parsed)).join(','):node.name?.getText(parsed);
+  if(!names)throw Error('Unnamed declaration '+node.getText(parsed));
+  const scanner=ts.createScanner(ts.ScriptTarget.Latest,true,ts.LanguageVariant.Standard,node.getText(parsed));
+  const tokens=[]; for(let token=scanner.scan();token!==ts.SyntaxKind.EndOfFileToken;token=scanner.scan())if(token!==ts.SyntaxKind.ExportKeyword)tokens.push([token,scanner.getTokenText()]);
+  return {name:names,tokens};
+ });
+}
+const before=declarations(prior),retained=declarations(source),moved=declarations(stores);
+if(before.length!==retained.length+moved.length)throw Error('Membership count changed');
+for(const declaration of before){
+ const matches=[...retained,...moved].filter(candidate=>candidate.name===declaration.name);
+ if(matches.length!==1||JSON.stringify(matches[0].tokens)!==JSON.stringify(declaration.tokens))throw Error('Changed declaration '+declaration.name);
+}
+const publicNames=bytes=>{
+ const parsed=ts.createSourceFile('source.ts',bytes,ts.ScriptTarget.Latest,true);const names=[];
+ for(const node of parsed.statements){
+ if(ts.isExportDeclaration(node)){if(!node.exportClause||!ts.isNamedExports(node.exportClause))throw Error('Unknown export shape');names.push(...node.exportClause.elements.map(element=>element.name.text));}
+ else if(node.modifiers?.some(modifier=>modifier.kind===ts.SyntaxKind.ExportKeyword))names.push(node.name?.text);
+ }return names.sort();
+};
+if(JSON.stringify(publicNames(prior))!==JSON.stringify(publicNames(source)))throw Error('Public source exports changed');
+const proofComments=[...prior.matchAll(/\/\/ Proof:[^\n]*(?:\n\s*\/\/[^\n]*)*/g)].map(match=>match[0]);
+if(proofComments.some(comment=>!(source+'\n'+stores).includes(comment)))throw Error('Lost Proof comment');
+const importMap=bytes=>{
+ const parsed=ts.createSourceFile('source.ts',bytes,ts.ScriptTarget.Latest,true);
+ return parsed.statements.filter(ts.isImportDeclaration).flatMap(node=>{
+  const bindings=node.importClause?.namedBindings;
+  if(!bindings||!ts.isNamedImports(bindings))throw Error('Unexpected import shape');
+  return bindings.elements.map(element=>node.moduleSpecifier.text+':'+(element.propertyName?.text??element.name.text));
+ });
+};
+const oldImports=importMap(prior), newImports=[...new Set([...importMap(source),...importMap(stores)])].filter(name=>!name.startsWith('./memory-stores:'));
+if(JSON.stringify([...oldImports].sort())!==JSON.stringify(newImports.sort()))throw Error('Import membership changed');
+if(importMap(stores).some(name=>name.startsWith('./source:')))throw Error('Reverse import');
+if(execFileSync('git',['diff','87a2b7edb','--','libs/wbs/adapters/store-memory/src/index.ts'],{cwd:root,encoding:'utf8'})!=='')throw Error('Index changed');
+const report={importsUnchanged:true,indexUnchanged:true,noReverseImport:true,base:'87a2b7edb',sourceBlob:'0e54a8559a06300ae59af8c070b9eb8ec3ba512f',moved:moved.map(declaration=>declaration.name),retained:retained.map(declaration=>declaration.name),sourceExports:publicNames(source),internalExports:publicNames(stores),allDeclarationTokensIdentical:true,existingProofCommentsPreserved:proofComments.length};
+writeFileSync(root+'/openspec/changes/wbs-burokrat-evaluation/evidence/memory-stores-boundary/declarations.json',JSON.stringify(report,null,2)+'\n');
+console.log(JSON.stringify(report,null,2));
