@@ -836,6 +836,56 @@ describe('every cached target declares what it reads', () => {
     expect(required.filter((path) => !files.includes(path))).toEqual([]);
   });
 
+  it('hashes Navigator subprocess contract dependencies in Dash tests', async () => {
+    const nxJson = JSON.parse(
+      await readFile(new URL('nx.json', WORKSPACE), 'utf8'),
+    ) as NxJsonConfiguration;
+    const inheritedDaemon = process.env['NX_DAEMON'];
+    process.env['NX_DAEMON'] = 'false';
+    let projectGraph: ProjectGraph;
+    try {
+      projectGraph = await createProjectGraphAsync({ exitOnError: true });
+    } finally {
+      if (inheritedDaemon === undefined) delete process.env['NX_DAEMON'];
+      else process.env['NX_DAEMON'] = inheritedDaemon;
+    }
+    const dependencies = projectGraph.dependencies['twilight-dash'];
+    expect(dependencies.some(({ target }) => target === 'twilight-burokrat')).toBe(true);
+    expect(dependencies.some(({ target }) => target === 'twilight-navigator')).toBe(false);
+    expect(dependencies.some(({ target }) => target === 'wbs-contracts')).toBe(false);
+    expect(dependencies.some(({ target }) => target === 'wbs-validation')).toBe(false);
+    const { rustReferences } = getFileMap();
+    if (rustReferences === null) throw new Error('Nx did not hydrate its workspace file map');
+    const task = {
+      id: 'twilight-dash:test',
+      target: { project: 'twilight-dash', target: 'test' },
+      overrides: {},
+      outputs: [],
+      cache: true,
+    };
+    const taskGraph = {
+      roots: [task.id],
+      tasks: { [task.id]: task },
+      dependencies: { [task.id]: [] },
+      continuousDependencies: {},
+    };
+    const hasher = new InProcessTaskHasher(projectGraph, nxJson, rustReferences, {});
+    const hash = await hasher.hashTask(task, taskGraph, process.env, WORKSPACE.pathname, true);
+    if (hash.inputs === undefined) throw new Error('Nx did not collect task hash inputs');
+    const required = [
+      'apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts',
+      'apps/twilight-structure/twilight-navigator/cli/src/fixtures/plan-export.v9.json',
+      'libs/wbs/domain/contracts/src/http/plan-document-shapes.ts',
+      'libs/wbs/domain/validation/src/index.ts',
+      'libs/shared/domain/validation/src/index.ts',
+    ];
+    const files = hash.inputs.files;
+    // Proof: independently removing Dash's Navigator, WBS contracts or WBS validation input
+    // omitted its named source/fixture from this native hash oracle. Removing ^production
+    // omitted shared-validation/src/index.ts (2026-10-15).
+    expect(required.filter((path) => !files.includes(path))).toEqual([]);
+  });
+
   it('hashes the maintenance boot subprocess dependency closure', async () => {
     const nxJson = JSON.parse(
       await readFile(new URL('nx.json', WORKSPACE), 'utf8'),

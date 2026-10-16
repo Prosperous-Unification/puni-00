@@ -2,13 +2,13 @@ import type {
   OptimizationVariantState,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
-} from '@wbs/core';
+} from '@wbs/core/ports/scheduler';
 
 export type {
   OptimizationVariantState,
   OptimizedScheduleAsk,
   OptimizedScheduleRead,
-} from '@wbs/core';
+} from '@wbs/core/ports/scheduler';
 
 /** Apply slot/queue liveness to the adapter's cached-state projection. */
 export function applyVariantLiveness(

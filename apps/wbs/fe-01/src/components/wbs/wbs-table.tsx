@@ -18,7 +18,7 @@ import {
 
 import { Button } from '@/components/ui/button';
 
-import { type CellCards, createCellCards, useCardOpenOn } from './cell-card-store';
+import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
@@ -79,6 +79,7 @@ import {
 } from './table-frame';
 import { ToastStack, useToasts } from './toasts';
 import { attemptNodeLabel, useAttemptActions } from './use-attempt-actions';
+import { useCardOpenOn } from './use-card-open-on';
 import { useColumnSet } from './use-column-set';
 import {
   useEstimateDrafts,

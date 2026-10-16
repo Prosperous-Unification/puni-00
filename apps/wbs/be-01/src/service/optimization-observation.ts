@@ -1,9 +1,7 @@
-import type { UnitOfWork } from '@wbs/core';
-import {
-  type CommittedFanoutDelivery,
-  recordCommittedFanout,
-} from '@wbs/core/service/committed-fanout';
-import type { SqliteSource } from '@wbs/store-sqlite';
+import type { CommittedFanoutDelivery } from '@wbs/core/ports/committed-fanout';
+import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
+import { recordCommittedFanout } from '@wbs/core/service/committed-fanout';
+import type { SqliteSource } from '@wbs/store-sqlite/source';
 
 import type { OptimizationRepository } from '../module/optimization/contract';
 import { observeForAdmissionIn } from '../repository/optimization';

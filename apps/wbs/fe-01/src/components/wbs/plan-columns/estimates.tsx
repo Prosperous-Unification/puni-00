@@ -3,7 +3,6 @@ import { useState } from 'react';
 
 import { type StepView } from '@/lib/wbs-api';
 
-import { useCardOpenOn } from '../cell-card-store';
 import { CellInput } from '../cell-input';
 import { STEP_FINAL_HINT } from '../column-hints';
 import { CreatablePicker, PickerList, pickerOptionId } from '../creatable-picker';
@@ -23,6 +22,7 @@ import {
   type PlanRenderRow,
 } from '../plan-render-rows';
 import { READING_CORNER_PX, StepReadingCorner } from '../step-reading';
+import { useCardOpenOn } from '../use-card-open-on';
 import { column } from './column';
 import { unwatchTrioFit, watchTrioFit } from './trio-fit';
 

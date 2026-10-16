@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 
 import type { TypedDependencyEndpoint } from '@/lib/wbs-api';
 
-import { useCardOpenOn } from '../cell-card-store';
 import { PICKER_PANEL_STYLE } from '../creatable-picker';
 import { REFUSAL_SUFFIX } from '../dep-picker';
 import { DependsCard, dependsLine, statusStripStyle } from '../depends-card';
@@ -20,6 +19,7 @@ import {
   useHiddenChips,
 } from '../reference-set-field';
 import { dependencyWords, endpointText, TypedDependencyEditor } from '../typed-dependency-editor';
+import { useCardOpenOn } from '../use-card-open-on';
 import { column } from './column';
 
 /** What the dependency list keeps clear of the window's right edge, in px. */

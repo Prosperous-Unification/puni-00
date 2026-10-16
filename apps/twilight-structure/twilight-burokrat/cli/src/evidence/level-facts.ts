@@ -14,6 +14,7 @@ import {
   resolveCandidateRoot,
 } from '../inventory/read-candidate';
 import { readExternalArtifact } from '../policy/trust';
+import { decodeConformanceSelection } from './conformance-selection';
 import { compareCanonicalText, hashBytes, hashCanonical } from './content-manifest';
 
 const Digest = type(/^[0-9a-f]{64}$/);
@@ -42,17 +43,6 @@ const Authority = type({
   manual: Empty,
   conformance: Empty.or(Committed),
   architecture: Empty.or(Committed),
-}).onUndeclaredKey('reject');
-
-const ConformanceTarget = type({
-  executor: "'nx:run-commands'",
-  'cache?': 'false',
-  'inputs?': type(["'default'", "'^production'"]).or(
-    type(["'default'", "'^production'", "'{workspaceRoot}/apps/wbs/be-01/drizzle'"]),
-  ),
-  options: type({ command: 'string', cwd: 'string', forwardAllArgs: 'false' }).onUndeclaredKey(
-    'reject',
-  ),
 }).onUndeclaredKey('reject');
 
 function decodeJson(bytes: Uint8Array, subject: string): unknown {
@@ -187,41 +177,7 @@ export function inspectLevelFacts(repository: string, revision: string, authorit
       authority.conformance.digest !== scope.projectManifest.digest
     )
       throw new Error('level facts Conformance pin differs from project manifest');
-    const target =
-      'test:conformance' in manifest.targets ? manifest.targets['test:conformance'] : undefined;
-    // Proof: [TEST-AXES-082] failed when executor/cache/inputs/forwarding schemas were widened,
-    // either closed-key rule or the required-shape check was removed, or cwd/root checks
-    // were disabled. Invalid envelopes emitted facts or lost the named target refusal.
-    if (
-      !ConformanceTarget.allows(target) ||
-      target.options.cwd !== scope.projectRoot ||
-      (target.inputs?.length === 3 && scope.projectRoot !== 'libs/wbs/adapters/store-sqlite')
-    )
-      throw new Error('level facts Conformance target is unsupported');
-    // Proof: restoring bare-filter parsing and literal binding let [TEST-AXES-083]'s
-    // nested-decoy case emit incomplete facts. Removing prefix normalization failed
-    // [TEST-AXES-081]'s successful literal-source inspection assertion.
-    const pathPattern =
-      '\\./(?:[A-Za-z0-9_][A-Za-z0-9._-]*/)*[A-Za-z0-9_][A-Za-z0-9._-]*\\.test\\.ts';
-    const commandPattern = new RegExp(
-      `^bun test (${pathPattern}(?: ${pathPattern})*) --timeout=[1-9][0-9]*(?![\\s\\S])`,
-    );
-    const command = commandPattern.exec(target.options.command);
-    // Proof: disabling this guard lost [TEST-AXES-083]'s named command refusal; removing
-    // the true end constraint let a trailing timeout suffix and a newline emit facts.
-    if (command === null) throw new Error('level facts Conformance command is unsupported');
-    const selectors = target.options.command.slice(
-      'bun test '.length,
-      target.options.command.lastIndexOf(' --timeout='),
-    );
-    // Proof: removing this sort reversed the two committed overlaps and failed [TEST-AXES-081].
-    const files = selectors
-      .split(' ')
-      .map((path) => `${scope.projectRoot}/${path.slice(2)}`)
-      .sort(compareCanonicalText);
-    // Proof: removing this comparison let duplicate selectors emit facts in [TEST-AXES-083].
-    if (new Set(files).size !== files.length)
-      throw new Error('level facts Conformance command is unsupported');
+    const files = decodeConformanceSelection(manifest.targets, scope.projectRoot);
     // Complete selection is validated before intersection; shared Performance sources appear once.
     // Proof: omitting selected-source reads made [TEST-AXES-083]'s outside-intersection
     // missing/symlink/unreadable refusal fail; removing deduplication duplicated the shared

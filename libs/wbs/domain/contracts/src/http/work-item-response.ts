@@ -39,6 +39,20 @@ export const attemptShape = type({
 });
 /** First start to last end of some attempts, the end null while one runs. */
 export const spanShape = type({ start: 'number', end: 'number | null' });
+/** Additive live resources; discriminated provenance keeps unknown assignment/team states invalid. */
+export const nodeResourcesShape = type({
+  nodeId: 'string',
+  assignment: type({ kind: "'unassigned'" })
+    .or({ kind: "'explicit'", personId: 'string' })
+    .or({ kind: "'assumed'", personId: 'string', fromStepId: 'string' }),
+  teams: type({ kind: "'unstated'" }).or({
+    kind: "'stated'",
+    fromWorkItemId: 'string',
+    entries: type({ teamId: 'string', capacity: 'number | null' }).array(),
+  }),
+  maxParallel: 'number',
+  width: 'number',
+});
 export const numberedWorkItem = type({
   id: 'string',
   projectId: 'string',
@@ -98,6 +112,11 @@ export const numberedWorkItem = type({
   'attempts?': type({ '[string]': attemptShape.array() }),
   'spans?': type({ '[string]': spanShape }),
   'span?': spanShape,
+  // Derived resources of every retained leaf step; absent on parents and older producers.
+  // Proof: widening this field to unknown let both mounted malformed-present
+  // producer cases return 200 instead of 500; older absence still reads 200.
+  // Watched 2026-10-15, step-node-resources.controller.db.test.ts.
+  'nodeResources?': type({ '[string]': nodeResourcesShape }),
   // A leaf's node readings by step id (`step-node-readings` D3); absent on a
   // parent and from an older be-01 mid-swap. `skipped` is in the union before
   // anything produces it, so a later reader never meets a word it cannot name.

@@ -10,7 +10,7 @@ import {
   buildSolverRequestPair,
   type SolverRequestPair,
 } from '@wbs/contracts/solver/solver-request-pair';
-import type { CommittedProjectEvent } from '@wbs/core/service/committed-fanout';
+import type { CommittedProjectEvent } from '@wbs/core/ports/committed-fanout';
 import type { Schedule, SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
