@@ -518,6 +518,21 @@ _Avoid_: Working copy, the plan, checkout
 The exact revision or artifact an approval, verification, or release names.
 _Avoid_: Version, latest
 
+**Evaluation coverage**:
+The recorded applicability and actual judgment of each registered rule for each
+selected candidate subject.
+_Avoid_: Infrastructure health, certification, inventory completeness
+
+**Coverage subject**:
+One committed candidate path together with its Git mode and object identity,
+explicitly selected for evaluation coverage.
+_Avoid_: File family, extension group, inferred scope
+
+**Coverage exclusion**:
+A reviewed explanation that a registered rule does not apply to one coverage
+subject; it supplies no judgment of that subject.
+_Avoid_: Passed check, evaluation, waiver
+
 **Task export**:
 The leaf tasks of an accepted plan with their ancestry, estimates and dependencies, bound by the plan reference.
 _Avoid_: Task list, plan copy

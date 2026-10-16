@@ -136,6 +136,8 @@ export function isAdopted(adoptedSet: AdoptedSet | undefined, path: string): boo
 }
 
 export interface RegisteredRule extends Rule {
+  /** Reviewed exclusion codes supported by this rule's concrete diagnostic footprint. */
+  readonly coverageExclusionCodes?: readonly string[];
   /** Evaluates the rule over one candidate. A rule that cannot judge says so; it does not throw. */
   evaluate(context: RuleContext): RuleEvaluation;
 }

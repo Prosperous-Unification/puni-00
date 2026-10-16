@@ -203,6 +203,12 @@ export function ruleMode(policy: RulePolicy, ruleId: string): RuleMode {
   return stated.mode;
 }
 
+/** Narrows F7's required policy input through the same registry-driven boundary. */
+export function assertPolicyInputs(
+  policy: RulePolicy,
+  ruleId: 'F7',
+): asserts policy is RulePolicy & { sizeCeilings: NonNullable<RulePolicy['sizeCeilings']> };
+export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void;
 /** @throws Error naming the rule and the policy field it needs. */
 export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
   // Proof: on 2026-09-20, returning here made the missing-input test receive empty stderr while
@@ -217,6 +223,7 @@ export function assertPolicyInputs(policy: RulePolicy, ruleId: string): void {
     const absent =
       (input === 'policy.classificationPolicy' && policy.classificationPolicy === undefined) ||
       (input === 'policy.relationshipRequest' && policy.relationshipRequest === undefined) ||
+      // Proof: removing this disjunct lost the production coverage diagnostic's missing-F7-ceilings refusal (2026-10-16).
       (input === 'policy.sizeCeilings' && policy.sizeCeilings === undefined) ||
       // Proof: the production missing-authority negative names policy.scenarios instead of
       // accepting an unevaluated rule under observe mode.

@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 1,
+  "proofs": [
+    {
+      "check": "identity-join",
+      "testFilter": "mismatched",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "b3b40f26f7e844cff09106db813d75cb62091d4e840b050b22c18fb36dbd5529",
+      "failedTests": [
+        "production command refuses mismatched policyDigest",
+        "production command refuses mismatched adoptedSetDigest",
+        "production command refuses mismatched registryDigest",
+        "production command refuses mismatched runtimeDigest",
+        "production command refuses mismatched candidate revision",
+        "production command refuses mismatched candidate tree",
+        "production command refuses mismatched candidate digest"
+      ]
+    },
+    {
+      "check": "inventory",
+      "testFilter": "omitted inventory|changed inventory",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "a2039976b4a72f6eeb3b94fa2fa40246401ef59e3d5d0579ed2ac981ab9b29a8",
+      "failedTests": [
+        "production command refuses omitted inventory tuple infra/config.yaml",
+        "production command refuses omitted inventory tuple bin/peer",
+        "production command refuses changed inventory mode",
+        "production command refuses changed inventory blob"
+      ]
+    },
+    {
+      "check": "nonempty-subjects",
+      "testFilter": "empty subjects",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "77a557bceb19fce818b4363284afa7f654a00ff119a013f7bce5bfa423f116c2",
+      "failedTests": ["production command refuses empty subjects"]
+    },
+    {
+      "check": "subject-unique",
+      "testFilter": "repeated subject",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "85537f7c6ccd2305160cab16b47aba255c3e29d1198fc71cb5caa6fc8220bd1d",
+      "failedTests": ["production command refuses repeated subject"]
+    },
+    {
+      "check": "selector-resolution",
+      "testFilter": "unresolved scope",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "e46244145441db7396f7bbecc2d178ded1e407e58f377d32c7b4b4f1c74a9909",
+      "failedTests": ["production command refuses unresolved scope selector"]
+    },
+    {
+      "check": "selector-expansion",
+      "testFilter": "selected subject omission",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "00d1962f042a4bfbf87d25b125fb456678cbc76d1cf3bb33ed2fc341bfeb35b0",
+      "failedTests": [
+        "production command refuses selected subject omission infra/config.yaml with complete inventory",
+        "production command refuses selected subject omission bin/peer with complete inventory"
+      ]
+    },
+    {
+      "check": "exclusion-unique",
+      "testFilter": "exclusion duplicate",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "2eff5700e539c46f6ae157b30c682af81acc48960aa80d9adbe2b9e6bff4b5e8",
+      "failedTests": ["production command refuses exclusion duplicate"]
+    },
+    {
+      "check": "exclusion-tuple",
+      "testFilter": "exclusion changed-tuple",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "9878f7b0c3135c17f52aac24656e01974cc466c14362cd0517dde2a94267d3db",
+      "failedTests": ["production command refuses exclusion changed-tuple"]
+    },
+    {
+      "check": "exclusion-code",
+      "testFilter": "exclusion unsupported",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "b4a13b6abf7f500493718b68531bb9bc71f71787cc2240163b0880b819444cc7",
+      "failedTests": [
+        "production command refuses exclusion unsupported-rule",
+        "production command refuses exclusion unsupported-code"
+      ]
+    },
+    {
+      "check": "exclusion-predicate",
+      "testFilter": "exclusion false-predicate",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "2bad75b4850f9f47b129623d761987daa88a368d59678da670ecb952a045ed86",
+      "failedTests": ["production command refuses exclusion false-predicate"]
+    },
+    {
+      "check": "review-schema",
+      "testFilter": "exclusion evaluation-claim",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "b2a2e96dbc0530ff5df6c29fdc54d2abccb636a890ee55a986d5cdb655b973c1",
+      "failedTests": ["production command refuses exclusion evaluation-claim"]
+    },
+    {
+      "check": "explicit-adopted-set",
+      "testFilter": "explicit adopted set",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "d65e83b407e6bbcbbc7d74138bbd0a233f4e7630af8e0602954ab39090a5512c",
+      "failedTests": ["production command requires explicit adopted set"]
+    },
+    {
+      "check": "unsupported-footprint",
+      "testFilter": "complete inventory and matrix",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "c4d1e05b62359d353712bb796d2ad2780b8b34cc72d8c129237170d5a72a7a4b",
+      "failedTests": [
+        "complete inventory and matrix retain YAML and extensionless executable with bounded judgments"
+      ]
+    },
+    {
+      "check": "whole-rule-judgment",
+      "testFilter": "whole-rule failure",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "1bd0d3f74eb666eaf183cdb345146dfef7abf517136f69fa1fe43821afbfd871",
+      "failedTests": ["whole-rule failure never becomes evaluated subject classification"]
+    },
+    {
+      "check": "index-ownership",
+      "testFilter": "complete inventory and matrix",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "1335a242ee9e796a22d9cdfbef57408305f0d03f8978365dcfe50b2d0b1c0971",
+      "failedTests": [
+        "complete inventory and matrix retain YAML and extensionless executable with bounded judgments"
+      ]
+    },
+    {
+      "check": "finding-attribution",
+      "testFilter": "complete inventory and matrix",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "64f054e220e1567471d24103b23ec22bd618f4547dacd92b738be103947ae3ab",
+      "failedTests": [
+        "complete inventory and matrix retain YAML and extensionless executable with bounded judgments"
+      ]
+    },
+    {
+      "check": "literal-noncertification",
+      "testFilter": "complete inventory and matrix",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "77b1a3a1786936a98b3c4f3f0e5e5fdf0cbc4c1c6336c29b64063f3a1c0ee3d6",
+      "failedTests": [
+        "complete inventory and matrix retain YAML and extensionless executable with bounded judgments"
+      ]
+    },
+    {
+      "check": "full-sha",
+      "testFilter": "operand and selector drift",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "7bb177d3de80bbf948ff58577c6e6755a82ab53f1dfd21fb0a11c2335c4adbf0",
+      "failedTests": ["production CLI refuses operand and selector drift"]
+    },
+    {
+      "check": "unresolved-exit",
+      "testFilter": "complete inventory and matrix",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "851e1970e81cf8fa7ac5d18e130dfebcfda92ca364011daef968cf7c057100dd",
+      "failedTests": [
+        "complete inventory and matrix retain YAML and extensionless executable with bounded judgments"
+      ]
+    },
+    {
+      "check": "runtime-byte-identity",
+      "testFilter": "runtime identity changes",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "57388b4ca75722d0ac2f5aceb9c96a67b142abf0cac4edc5b02a7b35f941500a",
+      "failedTests": ["runtime identity changes when an executed dependency changes"]
+    },
+    {
+      "check": "literal-not-allowed",
+      "testFilter": "complete inventory and matrix",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "109e2ec68de6d953e73a550eb811610d6b1395fb9559e6c7ecf950de4d8566ad",
+      "failedTests": [
+        "complete inventory and matrix retain YAML and extensionless executable with bounded judgments"
+      ]
+    },
+    {
+      "check": "f7-required-authority",
+      "testFilter": "missing F7 ceilings",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "61d209649d7bbdd35c8e3c43b4bd0832114df69580de104ea6970cf6d1a70464",
+      "failedTests": [
+        "production command refuses missing F7 ceilings at the existing policy boundary"
+      ]
+    },
+    {
+      "check": "subject-membership",
+      "testFilter": "absent subject|changed subject",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "21dbf6451901bb4d3873179efabf8e9193c9a7d0ed99e579667ca56049757882",
+      "failedTests": [
+        "production command refuses absent subject",
+        "production command refuses changed subject"
+      ]
+    },
+    {
+      "check": "input-commit-identity",
+      "testFilter": "annotated-tag object SHA",
+      "exitCode": 1,
+      "observation": "guard mutation killed",
+      "receiptSha256": "1ff74539943eb99e3744a920ba63353ad5d63392413baa37c3b17d22bd392c64",
+      "failedTests": [
+        "production command refuses an annotated-tag object SHA even with the correct reviewed target"
+      ]
+    }
+  ]
+}
