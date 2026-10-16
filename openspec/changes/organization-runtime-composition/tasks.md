@@ -13,3 +13,9 @@
 ## 3. Review boundary
 
 - [ ] 3.1 Obtain Astra exact aggregate review; report SHA/tree and proof limits without push or release claim.
+
+## 4. Reviewed source successor composition
+
+- [x] 4.1 Merge reviewed DNS classification repair5bc9c2b5 and scheduler test-only1b074a93 with no-ff ancestry, preserving the existing aggregate and source checkouts.
+- [x] 4.2 Audit exact source blobs and ancestry; rerun repaired classification plus serial boot/config/SMTP/entrypoint controls, scoped typecheck/format/OpenSpec and normal hooks. Watch exclusion omissions fail, then restore.
+- [ ] 4.3 Obtain Astra exact successor review; public push, aggregate CI/h2 gate and external activation remain separate pending acceptance.
