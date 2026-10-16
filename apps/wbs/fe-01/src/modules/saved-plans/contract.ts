@@ -44,8 +44,15 @@ export interface SavedPlanRoutes {
     left: SavedPlanSideRef,
     right: SavedPlanSideRef,
   ) => Promise<SavedPlanCompareReply>;
-  /** Calls `onChange` on every broadcast about the project, until unsubscribed. */
-  readonly subscribe: (projectId: string, onChange: () => void) => { unsubscribe(): void };
+  /**
+   * Calls `onChange` on every broadcast about the project, until unsubscribed, with the event's
+   * type when the frame names one (`subscribeToProject`'s `changed`) and `null` or nothing when
+   * it does not.
+   */
+  readonly subscribe: (
+    projectId: string,
+    onChange: (changed?: string | null) => void,
+  ) => { unsubscribe(): void };
 }
 
 /**
@@ -60,6 +67,16 @@ export interface SavedPlanRoutes {
 export interface SavedPlans {
   /** The shelf, starting from `loading`. */
   readonly shelf: Store<SavedPlanListState>;
+  /**
+   * How many broadcasts since this runtime opened may have moved the live plan, starting at 0.
+   *
+   * Every broadcast counts but {@link SAVED_PLANS_CHANGED}, which says only that the shelf moved:
+   * a saved plan never changes, so a save, rename or delete leaves both sides of a comparison
+   * where they were (F-100). A frame that names no type, or a type this side does not know,
+   * counts — it may have moved anything (R5). The reader's own edits count too, because be-01
+   * publishes them on the same stream.
+   */
+  readonly livePlanRevision: Store<number>;
   /** Reads the shelf again, which no broadcast would have caused: the actor's own fast path. */
   readonly refresh: () => void;
   /**
@@ -75,6 +92,9 @@ export interface SavedPlans {
     right: SavedPlanSideRef,
   ) => Promise<SavedPlanCompareReply>;
 }
+
+/** The broadcast `saved-plan.controller.ts` publishes on save, rename and delete (TASK-255). */
+export const SAVED_PLANS_CHANGED = 'saved_plans_changed';
 
 /** What a project runtime opens its saved plans with: the project, and its own liveness. */
 export interface SavedPlansReader {

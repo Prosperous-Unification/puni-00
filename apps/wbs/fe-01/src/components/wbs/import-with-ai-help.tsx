@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { Button, MENU_ITEM } from '@/components/ui/button';
 import {
@@ -91,12 +91,22 @@ function CopyControl({ label, text }: { label: string; text: string }) {
  * The trigger is a Radix {@link ModalTrigger}, which marks itself `aria-haspopup="dialog"`;
  * that is what keeps the phone's `Plan actions` sheet open under the help
  * (`closingControlIn` in `plan-toolbar-sheet.tsx`).
+ *
+ * **Choosing it closes the menu it is in (UI review F-106, F-127).** The Export / Import panel
+ * closes on every one-shot item, this one included, so the menu does not stand open behind the
+ * dim. The trigger is then inside a closed menu and cannot take the focus back,
+ * so when the dialog closes the focus goes to the menu's `<summary>`: what opened the menu, as
+ * Escape on any toolbar popover returns it (F-028). Rendered outside a `<details>` (its own
+ * suite), there is no menu to close and Radix returns the focus to the trigger as usual.
  */
 export function ImportWithAiHelp({ verifiedMcpUrl }: ImportWithAiHelpProps) {
+  const trigger = useRef<HTMLButtonElement | null>(null);
+  const menu = (): HTMLDetailsElement | null => trigger.current?.closest('details') ?? null;
   return (
     <Modal>
       <ModalTrigger asChild>
         <Button
+          ref={trigger}
           variant="ghost"
           size="sm"
           type="button"
@@ -107,7 +117,16 @@ export function ImportWithAiHelp({ verifiedMcpUrl }: ImportWithAiHelpProps) {
           Import with AI
         </Button>
       </ModalTrigger>
-      <ModalContent>
+      <ModalContent
+        onCloseAutoFocus={(event) => {
+          const summary = menu()?.querySelector(':scope > summary');
+          if (!(summary instanceof HTMLElement)) return;
+          // Proof: on 2026-10-16, with this hand-back taken out, the same case failed on
+          // `expect(element).toHaveFocus()`, the focus left on the trigger in the closed menu.
+          event.preventDefault();
+          summary.focus();
+        }}
+      >
         <ModalHeader>
           <ModalTitle>Import with AI</ModalTitle>
           <ModalDescription>

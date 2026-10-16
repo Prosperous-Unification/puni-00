@@ -494,33 +494,99 @@ describe('sharing the plan', () => {
     // failed on `no Export menu on the toolbar`. Watched, 2026-08-28.
   });
 
-  itDom('keeps Export / Import open while its Import with AI dialog is used', async () => {
-    const api = fakeApi();
-    render(
-      <WbsTableOverClient
-        projectId="p1"
-        projectServices={projectServicesOf(api)}
-        projectName="Rewire the shed"
-      />,
-    );
-    const trigger = await screen.findByRole('button', { name: 'Import with AI' });
-    const menu = document.querySelector<HTMLDetailsElement>('[data-toolbar] details[data-export]');
-    if (menu === null) throw new Error('no Export menu on the toolbar');
-    menu.open = true;
-    trigger.focus();
-    fireEvent.click(trigger);
+  itDom(
+    'closes Export / Import after every one-shot item, and keeps it for Mermaid lanes (F-127)',
+    async () => {
+      captureDownloads();
+      const api = fakeApi();
+      await api.createWorkItem('p1', { parentId: null, afterId: null, name: 'Strip the walls' });
+      render(
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(api)}
+          projectName="Rewire the shed"
+        />,
+      );
+      await screen.findByRole('button', { name: 'Copy as Markdown' });
+      const menu = document.querySelector<HTMLDetailsElement>(
+        '[data-toolbar] details[data-export]',
+      );
+      if (menu === null) throw new Error('no Export menu on the toolbar');
+      const summary = menu.querySelector('summary');
+      const isOpen = (): boolean => menu.open;
+      const stillOpen: string[] = [];
+      for (const item of [
+        'Copy as Markdown',
+        'Copy as Mermaid',
+        'Download CSV',
+        'Download as Markdown',
+        'Download chart as SVG',
+        'Download what’s on screen',
+        'Download JSON',
+      ]) {
+        menu.open = true;
+        fireEvent.click(within(menu).getByRole('button', { name: item }));
+        if (isOpen()) stillOpen.push(item);
+        // The item it was on is hidden now, so the focus goes to what opened the menu.
+        else expect(summary).toHaveFocus();
+      }
+      // Proof: on 2026-10-16, against 3e06eb5a4, this failed listing all seven items.
+      expect(stillOpen).toEqual([]);
 
-    const copy = await screen.findByRole('button', { name: 'Copy import prompt' });
-    fireEvent.pointerDown(copy);
-    fireEvent.click(copy);
-    expect(menu.open).toBe(true);
+      // Choosing a file is the import's one shot; the label that opens the picker is not.
+      menu.open = true;
+      const file = new File(['{}'], 'plan.json', { type: 'application/json' });
+      fireEvent.change(screen.getByLabelText('Import JSON'), { target: { files: [file] } });
+      // Proof: on 2026-10-16, with the panel's file-chosen close taken out, this failed on
+      // `expected true to be false`.
+      expect(menu.open).toBe(false);
 
-    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Import with AI' }), { key: 'Escape' });
-    await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Import with AI' })).toBeNull();
-    });
-    expect(trigger).toHaveFocus();
-  });
+      // A setting is not a one-shot: the menu stays while it is changed.
+      menu.open = true;
+      fireEvent.change(screen.getByLabelText('Mermaid lanes'), { target: { value: 'step' } });
+      expect(menu.open).toBe(true);
+    },
+  );
+
+  itDom(
+    'closes Export / Import as Import with AI opens, and gives the focus back to the menu (F-106)',
+    async () => {
+      const api = fakeApi();
+      render(
+        <WbsTableOverClient
+          projectId="p1"
+          projectServices={projectServicesOf(api)}
+          projectName="Rewire the shed"
+        />,
+      );
+      const trigger = await screen.findByRole('button', { name: 'Import with AI' });
+      const menu = document.querySelector<HTMLDetailsElement>(
+        '[data-toolbar] details[data-export]',
+      );
+      if (menu === null) throw new Error('no Export menu on the toolbar');
+      menu.open = true;
+      trigger.focus();
+      fireEvent.click(trigger);
+
+      const copy = await screen.findByRole('button', { name: 'Copy import prompt' });
+      // A menu item that opens a dialog is a choice made, as a download is: the menu
+      // does not stand open behind the dialog.
+      // Proof: on 2026-10-16, against 3e06eb5a4, this failed on `expected true to be false`.
+      expect(menu.open).toBe(false);
+      fireEvent.pointerDown(copy);
+      fireEvent.click(copy);
+      expect(screen.getByRole('dialog', { name: 'Import with AI' })).toBeInTheDocument();
+
+      fireEvent.keyDown(screen.getByRole('dialog', { name: 'Import with AI' }), { key: 'Escape' });
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog', { name: 'Import with AI' })).toBeNull();
+      });
+      // The item that opened the dialog is inside the closed menu, so the focus goes
+      // to what opened the menu, as Escape on any popover does (F-028).
+      expect(menu.querySelector('summary')).toHaveFocus();
+      expect(menu.open).toBe(false);
+    },
+  );
 
   itDom('disables the import file control while an import is in flight', async () => {
     const api = fakeApi();

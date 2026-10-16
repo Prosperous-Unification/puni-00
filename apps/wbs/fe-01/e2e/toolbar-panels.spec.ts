@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
-import { openSeededPlan, seedPlan } from './plan-fixture';
+import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 
 /**
  * The plan toolbar's popovers and rows, measured by a browser.
@@ -13,7 +13,7 @@ import { openSeededPlan, seedPlan } from './plan-fixture';
 const RUN_TOKEN = String(Date.now());
 
 /** A plan with four unestimated leaves, a start day, and names Find can match. */
-async function openPlan(page: Page): Promise<void> {
+async function openPlan(page: Page): Promise<string> {
   const info = test.info();
   const seeded = await seedPlan(
     page,
@@ -33,6 +33,7 @@ async function openPlan(page: Page): Promise<void> {
   await starts.fill('2026-09-19');
   await starts.press('Enter');
   await expect(starts).toHaveValue('2026-09-19');
+  return seeded.projectId;
 }
 
 /** Every `<details>` popover the toolbar and the header carry, by its summary's words. */
@@ -245,6 +246,74 @@ test.describe('the toolbar popovers', () => {
     expect(open, 'Escape on the question closed the popover').toBe(true);
   });
 
+  test('a save or a delete leaves a comparison current; an edit to the plan does not (F-100, F-103)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const projectId = await openPlan(page);
+    await summaryOf(page, 'Saved plans').click();
+    const panel = page.locator('[data-saved-plans-panel]');
+    const banner = panel.getByText('This plan has changed since the comparison below was made.');
+    const saveNamed = async (name: string) => {
+      await panel.getByRole('textbox', { name: 'Name this plan' }).fill(name);
+      await panel.getByRole('button', { name: 'Save', exact: true }).click();
+      await expect(panel.locator('li', { hasText: name })).toBeVisible();
+    };
+    await saveNamed('Baseline');
+    await expect(panel.getByText('No differences.')).toBeVisible();
+
+    // A named row's meta line is never cut inside a clause, and its fact reads whole (F-103).
+    // Proof: on 2026-10-16, against 3e06eb5a4 (one `truncate` span, no fact), this failed on
+    // `expect(locator).toHaveAttribute(expected) failed`, element(s) not found.
+    const meta = panel.locator('li', { hasText: 'Baseline' }).locator('.saved-plan-list__meta');
+    await expect(meta).toHaveAttribute('data-fact', /saved by .+ with its schedule$/, {
+      timeout: 5000,
+    });
+    const cut = await meta.evaluate((line) =>
+      [...line.children]
+        .filter((clause) => clause.scrollWidth > clause.clientWidth + 0.5)
+        .map((clause) => clause.textContent),
+    );
+    expect(cut, 'a meta clause is ellipsised').toEqual([]);
+
+    // A second save: the shelf re-reads on the reader's refresh and on the broadcast. The
+    // row appearing is after the refresh, which is when the old identity test lit up.
+    await saveNamed('Second');
+    await page.waitForTimeout(1000);
+    // Proof: on 2026-10-16, against 3e06eb5a4, this failed on `expect(locator).toBeHidden()
+    // failed` with the sentence on screen after the second save.
+    await expect(banner).toBeHidden();
+
+    const second = panel.locator('li', { hasText: 'Second' });
+    await second.getByRole('button', { name: 'Delete saved plan Second' }).click();
+    await second.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(second).toBeHidden();
+    await page.waitForTimeout(1000);
+    await expect(banner).toBeHidden();
+
+    // An edit to the live plan, from anywhere, is a change of the comparison's live side.
+    fixtureSuccess(
+      'postApiProjectsByIdCommands',
+      await fixtureClient(page).postApiProjectsByIdCommands({
+        params: { id: projectId },
+        body: {
+          commands: [
+            {
+              kind: 'createWorkItem',
+              ref: 'late',
+              name: 'Late row',
+              parentId: null,
+              afterId: null,
+            },
+          ],
+        },
+      }),
+    );
+    await expect(banner).toBeVisible();
+    await panel.getByRole('button', { name: 'Compare again' }).click();
+    await expect(banner).toBeHidden();
+  });
+
   test('Export / Import is one line and lists plain menu items (F-004, F-031)', async ({
     page,
   }) => {
@@ -278,11 +347,32 @@ test.describe('the toolbar popovers', () => {
 });
 
 test.describe('the toolbar rows', () => {
-  for (const width of [1024, 1280, 1440]) {
-    test(`ends the bar with one group, never split across rows, at ${String(width)} (F-005, F-056)`, async ({
+  /*
+    960×600 is the 1440×900 window at 150 % zoom, where UI review F-099 was
+    reported; 960 and 1024 are also measured with the Export / Import menu open,
+    because an open `<details>` is the one state of the group that lays out
+    something more than its summary.
+
+    F-099 itself did not reproduce: a probe at 880–1100 px in 10 px steps on an
+    87-row plan, the menu open and closed, put every end control on one top at
+    every width, and the reported capture shows one run too. These shapes pin it.
+    Proof, watched 2026-10-16: the menu's panel taken out of `absolute` (laid out
+    in the group's flow) failed both open shapes on `"transfer": 85` against
+    Starts' `261`, and passed every closed one.
+  */
+  const shapes = [
+    { width: 960, height: 600, menu: 'closed' },
+    { width: 960, height: 600, menu: 'open' },
+    { width: 1024, height: 900, menu: 'closed' },
+    { width: 1024, height: 768, menu: 'open' },
+    { width: 1280, height: 900, menu: 'closed' },
+    { width: 1440, height: 900, menu: 'closed' },
+  ] as const;
+  for (const { width, height, menu } of shapes) {
+    test(`ends the bar with one group, never split across rows, at ${String(width)}×${String(height)} with the Export / Import menu ${menu} (F-005, F-056, F-099)`, async ({
       page,
     }) => {
-      await page.setViewportSize({ width, height: 900 });
+      await page.setViewportSize({ width, height });
       await openPlan(page);
       // A hidden column is what offers Reset layout.
       await summaryOf(page, 'Columns').click();
@@ -290,6 +380,10 @@ test.describe('the toolbar rows', () => {
       await summaryOf(page, 'Columns').click();
       const reset = page.getByRole('button', { name: 'Reset layout' });
       await expect(reset).toBeVisible();
+      if (menu === 'open') {
+        await summaryOf(page, 'Export / Import').click();
+        await expect(page.locator('[data-export-panel]')).toBeVisible();
+      }
       const top = async (control: Locator): Promise<number> =>
         Math.round((await control.boundingBox())?.y ?? Number.NaN);
       // The end group's controls, by role and name, each on the row Starts is on.

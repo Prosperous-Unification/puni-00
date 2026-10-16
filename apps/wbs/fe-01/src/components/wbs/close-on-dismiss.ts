@@ -28,10 +28,9 @@ import { type RefCallback, useCallback, useEffect, useState } from 'react';
  * by the platform, not the document, so choosing from one fires no `pointerdown`
  * here and cannot close the panel underneath it.
  *
- * A dialog opened from inside the panel counts as inside it. Radix portals the dialog to
- * `<body>`, so a click on its Copy button is outside the `<details>` by containment; closing the
- * panel then hid the trigger that Radix returns the focus to on close (Export / Import → Import
- * with AI). The trigger names its dialog by `aria-controls`, which is how ownership is read.
+ * A panel item that opens a dialog closes the panel itself as the dialog opens and hands the
+ * focus back to the panel's `<summary>` when the dialog closes (Export / Import → Import with AI,
+ * UI review F-106), so no dialog stands over an open panel for this hook to reason about.
  *
  * **Escape** is the other half of a menu's manners, and the app's one popover
  * rule: every popover closes on Escape and returns the focus to what opened it
@@ -39,9 +38,8 @@ import { type RefCallback, useCallback, useEffect, useState } from 'react';
  * app Escape left open). The key counts when it is pressed inside the panel, or
  * with nothing focused at all — Safari does not focus a clicked `<summary>`, so
  * a mouse reader's Escape arrives at `<body>`. A key some other control already
- * handled (`defaultPrevented`) is left alone: Radix's dialog closes first and
- * prevents the default, so the Import with AI dialog opened from Export /
- * Import shuts without taking the menu under it along.
+ * handled (`defaultPrevented`) is left alone: a dialog closes first and
+ * prevents the default, so its Escape never reaches a panel as well.
  *
  * Summary activation closes peers synchronously, including the native click dispatched by
  * Enter or Space. A `toggle` notification is queued: two activations can finish before the
@@ -68,9 +66,6 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       if (!panel.open) return;
       const { target } = event;
       if (target instanceof Node && panel.contains(target)) return;
-      // Proof: on 2026-09-27, dropping this check failed `keeps Export / Import open while its
-      // Import with AI dialog is used` (plan-toolbar.test.tsx) on the closed menu.
-      if (target instanceof Element && isInsideOwnedDialog(panel, target)) return;
       panel.open = false;
     };
 
@@ -93,8 +88,7 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
     // is judged a task later, on where the focus **landed** rather than on the event's
     // `relatedTarget`: a tick-box label click in the phone's sheet passes the focus through
     // the sheet's surface, and closing on that hid the box mid-click until the sheet's focus
-    // trap and this handler crashed the tab (`mobile.spec.ts`, `Target crashed`). A focus in
-    // the panel's own dialog keeps it open.
+    // trap and this handler crashed the tab (`mobile.spec.ts`, `Target crashed`).
     // Proof: on 2026-10-13, without this listener `closes when Tab takes the focus out of
     // it` in `close-on-dismiss.test.tsx` failed on `expected true to be false`.
     let leavingByTab = false;
@@ -109,7 +103,7 @@ export function useClosedOnDismiss(): RefCallback<HTMLDetailsElement> {
       pendingFocusCheck = setTimeout(() => {
         const landed = document.activeElement;
         if (!panel.open || landed === null || landed === document.body) return;
-        if (panel.contains(landed) || isInsideOwnedDialog(panel, landed)) return;
+        if (panel.contains(landed)) return;
         panel.open = false;
       }, 0);
     };
@@ -174,13 +168,4 @@ function summaryOf(panel: HTMLDetailsElement): HTMLElement {
   const summary = panel.querySelector(':scope > summary');
   if (!(summary instanceof HTMLElement)) throw new Error('a dismissible panel has no <summary>');
   return summary;
-}
-
-/** Whether `target` sits in an open dialog whose trigger (`aria-controls`) is inside `panel`. */
-function isInsideOwnedDialog(panel: HTMLDetailsElement, target: Element): boolean {
-  const dialog = target.closest('[role="dialog"]');
-  if (dialog === null || dialog.id === '') return false;
-  return [...panel.querySelectorAll('[aria-controls]')].some(
-    (trigger) => trigger.getAttribute('aria-controls') === dialog.id,
-  );
 }

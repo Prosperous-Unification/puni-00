@@ -1315,6 +1315,43 @@ describe('saved views, per browser', () => {
     expect(stored[0].criteria).toMatchObject({ query: '', teamIds: [expect.any(String)] });
   });
 
+  itDom(
+    'names a view by what it filters when no name is typed, as Saved plans does (F-104)',
+    async () => {
+      // Views and Saved plans are sibling panels with one anatomy, and an empty
+      // name is never what turns their Save off: a plan saved with no name is
+      // named by its time, and a view by what it asks of the plan.
+      await aPlanWithATeam();
+      openFilters();
+      tick('Team Billing');
+      openViews();
+
+      // Proof: on 2026-10-16, against 3e06eb5a4, this failed on `expect(element).not.toBeDisabled()`
+      // — Save stayed off until something was typed.
+      expect(screen.getByRole('button', { name: 'Save' })).not.toBeDisabled();
+      click('Save');
+
+      expect(screen.getByText('Views (1)')).toBeInTheDocument();
+      const stored = JSON.parse(localStorage.getItem(KEY) ?? '[]') as { name: string }[];
+      expect(stored.map((view) => view.name)).toEqual(['team Billing']);
+      expect(screen.getByRole('button', { name: 'team Billing' })).toBeInTheDocument();
+    },
+  );
+
+  itDom('saves a named view on Enter in its name field, as Saved plans does (F-104)', async () => {
+    await aPlanWithATeam();
+    openFilters();
+    tick('Team Billing');
+    openViews();
+    nameTheView('Billing only');
+    fireEvent.submit(screen.getByLabelText('Name this view'));
+
+    // Proof: on 2026-10-16, against 3e06eb5a4 (no form around the field), this failed on
+    // `Unable to find an element with the text: Views (1)`.
+    expect(screen.getByText('Views (1)')).toBeInTheDocument();
+    expect(screen.getByLabelText<HTMLInputElement>('Name this view').value).toBe('');
+  });
+
   itDom('applies a saved view: the Find box and the ticks together, in one gesture', async () => {
     await aPlanWithATeam();
     find('paint');

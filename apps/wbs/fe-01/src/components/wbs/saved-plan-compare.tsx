@@ -111,6 +111,8 @@ export type SavedPlanComparisonState =
       readonly diff: PlanDiffView;
       readonly schedules: SideSchedules;
       readonly rows: readonly SavedPlanListEntryView[];
+      /** {@link SavedPlans.livePlanRevision} when this comparison was asked for. */
+      readonly livePlanRevision: number;
     };
 
 /**
