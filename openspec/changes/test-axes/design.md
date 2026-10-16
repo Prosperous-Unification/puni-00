@@ -505,3 +505,31 @@ Every requested row remains visible. Browser evidence credits only automated Bro
 The citations and original citation findings must form a complete disjoint partition of all report cases. Case IDs are unique in the report; every cited case equals its complete report record; each finding equals that report case's terminal title and status. Citation groups are unique active scenario IDs across the entire effective B3 tree, including other capabilities. Verdicts are `cited` with `scenarioId`, `missing`, `malformed` or `inactive`; terminal citation semantics must agree with the upstream partition. Duplicate, conflicting, foreign, omitted or altered cases/findings refuse. Rows sort by canonical case ID and retain the complete original ReportCase.
 
 The schema-one `browser-t2` envelope retains revision, candidate, capability, evaluation instant, selected publication scope, full ledger and its digest, external policy identity, every case row and complete original findings. The complete payload has a canonical digest, authentication absent and certifies false. Diagnostic success exits zero regardless of failed/skipped outcomes, citation findings or nested ledger debt. Invalid inputs/joins exit one with stderr and no partial JSON. RulePolicy and T2 registration remain unchanged.
+
+## Browser source level composer (4.1b.17)
+
+The additive `inspect-browser-source-levels` command accepts exactly the eight Browser level
+operands: repository, full committed SHA, external rule policy, mode, and four external
+Manual-review/Conformance/Architecture/Performance authorities. It independently captures the
+committed snapshot, then calls real `inspectTestSources` and `inspectBrowserLevels`. It verifies
+complete canonical digests and absent/noncertifying markers, exact revision/candidate/mode and
+shared report identity. Source bindings must form an exact case-ID bijection with the complete
+recorded report, retaining equal file, status and source mode/content digest. Level bindings
+must uniquely cover exactly those files; their isolation must match their classifications.
+The selected source owner's module identifies the test file's owner only.
+
+The schema-one envelope embeds both complete upstream observations as `sources` and `levels`,
+with `sourceObservationDigest`, `levelObservationDigest`, exact selection identity, retained
+`indexIdentity`/`indexReviewDebt`, case-ID sorted owner/level bindings, typed isolation,
+`authentication:{kind:'absent'}` and `certifies:false`. Existing source observations keep their
+explicit unresolved level; the new joined bindings carry the effective classification. Its
+digest hashes the entire emitted payload excluding only itself. Preserving full upstreams
+means deliberately resealed upstream order faults change the envelope digest even when the
+joined case bindings normalize identically; normal real inspectors already canonicalize order.
+
+A final real `inspectTestReports` call verifies digest equality after both readers, so physical
+publication corruption and validly resealed observation drift refuse without partial JSON.
+Wrong-level isolation emits JSON with exit one; isolated observations exit zero even with
+failed/skipped cases and index review debt. No candidate execution or supplied JSON observation
+is admitted. Source/installed command dispatch remains thin and v1 readers remain unchanged.
+No new domain vocabulary or hard-to-reverse architecture decision is introduced.

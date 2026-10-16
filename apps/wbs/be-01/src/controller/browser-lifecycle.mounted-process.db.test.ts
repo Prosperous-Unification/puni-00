@@ -342,6 +342,9 @@ test('mounted worker protocol buffers split and coalesced frames and fails promp
   );
 });
 
+// Proof: adding 3.5 s after each ready frame reproduced wave11 CI's 10 s total timeout;
+// this 30 s budget passed the same delayed run, while withheld readiness still failed at
+// the unchanged 10 s worker deadline. Reverting all-settled cleanup still failed its join oracle.
 test('cleanup joins every worker before removing SQLite when one output drain fails', async () => {
   dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-cleanup-'));
   const path = join(dir, 'shared.db');
@@ -390,7 +393,7 @@ test('cleanup joins every worker before removing SQLite when one output drain fa
   expect(existsSync(path)).toBe(false);
   expect(await faulty.child.exited).toBeDefined();
   expect(await stubborn.child.exited).toBe(137);
-});
+}, 30_000);
 
 function request(path: string, token: string, marker?: string, correlation?: string) {
   const cookie = `__Host-wbs_access=${token}${marker === undefined ? '' : `; ${marker}`}${correlation === undefined ? '' : `; __Host-wbs_session=${correlation}`}`;

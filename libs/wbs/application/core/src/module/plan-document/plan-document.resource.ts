@@ -26,12 +26,10 @@ import {
 } from '@wbs/domain';
 import { type } from '@wbs/validation';
 
-import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
-import type { Clock } from '../../ports/clock';
 import type {
   DirectoryCatalog,
   DirectoryCatalogRows,
-  DirectoryStore,
+  DirectoryStore as _DirectoryStore,
   PersonWithTeams,
   TeamWithServices,
 } from '../../ports/directory-store';
@@ -39,12 +37,19 @@ import type { ResourceAccess } from '../../ports/organization-access';
 import type { Project } from '../../ports/project-store';
 import type { PlanDocumentReads } from '../../ports/shared-people-values';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
+import type {
+  ExportedProject,
+  PlanDocumentClassification,
+  PlanDocumentExport,
+  PlanDocumentServiceOptions,
+} from './plan-document-values';
 
-/**
- * The project an export writes: its settings and the zone its days are read
- * in, which the document carries as `settings.timezone` (`step-node-attempts` D5).
- */
-export type ExportedProject = Project & { timezone: string };
+export type {
+  ExportedProject,
+  PlanDocumentClassification,
+  PlanDocumentExport,
+  PlanDocumentServiceOptions,
+} from './plan-document-values';
 
 type TreeEndpoint = NonNullable<WorkItemTree['typedDependencies']>[number]['predecessor'];
 
@@ -60,39 +65,8 @@ function documentEndpoint(endpoint: TreeEndpoint): DocumentTypedDependency['pred
   return { scope: endpoint.scope, workItem: endpoint.workItemId, step: endpoint.stepId };
 }
 
-type PlanDirectory = Pick<
-  DirectoryStore,
-  | 'listInOrganization'
-  | 'listTeams'
-  | 'listPeople'
-  | 'listTags'
-  | 'listServices'
-  | 'listWorkItemTypes'
-  | 'listExternalSystems'
->;
-
-export interface PlanDocumentServiceOptions {
-  directory: PlanDirectory;
-  markers: CalendarMarkerReader;
-  clock: Pick<Clock, 'now'>;
-}
-
 /** The be-01 command that codes every step an older writer left uncoded. */
 const STEP_CODE_BACKFILL_COMMAND = 'bun run src/backfill-step-codes-cli.ts';
-
-/**
- * A plan export: the document, or the modeled refusal of a project holding
- * uncoded steps, which names each one and the be-01 backfill `command` that
- * codes them, after which the export succeeds.
- */
-export type PlanDocumentExport =
-  | { ok: true; value: PlanDocument }
-  | {
-      ok: false;
-      error: 'uncoded_steps';
-      steps: { id: string; name: string }[];
-      command: string;
-    };
 
 /**
  * Constructs the versioned archival document around the established project
@@ -112,7 +86,7 @@ export class PlanDocumentService {
    * Under scoped access the directory closure is read from the organization's
    * own catalogs, under their local names, so a person's teams and a team's
    * services that cross into another organization fail the export closed
-   * rather than export a foreign entry; see {@link DirectoryStore.listInOrganization}.
+   * rather than export a foreign entry; see {@link _DirectoryStore.listInOrganization | DirectoryStore.listInOrganization}.
    *
    * Proof: reading the global directory under scoped access made `exports
    * only the organization's own directory, under its local names` in
@@ -401,14 +375,6 @@ function spellStepNodes(tree: {
         })),
   );
 }
-
-export type PlanDocumentClassification =
-  | { ok: true; value: PlanDocumentImport }
-  | {
-      ok: false;
-      code: 'invalid_body' | 'invalid_typed_dependency' | 'unsupported_version';
-      path: string;
-    };
 
 /**
  * Projects an archival payload to writable fields at its version. Header

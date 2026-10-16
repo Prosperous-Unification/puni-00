@@ -8,10 +8,9 @@ import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
-import type { LabelledWorkItem } from '../../ports/work-item-store';
 import { createWorkingPlanDirectory } from './working-plan-directory.resource';
 import { createWorkingPlanEdges } from './working-plan-edges.resource';
-import { createWorkingPlanRows } from './working-plan-rows.resource';
+import { cloneWorkItem, createWorkingPlanRows } from './working-plan-rows.resource';
 import { createWorkingPlanSubtrees } from './working-plan-subtrees.resource';
 import { createWorkingPlanValues } from './working-plan-values.resource';
 
@@ -786,19 +785,4 @@ function assertRequested(
   if (!requested.has(workItemId)) {
     throw new Error(`targeted ${collection} belongs to unrequested work item ${workItemId}`);
   }
-}
-
-/**
- * Detaches a retained row deeply enough that a borrowed before-image cannot
- * rewrite the cache or an inverse already collected from another answer.
- */
-function cloneWorkItem(workItem: LabelledWorkItem): LabelledWorkItem {
-  return {
-    ...workItem,
-    teamIds: [...workItem.teamIds],
-    tagIds: [...workItem.tagIds],
-    serviceIds: [...workItem.serviceIds],
-    typeIds: [...workItem.typeIds],
-    externalRefs: workItem.externalRefs.map((reference) => ({ ...reference })),
-  };
 }

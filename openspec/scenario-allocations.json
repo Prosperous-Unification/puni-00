@@ -1146,6 +1146,30 @@
       "id": "TEST-AXES-143",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser T2 preserves source installed parity and strict trusted boundaries"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-144",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser source levels preserve complete case owners and classifications"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-145",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser source levels refuse identity and case substitutions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-146",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser source levels inherit index failures and publication drift"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-147",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser source levels preserve canonical installed diagnostic boundaries"
     }
   ]
 }

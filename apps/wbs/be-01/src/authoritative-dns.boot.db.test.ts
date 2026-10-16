@@ -35,6 +35,23 @@ const transport: DnsTransport = {
       answers = [{ name: question.name, type: 'NS', ttl: 60, data: 'ns.example.com' }];
     else if (question.type === 'A')
       answers = [{ name: question.name, type: 'A', ttl: 60, data: '8.8.8.8' }];
+    else if (question.type === 'AAAA')
+      authorities = [
+        {
+          name: 'example.com',
+          type: 'SOA',
+          ttl: 60,
+          data: {
+            mname: 'ns.example.com',
+            rname: 'hostmaster.example.com',
+            serial: 1,
+            refresh: 2,
+            retry: 3,
+            expire: 4,
+            minimum: 5,
+          },
+        },
+      ];
     else if (question.type === 'TXT') {
       beforeTxt?.();
       if (mode === 'outage') throw new DnsUnavailableError('controlled DNS outage');
@@ -369,6 +386,22 @@ it('mounted lookup joins cancellation before 503 inside the existing five second
       if (question.type === 'NS' && question.name !== 'com') {
         const reply = packet.decode(incoming.packet);
         reply.answers = [];
+        reply.authorities = [
+          {
+            name: 'com',
+            type: 'SOA',
+            ttl: 60,
+            data: {
+              mname: 'ns.example.com',
+              rname: 'hostmaster.example.com',
+              serial: 1,
+              refresh: 2,
+              retry: 3,
+              expire: 4,
+              minimum: 5,
+            },
+          },
+        ];
         return { ...incoming, packet: packet.encode(reply) };
       }
       return incoming;

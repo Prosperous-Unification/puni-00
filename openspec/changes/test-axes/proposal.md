@@ -145,3 +145,14 @@ Problem: Browser ledger v2 requires an unrelated Performance execution publicati
 ## Browser T2 diagnostic consumer (4.1c.6)
 
 Problem: Browser citation observations and capability ledger debt have separate diagnostics, so callers cannot inspect one complete case-by-case T2 citation partition. Outcome: `inspect-browser-t2` and typed `inspectBrowserT2` consume the real Browser-only ledger, retain it in full, and enumerate every source-bound Browser report case exactly once with its citation verdict. Constraints: exact committed selection, explicit UTC evaluation instant, external policy and ledger authority, complete canonical digests, no duplicate/conflicting/foreign citation cases, complete original findings, absent authentication and false certification. Valid diagnostic observations exit zero even when citation findings or ledger debt exist. Invalid inputs and joins refuse without JSON. Non-goals: registering T2 in RulePolicy, coverage or admission claims, running Browser tests, source reconciliation, certification or closing WBS080.39.
+
+## Browser source level composer 4.1b.17
+
+Problem: Browser case source ownership and effective levels remain separate diagnostics.
+Outcome: `inspect-browser-source-levels` joins both real inspectors by complete case identity,
+source tuple, outcome, exact snapshot, mode and publication identity, preserving full upstream
+observations, index review debt and isolation. Constraints: the Browser level operands remain
+identical, a final real report read refuses publication drift, all outcomes stay visible,
+wrong-level exits one, authentication is absent and certification false. Non-goals: changes to
+existing commands, tested-module claims, T2, scenario joins, coverage, admission, source
+reconciliation, Gantt/C-class/solver work or WBS closure.
