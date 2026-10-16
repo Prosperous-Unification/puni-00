@@ -72,8 +72,9 @@ function barSpan(sliceId: string): { left: number; right: number } {
 
 /**
  * Row `sand`: three steps, two of them unestimated. Unknown slices take no
- * schedule time, so both placeholders and the estimated Impl slice start at
- * workday 3 and the row's cluster is split into lanes — the shape of
+ * schedule time, so the Plan placeholder and the one-day estimated Dev slice
+ * start at workday 3 and are drawn in lanes, Dev ending inside the
+ * placeholder's assumed span — the shape of
  * `010.3.06` in the 2026-10-13 review (F-012), whose two labels were painted
  * one over the other as `01010.3.0606`.
  */
@@ -83,7 +84,7 @@ const lanedRow = (): GanttPlan =>
     slices: [
       sliceAt('trim-dev', 'trim', 0, 3),
       sliceAt('sand-plan', 'sand', 3, 3, { stepId: 'plan', estimated: false, duration: 0 }),
-      sliceAt('sand-dev', 'sand', 3, 6),
+      sliceAt('sand-dev', 'sand', 3, 4),
       sliceAt('sand-qa', 'sand', 6, 6, { stepId: 'qa', estimated: false, duration: 0 }),
     ],
     steps: [
@@ -145,6 +146,49 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
       'sand · 2 steps · 1 no estimate',
       'sand · no estimate',
     ]);
+  });
+
+  itDom('keeps an estimated bar’s own words where it runs past the placeholders (F-138)', () => {
+    // Plan unestimated, Dev ten workdays on Kat: one stack at workday 3, the
+    // Dev bar running eight workdays past the placeholder's assumed span.
+    drawPlan(
+      planOf({
+        rows: [rowAt('sand', 3, 13, { name: 'Sanding' })],
+        slices: [
+          sliceAt('sand-plan', 'sand', 3, 3, { stepId: 'plan', estimated: false, duration: 0 }),
+          sliceAt('sand-dev', 'sand', 3, 13, { personId: 'p1' }),
+        ],
+        steps: [
+          { id: 'plan', name: 'Plan' },
+          { id: 'dev', name: 'Dev' },
+        ],
+        personNames: new Map([['p1', 'Kat']]),
+      }),
+    );
+    // Proof: on 52cdd2ae5, which gave every laned bar no label, this failed
+    // on `sand-dev's own label: expected null not to be null`; watched
+    // 2026-10-17.
+    const own = document.querySelector<HTMLElement>('[data-gantt-bar-label="sand-dev"]');
+    expect(own, 'sand-dev’s own label').not.toBeNull();
+    const stack = document.querySelector<HTMLElement>('[data-gantt-stack-label="sand-plan"]');
+    if (own === null || stack === null) throw new Error('a label is missing');
+    expect(own.textContent).toMatch(/^sand · .*Sanding$/);
+    expect(stack.textContent).toBe('sand · 2 steps · 1 no estimate');
+    // The stack's label covers the placeholder; the bar's starts where the
+    // placeholder's assumed span ends and runs to the bar's own end, over
+    // the whole band.
+    const placeholder = barSpan('sand-plan');
+    const dev = barSpan('sand-dev');
+    const stackBox = labelBox(stack);
+    const ownBox = labelBox(own);
+    expect(stackBox.right).toBeCloseTo(placeholder.right * DAY_PX + CHART_PAD_PX, 2);
+    expect(ownBox.left).toBeCloseTo(placeholder.right * DAY_PX + CHART_PAD_PX, 2);
+    expect(ownBox.right).toBeCloseTo(dev.right * DAY_PX + CHART_PAD_PX, 2);
+    expect(ownBox.top).toBeCloseTo(stackBox.top, 2);
+    expect(ownBox.bottom).toBeCloseTo(stackBox.bottom, 2);
+    // On a patch of its own bar's fill, so its ink reads against the fill it
+    // was chosen for where the band's other lane is bare canvas.
+    expect(own.querySelector('[data-gantt-label-ground]')).not.toBeNull();
   });
 
   it('says how many steps a stack holds and how many nobody estimated', () => {

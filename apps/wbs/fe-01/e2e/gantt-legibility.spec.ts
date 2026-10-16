@@ -125,9 +125,11 @@ async function seedEveryBarColour(page: Page): Promise<void> {
 }
 
 /**
- * A plan of two rows whose steps share one scheduled instant, the shape of
+ * A plan of three rows whose steps share one scheduled instant, the shape of
  * `010.3.06` and `010.3.08` in the PUNI plan (ui-review F-101): `010` with only
- * its last step estimated, short, and `020` with no step estimated at all.
+ * its last step estimated, short, and `020` with no step estimated at all;
+ * and `030`, whose last step is estimated at ten days and so runs far past
+ * its unestimated first step's assumed span (F-138).
  * Unknown slices take no schedule time, so `010`'s unestimated first step and
  * its short estimated one start at one instant and are drawn in lanes.
  */
@@ -151,6 +153,13 @@ async function seedSharedInstants(page: Page): Promise<void> {
     commands: [
       { kind: 'createWorkItem', ref: 'pile', parentId: null, afterId: null, name: 'Row pile' },
       { kind: 'createWorkItem', ref: 'ghost', parentId: null, afterRef: 'pile', name: 'Row ghost' },
+      { kind: 'createWorkItem', ref: 'long', parentId: null, afterRef: 'ghost', name: 'Row long' },
+      {
+        kind: 'setEstimate',
+        workItemRef: 'long',
+        stepId: last.id,
+        days: { optimistic: 8, realistic: 10, pessimistic: 12 },
+      },
       {
         kind: 'setEstimate',
         workItemRef: 'pile',
@@ -411,17 +420,35 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
     // Proof: on main, which wrote a label in each lane, this failed on
     // `labels for 010`, expected length 1, received `["010 · no estimate",
     // "010"]`; watched 2026-10-16.
+    //
+    // The counts are pinned: the seed is fixed, so a stack that miscounted
+    // must not pass (F-142).
     for (const [number, words] of [
-      ['010', /^010 · \d+ steps · \d+ no estimate$/],
-      ['020', /^020 · \d+ steps · no estimate$/],
+      ['010', '010 · 2 steps · 1 no estimate'],
+      ['020', '020 · 2 steps · no estimate'],
     ] as const) {
       const own = labels.filter((label) => label.text.startsWith(number));
       expect(
         own.map((label) => label.text),
         `labels for ${number}`,
-      ).toHaveLength(1);
-      expect(own[0].text).toMatch(words);
+      ).toEqual([words]);
       expect(own[0].stack, `${number} written by its stack`).toBe(true);
+    }
+    // `030`'s ten-day bar keeps its own words past the placeholder, beside
+    // the stack's.
+    //
+    // Proof: on 52cdd2ae5, which gave every laned bar no label, this failed
+    // on `labels for 030`, the received list missing `"bar: 030 · Row
+    // long"` (only the stack's label); watched 2026-10-17.
+    const long = labels.filter((label) => label.text.startsWith('030'));
+    expect(
+      long.map((label) => `${label.stack ? 'stack' : 'bar'}: ${label.text}`).sort(),
+      'labels for 030',
+    ).toEqual(['bar: 030 · Row long', 'stack: 030 · 2 steps · 1 no estimate']);
+    // Every label here, the spilled one on its patch of bar fill included,
+    // clears 4.5:1 on what it sits on.
+    for (const [bar, measured] of Object.entries(await labelContrasts(page))) {
+      expect(measured, `label on ${bar}`).toBeGreaterThanOrEqual(4.5);
     }
     // No two labels' ink touches, with a pixel of air on every side.
     for (const [at, first] of labels.entries()) {

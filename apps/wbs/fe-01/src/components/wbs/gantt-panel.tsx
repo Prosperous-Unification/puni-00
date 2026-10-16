@@ -1108,7 +1108,49 @@ export function labelBandOf(bar: {
   lanes: number;
 }): { topPx: number; heightPx: number } | null {
   if (bar.lanes > 1) return null;
-  return { topPx: (bar.rowIndex + BAR_INSET) * ROW_PX, heightPx: BAR_HEIGHT * ROW_PX };
+  return rowBandOf(bar.rowIndex);
+}
+
+/** A row's whole bar band, in CSS pixels down from the chart's first row. */
+function rowBandOf(rowIndex: number): { topPx: number; heightPx: number } {
+  return { topPx: (rowIndex + BAR_INSET) * ROW_PX, heightPx: BAR_HEIGHT * ROW_PX };
+}
+
+/** Where a bar writes its own words: its span in cells, the band, and whether it spilled. */
+export interface BarLabelPlace {
+  x: number;
+  width: number;
+  band: { topPx: number; heightPx: number };
+  /**
+   * True past a lane stack's placeholders ({@link LaneStack.spill}): the
+   * band's other lane is bare canvas there, so the words sit on a patch of the
+   * bar's own fill.
+   */
+  spilled: boolean;
+}
+
+/**
+ * Where a drawn bar's own label goes: its own span over its band, or, for a
+ * laned bar, only its spill past its stack's placeholders; null for a laned
+ * bar with no spill, whose stack writes for it.
+ */
+export function barLabelPlaceOf(
+  placed: PlacedBar,
+  spills: ReadonlyMap<string, LaneSpill>,
+): BarLabelPlace | null {
+  const spill = spills.get(placed.bar.sliceId);
+  if (spill !== undefined) {
+    return { x: spill.x, width: spill.width, band: rowBandOf(placed.bar.rowIndex), spilled: true };
+  }
+  const band = labelBandOf(placed.bar);
+  return band === null ? null : { x: placed.x, width: placed.width, band, spilled: false };
+}
+
+/** The stacks' spills by the spilling bar's slice — see {@link barLabelPlaceOf}. */
+export function spillsOf(stacks: readonly LaneStack[]): ReadonlyMap<string, LaneSpill> {
+  return new Map(
+    stacks.flatMap((stack) => (stack.spill === null ? [] : [[stack.spill.sliceId, stack.spill]])),
+  );
 }
 
 /**
@@ -1127,43 +1169,83 @@ export interface LaneStack {
   rowIndex: number;
   /** The row's number, which the label opens with as every bar's label does. */
   number: string;
-  /** The stack's left edge and width in calendar cells, the drawn union of its bars. */
+  /**
+   * Where the stack's label stands, in calendar cells: the drawn union of its
+   * bars, less the part of a {@link spill} past the placeholders.
+   */
   x: number;
   width: number;
   steps: number;
   unestimated: number;
+  /**
+   * The one estimated bar that runs past every placeholder of the stack, and
+   * the cells past them, where it writes its own words over the whole band;
+   * null when none does, or when two do and would write over each other.
+   */
+  spill: LaneSpill | null;
+}
+
+/** An estimated bar's own label room past its stack's placeholders — see {@link LaneStack.spill}. */
+export interface LaneSpill {
+  sliceId: string;
+  x: number;
+  width: number;
 }
 
 /**
  * The lane stacks among the drawn bars: per row, the laned bars swept by drawn
- * start into runs whose drawn spans overlap (touching ends do not), which is
- * the cluster `withPlaceholderLanes` split into lanes, read back in cells.
+ * start into runs whose drawn spans overlap (touching ends do not), the run
+ * `withPlaceholderLanes` split into lanes, read back in cells.
+ *
+ * An estimated bar of real length shares its start with the placeholders
+ * before it (Plan unestimated, Dev ten days), so it is laned with them; past
+ * the placeholders' assumed spans the band's other lane is empty, and the bar
+ * keeps its own words there ({@link LaneStack.spill}, ui-review F-138).
+ *
+ * Proof: with `spill` always null, `keeps an estimated bar’s own words where
+ * it runs past the placeholders` failed on `sand-dev’s own label: expected
+ * null not to be null`; watched 2026-10-17.
  */
 export function laneStacksOf(bars: readonly PlacedBar[]): LaneStack[] {
   const laned = bars
     .filter(({ bar }) => bar.lanes > 1)
     .sort((left, right) => left.bar.rowIndex - right.bar.rowIndex || left.x - right.x);
-  const stacks: LaneStack[] = [];
-  let open: LaneStack | null = null;
-  for (const { bar, x, width } of laned) {
-    const joins = open !== null && open.rowIndex === bar.rowIndex && x < open.x + open.width;
-    if (open === null || !joins) {
-      open = {
-        sliceId: bar.sliceId,
-        rowIndex: bar.rowIndex,
-        number: bar.workItemNumber,
-        x,
-        width,
-        steps: 0,
-        unestimated: 0,
-      };
-      stacks.push(open);
+  const runs: PlacedBar[][] = [];
+  let reach = -Infinity;
+  for (const placed of laned) {
+    const run = runs.at(-1);
+    if (run?.[0].bar.rowIndex !== placed.bar.rowIndex || placed.x >= reach) {
+      runs.push([placed]);
+      reach = placed.x + placed.width;
+    } else {
+      run.push(placed);
+      reach = Math.max(reach, placed.x + placed.width);
     }
-    open.width = Math.max(open.x + open.width, x + width) - open.x;
-    open.steps += 1;
-    if (!bar.estimated) open.unestimated += 1;
   }
-  return stacks;
+  return runs.map((run) => {
+    const [first] = run;
+    const end = (placed: PlacedBar): number => placed.x + placed.width;
+    const x = Math.min(...run.map((placed) => placed.x));
+    const unknownEnd = Math.max(
+      ...run.filter(({ bar }) => !bar.estimated).map((placed) => end(placed)),
+    );
+    const spilling = run.filter((placed) => placed.bar.estimated && end(placed) > unknownEnd);
+    const kept = spilling.length === 1 ? run.filter((placed) => placed !== spilling[0]) : run;
+    const spill =
+      spilling.length === 1
+        ? { sliceId: spilling[0].bar.sliceId, x: unknownEnd, width: end(spilling[0]) - unknownEnd }
+        : null;
+    return {
+      sliceId: first.bar.sliceId,
+      rowIndex: first.bar.rowIndex,
+      number: first.bar.workItemNumber,
+      x,
+      width: Math.max(...kept.map((placed) => end(placed))) - x,
+      steps: run.length,
+      unestimated: run.filter(({ bar }) => !bar.estimated).length,
+      spill,
+    };
+  });
 }
 
 /**
@@ -2973,15 +3055,20 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   const labelClips = document.createElementNS(SVG_NS, 'defs');
   root.appendChild(labelClips);
 
-  for (const [index, { bar, x, width }] of drawnBars.entries()) {
+  const stacks = laneStacksOf(drawnBars);
+  const spills = spillsOf(stacks);
+  for (const [index, placed] of drawnBars.entries()) {
+    const { bar } = placed;
+    const place = barLabelPlaceOf(placed, spills);
+    if (place === null) continue;
+    const { x, width, band: lane } = place;
     const room = labelRoomFor(bar.workItemNumber, width, dayPx, bar);
     const who =
       bar.personName === null
         ? poolLabelFor(bar.team, bar.width, room)
         : barLabelFor(bar.personName, room);
     const shown = barText(who, bar.workItemName, room);
-    const lane = labelBandOf(bar);
-    if (shown === null || lane === null) continue;
+    if (shown === null) continue;
     const barLeft = gutterPx + x * dayPx + CHART_PAD_PX;
     const barTop = ROW_PX + lane.topPx;
     const clipId = `gantt-bar-label-clip-${String(index)}`;
@@ -2993,6 +3080,19 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
 
     const left = barLeft + LABEL_PAD_LEFT_PX;
     const top = barTop + lane.heightPx / 2 + 3;
+    if (place.spilled) {
+      // Past the placeholders the band's other lane is bare canvas: the
+      // words sit on a patch of the bar's own fill, as on the live chart.
+      const patch = svgRect(
+        left - 2,
+        top - 9,
+        shown.length * LABEL_CHAR_PX + 4,
+        12,
+        bar.personColor,
+      );
+      patch.setAttribute('clip-path', `url(#${clipId})`);
+      root.appendChild(patch);
+    }
     const label = svgText(left, top, shown, {
       fontSize: 9,
       fontWeight: '600',
@@ -3011,7 +3111,7 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   // A lane stack's one label, as the live chart writes it ({@link
   // laneStacksOf}): the page's ink on a patch of the page's ground, clipped to
   // the stack's band. The patch is the estimated text width, clipped with it.
-  for (const [index, stack] of laneStacksOf(drawnBars).entries()) {
+  for (const [index, stack] of stacks.entries()) {
     const shown = stackText(stack, stackRoomFor(stack, dayPx));
     const band = labelBandOf({ rowIndex: stack.rowIndex, lanes: 1 });
     if (shown === null || band === null) continue;
@@ -4309,6 +4409,7 @@ export function GanttRenderer({
    */
   const drawnBars = placed.bars;
   const laneStacks = useMemo(() => laneStacksOf(drawnBars), [drawnBars]);
+  const laneSpills = useMemo(() => spillsOf(laneStacks), [laneStacks]);
   // Proof: removing invalidation left the chooser and pending hover alive after
   // same-generation filter/collapse/rung changes (subday-review-proof-placement).
   useLayoutEffect(() => {
@@ -6067,7 +6168,13 @@ export function GanttRenderer({
               click that takes the plan to a row belongs to the rect underneath,
               and a span on top would swallow it in its middle.
             */}
-        {drawnBars.map(({ bar, x, width }) => {
+        {drawnBars.map((placed) => {
+          const { bar } = placed;
+          // Its own span, or for a laned bar only the cells past its stack's
+          // placeholders — see {@link barLabelPlaceOf}.
+          const place = barLabelPlaceOf(placed, laneSpills);
+          if (place === null) return null;
+          const { x, width, band: lane } = place;
           // The row's number first, then who is on the bar, then its name —
           // see {@link barText}; an unestimated bar says `number · no
           // estimate` ({@link PLACEHOLDER_WORDS}). The room is the **drawn**
@@ -6082,8 +6189,7 @@ export function GanttRenderer({
               ? poolLabelFor(bar.team, bar.width, room)
               : barLabelFor(bar.personName, room);
           const shown = barText(who, bar.workItemName, room);
-          const lane = labelBandOf(bar);
-          if (shown === null || lane === null) return null;
+          if (shown === null) return null;
           return (
             <span
               key={`${bar.sliceId}-label`}
@@ -6121,7 +6227,7 @@ export function GanttRenderer({
                 paddingRight: labelPadRightPx(bar.done, width * dayPx),
               }}
             >
-              {bar.stop === 'blocked_by_proxy' ? (
+              {bar.stop === 'blocked_by_proxy' || place.spilled ? (
                 // The hatch's red stripes run across the whole bar, and a dark
                 // label crossing them fell to 3.70:1 against a stripe. The
                 // words sit on a patch of the bar's own fill instead, so the
@@ -6132,7 +6238,9 @@ export function GanttRenderer({
                 // on its bar` failed in both schemes on the hatched orange
                 // bar at 3.6966327586007055; watched 2026-10-14.
                 // An assumed bar's words are the page's ink, so their patch
-                // is the page's ground.
+                // is the page's ground. A spilled label (F-138) stands half
+                // over bare canvas past its stack's placeholders, so it takes
+                // the same patch of its own fill.
                 <span
                   data-gantt-label-ground
                   className={cn('rounded-sm px-0.5', bar.estimated ? '' : 'bg-background')}
@@ -6178,7 +6286,7 @@ export function GanttRenderer({
         })}
       </>
     ),
-    [dayPx, drawnBars, laneStacks],
+    [dayPx, drawnBars, laneStacks, laneSpills],
   );
 
   /**
