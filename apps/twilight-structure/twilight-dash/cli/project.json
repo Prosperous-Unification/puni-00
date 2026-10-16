@@ -16,7 +16,10 @@
         "^production",
         "{workspaceRoot}/.github/workflows/ci.yml",
         "{workspaceRoot}/.github/workflows/trusted-wiki.yml",
-        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*"
+        "{workspaceRoot}/apps/twilight-structure/twilight-burokrat/cli/**/*",
+        "{workspaceRoot}/apps/twilight-structure/twilight-navigator/cli/src/**/*",
+        "{workspaceRoot}/libs/wbs/domain/contracts/src/**/*",
+        "{workspaceRoot}/libs/wbs/domain/validation/src/**/*"
       ]
     },
     "lint": {

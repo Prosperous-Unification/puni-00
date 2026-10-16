@@ -669,6 +669,17 @@ test.describe('390x844 reference sheets', () => {
     page,
   }) => {
     const seeded = await seed(page);
+    // A directory left by another plan: this traced name widens an intrinsic
+    // popup, and enough options to scroll make its active row pan the sheet.
+    await directoryCommands(
+      page,
+      [
+        'Created import tag 1792103194132',
+        'customer-request [plan-table-review/w0/estimate-cells]',
+        ...Array.from({ length: 8 }, (_, index) => `Fixture ${String(index)}`),
+      ].map((name) => ({ kind: 'createTag', name })),
+    );
+    await page.reload();
     const parent = page.getByRole('article', { name: 'Work item 010', exact: true });
     const fields = [
       {
@@ -734,6 +745,14 @@ test.describe('390x844 reference sheets', () => {
       for (const field of fields) {
         const dialog = await openSheet(field);
         const root = dialog.locator(`[data-reference-set="${field.kind}"]`);
+        if (field.kind === 'tag') {
+          await root.getByRole('combobox').focus();
+          await expect(root.getByRole('combobox')).toHaveAttribute('aria-expanded', 'true');
+          expect(
+            await dialog.evaluate((surface) => surface.scrollLeft),
+            'the options pan the reference sheet sideways',
+          ).toBe(0);
+        }
         await assertReachablePaint(page, [root]);
         const sheet = await dialog.boundingBox();
         expect(sheet, `${field.kind} sheet has no painted box`).not.toBeNull();

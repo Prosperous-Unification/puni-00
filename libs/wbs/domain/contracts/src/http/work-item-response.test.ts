@@ -148,6 +148,51 @@ test('checks deadline and slice lateness while retaining additive nested respons
     projectRevision: 1,
   };
   expect((await validateSchema(schema, tree)).issues).toBeUndefined();
+  const resources = {
+    nodeId: 'sn1.w.s',
+    assignment: { kind: 'assumed', personId: 'person', fromStepId: 'source' },
+    teams: {
+      kind: 'stated',
+      fromWorkItemId: 'ancestor',
+      entries: [{ teamId: 'team', capacity: null }],
+    },
+    maxParallel: 3,
+    width: 1,
+  };
+  expect(
+    (
+      await validateSchema(schema, {
+        ...tree,
+        workItems: [{ ...row, nodeResources: { s: resources } }],
+      })
+    ).issues,
+  ).toBeUndefined();
+  for (const malformed of [
+    { ...resources, nodeId: 4 },
+    { ...resources, assignment: { kind: 'invented' } },
+    { ...resources, assignment: { kind: 'explicit' } },
+    { ...resources, assignment: { kind: 'assumed', personId: 'person' } },
+    { ...resources, teams: { kind: 'stated', entries: [] } },
+    {
+      ...resources,
+      teams: {
+        kind: 'stated',
+        fromWorkItemId: 'ancestor',
+        entries: [{ teamId: 'team', capacity: 'many' }],
+      },
+    },
+    { ...resources, teams: { kind: 'invented' } },
+    { ...resources, maxParallel: '3' },
+    { ...resources, width: 'one' },
+  ])
+    expect(
+      (
+        await validateSchema(schema, {
+          ...tree,
+          workItems: [{ ...row, nodeResources: { s: malformed } }],
+        })
+      ).issues,
+    ).toBeDefined();
   for (const charged of [
     { s: { unit: 'minutes', minutes: 240 } },
     { s: { unit: 'workdays', days: 0.5 } },

@@ -58,6 +58,7 @@ export * from './marker-color';
 // they share nothing but the object they describe.
 export * from './marker-name';
 export * from './node-reading';
+export * from './node-resources';
 export * from './not-before';
 export * from './on-time';
 // A person's bookings across projects on one workday axis: overlaps and weekly load.

@@ -1,7 +1,9 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { closeSync, openSync, readFileSync } from 'node:fs';
+import { mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { scratchAsync } from '@tools/test-scratch';
+import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import { needsRestart } from '../sync';
@@ -275,6 +277,7 @@ describe('bindEnvironment', () => {
         nodeSelector: Record<string, string>;
         containers: {
           image: string;
+          resources: unknown;
           env: { name: string; value: string }[];
           securityContext: Record<string, unknown>;
           volumeMounts: { name: string; mountPath: string; readOnly?: boolean }[];
@@ -318,6 +321,18 @@ describe('bindEnvironment', () => {
     expect(environment['APP_ORIGIN']).toBe('http://alpha.localhost:44425');
     expect(environment['MCP_PUBLIC_URL']).toBe('http://alpha.localhost:44425/mcp');
     expect(environment['DB_PATH']).toBe('/data/wbs.db');
+    expect(environment['NX_DAEMON']).toBe('false');
+    // Proof: removing the overlay setting failed this assertion and the real Nx ownership test.
+    expect(environment['NX_WORKSPACE_DATA_DIRECTORY']).toBe('/tmp/puni-forge-nx/workspace-data');
+    expect(container.resources).toEqual({
+      requests: { cpu: '250m', memory: '768Mi' },
+      limits: { memory: '2Gi' },
+    });
+    expect(container.volumeMounts).toEqual([
+      { name: 'worktree', mountPath: '/src' },
+      { name: 'data', mountPath: '/data' },
+      { name: 'solver-runtime', mountPath: '/run/wbs-solver', readOnly: true },
+    ]);
     const ingress = bound.find((object) => object['kind'] === 'Ingress') as {
       spec: { rules: { host: string; http: { paths: { backend: unknown }[] } }[] };
     };
@@ -491,4 +506,158 @@ describe('requireMountedRoot', () => {
       requireMountedRoot('2049:131', '2049:977', '/w');
     }).toThrow('not the directory the lab mounted');
   });
+});
+
+/** Wait for a subprocess observation within the fixture's own budget, including diagnostics. */
+async function waitForNx(
+  observe: () => boolean | Promise<boolean>,
+  diagnosis: () => string,
+): Promise<void> {
+  const deadline = Date.now() + 12_000;
+  while (!(await observe())) {
+    if (Date.now() >= deadline) throw new Error(`Nx fixture timed out: ${diagnosis()}`);
+    await Bun.sleep(25);
+  }
+}
+
+/** Kill the fixture's whole process group, including Nx executor descendants, before scratch cleanup. */
+async function stopNx(child: ReturnType<typeof Bun.spawn>): Promise<void> {
+  try {
+    process.kill(-child.pid, 'SIGKILL');
+  } catch (failure) {
+    if (!(failure instanceof Error && 'code' in failure && failure.code === 'ESRCH')) {
+      throw failure;
+    }
+  }
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      child.exited,
+      new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => {
+          reject(new Error('Nx fixture failed to exit'));
+        }, 3000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+describe('forge Nx workspace state', () => {
+  it('starts independently of poisoned worktree ownership without changing its database', async () => {
+    const root = await scratchAsync('forge-nx-ownership-');
+    await symlink(join(ROOT, 'node_modules'), join(root, 'node_modules'), 'dir');
+    await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'fixture', private: true }));
+    await writeFile(join(root, 'nx.json'), '{}');
+    await writeFile(
+      join(root, 'project.json'),
+      JSON.stringify({
+        name: 'fixture',
+        targets: {
+          serve: {
+            executor: 'nx:run-commands',
+            continuous: true,
+            cache: false,
+            options: { command: 'node serve.cjs' },
+          },
+        },
+      }),
+    );
+    await writeFile(
+      join(root, 'serve.cjs'),
+      "require('node:fs').writeFileSync('started', String(process.pid)); setInterval(() => {}, 1000);",
+    );
+    // A live colliding PID models ownership left by a previous container whose PID is reused.
+    // Nx's installed native service writes the real schema and performs its real liveness check.
+    await writeFile(
+      join(root, 'owner.cjs'),
+      `const nxRoot = require('node:path').dirname(require.resolve('nx/package.json'));
+const { RunningTasksService } = require(nxRoot + '/dist/src/native');
+const { getLocalDbConnection } = require(nxRoot + '/dist/src/utils/db-connection');
+const ownership = new RunningTasksService(getLocalDbConnection());
+ownership.addRunningTask('fixture:serve');
+console.log('ownership ready');
+setInterval(() => {}, 1000);`,
+    );
+    const environment = { ...process.env };
+    delete environment['NX_WORKSPACE_DATA_DIRECTORY'];
+    delete environment['NX_PROJECT_GRAPH_CACHE_DIRECTORY'];
+    Object.assign(environment, {
+      NX_DAEMON: 'false',
+      NX_TUI: 'false',
+      NX_INTERACTIVE: 'false',
+      NX_ISOLATE_PLUGINS: 'false',
+      NX_NATIVE_COMMAND_RUNNER: 'false',
+      NX_CACHE_DIRECTORY: join(root, '.nx/cache'),
+      HOME: root,
+    });
+    const children: ReturnType<typeof Bun.spawn>[] = [];
+    const startNx = (command: string[], env = environment) => {
+      const log = join(root, `process-${String(children.length)}.log`);
+      const descriptor = openSync(log, 'a');
+      let child: ReturnType<typeof Bun.spawn>;
+      try {
+        child = Bun.spawn(command, {
+          cwd: root,
+          env,
+          detached: true,
+          stdout: descriptor,
+          stderr: descriptor,
+        });
+      } finally {
+        closeSync(descriptor);
+      }
+      children.push(child);
+      return { child, output: () => readFileSync(log, 'utf8') };
+    };
+    try {
+      const owner = startNx(['node', 'owner.cjs']);
+      await waitForNx(() => owner.output().includes('ownership ready'), owner.output);
+      const directory = join(root, '.nx/workspace-data');
+      const databases = (await readdir(directory)).filter((name) => name.endsWith('.db'));
+      expect(databases).toHaveLength(1);
+      const databasePath = join(directory, databases[0]);
+      const database = new Database(databasePath, { readonly: true });
+      const ownership = database.query('SELECT * FROM running_tasks').all();
+      database.close();
+      expect(ownership).toHaveLength(1);
+      const nx = ['node', join(ROOT, 'node_modules/nx/dist/bin/nx.js'), 'run', 'fixture:serve'];
+      const shared = startNx(nx);
+      await waitForNx(
+        () => shared.output().includes('Waiting for fixture:serve in another nx process'),
+        shared.output,
+      );
+      expect(await Bun.file(join(root, 'started')).exists()).toBe(false);
+      await stopNx(shared.child);
+      const before = await readFile(databasePath);
+
+      const pod = bindEnvironment(await renderOverlay(), BINDING).find(
+        (object) => object['kind'] === 'Pod',
+      ) as { spec: { containers: { env: { name: string; value: string }[] }[] } };
+      const privateDirectory = pod.spec.containers[0].env.find(
+        (variable) => variable.name === 'NX_WORKSPACE_DATA_DIRECTORY',
+      )?.value;
+      // The fixture maps the container's writable layer to a disposable directory.
+      const privateEnvironment = { ...environment };
+      if (privateDirectory !== undefined) {
+        privateEnvironment['NX_WORKSPACE_DATA_DIRECTORY'] = join(
+          root,
+          'container',
+          privateDirectory,
+        );
+      }
+      const independent = startNx(nx, privateEnvironment);
+      // Proof: removing NX_WORKSPACE_DATA_DIRECTORY from the committed overlay timed out here;
+      // installed Nx waited for fixture:serve in another process and never wrote started.
+      await waitForNx(() => Bun.file(join(root, 'started')).exists(), independent.output);
+      expect(independent.output()).not.toContain('Waiting for fixture:serve');
+      expect(await readFile(databasePath)).toEqual(before);
+      const unchanged = new Database(databasePath, { readonly: true });
+      expect(unchanged.query('SELECT * FROM running_tasks').all()).toEqual(ownership);
+      unchanged.close();
+    } finally {
+      await Promise.all(children.map(stopNx));
+    }
+  }, 45_000);
 });

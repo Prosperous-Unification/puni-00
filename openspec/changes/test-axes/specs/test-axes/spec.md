@@ -796,3 +796,116 @@ Only a terminal test-title prefix `[CAPABILITY-001] ` SHALL cite a scenario. A v
 - **GIVEN** unsupported operands or changed selected source, declaration pin, external policy or publication
 - **WHEN** source or installed dispatch runs
 - **THEN** it refuses without partial observation and preserves existing Performance level output
+
+### Requirement: Browser Conformance observations bind complete committed selections
+
+`inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>` SHALL consume the real Browser report inspector and one exact committed snapshot without executing candidate code. Its closed version-1 external authority SHALL contain revision, candidate, mode, reportObservationDigest, projectRoot and projectManifest with path and digest. The manifest path SHALL equal `<projectRoot>/project.json`. The command SHALL require exact requested/selected commit identity, matching report and authority pins, a complete nonempty Browser file collection inside that root, and exact selected regular-source mode/digest joins for every reported file. Multiple cases sharing a file SHALL retain their distinct case identities. Missing, unreadable, malformed or escaping authority, unsupported fields and inherited report failures SHALL refuse without JSON.
+
+The selected manifest SHALL contain a supported `test:conformance` target interpreted with the same closed envelope and literal Bun command grammar as committed Performance Conformance facts. Its exact SQLite-only third input exception SHALL remain dependency metadata. Missing targets, unsupported shells, bare filters, globs, traversal, duplicate selectors, options or paths SHALL refuse. Every selected test SHALL be a readable regular selected Git blob before intersection, including disjoint files. Working-tree repairs SHALL confer no authority. Existing diagnostic contracts and Performance refusal behavior SHALL remain unchanged.
+
+The observation SHALL retain the complete report, raw authority digest, project root and manifest pin, sorted unique Browser collection and complete union of manifest/Browser/Conformance source tuples. It SHALL report Conformance as committed with target, complete selectedFiles and sorted intersection files; Manual, Architecture and Performance memberships SHALL each remain unknown. Same-path source disagreement SHALL refuse. An empty intersection SHALL remain valid. All report outcomes SHALL be preserved. The complete canonical envelope digest SHALL bind all output fields except itself, including authentication absent and certifies false. Successful inspection SHALL exit zero; refusals SHALL produce named stderr, nonzero exit and no JSON. It SHALL establish no classification, isolation, execution guarantee, scenario join, coverage or admission.
+
+#### Scenario: [TEST-AXES-100] Browser Conformance binds real reports and complete overlapping or disjoint selection
+
+- **GIVEN** one real immutable Browser publication and an exact authority naming one committed project with a supported Conformance target
+- **WHEN** source or installed inspection reads the selected Git objects
+- **THEN** it binds the entire declared selection and every source tuple, preserves all report cases and outcomes, and emits the sorted overlap or an explicit empty intersection
+- **AND** other earlier memberships remain unknown and the observation remains unauthenticated and noncertifying
+
+#### Scenario: [TEST-AXES-101] Browser Conformance refuses authority and report scope substitutions
+
+- **GIVEN** absent, unreadable, malformed UTF-8 or JSON, escaping, extra-field or unsupported-version authority, a mismatched revision, candidate, mode, report digest or manifest pin, an empty or out-of-root collection, or a report source tuple differing from selected Git bytes
+- **WHEN** the production command inspects the exact selection
+- **THEN** it refuses by name without JSON, including annotated tag peeling and coherent substitutions from a broken inspector dependency
+
+#### Scenario: [TEST-AXES-102] Browser Conformance refuses unsupported or incomplete committed targets
+
+- **GIVEN** a missing or malformed manifest/target, unsupported envelope, cwd, input tuple or command, a duplicate selector or a missing, nonregular or unreadable selected source even outside the Browser intersection
+- **WHEN** the command validates the complete committed selection
+- **THEN** it refuses without JSON despite working-tree repairs, and a bare filter with a nested matching decoy cannot establish membership
+- **AND** the existing Performance decoder and diagnostic contracts retain their behavior
+
+#### Scenario: [TEST-AXES-103] Browser Conformance preserves canonical identity and bounded dispatch
+
+- **GIVEN** reordered report cases or target selectors, multiple cases sharing a source, changed source bytes, changed authority bytes or unsupported CLI operands
+- **WHEN** source and installed executable dispatch inspect the input
+- **THEN** canonical arrays are sorted and deduplicated, distinct cases remain intact, the complete envelope digest reflects all identity changes, and unsupported operands or inherited report failures refuse
+- **AND** removing source validation, pin joins, collection completeness, digest binding or noncertifying output invariants makes its named production-path assertion fail
+
+### Requirement: Capability scenario ledger remains a diagnostic
+
+`inspect-scenario-ledger` SHALL enumerate every adopted effective scenario of the requested capability from the complete isolated Performance scenario observation. The external version-1 ledger authority SHALL pin exact committed revision, candidate, capability and Performance observation digest and contain unique obligations. Omitted obligations SHALL remain named unassigned debt. Foreign, retired, duplicate, malformed and conflicting obligations SHALL refuse without partial JSON.
+
+An automated obligation SHALL name its lowest sufficient level explicitly. Performance SHALL require a passing cited case in the selected isolated publication; other levels SHALL remain unsupported-level debt. Inapplicability SHALL have a nonblank reason. Manual SHALL call the existing Manual observation inspector on an external report and join exact scenario, revision, candidate, policy, evaluation instant and observation digest. Current, stale, failed and overdue verdicts SHALL remain typed observations.
+
+The ledger SHALL preserve the full upstream B3 report, citation findings and unidentified debt, normalize obligation order, digest the complete payload, emit absent authentication and `certifies:false`, and exit nonzero for diagnostic debt. Malformed authority, unreadable evidence and join failures SHALL emit no partial JSON. This command SHALL register no coverage rule, admission or certification.
+
+#### Scenario: [TEST-AXES-104] Ledger enumerates effective scenarios despite missing obligations
+
+- **WHEN** one adopted scenario has a passing automated obligation and another has no obligation
+- **THEN** the second scenario is named unassigned debt and the command exits nonzero
+
+#### Scenario: [TEST-AXES-105] Ledger validates exact closed authority and upstream identity
+
+- **WHEN** authority shape, obligation identity, external file or candidate publication pins differ
+- **THEN** the command refuses without partial JSON
+
+#### Scenario: [TEST-AXES-106] Ledger preserves upstream debt and diagnostic identity
+
+- **WHEN** a publication loses a citation or has unrelated unidentified B3 debt
+- **THEN** the complete upstream observation and debt remain in the noncertifying ledger
+
+#### Scenario: [TEST-AXES-107] Ledger joins real Manual observations
+
+- **WHEN** an obligation references a current, stale, failed or overdue external Manual observation
+- **THEN** the exact joined typed verdict is retained and noncurrent observations remain debt
+
+### Requirement: Browser Architecture membership observations
+
+Twilight Burokrat SHALL expose `inspect-browser-architecture <repository> <full-committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>` as a noncertifying observation over one real complete Browser report and one project. A closed version-1 external authority SHALL pin revision, candidate, mode, report observation digest, project root, project manifest path and digest, and an explicit Architecture `reviewed-empty` or committed fixed policy path and digest. The inspector SHALL read exact selected regular Git blobs, validate the complete mapped Architecture selection through the existing rule mapping and immediate-child discovery validators before Browser intersection, and refuse contradictory empty assertions. It SHALL retain complete report and raw authority, raw authority digest, sorted complete Browser collection, sorted selected files and intersection, and the sorted deduplicated source union with same-path mode and digest agreement. Manual, Conformance and Performance SHALL remain unknown; authentication SHALL be absent and certification false. The observation digest SHALL bind the complete payload. Invalid inputs SHALL produce named stderr, nonzero exit and no partial JSON.
+
+#### Scenario: [TEST-AXES-108] Committed Browser Architecture complete overlap and disjoint observations
+
+- **WHEN** a complete real Browser report and exact external authority select committed Architecture fixtures overlapping or disjoint from the Browser collection
+- **THEN** the observation preserves all report outcomes, selected fixtures and source tuples, emits the exact sorted intersection and complete payload digest, and grants no classification or coverage
+
+#### Scenario: [TEST-AXES-109] Browser Architecture authority and source joins refuse substitution
+
+- **WHEN** authority is absent, unreadable, malformed, unsupported, escaping or wrongly pinned, or upstream capture or source tuples disagree
+- **THEN** the production command refuses with a named diagnostic and no observation
+
+#### Scenario: [TEST-AXES-110] Browser Architecture complete committed policy and empty assertions are checked
+
+- **WHEN** any mapped fixture or manifest or policy is missing, nonregular, unreadable or invalid, any immediate Architecture suffix child is unmapped, or reviewed-empty contradicts a fixed policy, its descendants or the declared Architecture target
+- **THEN** the production command refuses even for disjoint fixtures and working-tree repairs, preserving the runner's immediate-child discovery boundary
+
+#### Scenario: [TEST-AXES-111] Browser Architecture deterministic identity and installed dispatch
+
+- **WHEN** source or installed command inspects exact committed inputs with canonical collection and source ordering or receives unsupported arguments or selection
+- **THEN** output preserves complete deterministic identity and raw authority sensitivity, while symbolic and annotated tag selection and invalid CLI usage refuse before publication inspection
+
+### Requirement: Browser Performance membership observations
+
+Twilight Burokrat SHALL expose `inspect-browser-performance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>`. Its closed version-1 external authority SHALL pin revision, candidate, mode, reportObservationDigest, projectRoot, projectManifest `{path,digest}`, declaration `{path,digest}`, config `{path,digest}` and project. It SHALL capture exact immutable Git selection and the complete real Browser report, require the manifest at `${projectRoot}/project.json`, a nonempty complete Browser collection within the project root, and distinct manifest, declaration and config paths. It SHALL read all selected regular manifest, declaration, config, Browser and declared fixture blobs inside the root before computing intersection, including disjoint fixtures. It SHALL use the shared Performance decoder and semantic digest, require nonempty fixtures and exact declaration config/project agreement with authority. Browser config/project MAY differ from Performance.
+
+The observation SHALL retain the complete Browser report and outcomes, parsed authority and raw digest, complete decoded declaration and semantic digest, sorted unique Browser collection, complete sorted unique fixtures and intersection, and sorted deduplicated source tuples with same-path mode/digest agreement. Manual, Conformance and Architecture SHALL remain unknown, authentication absent, certification false; the complete canonical observation digest SHALL bind every field except itself. Disjoint declarations SHALL produce a valid empty intersection. Refusals SHALL emit named stderr, nonzero exit and no JSON. This diagnostic SHALL grant no classification, runner, isolation, admission, or reviewed-empty shortcut.
+
+#### Scenario: [TEST-AXES-112] Browser Performance preserves complete overlapping disjoint and shared fixture observations
+
+- **WHEN** exact Browser reports and external authority select a complete nonempty Performance declaration
+- **THEN** the complete decoded declaration, semantic digest, fixture set, intersection, source union and report outcomes remain bound, including shared fixtures and different Browser config/project
+
+#### Scenario: [TEST-AXES-113] Browser Performance refuses authority report and selected source substitutions
+
+- **WHEN** authority or pins are missing, unreadable, malformed, unsupported, escaping or mismatched, or exact immutable selection and upstream report or source tuples disagree
+- **THEN** source and installed commands refuse by name without partial JSON
+
+#### Scenario: [TEST-AXES-114] Browser Performance validates every declared source before intersection
+
+- **WHEN** manifest, declaration, config or any fixture is missing, nonregular, unreadable, malformed, outside root, wrongly pinned or semantically invalid even if disjoint
+- **THEN** inspection refuses despite working-tree repairs and cannot bypass shared declaration decoding, config/project agreement or nonempty fixtures
+
+#### Scenario: [TEST-AXES-115] Browser Performance binds canonical identity and installed dispatch
+
+- **WHEN** complete report cases, shared fixtures, authority bytes, selected bytes, outcomes or bounded command arguments change
+- **THEN** complete canonical observation identity and sorted unique arrays reflect all relevant changes, and source and installed dispatch preserve named refusals and noncertifying output
