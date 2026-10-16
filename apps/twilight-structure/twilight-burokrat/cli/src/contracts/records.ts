@@ -75,7 +75,7 @@ const SelectorValue = type('string>=1').narrow((value, context) => {
   return true;
 });
 
-const ContentSelector = type({
+export const ContentSelector = type({
   kind: "'path'|'prefix'|'segment'|'name'|'suffix'",
   value: SelectorValue,
 })

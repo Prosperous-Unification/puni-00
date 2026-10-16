@@ -135,6 +135,22 @@ export interface RetainedCandidate {
   readBlob(gitObjectId: string, path: string): Uint8Array;
 }
 
+const GraphProvenance = new WeakMap<
+  RetainedCandidate,
+  Readonly<{
+    snapshotIdentity: string;
+    classificationPolicyIdentity: string;
+  }>
+>();
+
+/** Grants graph authority only to the exact owned, validated retained candidate capability. */
+export function readRetainedGraphProvenance(candidate: RetainedCandidate) {
+  const provenance = GraphProvenance.get(candidate);
+  // Proof: omitting exact-owned lookup refusal lost its named copied-capability census diagnosis.
+  if (provenance === undefined) throw new Error('owned retained graph source required');
+  return provenance;
+}
+
 export interface InstalledLocalReviewSource {
   readonly [SourceOwnership]: true;
   prepare(request: ActivationRequest): ReturnType<typeof prepareRetainedLocalReviewCandidate>;
@@ -299,7 +315,7 @@ function openRetainedCandidate(
     freezeOwnedDocument(historyManifest);
   }
   input.history?.assertOwner();
-  return Object.freeze({
+  const candidate: RetainedCandidate = Object.freeze({
     [CandidateOwnership]: true as const,
     snapshot,
     history: historyManifest,
@@ -330,6 +346,14 @@ function openRetainedCandidate(
       return read(path, gitObjectId, entry.rawIdentity);
     },
   });
+  GraphProvenance.set(
+    candidate,
+    Object.freeze({
+      snapshotIdentity,
+      classificationPolicyIdentity: hashBytes(serializeCanonical(input.classificationPolicy)),
+    }),
+  );
+  return candidate;
 }
 
 /** Builds the phase-one declaration view from the already validated, privately owned head. */

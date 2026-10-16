@@ -1,0 +1,116 @@
+{
+  "base": "7b9b414b9ceca73cc934ad92dd874803eb0658a0",
+  "regression": {
+    "command": [
+      "/usr/bin/time",
+      "-v",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifacts.test.ts",
+      "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--timeout=60000"
+    ],
+    "exitCode": 0,
+    "passed": 307,
+    "failed": 0,
+    "assertions": 787,
+    "elapsedSeconds": 55.81,
+    "maximumRssKiB": 534724,
+    "outputSha256": "3b9da1f505e0650ec65dd725a2364776780c1f62bb34b8b5141c71cbd6125386"
+  },
+  "controls": {
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "exitCode": 0,
+    "passed": 73,
+    "failed": 0,
+    "assertions": 221,
+    "outputSha256": "ce256fbaf209c5090e2cdb8a5a910c46672679b6a27e011ebf681a9a55fca8e0"
+  },
+  "static": {
+    "scopedEslint": {
+      "exitCode": 0,
+      "stdout": "",
+      "nxProjectGraph": "generated; module-boundary rule did not report a skip"
+    },
+    "burokratSpecTypes": {
+      "exitCode": 0,
+      "command": [
+        "bunx",
+        "tsc",
+        "--project",
+        "apps/twilight-structure/twilight-burokrat/cli/tsconfig.spec.json",
+        "--noEmit",
+        "--incremental",
+        "false"
+      ]
+    },
+    "dashSpecTypes": {
+      "exitCode": 0,
+      "command": [
+        "bunx",
+        "tsc",
+        "--project",
+        "apps/twilight-structure/twilight-dash/cli/tsconfig.spec.json",
+        "--noEmit",
+        "--incremental",
+        "false"
+      ]
+    },
+    "scopedPrettier": {
+      "exitCode": 0,
+      "output": "Checking formatting...\nAll matched files use Prettier code style!\n"
+    },
+    "cachedDiffCheck": {
+      "exitCode": 0
+    }
+  },
+  "openspec": {
+    "version": "1.12.0",
+    "command": [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "--all",
+      "--json"
+    ],
+    "exitCode": 0,
+    "summary": {
+      "totals": {
+        "items": 241,
+        "passed": 241,
+        "failed": 0
+      },
+      "byType": {
+        "change": {
+          "items": 223,
+          "passed": 223,
+          "failed": 0
+        },
+        "spec": {
+          "items": 18,
+          "passed": 18,
+          "failed": 0
+        }
+      }
+    }
+  },
+  "faultCount": 63,
+  "unverified": [
+    "compiler and transitive runtime authority",
+    "eleven-document/V4 preparation binding",
+    "full repository corpus/resource fit",
+    "full Nx/h2puni gate",
+    "live activation and WBS030.6",
+    "publication"
+  ]
+}

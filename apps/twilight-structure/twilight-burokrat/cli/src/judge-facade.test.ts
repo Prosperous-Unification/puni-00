@@ -5,6 +5,10 @@ import { expect, test } from 'bun:test';
 
 const SOURCE_ROOT = import.meta.dir;
 const RUNTIME_SURFACE = [
+  'ArtifactGraphRuleV1',
+  'buildArtifactGraph',
+  'identifyArtifactDecoder',
+  'verifyArtifactGraph',
   'CandidateReadError',
   'assertAdmissionPacket',
   'assertAuthorityClaimPath',

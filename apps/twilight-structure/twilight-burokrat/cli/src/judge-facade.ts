@@ -68,6 +68,15 @@ export {
   RelativePath,
 } from './contracts/records';
 export {
+  type ArtifactDecoderFiles,
+  type ArtifactGraphLimits,
+  ArtifactGraphRuleV1,
+  buildArtifactGraph,
+  type BuiltArtifactGraph,
+  identifyArtifactDecoder,
+  verifyArtifactGraph,
+} from './evidence/artifact-graph';
+export {
   compareCanonicalText,
   hashBytes,
   hashCanonical,

@@ -4243,3 +4243,88 @@ manifest-only correction. Hosted CI retry, full monorepo checks/build, canonical
 external authority, push, merge and deployment were not performed by this worker. The
 parent retains successor review, publication of the follow-up and gate requeue ownership;
 parent extraction tasks and external acceptance remain open.
+
+## 2026-10-17 bounded 2.1d.1.4 — retained artifact graph
+
+Implemented in an isolated clone based on accepted public main
+`7b9b414b9ceca73cc934ad92dd874803eb0658a0`; the pending source aggregate and publication
+were not changed. Burokrat owns the closed `ArtifactGraphRuleV1`, exact installed decoder
+source identity, deterministic producer and independent completeness verifier. Dash consumes
+only the exact owner-created retained candidate capability. Module-private provenance binds
+its authenticated manifest identity and owned classification policy; a copied Symbol-branded
+object cannot replace the census.
+
+All five allowlisted kinds are decoded from exact original bytes. Only review receipts add
+intrinsic dependencies: invocation plus raw UTF-8 payload hash resolves exactly one selected
+opaque transcript and targets its containing record-byte identity. Semantic pins and JSON-looking
+opaque payloads create no edges. Installed strict selectors add complete Cartesian edges,
+with component-aware prefixes and nonempty endpoints. Descriptors/references/zero-indegree
+roots are deterministic and sorted; self/cyclic/foreign/ambiguous dependencies refuse.
+Independent verification re-censuses the retained records and compares each descriptor field,
+complete edge list, roots, provenance, canonical graph bytes and digest. A resealed graph with
+omitted edges passes legacy `validateArtifacts` and is rejected by the new verifier.
+
+Raw installed recipe bytes and raw verification-document bytes have separate positive
+safe-integer caps before UTF-8/JSON/schema parsing. Installed rule count, selector count and
+UTF-8 selector length have explicit ceilings before relation expansion. Retained entry count,
+record count, shared classification/record read count and bytes, work, edge work and output
+bytes have independent ceilings. Selector comparisons and Cartesian pairs charge work before
+materialization. Decoder/uniqueness work is bounded by raw recipe bytes. Defaults are absent;
+the conservative installation values documented in design are illustrative explicit inputs.
+
+### RED and watched R5 faults
+
+Initial producer RED was missing `./artifact-graph`. Snapshot-pin relabeling, a different valid
+classification policy, and copied-capability false-empty census each initially returned a graph
+and failed their negative assertion; private ownership/provenance joins restored refusal.
+Raw recipe caps produced four failing bounds cases before implementation. Oversized malformed
+verification bytes initially reached schema parsing and failed the required byte-boundary
+assertion; the byte cap restored the early refusal. A duplicate endpoint recipe under distinct
+rule IDs initially succeeded and failed its negative before uniqueness was implemented.
+
+The final campaign independently omitted or broke 63 checks/dependencies. Every mutation ran
+a production producer/verifier call through Bun tests, exited 1 and contained a failing assertion.
+Exact mutations, commands and observed failed tests are retained in
+[evidence/artifact-graph-2026-10-17/r5-faults.json](evidence/artifact-graph-2026-10-17/r5-faults.json).
+Coverage, schema and rule-order diagnostics were strengthened when early campaign attempts
+showed that later guards masked their omission. Those masked attempts are not counted as
+proofs. Descriptor/edge/root mutations reseal canonical bytes and digest first, so the final
+byte comparison cannot mask their omission. Internal impossible map lookups are proved by
+injecting absent dependencies and observing the named production refusal. Adjacent `Proof:`
+comments identify the faults. No fault remains installed.
+
+### Fresh restored checks
+
+- Serial Bun regression over `artifact-graph.test.ts`, legacy `artifacts.test.ts`, facade,
+  retained graph, retained objects and retained declarations: **307 passed, 0 failed,
+  787 assertions**, 55.81 seconds. `/usr/bin/time -v` measured **534724 KiB maximum RSS**,
+  below the 1 GiB target. No full Nx gate was run.
+- After the scoped linter sorted the new facade exports, the graph/facade/retained-graph
+  controls passed again: **73 passed, 0 failed, 221 assertions**.
+- `bunx tsc --project <Burokrat|Dash>/tsconfig.spec.json --noEmit --incremental false`
+  passed for both affected projects, including their test sources.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show project twilight-dash --json`
+  produced the local project graph. Initial ESLint runs reported the missing graph and skipped
+  Nx module boundaries; final scoped lint runs use that graph. No skipped boundary rule is
+  counted as acceptance.
+- Cached official OpenSpec CLI 1.12.0 was invoked through
+  `bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js`.
+  `status` and `instructions apply` reported `sdd-lean`, ready, 6/46 tasks complete before
+  this slice. `validate --all --json` reported **241 passed, 0 failed** (223 changes, 18 specs).
+  The missing shell `openspec` alias was resolved by locating this existing pinned CLI;
+  no installation or unavailable-tool exception was required.
+
+- Final scoped ESLint passed with the Nx module-boundary rule available; both spec-project
+  type checks, scoped Prettier and staged diff checks passed. Structured command/result
+  receipts are retained in [checks.json](evidence/artifact-graph-2026-10-17/checks.json).
+
+### Scope retained open
+
+Graph output explicitly reports `runtimeTrust: 'unverified'`. Exact decoder source bytes do
+not independently authenticate the compiler/transitive running runtime; parent 2.1d.1.3 remains
+open. This task neither generates all eleven documents nor changes V4 preparation provenance,
+selection, dispatch, external trust or WBS 030.6; 2.1d.1.5 remains open. The selected committed
+record-only graph cannot authenticate an external response container; missing selected response
+containers refuse. Full-repository corpus compatibility, resource fit and eleven-document
+freeze/replay remain required by 2.1d.1.5. No host/live/push/publication or full Nx/h2puni gate
+was performed in this local prerequisite slice.

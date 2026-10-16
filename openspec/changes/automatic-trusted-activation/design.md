@@ -1100,6 +1100,45 @@ from snapshot and rule identities. Independently recompute descriptors, edges an
 retained records and installed rules before accepting the generated graph; merely validating a
 caller graph cannot detect a false-empty reference list. No candidate-provided list is authority.
 
+**Graph V1 mechanical choices (2.1d.1.4).** The pure Burokrat graph source is the complete
+installed-policy classification and an exact retained blob reader; Dash reclassifies the branded
+`RetainedCandidate` snapshot through that reader. A module-private WeakMap joins graph access
+to the exact owner-created frozen candidate plus its authenticated snapshot and owned
+classification-policy identities; spreading the Symbol-branded object grants no graph authority. No graph operation opens Git or a path.
+`validationId` is `artifact-graph.v1.` followed by SHA-256 canonical JSON of
+`{ schemaVersion: 1, snapshotIdentity, artifactGraphRuleIdentity }`. Snapshot identity is an
+explicit retained manifest pin, never derived from a candidate-supplied graph. Rule identity
+hashes its complete canonical closed V1 document. Decoder identity hashes canonical
+`{ algorithm: 'evidence-record-decoder.v1', files }`, where `files` binds exact installed
+`contracts/records.ts` and `contracts/decode-record.ts` byte hashes. Supplied decoder bytes
+must reconcile this pin; this does not independently authenticate the running compiler or
+transitive runtime closure. Graph output explicitly reports `runtimeTrust: 'unverified'`;
+2.1d.1.3 remains open. Full-runtime installation is the later authority boundary.
+
+Installed positive safe-integer ceilings additionally bound raw recipe bytes before UTF-8/JSON
+decode or hashing, rule count, selector count and UTF-8 selector length before edge expansion.
+A concrete conservative installation may use 1 MiB recipe bytes, 256 rules, 512 selectors and
+1024 bytes per selector; limits are explicit installed inputs, with no implicit defaults.
+Recipe input is exact bytes rather than an already parsed unknown object so the boundary can
+refuse an oversized recipe before parsing it. Canonical rule identity remains independent of
+whitespace in those bytes. Independent verification also accepts raw serialized graph-document
+bytes, with an explicit installed verification-byte cap before UTF-8/JSON/schema parsing; a
+conservative installation may use 2 MiB. Its envelope includes the graph, exact graph bytes,
+identity, rule pin and unverified runtime-trust claim. Counts and selector lengths are checked after strict decoding; the
+raw recipe cap bounds the decoder and uniqueness hashing themselves.
+
+Installed positive safe-integer ceilings cover candidate entries scanned, blob reads,
+aggregate read bytes, artifacts, selector comparisons, edges and canonical output bytes.
+The wrapper charges classification reads and record reads to one shared read budget.
+Count and work ceilings are checked before loops/reads/edge insertion; byte ceilings are
+checked immediately after each retained read. Additional selectors use the existing strict
+classification grammar, including component-aware prefixes. Cartesian work is charged even
+for duplicate edges. Duplicate artifact byte IDs refuse because ArtifactGraph V1 requires
+unique identities. Graph roots follow incoming edges (receipt is root, response is dependency).
+The independent verifier rebuilds the decoded evidence census and expected relations, then
+compares each descriptor, each complete adjacency list, exact zero-indegree root set, and exact
+canonical graph bytes/identity; it does not invoke the producer or trust caller roots.
+
 **Freeze/replay parity.** Generate all eleven documents listed above, with existing exact byte
 bindings and canonical-LF rules. The new core consumes retained snapshot/read capabilities,
 installed documents and the actual extraction result generated within that owner. It performs
