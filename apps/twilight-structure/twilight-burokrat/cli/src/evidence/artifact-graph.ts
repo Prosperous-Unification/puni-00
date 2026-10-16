@@ -178,7 +178,8 @@ function openCensus(input: ArtifactGraphInput) {
     if (!Number.isSafeInteger(readBytes) || readBytes > input.limits.maximumReadBytes)
       throw new Error('artifact graph read byte ceiling exceeded');
     const recordKind = entry.classification.recordKind;
-    // Proof: disabling fatal decoding accepted literal 0xff inside otherwise valid JSON payload text.
+    // Proof: removing fatal only from retained decode(bytes) accepted literal 0xff in the payload;
+    // `invalid UTF-8 cannot become replacement text` failed because the builder did not throw.
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     // Proof: replacing strict decoding with JSON parsing accepted all five malformed standalone kinds.
     const record = decodeRecord(recordKind, JSON.parse(source) as unknown);

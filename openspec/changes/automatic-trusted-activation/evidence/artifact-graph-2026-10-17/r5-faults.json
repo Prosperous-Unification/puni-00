@@ -643,25 +643,26 @@
     "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
   },
   {
-    "name": "fatal UTF8",
+    "name": "retained record fatal UTF8",
     "exitCode": 1,
     "failedAssertions": true,
     "observedFailures": [
-      "(fail) raw recipe UTF-8 decoding is strict",
-      "(fail) raw recipe UTF-8 decoding is strict"
+      "(fail) invalid UTF-8 cannot become replacement text inside an otherwise valid record"
     ],
     "mutation": {
       "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
-      "before": "{ fatal: true }",
-      "after": "{ fatal: false }",
+      "before": "new TextDecoder('utf-8', { fatal: true }).decode(bytes)",
+      "after": "new TextDecoder('utf-8', { fatal: false }).decode(bytes)",
       "occurrence": 1
     },
     "command": [
       "bun",
       "test",
-      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts",
+      "--test-name-pattern",
+      "invalid UTF-8 cannot become replacement text inside an otherwise valid record"
     ],
-    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+    "observation": "Removing fatal decoding only at the exact retained-record decode(bytes) expression accepted literal 0xff in an otherwise valid payload; the negative failed because the production builder did not throw. Restoring the decoder passed the same test. The earlier generic first-occurrence recipe-decoder mutation was a duplicate recipe proof and is disqualified."
   },
   {
     "name": "record schema",

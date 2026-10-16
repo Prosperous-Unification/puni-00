@@ -4318,6 +4318,27 @@ comments identify the faults. No fault remains installed.
   type checks, scoped Prettier and staged diff checks passed. Structured command/result
   receipts are retained in [checks.json](evidence/artifact-graph-2026-10-17/checks.json).
 
+### Exact-commit UTF-8 proof correction
+
+Astra's review of `5cc3bd55308f3f245e3df0adeae9161a06d5285f` found that the generic
+`fatal UTF8` mutation hit the first decoder, which parses recipe bytes. It duplicated the
+separate recipe proof and did not prove the retained-record decoder. That receipt is
+disqualified and replaced by an exact mutation of
+`new TextDecoder('utf-8', { fatal: true }).decode(bytes)` only. The list remains **63 unique
+faults**, now with a distinct retained-record witness rather than the duplicated recipe entry.
+
+The existing fixture also selected the first `x` in `text/plain`; it now locates the exact
+`"payload":"x"` field before injecting `0xff`. With only retained fatal decoding disabled,
+the production builder accepted the replacement payload and the targeted negative exited 1
+with **Received function did not throw**. Restoring the decoder passed **1 test, 2 assertions**.
+`/usr/bin/time -v` measured RED **157048 KiB** and GREEN **155124 KiB** maximum RSS.
+Production decoding behavior is unchanged; the adjacent comment now names the exact
+retained boundary and observed negative. Updated exact mutation and command receipts live
+in the existing R5 and check JSON files. The original six-file regression numbers above are
+the earlier unchanged-behavior run. Fresh restored graph/facade/retained-graph controls passed
+**73 tests, 222 assertions**, exit 0 in 2.06 seconds; measured peak RSS was **391168 KiB**,
+below the 900 MiB correction budget.
+
 ### Scope retained open
 
 Graph output explicitly reports `runtimeTrust: 'unverified'`. Exact decoder source bytes do

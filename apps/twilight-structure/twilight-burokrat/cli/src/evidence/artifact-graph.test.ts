@@ -369,7 +369,9 @@ test('invalid UTF-8 cannot become replacement text inside an otherwise valid rec
   ]);
   const bytes = blobs.get('0'.repeat(40))!;
   const invalid = Uint8Array.from(bytes);
-  invalid[bytes.indexOf('x'.charCodeAt(0))] = 0xff;
+  const payloadStart = new TextDecoder().decode(bytes).indexOf('"payload":"x"');
+  expect(payloadStart).toBeGreaterThanOrEqual(0);
+  invalid[payloadStart + '"payload":"'.length] = 0xff;
   blobs.set('0'.repeat(40), invalid);
   expect(() => buildArtifactGraph(input)).toThrow('encoded');
 });

@@ -112,5 +112,42 @@
     "full Nx/h2puni gate",
     "live activation and WBS030.6",
     "publication"
-  ]
+  ],
+  "reviewCorrection": {
+    "reviewedCommit": "5cc3bd55308f3f245e3df0adeae9161a06d5285f",
+    "replacedDuplicateProof": "fatal UTF8 previously mutated recipe decoder rather than retained-record decoder",
+    "uniqueFaultCount": 63,
+    "command": [
+      "/usr/bin/time",
+      "-v",
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts",
+      "--test-name-pattern",
+      "invalid UTF-8 cannot become replacement text inside an otherwise valid record"
+    ],
+    "redExitCode": 1,
+    "redOutputSha256": "341cb8aa13c6a9516f07017975c9a05032764d4640e9889e134eb77ac37ea8cb",
+    "greenExitCode": 0,
+    "greenOutputSha256": "98c7edd6b3b81cd9e0cfd5d19893a1eac76bb4f9118eedd804316fd7f2e83bbc",
+    "fixtureCorrection": "Inject 0xff in exact payload string, not first x in text/plain mediaType",
+    "controls": {
+      "command": [
+        "/usr/bin/time",
+        "-v",
+        "bun",
+        "test",
+        "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts",
+        "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts",
+        "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+      ],
+      "exitCode": 0,
+      "passed": 73,
+      "failed": 0,
+      "assertions": 222,
+      "elapsedSeconds": 2.06,
+      "maximumRssKiB": 391168,
+      "outputSha256": "e973b7e253e0bff9d3c8fabf51648932bc43aaddad8bba385687463b8c1f6ee2"
+    }
+  }
 }
