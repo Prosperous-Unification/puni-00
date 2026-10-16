@@ -59,3 +59,25 @@ host gate or raw full Nx gate ran. Chromium is the existing browser contract;
 no new scroll API is used. Existing Vite configuration and proxy disconnect
 warnings occurred during browser runs. Nx generated its graph in process after
 the sandbox denied plugin worker sockets.
+
+## Review round (#515 BLOCK), 2026-10-16
+
+- `bunx nx run-many -t test:unit test -p wbs-fe-01 --skip-nx-cache` — both targets succeeded (exit 0).
+- `bunx nx run-many -t lint:fast typecheck -p wbs-fe-01 --skip-nx-cache` — passed.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — 215/215 passed (after amending `project-dropdown-details`).
+- Playwright: header, project-picker, plan-import, reference-cell-panel, mobile, hints, hover-cards, import-with-ai, toolbar-panels, dark-mode, directory, home, keyboard, project-settings, gantt — 229 passed (27.7 min); `reference-cells.spec.ts --repeat-each 3` — 15 passed.
+
+Proofs watched on round 1's code (102a2e098):
+
+- `project-settings.spec.ts` › `a toast's ✕ leaves Project settings open` and the 390×844 nested case: settings dialog `element(s) not found` (the guard covered `onPointerDownOutside` only).
+- `reference-cells.spec.ts` card paint probe: `the fact card is painted under <div role="dialog" … data-modal-surface="bottom"` (card at `zIndex: 20`). After main's wrap rules were taken (merge of 5274046bd, 2026-10-17) the probe moved onto main's wrapped active line and was watched failing the same way with the card at 20.
+- `plan-import.spec.ts` › `a standing toast is drawn above the keyboard shortcuts sheet`: `covered by <div role="presentation" data-cheat-sheet-backdrop …` (`z-100`).
+- `header.spec.ts` line count: `a name takes more than two lines at 375px: [3,3]` (list at the input's width).
+
+## Re-merge of main 5274046bd (#514), 2026-10-17
+
+Main's F-092 rule set kept (bottom sheets wrap, compact lists ellipsis + fact card); round-2 additions kept. Shift 1700, `--workers 2`:
+
+- header, plan-import, project-settings — 27 passed.
+- `reference-cells.spec.ts --repeat-each 3` — 18 passed (includes the card paint probe on main's wrapped line, watched failing with the card at `zIndex: 20`).
+- `lint:fast` + `typecheck` (wbs-fe-01) — passed; `openspec validate --all --json` — 224/224.

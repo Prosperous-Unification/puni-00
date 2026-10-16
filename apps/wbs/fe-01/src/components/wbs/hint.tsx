@@ -217,9 +217,10 @@ function WaitRing({ at }: { at: RingAt }): React.JSX.Element {
         position: 'fixed',
         left,
         top,
-        // Above the card's own 20, so a ring that outlives a card by a frame is
-        // never drawn behind one.
-        zIndex: 21,
+        // Above the portalled card's `--layer-card`, so a ring that outlives a
+        // card by a frame is never drawn behind one — and above a modal
+        // surface, so a wait over a control on a sheet is seen (F-131).
+        zIndex: 'var(--layer-card-ring)',
         pointerEvents: 'none',
       }}
     >

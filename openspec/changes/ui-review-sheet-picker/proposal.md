@@ -15,10 +15,14 @@ chips (F-092, also the cause of the `reference-cells.spec.ts` phone flake).
 
 ## What Changes
 
-- Toasts are drawn above every modal surface and answer a tap while one is
-  open; dismissing a toast does not close the surface under it.
+- Toasts are drawn above every modal surface, the keyboard shortcuts sheet
+  included, and answer a tap while one is open; dismissing a toast closes no
+  surface under it, Project settings included. Cards (hints, facts) opened
+  from a control on a modal surface are drawn above it, below the toasts.
 - The header's project list wraps a long name onto more lines instead of
-  cutting it; the meta still truncates. The closed picker keeps its ellipsis and
+  cutting it; the meta still truncates. On a phone the list is the window's
+  width less its margins. The open change `project-dropdown-details` is amended
+  to the same rule. The closed picker keeps its ellipsis and
   its fact card naming the whole project.
 - A picker list on a modal surface is never wider than its box; bottom sheets wrap each
   option's whole name so touch users can read it without a fact card. Compact
@@ -35,7 +39,6 @@ chips (F-092, also the cause of the `reference-cells.spec.ts` phone flake).
 
 ## Impact
 
-`apps/wbs/fe-01` only: `components/wbs/toasts.tsx`, `components/ui/modal.tsx`,
-`components/wbs/creatable-picker.tsx`, `components/wbs/project-page.tsx`,
-`styles.css`; e2e `plan-import.spec.ts`, `header.spec.ts`,
-`reference-cells.spec.ts`.
+`apps/wbs/fe-01` only: `components/wbs/{toasts,creatable-picker,project-page,hover-card,hint,keyboard-cheat-sheet}.tsx`,
+`components/ui/modal.tsx`, `styles.css`; e2e `plan-import.spec.ts`,
+`header.spec.ts`, `reference-cells.spec.ts`, `project-settings.spec.ts`.

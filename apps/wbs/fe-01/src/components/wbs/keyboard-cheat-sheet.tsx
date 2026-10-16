@@ -235,7 +235,14 @@ export function KeyboardCheatSheet({ onClose, renderer, altStyle }: KeyboardChea
         // was clicked. Watched, 2026-08-07.
         if (event.target === event.currentTarget) onClose();
       }}
-      className="fixed inset-0 z-100 flex items-center justify-center bg-black/40"
+      // On `--layer-modal` like every other modal surface, so a toast raised
+      // while it is open is drawn over it (UI review F-133); at `z-100` it was
+      // the one surface above them.
+      // Proof: back at `z-100`, `a standing toast is drawn above the keyboard
+      // shortcuts sheet` (`e2e/plan-import.spec.ts`) failed on `the toast is
+      // covered by <div role="presentation" data-cheat-sheet-backdrop …`.
+      // Watched 2026-10-16.
+      className="fixed inset-0 z-(--layer-modal) flex items-center justify-center bg-black/40"
     >
       <div
         role="dialog"

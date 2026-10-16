@@ -827,6 +827,7 @@ test.describe('the open project picker, measured by a browser', () => {
     const measured: {
       width: number;
       cutBy: number[];
+      lines: number[];
       pastRightEdge: number;
       pageOverflowX: number;
       fact: string | null;
@@ -854,6 +855,16 @@ test.describe('the open project picker, measured by a browser', () => {
                 name.scrollWidth - name.clientWidth,
               );
             }),
+            // Lines each name is drawn on: wrapping is the answer, but a list
+            // narrower than the room beside it makes every name a paragraph.
+            lines: ids.map((id) => {
+              const name = document.querySelector(`#project-option-${id} span`);
+              if (name === null) throw new Error(`no name for ${id}`);
+              return Math.round(
+                name.getBoundingClientRect().height /
+                  Number.parseFloat(getComputedStyle(name).lineHeight),
+              );
+            }),
             pastRightEdge: Math.round(
               list.getBoundingClientRect().right - document.documentElement.clientWidth,
             ),
@@ -877,6 +888,18 @@ test.describe('the open project picker, measured by a browser', () => {
     expect(measured.map(({ width, cutBy }) => ({ width, cutBy }))).toEqual(
       measured.map(({ width }) => ({ width, cutBy: [0, 0] })),
     );
+    // On a phone the list takes the window's width rather than the input's
+    // (UI review F-130): the input starts at the margin there, so the bound
+    // is known, and a name is one or two lines instead of four.
+    // Proof: with the list at the input's width, this failed on `a name takes
+    // more than two lines at 375px: [3,3]` — `Twilight Shipyards / roadmap
+    // 2026 / (imported 15 Oct, 2)`. Watched 2026-10-16.
+    for (const at of measured) {
+      expect(
+        Math.max(...at.lines),
+        `a name takes more than two lines at ${String(at.width)}px: ${JSON.stringify(at.lines)}`,
+      ).toBeLessThanOrEqual(2);
+    }
     for (const at of measured) {
       expect(
         at.pastRightEdge,
