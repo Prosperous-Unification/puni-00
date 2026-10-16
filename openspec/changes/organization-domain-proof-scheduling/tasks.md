@@ -1,11 +1,12 @@
 ## 1. Bounded cancellable sweeps
 
-- [ ] 1.1 Add core tests for batch size, ordered progress, cancellation before commit and unexpected failure; implement the bounded sweep and modeled DNS error boundary.
-- [ ] 1.2 Preserve repository snapshot currentness and mounted warning/suspension/manual recovery tests; prove currentness by removing its guard.
+- [x] 1.1 Add runtime and repository tests for batch size and ordered progress, including failed proofs; bound lookup/commit work after full trusted-state validation. Database reads remain unbounded.
+- [ ] 1.2 Add core tests for cancellation before commit and unexpected failure; implement the modeled DNS error boundary after adapter review.
+- [x] 1.3 Preserve repository snapshot currentness and mounted warning/suspension/manual recovery tests; prove currentness by removing its guard.
 
 ## 2. Scheduled lifecycle
 
-- [ ] 2.1 Add injected clock worker tests for immediate sweep, fixed delay, no overlap, bounded eventual progress, cancellation/join and surfaced failure; implement the loop.
+- [x] 2.1 Add injected clock worker tests for immediate sweep, fixed delay, no overlap, bounded eventual progress, cancellation/join and surfaced failure; implement the loop.
 - [ ] 2.2 Wire configured authoritative DNS scheduling into boot after schema admission and dispose it before storage. Prove removed startup, overlap and disposal guards fail their production-path tests.
 
 ## 3. Review and verification

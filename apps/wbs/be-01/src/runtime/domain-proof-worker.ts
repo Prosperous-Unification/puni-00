@@ -1,9 +1,47 @@
 import type { DomainProofChecks } from '@wbs/core/ports/domain-challenges';
 import { checkDomainProofs } from '@wbs/core/service/domain-proof.service';
 
-/** One injected run of the dormant domain worker; `now` is checked at commit. */
-export function runDomainProofWorker(checks: DomainProofChecks, at: number, now = Date.now) {
-  return checkDomainProofs(checks, at, now);
+/**
+ * Checks at most `limit` due proofs, oldest first with claim ID breaking ties.
+ * The repository still reads and validates every verified claim before this
+ * bound limits DNS lookups and commits; database reads remain unbounded.
+ * `now` is checked again by the repository at commit.
+ * @throws {RangeError} when limit is not an integer from 1 through 32.
+ */
+export function runDomainProofWorker(
+  checks: DomainProofChecks,
+  at: number,
+  now = Date.now,
+  limit = 32,
+) {
+  // Proof: removing integer, lower or upper validation separately let NaN,
+  // zero or 33 survive `rejects sweep limits outside one through 32`.
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32)
+    throw new RangeError('domain proof sweep limit must be an integer from 1 through 32');
+  return checkDomainProofs(
+    {
+      resolver: checks.resolver,
+      readDueProofs: async (dueAt) => {
+        const proofs = await checks.readDueProofs(dueAt);
+        // Proof: removing oldest-first ordering made `checks older due
+        // proofs` select claim-00 instead of claim-01. Removing the ID tie-break
+        // made `checks 65 due proofs` select the reverse-inserted newer IDs.
+        return (
+          proofs
+            .toSorted(
+              (left, right) =>
+                left.lastCheckedAt - right.lastCheckedAt || left.id.localeCompare(right.id),
+            )
+            // Proof: removing this bound made both matching and missing-TXT
+            // `checks 65 due proofs` runs check 65 on their first pass, not 32.
+            .slice(0, limit)
+        );
+      },
+      finishProofCheck: (...args) => checks.finishProofCheck(...args),
+    },
+    at,
+    now,
+  );
 }
 
 /** The process-owned scheduler; completion rejects on unexpected sweep failure. */

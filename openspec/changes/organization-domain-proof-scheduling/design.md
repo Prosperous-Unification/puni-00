@@ -4,7 +4,7 @@ A single asynchronous loop performs a sweep, then waits an abortable one-hour de
 
 ## Bounded progress
 
-Each sweep passes a 32-claim limit to the core service. Repository due snapshots are sorted by lastCheckedAt, then ID. Successful or failed current completions advance lastCheckedAt and disappear from eligibility for seven days, allowing later batches to progress. Continually mutated snapshots can remain stale; no fairness guarantee overrides transactional currentness.
+Each sweep passes a 32-claim limit to the core service. The runtime sorts the fully validated repository snapshots by lastCheckedAt, then ID before selecting the batch. Repository reads and validation remain unbounded: all verified claims are read and validated before any due snapshots are returned. Applying SQL LIMIT before validation could hide malformed trusted rows outside the batch. Successful or failed current completions advance lastCheckedAt and disappear from eligibility for seven days, allowing later batches to progress. Continually mutated snapshots can remain stale; no fairness guarantee overrides transactional currentness.
 
 ## Cancellation and DNS failure
 

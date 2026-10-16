@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { startDomainProofWorker } from './domain-proof-worker';
+import { runDomainProofWorker, startDomainProofWorker } from './domain-proof-worker';
 
 async function settle(): Promise<void> {
   for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
@@ -25,6 +25,16 @@ function createClock() {
 }
 
 describe('retained domain proof scheduling', () => {
+  test('rejects sweep limits outside one through 32', () => {
+    const checks = {
+      resolver: { lookupTxt: () => Promise.resolve([]) },
+      readDueProofs: () => Promise.resolve([]),
+      finishProofCheck: () => Promise.resolve('checked' as const),
+    };
+    for (const limit of [0, -1, 33, Number.NaN, Number.POSITIVE_INFINITY, 1.5])
+      expect(() => runDomainProofWorker(checks, 0, () => 0, limit)).toThrow(RangeError);
+  });
+
   test('sweeps immediately and waits one hour after completion', async () => {
     const clock = createClock();
     let sweeps = 0;

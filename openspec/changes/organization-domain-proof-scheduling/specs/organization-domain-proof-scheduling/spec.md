@@ -2,7 +2,7 @@
 
 ### Requirement: Configured authoritative DNS schedules retained proof checks
 
-WBS SHALL start retained proof scheduling only when authoritative DNS is explicitly configured. It SHALL immediately process at most 32 due verified claims, then repeat after a fixed one-hour delay following each completed sweep. A process SHALL run at most one sweep at a time. Due claims SHALL be ordered by last check time and claim ID so completed checks yield to older due claims on later sweeps. Existing seven-day eligibility and fourteen-day suspension SHALL remain authoritative. Concurrent deployment colors MAY perform redundant lookups; transactional currentness SHALL reject stale results.
+WBS SHALL start retained proof scheduling only when authoritative DNS is explicitly configured. It SHALL immediately process at most 32 due verified claims, then repeat after a fixed one-hour delay following each completed sweep. A process SHALL run at most one sweep at a time. The lookup and commit bound SHALL preserve validation of every verified claim before selecting due work; database reads are not bounded by this limit. Due claims SHALL be ordered by last check time and claim ID so completed checks yield to older due claims on later sweeps. Existing seven-day eligibility and fourteen-day suspension SHALL remain authoritative. Concurrent deployment colors MAY perform redundant lookups; transactional currentness SHALL reject stale results.
 
 #### Scenario: Bounded startup and eventual progress
 
@@ -10,6 +10,18 @@ WBS SHALL start retained proof scheduling only when authoritative DNS is explici
 - **WHEN** startup and two subsequent hourly sweeps complete
 - **THEN** the sweeps check 32, 32 and 1 distinct claims respectively
 - **AND** no process starts another sweep while its previous sweep is in flight
+
+#### Scenario: Failed proof progress
+
+- **GIVEN** 65 verified claims are due and every DNS response lacks the retained TXT proof during grace
+- **WHEN** startup and two later hourly sweeps complete
+- **THEN** the sweeps check 32, 32 and 1 distinct claims, without advancing last-success times or releasing ownership
+
+#### Scenario: Malformed proof outside the batch
+
+- **GIVEN** a verified claim outside the first 32 has missing trusted retained-proof state
+- **WHEN** the worker reads due work
+- **THEN** the full repository validation rejects before any lookup commits
 
 #### Scenario: Absent authoritative DNS
 
