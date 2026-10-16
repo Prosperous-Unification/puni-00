@@ -1,5 +1,8 @@
 # WBS 090/100 local diagnostic inventory
 
+The bounded 2026-10-16 import preparation extraction has its own
+[intent, focused checks and pending hosted proof](evidence/import-values-boundary/README.md).
+
 The current survey targets reviewed #380 release candidate
 `a478c109d13233ffb61df874adf90c23fc583e75`. This is diagnostic evidence; it does
 not accept the final release candidate, certify WBS, activate enforcement, adopt
