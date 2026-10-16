@@ -1,0 +1,120 @@
+name: wbs-column-resize-recovery-proofs
+
+on:
+  push:
+    branches: [proof/wbs-column-resize-recovery-20261016]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wbs-column-resize-recovery-proofs
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: proof
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ecf7b313c598bf16fbfadfc49e0e8df94532bc7a
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ac774f0c358db369c2048e537151e263cc29361e
+          fetch-depth: 0
+          path: evaluator-source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: Record source identities and install frozen dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$GITHUB_WORKSPACE/receipts"
+          git -C candidate rev-parse HEAD HEAD^{tree} > receipts/candidate-identity.txt
+          git -C evaluator-source rev-parse HEAD HEAD^{tree} > receipts/evaluator-source-identity.txt
+          bun --version > receipts/bun-version.txt
+          free -m > receipts/memory-before.txt
+          cd candidate
+          bun install --frozen-lockfile > ../receipts/candidate-install.log 2>&1
+          cd ../evaluator-source
+          bun install --frozen-lockfile > ../receipts/evaluator-install.log 2>&1
+      - name: Mounted positive, pointer filter fault, release commit fault, restoration
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof"
+          bash "$proof/run-gesture-proofs.sh" "$GITHUB_WORKSPACE/candidate" "$GITHUB_WORKSPACE/receipts" "$proof/mutate-gesture.mjs"
+          bun "$proof/assert-gesture-receipts.mjs" "$GITHUB_WORKSPACE/receipts" > receipts/gesture-assertions.log 2>&1
+      - name: Build and pack the fixed evaluator source
+        working-directory: evaluator-source/apps/twilight-structure/twilight-burokrat/cli
+        shell: bash
+        run: |
+          set -euo pipefail
+          bun src/packaging/build.ts > "$GITHUB_WORKSPACE/receipts/evaluator-build.log" 2>&1
+          bun src/packaging/pack.ts > "$GITHUB_WORKSPACE/receipts/evaluator-pack.log" 2>&1
+      - name: Install independent consumer and verify historical executable identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir consumer
+          cp evaluator-source/dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz receipts/
+          sha256sum receipts/twilight-burokrat-0.1.0.tgz > receipts/tarball.sha256
+          printf '{"name":"resize-proof-consumer","private":true}\n' > consumer/package.json
+          cd consumer
+          bun add --exact --ignore-scripts ../receipts/twilight-burokrat-0.1.0.tgz > ../receipts/consumer-install.log 2>&1
+          bun "$GITHUB_WORKSPACE/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/verify-tool.mjs" "$PWD/node_modules/twilight-burokrat" > ../receipts/installed-identity.json 2>&1
+      - name: Exact committed F7 positive and oversized source negative
+        shell: bash
+        run: |
+          set -euo pipefail
+          proof="$GITHUB_WORKSPACE/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof"
+          receipts="$GITHUB_WORKSPACE/receipts"
+          checkout="$GITHUB_WORKSPACE/candidate"
+          candidate=ecf7b313c598bf16fbfadfc49e0e8df94532bc7a
+          base=4f098bfe2bf64343b8f503b5bdebd6e1a6fa34f4
+          cp "$proof/recovery-f7-policy.json" "$receipts/"
+          sha256sum "$receipts/recovery-f7-policy.json" > "$receipts/policy.sha256"
+          cd "$GITHUB_WORKSPACE/consumer"
+          ./node_modules/.bin/twib check committed "$checkout" "$base" "$receipts/recovery-f7-policy.json" --rule F7 > "$receipts/f7-base.json" 2> "$receipts/f7-base.stderr"
+          ./node_modules/.bin/twib check committed "$checkout" "$candidate" "$receipts/recovery-f7-policy.json" --rule F7 > "$receipts/f7-candidate.json" 2> "$receipts/f7-candidate.stderr"
+          bun "$proof/assert-f7.mjs" "$receipts/f7-base.json" "$receipts/f7-candidate.json" > "$receipts/f7-positive-assertion.log" 2>&1
+          git -C "$checkout" show "$base:apps/wbs/fe-01/src/components/wbs/use-plan-layout.tsx" > "$checkout/apps/wbs/fe-01/src/components/wbs/use-plan-layout.tsx"
+          git -C "$checkout" config user.name 'WBS resize proof'
+          git -C "$checkout" config user.email 'resize-proof@users.noreply.github.com'
+          git -C "$checkout" add apps/wbs/fe-01/src/components/wbs/use-plan-layout.tsx
+          git -C "$checkout" commit -m 'test: inject original oversized hook for F7 proof' > "$receipts/f7-fault-commit.log"
+          fault=$(git -C "$checkout" rev-parse HEAD)
+          git -C "$checkout" rev-parse HEAD HEAD^{tree} > "$receipts/fault-identity.txt"
+          git -C "$checkout" format-patch -1 --stdout "$fault" > "$receipts/oversized-fault.patch"
+          ./node_modules/.bin/twib check committed "$checkout" "$fault" "$receipts/recovery-f7-policy.json" --rule F7 > "$receipts/f7-fault.json" 2> "$receipts/f7-fault.stderr"
+          if bun "$proof/assert-f7.mjs" "$receipts/f7-base.json" "$receipts/f7-fault.json" > "$receipts/f7-negative-assertion.log" 2>&1; then
+            printf 'Oversized source fault unexpectedly passed the selected-finding assertion\n' >&2
+            exit 1
+          else
+            status=$?
+            if [[ $status -ne 1 ]]; then exit "$status"; fi
+          fi
+          grep -F 'selected oversized hook finding remains' "$receipts/f7-negative-assertion.log"
+          git -C "$checkout" checkout --detach "$candidate"
+          git -C "$checkout" diff --exit-code
+          bun "$proof/assert-f7.mjs" "$receipts/f7-base.json" "$receipts/f7-candidate.json"
+          free -m > "$receipts/memory-after.txt"
+      - name: Preserve fresh proof receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wbs-column-resize-ecf7-proofs
+          path: receipts/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1
