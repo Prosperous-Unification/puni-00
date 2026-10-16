@@ -98,16 +98,16 @@ for (const fault of [
               ? fixture.launcher
               : fixture.dependency;
       if (fault === 'special') {
-        const special = join(modules, 'pipe');
-        expect(Bun.spawnSync(['mkfifo', special]).exitCode).toBe(0);
-        symlinkSync(special, fixture.launcher);
+        // A direct FIFO isolates this refusal from launcher-target checks and directory order.
+        // Proof: replacing it with a regular file made this negative fail because no error was thrown.
+        expect(Bun.spawnSync(['mkfifo', fixture.launcher]).exitCode).toBe(0);
       } else symlinkSync(target, fixture.launcher);
     }
     expect(() => identifyCoverageRuntime(fixture.entry)).toThrow(
       fault === 'directory'
         ? 'target is not a regular file'
         : fault === 'special'
-          ? 'non-regular entry'
+          ? 'trusted node modules carry a non-regular entry: .bin/acorn'
           : undefined,
     );
   });
