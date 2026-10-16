@@ -1,0 +1,1 @@
+{"schemaVersion":1,"candidate":"c3215cacfd920096b7e823809389a146236d230660f18c4a2e7dcc4ec944606c","policy":"rules.puni-00.v1","allowed":true,"ruleIds":["K6"],"findings":[],"unevaluated":[],"certifies":false}

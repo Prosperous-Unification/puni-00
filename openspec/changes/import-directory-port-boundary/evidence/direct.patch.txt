@@ -1,20 +1,12 @@
 --- a/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
 +++ b/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
-@@ -1,7 +1,7 @@
- import type { PriorityBand, StoredStepBlockage } from '@wbs/domain';
-
+@@ -3,3 +3,3 @@
  import type { CalendarMarker } from '../../ports/calendar-marker-store';
 -import type { ImportDirectory } from '../../ports/import-directory';
 +import type { DirectoryService } from '../directory/directory.resource';
  import type { ResourceAccess } from '../../ports/organization-access';
- import type { Broadcaster } from '../../ports/project-event';
- import type { NewProject } from '../../ports/project-values';
-@@ -16,7 +16,7 @@
-
- /** The ports one import uses to reconcile directory entries and announce its tree. */
+@@ -18,3 +18,3 @@
  export interface ImportServices {
 -  directory: ImportDirectory;
 +  directory: DirectoryService;
    workItems: TreeAnnouncement;
- }
-

@@ -13,6 +13,11 @@ import type { ResourceAccess } from './organization-access';
 /**
  * Reconciles an imported directory through the admitted scope and its collector.
  * Composition supplies the complete resource instance, retaining its receiver.
+ *
+ * Proof: restoring the concrete directory import directly or through this port's
+ * re-export made the committed production K6 boundary oracle fail with
+ * `concrete directory resource edge remains`; watched 2026-10-16. Commands and
+ * fault patches: `openspec/changes/import-directory-port-boundary/verify.md`.
  */
 export interface ImportDirectory {
   /** Reads the catalog selected by the caller's existing access. */
