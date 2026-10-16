@@ -127,3 +127,7 @@ final publication re-read, shared first-match Conformance/Architecture/Performan
 typed Browser isolation, absent authentication and false certification. Non-goals: supplied
 observation JSON, candidate execution, new domain rules, later table rows, T2, scenario joins,
 coverage, admission, receipts, source reconciliation or closing parent WBS080.39.
+
+## Browser Performance reviewed-empty slice 4.1b.15
+
+Problem: the Browser composer cannot represent a project with no declared Performance membership. Outcome: explicit version-2 reviewed-empty Performance authority joined to the exact selected manifest and complete Browser report. Constraints: preserve v1 committed behavior, strict closed v2 dispositions and selected-source pins, reject selected Performance target/declaration contradictions, preserve complete outcomes and source union, unknown unrelated rows and certifies:false. Non-goals: creating or executing FE Performance declarations, coverage, admission, authentication, release or completing WBS080.39.

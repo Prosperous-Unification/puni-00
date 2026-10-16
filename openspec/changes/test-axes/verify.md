@@ -4266,3 +4266,49 @@ built installed isolated and wrong-level executable observations
 
 No push, merge, host gate, full Nx gate, hosted rerun, release or deployment was
 performed. Coordinator review and exact-head release checks remain required.
+
+## Browser Performance explicit reviewed-empty 4.1b.15 — 2026-10-16
+
+Base: published Browser PR #507 head `d6e601c19ec3a9e117ee26df08686e43869f4493`, isolated shared clone `/tmp/wbs-browser-performance-membership`. Scope: explicit v2 Performance reviewed-empty membership only; v1 stays committed, the output stays schemaVersion 1, unrelated memberships stay unknown, authentication absent and certifies false. No FE declaration, measured result, coverage or release claim was produced. Parent WBS080.39 and Tasks 2.1/2.2a/2.2/4.1 remain open.
+
+The production `scenario allocate` proposed TEST-AXES-125..127. Its exact proposed spec and journal were persisted. Fresh comparison to the base preserves all 172 prior journal events and appends only those three allocations. Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md` returned `{"unidentified":[]}` (`/tmp/browser-performance-empty-provenance.json`).
+
+TDD: the initial attempted test run could not resolve `@noble/hashes/sha2.js` through an inherited dependency symlink; that is not a RED. Installing this clone's frozen lockfile with `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/browser-membership-bun-cache bun install --frozen-lockfile` succeeded (1573 installs checked). The four new production tests then failed at the actual v2 authority boundary: 0 pass, 4 fail, 47 assertions (`/tmp/browser-performance-empty-red.log`). After implementation they passed 4/4, 104 assertions (`/tmp/browser-performance-empty-green.log`).
+
+### Watched production faults
+
+Each fault was applied separately, its real source CLI assertion was observed failing, and source restored in a finally block. `/tmp/browser-performance-empty-mutations.json`, `/tmp/browser-performance-empty-extra-mutations.json` and `/tmp/browser-performance-empty-required-mutations.json` record 13 caught faults; the final committed-only distinct-pin fault below brings the total to 14. Per-fault logs use `/tmp/browser-performance-empty-{fault,extra-fault,required-fault}-<name>.log`.
+
+| Injected fault                                   | Observed production assertion failure                                                                       |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Remove `test:performance` own-target check       | TEST-AXES-126 accepted the selected contradictory target despite working manifest repair                    |
+| Remove `test:performance:level` own-target check | TEST-AXES-126 accepted the level target despite working manifest repair                                     |
+| Remove exact declaration-path comparison         | TEST-AXES-126 accepted malformed or symlink selected declaration despite working deletion                   |
+| Remove declaration descendant comparison         | TEST-AXES-126 accepted a tracked directory at the fixed declaration path                                    |
+| Widen v2 version to 3                            | TEST-AXES-126 lost the named authority-schema refusal                                                       |
+| Widen empty kind to unknown                      | TEST-AXES-126 lost the named authority-schema refusal                                                       |
+| Remove empty-object closure                      | TEST-AXES-126 accepted extra empty fields                                                                   |
+| Remove v2 outer closure                          | TEST-AXES-126 accepted extra authority fields                                                               |
+| Remove committed-object closure                  | TEST-AXES-127 accepted extra committed fields                                                               |
+| Make disposition optional                        | TEST-AXES-126 lost the named boundary refusal for absent disposition                                        |
+| Make empty kind optional                         | TEST-AXES-126 lost the named boundary refusal for absent kind                                               |
+| Treat every v2 authority as empty                | TEST-AXES-127 lost committed parity                                                                         |
+| Return unknown for empty membership              | TEST-AXES-125 lost the exact membership assertion                                                           |
+| Disable committed-only distinct-pin guard        | TEST-AXES-113 lost the exact duplicate pinned-path refusal (`/tmp/browser-performance-empty-pin-fault.log`) |
+
+Selected target values include null, empty object and malformed strings. Selected declaration shapes include malformed JSON, symlink and a tracked directory child. They are contradictions before declaration decoding, never absence. Existing source, pin and report checks still run before the empty branch. Adjacent production Proof comments name the observed faults.
+
+### Acceptance
+
+- Final restored `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-performance.test.ts --timeout 120000`: exit 0, **21 pass, 0 fail, 528 assertions** (`/tmp/browser-performance-empty-performance-final.log`). Includes source and built installed empty dispatch, bounded usage, complete passed/failed/skipped reports, exact source union, full digest, closed v2 fields, legacy committed regression, committed v2 parity, and absent versus unreadable empty authority.
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/{browser-performance,browser-levels}.test.ts --test-name-pattern 'TEST-AXES-12[567]' --timeout 120000`: exit 0, **7 pass, 0 fail, 141 assertions** before the final committed-pin negatives were added (`/tmp/browser-performance-empty-final-new-tests.log`). Includes a real composer empty-success case with no synthetic Performance observation.
+- Broad seven-file Browser/Performance-level/level-facts/test-report run: **169 pass, 0 fail, 2345 assertions** (`/tmp/browser-performance-empty-focused.log`). Source/helper edits and watched injections overlapped that run; it is diagnostic regression evidence, not acceptance of a frozen candidate. Final restored owning suites provide acceptance for changed paths.
+- An additional isolated composer run returned **15 pass, 0 fail, 254 assertions** (`/tmp/browser-performance-empty-composer-final.log`); required-field schema mutations overlapped that copy, so the restored composer run below supersedes it for acceptance.
+- Final restored composer `bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-levels.test.ts --timeout 120000`: exit 0, **15 pass, 0 fail, 254 assertions**, including complete real empty composition and built installed dispatch (`/tmp/browser-performance-empty-composer-restored.log`).
+- The original v1 distinct-pin check remains before selected-source reads, preserving its previous refusal order. After restoring that placement, the affected TEST-AXES-113 and new TEST-AXES-125..127 production cases passed: **11 pass, 0 fail, 260 assertions** (`/tmp/browser-performance-empty-order-final.log`).
+- Final uncached scoped Nx `twilight-burokrat:typecheck`: exit 0, successful target output (`/tmp/browser-performance-empty-typecheck-last.log`). The first run caught union narrowing errors; these were corrected without casts.
+- Final uncached scoped Nx `twilight-burokrat:lint:source`: exit 0, successful target output (`/tmp/browser-performance-empty-lint-acceptance.log`). Earlier attempts returned exit 1 without ESLint diagnostics; a standalone changed-file run identified four useless void expressions in test helpers, which were removed.
+- Scoped uncached Nx `twilight-burokrat:build`: exit 0, successful build plus three dependencies (`/tmp/browser-performance-empty-build-restored.log`).
+- Pinned `bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, 1/1 valid; `validate --all --json`: exit 0, **219/219 valid**, 201 changes and 18 specs (`/tmp/browser-performance-empty-openspec-{strict,all}.json`).
+
+No full host gate, exact-head hosted CI, push, merge, release or independent Astra review was performed by this worker. Those remain coordinator acceptance. Synthetic fixture successes establish only the bounded adapter/composer contracts.

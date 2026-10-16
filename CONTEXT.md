@@ -1912,3 +1912,7 @@ _Avoid_: restore log, retry token
 The durable link between a completed restore operation and one personally issued organization
 approval used by that recovery.
 _Avoid_: operator attestation, approval deletion
+
+**Reviewed-empty membership**:
+An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
+_Avoid_: unknown membership, passing Performance result

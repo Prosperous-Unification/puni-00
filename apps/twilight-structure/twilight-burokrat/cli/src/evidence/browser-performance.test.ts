@@ -849,3 +849,178 @@ test('[TEST-AXES-114] coherent out-of-root Performance config cannot use a selec
   });
   await refuse(setup, 'source escapes declared project scope');
 });
+
+function emptyAuthority(setup: Setup) {
+  return {
+    schemaVersion: 2,
+    revision: setup.authority.revision,
+    candidate: setup.authority.candidate,
+    mode: setup.authority.mode,
+    reportObservationDigest: setup.authority.reportObservationDigest,
+    projectRoot: setup.authority.projectRoot,
+    projectManifest: setup.authority.projectManifest,
+    performance: { kind: 'reviewed-empty' },
+  };
+}
+
+async function prepareEmpty() {
+  const setup = await prepare();
+  rmSync(join(setup.root, declarationPath));
+  await commit(setup);
+  writeAuthority(setup, emptyAuthority(setup));
+  return setup;
+}
+
+test('[TEST-AXES-125] explicit empty preserves complete report sources and noncertifying identity', async () => {
+  const setup = await prepareEmpty();
+  publishCases(setup, [
+    { title: 'a passed', status: 'passed' },
+    { title: 'b failed', status: 'failed' },
+    { title: 'c skipped', status: 'skipped' },
+  ]);
+  setup.report = await observation(setup);
+  setup.authority.reportObservationDigest = setup.report['observationDigest'];
+  writeAuthority(setup, emptyAuthority(setup));
+  const observed = await facts(setup);
+  expect(observed['memberships']).toEqual({
+    performance: { kind: 'reviewed-empty' },
+    manual: { kind: 'unknown' },
+    conformance: { kind: 'unknown' },
+    architecture: { kind: 'unknown' },
+  });
+  expect(observed['report']).toEqual(setup.report);
+  expect(observed['sources']).toEqual(
+    [manifestPath, file].sort().map((path) => ({
+      path,
+      mode: '100644',
+      contentDigest: hashBytes(readFileSync(join(setup.root, path))),
+    })),
+  );
+  expect(observed['authentication']).toEqual({ kind: 'absent' });
+  expect(observed['certifies']).toBe(false);
+  const { observationDigest, ...payload } = observed;
+  expect(observationDigest).toBe(hashCanonical(payload));
+});
+
+test('[TEST-AXES-126] selected targets and every declaration shape contradict empty despite working repairs', async () => {
+  for (const target of ['test:performance', 'test:performance:level']) {
+    for (const value of [null, {}, 'malformed']) {
+      const setup = await prepareEmpty();
+      writeFileSync(
+        join(setup.root, manifestPath),
+        JSON.stringify({ targets: { [target]: value } }),
+      );
+      await commit(setup);
+      writeAuthority(setup, emptyAuthority(setup));
+      writeFileSync(join(setup.root, manifestPath), JSON.stringify({ targets: {} }));
+      await refuse(setup, 'reviewed-empty contradicts committed Performance target');
+    }
+  }
+  for (const shape of ['malformed', 'symlink', 'directory']) {
+    const setup = await prepareEmpty();
+    if (shape === 'malformed') writeFileSync(join(setup.root, declarationPath), '{');
+    if (shape === 'symlink') symlinkSync('project.json', join(setup.root, declarationPath));
+    if (shape === 'directory') {
+      mkdirSync(join(setup.root, declarationPath));
+      writeFileSync(join(setup.root, declarationPath, 'nested'), 'invalid');
+    }
+    await commit(setup);
+    writeAuthority(setup, emptyAuthority(setup));
+    rmSync(join(setup.root, declarationPath), { recursive: true });
+    await refuse(setup, 'reviewed-empty contradicts committed Performance declaration');
+  }
+});
+
+test('[TEST-AXES-126] empty authority remains closed and source-bound', async () => {
+  const missingDisposition = await prepareEmpty();
+  const { performance: omittedPerformance, ...identity } = emptyAuthority(missingDisposition);
+  expect(omittedPerformance).toEqual({ kind: 'reviewed-empty' });
+  writeAuthority(missingDisposition, identity);
+  await refuse(missingDisposition, 'authority is invalid');
+
+  for (const change of [
+    { schemaVersion: 3 },
+    { performance: {} },
+    { performance: { kind: 'unknown' } },
+    { performance: { kind: 'reviewed-empty', files: [] } },
+    { extra: true },
+    { declaration: { path: declarationPath, digest: '0'.repeat(64) } },
+  ]) {
+    const setup = await prepareEmpty();
+    writeAuthority(setup, { ...emptyAuthority(setup), ...change });
+    await refuse(setup, 'authority is invalid');
+  }
+  const setup = await prepareEmpty();
+  writeAuthority(setup, { ...emptyAuthority(setup), candidate: '0'.repeat(64) });
+  await refuse(setup, 'candidate differs');
+});
+
+test('[TEST-AXES-127] v2 committed preserves v1 complete membership', async () => {
+  const setup = await prepare();
+  const legacy = await facts(setup);
+  const { declaration: declarationPin, config: configPin, project, ...identity } = setup.authority;
+  writeAuthority(setup, {
+    ...identity,
+    schemaVersion: 2,
+    performance: { kind: 'committed', declaration: declarationPin, config: configPin, project },
+  });
+  const explicit = await facts(setup);
+  expect(explicit['memberships']).toEqual(legacy['memberships']);
+  expect(explicit['sources']).toEqual(legacy['sources']);
+  expect(explicit['report']).toEqual(legacy['report']);
+});
+
+test('[TEST-AXES-125] built installed executable dispatches explicit empty and bounded usage', async () => {
+  const setup = await prepareEmpty();
+  const packageRoot = mkdtempSync(join(tmpdir(), 'browser-performance-package-'));
+  scratch.push(packageRoot);
+  await buildPackage(packageRoot);
+  const executable = join(packageRoot, 'dist/bin.mjs');
+  const call = Bun.spawnSync(
+    [
+      process.execPath,
+      executable,
+      'inspect-browser-performance',
+      setup.root,
+      setup.revision,
+      setup.policyPath,
+      mode,
+      setup.authorityPath,
+    ],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  expect(call.exitCode, call.stderr.toString()).toBe(0);
+  expect(JSON.parse(call.stdout.toString())).toEqual(await facts(setup));
+  const invalid = Bun.spawnSync([process.execPath, executable, 'inspect-browser-performance'], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  expect(invalid.exitCode).toBe(1);
+  expect(invalid.stdout.toString()).toBe('');
+  expect(invalid.stderr.toString()).toContain(
+    'usage: twilight-burokrat inspect-browser-performance',
+  );
+}, 120000);
+
+test('[TEST-AXES-126] empty keeps unreadable and missing authority distinct', async () => {
+  for (const unreadable of [false, true]) {
+    const setup = await prepareEmpty();
+    rmSync(setup.authorityPath);
+    if (unreadable) mkdirSync(setup.authorityPath);
+    await refuse(setup, unreadable ? 'EISDIR' : 'ENOENT');
+  }
+});
+
+test('[TEST-AXES-127] v2 committed disposition rejects extra and missing pins', async () => {
+  const setup = await prepare();
+  const { declaration: declarationPin, config: configPin, project, ...identity } = setup.authority;
+  for (const performance of [
+    { kind: 'committed', declaration: declarationPin, config: configPin, project, extra: true },
+    { kind: 'committed', declaration: declarationPin, config: configPin },
+    { kind: 'committed', declaration: declarationPin, project },
+    { kind: 'committed', config: configPin, project },
+  ]) {
+    writeAuthority(setup, { ...identity, schemaVersion: 2, performance });
+    await refuse(setup, 'authority is invalid');
+  }
+});

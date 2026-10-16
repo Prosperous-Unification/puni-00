@@ -1,5 +1,27 @@
 ## ADDED Requirements
 
+### Requirement: Browser Performance explicitly reviewed-empty membership
+
+Version 1 Browser Performance authority SHALL retain its committed behavior and output. Version 2 SHALL require the same revision/candidate/mode/report/project-root/manifest identity and a closed `performance` disposition: `{kind:'reviewed-empty'}` or `{kind:'committed',declaration,config,project}` with the existing path/digest pins. It SHALL validate every Browser selected source and pinned manifest before membership. Reviewed-empty SHALL reject any own `test:performance` or `test:performance:level` target, and any selected entry at `<projectRoot>/performance-cases.json` or beneath that path, including malformed, symlink or directory declarations. Working-tree replacement or deletion SHALL not repair selected contradictions. Empty authority SHALL emit exactly reviewed-empty membership with complete Browser/manifest source union, preserving all report outcomes, unknown unrelated rows, absent authentication, false certification and full-envelope digest. It SHALL not claim a Performance execution or coverage result.
+
+#### Scenario: [TEST-AXES-125] Browser Performance admits explicit reviewed-empty selected scope
+
+- **GIVEN** exact real Browser publication and explicit v2 empty authority over a committed manifest without Performance target or declaration
+- **WHEN** source and installed commands inspect selected Git bytes
+- **THEN** they preserve complete report identity and outcomes and emit only reviewed-empty Performance membership with false certification
+
+#### Scenario: [TEST-AXES-126] Browser Performance refuses contradictory empty authority
+
+- **GIVEN** selected Performance targets or a declaration entry, malformed authority or mismatched source identity
+- **WHEN** reviewed-empty authority is inspected despite working repairs
+- **THEN** production refuses by name without JSON
+
+#### Scenario: [TEST-AXES-127] Browser Performance preserves committed authority versions
+
+- **GIVEN** equivalent v1 and explicit v2 committed authorities
+- **WHEN** production inspects the entire declaration and source selection
+- **THEN** committed membership remains identical and legacy output remains unchanged
+
 ### Requirement: Browser level composition joins complete real observations
 
 `inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>` SHALL invoke the real Browser Memberships, Conformance, Architecture and Performance readers and accept no supplied observation JSON. It SHALL require an exact committed requested snapshot, matching revision/candidate/mode, independently correct full report and observation digests, identical complete nonempty sorted unique collection, matching project roots and manifest pins and agreeing overlapping selected-source tuples. Missing, extra or duplicate collection or source identities, missing Browser or pinned manifest source tuples, unreadable authority and inherited upstream refusals SHALL refuse without JSON. A final real Browser report read SHALL refuse any publication identity, complete collection or digest drift during composition.

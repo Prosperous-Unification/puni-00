@@ -132,3 +132,10 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1b.14c Classify the complete admitted collection through the shared first-match table; preserve full upstream observations/outcomes/sources, deterministic isolated/wrong-level findings, noncertifying envelope and full digest. Prove precedence, wrong-level CLI status, source and built installed dispatch, bounded usage and canonical identity with watched faults.
 - [x] 4.1b.14d Run focused composer/adapter/Performance-level regressions, scoped Nx lint/typecheck/build, final restored negatives, changed-file format, scenario provenance and pinned strict/all OpenSpec validation. Record evidence and skips; commit clean local candidate for independent Astra review. Coordinator owns release/host acceptance; WBS080.39, T2 and parent tasks remain open.
 - [ ] 4.1b.14e Independent Astra review of the exact local candidate, followed by coordinator integration and release/CI/host acceptance. This packet does not close WBS080.39 or the parent ledgers.
+
+## 4.1b.15 Browser Performance explicit reviewed-empty (WBS080.39)
+
+- [x] 4.1b.15a Record bounded intent, resolved term and v2 contract; allocate scenarios with production allocator preserving journal prefix; observe production v2 schema RED.
+- [x] 4.1b.15b Implement closed v2 dispositions, selected target/declaration contradiction checks and unchanged committed v1 behavior; preserve all report and source identities, unknown unrelated rows and certifies:false.
+- [x] 4.1b.15c Watch new guard/schema faults fail production assertions; run focused and scoped acceptance, installed dispatch, format, provenance and strict/all OpenSpec validation; record evidence and commit clean local candidate.
+- [ ] 4.1b.15d Independent Astra review and coordinator release/CI/host acceptance. Parent WBS080.39 and 2.1/2.2a/2.2/4.1 remain open.
