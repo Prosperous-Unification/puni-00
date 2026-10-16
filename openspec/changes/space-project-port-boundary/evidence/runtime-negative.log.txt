@@ -1,0 +1,73 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/service/space.resource.test.ts:
+141 |
+142 |     it('refuses to place a project after it, as if it were not a member', async () => {
+143 |       const { hiding, id, unchanged, before } = await hidingA2();
+144 |       // Proof, observed 2026-09-29: with the anchor gate removed from
+145 |       // `addProject`, this add answered `{ ok: true, value: 25 }`.
+146 |       expect(await hiding.addProject('ada', MEMBER, id, 'a4', 'a2')).toEqual(notFound);
+                                                                           ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "not_found",
++   "ok": true,
++   "value": 25,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/wbs090-space-project-port/libs/wbs/application/core/src/service/space.resource.test.ts:146:70)
+(fail) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to place a project after it, as if it were not a member [5.77ms]
+150 |     it('refuses to move it, or to move another after it', async () => {
+151 |       const { hiding, id, unchanged, before } = await hidingA2();
+152 |       // Proof, observed 2026-09-29: with the member gate removed from
+153 |       // `moveProject`, the first move answered `{ ok: true, value: 5 }`;
+154 |       // with the anchor gate removed, the second answered `{ ok: true, value: 30 }`.
+155 |       expect(await hiding.moveProject('ada', MEMBER, id, 'a2', null)).toEqual(notFound);
+                                                                            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "not_found",
++   "ok": true,
++   "value": 5,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/wbs090-space-project-port/libs/wbs/application/core/src/service/space.resource.test.ts:155:71)
+(fail) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to move it, or to move another after it [1.67ms]
+159 |
+160 |     it('refuses to remove it', async () => {
+161 |       const { hiding, id, unchanged, before } = await hidingA2();
+162 |       // Proof, observed 2026-09-29: with the member gate removed from
+163 |       // `removeProject`, this remove answered `{ ok: true, value: null }`.
+164 |       expect(await hiding.removeProject('ada', MEMBER, id, 'a2')).toEqual(notFound);
+                                                                        ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "ok": false,
+-   "refusal": "not_found",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/wbs090-space-project-port/libs/wbs/application/core/src/service/space.resource.test.ts:164:67)
+(fail) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > refuses to remove it [1.49ms]
+(pass) SpaceResource > a hidden member, over space {a1, a2 hidden, a3} > still places, moves and removes around it by visible members [0.79ms]
+
+ 1 pass
+ 19 filtered out
+ 3 fail
+ 6 expect() calls
+Ran 4 tests across 1 file. [485.00ms]

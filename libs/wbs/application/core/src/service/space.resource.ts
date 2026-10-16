@@ -10,11 +10,11 @@ import {
   sortInProgress,
 } from '@wbs/domain';
 
-import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
 import type { Clock } from '../ports/clock';
 import type { ResourceAccess } from '../ports/organization-access';
 import type { Broadcaster } from '../ports/project-event';
+import type { ProjectRead } from '../ports/project-read';
 import type { ProjectWithAccess } from '../ports/project-store';
 import type { AccessRefused } from '../ports/shared-people-values';
 import type { Space, SpaceStore } from '../ports/space-store';
@@ -73,7 +73,7 @@ export interface SpaceResourceOptions {
    * finds. Every space read and add goes through them and nothing else, so a
    * future read restriction on projects needs no change here (the leak rule).
    */
-  projects: Pick<ProjectService, 'listWithin' | 'readWithin'>;
+  projects: ProjectRead;
   clock: Clock;
   /** The project page's own read and the shared aggregate projection for cache admission. */
   trees: Pick<WorkItemService, 'treeWithin' | 'sharedTreesWithin'>;

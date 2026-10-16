@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/space-project-evidence/check-boundary.py.txt", line 18, in <module>
+    assert not any(edge(finding) for finding in verdict['findings']), 'concrete project resource edge remains'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: concrete project resource edge remains
