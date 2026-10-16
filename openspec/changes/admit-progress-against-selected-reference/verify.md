@@ -53,3 +53,18 @@ The four regression invocations accidentally overlapped: the orchestration await
 - Pinned OpenSpec 1.12.0 validation of this change: exit 0, valid true, no issues.
 - Scoped Prettier check of all changed code/docs and the complete change directory: exit 0, all matched files formatted.
 - Task checkboxes describe the completed local source slice. Hosted CI and the full host gate remain unrun and required before merge.
+
+## Shared consistency review correction
+
+Exact-head review of `a6531e6db7064645ce4bebf770864325ca886d71` identified that the shared checker still compared only PlanRef after v2 decoding was added. Consequently, validate-progress-receipt and receipt-to-commands could accept a bound A receipt alongside real v9 B differing only in blockedAt. The shared checker now conditionally requires receipt.referenceDigest = supplied reference.referenceDigest for schema 2; schema 1 retains its historical consistency semantics.
+
+- Genuine RED: the two production CLI negatives both returned exit 0 where exit 1 was required; focused run 0 pass, 2 fail, 18 filtered, 4.64 seconds. Both fixtures assert equal PlanRef/tasksDigest and unequal referenceDigest for real Navigator-generated v9 exports A/B.
+- GREEN: the complete admission/consumer file passed 20 tests, 127 assertions, 12.78 seconds, including matching schema 2 and legacy schema 1 consumers.
+- Watched mutation: replaced only the new shared equality condition with false. Both CLI negatives again returned exit 0; focused run 0 pass, 2 fail, 18 filtered, 4.63 seconds. Source was restored in finally. Log: `/tmp/wbs08025-shared-digest-guard.log`. Adjacent Proof comment names both observed production tests.
+- Final restored negative rerun: 2 pass, 0 fail, 18 filtered, 18 assertions, 4.59 seconds.
+- Existing receipt-to-commands regression file: 28 pass, 0 fail, 138 assertions, 5.85 seconds.
+- Scoped Navigator and Burokrat `bunx tsc --build --force <project>/tsconfig.json`: both exit 0.
+- ESLint for the changed checker and test file: exit 0; module-boundary rule skipped because no cached Nx graph exists.
+- Pinned OpenSpec validation: exit 0, valid true, no issues. Scoped Prettier check: exit 0.
+- All P2 RED/GREEN/mutation/restoration and final checks ran sequentially. Initial MemAvailable was 20,610 MiB, swap use zero; no memory pressure was observed. No full gate, browser, build or survey was run.
+- Prior normal commit hooks succeeded with Tool Wiki inactive/uncertified (external activation root absent) and the module-boundary rule unavailable. These remain verification limits, without a trusted-admission claim.

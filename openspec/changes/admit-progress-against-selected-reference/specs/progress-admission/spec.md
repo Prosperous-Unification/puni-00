@@ -2,7 +2,7 @@
 
 ### Requirement: Bound progress receipt
 
-The system SHALL decode strict progress receipt schema 2 with required referenceDigest covered by receiptDigest, and SHALL retain strict schema 1 decoding and conversion. Dash record-progress-v2 SHALL produce schema 2 from the validated producer reference and entries.
+The system SHALL decode strict progress receipt schema 2 with required referenceDigest covered by receiptDigest, and SHALL retain strict schema 1 decoding and conversion. Dash record-progress-v2 SHALL produce schema 2 from the validated producer reference and entries. Every receipt consistency consumer SHALL require a schema 2 receipt referenceDigest to equal its supplied producer reference digest, while retaining schema 1 consistency semantics.
 
 #### Scenario: Explicit versioned producer
 
@@ -13,6 +13,16 @@ The system SHALL decode strict progress receipt schema 2 with required reference
 
 - **WHEN** a valid schema 1 receipt is converted by receipt-to-commands
 - **THEN** conversion retains its existing behavior
+
+#### Scenario: Shared consistency rejects export substitution
+
+- **WHEN** a schema 2 receipt bound to real v9 export A is checked or converted alongside export B that differs only in blockedAt, with equal PlanRef and task digest
+- **THEN** both validate-progress-receipt and receipt-to-commands refuse without a consistency report or batch output
+
+#### Scenario: Shared consistency retains historical semantics
+
+- **WHEN** schema 1 progress has equal PlanRef and consistent tasks despite differing export digests
+- **THEN** consistency validation and conversion retain their historical behavior
 
 ### Requirement: Admission against selected accepted reference
 

@@ -206,3 +206,83 @@ test('admission retains existing task and entry consistency', async () => {
   writeReceipt({ entries: [{ ...entry, stepCode: 'unknown' }] });
   await refuse(join(scratch.path, 'a/plan-reference.json'), /absent from the plan/);
 });
+
+function validateWithBurokrat(referenceLabel: 'a' | 'b') {
+  const invocation = Bun.spawnSync({
+    cmd: [
+      process.execPath,
+      join(import.meta.dir, '../../../twilight-burokrat/cli/src/cli.ts'),
+      'validate-progress-receipt',
+      join(scratch.path, 'receipt.json'),
+      join(scratch.path, referenceLabel, 'plan-reference.json'),
+      join(scratch.path, referenceLabel, 'tasks.json'),
+    ],
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  return {
+    exitCode: invocation.exitCode,
+    stdout: invocation.stdout.toString(),
+    stderr: invocation.stderr.toString(),
+  };
+}
+
+function convertWithNavigator(referenceLabel: 'a' | 'b', outputPath = output) {
+  return runTwin([
+    'receipt-to-commands',
+    '--receipt',
+    join(scratch.path, 'receipt.json'),
+    '--plan-reference',
+    join(scratch.path, referenceLabel, 'plan-reference.json'),
+    '--tasks',
+    join(scratch.path, referenceLabel, 'tasks.json'),
+    '--output',
+    outputPath,
+  ]);
+}
+
+for (const consumer of ['validate-progress-receipt', 'receipt-to-commands'] as const) {
+  test(`${consumer} refuses bound A against real blockedAt-only B`, () => {
+    expect(producer.planRef).toEqual(accepted.planRef);
+    expect(producer.tasksDigest).toBe(accepted.tasksDigest);
+    expect(producer.referenceDigest).not.toBe(accepted.referenceDigest);
+    const invocation =
+      consumer === 'validate-progress-receipt'
+        ? validateWithBurokrat('b')
+        : convertWithNavigator('b');
+    expect(invocation.exitCode, invocation.stderr).toBe(1);
+    expect(invocation.stdout).toBe('');
+    expect(invocation.stderr).toContain('progress receipt binds another reference digest');
+    expect(existsSync(output)).toBe(false);
+  });
+  test(`${consumer} retains matching bound and unbound legacy consistency`, () => {
+    const matched =
+      consumer === 'validate-progress-receipt'
+        ? validateWithBurokrat('a')
+        : convertWithNavigator('a');
+    expect(matched.exitCode, matched.stderr).toBe(0);
+    expect(matched.stdout.length).toBeGreaterThan(0);
+    const body = {
+      schemaVersion: 1,
+      kind: 'progress-receipt',
+      planRef: producer.planRef,
+      entries: [entry],
+    };
+    writeFileSync(
+      join(scratch.path, 'receipt.json'),
+      JSON.stringify({ ...body, receiptDigest: digestOf(body) }),
+    );
+    const historical =
+      consumer === 'validate-progress-receipt'
+        ? validateWithBurokrat('b')
+        : convertWithNavigator('b', join(scratch.path, 'legacy-batch.json'));
+    expect(historical.exitCode, historical.stderr).toBe(0);
+    if (consumer === 'validate-progress-receipt') {
+      expect(JSON.parse(historical.stdout) as unknown).toMatchObject({
+        referenceDigest: accepted.referenceDigest,
+      });
+    } else {
+      expect(existsSync(join(scratch.path, 'legacy-batch.json'))).toBe(true);
+    }
+  });
+}

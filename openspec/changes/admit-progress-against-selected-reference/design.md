@@ -8,7 +8,7 @@ Bind new progress receipts to the complete producer reference and require an ind
 
 ## Decisions
 
-Use an additive schema 2 union member with required referenceDigest. Keep schema 1 strict and unchanged. Dash exposes record-progress-v2 explicitly. Navigator admit-progress has five required file flags: --receipt, --plan-reference, --tasks, --accepted-reference, --output. Strict decoding precedes checks. Require receipt.referenceDigest = producer.referenceDigest = accepted.referenceDigest, then reuse existing consistency and command conversion. Exclusive publication follows all checks.
+Use an additive schema 2 union member with required referenceDigest. Keep schema 1 strict and unchanged. Dash exposes record-progress-v2 explicitly. Navigator admit-progress has five required file flags: --receipt, --plan-reference, --tasks, --accepted-reference, --output. Strict decoding precedes checks. Require receipt.referenceDigest = producer.referenceDigest = accepted.referenceDigest, then reuse shared consistency and command conversion. Shared consistency conditionally enforces the schema 2 receipt-to-producer digest binding for every consumer, including validate-progress-receipt and receipt-to-commands; schema 1 retains its historical PlanRef-only consistency semantics. Exclusive publication follows all checks.
 
 ## Risks / Trade-offs
 

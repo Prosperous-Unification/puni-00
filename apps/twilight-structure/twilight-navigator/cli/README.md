@@ -61,7 +61,7 @@ version pairing and unique task IDs, step IDs and step codes) before building lo
 for another plan reference or an entry naming a task or step code the plan does not hold. It
 writes one owner-only WBS command batch `{ id, commands }`: per entry in receipt order, a
 `setProgress` for the step, then a `setMeasure` for `token_actual` and `hours_actual` when the
-entry carries them. It prints the batch digest.
+entry carries them. It prints the batch digest. For schema 2 receipts, shared consistency also requires the complete producer reference digest to match the receipt binding; schema 1 retains its historical PlanRef-only consistency semantics.
 
 Applying the batch is a person's or the WBS MCP's act (`postApiProjectsByIdCommands`):
 Navigator sends nothing. Dash `record-progress` emits the existing v1 receipt from explicit

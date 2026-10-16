@@ -38,7 +38,8 @@ export function validateProgressReceipt(
 
 /**
  * Checks already strictly decoded documents: existing plan/task consistency, complete
- * PlanRef equality and each receipt entry's leaf task ID and step code membership.
+ * PlanRef equality, schema 2 reference digest equality and each receipt entry's leaf task ID
+ * and step code membership. Schema 1 retains its historical PlanRef-only binding.
  * Preserves entry order and repetitions. Grants consistency only, without checking authorship,
  * evidence contents, freshness, approval, admission or current WBS authority.
  *
@@ -56,6 +57,13 @@ export function checkProgressReceiptConsistency(
   // in progress-receipt.test.ts (2026-10-15).
   if (canonicalJson(receipt.planRef) !== canonicalJson(reference.planRef)) {
     throw new Error('progress receipt names another plan reference');
+  }
+  // Proof: replacing this guard with false made both real CLI negatives return exit 0:
+  // `validate-progress-receipt refuses bound A against real blockedAt-only B` and
+  // `receipt-to-commands refuses bound A against real blockedAt-only B` in
+  // Navigator admit-progress.test.ts (2026-10-16). Matching v2 and legacy v1 remain accepted.
+  if (receipt.schemaVersion === 2 && receipt.referenceDigest !== reference.referenceDigest) {
+    throw new Error('progress receipt binds another reference digest');
   }
   const taskIds = new Set(tasks.tasks.map((task) => task.id));
   const stepCodes = new Set(tasks.steps.map((step) => step.code));
