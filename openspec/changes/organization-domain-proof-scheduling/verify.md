@@ -98,7 +98,7 @@ The new boot suite uses the existing real-app makeApp/startListener composition 
 
 Initial RED evidence included absent supervisor module, absent RunningBe failure source, and missing configuration refusal. Final serial focused command selected the core proof service, worker unit/SQLite suites, boot scheduling, supervisor, both entrypoints, config, existing authoritative-DNS boot, mounted domain controller, and all four DNS adapter unit suites: **304 pass, 0 fail, 800 assertions across 13 files, 21.01 seconds**. Full output: `/tmp/domain-proof-scheduler-final-tests.log`.
 
-The watched fault set is recorded in [proofs/boot-faults.json](proofs/boot-faults.json). All 25 separate production mutations returned nonzero with observed behavior failure, then were restored:
+The watched fault set is recorded in [proofs/boot-faults.json](proofs/boot-faults.json). At `05fb0b0ba`, 24 mutations established production behavior failures. The original listener-first receipt was invalid: its edit left an empty if body and produced `Unexpected }`, so its exit code proved no listener behavior. The correction below replaces that receipt with a valid behavior failure, bringing the corrected set to 25. The list covers:
 
 - missing-DNS admission; explicit/default scheduling selection; worker startup binding; shared resolver binding;
 - owned release; awaited release; listener-first release;
@@ -130,3 +130,18 @@ bun test libs/wbs/application/core/src/service/domain-proof.service.test.ts \
 ```
 
 Fresh focused ESLint exited 0 for all twelve changed TypeScript files (with the disclosed module-boundary warning). Changed-file Prettier and whitespace checks and both scheduler/DNS change validations are recorded at the source checkpoint. Exact Astra source review remains pending before publishing.
+
+## Listener-first evidence correction
+
+Astra identified the original listener-first mutation as a syntax error rather than a production-path negative. That receipt is excluded from the original checkpoint's valid count; the earlier claim of 25 observed behavior failures was incorrect.
+
+The corrected edit targets only the exact server `disposeService` block, replacing the entire async listener disposer with `disposeService: () => Promise.resolve(),`. The startup-rollback if statement is left intact. The valid module executed the boot-owned shutdown test and reached `expect(listenerStops).toBe(1)`: **expected 1, received 0**, with one failed test and no syntax error. Controlled DNS cleanup is now always released in a test `finally` block, including after the intentionally failing assertion. The listener disposer source was restored byte-for-byte before adding the adjacent corrected Proof comment.
+
+Watched command:
+
+```sh
+bun test apps/wbs/be-01/src/domain-proof.boot.db.test.ts \
+  --test-name-pattern 'stop aborts DNS' --timeout 1500
+```
+
+The corrected [listener-first receipt](proofs/boot-faults.json) records exact before/after mutation text, command, assertion output, and matching original/restored source hashes. Fresh restored control: `bun test apps/wbs/be-01/src/domain-proof.boot.db.test.ts` — **13 pass, 0 fail, 48 assertions**, 2.65 seconds. No production behavior changed in this correction. The prior 304-test run is historical evidence; it was not repeated for this evidence/test-cleanup-only successor. No full gate or heavy checks were run.

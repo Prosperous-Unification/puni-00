@@ -303,12 +303,17 @@ describe('boot-owned retained proof scheduling', () => {
     });
     const signal = await entered.promise;
     const stopping = running.stop();
-    await Bun.sleep(0);
-    expect(listenerStops).toBe(1);
-    expect(signal.aborted).toBe(true);
-    expect(order).toEqual(['abort']);
-    reply.reject(new DnsUnavailableError('cancelled after controlled cleanup'));
-    await stopping;
+    try {
+      await Bun.sleep(0);
+      expect(listenerStops).toBe(1);
+      expect(signal.aborted).toBe(true);
+      expect(order).toEqual(['abort']);
+    } finally {
+      // A failed listener-order assertion must still release the controlled
+      // reply, so teardown cannot obscure the actual production-path failure.
+      reply.reject(new DnsUnavailableError('cancelled after controlled cleanup'));
+      await stopping;
+    }
     expect(order).toEqual(['abort', 'close']);
     expect(running.backgroundFailure.current()).toBeUndefined();
     expect(readProof()).toEqual({ status: 'verified', last_checked_at: old, last_success_at: old });

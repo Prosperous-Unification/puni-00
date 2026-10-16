@@ -528,6 +528,9 @@ export async function bootBe01(
         // the application, and a disposer must resolve to nothing.
         // Proof: on 2026-09-20, replacing `app.stop()` with a resolved promise
         // made source close observe `Expected: true`, `Received: false`.
+        // Proof: replacing this disposer with Promise.resolve() made
+        // `stop aborts DNS` observe listenerStops 0 instead of 1. The valid
+        // omission reached that assertion before controlled DNS cleanup joined.
         disposeService: async (app) => {
           await app.stop();
         },

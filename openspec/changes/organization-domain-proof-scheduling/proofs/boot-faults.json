@@ -46,7 +46,23 @@
     "path": "apps/wbs/be-01/src/boot.ts",
     "test": "stop aborts DNS",
     "exit": 1,
-    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n\n# Unhandled error between tests\n-------------------------------\n422 |             });\n                  ^\nerror: Unexpected }\n    at /tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/boot.ts:422:13\n-------------------------------\n\n\n 0 pass\n 1 fail\n 1 error\nRan 1 test across 1 file. [173.00ms]\n"
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n303 |     });\n304 |     const signal = await entered.promise;\n305 |     const stopping = running.stop();\n306 |     try {\n307 |       await Bun.sleep(0);\n308 |       expect(listenerStops).toBe(1);\n                                  ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:308:29)\n(fail) boot-owned retained proof scheduling > stop aborts DNS but keeps storage open until cleanup joins [140.38ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [1.82s]\n",
+    "mutation": {
+      "before": "        disposeService: async (app) => {\n          await app.stop();\n        },",
+      "after": "        disposeService: () => Promise.resolve(),"
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/domain-proof.boot.db.test.ts",
+      "--test-name-pattern",
+      "stop aborts DNS",
+      "--timeout",
+      "1500"
+    ],
+    "correction": "Replaces the original invalid mutation, which produced Unexpected } and proved no production behavior. This valid disposer omission reached the boot listenerStops assertion (expected 1, received 0).",
+    "original_source_sha256": "553a310ea35c4b475dc7c003d16ff322258aba9df0253f3f0661ecf1d285128c",
+    "restored_source_sha256": "553a310ea35c4b475dc7c003d16ff322258aba9df0253f3f0661ecf1d285128c"
   },
   {
     "fault": "worker-rejection-observer",
