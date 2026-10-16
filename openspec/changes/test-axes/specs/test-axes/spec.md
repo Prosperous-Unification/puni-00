@@ -1077,3 +1077,27 @@ The system SHALL provide `inspect-browser-scenario-ledger <repository> <full-com
 
 - **WHEN** unrelated competing overlays exist or source and installed commands inspect passing/debt/refused inputs
 - **THEN** full-tree conflicts refuse before capability filtering and installed dispatch agrees with source while old v1/v2 behavior remains exact
+
+### Requirement: Browser T2 diagnostic consumer
+
+The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>` and typed `inspectBrowserT2`, consuming `inspectBrowserScenarioLedger` directly. It SHALL retain exact revision/candidate/capability/instant/publication scope, complete nested ledger with digest and policy identity, complete original citation findings, absent authentication, false certification and a canonical complete-payload digest. It SHALL enumerate every Browser ReportCase exactly once sorted by caseId, preserving the full record and a citation verdict `cited` with scenarioId, `missing`, `malformed` or `inactive`.
+
+#### Scenario: [TEST-AXES-140] Browser T2 retains the complete citation partition and diagnostic identity
+
+- **WHEN** real committed Browser evidence includes active citations in the requested or another capability, missing/malformed/inactive terminal citations and passed/failed/skipped cases
+- **THEN** every report case has exactly one complete sorted row and correct verdict, original findings and nested ledger remain complete, and the full digest identifies only a noncertifying diagnostic
+
+#### Scenario: [TEST-AXES-141] Browser T2 separates citation observations from ledger debt and command status
+
+- **WHEN** real Browser ledger obligations create unassigned/unsupported/unobserved/manual or outcome debt, with or without invalid citations
+- **THEN** a valid T2 diagnostic retains all ledger debt and original findings and exits zero without allowed, covered or passed admission claims
+
+#### Scenario: [TEST-AXES-142] Browser T2 refuses invalid joins and incomplete or conflicting partitions
+
+- **WHEN** returned ledger or nested Browser/report identity, policy, scope, authentication, certification or digest differs, or citations/findings omit, duplicate, conflict with or alter a report case
+- **THEN** production dispatch exits one with a named refusal and no partial JSON
+
+#### Scenario: [TEST-AXES-143] Browser T2 preserves source installed parity and strict trusted boundaries
+
+- **WHEN** source and built installed dispatch inspect valid debt-bearing evidence, or a required authority is missing/unreadable/malformed or CLI selection/instant/arity is invalid
+- **THEN** valid JSON and exit behavior match exactly, and invalid trusted state refuses with no partial JSON through both entry points

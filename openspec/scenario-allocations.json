@@ -1122,6 +1122,30 @@
       "id": "TEST-AXES-139",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser-only ledger validates full tree installed dispatch and legacy compatibility"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-140",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 retains the complete citation partition and diagnostic identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-141",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 separates citation observations from ledger debt and command status"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-142",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 refuses invalid joins and incomplete or conflicting partitions"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-143",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser T2 preserves source installed parity and strict trusted boundaries"
     }
   ]
 }
