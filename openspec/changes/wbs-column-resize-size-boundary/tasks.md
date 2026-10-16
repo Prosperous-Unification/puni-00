@@ -7,5 +7,6 @@
 ## 2. Preserve the recovery
 
 - [x] 2.1 Check source diff, original JSDoc preservation and scoped formatting using lightweight commands.
-- [ ] 2.2 Commit and immediately push the authorized public review branch to avoid another loss.
-- [ ] 2.3 Obtain Astra review and fresh focused/browser/static/F7 verification in the permitted environment; do not infer new verification from historical results.
+- [x] 2.2 Commit and immediately push the authorized public review branch to avoid another loss.
+- [x] 2.3 Obtain Astra source review, fresh hosted mounted positives and watched pointer/release negatives, committed F7 positive/fault, and browser resize/persistence/reset evidence.
+- [ ] 2.4 Complete hosted static/workspace checks and required final exact-head gates; workspace/twilight were active at evidence capture; the documentation head awaits fresh CI. No whole-rule or WBS100 closure is implied.

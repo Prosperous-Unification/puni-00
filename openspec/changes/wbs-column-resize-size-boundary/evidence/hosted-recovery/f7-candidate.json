@@ -1,0 +1,251 @@
+{
+  "schemaVersion": 1,
+  "candidate": "e50cfe30dd3e79092ca181df36263b2b84985a4227790df3b40517c50ccf6a43",
+  "policy": "wbs.column-resize.recovery.f7.v1",
+  "allowed": true,
+  "ruleIds": ["F7"],
+  "findings": [
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts",
+      "message": "1241 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "message": "916 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/directory/directory-page.tsx",
+      "message": "1105 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/organization/sso-connections-panel.tsx",
+      "message": "987 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts",
+      "message": "3579 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx",
+      "message": "7642 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/hover-card.tsx",
+      "message": "823 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/plan-cards.tsx",
+      "message": "3411 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx",
+      "message": "1291 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+      "message": "1095 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/plan-export.ts",
+      "message": "994 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+      "message": "1834 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx",
+      "message": "1490 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx",
+      "message": "1125 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/table-frame.ts",
+      "message": "1806 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/use-plan-keyboard.ts",
+      "message": "1046 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+      "message": "3295 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/lib/wbs-api.ts",
+      "message": "3071 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/testing/fake-project-api.ts",
+      "message": "1269 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+      "message": "1795 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "apps/wbs/mcp-01/src/oauth.ts",
+      "message": "1438 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-memory/src/source.ts",
+      "message": "1035 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/directory.ts",
+      "message": "1831 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+      "message": "847 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts",
+      "message": "991 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/project.ts",
+      "message": "1396 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/schema.ts",
+      "message": "3553 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/adapters/store-sqlite/src/work-item.ts",
+      "message": "1242 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/conformance/src/stores/saved-plan-capture.ts",
+      "message": "886 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/directory/directory.resource.ts",
+      "message": "1365 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "message": "847 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+      "message": "804 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts",
+      "message": "823 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/plan-import/prepare-import.ts",
+      "message": "966 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "message": "7650 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/service/command-normalizers.ts",
+      "message": "1016 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/service/compensating.ts",
+      "message": "1127 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts",
+      "message": "1877 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "message": "906 lines exceeds the ceiling 800",
+      "effect": "debt"
+    },
+    {
+      "ruleId": "F7",
+      "path": "libs/wbs/domain/domain/src/schedule.ts",
+      "message": "3883 lines exceeds the ceiling 800",
+      "effect": "debt"
+    }
+  ],
+  "unevaluated": [],
+  "certifies": false
+}
