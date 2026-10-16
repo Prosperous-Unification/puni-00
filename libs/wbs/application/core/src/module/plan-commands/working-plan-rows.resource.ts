@@ -1,4 +1,4 @@
-import type { WorkItemStore } from '../../ports/work-item-store';
+import type { LabelledWorkItem, WorkItemStore } from '../../ports/work-item-store';
 
 interface RetainedWorkItemReads {
   all(): ReturnType<WorkItemStore['listByProject']>;
@@ -80,5 +80,20 @@ export function createWorkingPlanRows(
         ...promoted.flatMap(({ parentId }) => (parentId === null ? [] : [parentId])),
       ]);
     }),
+  };
+}
+
+/**
+ * Detaches a retained row deeply enough that a borrowed before-image cannot
+ * rewrite the cache or an inverse already collected from another answer.
+ */
+export function cloneWorkItem(workItem: LabelledWorkItem): LabelledWorkItem {
+  return {
+    ...workItem,
+    teamIds: [...workItem.teamIds],
+    tagIds: [...workItem.tagIds],
+    serviceIds: [...workItem.serviceIds],
+    typeIds: [...workItem.typeIds],
+    externalRefs: workItem.externalRefs.map((reference) => ({ ...reference })),
   };
 }

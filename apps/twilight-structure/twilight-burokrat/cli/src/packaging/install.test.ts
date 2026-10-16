@@ -202,9 +202,14 @@ function preparationArguments(
 afterAll(() => {
   disposeRelocationFixtures();
   for (const root of scratchRoots.splice(0)) {
-    Bun.spawnSync(['rm', '-rf', '--', root], { stderr: 'pipe', stdout: 'pipe' });
+    const removal = Bun.spawnSync(['rm', '-rf', '--', root], { stderr: 'pipe', stdout: 'pipe' });
+    // Proof: an rm shim exiting 73 failed this hook and left its scratch tree; without this
+    // assertion the same injected failure passed. The external oracle checks leftovers too.
+    expect(removal.exitCode, removal.stderr.toString()).toBe(0);
   }
-});
+  // Proof: replaying this hook with 65 s of synchronous cleanup failed at the inherited 60 s
+  // budget; 180 s passed and removed both fixture roots (docs/test-budgets.md).
+}, 180_000);
 
 describe('packed Twilight Burokrat installation', () => {
   test('installs the exact tarball with scripts disabled and runs without workspace resolution', () => {

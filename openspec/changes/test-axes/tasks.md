@@ -162,3 +162,10 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1c.6b Implement direct real Browser-only ledger consumption, exact diagnostic joins, complete disjoint citation partition, full output and debt-independent successful exit. Cover malformed dependencies, strict input/authority boundaries and source/installed parity through production dispatch.
 - [x] 4.1c.6c Watch production-path negative guard/dependency mutations, add adjacent Proof comments, run sequential focused checks with memory monitoring, format and provenance/OpenSpec checks; record actual evidence and skips.
 - [ ] 4.1c.6d Independent Astra review of the committed draft PR and coordinator hosted exact-head/release/host acceptance. Coordinator owns restack and integration; WBS080.39 and parent ledgers remain open.
+
+## 4.1b.17 Browser case source and level composition (WBS080.39)
+
+- [x] 4.1b.17a Allocate TEST-AXES-144..147 through the production scenario allocator, preserve the journal prefix and observe unknown-command production CLI RED. Read source/report/levels/index callers and tests; add the bounded same-operands composer preserving both full real upstreams, review debt and diagnostic markers.
+- [x] 4.1b.17b Prove exact snapshot/mode/digest/report and complete case-ID/file/outcome/source/classification/isolation joins, inherited missing/malformed/unreadable index and publication refusals, canonical complete payload and source/built dispatch. Watch new guards and output/dependency faults fail production assertions, restore and record evidence.
+- [x] 4.1b.17c Complete focused serial regression, changed-file formatting and lint, narrow direct declaration/type check, scenario provenance and strict/all OpenSpec validation. Record exact checks, memory settings, watched failures and explicit whole-project check limits; commit the clean local candidate.
+- [ ] 4.1b.17d Obtain Astra exact-commit review before any push. Coordinator owns hosted CI and integration. Parent Tasks 2.1/2.2a/2.2/4.1, tested-module/coverage/T2 authority, source reconciliation and WBS closure remain open.

@@ -4713,3 +4713,109 @@ Full Nx gates, actual Browser execution, survey workloads, host gate, independen
 Final packaged smoke on the exact-false helper: **1 pass, 0 fail**, 7 assertions, 8.71 seconds; source and built installed JSON/exit behavior match for a real debt-bearing diagnostic, and malformed trusted input emits no partial JSON (`/tmp/browser-t2-installed-final.log`). Final changed-file Prettier check passed for all eleven changed/new files; changed-file ESLint and `git diff --check` exited 0 (`/tmp/browser-t2-format-final.log`, `/tmp/browser-t2-eslint-final.log`). A fresh journal comparison again preserved all 187 prior events and exactly the four allocated suffix events. Normal commit hooks follow; hosted exact-head CI and independent review remain pending.
 
 The normal commit completed with format, lint, plaintext-secret and private-nesting hooks passing. Tool Wiki returned its modeled inactive diagnostic, `certified:false`, because the external activation root is not provisioned; this provides no trusted-admission evidence. Migration hooks and index-cap checks had no matching staged files and were explicitly skipped. Agent message hooks completed. No hook was bypassed (`/tmp/browser-t2-commit.log`).
+
+## Browser case source and level composition — 4.1b.17 (2026-10-16)
+
+This bounded diagnostic joins real Browser source ownership and complete level observations.
+The source owner identifies the test file's module; it makes no tested-module coverage claim.
+The candidate starts at `a4caaeea41e53334c7deabc62ad00575b8aae649` in the isolated
+`feat/browser-source-levels` checkout. WBS080.39, Tasks 2.1/2.2a/2.2/4.1, T2, source
+reconciliation, admission and certification remain open. Gantt, C-class and solver holds remain.
+
+### Allocation and TDD
+
+Production `scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` allocated
+TEST-AXES-144..147 from four initially unidentified headings; the existing journal prefix was
+preserved. Exact allocator output is `/tmp/browser-source-allocation.json`. The first new-command
+production test failed on `unknown command: inspect-browser-source-levels` before implementation
+(`/tmp/browser-source-red.log`). The real complete-envelope case then passed
+(`/tmp/browser-source-green.log`). A later duplicate-report/classification assertion RED
+observed the earlier report-pin diagnostic; validation order and the independent classification
+join were refined to retain named complete-case and missing-classification refusals
+(`/tmp/browser-source-classification-red.log`).
+
+### Watched production proofs
+
+The final mutation summary records **37** independent production guard/output mutations.
+Every corresponding baseline exited zero and every mutation made the intended production-path
+assertion fail with exit one. Temporary WATCH tests reused the committed real publication/index
+fixture and production CLI fault wrapper; each mutation restored the exact production bytes in a
+`finally` block. The temporary test was removed. Full logs and summary are under
+`/tmp/browser-source-watch/`; the serial driver is `/tmp/browser-source-mutations.py`.
+
+| WATCH faults                                                                                                                                 | Observed assertion                                                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sha`, `committed-kind`, `selected-revision`                                                                                                 | Named symbolic/staged/exact annotated-tag-object selection refusal lost when its guard was removed.                                                                                                 |
+| `digest`, `snapshot-revision`, `snapshot-candidate`, `authentication`, `certification`                                                       | Resealed source envelope identity/marker substitutions or an invalid upstream digest accepted without their comparison.                                                                             |
+| `certification-coercion`                                                                                                                     | Replacing literal false with boolean coercion accepted a resealed null certification marker.                                                                                                        |
+| `mode-levels`, `mode-report`, `report-pin`                                                                                                   | Changed upstream mode or source report digest no longer refused by the expected boundary.                                                                                                           |
+| `report-duplicate`, `report-empty`, `collection`                                                                                             | Duplicate/empty reported case identities or missing recorded file collection lost their complete-scope refusal.                                                                                     |
+| `classification-duplicate`, `classification-size`, `isolation`                                                                               | Duplicate/missing level bindings or substituted classification with unchanged isolation were accepted or lost the named boundary.                                                                   |
+| `case-duplicate`, `case-substitution`, `case-file`, `case-outcome`, `case-source`, `case-classification`, `case-completeness`                | Repeated/foreign/omitted cases, changed file/status/source digest or absent file classification lost their exact case join refusal. Permanent tests also change source mode and inject extra cases. |
+| `publication-drift`, `final-real-read`                                                                                                       | Resealed seventh-read invocation drift or physical report corruption after the level inspector was accepted without the final equality or actual reader.                                            |
+| `output-authentication`, `output-certification`, `output-digest`, `output-upstreams`, `output-classification`, `output-debt`, `output-order` | Exact full-envelope/marker/digest/precedence/debt/case-order assertions failed after promoting, omitting or substituting the corresponding output.                                                  |
+| `cli-arity`, `cli-mode`, `cli-exit`                                                                                                          | Extra operands or unsupported mode lost the usage boundary; valid wrong-level JSON exited zero without status mapping.                                                                              |
+
+Separate real trusted-state cases exercise malformed committed index metadata, an absent only
+index, and an unreadable selected Git index blob despite its readable working copy. The production
+checkers refuse each. Failed/skipped report cases remain complete; isolation alone controls this
+command's status. A real 45-entry module index retains its 40-entry review limit as explicit debt.
+Both upstream v1 observations remain complete and retain their original levels/identities.
+Source and built executable JSON/exit behavior are compared for isolated, wrong-level and malformed
+operand cases. The real publication is read again after both inspectors, without accepting supplied
+observation JSON or executing candidate code.
+
+### Narrow declaration check
+
+An explicit local observation interface uses `ReturnType` and indexed types for the private
+upstream shapes, without casts. A temporary config extends this checkout's `tsconfig.base.json`,
+selects only `browser-source-levels.ts` as a root, and emits declarations for its import graph
+outside the checkout. The actual installed compiler is the pinned `@typescript/native` alias:
+
+`GOMEMLIMIT=384MiB GOGC=50 GOMAXPROCS=2 BUN_JSC_forceRAMSize=536870912 NODE_OPTIONS=--max-old-space-size=512 bun --smol node_modules/@typescript/native/bin/tsc --project /tmp/browser-source-tsconfig.json`
+
+Observed exit **0**, 1.96 seconds, peak RSS **392792 KiB**; the emitted new-module declaration
+contains its precise `BrowserSourceLevelsObservation` and exported function. A deliberate returned
+`mode:'fault'` made this same check exit nonzero with **TS2322 in browser-source-levels.ts**
+(`/tmp/browser-source-tsc-fault.log`), proving the root file is checked. The fault was restored.
+This is a narrow import-graph declaration check, not the whole project's typecheck receipt.
+
+### Corrected attempts and limits
+
+The initial absent-index expectation named unique ownership, while the real checker correctly
+reported `selected candidate contains no module indexes`; the assertion was corrected. The
+first WATCH driver classified a custom-message Bun assertion as unrecognized even though it failed
+on expected exit one versus actual zero; assertion recognition was corrected, and the mutation
+was rerun. A generated debt WATCH baseline initially lacked the fixture's `commitCandidate`
+helper; that helper was included and the baseline/mutation pair rerun successfully. Neither failed
+harness attempt counts toward the 37 proofs.
+
+Direct ESLint initially found unknown JSON typing, import ordering and literal-type marker
+comparisons. Typed test parses and an unknown-certification boundary requiring literal false
+resolve those errors. Direct lint warns that `@nx/enforce-module-boundaries` is skipped because
+this isolated checkout has no cached Nx project graph; that check remains for hosted CI. The
+standard `node_modules/typescript/bin/tsc` executable is absent; the installed compiler alias was
+used. The first temporary config could not resolve `bun-types` from `/tmp`; explicit checkout
+type roots fixed the config before the successful declaration run.
+
+No full Nx gate, whole Burokrat suite/typecheck/build target, actual Browser run, host gate,
+independent Astra review, hosted exact-head CI, deployment or admission was performed locally.
+The sole built-command parity test uses the existing package builder in a disposable directory.
+All local tests and mutations run serially with the stated RAM settings; the first expanded
+10-case pass used peak RSS **682228 KiB**, 68.38 seconds, with 203 assertions. Final restored
+acceptance is recorded below. Coordinator owns review, hosted CI and integration.
+
+### Final restored focused acceptance
+
+- New command suite: **11 pass, 0 fail**, **229 assertions**, **77.92 seconds**, peak RSS **669140 KiB** (`/tmp/browser-source-final-tests.log`). This includes the exact-false marker cases, nested report identity/marker faults, real reordered-publication digest stability and built executable parity.
+- The staged-reader permanent case was then strengthened to retain the requested revision in its faulted staged selection, matching the independent `WATCH_committed-kind` witness. Its affected exact-selection/operands subset passed **1/1** (`/tmp/browser-source-selection-final.log`); no implementation changed.
+- Adjacent unchanged Browser levels suite: **15 pass, 0 fail**, **254 assertions**, **58.65 seconds**, peak RSS **653796 KiB** (`/tmp/browser-source-levels-regression.log`).
+- Adjacent unchanged test-source suite: **21 pass, 0 fail**, **132 assertions**, **18.39 seconds**, peak RSS **356644 KiB** (`/tmp/browser-source-sources-regression.log`). Combined with the new suite, these are **47 passing tests / 615 assertions**, run serially.
+- Final changed-file ESLint exited **0**; its absent Nx graph/module-boundary skip remains explicit (`/tmp/browser-source-eslint-final.log`). No full lint receipt is claimed.
+- Production scenario provenance returned `{"unidentified":[]}` (`/tmp/browser-source-provenance.json`). The complete **191-event** prior allocation prefix is unchanged, followed by exactly the four allocator-issued events (**195 total**).
+- Pinned OpenSpec 1.12.0 strict validation reported **1/1 valid**, zero failures; all validation reported **237/237 valid** (219 changes plus 18 specs), zero failures (`/tmp/browser-source-openspec-{strict,all}.json`).
+- Local checks reused the integration checkout's existing `node_modules` through an ignored symlink; no package or lockfile changed. A fresh frozen installation and the full project/gate receipts remain hosted acceptance work.
+
+Final changed-file Prettier check passed for all eleven changed/new files, and `git diff --check`
+exited zero (`/tmp/browser-source-format-final.log`). The local candidate is ready for independent
+Astra review; no push, hosted CI, host gate or WBS closure is implied.
