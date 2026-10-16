@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "58ecca92c2744579dbf5b106c82a9ec2c9d3f3b63577833f304ce8a3fc5b9a34",
+  "combinedOutput": "Expected discovery exit: 1\nbun test v1.4.2 (744846f84)\nThe following filters did not match any test files:\n feasibility/source-memory-relay\n105 files were searched [4.00ms]\n\nnote: Tests need \".test\", \"_test_\", \".spec\" or \"_spec_\" in the filename (ex: \"MyApp.test.ts\")\n\nLearn more about bun test: https://bun.com/docs/cli/test\n"
+}

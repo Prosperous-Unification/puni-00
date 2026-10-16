@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "24862225bf0feec2592e36091a6a4c6da1146fc9f2b9bbcfc866fe9d9218f50e",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:\n90 |   expect(observed.privateExists).toBe(false);\n91 | }, 8000);\n92 | \n93 | test('bounds aggregate forwarded bytes', async () => {\n94 |   const observed = await observe('overflow');\n95 |   expect(observed.exit).not.toBe(0);\n                                 ^\nerror: expect(received).not.toBe(expected)\n\nExpected: not 0\n\n      at <anonymous> (/tmp/f9-native-relay-feasibility-sol/tools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:95:29)\n(fail) bounds aggregate forwarded bytes [159.49ms]\n\n 0 pass\n 14 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [302.00ms]\n"
+}

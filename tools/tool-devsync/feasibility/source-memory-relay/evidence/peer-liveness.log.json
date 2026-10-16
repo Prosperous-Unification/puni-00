@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "0faf12b28f7f1723dcbbb51f97881e031be780707df10e57e335445594e9e32c",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:\n82 |   expect(observed.privateExists).toBe(false);\n83 | }, 8000);\n84 | \n85 | test('rejects a dead peer even while its descendant retains the connection', async () => {\n86 |   const observed = await observe('peer-death');\n87 |   expect(observed.exit).not.toBe(0);\n                                 ^\nerror: expect(received).not.toBe(expected)\n\nExpected: not 0\n\n      at <anonymous> (/tmp/f9-native-relay-feasibility-sol/tools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:87:29)\n(fail) rejects a dead peer even while its descendant retains the connection [173.72ms]\n\n 0 pass\n 14 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [315.00ms]\n"
+}

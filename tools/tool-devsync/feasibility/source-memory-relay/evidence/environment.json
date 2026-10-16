@@ -1,0 +1,24 @@
+{
+  "base": "87a2b7edbfaabae889d91daa823f16f520a51cec",
+  "reviewedDesign": "d99f65ecb088489632eda3e722334f098f28a9bd",
+  "kernel": "7.0.11-76070011-generic",
+  "bun": "1.4.2",
+  "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "fixturePython": "Python 3.12.3",
+  "crictl": null,
+  "localContainerdSocketExists": true,
+  "sourceSha256": {
+    "relay.c": "fbbf923326edca23212c6bec1542028b9a816adef9b8b7950002c428777b80c4",
+    "fixture.py": "db9e02aeb096d8ee5403047c59e362b960c5a27f68cfa37fa06a3ee178807f6a",
+    "relay.probe.ts": "289b4a39af6ca30af941f253b8774e02e6289c08e61471bfce4d2cce40930d1c"
+  },
+  "tests": 22,
+  "assertions": 93,
+  "watchedOmissions": 7,
+  "maximumRssKiB": 33104,
+  "memoryMetric": "GNU time -v maximum resident set size; not aggregate simultaneous process-tree RSS",
+  "elapsedSeconds": 15.61,
+  "certifies": false,
+  "productionApi": false,
+  "installedAcceptance": false
+}
