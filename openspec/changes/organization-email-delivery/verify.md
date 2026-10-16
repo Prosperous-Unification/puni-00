@@ -87,7 +87,14 @@ disposable probe sandbox bind failure is recorded below.
   `@fission-ai/openspec` CLI through Bun. Initial unscoped `bunx openspec` could
   not use its read-only temporary directory, and a guessed global path was
   absent; neither was a validation success.
-- Normal hooks: pending implementation commit; exact source review follows it.
+- Normal implementation hooks passed at commit
+  `2467dbae17adb2437c8b709cb7898bfd519c6b2c`, tree
+  `c7327b3ce167d42b9f8c56faccfcc62aefbe3e69`;
+  `/tmp/smtp-implementation-commit.log`: ESLint, format, plaintext secrets,
+  private nesting and agent trailer passed. Tool Wiki hook explicitly reported
+  inactive/not certified because external activation root is not provisioned;
+  no migration/doc-cap files matched. Exact source review requested from Astra.
+  MemAvailable after the hook window: **20,284,984KiB**.
 
 Full local Nx, browser, Docker, Burokrat, full build, exact hosted CI and canonical
 h2 gate were not run for this candidate. Cached Nx module-boundary lint is
