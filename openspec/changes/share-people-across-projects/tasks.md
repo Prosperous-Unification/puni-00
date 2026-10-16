@@ -497,6 +497,15 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       Accepted the existing docker.io/library/puni-compose-backend digest on pop-os, 2026-10-16;
       exact reference and temporary-supervisor receipt are recorded in verify.md.
 
+- [x] 9.5 Add installed dev supervisor acceptance with explicit expected source/digest, ordered
+      poll/devsync/production locks, installed prerequisite observation, existing-caller handshake,
+      pre-bound exact managed-child inspection, both feasible revalidated scenarios, bounded owned
+      child-removal readback and stable service invocation receipt. Record focused TDD and watched
+      production negatives separately from attended installed acceptance.
+- [ ] 9.6 Run attended installed dev supervisor acceptance on its host after the expected source,
+      compatible installed binding, local selected image and existing dev caller are available.
+      Record the structured receipt; this proves neither API/browser acceptance nor shared activation.
+
 ## 10. Audited shared backup restore activation
 
 - [x] 10.1 Personal approval contract and additive schema: authenticated nondelegated super-admin

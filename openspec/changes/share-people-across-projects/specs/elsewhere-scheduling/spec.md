@@ -306,3 +306,47 @@ supervisor readiness or shared-mode activation.
 - **GIVEN** both authenticated responses passed
 - **WHEN** an invocation-owned container cannot be inspected or removed, or survives removal
 - **THEN** acceptance fails and the supplied artifact remains untouched
+
+### Requirement: Installed dev supervisor acceptance observes host authority
+
+An installed acceptance command SHALL require an expected full backend source SHA and an explicit
+registry-qualified immutable solver reference. It SHALL hold the dev poll lock, the dev sync writer
+lock and the canonical production deploy lock, in that order, through observation and both attempts.
+It SHALL refuse missing, unreadable, malformed or mismatching installed config, source checkout,
+solver compatibility inputs, local image, running supervisor service/socket, authenticated dev caller,
+mounted source or backend health. A compatible image source commit MAY differ from the backend SHA;
+the receipt SHALL identify both separately and include the compatibility identity.
+
+The command SHALL execute its handshake client inside the existing `wbs-dev-src` container and use
+the installed supervisor socket. It SHALL run baseline and shared-person attempts sequentially. After
+`started`, the client SHALL emit its scenario, token, caller claim and PID and wait for the host's
+verdict. Before `bound` and within the supervisor's five-second bind deadline, the host SHALL inspect
+the exact invocation-owned managed child and match its container ID/name, running state, managed
+label, token, full authenticated caller label, PID, configured reference and actual image ID to the
+selected local digest. Each client SHALL require successful terminal evidence and a feasible answer
+revalidated against the exact sent request. The host SHALL prove bounded removal of each invocation's
+children by successful exact-token inventory readback, and SHALL refuse a changed service PID or
+systemd invocation identity before issuing its structured receipt.
+
+Acceptance SHALL create no replacement supervisor and SHALL perform no image publication/pull,
+service installation/restart, persistent config write, database or organization-setting change.
+Its receipt proves the installed dev supervisor path; API/browser behavior and shared-mode activation
+require separate acceptance.
+
+#### Scenario: Compatible installed image serves the expected backend
+
+- **GIVEN** installed image sources are compatible with the expected backend SHA
+- **WHEN** the installed command observes the stable service and both authenticated scenarios
+- **THEN** it emits the backend SHA, image source SHA, compatibility/image/service/caller identities,
+  both scenario tokens/PIDs/child identities and successful removal evidence
+
+#### Scenario: Host identity or bind evidence disagrees
+
+- **WHEN** an installed prerequisite differs, a required observation fails, or child evidence differs
+- **THEN** acceptance refuses and never binds a child whose identity was not verified
+
+#### Scenario: Service restarts or an invocation child survives
+
+- **GIVEN** both client responses were feasible
+- **WHEN** the service invocation changes or bounded child-removal readback cannot prove absence
+- **THEN** the command refuses its installed acceptance receipt
