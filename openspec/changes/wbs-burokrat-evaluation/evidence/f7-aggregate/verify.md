@@ -45,7 +45,13 @@ not a total RSS cap. Highest observed peak was focused ESLint, 944464 KiB.
 Scoped formatting and `git diff --check` are recorded separately. Normal hooks
 were installed through `bun run tools/tool-git-hooks/src/install.ts`; merge
 commits ran prepare-commit-msg and commit-msg hooks. The aggregate evidence
-commit runs the normal applicable pre-commit hooks, without bypass.
+commit `c25cb3621871424292d93e200dab1894c8abe8f7` passed normal applicable
+pre-commit, prepare-commit-msg and commit-msg hooks, without bypass; its complete
+receipt is `commit-hooks.log` with trailing whitespace removed. The verbatim
+receipt remains at `/tmp/wbs-f7-aggregate-commit-hooks.log`. Lint, migration and doc-cap hooks had no matching
+staged files. Tool Wiki explicitly reported inactive and uncertified because the
+external activation root is absent. This receipt describes the evidence commit
+only; the following documentation successor preserves that receipt.
 
 ## Scheduler handoff
 
