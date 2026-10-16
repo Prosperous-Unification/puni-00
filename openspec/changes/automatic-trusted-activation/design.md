@@ -1033,6 +1033,20 @@ The additive `extractRetainedNxDeclarations` composition derives target authorit
 then calls the existing declaration core. It does not supply TypeScript selectors or establish
 compiler/runtime closure, all eleven documents, preparation V4 or external authority.
 
+The bounded TypeScript prerequisite shares `extractTypeScriptRelationshipsFromSource` with
+its preserved filesystem wrapper. `TypeScriptSource` provides narrow path-kind, text-read,
+file/directory enumeration, realpath, current-directory, case-sensitivity and compiler-library
+ports. A complete compiler host is constructed explicitly; no default host or `ts.sys` route
+backs its project-reference/config/compiler/resolution reads. Missing namespace probes return
+modeled absence before delegation. This compatibility fence is not retained namespace authority.
+The source entrypoint snapshots and validates all five finite nonnegative safe-integer limits
+before IO. It counts repeated probes, UTF-8 read bytes, enumerated entries and declaration/selector
+observations before compiler accumulation, then checks the complete canonical returned envelope
+against its exact final byte ceiling. A separately discriminated internal legacy policy preserves
+the prior filesystem wrapper's unbounded contract and is absent from the judge facade. Source
+implementations still own bounded return allocation. No retained adapter, running compiler/runtime
+pin, compiler read manifest or bounded parser-process settlement is established by this seam.
+
 Strict `ReviewRuntimeClosureV1` contains exactly `{ schemaVersion: 1,
 kind: 'review-runtime-closure', parserProgramIdentity, compilerHostIdentity,
 resolutionPolicyIdentity, files }`. Each file is `{ path, role, identity, byteLength }`, with

@@ -562,6 +562,32 @@ historical selectors. All objects, parser work and documents SHALL obey installe
 - **THEN** all eleven documents, exact bindings, exhaustive obligations and source projections
   recompute from retained bytes; corrupt input or stale ownership commits no partial selection
 
+### Requirement: Shared bounded TypeScript compiler IO prerequisite
+
+The shared source entrypoint SHALL derive the existing TypeScript selectors and extractor
+identities through explicit IO ports. Config parsing, referenced-project enumeration, compiler
+source reads, default libraries and resolution SHALL use those ports without ambient filesystem,
+Git, subprocess, environment or candidate-code execution. The legacy filesystem wrapper SHALL
+retain its existing selectors, identities and absent/directory/malformed diagnostic distinctions.
+The source entrypoint SHALL snapshot and validate every finite limit before IO, count repeated
+probes, UTF-8 reads, enumerated paths and output observations before accumulation, and bound the
+complete canonical returned envelope including identities and empty selector arrays.
+This prerequisite SHALL NOT establish retained replay, runtime-closure authentication or protected
+authority; those remain part of the complete retained-content extraction requirement.
+
+#### Scenario: Referenced wildcard config and supplied compiler library
+
+- **WHEN** source-owned config bytes select a wildcard project reference and supplied default libraries
+- **THEN** extraction derives real selectors with every IO route delegated to the source, even when
+  ambient filesystem, TypeScript system, environment, write and execution routes throw
+
+#### Scenario: Invalid or exceeded source execution limit
+
+- **WHEN** a required limit is absent, nonfinite, fractional or negative, caller policy changes during IO,
+  or repeated probes/reads/enumeration/output exceed their ceiling
+- **THEN** extraction refuses without returning relationships; exact final output size succeeds and
+  one byte less refuses, including an extraction whose selector families are all empty
+
 ### Requirement: Derived artifact dependency semantics
 
 The installed producer SHALL derive exact artifact descriptors, dependency edges and roots

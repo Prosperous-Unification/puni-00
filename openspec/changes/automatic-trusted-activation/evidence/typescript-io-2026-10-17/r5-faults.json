@@ -1,0 +1,762 @@
+[
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "compiler refuses maximumProbes"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 195428352,
+    "seconds": 0.644,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-maximumProbes",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (exceeds(probes, 'maximumProbes'))",
+    "replacement": "if (false && exceeds(probes, 'maximumProbes'))",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "compiler refuses maximumReadBytes"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 204201984,
+    "seconds": 0.673,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-maximumReadBytes",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (exceeds(readBytes, 'maximumReadBytes'))",
+    "replacement": "if (false && exceeds(readBytes, 'maximumReadBytes'))",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "compiler refuses maximumDirectoryEntries"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 194383872,
+    "seconds": 0.692,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-maximumDirectoryEntries",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (exceeds(directoryEntries, 'maximumDirectoryEntries'))",
+    "replacement": "if (false && exceeds(directoryEntries, 'maximumDirectoryEntries'))",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "compiler refuses maximumObservedOutputBytes"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 188067840,
+    "seconds": 0.668,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-maximumObservedOutputBytes",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (exceeds(outputBytes, 'maximumObservedOutputBytes'))",
+    "replacement": "if (false && exceeds(outputBytes, 'maximumObservedOutputBytes'))",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "exact final output bytes"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 193609728,
+    "seconds": 0.639,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-final-output",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "Buffer.byteLength(serializeCanonical(extraction), 'utf8') > policy.limits.maximumOutputBytes",
+    "replacement": "false",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "rejects nonfinite"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 179191808,
+    "seconds": 0.569,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-limit-validation",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "if (!Number.isSafeInteger(ceiling) || ceiling < 0)",
+    "replacement": "if (false)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "snapshots finite limits"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 187559936,
+    "seconds": 0.648,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-limit-snapshot",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "limits: snapshot,",
+    "replacement": "limits,",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "namespace misses"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 182874112,
+    "seconds": 0.571,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-namespace-path-kind",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "admits(path) ? source.pathKind(path) : 'absent'",
+    "replacement": "source.pathKind(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "namespace misses"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 181510144,
+    "seconds": 0.562,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-namespace-read",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "admits(path) ? source.readFile(path) : undefined",
+    "replacement": "source.readFile(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "namespace misses"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 182489088,
+    "seconds": 0.574,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-namespace-enumeration",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "admits(path) ? source.readDirectory(path, extensions, exclude, include, depth) : []",
+    "replacement": "source.readDirectory(path, extensions, exclude, include, depth)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "namespace misses"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 182472704,
+    "seconds": 0.605,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-namespace-directories",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "admits(path) ? source.getDirectories(path) : []",
+    "replacement": "source.getDirectories(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "namespace misses"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 182079488,
+    "seconds": 0.55,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-namespace-realpath",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (!admits(path)) throw new Error(`compiler path outside trusted closure: ${path}`);",
+    "replacement": "",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "root config absent"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 180977664,
+    "seconds": 0.553,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-config-absent",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (system.pathKind(absoluteConfig) === 'absent')",
+    "replacement": "if (false)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "root config absent"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 194867200,
+    "seconds": 0.625,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-config-error",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "if (config.error !== undefined)",
+    "replacement": "if (false)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "unreadable config remains"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 181325824,
+    "seconds": 0.583,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-config-unreadable-5012",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": " || config.error.code === 5012",
+    "replacement": "",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "project reference wildcard"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 188035072,
+    "seconds": 0.603,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-reference-readDirectory",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "    readDirectory: (path, extensions, exclude, include, depth) =>\n      system.readDirectory(path, extensions, exclude, include, depth),\n",
+    "replacement": "",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "project reference wildcard"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 188379136,
+    "seconds": 0.593,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-fileExists",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "fileExists: (path) => system.fileExists(path)",
+    "replacement": "fileExists: (path) => ts.sys.fileExists(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "project reference wildcard"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 187228160,
+    "seconds": 0.604,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-readFile",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "readFile: (path) => system.readFile(path)",
+    "replacement": "readFile: (path) => ts.sys.readFile(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "relative and scoped extends"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 183414784,
+    "seconds": 0.64,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-directoryExists",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "directoryExists: (path) => system.directoryExists(path)",
+    "replacement": "directoryExists: (path) => ts.sys.directoryExists(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "automatic type root"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 181850112,
+    "seconds": 0.628,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-getDirectories",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "getDirectories: (path) => system.getDirectories(path)",
+    "replacement": "getDirectories: (path) => ts.sys.getDirectories(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "relative and scoped extends"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 184487936,
+    "seconds": 0.606,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-realpath",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "realpath: (path) => system.realpath(path)",
+    "replacement": "realpath: (path) => ts.sys.realpath(path)",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "project reference wildcard"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 183476224,
+    "seconds": 0.658,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-cwd",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "getCurrentDirectory: () => system.getCurrentDirectory()",
+    "replacement": "getCurrentDirectory: () => ts.sys.getCurrentDirectory()",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "project reference wildcard"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 188784640,
+    "seconds": 0.591,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-sourceFile",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "const source = host.readFile(path);",
+    "replacement": "const source = ts.sys.readFile(path);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "explicitly supplied default library"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 187416576,
+    "seconds": 0.705,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-defaultLibrary",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "resolve(system.compilerLibraryDirectory, ts.getDefaultLibFileName(compilerOptions))",
+    "replacement": "resolve('/ambient/typescript', ts.getDefaultLibFileName(compilerOptions))",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "does not execute candidate"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 179552256,
+    "seconds": 0.595,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-filesystem",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "  const system = boundSource(workspace, source, policy);",
+    "replacement": "  require('node:fs').readFileSync('/candidate/tsconfig.json');\n  const system = boundSource(workspace, source, policy);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "does not execute candidate"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 178864128,
+    "seconds": 0.621,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-git",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "  const system = boundSource(workspace, source, policy);",
+    "replacement": "  Bun.spawnSync(['git', 'status']);\n  const system = boundSource(workspace, source, policy);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "does not execute candidate"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 178573312,
+    "seconds": 0.652,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-spawn",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "  const system = boundSource(workspace, source, policy);",
+    "replacement": "  require('node:child_process').spawnSync('node', []);\n  const system = boundSource(workspace, source, policy);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "does not execute candidate"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 178749440,
+    "seconds": 0.618,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-write",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "  const system = boundSource(workspace, source, policy);",
+    "replacement": "  require('node:fs').writeFileSync('/candidate/ambient-write', 'x');\n  const system = boundSource(workspace, source, policy);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "does not execute candidate"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 183316480,
+    "seconds": 0.631,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-environment",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "  const system = boundSource(workspace, source, policy);",
+    "replacement": "  process.env['TOOL_WIKI_TRUSTED_NODE_MODULES'];\n  const system = boundSource(workspace, source, policy);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "does not execute candidate"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 181002240,
+    "seconds": 0.569,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-candidate-execution",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "  const system = boundSource(workspace, source, policy);",
+    "replacement": "  Function(source.readFile('/candidate/candidate-plugin.cjs') ?? '')();\n  const system = boundSource(workspace, source, policy);",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "explicitly supplied default library"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 186818560,
+    "seconds": 0.586,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-default-lib-location",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "getDefaultLibLocation: () => system.compilerLibraryDirectory",
+    "replacement": "getDefaultLibLocation: () => '/ambient/typescript'",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "ambient output callback"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 181108736,
+    "seconds": 0.578,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-output-write-refusal",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "throw new Error('TypeScript compiler attempted an ambient output write');",
+    "replacement": "",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "observation budget charges every"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 190656512,
+    "seconds": 0.664,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-charge-source-declaration",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-declarations.ts",
+    "original": "      project.system.chargeOutput(text);\n      output = { sourcePath, emittedPath: normalizedEmitted, text };",
+    "replacement": "      \n      output = { sourcePath, emittedPath: normalizedEmitted, text };",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "observation budget charges every"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 196526080,
+    "seconds": 0.665,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-charge-local-declaration",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-declarations.ts",
+    "original": "    project.system.chargeOutput(sourceFile.text);",
+    "replacement": "    ",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "charges bundled"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 191963136,
+    "seconds": 0.661,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-charge-bundled-declaration",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-declarations.ts",
+    "original": "      project.system.chargeOutput(text);\n      emitted.set(sourcePath, { sourcePath, emittedPath: normalizedEmitted, text });",
+    "replacement": "      \n      emitted.set(sourcePath, { sourcePath, emittedPath: normalizedEmitted, text });",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "observation budget charges every"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 193474560,
+    "seconds": 0.668,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-charge-import-selector",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "        system.chargeOutput(JSON.stringify(selector));",
+    "replacement": "        ",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "observation budget charges every"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 195850240,
+    "seconds": 0.672,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-charge-reverse-selector",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "original": "\n      system.chargeOutput(JSON.stringify(selector));",
+    "replacement": "\n      ",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "observation budget charges every"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 189648896,
+    "seconds": 0.754,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "omit-charge-public-selector",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-declarations.ts",
+    "original": "  project.system.chargeOutput(JSON.stringify(selector));",
+    "replacement": "  ",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "project reference wildcard"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 183783424,
+    "seconds": 0.594,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "ambient-host-readDirectory",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "    readDirectory: (path, extensions, exclude, include, depth) =>\n      system.readDirectory(path, extensions, exclude, include, depth),",
+    "replacement": "    readDirectory: (path, extensions, exclude, include, depth) =>\n      ts.sys.readDirectory(path, extensions, exclude, include, depth),",
+    "watchedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "-t",
+      "case insensitive compiler"
+    ],
+    "exitCode": 1,
+    "peakTreeRssBytes": 194363392,
+    "seconds": 0.646,
+    "rssCeilingBytes": 817889280,
+    "deadlineSeconds": 60,
+    "fault": "unicode-canonicalization",
+    "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "original": "path.replace(/[^\\u0130\\u0131\\u00DFa-z0-9\\\\/:\\-_. ]+/g, (segment) =>\n            segment.toLowerCase(),\n          )",
+    "replacement": "path.toLowerCase()",
+    "watchedFailure": true
+  }
+]

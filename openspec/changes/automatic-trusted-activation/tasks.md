@@ -297,6 +297,14 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       tuple reads, source/store removal, no ambient read/execution and explicit entry/read/byte/
       output limits, including incremental default-amplification refusal before selector hashing.
       This bounded prerequisite leaves compiler/runtime closure and parent 2.1d.1.3 open.
+- [ ] 2.1d.1.3c Extract the shared TypeScript compiler IO seam behind the preserved
+      filesystem wrapper. Provide explicit config path-kind/read/enumeration, compiler-host,
+      resolution, canonical path, cwd, library and output routes; preserve full selectors and
+      identities. TDD wildcard project references and supplied default libraries under poisoned
+      ambient IO, root absent/directory/malformed/unreadable distinctions, extends/paths/packages,
+      escape refusals, non-execution and finite repeated-probe/read/enumeration/observation plus
+      exact final-output bounds. Watch independent route/guard omissions. This prerequisite
+      supplies no retained adapter, authenticated runtime pin or protected authority; .3 stays open.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

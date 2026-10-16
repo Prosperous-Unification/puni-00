@@ -4464,3 +4464,80 @@ now uses explicit `String(index)` conversion, preserving its target names and be
 same complete serial/per-file hook configuration and safe staged filenames were reverified;
 the retry retains the 640 MiB Node heap and 900 MiB process-tree watchdog. Its final disposition
 is recorded in the durable handoff receipt.
+
+## 2026-10-17 bounded 2.1d.1.3c — shared TypeScript compiler IO prerequisite
+
+Baseline: `b4bb10c734f9baba48e05509c0fca4f7ffcf8711`; isolated clone
+`/tmp/puni-ts-io-sol-oct17`. The existing relationship CLI calls the preserved
+`extractTypeScriptRelationships(workspace, request, trustedModules)` wrapper. It now delegates
+its unchanged extractor/selector algorithm to the source-driven core, through explicit config
+path-kind/read/enumeration, compiler-host, module/type-resolution, realpath, cwd and library
+ports. Every compiler host callback is constructed explicitly; referenced-project wildcard
+reads no longer inherit `ts.createCompilerHost`'s ambient `readDirectory`. Directory-as-config
+remains unreadable rather than absent. A throwing source read's TypeScript diagnostic 5012 is
+also classified unreadable, with an independently watched predicate.
+
+The finite entrypoint snapshots and validates all five required safe nonnegative integer
+limits before IO. Repeated probes, UTF-8 reads, enumerated entries and compiler/selector output
+observations are charged before accumulation; the final canonical returned envelope has a
+separate exact byte bound including identities and empty families. The internal legacy policy
+preserves the filesystem wrapper's prior unbounded contract. Source implementations still own
+bounded return allocation; the shared core does not interrupt synchronous compiler work.
+
+Fresh accepted evidence lives in [typescript-io-2026-10-17](evidence/typescript-io-2026-10-17).
+Captured logs normalize terminal trailing whitespace; no evidence payload bytes are changed:
+
+- `focused-final.json/log`: **34 passed, 0 failed, 84 assertions**, including exact judge-facade
+  export census; sampled process-tree peak **367468544 bytes**. The focused source/compiler/
+  legacy files cover poisoned ambient TypeScript, filesystem, environment, output and execution
+  routes during wildcard project references, supplied default libraries, scoped/relative extends,
+  paths/package imports and automatic type-root enumeration; root absent/directory/malformed/
+  unreadable distinctions; escapes; candidate preload/scripts/plugins; all limits and exact
+  boundaries; Unicode canonicalization and CRLF. No candidate code executes.
+- `legacy-parity-fixed.json/log`: complete pre-seam relationships, extractor identities and
+  empty selector families compare deeply through both new source and preserved wrapper.
+  The fixture was captured from the unchanged baseline implementation using canonical trusted
+  module paths; its exact expected bytes live beside the parity test. The initial capture with
+  a symlink spelling of the trusted root correctly refused closure escape and was corrected.
+- `r5-faults.json` plus forty `fault-*.log` files: **40 independently watched faults**, all
+  failing actual tests, no module-load/unhandled-error substitutes, maximum sampled peak
+  **204201984 bytes**. Each receipt records the exact mutation and command. These include
+  every host IO route, namespace admission route, absent/config/5012 guard, budget, invalid-limit
+  and caller-mutation fence, six output accumulation charges, ambient filesystem/Git/spawn/
+  write/environment/candidate-execution sentinels and Unicode canonicalization. Adjacent
+  `Proof:` comments name the corresponding witnesses. Initial default-host/readFile,
+  getDirectories and realpath mutations exposed missing witnesses; the final receipts replace
+  those escaped attempts. Restored final checks above passed after every mutation was removed.
+- `lint-final.json/log`: scoped ESLint over all nine changed TypeScript paths passed with a
+  fresh Nx project graph and no skipped module-boundary rule; peak **815529984 bytes**.
+  Later test typing corrections are also subject to the normal commit hook's same scoped lint.
+- `typecheck-acceptance.json/log`: pinned TypeScript 6 spec-project `--noEmit --incremental false`
+  passed at Node heap 600 MiB; peak **827400192 bytes**, below its 800 MiB sampled stop and
+  the 900 MiB task ceiling. Earlier native typechecking was watchdog-stopped at
+  **834330624 bytes** under a 780 MiB stop, and a 512 MiB Node heap retry exhausted heap.
+  Neither stopped/failed check is counted as acceptance.
+- `f7.json/log`: the production `measureSizes` rule read the five staged production source
+  blobs at the 800-line ceiling and returned `ok: true, report: []`: compiler **313**, core
+  **242**, declarations **360**, imports **263**, wrapper **39** lines. This checks these five
+  changed sources, not the whole repository's external size policy.
+- `openspec-validation.json/log`: pinned OpenSpec 1.12.0 strict change validation passed **1/1**.
+
+All accepted tests/checks ran serially under a sampled process-tree RSS watchdog. Focused fault
+runs stayed below 300 MiB while another worker held the heavy lane. The selected existing
+`relationships.test.ts -t 'publishes exact TypeScript'` CLI regression was stopped at
+**818991104 bytes** under a 780 MiB threshold and was not retried. Its wider real-runtime
+fixture, full relationship/declaration regressions, package build, complete repository corpus,
+canonical h2puni gate and CI remain **unverified here and require hosted validation**. No raw
+full Nx gate or full suite ran.
+
+Normal Git hooks are installed. The clone-local Lefthook override changes only
+`pre-commit.parallel` from true to false; the merged JSON dumps in the evidence directory prove
+that every command, glob and message hook is preserved. External Tool Wiki activation is
+unprovisioned, so its ordinary local hook may report inactive rather than certified admission.
+At this ledger write, the normal-hook commit and exact-commit independent review remain pending;
+2.1d.1.3c remains unchecked until those complete.
+
+This prerequisite supplies no retained TypeScript adapter, runtime/dependency closure pin,
+compiler read manifest, bounded parser settlement, all-eleven-document replay, protected
+selection/preparation authority or external trust. Parent 2.1d.1.3 and its encompassing tasks
+remain open. No publication, push, merge, deployment or WBS mutation occurred.

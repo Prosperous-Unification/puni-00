@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+2 | function anonymous(
+3 | throw new Error('candidate plugin executed');
+                                                ^
+error: candidate plugin executed
+      at anonymous (file:///tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:3:45)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:109:68)
+      at forbidAmbient (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:48:12)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:314:22)
+(fail) source parsing does not execute candidate preload, package scripts or compiler plugins [0.83ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+Ran 1 test across 1 file. [546.00ms]

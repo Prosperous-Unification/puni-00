@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+ 7 | import { extractTypeScriptRelationshipsFromSource, type TypeScriptLimits } from './typescript-core';
+ 8 | import { fixture, globals, limits, request, workspace } from './typescript.test.fixture';
+ 9 |
+10 | function forbidAmbient<T>(extract: () => T): T {
+11 |   const forbidden = (): never => {
+12 |     throw new Error('forbidden ambient IO or execution');
+                                                            ^
+error: forbidden ambient IO or execution
+      at forbidden (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:12:56)
+      at directoryProbablyExists (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:21187:40)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:46573:67)
+      at forEach (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:2309:22)
+      at tryLoadModuleUsingPaths (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:46560:22)
+      at tryLoadModuleUsingPathsIfEligible (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45125:12)
+      at tryLoadModuleUsingOptionalResolutionSettings (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45106:20)
+      at tryResolve (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45432:22)
+      at nodeModuleNameResolverWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45380:14)
+      at bundlerModuleNameResolver (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45301:10)
+      at resolveModuleName (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45080:18)
+      at resolve (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127218:46)
+      at loadWithModeAwareCache (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127261:38)
+      at actualResolveModuleNamesWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127579:124)
+      at resolveModuleNamesWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127952:20)
+      at resolveNamesReusingOldState (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128088:14)
+      at resolveModuleNamesReusingOldState (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128044:12)
+      at processImportedModules (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129473:118)
+      at findSourceFileWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129285:7)
+      at findSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129138:20)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129089:22)
+      at getSourceFileFromReferenceWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129060:26)
+      at processSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129087:5)
+      at processRootFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128919:5)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127692:41)
+      at forEach (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:2309:22)
+      at createProgram (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127692:5)
+      at parseProject (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:213:22)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:111:40)
+      at forbidAmbient (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:48:12)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:274:22)
+(fail) relative and scoped extends, paths aliases and package imports use source ports [19.35ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+Ran 1 test across 1 file. [618.00ms]
