@@ -502,8 +502,13 @@ describe('opening an imported project', () => {
         // events with the fade left real then timed out 1 of 24 runs at 30 s:
         // the toast had faded before the p3 table was drawn.
         await importedRead;
+        // Two questions since the stack is portalled to `<body>` (UI review
+        // F-085): the p3 table is drawn, and a toast is on screen. The stack
+        // is no longer inside the table that draws it.
         await untilDocumentShows(
-          () => document.querySelector('[data-project-id="p3"] [data-toast-text]') !== null,
+          () =>
+            document.querySelector('[data-project-id="p3"]') !== null &&
+            document.querySelector('[data-toast-text]') !== null,
         );
         // The fade this test drops is the one the page asked for, so the spy is
         // not standing beside a timer it never sees.
