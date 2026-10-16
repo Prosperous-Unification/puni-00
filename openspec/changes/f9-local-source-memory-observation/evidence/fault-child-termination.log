@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:
+413 |     }
+414 |   };
+415 |   for (let attempt = 0; attempt < 20 && isRunning(); attempt++) await Bun.sleep(10);
+416 |   const survived = isRunning();
+417 |   if (survived) process.kill(pid, 'SIGKILL');
+418 |   expect(survived).toBe(false);
+                         ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/f9-source-memory-sol/tools/tool-devsync/src/k3s/forge-source-memory-observation.test.ts:418:20)
+(fail) kills the stalled local inspect child before returning deadline failure [361.17ms]
+
+ 0 pass
+ 70 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [397.00ms]

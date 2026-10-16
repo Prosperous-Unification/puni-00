@@ -213,6 +213,38 @@ restored-checker success or F9 acceptance. `runRecoveryLab` remains disabled.
 Offline checks and watched guard removals are recorded in
 [`f9-source-memory-evidence/verify.md`](../../openspec/changes/f9-source-memory-evidence/verify.md).
 
+### Local runtime source memory observation
+
+`observeSourceMemory(first, runtime, roots?)` in `forge-source-memory-observation.ts`
+adds current local runtime discovery to the typed validator. Supply the expected first
+`PodObservation` and `{ executable, endpoint, windowMs }`: an absolute standalone `crictl`
+path, explicit `unix:///.../*.sock` containerd CRI endpoint, and a 1–30000ms local window.
+The executable is resolved once; only fixed `inspect --output json <full-id>` arguments are
+used, with `/dev/null` config, explicit endpoint and a two-second CRI timeout. Docker/SSH
+executables, Docker socket names and remote endpoint schemes are refused. The observer
+accepts the versioned upstream containerd/cri-tools response contract described in its
+[design](../../openspec/changes/f9-local-source-memory-observation/design.md); it does not
+assert an installed runtime version.
+
+Both runtime inspections must match the expected full container ID, Pod UID, metadata name
+`source`, running state and init PID. Local `/proc` must identify that init's PID/starttime,
+final namespace PID 1 and exact cgroup-v2 membership. The observer resolves and records that
+cgroup's device/inode, takes one complete sample through `observeProcesses`, then reinspects
+the runtime, init and cgroup before calling `validateSourceMemory`. Required init reads and
+combined runtime stdout/stderr are capped at 64KiB. Missing, unreadable, malformed, changing,
+oversized or stalled state throws a fixed sanitized error; raw runtime config, argv,
+environment, paths and verdict fields are never returned.
+
+This is a library API with offline fixture roots; production defaults use `/proc` and
+`/sys/fs/cgroup`. Its operator must establish that these local roots correspond to the
+selected runtime's namespace. Selection and matching observations cannot authenticate that
+assertion, cluster authority or historical first-attempt ownership. Reads remain sequential,
+so changes that revert entirely between checks may escape detection. The window bounds local
+waits with scheduler tolerance; it does not establish remote or uninterruptible-IO termination.
+No historical first-attempt, readiness, OOM attribution, restored-checker or F9 acceptance
+claim follows. `runRecoveryLab` remains disabled. Offline tests and watched faults are in
+[f9-local-source-memory-observation/verify.md](../../openspec/changes/f9-local-source-memory-observation/verify.md).
+
 ### Forge namespace admission prerequisite
 
 Admission reserves `puni-forge` and `puni-forge-<slug>`. The suffix uses the existing
