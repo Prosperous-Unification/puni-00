@@ -128,6 +128,14 @@ an explicitly unresolved test level. Source ownership does not establish the mod
 case. The observation remains unauthenticated, noncertifying, and carries no coverage or admission
 credit.
 
+Browser Performance version-1 authority retains committed declaration/config/project pins.
+Version 2 moves those pins into `performance:{kind:'committed',declaration,config,project}`
+or explicitly asserts `performance:{kind:'reviewed-empty'}`. Empty membership validates the
+selected manifest and complete Browser sources, refusing any own `test:performance` or
+`test:performance:level` target and any selected entry at or below the fixed
+`<projectRoot>/performance-cases.json` path. Working-tree repairs cannot alter selected state.
+It emits no Performance execution claim; unrelated memberships remain unknown and certification false.
+
 `inspect-performance <repository> <committed-sha> <external-rule-policy>` inspects the
 current immutable Performance publication. It binds committed declaration, config and fixture
 blobs to the external Performance policy; recomputes artifact digests; independently decodes
