@@ -1,0 +1,32 @@
+
+ NX   Running target lint for 2 projects:
+
+- wbs-core
+- wbs-be-01
+
+
+
+> nx run wbs-core:lint
+
+> bunx eslint libs/wbs/application/core/src libs/wbs/application/core/testing libs/wbs/application/core/playwright.config.ts
+
+
+> nx run wbs-be-01:lint
+
+> bunx eslint apps/wbs/be-01/src
+
+
+
+
+ NX   Successfully ran target lint for 2 projects
+
+
+  Run duration:      1m 13s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     1m 13s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-be-01:lint    1m 13s

@@ -20,6 +20,11 @@ import {
 } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type {
+  ProjectWithSteps,
+  ZonedProject,
+  ZonedProjectWithSteps,
+} from '../../ports/project-read';
+import type {
   NewProject,
   Project,
   ProjectPatch,
@@ -27,8 +32,13 @@ import type {
   ProjectWithAccess,
 } from '../../ports/project-store';
 import type { OptimizerAvailability } from '../../ports/scheduler';
-import type { Step } from '../../ports/step-store';
 import type { DependencyGraphGuard } from '../../service/dependency-graph';
+
+export type {
+  ProjectWithSteps,
+  ZonedProject,
+  ZonedProjectWithSteps,
+} from '../../ports/project-read';
 
 /**
  * The steps a project starts with, **in step order**. Two sets of estimates is
@@ -36,24 +46,6 @@ import type { DependencyGraphGuard } from '../../service/dependency-graph';
  * no estimates at all until someone thought to add a step.
  */
 export const STARTING_STEPS = ['Dev', 'QA'] as const;
-
-export interface ProjectWithSteps {
-  project: Project;
-  steps: Step[];
-}
-
-/**
- * A project as its read and its PATCH publish it: the stored settings and the
- * IANA zone every day derived from an instant is read in (`step-node-attempts`
- * D3), stored beside them and read through {@link ProjectStore.timezoneOf}.
- */
-export type ZonedProject = Project & { timezone: string };
-
-/** {@link ProjectWithSteps} with its project {@link ZonedProject zoned}. */
-export interface ZonedProjectWithSteps {
-  project: ZonedProject;
-  steps: Step[];
-}
 
 /** A PATCH's settings: the stored ones, and the zone kept beside them. */
 export type ProjectSettingsPatch = ProjectPatch & { timezone?: string };
