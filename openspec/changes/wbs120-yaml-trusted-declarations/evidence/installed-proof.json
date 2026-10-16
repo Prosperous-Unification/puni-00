@@ -1,0 +1,127 @@
+{
+  "startedAt": "2026-10-16T15:41:53.529004+00:00",
+  "cwd": "/tmp/puni-wbs120-yaml-closure-sol-20261016",
+  "sourceSha": "acb0a68a86848bea0ad00fe5e3a7f3b7eed0ddac",
+  "sourceTree": "8aa11026f2a6d4fd7b84c2a2de996e4e2f013beb",
+  "initialStatus": "",
+  "runner": "/tmp/wbs120-yaml-proof-runner.py",
+  "limitsKiB": {
+    "minimumMemAvailable": 12582912,
+    "maximumProcessRss": 5242880
+  },
+  "stages": [
+    {
+      "name": "installed-red-build",
+      "command": ["bun", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.ts"],
+      "expectedExit": 0,
+      "sourceProductionBlob": "c9ccee6159ee73b8481145988b14b57e7f9c7b5f",
+      "startedAt": "2026-10-16T15:41:53.562971+00:00",
+      "minMemAvailableKiB": 20688444,
+      "peakProcessRssKiB": 372240,
+      "log": "installed-red-build.log",
+      "monitor": "installed-red-build-memory.jsonl",
+      "pid": 21,
+      "exitCode": 0,
+      "finishedAt": "2026-10-16T15:41:55.571599+00:00"
+    },
+    {
+      "name": "installed-red-pack",
+      "command": ["bun", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/pack.ts"],
+      "expectedExit": 0,
+      "sourceProductionBlob": "c9ccee6159ee73b8481145988b14b57e7f9c7b5f",
+      "startedAt": "2026-10-16T15:41:55.572492+00:00",
+      "minMemAvailableKiB": 21016052,
+      "peakProcessRssKiB": 19216,
+      "log": "installed-red-pack.log.gz",
+      "monitor": "installed-red-pack-memory.jsonl",
+      "pid": 60,
+      "exitCode": 0,
+      "finishedAt": "2026-10-16T15:41:59.585255+00:00",
+      "packageShasum": "e1529ac0e2bb236093c1084bac289ecce785276d",
+      "uncompressedLogSha256": "13d8d9e47c2aa84604fbaac4e6beffe12f12a337e1220f3840fee6874a27a468",
+      "uncompressedLogBytes": 1675765,
+      "logEncoding": "gzip"
+    },
+    {
+      "name": "installed-red",
+      "command": [
+        "bun",
+        "test",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts",
+        "--test-name-pattern",
+        "extracts supported vendor relationships and public declarations outside the checkout"
+      ],
+      "expectedExit": 1,
+      "sourceProductionBlob": "c9ccee6159ee73b8481145988b14b57e7f9c7b5f",
+      "startedAt": "2026-10-16T15:41:59.586168+00:00",
+      "minMemAvailableKiB": 20056620,
+      "peakProcessRssKiB": 556644,
+      "log": "installed-red.log",
+      "monitor": "installed-red-memory.jsonl",
+      "pid": 67,
+      "exitCode": 1,
+      "finishedAt": "2026-10-16T15:42:03.811290+00:00"
+    },
+    {
+      "name": "installed-green-build",
+      "command": ["bun", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.ts"],
+      "expectedExit": 0,
+      "sourceProductionBlob": "f458eb59a6a40234f71ef1f4db499ad366d78a38",
+      "startedAt": "2026-10-16T15:42:03.820592+00:00",
+      "minMemAvailableKiB": 20433528,
+      "peakProcessRssKiB": 467608,
+      "log": "installed-green-build.log",
+      "monitor": "installed-green-build-memory.jsonl",
+      "pid": 151,
+      "exitCode": 0,
+      "finishedAt": "2026-10-16T15:42:06.031907+00:00"
+    },
+    {
+      "name": "installed-green-pack",
+      "command": ["bun", "apps/twilight-structure/twilight-burokrat/cli/src/packaging/pack.ts"],
+      "expectedExit": 0,
+      "sourceProductionBlob": "f458eb59a6a40234f71ef1f4db499ad366d78a38",
+      "startedAt": "2026-10-16T15:42:06.032910+00:00",
+      "minMemAvailableKiB": 20811304,
+      "peakProcessRssKiB": 19208,
+      "log": "installed-green-pack.log.gz",
+      "monitor": "installed-green-pack-memory.jsonl",
+      "pid": 190,
+      "exitCode": 0,
+      "finishedAt": "2026-10-16T15:42:10.305777+00:00",
+      "packageShasum": "5a3903919fbfab67a851a7b5a79b07344f711d00",
+      "uncompressedLogSha256": "4cdc903853dc3ccdd98d8ea8e08fede38b6e7f88ad29f9eec26a7ee9deed271c",
+      "uncompressedLogBytes": 1694858,
+      "logEncoding": "gzip"
+    },
+    {
+      "name": "installed-green",
+      "command": [
+        "bun",
+        "test",
+        "apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts",
+        "--test-name-pattern",
+        "extracts supported vendor relationships and public declarations outside the checkout"
+      ],
+      "expectedExit": 0,
+      "sourceProductionBlob": "f458eb59a6a40234f71ef1f4db499ad366d78a38",
+      "startedAt": "2026-10-16T15:42:10.314300+00:00",
+      "minMemAvailableKiB": 19962640,
+      "peakProcessRssKiB": 614972,
+      "log": "installed-green.log",
+      "monitor": "installed-green-memory.jsonl",
+      "pid": 197,
+      "exitCode": 0,
+      "finishedAt": "2026-10-16T15:42:19.552695+00:00"
+    }
+  ],
+  "originalProductionBlob": "f458eb59a6a40234f71ef1f4db499ad366d78a38",
+  "fault": {
+    "change": "Remove exactly the yaml entry from trustedDeclarationRoots",
+    "productionBlob": "c9ccee6159ee73b8481145988b14b57e7f9c7b5f"
+  },
+  "restoredProductionBlob": "f458eb59a6a40234f71ef1f4db499ad366d78a38",
+  "finishedAt": "2026-10-16T15:42:19.553774+00:00",
+  "sourceRestored": true,
+  "evidencePostprocessing": "Only verbose package listing logs are losslessly gzip-compressed; original byte counts and SHA256 values retained per stage."
+}
