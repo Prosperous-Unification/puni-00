@@ -457,8 +457,12 @@ sequence`, `push failure retains durable event`, `expired replay requires snapsh
       lets a shared organization stop sharing, and confirms before switching. After Fable's review
       of #324 the reply also carries `canSwitch` (super-admin in person); everyone else reads why
       there is no switch, and the confirm line says switching back restores the dates.
-      Owed (recorded, not done): an eye review of `/organization` on the dev stack and an
-      e2e/pixel screen of it; no screens capture covers that page yet.
+      Local browser/pixel acceptance is recorded in verify.md under "Organization browser/pixel
+      acceptance (010.4.16, 2026-10-16)". The ordinary production-preview `/organization` fixture
+      covers release-unavailable precedence, supported-release caller permission, malformed GET
+      refusal, reload/no PATCH, geometry and panel captures at 375/1280 in light/dark.
+      An attended eye review on the dev stack remains owed; local fixtures do not prove installed
+      dev binding, shared activation, live delivery or the remaining 010.4.16 work.
 - [x] 7.2 Negative: floor kind unmapped → Error Boundary, not a blank card. Done as a holder the
       read does not label: `GanttDataError`, not a sentence blaming nobody; and in be-01 a slice
       naming an unlabelled holder fails the read. Evidence: verify.md "UI 7 port (batch 10)".

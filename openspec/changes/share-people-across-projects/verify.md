@@ -5638,3 +5638,85 @@ child-path mutations were watched and restored:
 Adjacent `Proof:` comments identify these faults. The lint/format bullets accidentally inserted
 in three historical checkpoints by the earlier documentation edit were removed; the current
 local validation bullets above are retained only in this checkpoint.
+
+## Organization browser/pixel acceptance (010.4.16, 2026-10-16)
+
+Test-only local acceptance extends `apps/wbs/fe-01/e2e/organization.spec.ts` at reviewed PR #525
+head `bc93b25d69378ff8de5791324d9bb1aa6d3d67a6` (tree
+`00307a0f40f5c8a552936abc577da141eec8ccb8`) in isolated clone
+`/tmp/puni-capacity-org-ui-sol-20261016`. The existing ordinary target builds the frontend
+and serves Vite production preview alongside isolated be/gw servers. Browser fixtures answer
+organization resources, including explicit session-policy and provisioning-token GETs; they
+prove rendered acceptance, not backend authorization or installed organization activation.
+
+The matrix uses 375×812 and 1280×900 in light/dark. Isolated/unavailable replies with both
+`canSwitch` values must show the exact isolated explanation plus release-unavailable sentence,
+no switch or confirmation, and no PATCH after reload. A synthetic supported-release reply with
+`canSwitch:false` must show the permission explanation and no controls. Every state checks the
+painted theme, positive visible panel bounds and no document/main/panel horizontal overflow,
+then captures and attaches `shared-people.png`.
+
+Architect correction: `GET 403 {error:'forbidden'}` is unsupported contract input, not a modeled
+permission refusal. The initial requested permission-alert assertion failed with the observed
+`The server returned an unexpected response. Try again.` `readCapacityMode` permits reads by
+any current member; only `switchCapacityMode` models `forbidden`. After review the browser case
+requires that exact generic alert, no success/isolated explanation and no controls. This is a
+test correction with no product/contract delta; GET 200 `canSwitch:false` covers caller permission.
+Initial failure output is `/tmp/capacity-org-evidence/initial-focused.log`.
+
+Commands use `CI=1 E2E_PORT_SHIFT=184` and the ordinary config's `retries:0`. Ports
+3284/3384/4384 were checked free by successful local socket binds before startup. The 12-case
+independent unavailable/permission matrix passed (`--grep 'Shared people' --grep-invert forbidden`,
+1.5m; `/tmp/capacity-org-independent.log`). Final focused/full checks and mutation receipts follow.
+
+Watched production mutations, run sequentially with each source restored in `finally` before the
+next run. Every command was `CI=1 E2E_PORT_SHIFT=184 bunx nx run wbs-fe-01:e2e -- --grep '<pattern>'`,
+zero retries. Patterns select `Shared people at 375px in light.*canSwitch true`, except permission
+(`Shared people at 375px in light.*supported-release permission`) and malformed GET
+(`Shared people at 375px in light.*unsupported forbidden`). Each run collected exactly one test
+and exited 1 with the intended assertion failure, not a build/setup failure:
+
+| Production fault                               | Observed browser failure                              | Log under `/tmp/`                              |
+| ---------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------- |
+| Omit `SharingPanel` from page composition      | Shared people region absent at visibility assertion   | `capacity-org-mutation-panel.log`              |
+| Replace isolated explanation                   | Exact paragraph array differs                         | `capacity-org-mutation-explanation.log`        |
+| Bypass unavailable branch                      | Release-unavailable paragraph absent; switch exposed  | `capacity-org-mutation-unavailable.log`        |
+| Bypass `canSwitch` branch                      | Super-admin paragraph absent; switch exposed          | `capacity-org-mutation-permission.log`         |
+| Wrap production panel in `min-width:600px`     | Right edge 600 exceeds viewport 375                   | `capacity-org-mutation-overflow.log`           |
+| Add `forbidden` to `readCapacityMode.refusals` | Generic alert expected, super-admin sentence received | `capacity-org-mutation-forbidden-contract.log` |
+
+Adjacent `Proof:` comments name the observed failures. Production source paths have no retained
+changes; no capability, route contract or activation behavior changed.
+
+Scoped ESLint (`bunx eslint apps/wbs/fe-01/e2e/organization.spec.ts`) passed with no diagnostics.
+Strict focused OpenSpec validation passed using the repository-pinned
+`bunx @fission-ai/openspec@1.12.0 validate share-people-across-projects --strict --json`.
+`/tmp/puni-ci-repair-openspec-tool/node_modules/.bin/openspec validate --all --json` exited 0:
+224 passed, 0 failed (206 changes, 18 specs; existing archive warnings remain non-fatal).
+A bare `bunx openspec` attempt was unavailable; the repository-pinned package and installed
+absolute executable above supplied the required checks.
+
+Final focused command:
+`CI=1 E2E_PORT_SHIFT=184 bunx nx run wbs-fe-01:e2e -- --grep 'Shared people'`
+exited 0: **16 passed** (1.8m; `/tmp/capacity-org-final-focused.log`). All cases now include
+panel screenshots and geometry, including synthetic caller permission and malformed response.
+
+Final full organization command:
+`CI=1 E2E_PORT_SHIFT=184 bunx nx run wbs-fe-01:e2e -- organization.spec.ts`
+exited 0: **30 passed** (2.8m; `/tmp/capacity-org-final-full.log`), including all 14 existing
+organization cases and the 16 new matrix cases. Both final runs rebuilt production preview;
+no existing dev server was reused. No browser retries were enabled.
+
+All 16 panel captures are attached in the Playwright report and stored under
+`apps/wbs/fe-01/test-results/organization-Shared-people-*/shared-people.png`; copies remain in
+`/tmp/capacity-org-evidence/organization-Shared-people-*/shared-people.png` to survive later runs.
+Representative unavailable, permission and unsupported-response panels were visually inspected
+at both widths in both themes: wrapped copy, readable spacing, no clipping or controls. These
+are captured panel images plus geometry assertions, without a screenshot baseline comparison.
+Phone ready panels measure 343×209; desktop ready panels 704×166. Failure panels measure
+343×124 and 704×104 respectively.
+
+Final scoped ESLint and three-file Prettier checks passed; `git diff --check` passed. The local
+production-preview browser build is covered by the commands above. No broader unit/typecheck
+suite, canonical host gate, CI, installed dev caller/binding, attended dev-stack eye review or
+live delivery/activation was performed in this slice. WBS 010.4.16 remains `in_progress`.
