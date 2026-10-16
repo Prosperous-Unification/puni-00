@@ -1,7 +1,6 @@
 import { type EffectiveServices, effectiveServicesOf } from '@wbs/domain/effective-service';
 import { type EffectiveTags, effectiveTagsOf } from '@wbs/domain/effective-tag';
 import { type EffectiveTeams, effectiveTeamsOf } from '@wbs/domain/effective-team';
-import type { EstimateUnit } from '@wbs/domain/estimate';
 import { priorityBandOf } from '@wbs/domain/priority-band';
 
 import type { EstimateMethod } from '@/lib/wbs-api';
@@ -12,9 +11,9 @@ import type { ExportRow, FilteredScope, NamedEntry, PlanExport } from './plan-ex
 import { STATUS_LABEL } from './status-cell';
 
 export type {
-  ExportTrio,
   ExportRow,
   ExportSlice,
+  ExportTrio,
   FilteredScope,
   NamedEntry,
   PlanExport,
