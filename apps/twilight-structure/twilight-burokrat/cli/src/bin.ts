@@ -41,8 +41,8 @@ const validatorCommands = new Set([
   'inspect-test-reports',
   // Proof: removing registration failed TEST-AXES-131's built installed Browser scenario dispatch.
   'inspect-browser-scenarios',
-  // Proof: removing registration failed TEST-AXES-124's built installed Browser level dispatch.
   'inspect-browser-source-levels',
+  // Proof: removing registration failed TEST-AXES-124's built installed Browser level dispatch.
   'inspect-browser-levels',
   'inspect-test-sources',
   // Proof: removing this documented diagnostic's registration failed the same packaged test.
