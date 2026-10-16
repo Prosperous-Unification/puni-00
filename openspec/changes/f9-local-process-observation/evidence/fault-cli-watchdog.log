@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [15.60ms]
+(pass) unknown launcher arguments cannot impersonate the Vite launcher [5.59ms]
+(pass) refuses absent and unreadable required memory state [5.29ms]
+(pass) refuses malformed counters, PID identity, status and cgroup membership [15.26ms]
+(pass) refuses oversized files and more than 256 exact members [3.92ms]
+(pass) refuses foreign directories and symlink escapes [1.98ms]
+(pass) refuses invalid bounds before inspecting filesystem [0.36ms]
+(pass) deadline refuses an interval exceeding remaining budget [41.83ms]
+(pass) CLI rejects extra lifecycle arguments before reading files [20.69ms]
+(pass) refuses identity and membership changes after command inspection [84.68ms]
+226 |       stdout: 'pipe',
+227 |       stderr: 'pipe',
+228 |     },
+229 |   );
+230 |   expect(await child.exited).toBe(1);
+231 |   expect(await new Response(child.stderr).text()).toContain('process observation local deadline');
+                                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "process observation local deadline"
+Received: "watchdog disabled\n243 |   };\n244 |   let timer: ReturnType<typeof setTimeout> | undefined;\n245 |   // Proof: stalled-read library fixture reaches its external 1500ms kill if this ceiling is removed.\n246 |   const ceiling = new Promise<never>((_, reject) => {\n247 |     timer = setTimeout(() => {\n248 |       reject(new Error('process observation deadline'));\n                       ^\nerror: process observation deadline\n      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:248:18)\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:231:51)
+(fail) CLI local watchdog exits during a stalled required read [76.13ms]
+(pass) refuses unsafe executable text instead of logging it [3.45ms]
+(pass) refuses cgroup directory replacement during process inspection [38.74ms]
+(pass) library deadline rejects a stalled read and leaves no long pause running [149.08ms]
+(pass) refuses exec changes within the same PID start time [32.77ms]
+(pass) refuses unreadable required state independently from absent state [9.87ms]
+(pass) refuses missing required event counters and malformed process fields [11.86ms]
+(pass) refuses nonregular required state [3.01ms]
+(pass) rejects a FIFO required file without leaving a blocked reader [36.46ms]
+(pass) refuses a nondirectory cgroup path before reading member files [2.04ms]
+
+ 19 pass
+ 1 fail
+ 32 expect() calls
+Ran 20 tests across 1 file. [603.00ms]

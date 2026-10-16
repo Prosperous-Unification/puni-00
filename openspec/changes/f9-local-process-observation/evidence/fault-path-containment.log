@@ -1,0 +1,71 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-process-observation.test.ts:
+(pass) records stable Vite identity and memory without raw arguments or verdicts [14.54ms]
+(pass) unknown launcher arguments cannot impersonate the Vite launcher [4.94ms]
+(pass) refuses absent and unreadable required memory state [4.14ms]
+(pass) refuses malformed counters, PID identity, status and cgroup membership [17.98ms]
+(pass) refuses oversized files and more than 256 exact members [5.27ms]
+119 |   );
+120 | });
+121 |
+122 | test('refuses foreign directories and symlink escapes', async () => {
+123 |   const { cgroup, proc, roots } = await fixture();
+124 |   await rejects(
+              ^
+AssertionError: The input did not match the regular expression /cgroup directory/. Input:
+
+"Error: ENOENT: no such file or directory, open '/tmp/forge-process-T5jV11/proc/42/cgroup.procs'"
+
+ generatedMessage: true,
+   expected: /cgroup directory/,
+   operator: "rejects",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at expectedException (node:assert:327:33)
+      at expectsError (node:assert:395:20)
+      at assert.rejects (node:assert:434:17)
+      at /tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:124:9
+
+120 |     if (performance.now() >= deadline) throw new Error('process observation deadline');
+121 |   };
+122 |   const readText = async (path: string): Promise<string> => {
+123 |     requireTime();
+124 |     // Proof: required-state fixtures inject ENOENT/EACCES/symlink; FIFO fixture blocks if NONBLOCK is removed.
+125 |     const descriptor = await open(
+                                   ^
+ENOENT: no such file or directory, open '/tmp/forge-process-T5jV11/proc/42/cgroup.procs'
+    path: "/tmp/forge-process-T5jV11/proc/42/cgroup.procs",
+ syscall: "open",
+   errno: -2,
+    code: "ENOENT"
+
+      at async <anonymous> (node:fs/promises:179:56)
+      at async <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:125:30)
+      at async <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:168:29)
+      at async observeProcesses (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.ts:252:26)
+      at async waitForActual (node:assert:359:24)
+      at async assert.rejects (node:assert:434:77)
+      at async <anonymous> (/tmp/f9-process-sampler-e7201df/tools/tool-devsync/src/k3s/forge-process-observation.test.ts:124:9)
+(fail) refuses foreign directories and symlink escapes [16.96ms]
+(pass) refuses invalid bounds before inspecting filesystem [0.53ms]
+(pass) deadline refuses an interval exceeding remaining budget [41.81ms]
+(pass) CLI rejects extra lifecycle arguments before reading files [20.70ms]
+(pass) refuses identity and membership changes after command inspection [66.15ms]
+(pass) CLI local watchdog exits during a stalled required read [67.32ms]
+(pass) refuses unsafe executable text instead of logging it [5.88ms]
+(pass) refuses cgroup directory replacement during process inspection [33.42ms]
+(pass) library deadline rejects a stalled read and leaves no long pause running [138.61ms]
+(pass) refuses exec changes within the same PID start time [30.34ms]
+(pass) refuses unreadable required state independently from absent state [1.91ms]
+(pass) refuses missing required event counters and malformed process fields [9.54ms]
+(pass) refuses nonregular required state [3.07ms]
+(pass) rejects a FIFO required file without leaving a blocked reader [29.94ms]
+(pass) refuses a nondirectory cgroup path before reading member files [2.02ms]
+(pass) retains only complete emitted observations when a later sample fails [3.76ms]
+
+ 20 pass
+ 1 fail
+ 36 expect() calls
+Ran 21 tests across 1 file. [555.00ms]
