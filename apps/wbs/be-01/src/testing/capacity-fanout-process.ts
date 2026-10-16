@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+import { rename } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { workItemTree } from '@wbs/contracts';
@@ -65,12 +67,21 @@ if (role === 'writer') {
       `${project}-step`,
     ]);
   }
+  const markerPath = join(directory, 'committed.json');
+  const stagedPath = join(directory, `.committed-${String(process.pid)}.pending`);
+  let publication: Promise<void> | undefined;
+  /** Publishes from this child's staging path; transport retries share one promise. */
+  async function publishMarker(): Promise<void> {
+    await Bun.write(stagedPath, JSON.stringify({ pid: process.pid, cursor: -1 }));
+    while (!(await Bun.file(join(directory, 'release-marker')).exists())) await Bun.sleep(1);
+    await rename(stagedPath, markerPath);
+  }
   globalThis.fetch = Object.assign(
-    () => {
-      void Bun.write(
-        join(directory, 'committed.json'),
-        JSON.stringify({ pid: process.pid, cursor: -1 }),
-      );
+    async () => {
+      const repeated = publication !== undefined;
+      publication ??= publishMarker();
+      await publication;
+      if (repeated) writeFileSync(join(directory, 'retried'), '');
       return new Promise<Response>(() => undefined);
     },
     { preconnect: globalThis.fetch.preconnect },

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -29,18 +29,38 @@ it('replays committed capacity fanout after killing its writer before push', asy
   };
   try {
     const writer = launch('writer');
-    const marker = Bun.file(join(directory, 'committed.json'));
-    const deadline = Date.now() + 15_000;
-    while (!(await Bun.file(join(directory, 'committed.json')).exists())) {
-      if (writer.exitCode !== null || Date.now() > deadline) {
-        if (writer.exitCode === null) writer.kill('SIGKILL');
-        await writer.exited;
-        throw new Error(
-          `writer did not reach committed transport: ${await new Response(writer.stderr).text()}`,
-        );
+    const markerPath = join(directory, 'committed.json');
+    const stagedPath = join(directory, `.committed-${String(writer.pid)}.pending`);
+    const marker = Bun.file(markerPath);
+    const waitFor = async (published: () => Promise<boolean>, phase: string, budgetMs = 15_000) => {
+      const deadline = Date.now() + budgetMs;
+      while (!(await published())) {
+        if (writer.exitCode !== null || Date.now() > deadline) {
+          if (writer.exitCode === null) writer.kill('SIGKILL');
+          await writer.exited;
+          throw new Error(
+            `writer did not reach ${phase}: ${await new Response(writer.stderr).text()}`,
+          );
+        }
+        await Bun.sleep(1);
       }
-      await Bun.sleep(10);
-    }
+    };
+    await waitFor(
+      async () => (await Bun.file(stagedPath).exists()) || (await Bun.file(markerPath).exists()),
+      'marker staging',
+    );
+    // Proof: direct publication exposed committed.json before release; omitting
+    // rename never published it (watched child-path faults, 2026-10-16).
+    expect(await Bun.file(markerPath).exists()).toBe(false);
+    writeFileSync(join(directory, 'release-marker'), '');
+    await waitFor(() => Bun.file(markerPath).exists(), 'atomic marker publication', 3_000);
+    const published = statSync(markerPath, { bigint: true });
+    await waitFor(() => Bun.file(join(directory, 'retried')).exists(), 'transport retry');
+    // Proof: removing the one-shot publication guard replaced the marker inode
+    // on the actual PushClient retry (watched child-path fault, 2026-10-16).
+    expect(statSync(markerPath, { bigint: true }).ino).toBe(published.ino);
+    expect(statSync(markerPath, { bigint: true }).mtimeNs).toBe(published.mtimeNs);
+    expect(await Bun.file(stagedPath).exists()).toBe(false);
     expect(JSON.parse(await marker.text())).toEqual({ pid: writer.pid, cursor: -1 });
     expect(writer.exitCode).toBeNull();
     expect(writer.pid).not.toBe(process.pid);
@@ -108,4 +128,4 @@ it('replays committed capacity fanout after killing its writer before push', asy
     sqlite.close();
     rmSync(directory, { recursive: true, force: true });
   }
-}, 30_000);
+}, 45_000);

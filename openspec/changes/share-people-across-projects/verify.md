@@ -4529,11 +4529,6 @@ this is an approval slice checkpoint, not an activation or whole-repository gate
 - `bun test apps/wbs/be-01/src/app.routes.test.ts -t 'complete pinned identity and origin policy inventory' --timeout=30000`:
   **1 pass, 0 fail, 264 assertions**; the new route is covered by authenticated write scope and
   the session-cookie origin policy. Other tests in that file were filtered out.
-- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
-  Nx could not create sandbox worker sockets and used its documented in-process fallback;
-  the target completed successfully. Log: `lint.log`.
-- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
-  Log: `format.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: **passed**, including module checks.
   Nx's sandbox-denied socket fallback ran plugins in the main process.
 - `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-store-sqlite,wbs-core,wbs-contracts --parallel=2`:
@@ -5195,11 +5190,6 @@ Adjacent `Proof:` comments identify these observations in the new test suite.
   exist, after mounted approvals had succeeded. Test-only lifecycle/child seams then made them GREEN.
 - First complete real Docker process run: **7 passed, 0 failed/skipped, 135 assertions**,
   9.92 seconds. Subsequent canonical-byte and audit-time assertions are included in final regression.
-- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
-  Nx could not create sandbox worker sockets and used its documented in-process fallback;
-  the target completed successfully. Log: `lint.log`.
-- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
-  Log: `format.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: final exit 0, including module checks,
   `/tmp/shared-process-nx-typecheck-final.log`. Initial run found one test-only nested-function
   image narrowing error; introducing a narrowed local string corrected it.
@@ -5417,11 +5407,6 @@ No external credentials or persistent host configuration were used.
   exact `[0,49)` fixed booking and person assignment, refuses unknown/infeasible answers and
   rejects a feasible answer overlapping that booking.
 - `shellcheck -s bash apps/wbs/be-01/scripts/solver-image-smoke.sh`: exit 0.
-- `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
-  Nx could not create sandbox worker sockets and used its documented in-process fallback;
-  the target completed successfully. Log: `lint.log`.
-- `bunx prettier --check` on all five changed files and `git diff --check`: passed.
-  Log: `format.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:typecheck`: exit 0, including module typecheck.
 - `bunx eslint apps/wbs/be-01/scripts/solver-image-smoke.test.ts`: exit 0.
 - `NX_DAEMON=false bunx nx run wbs-be-01:lint`: exit 0; uncached project source lint.
@@ -5584,7 +5569,8 @@ Reads/resumes leave event rows, sequences, command history, optimization cache/g
 queue/slot state, organization/shared-people audits, projects and estimates byte-equivalent to
 the pre-read SQL snapshot. A foreign organization's principal and the original principal after
 membership removal both receive forbidden replay outcomes. Parent polling and reader execution
-have 15-second bounds, with owned-process cleanup in `finally` and a 30-second test budget.
+have 15-second bounds; publication after release has a 3-second bound. Owned-process cleanup
+runs in `finally`, within a 45-second test budget.
 
 ### Watched production faults
 
@@ -5607,7 +5593,7 @@ name their faults and observed failures.
 ### Local validation
 
 - `bun test apps/wbs/be-01/src/capacity-fanout-process.db.test.ts apps/wbs/be-01/src/services.db.test.ts --test-name-pattern 'replays committed capacity fanout|shared-person replay closure'`:
-  5 passed, 130 filtered, 0 failed, 28 assertions. The push-failure regression deliberately emits
+  5 passed, 130 filtered, 0 failed, 32 assertions. The push-failure regression deliberately emits
   its existing gateway-unreachable warning. Log: `final-tests.log`.
 - `NX_DAEMON=false bunx nx run wbs-be-01:lint`: backend source lint passed, 0/1 cache hits.
   Nx could not create sandbox worker sockets and used its documented in-process fallback;
@@ -5626,3 +5612,29 @@ name their faults and observed failures.
 No installed/live acceptance, Browser hold, F9, ledger or supervisor file was changed. No push,
 publication, live-host operation, canonical h2puni gate, full repository gate or CI run occurred.
 Independent review remains required; this checkpoint records scoped local acceptance only.
+
+### Review repair: atomic one-shot marker publication
+
+Astra high review of `6ff577483b77447bca25da2fb824fd617dff6ec5` identified that the writer's
+unawaited direct `Bun.write(committed.json)` made existence observable before complete content.
+The writer now awaits writing a private PID-scoped staging file, waits at a parent-controlled
+publication barrier, then atomically renames it to `committed.json`. The parent proves the final
+path is absent while staging is held, releases publication, and reads only the renamed marker.
+One shared publication promise prevents transport retries from rewriting or republishing the
+marker. The test waits for a real PushClient retry and verifies unchanged marker inode and
+nanosecond modification time, plus absence of the consumed staging path. The directory is newly
+created and test-owned for every run; the marker must identify the owned writer PID.
+
+The expanded acceptance was RED against the original direct writer (`marker-direct-write-initial-red.log`),
+then GREEN after the staging fix (`marker-green.log`: 1 pass, 14 assertions). Three independent
+child-path mutations were watched and restored:
+
+| Fault                             | Observed failure                                                       | Log in `/tmp/capacity-crash-evidence/` |
+| --------------------------------- | ---------------------------------------------------------------------- | -------------------------------------- |
+| Write directly to final path      | Final marker visible before publication release                        | `marker-direct-write.log`              |
+| Omit atomic rename                | Final marker absent; bounded publication wait killed and reaped writer | `marker-no-rename.log`                 |
+| Remove one-shot publication guard | Actual transport retry replaced the published marker inode             | `marker-republication.log`             |
+
+Adjacent `Proof:` comments identify these faults. The lint/format bullets accidentally inserted
+in three historical checkpoints by the earlier documentation edit were removed; the current
+local validation bullets above are retained only in this checkpoint.
