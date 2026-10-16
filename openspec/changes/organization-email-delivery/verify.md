@@ -20,7 +20,7 @@ capture initially failed before the harness/port change. Receipts include
 `/tmp/smtp-purpose-green.log`, `/tmp/smtp-transport-disabled-green.log` and
 `/tmp/smtp-boot-red.log` (configured boot returned503 instead of201).
 
-**53 serial production mutations exited nonzero**, then their source bytes were
+**54 serial production mutations exited nonzero**, then their source bytes were
 restored. Adjacent `Proof:` comments name consuming oracles. These are scoped
 controls, not a full gate or arbitrary-fault guarantee.
 
@@ -31,6 +31,7 @@ controls, not a full gate or arbitrary-fault guarantee.
 | Transport                      | 16 initial guards: invitation/recipient/token/TLS/CA/final code/recipient count/identity/rejections/bytes/clock/native ACK/destroy/no resend/body-only success/timer | `/tmp/smtp-transport-faults.log`       |
 | Authentication and late events | Explicit auth, PLAIN method, terminal work guard, frozen outcome                                                                                                     | `/tmp/smtp-transport-extra-faults.log` |
 | Partial/aggregate limits       | Latest-chunk-only accounting; weakened client partial limit                                                                                                          | `/tmp/smtp-fragment-faults.log`        |
+| DATA transition                | Omitted lazy body-read clock check:460 body bytes instead of0 after354 crosses cutoff                                                                                | `/tmp/smtp-data-transition-fault.log`  |
 | Cleanup eligibility            | Renewed total cleanup budget; omitted publication clock                                                                                                              | `/tmp/smtp-cleanup-faults.log`         |
 | Boot/compensation              | Refusing binding, false delivered state, omitted failed update, swallowed compensation error, omitted delivered update, invitation dispatch bypass                   | `/tmp/smtp-boot-faults.log`            |
 
@@ -163,3 +164,47 @@ repository's actual bun-types package. This is not project-wide typecheck.
 
 The configuration checkpoint preceded the transport and boot evidence above; it
 made no runtime delivery or WBS completion claim.
+
+## Independent source review: DATA boundary correction
+
+Astra found a P2 at candidate `b668db28a8715ed65320ff7be4a9f0f7713c6027`:
+passing a complete string to `smtp.send` checked the clock before MAIL/RCPT,
+not at the maintained client's later DATA/body transition. A real TLS regression
+advances the runtime clock on354 after wrapper accounting but before the public
+client's parser listener; no cutoff timer callback runs first. Original source
+refused eventually but still released one complete message body (RED,
+`/tmp/smtp-data-transition-red.log`).
+
+The correction uses the supported lazy `Readable` body with a clock/state guard
+in its read callback. Focused GREEN:1test/7assertions,130ms,RSS49,696KiB
+(`/tmp/smtp-data-transition-green.log`). Watching only that guard's removal
+failed with **460 body bytes versus required0**, not just the eventual timeout
+(`/tmp/smtp-data-transition-fault.log`); restored immediately. No private client
+API or handwritten protocol parser was introduced.
+
+Cleanup-failure composition limit: withheld native-close acknowledgement is
+covered directly by the production adapter tests, not by a separate boot-mounted
+fixture. Boot-mounted cases cover final refusal, missing final ACK and durable
+compensation; task4.2 now distinguishes the adapter cleanup scope. No boot-close
+withholding proof is claimed.
+
+Restored successor checks, serial:
+
+- Adapter **37pass,136assertions,15.36s**, RSS56,164KiB;
+  `/tmp/smtp-adapter-data-final.log`.
+- Boot **8pass,36assertions,14.05s**, RSS570,288KiB;
+  `/tmp/smtp-boot-data-final.log`.
+- Scoped TypeScript of the three changed source/test files and their imports
+  passed in4.18s,RSS862,968KiB (`/tmp/smtp-data-typecheck.log`). An ephemeral
+  config extended be-01's spec config, included only these files and removed
+  references; it was deleted afterward. Native Go compiler settings
+  `GOMEMLIMIT=768MiB GOMAXPROCS=2` constrained GC/concurrency; this is still not
+  a hard RSS limit. No full be-01 typecheck was repeated.
+- Scoped ESLint passed (`/tmp/smtp-data-lint.log`), with the same missing cached
+  Nx boundary-rule diagnostic. Prettier formatted the five changed files
+  (`/tmp/smtp-data-format.log`); strict OpenSpec validation reported valid
+  (`/tmp/smtp-data-openspec.log`); diffcheck passed. The successor commit runs
+  normal hooks; their exact outcome is recorded in
+  `/tmp/smtp-data-commit.log` and the committed handoff. Earlier
+  controller/config/startup checks were not repeated because those source paths
+  did not change in this correction.

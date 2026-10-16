@@ -39,6 +39,7 @@ export async function startSmtpRelay(mode: RelayMode = 'accept') {
     commands: [] as string[],
     recipients: [] as string[],
     bodies: [] as string[],
+    bodyBytes: 0,
     errors: [] as string[],
   };
   const server = createServer(
@@ -54,6 +55,7 @@ export async function startSmtpRelay(mode: RelayMode = 'accept') {
       let body = '';
       let inBody = false;
       socket.on('data', (bytes: Buffer) => {
+        if (inBody) observed.bodyBytes += bytes.length;
         pending += bytes.toString();
         while (pending.includes('\r\n')) {
           const boundary = pending.indexOf('\r\n');

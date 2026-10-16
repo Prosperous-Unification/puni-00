@@ -470,3 +470,32 @@ test('native close observed after its deadline cannot publish acceptance', async
     restore?.();
   }
 });
+
+test('DATA transition rechecks cutoff before releasing any message bytes', async () => {
+  const relay = await fixture();
+  let shift = 0;
+  let crossed = false;
+  const delivery = createEmailDelivery(relay.config, {
+    now: () => performance.now() + shift,
+    connect: (options) => {
+      const socket = connect(options);
+      // Registered before the adapter's secureConnect listener: after wrapper accounting,
+      // before the maintained parser, advance time without running the cutoff timer.
+      socket.once('secureConnect', () => {
+        socket.on('data', (bytes: Buffer) => {
+          if (bytes.toString().includes('354 continue')) {
+            crossed = true;
+            shift = 9001;
+          }
+        });
+      });
+      return socket;
+    },
+  });
+  await refuses(delivery.deliver(message), 'email submission timeout');
+  expect(crossed).toBe(true);
+  expect(relay.observed.commands).toContain('DATA');
+  expect(relay.observed.bodyBytes).toBe(0);
+  expect(relay.observed.bodies).toHaveLength(0);
+  expect(relay.observed.connections).toBe(1);
+});

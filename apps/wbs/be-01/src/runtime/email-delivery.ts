@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { connect as connectTls, type ConnectionOptions, type TLSSocket } from 'node:tls';
 
 import type { EmailDelivery, EmailMessage } from '@wbs/core';
@@ -211,19 +212,34 @@ function submitVerification(
         }
         const send = () => {
           if (!isWorking()) return;
-          smtp.send({ from: config.from, to: [message.recipient] }, body, (failure, submission) => {
-            if (!isWorking()) return;
-            // Proof: separately omitting final250/count/recipient/rejection predicates accepted each broken-client fixture.
-            if (
-              failure ||
-              !/^250(?:[ -]|$)/.test(submission.response) ||
-              submission.accepted.length !== 1 ||
-              submission.accepted[0] !== message.recipient ||
-              submission.rejected.length !== 0
-            )
-              terminate('refused');
-            else terminate('accepted');
+          const content = new Readable({
+            read() {
+              // Proof: omitting this lazy DATA check released1 body after354 crossed the cutoff.
+              if (!isWorking()) {
+                this.destroy();
+                return;
+              }
+              this.push(body);
+              this.push(null);
+            },
           });
+          smtp.send(
+            { from: config.from, to: [message.recipient] },
+            content,
+            (failure, submission) => {
+              if (!isWorking()) return;
+              // Proof: separately omitting final250/count/recipient/rejection predicates accepted each broken-client fixture.
+              if (
+                failure ||
+                !/^250(?:[ -]|$)/.test(submission.response) ||
+                submission.accepted.length !== 1 ||
+                submission.accepted[0] !== message.recipient ||
+                submission.rejected.length !== 0
+              )
+                terminate('refused');
+              else terminate('accepted');
+            },
+          );
         };
         // Proof: skipping login failed the PLAIN auth-count oracle; omitting its method selected unauthorized LOGIN.
         if (config.auth.kind === 'none') send();

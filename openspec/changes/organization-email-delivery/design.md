@@ -84,7 +84,11 @@ attaches its parser and resumes the paused socket. The probe sends an immediate
 220 greeting to prove handoff does not lose early bytes. The maintained
 client handles greeting/EHLO, AUTH PLAIN, envelope replies, DATA framing/dot
 stuffing and reply parsing. Perform at most one `send` for one recipient on that
-one session; no pool, reconnect, queue, fallback relay or retry. A configured
+one session; no pool, reconnect, queue, fallback relay or retry. The message is
+passed through the documented lazy `Readable` seam: its read callback rechecks
+the absolute work cutoff when the client begins DATA body consumption, after
+envelope negotiation. An earlier pre-send clock check alone cannot protect this
+transition when reply processing or the cutoff timer is delayed. A configured
 host may use the normal network resolver; this is not fallback mail routing.
 
 Source evidence and compatibility limits are in [client review](client-review.md).
