@@ -16,7 +16,31 @@ Read the trusted-module implementation and tests, package build, toolkit release
 
 The installed vendor oracle now imports real `parseAllDocuments`, exports its return type, asserts the yaml import and declaration, proves candidate node_modules absent, removes/restores copied YAML and alters/restores its declaration, requires refusal without JSON for both faults, and reruns extraction after restoration. These packaged controls have not been executed locally. Extending this oracle does not itself prove packaged acceptance.
 
-Changed-file Prettier formatting and `git diff --check` passed. Scoped ESLint over the three changed TypeScript files exited zero; its Nx module-boundary rule explicitly skipped because no cached ProjectGraph exists ([log](evidence/scoped-eslint.log)). Pinned OpenSpec 1.12.0 strict validation passed 1/1 ([receipt](evidence/openspec-strict.json)); all-item validation passed 241/241 (223 changes, 18 specs; [receipt](evidence/openspec-all.json)). These checks do not supply the pending installed-consumer proof.
+Changed-file Prettier formatting and `git diff --check` passed. Scoped ESLint over the three changed TypeScript files reported no errors; its Nx module-boundary rule explicitly skipped because no cached ProjectGraph exists ([log](evidence/scoped-eslint.log)). Pinned OpenSpec 1.12.0 strict validation passed 1/1 ([receipt](evidence/openspec-strict.json)); all-item validation passed 241/241 (223 changes, 18 specs; [receipt](evidence/openspec-all.json)). These checks do not supply the pending installed-consumer proof.
+
+## Command and source provenance
+
+The following invocations were executed on 2026-10-16 from `/tmp/puni-wbs120-yaml-closure-sol-20261016` with Bun 1.4.2. The linked logs are original output-only captures: they do not embed commands, exit-status receipts or a working-tree digest. This section records the invocations from the session transcript, rather than adding retrospective metadata to those logs.
+
+RED ran on base `fb7bc379ceadfffcce6c2c984941e603519a5867` with only the literal `'yaml'` added to the supported-root expectation in `trusted-modules.test.ts`; production `trusted-modules.ts` was still blob `4c5494b481ed169adcb89bc056e61d9c7966a3cd`, without YAML enrollment. GREEN ran after enrollment, before commit: its production blob `f458eb59a6a40234f71ef1f4db499ad366d78a38` and test blob `4ca76341050ebfc8225ce6863cf686c3bb8b6120` are retained in implementation commit `0a8431777f7c92342bfb5c6748db0b2b0d82de7d` (tree `d0a3d897939935a1b52e59e450f17254aadd7b8e`). No whole working-tree identity was captured at either test invocation.
+
+```sh
+bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts --test-name-pattern 'the release closure includes' > openspec/changes/wbs120-yaml-trusted-declarations/evidence/closure-red.log 2>&1
+bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts > openspec/changes/wbs120-yaml-trusted-declarations/evidence/closure-green.log 2>&1
+```
+
+The remaining invocations ran against the same uncommitted implementation before `0a8431777f7c92342bfb5c6748db0b2b0d82de7d`; the three checked TypeScript blobs match that commit, including installed-test blob `4180c9343ee065474d42e8df1091c9a7e899b8ad`. OpenSpec validation preceded the final command-summary paragraph in this record. Its JSON receipts describe the artifact state then, rather than proving an exact later commit. Individual process exit statuses were not separately captured by the shell command batch; the recorded evidence is Prettier's successful formatting output, ESLint's warning-only output, and OpenSpec's explicit valid-item counts.
+
+```sh
+bun node_modules/prettier/bin/prettier.cjs --write apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts openspec/changes/wbs120-yaml-trusted-declarations openspec/scenario-allocations.json
+NODE_OPTIONS=--max-old-space-size=768 bun node_modules/eslint/bin/eslint.js apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts > openspec/changes/wbs120-yaml-trusted-declarations/evidence/scoped-eslint.log 2>&1
+bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate wbs120-yaml-trusted-declarations --strict --json > openspec/changes/wbs120-yaml-trusted-declarations/evidence/openspec-strict.json
+bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json > openspec/changes/wbs120-yaml-trusted-declarations/evidence/openspec-all.json
+git diff --check
+bun node_modules/prettier/bin/prettier.cjs --write openspec/changes/wbs120-yaml-trusted-declarations/verify.md
+```
+
+No original standalone `prettier --check` receipt was retained; the original normal pre-commit format hook did run and report all matched files formatted. No installed-consumer invocation, hosted omission/corruption proof or exact-commit canonical gate receipt is available yet; those remain the open tasks below. This evidence correction changes only this Markdown record and preserves the implementation/test blobs named above.
 
 ## Failure-proof table
 
