@@ -2677,29 +2677,28 @@ test.describe('the chart edge the reader drags', () => {
     // joins it, and wide enough to stay on the table face: the cards renderer
     // takes over below this and has a different column entirely.
     //
-    // **780, moved from 768 on 2026-09-11 and re-measured there.**
-    // `arrange-by-schedule` put one more icon on the bar, and at 768 the
-    // toolbar now takes its second row *before* the drag — so the premise this
-    // case is built on was gone and its own guard said so: `the toolbar did not
-    // take a second row, so this is the 1400px case at a narrower window ·
-    // Expected: > 104 · Received: 104`. That guard is the reason this is a
-    // re-measurement rather than a silent pass.
+    // **800, moved from 780 on 2026-10-16 and re-measured there** (ui-review
+    // F-124): `Freeze #` takes `buttonVariants` directly, and once those
+    // classes were merged its outline border painted, so the bar grew and at
+    // 780 it took its second row before the drag — this case's own guard said
+    // so: `Expected: > 104 · Received: 104`. (It moved from 768 to 780 on
+    // 2026-09-11 for the same reason, when `arrange-by-schedule` added an icon.)
     //
-    // The window, measured in this file's Chromium on 2026-09-11 — toolbar
+    // The window, measured in this file's Chromium on 2026-10-16 — toolbar
     // height without `Reset layout`, then with it:
     //
     // | width | folded | with the control |
     // | ----- | ------ | ---------------- |
-    // | 770   | 104    | 104              |
-    // | 775   | 68     | 104              |
-    // | 780   | 68     | 104              |
+    // | 780   | 104    | 104              |
     // | 785   | 68     | 104              |
-    // | 790   | 68     | 68               |
+    // | 800   | 68     | 104              |
+    // | 815   | 68     | 104              |
+    // | 820   | 68     | 68               |
     //
-    // So the band is 775–785 and this sits in the middle of it. It is ten
-    // pixels wide: one more control on this bar closes it, and the next change
-    // to add one has to re-measure here as well as at the two width pins.
-    await page.setViewportSize({ width: 780, height: 900 });
+    // So the band is 785–815 and this sits in the middle of it. One more
+    // control on this bar narrows it, and the next change to add one has to
+    // re-measure here as well as at the two width pins.
+    await page.setViewportSize({ width: 800, height: 900 });
     await seedPlan(page, nextAccount());
     await openTheChart(page);
 

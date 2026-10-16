@@ -23,7 +23,7 @@ import type { CellRef } from './cell-navigation';
 import { type ColumnHintState, hintFor } from './column-hints';
 import { CompletionPrompt, type PromptedStatus } from './completion-prompt';
 import { createDepLights, type DepLights } from './dep-light-store';
-import { type DropZone, planMove, zoneFor } from './drag-drop';
+import { type DropLine, type DropZone, landingDepthFor, planMove, zoneFor } from './drag-drop';
 import { cellIn, cellKey, type CellLanding, cellRefOf, focusCellAt } from './editable-grid';
 import { EndAttemptDialog } from './end-attempt-dialog';
 import { ExternalRefsModal } from './external-refs-modal';
@@ -70,6 +70,7 @@ import {
   type FrameLayoutState,
   GANTT_DOCK_SLACK,
   hierarchyIndentFor,
+  numberIndentFor,
   pinnedCellStyle,
   POPOVER_ROW_LAYER,
   resetHiddenColumns,
@@ -161,6 +162,48 @@ interface PlanRowProps {
   onDrop: ComponentProps<'tr'>['onDrop'];
   /** The `<td>`s, rendered by {@link WbsTable} — see the shell's own JSDoc. */
   children: ReactNode;
+}
+
+/**
+ * The line an edge zone draws over one target row, measured off the row as it
+ * is drawn (UI review F-128).
+ *
+ * It starts at the outline's leading edge for the depth the drop lands at: the
+ * row's caret gutter is that edge at the row's own depth once the Number cell's
+ * capped indent ({@link numberIndentFor}) is taken back off, and
+ * {@link hierarchyIndentFor} the landing depth puts it where the moved row's
+ * number will start. It runs to the row's right edge, on its top for `above`
+ * and its bottom for `below`, in the frame's scrolled coordinates as the
+ * `Move under …` cue is.
+ *
+ * Proof: drawn as the old 2px inset shadow on every cell instead,
+ * `e2e/drop-cue.spec.ts` `the drop line starts at the depth the row will land
+ * at` failed on `below 010.4 lands as a child of 010 · Expected: <= 1 ·
+ * Received: 32` — the line began under the drag handle. Watched 2026-10-16.
+ *
+ * @throws When the row drew no caret gutter. Number is a row control nobody
+ * can hide (`ROW_CONTROLS`), so its absence is a broken row, not a place.
+ */
+function dropLineOf(
+  row: HTMLTableRowElement,
+  depth: number,
+  at: { zone: 'above' | 'below'; landingDepth: number; frame: HTMLElement },
+): DropLine {
+  const gutter = row.querySelector('[data-caret-gutter]');
+  if (gutter === null) throw new Error('a plan row drew no caret gutter to start a drop line at');
+  const box = row.getBoundingClientRect();
+  const port = at.frame.getBoundingClientRect();
+  const outline =
+    gutter.getBoundingClientRect().left -
+    numberIndentFor(depth) +
+    hierarchyIndentFor(at.landingDepth);
+  const leftPx = outline - port.left + at.frame.scrollLeft;
+  return {
+    edge: at.zone === 'above' ? 'top' : 'bottom',
+    topPx: (at.zone === 'above' ? box.top : box.bottom - 2) - port.top + at.frame.scrollTop,
+    leftPx,
+    widthPx: box.right - port.left + at.frame.scrollLeft - leftPx,
+  };
 }
 
 /**
@@ -2966,14 +3009,27 @@ export function WbsTable({
                             // frame not attached is a broken mount, not a place.
                             if (frame === null)
                               throw new Error('a row took a dragover outside its frame');
+                            const port = frame.getBoundingClientRect();
+                            const zone = zoneFor(event.clientY - box.top, box.height);
                             setDropHint({
                               rowId: row.original.id,
-                              zone: zoneFor(event.clientY - box.top, box.height),
+                              zone,
                               // Under the row, in the frame's scrolled
                               // coordinates, so the cue sits beneath the
                               // target and moves nothing in the table.
-                              cueTopPx:
-                                box.bottom - frame.getBoundingClientRect().top + frame.scrollTop,
+                              cueTopPx: box.bottom - port.top + frame.scrollTop,
+                              line:
+                                zone === 'into'
+                                  ? null
+                                  : dropLineOf(event.currentTarget, row.depth, {
+                                      zone,
+                                      landingDepth: landingDepthFor(
+                                        zone,
+                                        row.depth,
+                                        row.getIsExpanded() && row.subRows.length > 0,
+                                      ),
+                                      frame,
+                                    }),
                             });
                           }}
                           onDragLeave={() => {
@@ -3051,6 +3107,24 @@ export function WbsTable({
                     />
                   </tbody>
                 </table>
+                {dropHint?.line && (
+                  // The edge zones' line, laid over the table like the cue
+                  // below and for its reason; see {@link dropLineOf}.
+                  <div
+                    aria-hidden="true"
+                    data-drop-line={dropHint.line.edge}
+                    style={{
+                      position: 'absolute',
+                      top: dropHint.line.topPx,
+                      left: dropHint.line.leftPx,
+                      width: dropHint.line.widthPx,
+                      height: 2,
+                      background: 'var(--grid-drop-edge)',
+                      pointerEvents: 'none',
+                      zIndex: POPOVER_ROW_LAYER,
+                    }}
+                  />
+                )}
                 {dropCue !== null && (
                   // Laid over the table rather than inserted into it: a row
                   // added under the target would push every row below it,

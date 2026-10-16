@@ -53,9 +53,10 @@ test.describe('the session gate when the server is down (F-079)', () => {
     // The outage card sits in the sign-in page's own column (F-093). Proof,
     // watched 2026-10-15: #479's top-left page (`p-8` main, `mb-6` heading)
     // with only `data-sign-in` added to its card failed at 1440 on `the column
-    // is off the window’s middle · Expected: <= 1 · Received: 496`; the shared
-    // column under the sign-in card's 15.5rem anchor failed on `the column is
-    // off the window’s vertical centre · Expected: <= 48 · Received: 188`.
+    // is off the window’s middle · Expected: <= 1 · Received: 496`. The card
+    // now stands on the sign-in card's own anchor, about 188px above true
+    // centre at 1440, so the word mark does not move between the two (F-125,
+    // D11); `expectAnchoredColumn` holds it to that anchor.
     for (const size of [
       { width: 1440, height: 900 },
       { width: 375, height: 812 },
@@ -214,9 +215,11 @@ test('tells Live from Reconnecting by the dot’s shape, not colour alone (F-097
 
 /**
  * The contrast of a row's drop edge against the cell it is drawn on, per edge:
- * the strongest inset shadow at least 2px deep on the top (`above`) or the
- * bottom (`below`) of the target row's cells, rasterised through a canvas for
- * `external-refs.spec.ts`' reason (`oklch(…)` has no luminance as a string).
+ * the strongest inset shadow at least 2px deep on the top or the bottom of the
+ * target row's cells (`into`'s outline), or the line laid over the row on that
+ * edge (`above`, `below`: `[data-drop-line]`, UI review F-128), rasterised
+ * through a canvas for `external-refs.spec.ts`' reason (`oklch(…)` has no
+ * luminance as a string).
  */
 function dropEdgeContrast(page: Page, number: string): Promise<{ top: number; bottom: number }> {
   return page.evaluate((rowNumber) => {
@@ -263,6 +266,13 @@ function dropEdgeContrast(page: Page, number: string): Promise<{ top: number; bo
       const edge = depth >= 2 ? 'top' : depth <= -2 ? 'bottom' : null;
       if (edge !== null) edges[edge] = Math.max(edges[edge], ratio(rgbOf(colour), ground));
     }
+    const line = document.querySelector('[data-drop-line]');
+    const lineEdge = line?.getAttribute('data-drop-line');
+    if (line !== null && (lineEdge === 'top' || lineEdge === 'bottom'))
+      edges[lineEdge] = Math.max(
+        edges[lineEdge],
+        ratio(rgbOf(getComputedStyle(line).backgroundColor), ground),
+      );
     return edges;
   }, number);
 }

@@ -1,5 +1,6 @@
 import { type CDPSession, expect, type Page, test } from '@playwright/test';
 
+import { fixtureClient, fixtureSuccess, openSeededPlan, seedPlan } from './plan-fixture';
 import { painted, seedRenderingPlan } from './rendering-fixture';
 
 interface ProbeCounters {
@@ -395,6 +396,93 @@ test('the faces still end together after Full is opened and closed', async ({ pa
   await painted(page);
   await painted(page);
   await expectFacesEndTogether(page, seeded.ids, 'after Full');
+});
+
+/** The chart's scroll box and the month its caption names, read together. */
+function readChartScroll(page: Page): Promise<{ left: number; month: string }> {
+  return page.evaluate(() => {
+    const box = document.querySelector<HTMLElement>('[data-gantt-panel]');
+    const month = document.querySelector('[data-gantt-month]');
+    if (box === null || month === null) throw new Error('the chart has no scroll box or caption');
+    return { left: box.scrollLeft, month: month.textContent };
+  });
+}
+
+/**
+ * Full keeps the chart where the reader scrolled it, both ways (ui-review
+ * F-126): the offset is carried into the new box and back out, and the caption
+ * still names the month of the box on screen (F-064). A chain of fourteen
+ * five-day rows, so the chart is wider than the window at its opening scale.
+ *
+ * Proof, watched 2026-10-16 on 3e06eb5a4 (the new box left at 0): failed on
+ * `in Full · Expected: 600 · Received: 0`.
+ */
+test('Full keeps the chart’s horizontal scroll on the way in and out', async ({
+  page,
+}, testInfo) => {
+  const refs = Array.from({ length: 14 }, (_, at) => `stage${String(at)}`);
+  const seeded = await seedPlan(
+    page,
+    { name: 'Full scroll', rows: refs.map((ref) => ({ ref, name: `Stage ${ref}` })) },
+    { run: 'scroll-stability', worker: testInfo.workerIndex, test: `full-${String(Date.now())}` },
+  );
+  const client = fixtureClient(page);
+  const project = fixtureSuccess(
+    'getApiProjectsById',
+    await client.getApiProjectsById({ params: { id: seeded.projectId } }),
+  ).body;
+  const stepId = project.steps[0].id;
+  fixtureSuccess(
+    'postApiProjectsByIdCommands',
+    await client.postApiProjectsByIdCommands({
+      params: { id: seeded.projectId },
+      body: {
+        commands: [
+          ...refs.map((ref) => ({
+            kind: 'setEstimate' as const,
+            workItemId: seeded.rowIds[ref],
+            stepId,
+            days: { optimistic: 4, realistic: 5, pessimistic: 6 },
+          })),
+          ...refs.slice(1).map((ref, at) => ({
+            kind: 'addDependency' as const,
+            workItemId: seeded.rowIds[ref],
+            predecessorId: seeded.rowIds[refs[at]],
+          })),
+        ],
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openSeededPlan(page, seeded);
+  await page.getByRole('button', { name: 'Gantt', exact: true }).click();
+  await expect(page.locator('[data-gantt-label]')).toHaveCount(refs.length);
+  const box = page.locator('[data-gantt-panel]');
+  await box.evaluate((port) => {
+    port.scrollLeft = 600;
+  });
+  await expect.poll(async () => (await readChartScroll(page)).left).toBe(600);
+  const split = await readChartScroll(page);
+
+  await page.locator('[data-gantt-fullscreen-toggle]').click();
+  await expect(page.locator('[data-gantt-fullscreen]')).toHaveCount(1);
+  await painted(page);
+  const full = await readChartScroll(page);
+  expect(full.left, 'in Full').toBe(split.left);
+  expect(full.month, 'the caption in Full').toBe(split.month);
+
+  // Scrolled somewhere else while full, so the way out carries its own offset.
+  await page.locator('[data-gantt-panel]').evaluate((port) => {
+    port.scrollLeft = 300;
+  });
+  await expect.poll(async () => (await readChartScroll(page)).left).toBe(300);
+  const fullMoved = await readChartScroll(page);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-gantt-fullscreen]')).toHaveCount(0);
+  await painted(page);
+  const back = await readChartScroll(page);
+  expect(back.left, 'after Close').toBe(fullMoved.left);
+  expect(back.month, 'the caption after Close').toBe(fullMoved.month);
 });
 
 test.describe('large-plan scroll stability', () => {

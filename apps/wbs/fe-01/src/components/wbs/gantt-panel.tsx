@@ -3614,7 +3614,8 @@ export function GanttRenderer({
   const viewportPxReading = useRef(0);
   /**
    * Takes {@link scrolledPx} off one scroll box: on its own scroll events, and
-   * whenever a box is mounted — Full puts the chart in a new box at 0.
+   * whenever a box is mounted — Full puts the chart in a new box, which the
+   * mount effect first scrolls to the old box's offset (F-126).
    */
   const readTheScroll = useCallback((port: HTMLElement): void => {
     if (port.scrollLeft === scrolledPxReading.current) return;
@@ -3719,9 +3720,22 @@ export function GanttRenderer({
     if (!(row instanceof HTMLElement)) {
       throw new Error("the chart's scroll box holds no content row to watch");
     }
-    // A new box starts at `scrollLeft` 0, and the caption's month and the
-    // marker-rule density are read off the scroll — so the offset is taken
-    // from the box on screen, not carried over from the one Full replaced.
+    // A new box starts at `scrollLeft` 0, so the offset the box Full replaced
+    // was left at is put on it first (ui-review F-126): a reader who scrolled to
+    // October and pressed Full lands on October, and again on Close. Pixels
+    // carry the day, because Full changes the box's width and not the scale.
+    // On the first mount the reading is 0 and this writes nothing. The browser
+    // clamps an offset past the new box's end.
+    //
+    // Proof: with this assignment removed, `e2e/scroll-stability.e2e.ts` `Full
+    // keeps the chart’s horizontal scroll on the way in and out` failed on `in
+    // Full · Expected: 600 · Received: 0`, and `gantt-panel.test.tsx` `carries
+    // the box's offset into Full and back out` on `expected +0 to be 236`.
+    // Watched 2026-10-16.
+    if (port.scrollLeft !== scrolledPxReading.current) port.scrollLeft = scrolledPxReading.current;
+    // Then the offset is taken from the box on screen, because the caption's
+    // month and the marker-rule density are read off the scroll and a clamped
+    // write lands short of what was asked.
     //
     // Proof: with this line removed, `gantt-panel.test.tsx` `names the month
     // of the box on screen after Full is switched on and off` failed on
