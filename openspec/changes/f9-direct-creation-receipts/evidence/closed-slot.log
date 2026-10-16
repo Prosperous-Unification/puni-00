@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+24 |       throw new Error('Expected refusal');
+25 |     },
+26 |     (cause: unknown) => cause,
+27 |   );
+28 |   expect(refusal).toBeInstanceOf(Error);
+29 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "slot"
+Received: "Error: ENOENT: no such file or directory, lstat '/tmp/wbs-test-5-02qYLk/creation-receipts-nASTrY/cdd167d5-f9b2-4b94-9200-776445bf8b19.operations'"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:29:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:247:9)
+(fail) refuses invalid slots and terminal journals before invoking Docker [19.45ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [255.00ms]

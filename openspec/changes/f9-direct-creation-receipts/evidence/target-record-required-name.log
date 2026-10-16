@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+25 |       throw new Error('Expected refusal');
+26 |     },
+27 |     (cause: unknown) => cause,
+28 |   );
+29 |   expect(refusal).toBeInstanceOf(Error);
+30 |   if (typeof expected === 'string') expect(String(refusal)).toContain(expected);
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Malformed creation operation"
+Received: "Error: Creation operation name mismatch"
+
+      at requireRefusal (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:30:61)
+      at async <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:532:11)
+(fail) refuses receipt missing required name [22.55ms]
+
+ 0 pass
+ 57 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [327.00ms]

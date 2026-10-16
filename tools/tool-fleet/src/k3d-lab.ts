@@ -17,7 +17,11 @@ import { type } from 'arktype';
 
 import { readToolchain } from './contracts';
 import { executeCreationAttempt } from './creation-journal';
+import { executeDirectCreation } from './creation-receipts';
+import { labNamesOf } from './k3d-lab-names';
 import { buildObjectStore, importObjectStore, readObjectStoreLock } from './object-store-image';
+
+export { type K3dLabNames, labNamesOf } from './k3d-lab-names';
 
 type K3dLabAction = 'up' | 'down' | 'status';
 export type K3dProfile = 'app' | 'platform' | 'fleet';
@@ -65,14 +69,6 @@ const SMALLER: Readonly<Record<K3dProfile, K3dProfile | undefined>> = {
 export interface HostCapacity {
   readonly availableMemoryMiB: number;
   readonly freeDiskMiB: number;
-}
-
-/** Lab-owned names. Every one embeds the lab ID, so two labs never share a context or network. */
-export interface K3dLabNames {
-  readonly platform: string;
-  readonly workers: string;
-  readonly registry: string;
-  readonly network: string;
 }
 
 /** A container or network Docker reports under the lab's ownership label. */
@@ -218,15 +214,6 @@ export function parseK3dLabRequest(arguments_: readonly string[]): K3dLabRequest
     profile,
     ...(worktreeRoot === undefined ? {} : { worktreeRoot: resolve(worktreeRoot) }),
     ...(solverRuntime === undefined ? {} : { solverRuntime: resolve(solverRuntime) }),
-  };
-}
-
-export function labNamesOf(labId: string): K3dLabNames {
-  return {
-    platform: `puni-${labId}-platform`,
-    workers: `puni-${labId}-workers`,
-    registry: `puni-${labId}-registry`,
-    network: `puni-${labId}`,
   };
 }
 
@@ -764,28 +751,32 @@ async function upLab(root: string, request: K3dLabRequest, tools: LabTools): Pro
   try {
     const announcement = await executeCreationAttempt(attempts, identity, async () => {
       const started = Date.now();
-      await run('docker', [
-        'network',
-        'create',
-        '--label',
-        `${LAB_LABEL}=${request.labId}`,
-        names.network,
-      ]);
-      await run('docker', [
-        'run',
-        '--detach',
-        '--name',
-        names.registry,
-        '--label',
-        `${LAB_LABEL}=${request.labId}`,
-        '--network',
-        names.network,
-        '--publish',
-        '127.0.0.1::5000',
-        '--restart',
-        'unless-stopped',
-        registryImage,
-      ]);
+      await executeDirectCreation(attempts, identity, 'network', () =>
+        run('docker', [
+          'network',
+          'create',
+          '--label',
+          `${LAB_LABEL}=${request.labId}`,
+          names.network,
+        ]),
+      );
+      await executeDirectCreation(attempts, identity, 'registry', () =>
+        run('docker', [
+          'run',
+          '--detach',
+          '--name',
+          names.registry,
+          '--label',
+          `${LAB_LABEL}=${request.labId}`,
+          '--network',
+          names.network,
+          '--publish',
+          '127.0.0.1::5000',
+          '--restart',
+          'unless-stopped',
+          registryImage,
+        ]),
+      );
       const published = await run('docker', ['port', names.registry]);
       requireLoopbackPublished(names.registry, published);
       const registryPort = Number(published.trim().split('\n')[0]?.split(':').at(-1));

@@ -24,7 +24,8 @@ export type CreationJournal = CreationIdentity & {
   readonly state: 'creating' | 'ready' | 'failed';
 };
 
-function requireIdentity(input: CreationIdentity): CreationIdentity {
+/** Validate the complete attempt identity before using it in trusted-state paths. */
+export function requireIdentity(input: CreationIdentity): CreationIdentity {
   const identity = IdentitySchema(input);
   // Proof: invalid identity consuming negative and path-escape creation negative fail if bypassed.
   if (identity instanceof type.errors)
@@ -32,7 +33,8 @@ function requireIdentity(input: CreationIdentity): CreationIdentity {
   return identity;
 }
 
-async function requireDirectory(directory: string): Promise<void> {
+/** Require a current-user-owned directory with exact owner-only permissions. */
+export async function requireDirectory(directory: string): Promise<void> {
   const status = await lstat(directory);
   // Proof: public-directory negative detects mode refusal; injected directory-UID consuming
   // negative detects removal of only the directory UID comparison (real fixture, isolated process).
@@ -46,7 +48,7 @@ async function requireDirectory(directory: string): Promise<void> {
 }
 
 /** Synchronize directory ancestry so newly created attempt directories survive with the file. */
-async function syncDirectory(directory: string): Promise<void> {
+export async function syncDirectory(directory: string): Promise<void> {
   for (let current = resolve(directory); ; current = dirname(current)) {
     const descriptor = await open(
       current,

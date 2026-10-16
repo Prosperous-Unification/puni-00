@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-fleet/src/creation-receipts.test.ts:
+20 |   operation: Promise<unknown>,
+21 |   expected?: string | RegExp,
+22 | ): Promise<void> {
+23 |   const refusal: unknown = await operation.then(
+24 |     () => {
+25 |       throw new Error('Expected refusal');
+                     ^
+error: Expected refusal
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:25:17)
+(fail) refuses inspected network kind mismatch independently of ID and label [21.91ms]
+20 |   operation: Promise<unknown>,
+21 |   expected?: string | RegExp,
+22 | ): Promise<void> {
+23 |   const refusal: unknown = await operation.then(
+24 |     () => {
+25 |       throw new Error('Expected refusal');
+                     ^
+error: Expected refusal
+      at <anonymous> (/tmp/f9-receipts-sol-oct16/tools/tool-fleet/src/creation-receipts.test.ts:25:17)
+(fail) refuses inspected registry kind mismatch independently of ID and label [12.65ms]
+
+ 0 pass
+ 56 filtered out
+ 2 fail
+Ran 2 tests across 1 file. [301.00ms]
