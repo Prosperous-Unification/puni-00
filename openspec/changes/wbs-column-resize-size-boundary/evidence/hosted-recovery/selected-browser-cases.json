@@ -1,0 +1,37 @@
+[
+  {
+    "title": "widens a column by dragging its header edge, and moves every pin behind it",
+    "testId": "9f98fd8c8d1538f5ebbb-2ff60d1ff9f7d01ea983",
+    "outcome": "expected",
+    "actualStatuses": ["passed"],
+    "errors": [[]]
+  },
+  {
+    "title": "still has the width it was dragged to after the browser is reloaded",
+    "testId": "9f98fd8c8d1538f5ebbb-ce29807677a758134a98",
+    "outcome": "expected",
+    "actualStatuses": ["passed"],
+    "errors": [[]]
+  },
+  {
+    "title": "gives every column back to the width the layout resolves for it now",
+    "testId": "9f98fd8c8d1538f5ebbb-360eb01d482bfe49bd9a",
+    "outcome": "expected",
+    "actualStatuses": ["passed"],
+    "errors": [[]]
+  },
+  {
+    "title": "widens the Name column by dragging its header edge, with its <col> silent",
+    "testId": "9f98fd8c8d1538f5ebbb-086c45925f0ef6b62eb1",
+    "outcome": "expected",
+    "actualStatuses": ["passed"],
+    "errors": [[]]
+  },
+  {
+    "title": "keeps every other column on its envelope while Name holds a dragged width",
+    "testId": "9f98fd8c8d1538f5ebbb-a69d838a7c6212cfab56",
+    "outcome": "expected",
+    "actualStatuses": ["passed"],
+    "errors": [[]]
+  }
+]

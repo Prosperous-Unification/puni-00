@@ -1,0 +1,2 @@
+["sliceKey","sliceKey","ScheduledSlice","haveSameSliceOrder","PlanOptimization.finishDays","IdentifiedSlice.boundBy","elsewhereHolders","DirectoryStore.assignmentsInProject","steps","steps","teamCapacities","DEFAULT_PRIORITY_BANDS","depReach"]
+PASS: five reviewed JSDoc links target their imported symbol names

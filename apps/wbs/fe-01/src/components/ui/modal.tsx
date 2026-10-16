@@ -75,6 +75,19 @@ export interface ModalContentProps extends ComponentPropsWithoutRef<
 }
 
 /**
+ * Whether an outside pointer event landed on a toast, which no modal treats as
+ * leaving it (see {@link ModalContent}).
+ *
+ * `[data-toast]` as well as the stack: Radix reports a mouse's pointer-down
+ * outside only once the click has landed, and by then the ✕ has dismissed its
+ * toast, so the target is a detached node whose ancestors stop at the toast it
+ * was in.
+ */
+function isToastTap(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest('[data-toasts], [data-toast]') !== null;
+}
+
+/**
  * Holds the page's keyboard back for as long as **this** is mounted, which is
  * for as long as the surface around it is on screen.
  *
@@ -125,7 +138,15 @@ export const ModalContent = forwardRef<
   ComponentRef<typeof DialogPrimitive.Content>,
   ModalContentProps
 >(function ModalContent(
-  { className, side = 'centre', closeButton = true, children, onPointerDownOutside, ...props },
+  {
+    className,
+    side = 'centre',
+    closeButton = true,
+    children,
+    onPointerDownOutside,
+    onInteractOutside,
+    ...props
+  },
   ref,
 ) {
   return (
@@ -143,22 +164,31 @@ export const ModalContent = forwardRef<
         // A toast is drawn above every modal (`--layer-toast`), so a tap on
         // its ✕ is a tap outside this surface, and Radix would close the
         // surface under it. Dismissing what happened is not leaving what the
-        // reader was doing.
+        // reader was doing. Decided here, **before** the caller hears of it,
+        // and for both hooks: Radix calls `onInteractOutside` right after
+        // `onPointerDownOutside` whatever that one prevented, and a caller that
+        // closes itself from `onInteractOutside` (`ProjectSettingsModal`) would
+        // otherwise still close.
         //
-        // `[data-toast]` as well as the stack: Radix reports a mouse's
-        // pointer-down outside only once the click has landed, and by then
-        // the ✕ has dismissed its toast, so the target is a detached node
-        // whose ancestors stop at the toast it was in.
-        //
-        // Proof: with this guard removed, `a refused import is drawn above the
-        // sheet it was chosen on` (`e2e/plan-import.spec.ts`) failed on the
-        // sheet being hidden after the toast's ✕ was tapped. Watched 2026-10-16.
+        // Proof: with this guard on `onPointerDownOutside` only, `a toast's ✕
+        // leaves Project settings open` (`e2e/project-settings.spec.ts`)
+        // failed on the dialog, `element(s) not found`; with no guard at all,
+        // `a refused import is drawn above the sheet it was chosen on`
+        // (`e2e/plan-import.spec.ts`) failed the same way on the Plan actions
+        // sheet. Watched 2026-10-16.
         onPointerDownOutside={(event) => {
-          onPointerDownOutside?.(event);
-          const target = event.target;
-          if (target instanceof Element && target.closest('[data-toasts], [data-toast]') !== null) {
+          if (isToastTap(event.target)) {
             event.preventDefault();
+            return;
           }
+          onPointerDownOutside?.(event);
+        }}
+        onInteractOutside={(event) => {
+          if (isToastTap(event.target)) {
+            event.preventDefault();
+            return;
+          }
+          onInteractOutside?.(event);
         }}
       >
         <PageShortcutsHeld />

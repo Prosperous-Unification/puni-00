@@ -1,0 +1,20 @@
+16 |     'uses the initial width across multiple moves and commits only on matching release',
+17 |   ),
+18 | );
+19 | assert(release.includes('measures an unresolved Name once and clamps its width'));
+20 | assert(release.includes('Number of calls: 0'));
+21 | assert(/Tests\s+1 failed \| 2 passed/.test(pointer));
+     ^
+AssertionError: false == true
+ generatedMessage: true,
+     actual: false,
+   expected: true,
+   operator: "==",
+       diff: "simple",
+       code: "ERR_ASSERTION"
+
+      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/assert-gesture-receipts.mjs:21:1
+
+::error file=proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/assert-gesture-receipts.mjs,line=21,col=1,title=AssertionError: false == true::%0A      at /home/runner/work/puni-00/puni-00/proof/openspec/changes/wbs-column-resize-size-boundary/evidence/recovery-proof/assert-gesture-receipts.mjs:21:1
+
+Bun v1.4.2 (Linux x64)

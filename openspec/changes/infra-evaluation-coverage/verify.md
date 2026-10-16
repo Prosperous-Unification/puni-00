@@ -181,9 +181,53 @@ The actual pre-commit launcher command
 ```
 
 This is an inactive launcher probe, not a Burokrat scan; normal hooks can run
-without a bypass in this environment. No commit or push has occurred. PM reviewed the cohesive implementation and
+without a bypass in this environment. No push has occurred. PM approved the implementation/evidence commit; see the
+wave9 integration record below. PM reviewed the cohesive implementation and
 found no new P0–P2 issues after the scope/attribution/exit refinements; final
 evidence review remains pending. The local full gate is unverified, so this
 report is scoped implementation evidence and does not authorize archive,
 admission, activation, native certification, deployment, live health or WBS120
 closure.
+
+## 7. Wave9 Integration
+
+Implementation/evidence commit: `fa9c0bfd5dd0722d52694b522c5587fa22dd5af0`,
+created through normal pre-commit and trailer hooks. Tool-wiki returned inactive;
+format, lint, plaintext-secrets and private-nesting passed. A two-line Markdown
+hard-break whitespace issue caught after staging was removed and the unpublished
+commit amended through normal hooks; the corrected staged diff check passed.
+
+Fetched `origin/integration/wbs-wave9-20261016` and verified its exact identity
+`8ab865f3f36052f4caac846aee7e5206f681d056` before merging that commit. The only
+content conflict was the unknown-command help list in `cli.ts`. The resolution
+retains both `inspect-evaluation-coverage` and `inspect-browser-t2`; both route
+bodies and the launcher registrations/help merged automatically. A built-help
+assertion now checks both commands. The glossary merged automatically.
+
+Both lockfiles still match SHA-256
+`15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c`, so the existing
+ignored dependency symlink remains the exact-lock setup.
+
+Fresh affected tests ran serially against the integrated working tree:
+
+```text
+evaluation-coverage.test.ts: 42 pass, 0 fail, 181 expect() calls [11.82s]
+coverage-runtime.test.ts: 3 pass, 0 fail, 12 expect() calls [3.54s]
+browser-t2.test.ts -t 'retains the complete citation partition|refuses .* CLI input':
+5 pass, 78 filtered out, 0 fail, 40 expect() calls [3.96s]
+gate-entrypoints.test.ts -t 'CI gives the complete uncached gate its chosen finite allowance':
+1 pass, 57 filtered out, 0 fail, 2 expect() calls [1087.00ms]
+```
+
+The timeout assertion proves the inherited CI repair expects the actual
+90-minute workspace allowance. No Browser process, full Burokrat scan or full Nx
+gate was run. The focused Browser T2 tests inspect diagnostic receipts only.
+
+Integrated CLI typecheck, ESLint over the 11 TypeScript paths changed from
+wave9, and Prettier over all 19 branch paths each exited 0. Typecheck and lint
+emitted no diagnostics; format printed `All matched files use Prettier code
+style!`. OpenSpec `--all --json` exited 0 with 235 items passed and 0 failed
+(217 changes, 18 specifications). No unresolved index entries remain, and the
+branch diff check relative to exact wave9 exited 0. The merge will
+be committed through normal hooks; the resulting exact head and tree go to PM
+before any guarded push. WBS120 remains `blocked_by_proxy` and noncertifying.

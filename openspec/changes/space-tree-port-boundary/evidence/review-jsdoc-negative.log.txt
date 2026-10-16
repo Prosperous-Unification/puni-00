@@ -1,0 +1,12 @@
+["import","import","ScheduledSlice","import","PlanOptimization.finishDays","IdentifiedSlice.boundBy","elsewhereHolders","import","steps","steps","teamCapacities","import","depReach"]
+ 9 |   ts.forEachChild(node, visit);
+10 | }
+11 | visit(source);
+12 | console.log(JSON.stringify(names));
+13 | for (const target of ['sliceKey', 'haveSameSliceOrder', 'DirectoryStore.assignmentsInProject', 'DEFAULT_PRIORITY_BANDS']) {
+14 |   if (!names.includes(target)) throw new Error(`JSDoc target does not resolve syntactically: ${target}`);
+                                              ^
+error: JSDoc target does not resolve syntactically: sliceKey
+      at /tmp/space-tree-jsdoc-check.ts:14:42
+
+Bun v1.4.2 (Linux x64)

@@ -11,7 +11,7 @@ import {
 import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import type { Monotonic, WallClock } from './clock';
-import { recordProgress } from './progress/record-progress';
+import { recordBoundProgress, recordProgress } from './progress/record-progress';
 
 const enrollmentFlags = [
   '--fleet',
@@ -44,13 +44,13 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
 }
 
 /**
- * Dispatches Dash's ten commands: `plan-enrollment` through the fixed fleet planner; the four
+ * Dispatches Dash's commands: `plan-enrollment` through the fixed fleet planner; the four
  * authority commands (`bootstrap-authority`, `inspect-authority`, `recover-publication`,
  * `submit-admission`) through the runtime admission authority; the two observation store commands
  * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store;
  * `render-observation-units` through the observation unit renderer; and `run-activation-checks`
  * through the stateless check runner, which spawns each check with {@link spawnCheck}.
- * `record-progress` records explicit operator assertions. Every other command refuses before any effect.
+ * `record-progress` and `record-progress-v2` record explicit operator assertions. Every other command refuses before any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -69,6 +69,10 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   };
   // Proof: injecting a fleet call here failed `dispatcher uses no clocks or fleet planner`
   // on its real dispatcher dependency canary (2026-10-15).
+  if (command === 'record-progress-v2') {
+    recordBoundProgress(argumentsAfterCommand, (text) => deps.stdout.write(text));
+    return;
+  }
   if (command === 'record-progress') {
     recordProgress(argumentsAfterCommand, (text) => deps.stdout.write(text));
     return;

@@ -61,6 +61,7 @@ test('built executable registers coverage before the installed authority boundar
     });
     expect(help.exitCode).toBe(0);
     expect(help.stdout.toString()).toContain('inspect-evaluation-coverage');
+    expect(help.stdout.toString()).toContain('inspect-browser-t2');
   } finally {
     rmSync(root, { recursive: true });
   }

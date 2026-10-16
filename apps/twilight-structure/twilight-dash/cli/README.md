@@ -136,3 +136,12 @@ Use Burokrat `validate-progress-receipt` to check the artifact and Navigator
 `receipt-to-commands` to prepare the existing WBS command batch. Applying it to current WBS
 state remains the existing person/MCP act; the receipt grants no authorship, certification,
 execution eligibility or current WBS authority.
+
+## `record-progress-v2`
+
+Use the same four flags as `record-progress` to explicitly produce schema 2. This bound
+receipt also copies the complete producer `referenceDigest`, covered by `receiptDigest`.
+Navigator `admit-progress` requires this version and an independently supplied
+`--accepted-reference`; its proposed batch is admitted only relative to that caller selection.
+Digests do not authenticate records or establish current WBS freshness. `record-progress`
+continues producing schema 1 for the existing conversion workflow.

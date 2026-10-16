@@ -222,3 +222,27 @@ test.describe('390x844 Plan actions sheet', () => {
     await expect(sheet).toBeVisible();
   });
 });
+
+test('a standing toast is drawn above the keyboard shortcuts sheet', async ({ page }) => {
+  await seededPlan(page, 'Plan import over the cheat sheet');
+  await page.locator('details[data-export] summary').click();
+  await page.getByLabel('Import JSON').setInputFiles({
+    name: 'broken.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{"broken"'),
+  });
+  const toast = page.locator('[data-toast="error"]');
+  await expect(toast).toHaveText(/This file is not JSON\./);
+  await page.locator('details[data-export] summary').click();
+  await page.getByRole('button', { name: 'Keyboard shortcuts' }).click();
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  const hit = await toast.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { insideToast: top !== null && node.contains(top), drawn: top?.outerHTML.slice(0, 80) };
+  });
+  // Proof: with the sheet's backdrop back at `z-100`, this failed on `the
+  // toast is covered by <div role="presentation" data-cheat-sheet-backdrop …`
+  // (UI review F-133). Watched 2026-10-16.
+  expect(hit.insideToast, `the toast is covered by ${String(hit.drawn)}`).toBe(true);
+});

@@ -155,3 +155,10 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1c.5b Implement strict closed authority, real Browser and Manual joins, complete B3/inventory validation, outcomes, supported-level limits, labelled debt and noncertifying envelope. Preserve old ledger v1/v2.
 - [x] 4.1c.5c Watch production guard/dependency negatives; run focused/adjacent tests, installed dispatch, scoped lint/typecheck/build, format, provenance and strict/all OpenSpec validation. Record evidence and commit exact clean candidate for Astra review.
 - [ ] 4.1c.5d Independent Astra review and coordinator release/CI/host acceptance. WBS080.39, parent ledgers, source reconciliation and certification remain open.
+
+## 4.1c.6 Browser T2 diagnostic consumer (WBS080.39)
+
+- [x] 4.1c.6a Record approved bounded intent and contract, allocate scenarios through the production allocator preserving the journal prefix, and observe production unknown-command RED.
+- [x] 4.1c.6b Implement direct real Browser-only ledger consumption, exact diagnostic joins, complete disjoint citation partition, full output and debt-independent successful exit. Cover malformed dependencies, strict input/authority boundaries and source/installed parity through production dispatch.
+- [x] 4.1c.6c Watch production-path negative guard/dependency mutations, add adjacent Proof comments, run sequential focused checks with memory monitoring, format and provenance/OpenSpec checks; record actual evidence and skips.
+- [ ] 4.1c.6d Independent Astra review of the committed draft PR and coordinator hosted exact-head/release/host acceptance. Coordinator owns restack and integration; WBS080.39 and parent ledgers remain open.

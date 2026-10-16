@@ -39,3 +39,38 @@ the intentional trusted-wiki skip, not certification. Hosted CI remains pending.
 
 The 90-minute cancellation boundary is supplied by GitHub Actions and has not been exercised
 locally. No new safety predicate is introduced.
+
+## Production entrypoint expectation repair
+
+Hosted [run 38864988637](https://github.com/Prosperous-Unification/puni-00/actions/runs/38864988637)
+for wave 8 head `58334f1d3548e8ded83fc72eb224731ee06a63a8` reported the stale
+`gate-entrypoints.test.ts` workspace expectation: `Expected: 60`, `Received: 90`.
+Wave 9 head `741840881376327bca23140cb8367c7528818dca` inherited the same test.
+The focused test reproduced that failure locally (0 pass, 1 fail, 57 filtered out).
+
+The test now expects the specified 90-minute workspace allowance. The Twilight assertion stays
+at 50 minutes. Production workflow and application source are unchanged. The adjacent `Proof:`
+comment records the actual production-workflow mutation and observed focused failure.
+
+Focused command, run serially from the isolated repository root:
+
+```sh
+bun test apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts --test-name-pattern 'CI gives the complete uncached gate its chosen finite allowance' --preload ./tools/test/scratch/preload.ts --timeout=60000
+```
+
+| State                                             | Observed outcome                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| Original expectation 60, production workspace 90  | Exit 1; 0 pass, 1 fail; Expected 60 / Received 90                  |
+| Corrected expectation 90, production workspace 90 | Exit 0; 1 pass, 0 fail; both workspace and Twilight assertions run |
+| Production workspace mutated from 90 to 60        | Exit 1; 0 pass, 1 fail; Expected 90 / Received 60                  |
+| Original workflow restored, adjacent proof added  | Exit 0; 1 pass, 0 fail; 57 filtered out, 2 assertions              |
+
+The temporary workflow mutation was restored byte-for-byte; `git diff -- .github/workflows/ci.yml`
+is empty. Scoped ESLint and Prettier passed; pinned OpenSpec 1.12.0 validated this change
+with 1 passed, 0 failed and no issues. Normal staged pre-commit hooks passed: ESLint, Prettier,
+plaintext-secrets and private-nesting. Tool Wiki reported inactive/uncertified because the external
+activation root is not provisioned. ESLint reported that `@nx/enforce-module-boundaries` was skipped
+because no cached project graph exists in the isolated checkout; no graph/full Nx run was started.
+Full local Nx, Burokrat and
+browser checks remain intentionally skipped for laptop RAM. Exact-head hosted CI and the canonical
+h2puni gate remain release requirements. No complete aggregate gate pass is claimed.
