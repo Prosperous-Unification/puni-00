@@ -95,6 +95,16 @@ sorted intersection and source union. Manual, Architecture and Performance remai
 Authentication is absent and `certifies:false`; no classification, isolation, execution,
 coverage or admission claim follows. Failed and skipped Browser outcomes remain observations.
 
+`inspect-browser-source-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>`
+composes the real Browser source owner and level inspectors for the same committed snapshot.
+It requires exact case IDs, files, outcomes, source tuples, report identity and complete level
+membership, then rereads the publication to refuse drift. Full upstream observations, module
+index review debt and typed isolation remain visible. Wrong-level emits JSON and exits one;
+isolated observations exit zero even with failed/skipped outcomes. A source owner identifies
+the test file's module; it supplies no tested-module claim, T2, coverage or admission authority.
+Authentication stays absent and certification false. Existing source and level commands retain
+their v1 output.
+
 `inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>`
 joins the real Browser Memberships and three source adapters for one exact committed candidate,
 mode and complete collection. The generic review must explicitly mark Manual reviewed-empty

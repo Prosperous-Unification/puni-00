@@ -42,6 +42,7 @@ const validatorCommands = new Set([
   // Proof: removing registration failed TEST-AXES-131's built installed Browser scenario dispatch.
   'inspect-browser-scenarios',
   // Proof: removing registration failed TEST-AXES-124's built installed Browser level dispatch.
+  'inspect-browser-source-levels',
   'inspect-browser-levels',
   'inspect-test-sources',
   // Proof: removing this documented diagnostic's registration failed the same packaged test.
@@ -81,6 +82,7 @@ commands:
   twilight-burokrat inspect-evaluation-coverage <repository> <full-sha> <external-rule-policy> <external-coverage-review>
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>
+  twilight-burokrat inspect-browser-source-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>
   twilight-burokrat inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>
   twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-spec-sources <repository> <committed-sha>
