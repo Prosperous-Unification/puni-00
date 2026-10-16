@@ -4312,3 +4312,74 @@ Selected target values include null, empty object and malformed strings. Selecte
 - Pinned `bunx --bun @fission-ai/openspec@1.12.0 validate test-axes --strict --json`: exit 0, 1/1 valid; `validate --all --json`: exit 0, **219/219 valid**, 201 changes and 18 specs (`/tmp/browser-performance-empty-openspec-{strict,all}.json`).
 
 No full host gate, exact-head hosted CI, push, merge, release or independent Astra review was performed by this worker. Those remain coordinator acceptance. Synthetic fixture successes establish only the bounded adapter/composer contracts.
+
+## Browser scenario diagnostic slice 4.1b.16 — local worker evidence (2026-10-16)
+
+Base: exact reviewed #517 head `08a252fc087155f031bc99ae7fc99c1543c9758b`, isolated shared-object clone `/tmp/wbs-browser-scenarios-sol`. Source `/tmp/wbs-browser-performance-membership` remains clean. Only Browser scenario source/tests, thin dispatch/help, owning README and test-axes artifacts/journal are changed; F9/FE/#514 paths remain untouched.
+
+### Allocation and RED
+
+Production `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md` allocated TEST-AXES-128..131. Before applying the proposed spec/journal, comparison proved the exact 175-event predecessor prefix preserved; precisely four allocations were appended. Fixture repositories also use the production allocator, with committed predecessor journal and selected successor specs. Candidate Browser and disjoint fixtures throw if executed.
+
+The first actual `invokeCli` owning test failed with `unknown command: inspect-browser-scenarios`, 0 pass/1 fail (`/tmp/browser-scenarios-red.log`); implementing dispatch and composition made the initial real-publication test pass, 1 pass/0 fail (`/tmp/browser-scenarios-first-green.log`). The complete pipeline uses real Browser levels and whole-tree B3 readers; supplied observation JSON is never accepted.
+
+### R5 watched production negatives
+
+Each row below changed only production source temporarily, ran its named production CLI test, observed the test runner exit 1 with a failed assertion, and restored the exact source before continuing. Coherent dependency faults wrap the real Browser levels reader and reseal changed return values; selected-reader faults and selected Git tag objects exercise their named boundaries. This table claims bounded guard detection, not authenticated observations or whole-repository acceptance.
+
+| Injected production fault | Observed failing test         | Evidence                                                                   |
+| ------------------------- | ----------------------------- | -------------------------------------------------------------------------- |
+| `sha`                     | `symbolic and annotated`      | `/tmp/browser-scenarios-watch-sha.log`; test runner exit 1                 |
+| `committed`               | `WATCH_committed`             | `/tmp/browser-scenarios-watch-committed.log`; test runner exit 1           |
+| `selected-revision`       | `symbolic and annotated`      | `/tmp/browser-scenarios-watch-selected-revision.log`; test runner exit 1   |
+| `revision`                | `WATCH_.*revision`            | `/tmp/browser-scenarios-watch-revision.log`; test runner exit 1            |
+| `candidate`               | `WATCH_.*candidate`           | `/tmp/browser-scenarios-watch-candidate.log`; test runner exit 1           |
+| `mode`                    | `WATCH_.*mode`                | `/tmp/browser-scenarios-watch-mode.log`; test runner exit 1                |
+| `digest`                  | `WATCH_.*digest`              | `/tmp/browser-scenarios-watch-digest.log`; test runner exit 1              |
+| `isolation`               | `real wrong level`            | `/tmp/browser-scenarios-watch-isolation.log`; test runner exit 1           |
+| `policy`                  | `WATCH_policy`                | `/tmp/browser-scenarios-watch-policy.log`; test runner exit 1              |
+| `scenarios-authority`     | `real wrong level`            | `/tmp/browser-scenarios-watch-scenarios-authority.log`; test runner exit 1 |
+| `capability`              | `source usage`                | `/tmp/browser-scenarios-watch-capability.log`; test runner exit 1          |
+| `terminal`                | `WATCH_terminal`              | `/tmp/browser-scenarios-watch-terminal.log`; test runner exit 1            |
+| `citation-grammar`        | `terminal malformed citation` | `/tmp/browser-scenarios-watch-citation-grammar.log`; test runner exit 1    |
+| `inactive`                | `terminal inactive citation   | retired citation`                                                          | `/tmp/browser-scenarios-watch-inactive.log`; test runner exit 1 |
+| `unidentified`            | `refuses unidentified`        | `/tmp/browser-scenarios-watch-unidentified.log`; test runner exit 1        |
+| `whole-tree`              | `unrelated competing`         | `/tmp/browser-scenarios-watch-whole-tree.log`; test runner exit 1          |
+| `nested`                  | `real nested suite`           | `/tmp/browser-scenarios-watch-nested.log`; test runner exit 1              |
+| `digest-payload`          | `real isolated Browser`       | `/tmp/browser-scenarios-watch-digest-payload.log`; test runner exit 1      |
+| `certification`           | `real isolated Browser`       | `/tmp/browser-scenarios-watch-certification.log`; test runner exit 1       |
+| `authentication`          | `real isolated Browser`       | `/tmp/browser-scenarios-watch-authentication.log`; test runner exit 1      |
+| `exit`                    | `terminal missing citation`   | `/tmp/browser-scenarios-watch-exit.log`; test runner exit 1                |
+| `arity`                   | `source usage`                | `/tmp/browser-scenarios-watch-arity.log`; test runner exit 1               |
+| `cli-mode`                | `source usage`                | `/tmp/browser-scenarios-watch-cli-mode.log`; test runner exit 1            |
+| `missing-kind`            | `terminal missing citation`   | `/tmp/browser-scenarios-watch-missing-kind.log`; test runner exit 1        |
+| `case-order`              | `canonical cases`             | `/tmp/browser-scenarios-watch-case-order.log`; test runner exit 1          |
+| `other-capability`        | `keeps passed failed skipped` | `/tmp/browser-scenarios-watch-other-capability.log`; test runner exit 1    |
+| `scenario-inventory`      | `real isolated Browser`       | `/tmp/browser-scenarios-watch-scenario-inventory.log`; test runner exit 1  |
+
+Installed-registration removal also failed TEST-AXES-131 through the real built executable (`/tmp/browser-scenarios-watch-installed-registration.log`, test runner exit 1); the original Browser levels registration Proof remains adjacent to its original entry.
+
+Adjacent `Proof:` comments name the corresponding injected faults and observed assertions. Restored runs cover complete nested levels/report/specifications, original passed/failed/skipped outcomes, active other-capability citations, retired/unknown/malformed/missing citations, real nested suites, requested unidentified refusal, unrelated B3 debt and competing overlays, exact candidate/revision/mode/policy/digests/isolation, authority absence versus unreadability, source/publication refusals, canonical ordering and full-envelope digest. Installed dispatch compares exact source JSON and exercises findings and usage exit statuses.
+
+### Check limitations and corrected attempts
+
+- `openspec` was absent on PATH and in the local `.bin`; the pinned `bunx --bun @fission-ai/openspec@1.12.0` executable provided required checks.
+- Initial Nx without explicit isolation settings exited zero after socket-denial diagnostics without running a target (`/tmp/browser-scenarios-typecheck.log`). This is not accepted as typecheck evidence. Scoped Nx was rerun with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false` and actual target success output is required below.
+- Initial real typecheck caught an unnameable inferred nested `Source` type and test assertions; an explicit named envelope using `ReturnType` and precise test report types fixed the errors without production casts. Initial ESLint identified import ordering, dot notation and an unnecessary test assertion; its autofix changed those mechanical test expressions. Initial all-skipped diagnostic fixtures were rejected by the existing upstream Browser contract; they now contain an unrelated passing active citation so the desired skipped citation reaches the scenario inspector. Removing `policy.scenarios` also changes the report policy identity, so that test repins the real report before checking the intended named scenario-authority refusal.
+- Two edit/format attempts used repository-relative paths from the CLI subdirectory and failed before changing files; subsequent root-scoped commands applied the intended edits. Their test commands still ran and do not establish acceptance of later test additions.
+
+No full h2puni host gate, exact-head hosted CI, push, merge, release or independent Astra review was performed by this worker. Coordinator acceptance and parent WBS080.39, T2, source reconciliation, coverage, certification and Tasks 2.1/2.2a/2.2/4.1 remain open. Synthetic fixture success proves only the bounded diagnostic contracts.
+
+### Scoped acceptance
+
+- Final restored owning source suite: `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-scenarios.test.ts --timeout=120000` from the CLI directory, exit 0, **28 pass, 0 fail, 202 assertions** (`/tmp/browser-scenarios-owning-final.log`). This run includes source/installed parity, outcomes, all coherent guard faults, nested citations and canonical identity after the mechanical test fixes.
+- The final additional test `--test-name-pattern 'validly unobserved'` passed separately: exit 0, **1 pass, 0 fail, 6 assertions**, 28 intentionally filtered (`/tmp/browser-scenarios-unobserved-final.log`). It proves active other-capability observations leave every requested row unobserved without findings and exit zero. The final file has 29 tests in total.
+- Restored installed executable after its registration-removal proof: exit 0, **1 pass, 0 fail, 9 assertions**, 28 intentionally filtered (`/tmp/browser-scenarios-installed-restored.log`). This compares complete source/installed JSON and checks findings exit 1 and refusal stderr without JSON.
+- Scoped uncached Nx `twilight-burokrat:typecheck`, with `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`: exit 0 with `Successfully ran target typecheck` (`/tmp/browser-scenarios-typecheck-last.log`). The final added test was included.
+- Scoped uncached Nx `twilight-burokrat:build` with the same environment: exit 0 with `Successfully ran target build ... and 3 tasks it depends on` (`/tmp/browser-scenarios-build-last.log`).
+- Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md`: exit 0, `{"unidentified":[]}` (`/tmp/browser-scenarios-provenance.json`). Fresh predecessor comparison confirmed 175 prior journal events preserved plus exactly four allocations.
+- Pinned OpenSpec `validate test-axes --strict --json`: exit 0, **1/1 valid**; `validate --all --json`: exit 0, **219/219 valid** (`/tmp/browser-scenarios-openspec-{strict,all}-last.json`).
+- Changed-file Prettier check passed with `All matched files use Prettier code style!` (`/tmp/browser-scenarios-format-check.log`), and `git diff --check` exited 0. Final documentation changes are checked again before commit.
+- Final uncached scoped Nx `twilight-burokrat:lint:source`, with daemon/plugin isolation disabled: exit 0 with `Successfully ran target lint:source` (`/tmp/browser-scenarios-lint-last.log`). Includes the final test addition and dispatch registration Proof placement.
+- Broad regression from the CLI directory: `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-scenarios.test.ts ./src/evidence/browser-levels.test.ts ./src/evidence/browser-performance.test.ts ./src/evidence/browser-architecture.test.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/browser-memberships.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/performance-levels.test.ts ./src/evidence/performance-scenarios.test.ts ./src/rules/specifications.test.ts --timeout=120000`: exit 0, **263 pass, 0 fail, 3486 assertions across 9 actual files**, 562.80 seconds (`/tmp/browser-scenarios-focused-final.log`). The listed `browser-memberships.test.ts` does not exist at this head and Bun silently did not collect it; Browser membership TEST-AXES-093..095 cases live in `test-reports.test.ts` and did run. This broad run started with the 28-test Browser scenario file; the final additional unobserved case is covered separately and in the final owning run below. Mechanical test lint fixes and adjacent Proof comments overlapped the broad run. A separate installed-registration fault probe also ran after this run had finished its Browser scenario file; that probe was restored and its owning installed case was rerun successfully. This broad run is adjacent regression evidence, not frozen whole-repository acceptance. The final owning run below uses the fully restored final files.
+- Final complete restored owning file: `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-scenarios.test.ts --timeout=120000` from the CLI directory: exit 0, **29 pass, 0 fail, 208 assertions**, 66.17 seconds (`/tmp/browser-scenarios-owning-29-final.log`). This supersedes the earlier 28-plus-one split for final owning-file acceptance and includes source and built installed dispatch after every production fault was restored.

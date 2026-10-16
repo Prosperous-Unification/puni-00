@@ -453,6 +453,30 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       );
     });
   }
+  if (args[0] === 'inspect-browser-scenarios') {
+    const mode = args[4];
+    // Proof: removing arity or mode independently failed TEST-AXES-131's named production usage refusals.
+    if (args.length !== 10 || (mode !== 'ordinary' && mode !== 'packaged' && mode !== 'portable'))
+      throw new Error(
+        'usage: twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>',
+      );
+    return import('./evidence/browser-scenarios').then(({ inspectBrowserScenarios }) => {
+      const observation = inspectBrowserScenarios(
+        args[1],
+        args[2],
+        args[3],
+        mode,
+        args[5],
+        args[6],
+        args[7],
+        args[8],
+        args[9],
+      );
+      process.stdout.write(`${JSON.stringify(observation)}\n`);
+      // Proof: removal made TEST-AXES-129's missing-terminal findings exit zero.
+      if (observation.citationFindings.length !== 0) process.exitCode = 1;
+    });
+  }
   if (args[0] === 'inspect-browser-levels') {
     const mode = args[4];
     // Proof: independently removing arity or mode validation failed TEST-AXES-124's named usage assertions.
@@ -692,7 +716,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-scenarios|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

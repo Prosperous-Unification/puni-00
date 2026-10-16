@@ -131,3 +131,7 @@ coverage, admission, receipts, source reconciliation or closing parent WBS080.39
 ## Browser Performance reviewed-empty slice 4.1b.15
 
 Problem: the Browser composer cannot represent a project with no declared Performance membership. Outcome: explicit version-2 reviewed-empty Performance authority joined to the exact selected manifest and complete Browser report. Constraints: preserve v1 committed behavior, strict closed v2 dispositions and selected-source pins, reject selected Performance target/declaration contradictions, preserve complete outcomes and source union, unknown unrelated rows and certifies:false. Non-goals: creating or executing FE Performance declarations, coverage, admission, authentication, release or completing WBS080.39.
+
+## 4.1b.16 intent
+
+Problem: isolated Browser publications have no bounded diagnostic join to adopted active scenarios. Outcome: inspect every case in a real isolated Browser collection against full B3 specification selection, then enumerate the requested capability's adopted scenarios with complete recorded outcomes or unobserved-in-selection. Constraints: exact committed candidate/revision/mode, external policy identity, canonical upstream digests, whole-tree selection before capability filtering, terminal title citations only, visible invalid and other-capability citations, full nested reports and noncertifying digest. Non-goals: executing candidate fixtures, accepting supplied observations, coverage, authentication, admission, source reconciliation and parent ledger completion.
