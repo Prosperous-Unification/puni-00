@@ -141,14 +141,17 @@ typed into the box SHALL NOT make a project match.
 
 The open listbox SHALL be bounded by the viewport: no entry, however long,
 SHALL push it past the window edge or give the document a horizontal scroll.
-An entry too wide for that bound SHALL be truncated, and the entry SHALL carry
-its full untruncated text — name and meta — in a hover title.
+An entry too wide for that bound SHALL wrap inside it, and the entry SHALL
+carry its full text — name and meta — in a hover title.
 
 The half that truncates SHALL be the meta, never the name (amended 2026-08-10,
 Dany: a long owner name squeezed every project name to `New pr…` and the picker
-offered choices nobody could tell apart). The name SHALL be shown whole up to
-the listbox's own width; only a name wider than the listbox itself may clip at
-the box's edge, and the title still carries the whole of it.
+offered choices nobody could tell apart). The name SHALL be shown whole: a name
+wider than the listbox SHALL wrap onto further lines and SHALL NOT clip at the
+box's edge (amended 2026-10-16, UI review F-086, change `ui-review-sheet-picker`:
+an import's dated suffix is at the end of its name, so a clipped name made two
+imports read alike). The meta SHALL take a line of its own when the name leaves
+it no room, and only the meta SHALL truncate.
 
 #### Scenario: the name is never the half that gives way
 
@@ -171,12 +174,12 @@ observe this bound and does not satisfy it.
 - **THEN** the listbox's right edge is inside the viewport and the document has
   gained no horizontal scroll
 
-#### Scenario: the entry is truncated, not the page
+#### Scenario: the entry wraps, not the page
 
 - **GIVEN** that same entry
 - **WHEN** it is shown
-- **THEN** its visible text is clipped short of its full text, and its title
-  carries the full name and meta
+- **THEN** its name is drawn whole on more than one line inside the listbox, and
+  its title carries the full name and meta
 
 #### Scenario: a short entry is not truncated
 

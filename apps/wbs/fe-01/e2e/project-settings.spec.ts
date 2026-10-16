@@ -423,3 +423,62 @@ test.describe('the project settings control, in a browser', () => {
     expect((openCard?.x ?? 0) + (openCard?.width ?? 391)).toBeLessThanOrEqual(390);
   });
 });
+
+/** Raises an error toast that stands until dismissed: a file that is not JSON. */
+async function raiseAStandingToast(page: Page, scope = page.locator('body')): Promise<void> {
+  await scope.locator('details[data-export] summary').click();
+  await scope.getByLabel('Import JSON').setInputFiles({
+    name: 'broken.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{"broken"'),
+  });
+  await expect(page.locator('[data-toast="error"]')).toHaveText(/This file is not JSON\./);
+}
+
+test.describe('a toast over Project settings', () => {
+  test('a toast’s ✕ leaves Project settings open', async ({ page }) => {
+    await freshProject(page);
+    await raiseAStandingToast(page);
+    await page.locator('details[data-export] summary').click();
+    await page.getByRole('button', { name: 'Project settings' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Project settings' });
+    await expect(dialog).toBeVisible();
+
+    const toast = page.locator('[data-toast="error"]');
+    await toast.getByRole('button', { name: /^Dismiss: / }).click();
+    await expect(toast).toHaveCount(0);
+    // Proof: with `ModalContent` guarding only `onPointerDownOutside`, Radix
+    // still called the dialog's own `onInteractOutside`, which closes Project
+    // settings, and this failed on `getByRole('dialog', { name: 'Project
+    // settings' })` — `element(s) not found`. Watched 2026-10-16.
+    await expect(dialog).toBeVisible();
+  });
+
+  test.describe('390x844', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    test('a toast’s ✕ keeps both Plan actions and Project settings open', async ({ page }) => {
+      await page.goto('/');
+      await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+      await createProject(page);
+      await page.getByRole('button', { name: 'Plan actions' }).click();
+      const sheet = page.getByRole('dialog', { name: 'Plan actions' });
+      await expect(sheet).toBeVisible();
+      await raiseAStandingToast(page, sheet);
+      await sheet.getByRole('button', { name: 'Project settings' }).click();
+      const settings = page.getByRole('dialog', { name: 'Project settings' });
+      await expect(settings).toBeVisible();
+
+      const toast = page.locator('[data-toast="error"]');
+      await toast.getByRole('button', { name: /^Dismiss: / }).click();
+      await expect(toast).toHaveCount(0);
+      // Proof: the same fault as above failed here on the settings dialog,
+      // `element(s) not found`, while the sheet under it stayed. Watched
+      // 2026-10-16.
+      await expect(settings).toBeVisible();
+      // By its surface, not its role: the dialog over it hides the sheet from
+      // the accessibility tree while it is open, not from the screen.
+      await expect(page.locator('[data-modal-surface="bottom"]')).toBeVisible();
+    });
+  });
+});
