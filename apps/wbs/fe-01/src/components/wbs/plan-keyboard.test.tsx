@@ -9,6 +9,14 @@ import { recordCalls } from '@/testing/record-calls';
 import { WbsTableOverClient } from '@/testing/wbs-table-over-client';
 
 import type * as TableFrameModule from './table-frame';
+import * as keyboard from './use-plan-keyboard';
+import * as keyboardState from './use-plan-keyboard-state';
+
+it('preserves keyboard state and effects through the public facade', () => {
+  expect(keyboard.usePlanKeyboardState).toBe(keyboardState.usePlanKeyboardState);
+  expect(keyboard.usePlanKeyboardEffects).toBe(keyboardState.usePlanKeyboardEffects);
+  expect(keyboard.ARM_WINDOW_MS).toBe(keyboardState.ARM_WINDOW_MS);
+});
 
 /** The two elements a table cell can be, since a wrapping cell is a textarea. */
 const isCell = (node: unknown): node is HTMLInputElement | HTMLTextAreaElement =>
