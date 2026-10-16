@@ -1,0 +1,4 @@
+{
+  "receiptSha256": "f078db5fb32f202ef3018a0d88a9a19792657203d9ea4bb4d700bad125fcdb1b",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/cri.probe.ts:\n27 |     new Response(probe.stdout).text(),\n28 |     new Response(probe.stderr).text(),\n29 |     probe.exited,\n30 |   ]);\n31 |   expect(exitCode).not.toBe(0);\n32 |   expect(stdout).toBe('');\n                      ^\nerror: expect(received).toBe(expected)\n\n- \"\"\n+ \"{\"direct\": [\"version\"], \"exit\": 0, \"stdout\": \"\", \"stderr\": \"\"}\n+ {\"daemonReaped\": true, \"daemonExit\": 0}\n+ \"\n\n- Expected  - 1\n+ Received  + 3\n\n      at <anonymous> (/tmp/f9-cri-transport-sol/tools/tool-devsync/feasibility/source-memory-relay/cri.probe.ts:32:18)\n(fail) rejects a different crictl executable before starting the daemon [303.52ms]\n\n 0 pass\n 1 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [309.00ms]\n"
+}

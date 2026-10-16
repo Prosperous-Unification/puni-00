@@ -120,11 +120,21 @@ static int launch_client(struct Relay *relay, char **arguments) {
   if (relay->child < 0) return refuse_relay(relay, "fork");
   if (relay->child == 0) {
     int silence = open("/dev/null", O_RDWR | O_CLOEXEC);
-    if (silence < 0 || dup2(silence, STDIN_FILENO) < 0 || dup2(silence, STDERR_FILENO) < 0) _exit(125);
+    if (silence < 0 || dup2(silence, STDIN_FILENO) < 0 || dup2(strcmp(arguments[5], "--cri") == 0 ? STDOUT_FILENO : silence, STDERR_FILENO) < 0) _exit(125);
     close(silence);
     char *client[] = { arguments[4], "-I", arguments[5], "client", relay->socket_path, arguments[6], arguments[7], NULL };
     char *environment[] = { "PATH=/usr/bin:/bin", NULL };
-    execve(arguments[4], client, environment);
+    if (strcmp(arguments[5], "--cri") == 0) {
+      /* socket_path is a terminated 108-byte array; seven prefix bytes fit. */
+      char endpoint[sizeof(relay->socket_path) + 8];
+      snprintf(endpoint, sizeof(endpoint), "unix://%s", relay->socket_path);
+      char *cri[] = { arguments[4], "--config", arguments[7], "--runtime-endpoint", endpoint,
+        "--image-endpoint", endpoint, "--timeout", "1s", NULL, NULL, NULL, NULL, NULL };
+      if (strcmp(arguments[6], "version") == 0) cri[9] = "version";
+      else if (strcmp(arguments[6], "list") == 0) { cri[9] = "ps"; cri[10] = "-a"; cri[11] = "-o"; cri[12] = "json"; }
+      else { cri[9] = "inspect"; cri[10] = "f9-probe-absent"; }
+      execve(arguments[4], cri, environment);
+    } else execve(arguments[4], client, environment);
     _exit(126);
   }
   relay->child_reference = (int)syscall(SYS_pidfd_open, relay->child, 0);
@@ -242,6 +252,9 @@ int main(int count, char **arguments) {
   signal(SIGPIPE, SIG_IGN);
   long long started = read_clock();
   if (started < 0 || count != 8) return 64;
+  /* Proof: removing this fixed read-only selection guard reaches BOUND for
+   * "forbidden" in the explicit CRI consuming probe (2026-10-16). */
+  if (strcmp(arguments[5], "--cri") == 0 && strcmp(arguments[6], "version") != 0 && strcmp(arguments[6], "list") != 0 && strcmp(arguments[6], "status") != 0) return 64;
   relay.deadline = started + 1500;
   char *end; errno = 0; long expected = strtol(arguments[2], &end, 10);
   if (errno != 0 || *arguments[2] == '\0' || *end != '\0' || expected <= 1 || expected > INT_MAX) return 64;
