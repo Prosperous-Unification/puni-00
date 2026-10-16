@@ -141,3 +141,65 @@ bootstrap-policy loader: **2 passed, 70 assertions, 13.50s**
 exited 0 but explicitly skipped `@nx/enforce-module-boundaries` because this
 isolated clone has no cached project graph (`/tmp/f9-policy-eslint.log`); that
 rule is unverified locally. Independent Astra source review found no P0–P3 issues.
+
+## Explicit CRI observation (2026-10-16)
+
+```sh
+CRI_PROBE_CRICTL=/absolute/path/to/crictl bun test ./tools/tool-devsync/feasibility/source-memory-relay/cri.probe.ts
+```
+
+This separate opt-in probe requires `/usr/bin/containerd`, the original native
+probe prerequisites, and the Linux amd64
+[crictl v1.35.0 release](https://github.com/kubernetes-sigs/cri-tools/releases/tag/v1.35.0).
+The downloaded archive SHA256 matched its release checksum:
+`2e141e5b22cb189c40365a11807d69b76b9b3caced89fac2f4ec879408ce2177`.
+The extracted executable is independently pinned in the fixture:
+`53f836ba94d4d4b5ac2a1d1df6ca7e7159ec994c8d8ea834469910cd5f7de4c6`.
+A checksum match is the observed verification; no signature verification ran.
+The probe never downloads tools or selects the host runtime. It starts an
+unprivileged containerd with fresh private config/root/state/grpc/ttrpc paths,
+native snapshotter, private CNI/CDI paths and disabled NRI; it creates no Pods,
+containers or images. Missing tools or a wrong binary digest fail explicitly.
+
+The native `--cri` fixture mode selects only `version`, `list` or `status`,
+executes crictl as its direct child, and retains the existing one connection,
+1.5-second deadline, 128KiB aggregate byte cap, identity checks and strict drain
+behavior. Child diagnostics share stdout so CRI errors remain observable.
+Python bounds daemon startup to 5 seconds, individual subprocesses to 3–4 seconds,
+and each terminate/kill reap attempt to 2 seconds. These fixture containment
+budgets are separate from the native deadline and do not guarantee wall time
+under scheduling delays or uninterruptible kernel waits.
+
+Observed with current-user containerd v2.3.4:
+
+- Direct disposable baselines: Version and parsed empty ListContainers JSON
+  succeed; ContainerStatus for `f9-probe-absent` reports CRI NotFound.
+- Through the native relay, Version prints containerd v2.3.4 / CRI v1. Some
+  observations exit 0; others refuse after the response with read/write errors.
+- ListContainers and ContainerStatus fail before their target operation while
+  initializing a second image-service connection: the one-connection listener
+  has closed and crictl reports connection refused. Upstream
+  [ps/inspect setup](https://github.com/kubernetes-sigs/cri-tools/blob/v1.35.0/cmd/crictl/container.go)
+  unconditionally initializes both services.
+- The decisive [syscall receipt](evidence/cri/shutdown.strace.json) records
+  crictl exit 0, client EOF, `shutdown(upstream, SHUT_WR) = 0`, then a 17-byte
+  upstream HTTP/2 PING acknowledgment and `write(client, 17) = -1 EPIPE`.
+  Valid application output therefore does not imply complete byte drain.
+  Native refusal remains mandatory; no tail bytes are discarded to claim success.
+
+A passing `cri.probe.ts` means these limited observations and cleanup checks
+matched the recorded outcomes. It is **not CRI transport acceptance**. The
+parent stopped the fixed two-pair experiment at this shutdown blocker and its
+unproven implementation was removed from the review diff. Modeling protocol
+completion must precede that continuation. The OpenSpec
+[remaining tasks](../../../../openspec/changes/f9-cri-relay-feasibility/tasks.md)
+and all production F9/WBS tasks remain open. Generic probes remain separate.
+
+The final serial CRI observation run passed **2 cases, 5 assertions** in 494ms;
+GNU time reported **55,760 KiB maximum RSS**, 0.49 seconds, zero swaps. The generic
+regression passed **26 cases, 117 assertions**, 27.44 seconds, **34,188 KiB maximum
+RSS**, zero swaps. RSS is not a summed simultaneous tree measurement. The new
+command allowlist and executable digest checks each have a watched omission
+failure. Full local Nx gates, project ESLint/typecheck, h2puni gate, CI, deployment
+and production CRI acceptance were not run. All receipts and source identities
+are in [evidence/cri](evidence/cri).

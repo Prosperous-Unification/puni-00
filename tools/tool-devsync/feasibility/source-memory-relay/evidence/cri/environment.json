@@ -1,0 +1,38 @@
+{
+  "baseCommit": "233759a125e95a8d47c1a740944c32c89f55dd6c",
+  "sourceSha256": {
+    "relay.c": "ae449ece8cc082f0ec7153173f38a8c83839fc9cf2aeffda0b8168618f05d167",
+    "cri.probe.ts": "a17db5709e4567de44201a7dcf7feed6ca65c598d6affc60838e12219a607a64",
+    "cri_fixture.py": "ce351a4d53a951309a400cdaaa8b9c4eef036f96a8f438f20d09da9331e3220e"
+  },
+  "criArchiveSha256": "2e141e5b22cb189c40365a11807d69b76b9b3caced89fac2f4ec879408ce2177",
+  "criExecutableSha256": "53f836ba94d4d4b5ac2a1d1df6ca7e7159ec994c8d8ea834469910cd5f7de4c6",
+  "containerdVersion": "containerd containerd v2.3.4 db8809540e1a7a9da5d518876894933ff55692ab",
+  "bunVersion": "1.4.2",
+  "validation": {
+    "totals": {
+      "items": 238,
+      "passed": 238,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 220,
+        "passed": 220,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "abandonedPairedPatch": {
+    "localPath": "/tmp/f9-cri-two-abandoned.patch",
+    "sha256": "abf9fa341a8d302aac236a54b4d3ae7fe2919996b85c14028501a20385c111c8",
+    "baseCommit": "233759a125e95a8d47c1a740944c32c89f55dd6c",
+    "status": "abandoned, not included in review source"
+  },
+  "shutdownTraceScope": "The traced --cri invocation used the abandoned candidate source; its single-pair forward_bytes/read_queue/write_queue functions are unchanged from base and reviewed source. The trace does not validate the abandoned two-pair path."
+}
