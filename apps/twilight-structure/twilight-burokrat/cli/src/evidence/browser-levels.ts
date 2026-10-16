@@ -85,13 +85,19 @@ export function inspectBrowserLevels(
     mode,
     architecturePath,
   );
-  const performance = inspectBrowserPerformance(root, revision, policyPath, mode, performancePath);
+  const performanceObservation = inspectBrowserPerformance(
+    root,
+    revision,
+    policyPath,
+    mode,
+    performancePath,
+  );
   const collection = [...new Set(review.report.cases.map((browserCase) => browserCase.file))].sort(
     compareCanonicalText,
   );
   // Proof: removal lost TEST-AXES-121's WATCH_empty named refusal for an empty real-reader projection.
   if (collection.length === 0) throw new Error('Browser levels collection is empty');
-  for (const observation of [review, conformance, architecture, performance]) {
+  for (const observation of [review, conformance, architecture, performanceObservation]) {
     const report = observation.report;
     // Proof: independently removing these joins lost WATCH_revision/candidate/mode's named production refusals in TEST-AXES-121.
     if (report.revision !== revision)
@@ -127,9 +133,9 @@ export function inspectBrowserLevels(
     architecture.memberships.manual,
     architecture.memberships.conformance,
     architecture.memberships.performance,
-    performance.memberships.manual,
-    performance.memberships.conformance,
-    performance.memberships.architecture,
+    performanceObservation.memberships.manual,
+    performanceObservation.memberships.conformance,
+    performanceObservation.memberships.architecture,
   ]) {
     // Proof: removal accepted TEST-AXES-122's promoted unrelated row in WATCH_unknown.
     if (hashCanonical(membership) !== hashCanonical({ kind: 'unknown' }))
@@ -148,14 +154,14 @@ export function inspectBrowserLevels(
   };
   for (const browserCase of review.report.cases)
     addSource({ path: browserCase.file, ...browserCase.source });
-  for (const observation of [conformance, architecture, performance]) {
+  for (const observation of [conformance, architecture, performanceObservation]) {
     // Proof: independent removal failed TEST-AXES-121's WATCH_root/manifest-pin named scope and pin assertions.
     if (observation.projectRoot !== conformance.projectRoot)
       throw new Error('Browser levels project root differs between adapters');
     if (hashCanonical(observation.projectManifest) !== hashCanonical(conformance.projectManifest))
       throw new Error('Browser levels project manifest differs between adapters');
   }
-  for (const observation of [conformance, architecture, performance]) {
+  for (const observation of [conformance, architecture, performanceObservation]) {
     const paths = new Set<string>();
     for (const source of observation.sources) {
       // Proof: removal accepted TEST-AXES-121's WATCH_duplicate repeated source identity.
@@ -194,7 +200,9 @@ export function inspectBrowserLevels(
     architectureFixtures: new Set(
       selectMembership(architecture.memberships.architecture, collection),
     ),
-    performanceFiles: new Set(selectMembership(performance.memberships.performance, collection)),
+    performanceFiles: new Set(
+      selectMembership(performanceObservation.memberships.performance, collection),
+    ),
     browserFiles: new Set(collection),
   };
   const bindings = collection.map((fixture) => {
@@ -222,11 +230,11 @@ export function inspectBrowserLevels(
     reviewObservationDigest: review.observationDigest,
     conformanceObservationDigest: conformance.observationDigest,
     architectureObservationDigest: architecture.observationDigest,
-    performanceObservationDigest: performance.observationDigest,
+    performanceObservationDigest: performanceObservation.observationDigest,
     review,
     conformance,
     architecture,
-    performance,
+    performance: performanceObservation,
     collection,
     // Proof: reversed union order or duplicated tuples failed TEST-AXES-120's complete sorted source assertion.
     sources: [...sources.values()].sort((left, right) =>

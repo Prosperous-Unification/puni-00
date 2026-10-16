@@ -4233,3 +4233,36 @@ activation, receipt, source reconciliation, T2, coverage, admission or WBS closu
 ran in this worker. The exact local candidate requires independent Astra review;
 the coordinator owns integration and release/host acceptance. Parent tasks and
 WBS080.39 remain open.
+
+### Browser composer clock-name CI repair — 2026-10-16
+
+Hosted PR #507 head `f4b89c05ae8162f4da3d13518b11aab3620e5c35` failed job
+`116727021767`: `twilight-burokrat:test` was the sole failed task, with 1,608
+passing tests and one failure across 82 files. The sole failure was the existing
+`the Burokrat package reads no clock` production policy test, which rejects value
+identifiers named `performance` even when the binding contains recorded facts.
+The downloaded job log showed no unrelated failure.
+
+Renamed the local Browser composer binding to `performanceObservation`, retaining
+the serialized `performance` property explicitly. The scanner and policy test are
+unchanged. This mechanical repair requires no new behavior spec or safety check.
+
+Proof: before the rename, the exact production command
+`bun test apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts --test-name-pattern 'the Burokrat package reads no clock'`
+exited 1 with zero pass, one fail and all ten reported `performance` identifiers
+in `evidence/browser-levels.ts`. After the rename, the same command exited 0 with
+one pass, zero fail and two assertions.
+
+Scoped uncached `twilight-burokrat:lint:source` and `twilight-burokrat:typecheck`
+passed. Pinned `bunx @fission-ai/openspec@1.12.0 validate test-axes --strict --json`
+passed 1/1; `validate --all --json` passed 219/219. Nx reported denied plugin
+worker sockets and used its documented main-process fallback during lint.
+
+Focused composer command:
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-levels.test.ts --preload ./tools/test/scratch/preload.ts --timeout=120000`
+passed 14 tests, 242 assertions, zero failures in 101.30 seconds, including actual
+built installed isolated and wrong-level executable observations
+(`/tmp/pr507-browser-levels-fix-tests.log`).
+
+No push, merge, host gate, full Nx gate, hosted rerun, release or deployment was
+performed. Coordinator review and exact-head release checks remain required.
