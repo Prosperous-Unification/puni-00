@@ -1,0 +1,5 @@
+{
+  "encoding": "utf-8",
+  "sha256": "7304c2cd855acbf7b93037ccea20cfaa78dbf60630a4788441a7a68b5ef2ab0f",
+  "combinedOutput": "bun test v1.4.2 (744846f84)\n\ntools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:\n131 | \n132 | for (const failureRead of [1, 2]) {\n133 |   test(`cleanup clock read ${failureRead} failure kills and reaps a child alive after EOF`, async () => {\n134 |     const observed = await observe('linger', join(scratch, `clock-${failureRead}`));\n135 |     expect(observed.upstreamBytes).toBe(49152);\n136 |     expect(observed.childAlive).toBe(false);\n                                      ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at <anonymous> (/tmp/f9-native-relay-feasibility-sol/tools/tool-devsync/feasibility/source-memory-relay/relay.probe.ts:136:33)\n(fail) cleanup clock read 2 failure kills and reaps a child alive after EOF [4127.63ms]\n\n 0 pass\n 16 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [4.62s]\n"
+}
