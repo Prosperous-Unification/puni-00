@@ -1274,7 +1274,7 @@ export function ProjectPage({
                     <span className="shrink-0">{entry.name}</span>
                     {/*
                       A real space in the text, not only the `gap` beside it: an
-                      entry's accessible name is `Rewire the shed (kat · 1 Jun)`
+                      entry's accessible name is `Rewire the shed (1 Jun · kat)`
                       and the string somebody hears has to have the word break
                       in it. A whitespace-only node between two flex items is
                       not itself an item, so it costs no second gap on screen.
@@ -1290,7 +1290,8 @@ export function ProjectPage({
                       still on screen, out of the accessibility tree — `tells
                       two projects of one name apart by their owners` failed on
                       `Unable to find an accessible element with the role
-                      "option" and name "Rewire the shed (kat · 1 Jun)"`.
+                      "option" and name "Rewire the shed (kat · 1 Jun)"` (the meta
+                      was owner-first then).
                       Watched, 2026-08-09.
                     */}
                     <span className="text-muted-foreground min-w-0 truncate">

@@ -17,6 +17,7 @@ import {
 } from './keyboard-bindings';
 import { KeyboardCheatSheet, opensCheatSheet } from './keyboard-cheat-sheet';
 import type { PlanRenderer } from './plan-renderer';
+import { COLUMN_LABELS } from './plan-toolbar';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
 const hasDom = typeof document !== 'undefined';
@@ -52,7 +53,7 @@ const PROVEN_BY = new Map<string, readonly string[]>(
       'the Done button beside the notes saves and closes the editor too',
       'while editing, hovering the notes marker opens no second preview',
     ],
-    'Editing: Enter in Prio': [
+    'Editing: Enter in Priority': [
       'sends what was typed on Enter, without waiting for the cell to be left',
       'sends one request for a priority entered with Enter and then left',
     ],
@@ -254,6 +255,20 @@ describe('the key binding registry', () => {
     // And the table keeps all of them, which is what says the narrowing is the
     // cards' and not a binding quietly lost for everybody.
     expect(bindingsFor('table')).toHaveLength(KEY_BINDINGS.length);
+  });
+
+  it('names a column the way the table’s header does, never cut short', () => {
+    // A key chip such as `Enter in Priority` names where the key works by
+    // the column's own header (ui-review F-105).
+    //
+    // Proof: on main this failed on `Enter in Prio: expected [ 'Links',
+    // 'Depends on', …(15) ] to include 'Prio'`; watched 2026-10-16.
+    const headers = [...COLUMN_LABELS.values()];
+    for (const binding of KEY_BINDINGS) {
+      const column = / in (.+)$/.exec(binding.keys)?.[1];
+      if (column !== undefined) expect(headers, binding.keys).toContain(column);
+    }
+    expect(KEY_BINDINGS.some((binding) => binding.keys.includes(' in '))).toBe(true);
   });
 
   it('has one entry per keys-and-where, which is what the mapping is by', () => {
