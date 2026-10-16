@@ -79,13 +79,20 @@ The adapter SHALL return one string for each exact-owner IN/TXT resource record,
 
 ### Requirement: Total deadline and resource cleanup
 
-Discovery, authoritative attempts and TCP fallback SHALL share a maximum five-second call deadline shortened by caller cancellation. Each authoritative endpoint attempt SHALL consume at most one second of that total. Completion SHALL close all owned sockets and timers; no late response or other request's reply SHALL publish proof. No raw TXT value, packet or challenge digest SHALL appear in error output. Existing commit-time challenge, current membership, expiry and unique-owner checks SHALL remain authoritative after DNS completes.
+Discovery, authoritative attempts and TCP fallback SHALL share a maximum five-second call deadline shortened by caller cancellation. Each authoritative endpoint attempt SHALL consume at most one second of that total. The adapter SHALL reserve cleanup time within those maxima as specified in `design.md`. Cancellation SHALL stop work immediately and settle after bounded cleanup. Proof and ordinary failure SHALL publish only after owned socket closure is acknowledged; thrown or unacknowledged closure SHALL produce terminal explicit cleanup failure, without retry or proof, and SHALL NOT be represented as confirmed closure. Settlement SHALL cancel all owned timers; no late response or other request's reply SHALL publish proof. No raw TXT value, packet or challenge digest SHALL appear in error output. Existing commit-time challenge, current membership, expiry and unique-owner checks SHALL remain authoritative after DNS completes.
 
 #### Scenario: Abort and delayed packets cannot publish
 
 - **GIVEN** a pre-aborted caller, an in-flight abort or an expired shared deadline
 - **WHEN** lookup starts or completes late
 - **THEN** it rejects, leaves no pending socket/timer and cannot promote a claim
+
+#### Scenario: Synchronous conversion and queued cancellation cannot extend deadlines
+
+- **GIVEN** final packet decoding or TXT conversion crosses the absolute work cutoff, or cancellation arrives during conversion or before publication
+- **WHEN** timer callbacks have not yet run or the final await resumes
+- **THEN** the adapter rejects instead of returning proof
+- **AND** a crossed shared cutoff prevents another endpoint query
 
 #### Scenario: Ownership changes during network work
 

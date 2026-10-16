@@ -54,6 +54,7 @@ try {
     gwUrl: cfg.GW_URL,
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
     browserSessionAuthority: cfg.BROWSER_SESSION_AUTHORITY,
+    organizationDnsResolvers: cfg.organizationDnsResolvers,
     oidc: cfg.AUTH_MODE === 'oidc' ? oidcRouteOptionsFromEnv(process.env) : undefined,
     localIdentity:
       cfg.AUTH_MODE === 'local'

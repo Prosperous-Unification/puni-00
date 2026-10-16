@@ -36,6 +36,8 @@ import { OPEN } from './repository/gate';
 import { probeSchema } from './repository/health-probe';
 import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
+import { AuthoritativeDnsResolver, type DnsTransport } from './runtime/authoritative-dns/resolver';
+import { SocketDnsTransport } from './runtime/authoritative-dns/transport';
 import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
@@ -73,6 +75,8 @@ export interface BootOptions {
    */
   browserSessionAuthority: 'enabled' | 'disabled';
   delegationKeys?: DelegationKeys;
+  /** Explicit recursive IPs; absence retains the refusing domain resolver. */
+  organizationDnsResolvers?: readonly string[];
   oidc?: OidcRouteOptions;
   localIdentity?: AuthenticatedUser;
   version?: string;
@@ -184,6 +188,8 @@ export interface RunningBe {
 }
 
 interface BootDependencies {
+  /** Local protocol fixtures keep the production adapter, codec and destination guards. */
+  readonly dnsTransport?: DnsTransport;
   /** Opens the source whose lifetime this boot owns. */
   readonly openSource: typeof openSqliteSource;
   /** Test seam for inspecting the production app composition before listening. */
@@ -220,6 +226,13 @@ export async function bootBe01(
   // Keys are parsed even while production refuses delegation, so a broken
   // configured pair cannot hide until a later activation.
   if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
+  const domainResolver =
+    opts.organizationDnsResolvers === undefined
+      ? undefined
+      : new AuthoritativeDnsResolver(
+          opts.organizationDnsResolvers,
+          dependencies.dnsTransport ?? new SocketDnsTransport(),
+        );
   const state = { migrationsApplied: false };
   const bag = await DiBag.createBuilder()
     .withServices({
@@ -323,7 +336,9 @@ export async function bootBe01(
                 db,
                 services.gate,
               ),
-              domains: new DomainClaimRepository(db, services.gate),
+              // Proof: omitted binding answered configured boot's real TXT
+              // acceptance with 503 dns_unavailable instead of 200 (2026-10-16).
+              domains: new DomainClaimRepository(db, services.gate, undefined, domainResolver),
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
               pendingMemberships: new ScimUserRepository(db, services.gate),
               enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
