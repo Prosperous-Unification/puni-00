@@ -750,6 +750,32 @@ test.describe('390x844 reference sheets', () => {
       [],
     );
     expect(measured.cutWithoutWords, 'a cut option does not carry its whole name').toEqual([]);
+
+    // The whole words are read in the line's fact card, so the card has to be
+    // painted above the sheet it opens over. A card takes no pointer, which a
+    // hit test skips, so the probe lends it one for the measurement only.
+    // The active line, which the arrows already scrolled into view: hovering
+    // a line out of view scrolls the list, and a scroll closes every card.
+    const cutLine = list.locator('[data-picker-take]');
+    const words = await cutLine.getAttribute('data-fact');
+    if (words === null) throw new Error('the active line carries no words');
+    await page.waitForTimeout(300);
+    await cutLine.hover();
+    const card = page.getByRole('tooltip').filter({ hasText: words });
+    await expect(card).toHaveCount(1);
+    const painted = await card.evaluate((node) => {
+      if (!(node instanceof HTMLElement)) throw new Error('the card is not an HTML element');
+      node.style.pointerEvents = 'auto';
+      const box = node.getBoundingClientRect();
+      const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      node.style.pointerEvents = '';
+      return { onTop: top !== null && node.contains(top), drawn: top?.outerHTML.slice(0, 80) };
+    });
+    // Proof: at the card's old `zIndex: 20` under the sheet's
+    // `--layer-modal` (50) this failed on `the fact card is painted under
+    // <div role="dialog" … data-modal-surface="bottom"` — the sheet itself.
+    // Watched 2026-10-16.
+    expect(painted.onTop, `the fact card is painted under ${String(painted.drawn)}`).toBe(true);
   });
 
   test('round-trips three reachable values, inherited context, and light/dark paint', async ({

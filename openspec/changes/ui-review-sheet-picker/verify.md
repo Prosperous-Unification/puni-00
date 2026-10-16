@@ -16,3 +16,17 @@ All runs 2026-10-16 in `/home/df/wd/puni/ui-sheet-picker` (branch from main
 - F-085 (`e2e/plan-import.spec.ts`, 390×844): on main the hit test at the toast's centre found `<button class="inline-flex shrink-0 …` (a sheet row); portalled without `pointer-events-auto` the same; without `ModalContent`'s toast guard, tapping the toast's ✕ closed the sheet (`element(s) not found`); without `font-sans` the toast read `"Times New Roman"`.
 - F-086 (`e2e/header.spec.ts`): on main the names ran past the list's inner edge by `[46, 61]` px at 1440, `[135, 150]` at 1024, `[158, 173]` at 375; `data-fact` dropped from the box → `Received: null`. The reworded preconditions of the two older picker tests failed with the entry back on one line (`Received: 1`).
 - F-092 (`e2e/reference-cells.spec.ts`, 390×844, 25 long tags): on main the dialog scrolled sideways `Received: 73`; without the modal-surface bound the same 73; `textOverflow: 'clip'` → 27 cut lines without an ellipsis; `data-fact` dropped → 27 lines without their words; without the block-line rule inside the phone media query → 27 lines that are flex rows.
+
+## Review round (#515 BLOCK), 2026-10-16
+
+- `bunx nx run-many -t test:unit test -p wbs-fe-01 --skip-nx-cache` — both targets succeeded (exit 0).
+- `bunx nx run-many -t lint:fast typecheck -p wbs-fe-01 --skip-nx-cache` — passed.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — 215/215 passed (after amending `project-dropdown-details`).
+- Playwright: header, project-picker, plan-import, reference-cell-panel, mobile, hints, hover-cards, import-with-ai, toolbar-panels, dark-mode, directory, home, keyboard, project-settings, gantt — 229 passed (27.7 min); `reference-cells.spec.ts --repeat-each 3` — 15 passed.
+
+Proofs watched on round 1's code (102a2e098):
+
+- `project-settings.spec.ts` › `a toast's ✕ leaves Project settings open` and the 390×844 nested case: settings dialog `element(s) not found` (the guard covered `onPointerDownOutside` only).
+- `reference-cells.spec.ts` card paint probe: `the fact card is painted under <div role="dialog" … data-modal-surface="bottom"` (card at `zIndex: 20`).
+- `plan-import.spec.ts` › `a standing toast is drawn above the keyboard shortcuts sheet`: `covered by <div role="presentation" data-cheat-sheet-backdrop …` (`z-100`).
+- `header.spec.ts` line count: `a name takes more than two lines at 375px: [3,3]` (list at the input's width).

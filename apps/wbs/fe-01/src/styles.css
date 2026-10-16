@@ -105,8 +105,17 @@
    * sheet, later in the document, painted over a refusal raised while it was
    * open (UI review F-085). A toast is what happened, so it is above whatever
    * surface the reader was on when it happened.
+   *
+   * A portalled card (`hover-card.tsx`: hints, facts, the project list's card)
+   * and the hint's wait ring (`hint.tsx`) sit between the two: the card for a
+   * control on a sheet or in Project settings has to be drawn over that
+   * surface, or it is painted under it and nobody reads it (UI review #515
+   * review, F-131). The keyboard cheat sheet is a modal too, on
+   * `--layer-modal` (F-133).
    */
   --layer-modal: 50;
+  --layer-card: 55;
+  --layer-card-ring: 56;
   --layer-toast: 60;
 
   --background: oklch(1 0 0);
