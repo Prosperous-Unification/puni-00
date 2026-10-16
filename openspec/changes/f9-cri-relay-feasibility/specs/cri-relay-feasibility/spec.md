@@ -38,3 +38,42 @@ The explicit probe SHALL run pinned crictl as the native relay's direct child ag
 
 - **WHEN** Version, ListContainers or ContainerStatus is launched through the relay
 - **THEN** exactly one syntactically valid positive CHILD PID receipt is required before cleanup can be certified; prelaunch refusals require no CHILD receipts.
+
+### Requirement: Synthetic connected-descriptor observation remains nonauthoritative
+
+A separate explicit throwaway probe SHALL distinguish its deterministic framing
+controls from CRI or HTTP/2 transport acceptance. It SHALL retain the original
+native relay refusal and SHALL NOT change the pinned crictl CRI observation.
+
+#### Scenario: Fixture descriptor identity and ownership
+
+- **WHEN** the Python probe captures its disposable fixture socket
+- **THEN** it checks the fixture-selected PID/UID on that connection, retains a
+  SO_PEERPIDFD reference, refuses mismatched identities and a dead peer, permits
+  one descriptor claim, leaves a replacement endpoint uncontacted and closes its
+  owned socket and pidfd while reaping its disposable children.
+
+#### Scenario: Synthetic completion differs from remaining control bytes
+
+- **WHEN** deterministic payload and terminal-status frames complete before a
+  later synthetic control frame
+- **THEN** the probe records logical completion at 27 received bytes and later
+  control processing at 40 received bytes; truncated payload or absent terminal
+  status, expired deadline and an oversized response refuse completion.
+- **AND** these synthetic observations certify neither gRPC terminal status nor
+  complete HTTP/2 drain, global transport byte accounting or production deadlines.
+
+#### Scenario: Bun inherited socket is an observed incompatibility
+
+- **WHEN** Bun 1.4.2 wraps the inherited Unix socket with node:net.Socket and
+  supplies it through node:http2.connect's createConnection callback
+- **THEN** the probe confirms the inherited descriptor is a socket, records the
+  observed `Socket is closed` refusal and confirms zero request bytes reached
+  the disposable fixture; this outcome is recorded as a blocker.
+
+#### Scenario: Maintained CRI client selection is unresolved
+
+- **WHEN** only synthetic framing and the inherited-socket refusal are observed
+- **THEN** Version, ListContainers, ContainerStatus, second-dial refusal and all
+  protected source-memory and runtime authority guarantees remain unverified by
+  this probe; selecting a supported maintained client remains an open task.

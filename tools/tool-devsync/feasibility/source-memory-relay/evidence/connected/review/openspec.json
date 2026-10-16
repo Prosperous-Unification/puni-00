@@ -1,0 +1,5 @@
+{
+  "localReceipt": "/tmp/f9-connected-status-openspec.json",
+  "sha256": "54510c02ca59759acdde9136d40867b48dbdaa5e8c125b8917f4d6730aeec5fd",
+  "combinedOutput": "{\n  \"items\": [\n    {\n      \"id\": \"f9-cri-relay-feasibility\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 10\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/tmp/f9-cri-transport-sol\",\n    \"source\": \"nearest\"\n  }\n}\n"
+}
