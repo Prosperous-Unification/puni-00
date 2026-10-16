@@ -26,13 +26,28 @@ WBS SHALL compose an authoritative DNS adapter only from valid explicit `ORGANIZ
 
 ### Requirement: Bounded authority discovery and direct lookup
 
-The adapter SHALL discover the closest enclosing NS owner for the exact verification name using the configured recursive service and validate every exchange. Discovery errors SHALL not become absence or cause an ancestor fallback. Direct proof lookup SHALL use RD=0, only validated eligible public IP endpoints on port 53, the original question and a complete AA=1 answer. Limits, retry order, supported response shapes and network restrictions SHALL follow `design.md`; exceeding a limit SHALL throw. Discovery material and AA SHALL NOT be represented as cryptographic authentication.
+The adapter SHALL discover the closest enclosing NS owner for the exact verification name using the configured recursive service and validate every exchange. Discovery errors SHALL not become absence or cause an ancestor fallback. Positive recursive NS, A and AAAA discovery SHALL accept only matching IN records of the requested type and exact owner in the answer section, without aliases or contradictions. Terminal discovery absence SHALL require NOERROR/NODATA or NXDOMAIN with a valid enclosing IN/SOA in the authority section, no alias and no contradictory answer records. SOA-less negatives SHALL be unsupported. Referrals and incomplete responses SHALL try the next configured recursive resolver at the same owner and type, then throw when unresolved; they SHALL NOT advance to an ancestor, skip an unresolved address family or start direct authoritative TXT queries. Direct proof lookup SHALL use RD=0, only validated eligible public IP endpoints on port 53, the original question and a complete AA=1 answer. Limits, retry order, supported response shapes and network restrictions SHALL follow `design.md`; exceeding a limit SHALL throw. Discovery material and AA SHALL NOT be represented as cryptographic authentication.
 
 #### Scenario: Discovery outage cannot select a parent authority
 
 - **GIVEN** the nearest queried owner has an unavailable or malformed NS response from every configured resolver
 - **WHEN** discovery runs
 - **THEN** lookup throws without advancing to an ancestor or returning an empty TXT set
+
+#### Scenario: Recursive referral cannot become terminal absence
+
+- **GIVEN** an encoded recursive NOERROR response has no matching answer RRset, authority-section NS records and no SOA during NS, A or AAAA discovery
+- **WHEN** the production adapter processes that response
+- **THEN** it tries the next configured recursive resolver for the same owner and type
+- **AND** if every configured resolver returns a referral or incomplete response, lookup throws without issuing an ancestor NS query in response to that unresolved discovery or any direct authoritative TXT packet
+- **AND** authority-section NS or additional-section A/AAAA records cannot supply a positive discovery answer
+
+#### Scenario: Only supported terminal negatives permit discovery progress
+
+- **GIVEN** a recursive NOERROR/NODATA or NXDOMAIN response has a valid enclosing authority-section IN/SOA, no alias and no contradictory answer records
+- **WHEN** the production adapter validates it during NS or address discovery
+- **THEN** NS discovery may query the next ancestor, while address discovery may record absence only for that owner and requested family
+- **AND** removing the SOA, using another class or a non-enclosing SOA, adding an alias or contradictory answer prevents that progress and triggers resolver failover followed by failure if unresolved
 
 #### Scenario: Delegated verification owner takes precedence
 
