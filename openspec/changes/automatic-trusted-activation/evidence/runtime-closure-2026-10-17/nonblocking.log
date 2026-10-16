@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+388 |   const deadline = setTimeout(() => {
+389 |     expired = true;
+390 |     child.kill(9);
+391 |   }, 3000);
+392 |   try {
+393 |     expect(await child.exited).toBe(2);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 137
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:393:32)
+(fail) a FIFO refuses without waiting for a writer [3045.39ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [3.89s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 673157120, "exitCode": 1}

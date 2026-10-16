@@ -1060,6 +1060,43 @@ to verify this complete closure; candidate parsers receive its owned bytes, neve
 symlink substitution or candidate overlap. Candidate code, package scripts and Nx plugins do not
 execute. A package version string is not a dependency-closure pin.
 
+**Declared runtime admission prerequisite (2.1d.1.3d).** Dash's `readReviewRuntime`
+accepts raw canonical closure bytes (the existing canonical serializer includes a terminal LF)
+and an independently installed exact SHA-256 pin. It validates the closed schema, requires a
+nonempty program inventory, and captures every declared file by raw byte identity and exact
+length. Relative virtual paths are well-formed Unicode, unique and UTF-8-byte sorted, with
+no empty/dot/traversal components, NUL, backslash, leading slash or file-ancestor conflicts.
+No Unicode normalization supplies aliases. Absolute physical roots must be lexically canonical;
+resolved candidate and runtime roots cannot overlap in either component-boundary direction.
+The Linux bootstrap reader traverses each ancestor through pinned directory descriptors with
+`O_NOFOLLOW`, opens each leaf with `O_NOFOLLOW|O_NONBLOCK`, checks regular-file status and
+length before content allocation, reads at most declared length plus one byte, and reconciles
+raw digest, length and stable metadata. OS read denial is unreadability; no UID, private mode
+or single-link installation policy is inferred for installed dependency files. All descriptors
+close before publication; read and cleanup failures remain together and publish no capability.
+
+Installed positive safe-integer limits separately bound raw manifest bytes (before copy/decode),
+entry count (before schema array copying), UTF-8 physical-root/virtual-path bytes, filesystem
+probes, content reads, read bytes, retained content allocation and lifetime content allocation.
+JSON decoding itself is bounded by the raw manifest cap. Probe accounting includes candidate
+realpath, directory/leaf opens and fstats; read accounting includes each syscall and each owned
+copy. Each content read reserves its entire requested byte count against remaining read bytes
+before IO, then charges returned bytes; EOF probes count as reads. Retained allocation includes
+one overflow-detection byte per file. Lifetime content allocation charges each capture buffer
+and copy returned to callers; manifest decoding and metadata are covered separately by manifest,
+path and entry caps. Bounds are snapshotted before IO, arithmetic uses remaining allowance,
+and allocation is refused before a buffer is created. Failed operations may consume allowance.
+
+The frozen capability has exact-object ownership and returns fresh bytes only for complete
+`{ path, role, identity, byteLength }` tuples. Copied methods or spread objects grant no authority.
+Extra installed files are permitted but unauthenticated and inaccessible: no discovery,
+enumeration, fallback, resolution or read operation can reach them. Unknown tuples refuse before
+filesystem IO; post-capture reads never revisit the root. Here a foreign dependency means a
+substituted declared file or an unauthorized tuple. This prerequisite does not establish that a
+manifest names every transitive executable dependency, protect installation ownership, load the
+compiler, authenticate executing code or emit a compiler-read manifest. Those obligations and
+the full retained TypeScript adapter remain open under 2.1d.1.3.
+
 Provide a closed TypeScript `ParseConfigHost`, `CompilerHost` and module/type resolution host
 covering `fileExists`, `readFile`, `readDirectory`, `directoryExists`, `getDirectories`,
 `realpath`, `getCurrentDirectory`, default-library lookup and output callbacks. File enumeration

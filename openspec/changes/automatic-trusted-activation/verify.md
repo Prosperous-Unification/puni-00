@@ -4581,3 +4581,87 @@ Restored scoped checks for this repair:
 These commands ran serially under the same process-tree watchdog. Normal hooks and exact
 successor-commit review are pending at this correction ledger write. All earlier hosted-validation
 and runtime/retained-adapter limitations remain open; no publication or WBS mutation occurred.
+
+## Runtime closure declared-byte admission prerequisite — 2026-10-17
+
+Bounded local `.3d` work is based exactly on reviewed TypeScript IO seam
+`e260c0b2b3ff62bf90c78fe1b916c49297c1c7be`, in standalone clone
+`/tmp/puni-runtime-closure-sol-oct17`. Parent `.3` and `.3d` acceptance remain **open**:
+scoped lint/typecheck could not complete within resource limits. No WBS, external authority,
+compiler execution, full retained adapter, deployment or installation is claimed.
+
+The design and delta spec distinguish exact declared-byte admission from complete runtime
+closure authentication. Extra installed files are unauthenticated and inaccessible through the
+sole exact-tuple copy capability; they confer no discovery/enumeration/resolution/fallback.
+Protected installation ownership, transitive manifest completeness and executing compiler/runtime
+identity remain parent `.3` obligations. No UID/0600/single-link policy is inferred. Absent files
+and actual OS unreadability are separate tests. Read plus cleanup failures (including unexpected
+`throw undefined`) return no partial capability.
+
+Evidence: [`evidence/runtime-closure-2026-10-17`](evidence/runtime-closure-2026-10-17).
+The sampled process-tree watchdog stops at 768 MiB normally; the coordinator authorized one
+serial 900 MiB lint retry and one serial 900 MiB scoped typecheck retry after the initial stops.
+The 20 ms RSS samples are observations, not an unsampled peak guarantee. All large checks and
+fault processes ran serially; the FIFO test has one explicitly controlled child.
+
+Initial test-first run before source creation reported a missing-module RED (`0 pass, 1 fail,
+1 error`), which is import-boundary evidence only, not a semantic assertion proof. Later
+program-inventory and copied-capability additions were watched as assertion RED before their
+implementation. Production-path omission proofs supply the independent semantic negatives.
+
+Commands and observed limits:
+
+| Command                                                                                                                                                                                              | Observation                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python3 /tmp/runtime-rss-guard.py bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts`                                                                         | Before final comments/format, 20 pass, 0 fail, 102 assertions; sampled peak 675,651,584 bytes, exit 0                                                                                    |
+| `python3 /tmp/runtime-faults.py`                                                                                                                                                                     | Final omission sweep: each listed mutant produced an intended assertion RED; source restored in `finally`; `faults.json` and per-fault logs retain exact needles/replacements/focus/exit |
+| `bunx eslint apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts` under initial 768 MiB guard | Stopped at sampled 817,197,056 bytes, exit 137; missing Nx ProjectGraph warning; lint unavailable                                                                                        |
+| `NODE_OPTIONS=--max-old-space-size=384` plus the same lint under authorized 900 MiB guard                                                                                                            | Heap OOM, exit 1, sampled peak 632,774,656 bytes; missing Nx ProjectGraph; **not a lint pass**, no further retry                                                                         |
+| `NODE_OPTIONS=--max-old-space-size=384 python3 /tmp/runtime-rss-guard.py bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                           | Initial 768 MiB stop at 818,847,744 bytes, exit 137, no diagnostics before stop                                                                                                          |
+| `RUNTIME_CLOSURE_RSS_MIB=900 NODE_OPTIONS=--max-old-space-size=512 python3 /tmp/runtime-rss-guard.py bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`               | Authorized retry stopped at 946,601,984 bytes, exit 137, no diagnostics before stop; typecheck unavailable, no further retry                                                             |
+
+The initial fault sweep disqualified three escaped mutants: unsafe length was masked by a later
+byte ceiling; a file-prefix witness covered only adjacent paths; a permission-mode predicate was
+redundant with OS EACCES at uid 1000. The length witness now requires its named early refusal;
+`a, a-b, a/b` now proves the nonadjacent prefix fence before any bootstrap IO. The redundant mode
+policy was removed while OS unreadability remains tested. The second sweep's FIFO watchdog met
+Bun's test timeout rather than its intended assertion; the controlled deadline was shortened and
+watched as a production assertion RED. Initial/second ledgers remain historical, disqualified
+proofs; only final `faults.json` is the proof ledger. Adjacent `Proof:` comments name final faults.
+
+Final focused controls, formatting, OpenSpec validation, normal hooks and commit disposition are
+recorded below after their observed runs. Full h2puni gate, hosted CI, full-suite tests, builds,
+secrets/migration CI and all runtime-completeness/installation/execution claims remain unverified.
+
+First restored control after source and documentation format: `focused-final.log` reports
+**20 pass, 0 fail, 103 expect calls**, exit 0, sampled process-tree peak **675,545,088 bytes**
+under 768 MiB. `faults.json` now contains **40/40** assertion-failing omissions after the corrections below. Formatting of the two
+TypeScript files and four modified OpenSpec Markdown files passed, sampled peak **343,863,296
+bytes**, exit 0. `bunx --no-install @fission-ai/openspec@1.12.0 validate
+automatic-trusted-activation --strict --json` reported **1 passed, 0 failed, zero issues**, exit 0.
+The cached pinned CLI was available; no dependency installation or network fetch was needed.
+
+The first normal `git commit` hook attempt refused with 39 concrete lint diagnostics,
+exit 1, sampled tree peak **834,781,184 bytes** under the 900 MiB guard. Format, secret scanning
+and private nesting exited 0; tool-wiki exited 0 with `status: inactive, certified: false` because
+external activation is unprovisioned, which provides no Tool Wiki certification. Migration and
+doc-cap hook jobs had no matching files. `hooks-first.log` preserves this refusal. The coordinator
+authorized concrete lint repairs and one corrected normal-hook attempt; no bypass is used.
+
+Concrete repairs removed unnecessary test non-null assertions, sorted imports, converted numeric
+descriptor interpolation to `String`, moved aggregate rethrow after descriptor cleanup, and used
+optional chaining. A test-only lint directive documents the intentional `throw undefined` read
+fault. The authorized autofix operation ended with that one intentional test diagnostic before
+the directive was added, exit 1, sampled peak **829,636,608 bytes**; `lint-fix.log` is not a pass.
+
+A new exact-tuple test then reproduced a caller getter changing `path` between validation and
+lookup: expected `parser`, observed `compiler` (assertion RED). `readFile` now snapshots the tuple
+once, validates every field, and obtains bytes through the matched owned metadata path. Its
+`tuple-snapshot` production fault independently reintroduced the wrong-byte return and failed the
+assertion; restored GREEN also verifies one getter read. The raw-invalid-UTF-8 sentinel now
+proves fatal decode before any bootstrap probe; omitting fatal decoding produced assertion RED.
+Current `faults.json` contains **40/40** intended assertion failures; final source was restored.
+After these repairs and source formatting, `focused-final.log` reports **22 pass, 0 fail,
+108 expect calls**, exit 0, sampled tree peak **678,711,296 bytes**. The TypeScript-only format
+command exited 0, sampled peak **148,131,840 bytes**. Typecheck remains unavailable; `.3d` and
+parent `.3` remain unchecked/open even if the corrected hooks complete.

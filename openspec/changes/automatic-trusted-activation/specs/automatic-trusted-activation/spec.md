@@ -1177,3 +1177,37 @@ end-to-end execution, not a design packet or mocked provider.
 
 - **WHEN** only design or simulated provider evidence exists
 - **THEN** WBS 030.6 remains incomplete and the bootstrap prerequisite remains explicit
+
+### Requirement: Bounded declared runtime admission
+
+The system SHALL admit only exact independently pinned canonical closed `ReviewRuntimeClosureV1`
+bytes with a nonempty program inventory, unique UTF-8-byte-sorted canonical relative virtual
+file paths, no file-ancestor conflicts, exact roles, safe lengths and raw SHA-256 file identities.
+It SHALL capture every declared file through regular, readable, non-symlinked leaves and
+ancestors outside the candidate, reconcile stable file metadata, and close every descriptor
+before publishing an immutable capability. Read and cleanup failures SHALL preserve both causes
+and publish no partial capability. Positive safe-integer installed limits SHALL bound manifest
+bytes, entries, path bytes, filesystem probes, content reads/read bytes, retained content bytes
+and lifetime content allocations before their corresponding work or allocation.
+
+#### Scenario: Declared runtime capture succeeds
+
+- **WHEN** canonical independently pinned closure bytes and every declared installed file satisfy
+  all identity, path, readability, stability, separation and resource checks
+- **THEN** the frozen exact-object capability returns fresh owned bytes only for the complete
+  declared path/role/identity/length tuple, unaffected by caller or later ambient mutation
+
+#### Scenario: A dependency or runtime admission fence is invalid
+
+- **WHEN** a declared file is missing, unreadable, substituted, symlinked at any ancestor or leaf,
+  overlaps the candidate, differs in exact bytes or length, changes during capture, or a closure
+  schema, canonical pin, path or resource constraint fails
+- **THEN** admission refuses without publishing a partial capability, including after cleanup failure
+
+#### Scenario: Extra installed files or copied methods request authority
+
+- **WHEN** an extra installed file, unknown or altered tuple, or copied capability method is offered
+- **THEN** it confers no read, discovery, enumeration, resolution or fallback authority and refuses
+  before any filesystem IO; post-capture legitimate reads use owned bytes exclusively
+- **AND** this admission prerequisite authenticates only the declared bytes; transitive completeness,
+  protected installation ownership and executing compiler/runtime identity remain separate obligations

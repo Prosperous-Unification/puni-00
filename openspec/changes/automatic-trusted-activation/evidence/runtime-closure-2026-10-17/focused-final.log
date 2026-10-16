@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+(pass) owns complete exact bytes despite caller and ambient mutation [2.57ms]
+(pass) requires the independent exact canonical pin [0.30ms]
+(pass) rejects closed schema, noncanonical paths, duplicate and unordered paths [4.80ms]
+(pass) rejects absent, unreadable, changed and wrong-length files [1.55ms]
+(pass) rejects leaf and ancestor symlinks and candidate overlap [1.11ms]
+(pass) bounds admission and subsequent copy allocations and reads [3.34ms]
+(pass) rejects empty inventories, program-free inventories and noncanonical serialized bytes [1.18ms]
+(pass) copied methods grant no authority and unlisted installed files stay unreachable [0.54ms]
+(pass) rejects unsafe lengths, path prefix conflicts and noncanonical root aliases [0.95ms]
+(pass) manifest refusals precede all bootstrap filesystem probes [3.19ms]
+(pass) wrong-length files refuse before allocating or reading their content [0.47ms]
+(pass) read failure preserves a simultaneous cleanup failure [0.59ms]
+(pass) capture detects a same-byte file mutation during the bounded read [0.45ms]
+(pass) non-regular files refuse before allocating their content [0.41ms]
+(pass) a FIFO refuses without waiting for a writer [1293.43ms]
+(pass) nonadjacent file ancestors refuse before bootstrap IO [0.72ms]
+(pass) root path bound applies independently from virtual file paths [0.31ms]
+(pass) copy reads have a distinct lifetime returned-byte bound [0.51ms]
+(pass) literal canonical manifest vector pins LF and raw file identities [0.33ms]
+(pass) an unexpected undefined read failure cannot publish a partial capability [0.36ms]
+(pass) snapshots a caller tuple before joining owned content [0.39ms]
+(pass) rejects invalid raw UTF-8 before any bootstrap filesystem probe [0.29ms]
+
+ 22 pass
+ 0 fail
+ 108 expect() calls
+Ran 22 tests across 1 file. [2.25s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 678711296, "exitCode": 0}

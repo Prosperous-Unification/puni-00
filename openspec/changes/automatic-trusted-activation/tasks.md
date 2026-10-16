@@ -305,6 +305,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       escape refusals, non-execution and finite repeated-probe/read/enumeration/observation plus
       exact final-output bounds. Watch independent route/guard omissions. This prerequisite
       supplies no retained adapter, authenticated runtime pin or protected authority; .3 stays open.
+- [ ] 2.1d.1.3d Admit the strict independently pinned `ReviewRuntimeClosureV1` and
+      capture exactly its declared files as an immutable owned-byte capability. Bound manifest,
+      census, paths, probes, reads, retained bytes and lifetime copy allocation; reject malformed
+      schema/canonical pins, absent/unreadable/substituted files, leaf/ancestor symlinks and
+      candidate overlap. Prove exact tuples, copied-capability refusal, post-capture mutation
+      isolation, read-plus-cleanup failures and independent guard omissions. Extra installed
+      files confer no capability authority. This prerequisite leaves transitive completeness,
+      protected installation ownership, running-code identity, retained TypeScript host and
+      parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

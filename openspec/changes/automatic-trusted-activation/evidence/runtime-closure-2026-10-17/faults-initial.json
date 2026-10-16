@@ -1,0 +1,250 @@
+[
+  {
+    "fault": "independent-pin",
+    "needle": "hashBytes(source) !== input.runtimeClosureIdentity",
+    "replacement": "false",
+    "focus": "independent exact canonical pin",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "canonical-bytes",
+    "needle": "serializeCanonical(closure) !== source.toString('utf8')",
+    "replacement": "false",
+    "focus": "program-free inventories",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "schema-root",
+    "needle": "}).onUndeclaredKey('reject');\nexport type",
+    "replacement": "});\nexport type",
+    "focus": "closed schema",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "schema-file",
+    "needle": "}).onUndeclaredKey('reject');\nconst Closure",
+    "replacement": "});\nconst Closure",
+    "focus": "closed schema",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "manifest-cap",
+    "needle": "input.closureBytes.byteLength > limits.maximumManifestBytes",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "entry-cap",
+    "needle": "decoded.files.length > limits.maximumEntries",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "program-inventory",
+    "needle": "!closure.files.some((file) => file.role === 'program')",
+    "replacement": "false",
+    "focus": "program-free inventories",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "path-grammar",
+    "needle": "!file.path.isWellFormed() ||\n      file.path.includes('\\\\') ||\n      file.path.includes('\\0') ||\n      file.path.split('/').some((part) => part === '' || part === '.' || part === '..')",
+    "replacement": "false",
+    "focus": "manifest refusals",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "path-cap",
+    "needle": "Buffer.byteLength(file.path) > limits.maximumPathBytes",
+    "replacement": "false",
+    "focus": "manifest refusals",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "path-sort",
+    "needle": "(Buffer.compare(Buffer.from(previous), Buffer.from(file.path)) >= 0 ||\n        file.path.startsWith(`${previous}/`))",
+    "replacement": "false",
+    "focus": "manifest refusals",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "length-safe",
+    "needle": "!Number.isSafeInteger(file.byteLength)",
+    "replacement": "false",
+    "focus": "manifest refusals",
+    "exitCode": 0,
+    "assertionFailed": false
+  },
+  {
+    "fault": "path-prefix",
+    "needle": "file.path.split('/').some((_, index, parts) => paths.has(parts.slice(0, index).join('/')))",
+    "replacement": "false",
+    "focus": "manifest refusals",
+    "exitCode": 0,
+    "assertionFailed": false
+  },
+  {
+    "fault": "owned-cap",
+    "needle": "file.byteLength + 1 > limits.maximumOwnedBytes - retained",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "probe-cap",
+    "needle": "probes >= limits.maximumProbes",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "read-cap",
+    "needle": "reads >= limits.maximumReads",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "allocation-cap",
+    "needle": "!Number.isSafeInteger(length) || length > limits.maximumBytes - allocated",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "root-grammar",
+    "needle": "!isAbsolute(path) || resolve(path) !== path || path.includes('\\0') || path.includes('\\\\')",
+    "replacement": "false",
+    "focus": "root aliases",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "candidate-overlap",
+    "needle": "contains(candidate, runtimeRoot) || contains(runtimeRoot, candidate)",
+    "replacement": "false",
+    "focus": "symlinks and candidate overlap",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "ancestor-symlink",
+    "needle": "constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW",
+    "replacement": "constants.O_RDONLY | constants.O_DIRECTORY",
+    "focus": "symlinks and candidate overlap",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "leaf-symlink",
+    "needle": "constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK",
+    "replacement": "constants.O_RDONLY | constants.O_NONBLOCK",
+    "focus": "symlinks and candidate overlap",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "file-kind",
+    "needle": "!before.isFile() || (before.mode & 0o444) === 0",
+    "replacement": "(before.mode & 0o444) === 0",
+    "focus": "non-regular files",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "file-mode",
+    "needle": "!before.isFile() || (before.mode & 0o444) === 0",
+    "replacement": "!before.isFile()",
+    "focus": "unreadable, changed",
+    "exitCode": 0,
+    "assertionFailed": false
+  },
+  {
+    "fault": "preallocation-length",
+    "needle": "before.size !== file.byteLength",
+    "replacement": "false",
+    "focus": "wrong-length files refuse before",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "capture-read-bytes",
+    "needle": "bytes.length - count > limits.maximumReadBytes - readBytes",
+    "replacement": "false",
+    "focus": "bounds admission",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "raw-identity",
+    "needle": "hashBytes(bytes.subarray(0, count)) !== file.identity",
+    "replacement": "false",
+    "focus": "unreadable, changed",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "stable-stat",
+    "needle": "before.mtimeMs !== after.mtimeMs ||\n        before.ctimeMs !== after.ctimeMs",
+    "replacement": "false",
+    "focus": "same-byte file mutation",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "cleanup-aggregate",
+    "needle": "if (failures.length > 1)\n        throw new AggregateError(failures, 'runtime capture and cleanup failed');",
+    "replacement": "if (failures.length > 1) throw failures[0];",
+    "focus": "simultaneous cleanup",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "exact-owner",
+    "needle": "Owners.get(this) !== owned",
+    "replacement": "false",
+    "focus": "copied methods",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "tuple",
+    "needle": "expected === undefined ||\n        expected.role !== file.role ||\n        expected.identity !== file.identity ||\n        expected.byteLength !== file.byteLength",
+    "replacement": "expected === undefined",
+    "focus": "owns complete exact",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "copy-return",
+    "needle": "return Uint8Array.from(bytes);",
+    "replacement": "return bytes;",
+    "focus": "owns complete exact",
+    "exitCode": 1,
+    "assertionFailed": true
+  },
+  {
+    "fault": "nonblocking",
+    "needle": "constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK",
+    "replacement": "constants.O_RDONLY | constants.O_NOFOLLOW",
+    "focus": "FIFO refuses",
+    "exitCode": 1,
+    "assertionFailed": true
+  }
+]
