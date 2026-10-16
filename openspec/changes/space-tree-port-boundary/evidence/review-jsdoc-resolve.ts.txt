@@ -1,0 +1,39 @@
+import ts from '/home/df/wd/puni/puni-00/.worktrees/wbs090-space-tree-port-sol/node_modules/typescript/lib/typescript.js';
+const configuration = ts.readConfigFile('libs/wbs/application/core/tsconfig.lib.json', ts.sys.readFile);
+if (configuration.error) throw new Error(ts.flattenDiagnosticMessageText(configuration.error.messageText, '\n'));
+const parsed = ts.parseJsonConfigFileContent(configuration.config, ts.sys, 'libs/wbs/application/core');
+const program = ts.createProgram(['libs/wbs/application/core/src/ports/plan-tree.ts'], parsed.options);
+const checker = program.getTypeChecker();
+const source = program.getSourceFile('libs/wbs/application/core/src/ports/plan-tree.ts');
+if (!source) throw new Error('plan-tree source missing');
+const targets = new Map([
+ ['sliceKey', ['libs/wbs/domain/domain/src/schedule.ts', 'sliceKey']],
+ ['haveSameSliceOrder', ['libs/wbs/domain/domain/src/schedule-order.ts', 'haveSameSliceOrder']],
+ ['DirectoryStore.assignmentsInProject', ['libs/wbs/application/core/src/ports/directory-store.ts', 'assignmentsInProject']],
+ ['DEFAULT_PRIORITY_BANDS', ['libs/wbs/domain/domain/src/priority-band.ts', 'DEFAULT_PRIORITY_BANDS']],
+]);
+let checked = 0;
+function visit(node: ts.Node): void {
+ if (ts.isJSDocLink(node) && node.name) {
+  const target = node.name.getText(source);
+  const expected = targets.get(target);
+  if (expected) {
+   let symbol = checker.getSymbolAtLocation(node.name);
+   if (!symbol) throw new Error(`unresolved JSDoc symbol: ${target}`);
+   if (symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol);
+   const declarations = symbol.declarations;
+   if (!declarations?.length) throw new Error(`no declaration for ${target}: ${checker.symbolToString(symbol)}`);
+   const locations = declarations.map(declaration => declaration.getSourceFile().fileName);
+   if (symbol.name !== expected[1]) throw new Error(`unexpected symbol ${symbol.name} for ${target}`);
+   if (expected[0] && !locations.some(path => path.endsWith(expected[0]))) throw new Error(`unexpected declaration for ${target}: ${locations}`);
+   console.log(`${target} -> ${symbol.name}: ${locations.join(', ')}`);
+   checked++;
+  }
+ }
+ const documented = node as ts.Node & {jsDoc?: readonly ts.JSDoc[]};
+ for (const comment of documented.jsDoc ?? []) visit(comment);
+ ts.forEachChild(node,visit);
+}
+visit(source);
+if (checked !== 5) throw new Error(`expected five reviewed JSDoc links, found ${checked}`);
+console.log('PASS: all five reviewed links resolve to the intended declarations');
