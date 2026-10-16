@@ -469,6 +469,8 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // Proof (2026-10-12): omitting use-attempt-actions.ts from plan-commands' mapped consumers
     // while its index declared that production importer failed this case with exit 1 and
     // `pilot module external consumers disagree with index …/plan-commands/README.md` (0/1).
+    // Proof (2026-10-16): omitting the exact feasibility relay.c source selector made
+    // this production CLI refuse with `relay.c matched 0 classification rules` (0/1).
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

@@ -111,3 +111,33 @@ have no exhaustive injected-fault coverage in this preliminary harness.
 No full Nx gate, repository-wide test run, ESLint/TypeScript project checks,
 h2puni build/install or privilege change ran. Preserve the existing ops sudo/Docker privileges. Production transport cannot
 be selected and the OpenSpec tasks cannot be closed from this fixture evidence.
+
+## CI content classification repair (2026-10-16)
+
+Twilight run `38898880545`, job `116966509738`, refused this committed
+feasibility source because `relay.c` matched zero content classification rules.
+The pilot and enforced bootstrap policies now classify only this exact path as
+`source`; this does not adopt C files generally or integrate this harness.
+
+The production CLI regression is
+`pilot-policy.test.ts` / `pins exact pre-index tuples and passes observe lint from external trust`.
+With `NODE_OPTIONS=--max-old-space-size=768` and
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules`, the initial committed-source
+control failed with `relay.c matched 0 classification rules`; the repaired
+control passed (1 test, 60 assertions, 11.51s). Removing the new pilot selector
+again reproduced the same classification refusal. Local receipts are
+`/tmp/f9-policy-before.log`, `/tmp/f9-policy-after-configured.log`, and
+`/tmp/f9-policy-omission.log`. One intermediate invocation without the trusted
+modules environment refused with `trusted TypeScript runtime modules are not configured`
+(`/tmp/f9-policy-after.log`); that setup failure is not a classification proof.
+The Node heap setting does not impose a hard cap on Bun's total process memory.
+No native feasibility probe, full Nx gate, browser run or Burokrat survey was run
+for this policy-only repair. Hosted CI and exact aggregate acceptance remain
+pending.
+
+The final serial control selected only that observe test and the enforced
+bootstrap-policy loader: **2 passed, 70 assertions, 13.50s**
+(`/tmp/f9-policy-final.log`), observed maximum RSS 2,033,496 KiB. Scoped ESLint
+exited 0 but explicitly skipped `@nx/enforce-module-boundaries` because this
+isolated clone has no cached project graph (`/tmp/f9-policy-eslint.log`); that
+rule is unverified locally. Independent Astra source review found no P0–P3 issues.
