@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+(pass) ambient CommonJS filesystem read is intercepted before real canary IO [0.72ms]
+(pass) ambient CommonJS filesystem write is intercepted before real canary IO [0.15ms]
+
+ 2 pass
+ 26 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [487.00ms]

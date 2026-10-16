@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+486 |     const writePath = `${directory}/write.txt`;
+487 |     fs.writeFileSync(readPath, 'read canary');
+488 |     fs.writeFileSync(writePath, 'write canary');
+489 |     try {
+490 |       const attempt = operation === 'read' ? () => commonFs.readFileSync(readPath, 'utf8') : () => commonFs.writeFileSync(writePath, 'changed');
+491 |       expect(() => forbidAmbient(attempt)).toThrow(`forbidden ambient CommonJS filesystem ${operation}`);
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "forbidden ambient CommonJS filesystem read"
+
+Received function did not throw
+Received value: "read canary"
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:491:44)
+(fail) ambient CommonJS filesystem read is intercepted before real canary IO [0.71ms]
+486 |     const writePath = `${directory}/write.txt`;
+487 |     fs.writeFileSync(readPath, 'read canary');
+488 |     fs.writeFileSync(writePath, 'write canary');
+489 |     try {
+490 |       const attempt = operation === 'read' ? () => commonFs.readFileSync(readPath, 'utf8') : () => commonFs.writeFileSync(writePath, 'changed');
+491 |       expect(() => forbidAmbient(attempt)).toThrow(`forbidden ambient CommonJS filesystem ${operation}`);
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "forbidden ambient CommonJS filesystem write"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:491:44)
+(fail) ambient CommonJS filesystem write is intercepted before real canary IO [0.19ms]
+
+ 0 pass
+ 26 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [485.00ms]

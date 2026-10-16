@@ -583,10 +583,11 @@ authority; those remain part of the complete retained-content extraction require
 
 #### Scenario: Invalid or exceeded source execution limit
 
-- **WHEN** a required limit is absent, nonfinite, fractional or negative, caller policy changes during IO,
-  or repeated probes/reads/enumeration/output exceed their ceiling
+- **WHEN** a required limit is absent, nonfinite, fractional or negative, or repeated
+  probes/reads/enumeration/output exceed their original snapshotted ceiling
 - **THEN** extraction refuses without returning relationships; exact final output size succeeds and
-  one byte less refuses, including an extraction whose selector families are all empty
+  one byte less refuses, including an extraction whose selector families are all empty; caller
+  policy changes during IO do not replace the original ceiling or bypass an exceeded cap
 
 ### Requirement: Derived artifact dependency semantics
 

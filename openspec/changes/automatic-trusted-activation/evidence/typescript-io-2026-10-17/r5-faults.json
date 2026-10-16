@@ -464,15 +464,18 @@
       "does not execute candidate"
     ],
     "exitCode": 1,
-    "peakTreeRssBytes": 179552256,
-    "seconds": 0.595,
+    "peakTreeRssBytes": 177238016,
+    "seconds": 0.495,
     "rssCeilingBytes": 817889280,
-    "deadlineSeconds": 60,
+    "deadlineSeconds": 300,
     "fault": "ambient-filesystem",
     "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
     "original": "  const system = boundSource(workspace, source, policy);",
     "replacement": "  require('node:fs').readFileSync('/candidate/tsconfig.json');\n  const system = boundSource(workspace, source, policy);",
-    "watchedFailure": true
+    "watchedFailure": true,
+    "causalOracle": "forbidden ambient CommonJS filesystem read",
+    "supersedesInvalidEvidenceAt": "ef2c85a8adb705705c478a89c6f38bf30fe3f120",
+    "correction": "Prior namespace-only spy was bypassed by require(node:fs); ENOENT is disqualified. Corrected CommonJS spy throws before the native operation."
   },
   {
     "command": [
@@ -521,15 +524,18 @@
       "does not execute candidate"
     ],
     "exitCode": 1,
-    "peakTreeRssBytes": 178749440,
-    "seconds": 0.618,
+    "peakTreeRssBytes": 183840768,
+    "seconds": 0.483,
     "rssCeilingBytes": 817889280,
-    "deadlineSeconds": 60,
+    "deadlineSeconds": 300,
     "fault": "ambient-write",
     "file": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
     "original": "  const system = boundSource(workspace, source, policy);",
     "replacement": "  require('node:fs').writeFileSync('/candidate/ambient-write', 'x');\n  const system = boundSource(workspace, source, policy);",
-    "watchedFailure": true
+    "watchedFailure": true,
+    "causalOracle": "forbidden ambient CommonJS filesystem write",
+    "supersedesInvalidEvidenceAt": "ef2c85a8adb705705c478a89c6f38bf30fe3f120",
+    "correction": "Prior namespace-only spy was bypassed by require(node:fs); ENOENT is disqualified. Corrected CommonJS spy throws before the native operation."
   },
   {
     "command": [

@@ -4500,7 +4500,8 @@ Captured logs normalize terminal trailing whitespace; no evidence payload bytes 
   module paths; its exact expected bytes live beside the parity test. The initial capture with
   a symlink spelling of the trusted root correctly refused closure escape and was corrected.
 - `r5-faults.json` plus forty `fault-*.log` files: **40 independently watched faults**, all
-  failing actual tests, no module-load/unhandled-error substitutes, maximum sampled peak
+  failing actual tests after the exact-review correction below; the first commit’s filesystem
+  read/write ENOENT receipts are disqualified. No module-load/unhandled-error substitutes, maximum sampled peak
   **204201984 bytes**. Each receipt records the exact mutation and command. These include
   every host IO route, namespace admission route, absent/config/5012 guard, budget, invalid-limit
   and caller-mutation fence, six output accumulation charges, ambient filesystem/Git/spawn/
@@ -4541,3 +4542,42 @@ This prerequisite supplies no retained TypeScript adapter, runtime/dependency cl
 compiler read manifest, bounded parser settlement, all-eleven-document replay, protected
 selection/preparation authority or external trust. Parent 2.1d.1.3 and its encompassing tasks
 remain open. No publication, push, merge, deployment or WBS mutation occurred.
+
+### Exact-review correction of CommonJS filesystem evidence and snapshot wording
+
+Astra's review of `ef2c85a8adb705705c478a89c6f38bf30fe3f120` found two evidence
+failures, with no production-code finding. Faults 24 (`ambient-filesystem`) and 27
+(`ambient-write`) called `require('node:fs')`, which bypassed the spied ES-module namespace.
+They failed because `/candidate` did not exist, not because the intended sentinel intercepted IO.
+Those original **ENOENT receipts are disqualified**; the other 38 receipts remain causal.
+
+The test boundary now additionally poisons the actual CommonJS filesystem object's read/write
+functions with distinct markers. Two controlled real-canary tests independently failed before
+this repair: the read returned `read canary`, and the write returned without throwing. Restoring
+the spies passed both tests, with both canary contents unchanged and no extra directory entries.
+The production-path faults were then repeated with exactly the original injected CommonJS calls.
+Their corrected logs now fail with `forbidden ambient CommonJS filesystem read` and
+`forbidden ambient CommonJS filesystem write`, respectively, and no ENOENT. The two replacement
+entries in `r5-faults.json` explicitly name the invalid predecessor commit and their causal oracle;
+corrected sampled peaks were **177238016** and **183840768 bytes**. The final census remains
+**40 independently watched faults**, comprising 38 accepted original witnesses and two corrected
+filesystem witnesses. `review-repair-canaries-{red,green}.{json,log}` retain the boundary RED/GREEN.
+
+The spec's execution-limit scenario also overstated caller mutation: the implementation snapshots
+the original ceilings before IO. Caller mutation alone is not a refusal condition. The corrected
+scenario says the original ceiling remains authoritative and an attempted bypass of an exceeded
+ceiling refuses. The existing mutation test already proves that behavior; production code is unchanged.
+
+Restored scoped checks for this repair:
+
+- `review-repair-focused-final.json/log`: **36 passed, 0 failed, 92 assertions**, including
+  the unchanged exact facade census and legacy relationship identities; peak **367013888 bytes**.
+- `review-repair-lint-final.json/log`: changed test-file ESLint passed; peak **771436544 bytes**.
+- `review-repair-typecheck.json/log`: pinned TS6 spec-project check passed; peak **818311168 bytes**,
+  under an 800 MiB sampled stop and the 900 MiB task ceiling. A later callback-brace-only lint
+  correction preserves the checked types and return behavior.
+- `review-repair-openspec.json/log`: strict pinned OpenSpec change validation passed **1/1**.
+
+These commands ran serially under the same process-tree watchdog. Normal hooks and exact
+successor-commit review are pending at this correction ledger write. All earlier hosted-validation
+and runtime/retained-adapter limitations remain open; no publication or WBS mutation occurred.

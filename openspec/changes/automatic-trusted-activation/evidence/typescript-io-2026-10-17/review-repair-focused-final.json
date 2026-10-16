@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-legacy.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 367013888,
+  "seconds": 1.058,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 300
+}

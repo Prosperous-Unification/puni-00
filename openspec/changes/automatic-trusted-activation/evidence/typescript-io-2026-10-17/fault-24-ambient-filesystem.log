@@ -1,20 +1,21 @@
 bun test v1.4.2 (744846f84)
 
 apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
-104 |   workspace: string,
-105 |   request: RelationshipRequest['typescript'],
-106 |   source: TypeScriptSource,
-107 |   policy: TypeScriptPolicy,
-108 | ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
-109 |   require('node:fs').readFileSync('/candidate/tsconfig.json');
-                           ^
-error: ENOENT: no such file or directory, open '/candidate/tsconfig.json'
-      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:109:22)
-      at forbidAmbient (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:48:12)
-      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:314:22)
-(fail) source parsing does not execute candidate preload, package scripts or compiler plugins [0.95ms]
+ 9 |
+10 | function forbidAmbient<T>(extract: () => T): T {
+11 |   const forbidden = (): never => {
+12 |     throw new Error('forbidden ambient IO or execution');
+13 |   };
+14 |   const rejectCommonRead = (): never => { throw new Error('forbidden ambient CommonJS filesystem read'); };
+                                                                                                           ^
+error: forbidden ambient CommonJS filesystem read
+      at rejectCommonRead (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:14:103)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:112:22)
+      at forbidAmbient (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:54:12)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:322:22)
+(fail) source parsing does not execute candidate preload, package scripts or compiler plugins [0.80ms]
 
  0 pass
- 25 filtered out
+ 27 filtered out
  1 fail
-Ran 1 test across 1 file. [577.00ms]
+Ran 1 test across 1 file. [477.00ms]

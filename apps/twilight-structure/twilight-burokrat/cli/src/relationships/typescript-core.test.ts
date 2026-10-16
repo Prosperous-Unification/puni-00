@@ -1,5 +1,5 @@
 import * as child from 'node:child_process';
-import * as fs from 'node:fs';
+import commonFs, * as fs from 'node:fs';
 
 import { expect, spyOn, test } from 'bun:test';
 import ts from 'typescript';
@@ -10,6 +10,12 @@ import { extractTypeScriptRelationshipsFromSource, type TypeScriptLimits } from 
 function forbidAmbient<T>(extract: () => T): T {
   const forbidden = (): never => {
     throw new Error('forbidden ambient IO or execution');
+  };
+  const rejectCommonRead = (): never => {
+    throw new Error('forbidden ambient CommonJS filesystem read');
+  };
+  const rejectCommonWrite = (): never => {
+    throw new Error('forbidden ambient CommonJS filesystem write');
   };
   const system = { ...ts.sys };
   const environment = process.env;
@@ -22,6 +28,10 @@ function forbidAmbient<T>(extract: () => T): T {
     spyOn(fs, 'realpathSync').mockImplementation(Object.assign(forbidden, { native: forbidden })),
     spyOn(fs, 'writeFileSync').mockImplementation(forbidden),
     spyOn(fs, 'mkdirSync').mockImplementation(forbidden),
+    // Proof: the real-canary read/write tests returned bytes and changed bytes when these
+    // CommonJS spies were absent; namespace-only spies did not intercept require('node:fs').
+    spyOn(commonFs, 'readFileSync').mockImplementation(rejectCommonRead),
+    spyOn(commonFs, 'writeFileSync').mockImplementation(rejectCommonWrite),
     spyOn(child, 'spawn').mockImplementation(forbidden),
     spyOn(child, 'spawnSync').mockImplementation(forbidden),
     spyOn(child, 'execSync').mockImplementation(forbidden),
@@ -477,3 +487,29 @@ test('observation budget charges bundled declaration text before accumulation', 
     }),
   ).toThrow('TypeScript observed output byte limit exceeded');
 });
+
+for (const operation of ['read', 'write'] as const) {
+  test(`ambient CommonJS filesystem ${operation} is intercepted before real canary IO`, () => {
+    const directory = fs.mkdtempSync('/tmp/typescript-ambient-canary-');
+    const readPath = `${directory}/read.txt`;
+    const writePath = `${directory}/write.txt`;
+    fs.writeFileSync(readPath, 'read canary');
+    fs.writeFileSync(writePath, 'write canary');
+    try {
+      const attempt =
+        operation === 'read'
+          ? () => commonFs.readFileSync(readPath, 'utf8')
+          : () => {
+              commonFs.writeFileSync(writePath, 'changed');
+            };
+      expect(() => {
+        forbidAmbient(attempt);
+      }).toThrow(`forbidden ambient CommonJS filesystem ${operation}`);
+      expect(fs.readFileSync(readPath, 'utf8')).toBe('read canary');
+      expect(fs.readFileSync(writePath, 'utf8')).toBe('write canary');
+      expect(fs.readdirSync(directory).sort()).toEqual(['read.txt', 'write.txt']);
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
