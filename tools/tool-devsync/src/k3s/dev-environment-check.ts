@@ -136,8 +136,13 @@ async function withEdit<T>(path: string, suffix: string, action: () => Promise<T
 
 async function checkHttp(request: CheckRequest): Promise<void> {
   const web = await observeWeb(request.origin);
-  // Proof: first-response CLI denial records status/path/type/root/duration before any DB/file edit.
-  check(web.failure === null, `web serves index.html; observation=${JSON.stringify(web)}`);
+  // Proof: routing transport/deadline/body-limit through the response prefix falsely credits
+  // ingress denial in the production checker-to-rehearseRecovery regression.
+  const message =
+    web.failure === null || web.failure === 'response'
+      ? 'web serves index.html'
+      : `web observation ${web.failure}`;
+  check(web.failure === null, `${message}; observation=${JSON.stringify(web)}`);
   const name = `f9-check-${String(Date.now())}`;
   const created = await fetch(`${request.origin}/api/projects`, {
     method: 'POST',

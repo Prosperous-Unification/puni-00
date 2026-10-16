@@ -37,3 +37,22 @@ The separate diagnostic SHALL record the immediate observation and verdict indep
 
 - **WHEN** every response is denied
 - **THEN** the finite window ends with the failed immediate verdict and denied observations
+
+### Requirement: Incomplete observations cannot prove ingress denial
+
+The checker SHALL distinguish transport, deadline and body-limit observation failures from a completed response mismatch in its emitted failure message. The recovery coordinator MUST NOT credit those observation failures as ingress denial, even when all positive phases pass. A root marker already received within the first 64KiB SHALL remain true when a later read times out, resets or exceeds the body cap; marker presence MUST NOT turn such failures into a passing observation.
+
+#### Scenario: Observation failure reaches the recovery coordinator
+
+- **WHEN** the real checker exits after connection refusal, a response deadline or a body limit
+- **THEN** its output fails the production coordinator's ingress-negative verdict and overall acceptance
+
+#### Scenario: Partial body evidence
+
+- **WHEN** a split root marker arrives before a later stream hang or reset, or appears within the allowed prefix of an oversized chunk
+- **THEN** root-marker evidence remains true and the observation retains its deadline, transport or body-limit failure
+
+#### Scenario: Remaining-window clamps
+
+- **WHEN** the initial or final request is slower than the remaining window, or the next pause exceeds that window
+- **THEN** the convergence window ends within its elapsed budget plus timer scheduling jitter

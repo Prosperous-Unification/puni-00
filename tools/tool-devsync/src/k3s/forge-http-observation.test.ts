@@ -3,6 +3,7 @@ import { rejects } from 'node:assert/strict';
 import { afterEach, expect, test } from 'bun:test';
 
 import { observeConvergence, observeWeb } from './forge-http-observation';
+import { type PodObservation, type RecoveryDriver, rehearseRecovery } from './forge-recovery-check';
 
 const servers: ReturnType<typeof Bun.serve>[] = [];
 afterEach(async () => {
@@ -168,6 +169,9 @@ test('checker first failure emits evidence before any mutating phase', async () 
   expect(output).toContain('"rootMarker":false');
   expect(output).toContain('"durationMs":');
   expect(methods).toEqual(['GET']);
+  const verdict = await judgeDeniedChecker({ exitCode: await child.exited, output });
+  expect(verdict.ingressNegative).toBe('pass');
+  expect(verdict.acceptancePassed).toBe(true);
 });
 
 test('rejects credentials before opening the local fixture connection', async () => {
@@ -232,4 +236,151 @@ test('read-only observer sends GET and refuses even a local redirect', async () 
   });
   expect(await observeWeb(origin, 1000)).toMatchObject({ status: 302, failure: 'response' });
   expect(requests).toEqual(['GET /']);
+});
+
+async function runFailedChecker(origin: string): Promise<{ exitCode: number; output: string }> {
+  const child = Bun.spawn(
+    [
+      'bun',
+      'tools/tool-devsync/src/k3s/dev-environment-check.ts',
+      '--origin',
+      origin.replace('localhost', 'test.localhost'),
+      '--worktree',
+      '/missing-worktree',
+      '--kubeconfig',
+      '/missing-kubeconfig',
+      '--context',
+      'unused',
+      '--pod',
+      'dev-test',
+    ],
+    { cwd: new URL('../../../../', import.meta.url).pathname, stdout: 'pipe', stderr: 'pipe' },
+  );
+  const timeout = setTimeout(() => {
+    child.kill('SIGKILL');
+  }, 8000);
+  try {
+    const output = await new Response(child.stderr).text();
+    return { exitCode: await child.exited, output };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function judgeDeniedChecker(checker: { exitCode: number; output: string }) {
+  let restarts = -1;
+  const driver: RecoveryDriver = {
+    observe: () => {
+      restarts += 1;
+      const pod: PodObservation = {
+        uid: 'fixture-pod',
+        container: `fixture-${String(restarts)}`,
+        restarts,
+        ready: true,
+        oom: false,
+      };
+      return Promise.resolve(pod);
+    },
+    kill: () => Promise.resolve(),
+    check: (phase) =>
+      Promise.resolve(phase === 'ingress-denied' ? checker : { exitCode: 0, output: 'passed' }),
+    readPolicy: () => Promise.resolve({ ingress: [{ from: ['fixture'] }] }),
+    writePolicy: () => Promise.resolve(),
+    cleanup: () => Promise.resolve(),
+    pause: () => Promise.resolve(),
+  };
+  return rehearseRecovery(driver, 100);
+}
+
+test('production checker transport deadline and body-limit failures never earn ingress credit', async () => {
+  const closed = serve(() => new Response('unused'));
+  const server = servers.pop();
+  if (server === undefined) throw new Error('fixture server missing');
+  await server.stop(true);
+  const hanging = serve(
+    () =>
+      new Promise<Response>(() => {
+        /* No response headers. */
+      }),
+  );
+  const oversized = serve(() => new Response('x'.repeat(65537)));
+  for (const [origin, failure] of [
+    [closed, 'transport'],
+    [hanging, 'deadline'],
+    [oversized, 'body-limit'],
+  ]) {
+    const checker = await runFailedChecker(origin);
+    expect(checker.exitCode).not.toBe(0);
+    expect(checker.output).toContain(`"failure":"${failure}"`);
+    const verdict = await judgeDeniedChecker(checker);
+    expect(verdict.ingressNegative).toBe('fail');
+    expect(verdict.acceptancePassed).toBe(false);
+  }
+}, 15000);
+
+test('retains a split root marker when the response later hangs or resets', async () => {
+  for (const reset of [false, true]) {
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const origin = serve(
+      () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('<div id="ro'));
+              timers.push(
+                setTimeout(() => {
+                  controller.enqueue(new TextEncoder().encode('ot">'));
+                }, 10),
+              );
+            },
+          }),
+        ),
+    );
+    const server = servers.at(-1);
+    if (server === undefined) throw new Error('fixture server missing');
+    if (reset)
+      timers.push(
+        setTimeout(() => {
+          void server.stop(true);
+        }, 60),
+      );
+    try {
+      expect(await observeWeb(origin, 150)).toMatchObject({
+        status: 200,
+        rootMarker: true,
+        failure: reset ? 'transport' : 'deadline',
+      });
+    } finally {
+      for (const timer of timers) clearTimeout(timer);
+    }
+  }
+});
+
+test('retains root marker in the allowed prefix of an oversized chunk', async () => {
+  const origin = serve(() => new Response('<div id="root">' + 'x'.repeat(65537)));
+  expect(await observeWeb(origin, 1000)).toMatchObject({ rootMarker: true, failure: 'body-limit' });
+});
+
+test('convergence clamps slow initial and final requests and oversized pauses to its window', async () => {
+  for (const phase of ['initial', 'final', 'pause']) {
+    let calls = 0;
+    const origin = serve(() => {
+      calls += 1;
+      return phase === 'pause' || (phase === 'final' && calls === 1)
+        ? new Response('<div id="root"></div>')
+        : new Promise<Response>(() => {
+            /* Wait beyond the observation window. */
+          });
+    });
+    const started = performance.now();
+    const report = await observeConvergence(origin, {
+      windowMs: 80,
+      intervalMs: phase === 'pause' ? 30000 : 10,
+      requestMs: 1000,
+    });
+    expect(performance.now() - started).toBeLessThan(500);
+    if (phase === 'initial') expect(report.initial.failure).toBe('deadline');
+    if (phase === 'final') expect(report.observations.at(-1)?.failure).toBe('deadline');
+    if (phase === 'pause') expect(report.observations).toHaveLength(0);
+  }
 });

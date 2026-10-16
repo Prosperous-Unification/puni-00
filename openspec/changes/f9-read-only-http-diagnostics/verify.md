@@ -60,3 +60,26 @@ The local commit is a single descendant of `40658a12740c1e525f571b3deb8beaf62db7
 ## Decision
 
 HTTP diagnostic slice is ready for local review after the recorded scoped checks. This is not complete F9 acceptance or completion of the broader process/remote-sampling plan.
+
+## 7. Review repair child of da15e46a
+
+Astra reproduced two defects in the initial candidate: observation failures inherited the completed-response prefix credited by the recovery coordinator, and root markers were computed only at EOF. The initial review regression failed for connection refusal being credited as ingress denial, split-marker stream timeout losing the marker, and an oversized chunk losing its allowed-prefix marker; the convergence window fixture initially passed. [Observed red output](evidence/review-red.log).
+
+The repair preserves the completed-response prefix for real status/root mismatches and emits a distinct `web observation <failure>` message for transport, deadline and body-limit failures. The regression feeds the real checker subprocess output through `rehearseRecovery`; every observation failure now refuses ingress credit and overall acceptance, while an actual 503 response still exercises the existing completed-response refusal contract. These subprocesses all stop at the first web assertion before the checker's mutating phases.
+
+Root-marker evidence is updated for every received chunk, including only the bytes inside the cap. Markers survive later hang, reset or cap refusal without converting that observation to a pass. Tests include a split marker and a marker in the allowed prefix of an oversized chunk.
+
+| Repair check              | Injected fault                                       | Observed production-path failure                                       | Evidence                                            |
+| ------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| Transport classification  | Route transport back into completed-response prefix  | Real checker output earns ingress credit instead of failing            | [transport](evidence/review-prefix-transport.log)   |
+| Deadline classification   | Route deadline back into completed-response prefix   | Real checker output earns ingress credit instead of failing            | [deadline](evidence/review-prefix-deadline.log)     |
+| Body-limit classification | Route body-limit back into completed-response prefix | Real checker output earns ingress credit instead of failing            | [body limit](evidence/review-prefix-body-limit.log) |
+| Received split marker     | Remove incremental detection                         | Root marker becomes false before timeout/reset                         | [stream](evidence/review-marker-stream.log)         |
+| Allowed-prefix marker     | Remove incremental detection                         | Root marker becomes false on body-limit refusal                        | [cap](evidence/review-marker-cap.log)               |
+| Initial request window    | Remove initial deadline clamp                        | 80ms window consumes about 1000ms, exceeding the 500ms fixture ceiling | [initial](evidence/review-window-initial.log)       |
+| Final request window      | Remove remaining request clamp                       | Final request extends the window beyond the 500ms fixture ceiling      | [final](evidence/review-window-final.log)           |
+| Pause window              | Remove remaining pause clamp                         | Oversized pause hits the 1500ms test ceiling                           | [pause](evidence/review-window-pause.log)           |
+
+The watched mutations were restored before final validation. Focused tests: 35 passed, 0 failed; scoped Nx lint/typecheck/build: passed; changed-file formatting: passed; OpenSpec: 222 items passed, 0 failed. Final exact-candidate output is retained separately from the original candidate's receipts: [focused tests](evidence/review-focused-tests.log), [scoped Nx lint/typecheck/build](evidence/review-nx-scoped.log), [changed-file formatting](evidence/review-format-scoped.log), [all OpenSpec validation](evidence/review-openspec.json). The repair uses the same commands and offline fixture boundaries as section 5. No additional full-tree format scan or host gate was run; the original full-tree format limitation remains. All broader process-identity, remote-sampler, retained-evidence and live-acceptance limitations remain.
+
+The repair commit is a direct child of `da15e46afefb12d8aa478a8c5eaaf6fb2b3e3c7d`; its exact SHA and clean working tree are reported in the handoff. Nothing was pushed or deployed.

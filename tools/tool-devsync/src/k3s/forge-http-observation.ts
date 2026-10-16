@@ -41,7 +41,8 @@ function requireBound(milliseconds: number, label: string): void {
 /**
  * Performs exactly one GET / with no redirects, cookies, response content logging or mutations.
  * Its deadline covers headers and body; at most 64KiB are inspected for the historical root
- * marker. Network refusal, denial, timeout and oversized bodies are explicit failed evidence.
+ * marker, including a received prefix before timeout, reset or the body cap.
+ * Network refusal, denial, timeout and oversized bodies are explicit failed evidence.
  * Invalid origins and bounds throw before opening a connection. Content type is evidence,
  * preserving the existing check's status/root-marker acceptance contract.
  */
@@ -80,13 +81,17 @@ export async function observeWeb(origin: string, timeoutMs = 2000): Promise<WebO
       for (;;) {
         const chunk = await reader.read();
         if (chunk.done) break;
+        const remaining = 65_536 - bytes;
+        text += decoder.decode(chunk.value.subarray(0, remaining), { stream: true });
+        // Proof: EOF-only detection loses split markers before deadline/reset and markers
+        // in the allowed prefix of a chunk that exceeds the cap.
+        rootMarker = text.includes('id="root"');
         bytes += chunk.value.byteLength;
         // Proof: the oversized-body negative fails with this guard removed.
         if (bytes > 65_536) {
           controller.abort();
           return 'body-limit';
         }
-        text += decoder.decode(chunk.value, { stream: true });
       }
       text += decoder.decode();
       rootMarker = text.includes('id="root"');
@@ -130,12 +135,15 @@ export async function observeConvergence(
   requireBound(bounds.intervalMs, 'interval');
   requireBound(bounds.requestMs, 'request deadline');
   const deadline = performance.now() + bounds.windowMs;
+  // Proof: unclamping this deadline exceeds the slow-initial fixture window.
   const initial = await observeWeb(origin, Math.min(bounds.requestMs, bounds.windowMs));
   const observations: WebObservation[] = [];
   while (performance.now() < deadline) {
+    // Proof: an unclamped pause exceeds the oversized-pause fixture window.
     await Bun.sleep(Math.min(bounds.intervalMs, Math.max(0, deadline - performance.now())));
     const remaining = deadline - performance.now();
     if (remaining < 1) break;
+    // Proof: an unclamped request exceeds the slow-final fixture window.
     observations.push(await observeWeb(origin, Math.min(bounds.requestMs, remaining)));
   }
   // Proof: the denied-then-success fixture fails when later success replaces this verdict.
