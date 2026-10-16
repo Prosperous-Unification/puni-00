@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-rank.controller.db.test.ts:
+(pass) the project rank > reads every project of the organization, unranked in creation order, to any member [949.01ms]
+(pass) the project rank > lets an admin move a project, ranking the organization in the order left [836.58ms]
+(pass) the project rank > records downstream displacement when an admin reverses two shared-person projects [1012.58ms]
+(pass) the project rank > keeps shared fan-out silent when only rank positions are respaced [992.91ms]
+{"level":"error","time":1792109678450,"service":"be-01","err":{"occurrence_id":"AE_H13N8X1F3AMFAQAB7FJTCSFPX5","fingerprint":"fp1_27e854af47bbbac6a8b41fadba90c056","constructor_name":"DrizzleQueryError","message":"Failed query: \n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      \nparams: project:5d21bf74-db06-454e-aa00-0a2b3ea6f325,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"5d21bf74-db06-454e-aa00-0a2b3ea6f325\",\"causeProjectId\":\"099a0593-b8d5-43e5-8f37-50af2c033cf2\"},1792109678436","as_string":"DrizzleQueryError: Failed query: \n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      \nparams: project:5d21bf74-db06-454e-aa00-0a2b3ea6f325,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"5d21bf74-db06-454e-aa00-0a2b3ea6f325\",\"causeProjectId\":\"099a0593-b8d5-43e5-8f37-50af2c033cf2\"},1792109678436","as_json":{"query":"\n        INSERT INTO event_log (subscription, seq, message, created_at)\n        VALUES (?, ?, ?, ?)\n      ","params":["project:5d21bf74-db06-454e-aa00-0a2b3ea6f325",0,"{\"type\":\"elsewhere_changed\",\"projectId\":\"5d21bf74-db06-454e-aa00-0a2b3ea6f325\",\"causeProjectId\":\"099a0593-b8d5-43e5-8f37-50af2c033cf2\"}",1792109678436],"name":"DrizzleQueryError"},"stack":["DrizzleQueryError: Failed query: ","        INSERT INTO event_log (subscription, seq, message, created_at)","        VALUES (?, ?, ?, ?)","      ","params: project:5d21bf74-db06-454e-aa00-0a2b3ea6f325,0,{\"type\":\"elsewhere_changed\",\"projectId\":\"5d21bf74-db06-454e-aa00-0a2b3ea6f325\",\"causeProjectId\":\"099a0593-b8d5-43e5-8f37-50af2c033cf2\"},1792109678436","    at run (/tmp/wbs-project-rank-port-oct16/node_modules/drizzle-orm/sqlite-core/async/session.js:77:14)","    at recordEventIn (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/event-log.ts:68:8)","    at <anonymous> (/tmp/wbs-project-rank-port-oct16/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/tmp/wbs-project-rank-port-oct16/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/event-log.ts:82:17)","    at recordEvent (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/event-log.ts:80:28)","    at recordCommittedFanout (/tmp/wbs-project-rank-port-oct16/libs/wbs/application/core/src/service/committed-fanout.ts:50:37)","    at async <anonymous> (/tmp/wbs-project-rank-port-oct16/libs/wbs/application/core/src/service/standalone-rank.ts:58:30)","    at async <anonymous> (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)"],"children":[{"id":"0","path":"$.cause","level":1,"constructor_name":"Error","message":"injected rank fan-out failure","as_json":{"code":"SQLITE_CONSTRAINT_TRIGGER","errno":1811,"byteOffset":-1},"stack":["SQLiteError: injected rank fan-out failure","    at run (unknown)","    at #run (bun:sqlite:187:20)","    at run (/tmp/wbs-project-rank-port-oct16/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)","    at recordEventIn (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/event-log.ts:68:8)","    at <anonymous> (/tmp/wbs-project-rank-port-oct16/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)","    at transaction (bun:sqlite:400:27)","    at transaction (/tmp/wbs-project-rank-port-oct16/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)","    at <anonymous> (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/event-log.ts:82:17)","    at recordEvent (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/event-log.ts:80:28)","    at recordCommittedFanout (/tmp/wbs-project-rank-port-oct16/libs/wbs/application/core/src/service/committed-fanout.ts:50:37)","    at async <anonymous> (/tmp/wbs-project-rank-port-oct16/libs/wbs/application/core/src/service/standalone-rank.ts:58:30)","    at async <anonymous> (/tmp/wbs-project-rank-port-oct16/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)"],"as_string_format":"derived"}],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the project rank > rolls back a rank move and first recipient when a later fan-out insert fails [997.34ms]
+(pass) the project rank > releases the rank writer before waiting on committed recipient transport [1456.31ms]
+(pass) the project rank > refuses a member and a viewer the move, changing nothing [1122.44ms]
+(pass) the project rank > rechecks current admin authority after route resolution before a rank move [999.16ms]
+(pass) the project rank > captures the assignment admitted by the writer after a queued preflight [1337.77ms]
+(pass) the project rank > keeps the admitted project date owner single for dated and undated transitions [1415.01ms]
+(pass) the project rank > does not let a self-move bypass current rank authority [984.05ms]
+(pass) the project rank > answers a foreign project, on either side of a move, as an absent one [1114.82ms]
+(pass) the project rank > orders the load reads by the rank, naming each rank [1420.94ms]
+(pass) before activation > answers organization_required, since no organization owns the order [2310.80ms]
+
+libs/wbs/adapters/store-sqlite/src/project-rank.db.test.ts:
+(pass) the project rank > orders unranked projects by creation, then id [251.22ms]
+(pass) the project rank > moves a project and ranks every project of the organization, in that order [285.61ms]
+(pass) the project rank > treats a project placed after itself as a no-op, writing nothing [316.57ms]
+(pass) the project rank > puts a project created after the first move at the end, unranked [239.06ms]
+(pass) the project rank > refuses a move naming another organization’s project, writing nothing [217.90ms]
+(pass) the project rank > refuses a rank naming another organization’s project [208.21ms]
+(pass) the project rank > orders equal positions by project id on every read [335.03ms]
+(pass) the project rank > removes a deleted project’s rank [253.53ms]
+(pass) rolling back the project rank > refuses while a rank exists, keeping the table and the ledger [389.89ms]
+(pass) rolling back the project rank > saves, removes, rolls back, migrates and restores every rank [724.87ms]
+(pass) rolling back the project rank > refuses to remove a save that no longer matches, deleting nothing [310.36ms]
+(pass) rolling back the project rank > refuses the whole restore when a saved project is gone [263.97ms]
+(pass) rolling back the project rank > refuses the whole restore when an author is no longer a user [256.33ms]
+(pass) rolling back the project rank > refuses a malformed save before touching the database [286.10ms]
+
+ 28 pass
+ 0 fail
+ 90 expect() calls
+Ran 28 tests across 2 files. [24.50s]
