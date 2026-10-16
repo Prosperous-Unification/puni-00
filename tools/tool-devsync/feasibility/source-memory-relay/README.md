@@ -216,3 +216,40 @@ maximum RSS 56,252 KiB; generic regression passed 26 cases / 117 assertions in
 28.72s, maximum RSS 34,348 KiB; both reported zero swaps. These correct observation
 and isolation checks without changing native forwarding or resolving the shutdown
 blocker. The original receipts remain historical evidence for `b08f61f22`.
+
+## Connected descriptor follow-up (2026-10-17)
+
+```sh
+bun test ./tools/tool-devsync/feasibility/source-memory-relay/connected.probe.ts
+```
+
+This separate throwaway experiment uses stdlib Python and installed Bun. It
+creates private disposable fixture listeners and passes only an already-connected
+socket descriptor to its consuming probe. There is no relay listener or pathname
+fallback in the descriptor owner. Caller-selected fixture PID/UID values are
+not an authority source.
+
+Python controls use a deliberately synthetic length-prefixed protocol, with
+payload, terminal status and later control frames. They do not implement HTTP/2,
+protobuf or gRPC. A repeated descriptor claim is refused; that is not evidence
+that a maintained gRPC client's second dial is refused. The 128KiB cap counts
+received fixture bytes, not aggregate bidirectional transport traffic. The
+250ms monotonic read budget is not a production lifecycle deadline. Peer death
+before use refuses via pidfd; during exit, socket EOF can precede pidfd readiness
+and either observed refusal remains incomplete.
+
+The Bun incompatibility case separately passes an inherited Unix socket to
+`node:net.Socket` and `node:http2.connect`. Although `fstatSync` identifies the
+inherited descriptor as a socket, Bun 1.4.2 reports `Socket is closed` and the
+fixture observes zero request bytes. It never receives a valid HTTP/2 response,
+so this result cannot establish any HTTP/2 framing behavior. The installed
+locked grpc-js 1.14.3 has no public connected-socket entry point in its channel
+options and internally calls `net.connect`; no monkey patch or new dependency
+was added. Go and Python grpc/h2 are absent.
+
+The [OpenSpec amendment and verification record](../../../../openspec/changes/f9-cri-relay-feasibility/verify.md)
+retain exact commands, watched failures, resource receipts and unresolved work.
+The existing native strict drain refusal is unchanged. Selecting a maintained
+client/toolchain and proving fixed CRI operations against a disposable daemon
+remain open with the protected authority owner. This follow-up closes no F9
+production or source-memory task.
