@@ -2,6 +2,8 @@ import { authModeOf } from '@wbs/auth';
 import { defineConfig } from '@wbs/config';
 import { type } from '@wbs/validation';
 
+import { type EmailDeliveryConfig, readEmailDelivery } from './runtime/email-delivery-config';
+
 export const BeConfig = type({
   PORT: 'string.integer.parse',
   INTERNAL_AUTH_SECRET: 'string>=32',
@@ -41,7 +43,11 @@ export interface DelegationKeys {
 
 export const loadConfig = (
   envSource: Record<string, string | undefined> = process.env,
-): BeConfig & { appOrigin: string; delegationKeys?: DelegationKeys } => {
+): BeConfig & {
+  appOrigin: string;
+  delegationKeys?: DelegationKeys;
+  emailDelivery: EmailDeliveryConfig;
+} => {
   const mode = authModeOf(envSource);
   const config = defineConfig(BeConfig, envSource);
   const signingKey = envSource['WBS_DELEGATION_SIGNING_KEY'];
@@ -73,6 +79,8 @@ export const loadConfig = (
     ...config,
     delegationKeys,
     appOrigin,
+    // Proof: removing this binding failed the production config disabled-mode assertion.
+    emailDelivery: readEmailDelivery(envSource),
     SOLVER_BUDGET_MS: solverBudgetMs,
     SOLVER_SEARCH_WORKERS: solverSearchWorkers,
     SOLVER_MEMORY_LIMIT_MB: solverMemoryLimitMb,
