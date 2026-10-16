@@ -1,0 +1,7 @@
+
+ NX   Running target lint for 2 projects:
+
+- wbs-core
+- wbs-be-01
+
+

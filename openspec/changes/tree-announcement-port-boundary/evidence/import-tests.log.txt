@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/announcement-ownership.db.test.ts:
+(pass) who owns an announcement > (l) still sends a committed route event when the next batch refuses [304.44ms]
+(pass) who owns an announcement > (f) holds a batch’s own events until it has committed [231.18ms]
+(pass) who owns an announcement > (g) sends nothing a refused batch announced [179.86ms]
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+(pass) the JSON export > exports only the organization's own directory, under its local names [1267.15ms]
+{"level":"error","time":1792110400172,"service":"be-01","err":{"occurrence_id":"AE_N1NHF7EW0CD1KQEMEWBJY7FFYG","fingerprint":"fp1_2435c31be28b4f8bfa4720712e6cf471","stack":["Error: a person of organization \"org-a\" belongs to a foreign team","    at listPeopleIn (/tmp/wbs-tree-announcement-port-oct16/libs/wbs/adapters/store-sqlite/src/directory.ts:477:19)","    at async treeWithin (/tmp/wbs-tree-announcement-port-oct16/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:1898:34)","    at async <anonymous> (/tmp/wbs-tree-announcement-port-oct16/libs/wbs/application/core/src/http/project.routes.ts:252:38)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) the JSON export > fails the JSON export closed over a person in a foreign team [1257.89ms]
+(pass) the import > imports into the organization, resolving names among its own entries [1313.98ms]
+(pass) the import > keeps a slug only another organization holds [1886.23ms]
+(pass) the import > refuses an empty solution slug or url as input, importing nothing [1441.57ms]
+(pass) the import > tells only the organization's projects that its directory changed [1279.92ms]

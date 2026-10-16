@@ -1,0 +1,7 @@
+
+ NX   Running target typecheck for 2 projects and 2 tasks they depend on:
+
+- wbs-core
+- wbs-be-01
+
+

@@ -1,0 +1,14 @@
+import json, sys
+base = json.load(open(sys.argv[1]))
+verdict = json.load(open(sys.argv[2]))
+path = 'libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts'
+subject = 'libs/wbs/application/core/src/module/work-item/work-item.resource.ts'
+def edge(finding):
+    return finding['ruleId'] == 'K6' and finding['path'] == path and finding['subject'] == subject
+assert base['unevaluated'] == [], base
+assert sum(edge(finding) for finding in base['findings']) == 1, base
+assert verdict['ruleIds'] == ['K6'], verdict
+assert verdict['unevaluated'] == [], verdict
+assert not any(edge(finding) for finding in verdict['findings']), 'concrete work-item resource edge remains'
+assert verdict['findings'] == [finding for finding in base['findings'] if not edge(finding)], 'unrelated findings changed'
+print('PASS: exact tree-announcement edge removed; three unrelated K6 findings preserved')
