@@ -8,6 +8,7 @@ import type {
   Person,
   PersonWithTeams,
   ServiceTeam,
+  TeamPatch,
   TeamWithServices,
 } from './directory-values';
 import type {
@@ -30,21 +31,9 @@ export type {
   Person,
   PersonWithTeams,
   ServiceTeam,
+  TeamPatch,
   TeamWithServices,
 } from './directory-values';
-
-/**
- * A change to one team: a new name, a new owned set, or both.
- *
- * `serviceIds` is a **full replacement**, exactly as {@link PersonPatch}'
- * `teamIds` is, so an absent field and an empty array mean different things:
- * absent leaves the map alone, empty makes the team own nothing. A patch
- * naming neither is refused rather than answered as a no-op.
- */
-export interface TeamPatch {
-  name?: string;
-  serviceIds?: readonly string[];
-}
 
 /**
  * What an insert of a person may name, which is **not** what a read of one

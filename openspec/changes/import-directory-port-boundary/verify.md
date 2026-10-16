@@ -58,3 +58,26 @@ Faults are separate `git commit-tree` objects parented by the implementation com
 The fault patches apply to implementation commit `ebc519325acdbe9dc072dcd658137e91fe696417`, before the proof comment and this receipt. Full workspace gates, host gate, full survey, browser checks, backend typecheck, broad lint and memory/SQLite source contract suites were not run locally. The two requested focused import suites cover the retained runtime behavior; release acceptance remains with the coordinator. No push, PR, merge, deployment, spec sync or archive was performed here.
 
 Final evidence whitespace validation caught a trailing blank line at EOF in the retained direct patch. Regenerating that patch with one context line removed the artifact; both retained patches then passed cached application checks in fresh temporary indexes and reproduced their original fault trees exactly. `git diff --check 741840881376327bca23140cb8367c7528818dca` passed across source and evidence. Scoped OpenSpec validation was repeated after the receipt and again passed 1/1. The proof comment and receipts change no executable behavior, so the focused runtime suites were not repeated.
+
+## Canonical gate ownership repair, 2026-10-16
+
+The canonical h2puni gate for `b345e16f0458629d8d90c7b2da8111f19be4cf75` failed only `wbs-core:test`. The production module audit reported four Plan import references at byte offsets 718, 4998, 6678 and 6726. These are source offsets, not line numbers or debt entries. The new interface exposed `TeamPatch`, whose declaration still belonged to `directory-store.ts`; the prior concrete resource was inspected for repository capabilities while permitting public DTOs.
+
+Repair base: `5bf4d73f175e5cb5ee1b1339c4a851abe05efee1`. Move the unchanged `TeamPatch` fields into existing `directory-values.ts`, preserve its import and re-export from `directory-store.ts`, and import all five neutral directory values directly in `ImportDirectory`. The audit and empty debt ledger remain unchanged. The architect approved this mechanical ownership repair and removal of the moved JSDoc's reverse `PersonPatch` link; runtime signatures and composition are unchanged.
+
+Observed production-path proof, run serially from the repair repository root:
+
+```sh
+bun test libs/wbs/application/core/src/module-boundaries.test.ts --test-name-pattern 'closed feature modules' --timeout=120000
+```
+
+The exact base failed with the four references above (0 pass, 1 fail). The neutral candidate passed (1 pass, 0 fail). Temporarily returning the `TeamPatch` declaration to `directory-store.ts`, removing its neutral declaration and routing that type's import back to the store restored all four references (0 pass, 1 fail). After restoring neutral ownership, the complete boundary file passed: **15 pass, 0 fail, 20 assertions**, 33.41 seconds. An adjacent `ImportDirectory` proof comment records the watched ownership fault.
+
+Further focused commands completed serially:
+
+```sh
+bun test libs/wbs/application/core/src/module/plan-import/module.test.ts --timeout=10000
+bunx tsc --build --force libs/wbs/application/core/tsconfig.lib.json
+```
+
+Plan import: **9 pass, 0 fail, 16 assertions**. Core production typecheck exited 0 without diagnostics. A serial repeat with `/usr/bin/time -v` to measure its memory used **1,274,324 KiB maximum RSS**, 2.49 seconds elapsed, zero swaps and exit 0. Changed-file ESLint exited 0 but skipped `@nx/enforce-module-boundaries` because no cached ProjectGraph was available; that Nx rule remains unverified locally. Prettier checked the three source files and this receipt successfully. Scoped `BUN_TMPDIR=/tmp bunx @fission-ai/openspec@1.12.0 validate import-directory-port-boundary --json` passed 1/1, and `git diff --check` passed. Full Nx checks, full core runtime tests, mounted organization tests, backend typecheck, broad build, hosted CI and canonical h2puni gates were not run in this repair checkout; the release coordinator owns full gates. No runtime safety check changed, no scanner exception or new debt was added, and no push or release-branch mutation was performed here.

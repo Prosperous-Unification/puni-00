@@ -7,7 +7,7 @@ import type {
   Person,
   TeamPatch,
   TeamWithServices,
-} from './directory-store';
+} from './directory-values';
 import type { ResourceAccess } from './organization-access';
 
 /**
@@ -18,6 +18,8 @@ import type { ResourceAccess } from './organization-access';
  * re-export made the committed production K6 boundary oracle fail with
  * `concrete directory resource edge remains`; watched 2026-10-16. Commands and
  * fault patches: `openspec/changes/import-directory-port-boundary/verify.md`.
+ * Proof: moving TeamPatch back to directory-store.ts restored four Plan import
+ * violations in the production module-boundaries.test.ts audit; neutral ownership passed.
  */
 export interface ImportDirectory {
   /** Reads the catalog selected by the caller's existing access. */
