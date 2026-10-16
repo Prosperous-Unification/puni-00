@@ -1,0 +1,25 @@
+diff --git a/libs/wbs/application/core/src/ports/project-list.ts b/libs/wbs/application/core/src/ports/project-list.ts
+index ad9d8dea8..1467a86d2 100644
+--- a/libs/wbs/application/core/src/ports/project-list.ts
++++ b/libs/wbs/application/core/src/ports/project-list.ts
+@@ -1,8 +1 @@
+-import type { ResourceAccess } from './organization-access';
+-import type { ProjectWithAccess } from './project-values';
+-
+-/** The caller's project list, independent of the resource that supplies it. */
+-export interface ProjectList {
+-  /** The caller's projects in their own order, limited to their resolved access. */
+-  listWithin(actorId: string, access: ResourceAccess): Promise<ProjectWithAccess[]>;
+-}
++export type { ProjectService } from '../module/project/project.resource';
+diff --git a/libs/wbs/application/core/src/service/project-rank.resource.ts b/libs/wbs/application/core/src/service/project-rank.resource.ts
+index 8ac72925f..83f6c4a31 100644
+--- a/libs/wbs/application/core/src/service/project-rank.resource.ts
++++ b/libs/wbs/application/core/src/service/project-rank.resource.ts
+@@ -0,0 +1 @@
++import type { ProjectService } from '../ports/project-list';
+@@ -3 +3,0 @@ import type { ResourceAccess } from '../ports/organization-access';
+-import type { ProjectList } from '../ports/project-list';
+@@ -18 +18 @@ export interface ProjectRankResourceOptions {
+-  projects: ProjectList;
++  projects: Pick<ProjectService, 'listWithin'>;

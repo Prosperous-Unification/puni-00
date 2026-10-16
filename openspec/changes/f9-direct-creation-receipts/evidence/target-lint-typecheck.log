@@ -1,0 +1,22 @@
+
+ NX   Running targets lint, typecheck for project tool-fleet:
+
+- tool-fleet
+
+
+
+> nx run tool-fleet:lint
+
+
+> nx run tool-fleet:typecheck
+
+
+
+
+ NX   Successfully ran targets lint, typecheck for project tool-fleet
+
+
+  Run duration:      20.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     20.4s (1 task)
+  Recoverable time:  <1ms

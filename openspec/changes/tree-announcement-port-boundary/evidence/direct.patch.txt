@@ -1,0 +1,22 @@
+diff --git a/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts b/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
+index 9198931d1..f706708b6 100644
+--- a/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
++++ b/libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts
+@@ -7,7 +7,7 @@ import type { NewProject } from '../../ports/project-values';
+ import type { StoredAttempt } from '../../ports/step-node-attempt-store';
+ import type { Step } from '../../ports/step-store';
+ import type { SubtreeCopy } from '../../ports/subtree-store';
+-import type { TreeAnnouncement } from '../../ports/tree-announcement';
++import type { WorkItemService } from '../work-item/work-item.resource';
+ import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
+ import type { Scope } from '../../ports/unit-of-work';
+ import type { WorkItemPatch } from '../../ports/work-item-store';
+@@ -17,7 +17,7 @@ import type { DirectoryService } from '../directory/directory.resource';
+ /** The directory resource and tree announcement one import reconciles and publishes through. */
+ export interface ImportServices {
+   directory: DirectoryService;
+-  workItems: TreeAnnouncement;
++  workItems: Pick<WorkItemService, 'announceTreeNow'>;
+ }
+
+ /**

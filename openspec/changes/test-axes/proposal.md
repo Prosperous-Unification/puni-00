@@ -102,3 +102,28 @@ Problem: Browser facts cannot bind committed Architecture fixture membership. Ou
 ## Browser Performance membership slice 4.1b.12
 
 Problem: Browser reports do not bind complete declared Performance fixture membership. Outcome: a separate diagnostic joins real Browser observation to exact pinned committed Performance declaration, config, manifest and every fixture, with complete identities and explicit overlap or disjoint intersection. Constraints: closed v1 external authority, immutable selection, shared decoder/digest, project-root containment, complete selected regular blobs and noncertifying output. Non-goals: reviewed-empty, classification, execution, scenario joining, coverage, admission or runner changes. Parent tasks remain open.
+
+## Browser Conformance reviewed-empty slice 4.1b.13
+
+Problem: Browser Conformance cannot represent an explicit reviewed-empty assertion. Outcome:
+the existing command accepts closed version-2 authority requiring committed or reviewed-empty
+Conformance disposition while preserving version-1 committed observations byte-for-byte.
+Constraints: identical identity and scope pins; valid selected manifest targets; every own
+Conformance property contradicts reviewed-empty; complete report, source union, raw-authority
+and envelope digests; unknown other memberships, absent authentication and false certification.
+Missing, malformed or unreadable state refuses. Non-goals: implicit absence, a new command,
+classification, isolation, execution, scenario joins, coverage, admission, StepBlockage,
+source reconciliation or closing WBS080.39. Parent tasks remain open.
+
+## Browser level composer 4.1b.14
+
+Problem: separate Browser review, Conformance, Architecture and Performance observations do
+not establish the selected Browser collection's effective levels or isolation. Outcome:
+`inspect-browser-levels` composes the real readers for one exact committed candidate and mode,
+preserves complete upstream evidence and classifies only the admitted recorded collection.
+Constraints: explicit reviewed-empty Manual, generic other rows unknown, matching complete
+report and collection identities, common manifest pins, agreeing overlapping source tuples,
+final publication re-read, shared first-match Conformance/Architecture/Performance precedence,
+typed Browser isolation, absent authentication and false certification. Non-goals: supplied
+observation JSON, candidate execution, new domain rules, later table rows, T2, scenario joins,
+coverage, admission, receipts, source reconciliation or closing parent WBS080.39.

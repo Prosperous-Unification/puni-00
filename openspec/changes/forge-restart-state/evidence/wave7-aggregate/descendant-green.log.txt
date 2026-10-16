@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/k3s/forge-recovery-lab.test.ts:
+(pass) hard deadline kills a real TERM-ignoring process and its descendant [507.61ms]
+(pass) refuses pre-existing labelled container without up or down [48.13ms]
+(pass) refuses pre-existing labelled network without up or down [42.53ms]
+(pass) refuses pre-existing labelled volume without up or down [37.92ms]
+(pass) disabled provisioner preserves a resource appearing after inventory [75.19ms]
+(pass) refuses foreign UID at the command boundary before kill [19.24ms]
+(pass) refuses node PID one at the command boundary before kill [14.71ms]
+(pass) refuses node PID zero at the command boundary before kill [19.90ms]
+(pass) refuses non PID1 at the command boundary before kill [27.12ms]
+(pass) valid owned node PID1 reaches the real command boundary kill [45.92ms]
+(pass) surviving namespace fails cleanup while every later verification still runs [83.99ms]
+(pass) surviving Lease fails cleanup while every later verification still runs [95.07ms]
+(pass) surviving container fails cleanup while every later verification still runs [71.10ms]
+(pass) surviving network fails cleanup while every later verification still runs [80.64ms]
+(pass) surviving volume fails cleanup while every later verification still runs [84.80ms]
+(pass) global kubeconfig mutation fails cleanup [74.85ms]
+(pass) absent owned resources and unchanged kubeconfig pass cleanup verification [72.76ms]
+(pass) surviving lab state fails cleanup after every resource probe [83.95ms]
+(pass) stopped descendant oracle accepts process disappearance ENOENT [0.33ms]
+(pass) stopped descendant oracle accepts process disappearance ESRCH [0.02ms]
+(pass) stopped descendant oracle preserves unreadable and failed status reads [0.33ms]
+(pass) terminates local descendants when a command exits before its deadline [16.24ms]
+(pass) refuses unbounded or nonpositive deadline 0 [1.16ms]
+(pass) refuses unbounded or nonpositive deadline -1 [0.47ms]
+(pass) refuses unbounded or nonpositive deadline Infinity [0.45ms]
+(pass) refuses unbounded or nonpositive deadline NaN [0.31ms]
+(pass) unreadable lab state fails cleanup and later kubeconfig verification still runs [76.99ms]
+
+ 27 pass
+ 0 fail
+ 96 expect() calls
+Ran 27 tests across 1 file. [1.64s]

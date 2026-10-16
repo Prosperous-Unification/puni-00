@@ -7,17 +7,17 @@ import type { NewProject } from '../../ports/project-values';
 import type { StoredAttempt } from '../../ports/step-node-attempt-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeCopy } from '../../ports/subtree-store';
+import type { TreeAnnouncement } from '../../ports/tree-announcement';
 import type { StoredTypedDependency } from '../../ports/typed-dependency-store';
 import type { Scope } from '../../ports/unit-of-work';
 import type { WorkItemPatch } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
 import type { DirectoryService } from '../directory/directory.resource';
-import type { WorkItemService } from '../work-item/work-item.resource';
 
-/** The Directory and Work item resources one import reconciles and announces through. */
+/** The directory resource and tree announcement one import reconciles and publishes through. */
 export interface ImportServices {
   directory: DirectoryService;
-  workItems: Pick<WorkItemService, 'announceTreeNow'>;
+  workItems: TreeAnnouncement;
 }
 
 /**

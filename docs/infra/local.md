@@ -248,3 +248,48 @@ bunx nx run tool-devsync:dev-env -- up --slug main --worktree ~/puni-worktrees/p
 bunx nx run tool-devsync:dev-env -- down --slug main --cluster puni-walk-platform
 bunx nx run tool-fleet:lab -- down --id walk --profile app
 ```
+
+### Bounded first-attempt forge diagnostics
+
+Automatic lab creation and teardown in `forge-recovery-lab.ts` are **disabled**. The command
+exits nonzero before any mutation with `tool-fleet creation receipts required`.
+A read-only inventory cannot authorize deleting resources that appear after that snapshot,
+and the current lab owner returns no per-resource creation receipts for partial startup.
+Do not use this packet as a reusable automatic lab provisioner.
+
+The retained components are the independent-verdict coordinator (`forge-recovery-check.ts`),
+first-container memory/parser checks, read-only inventory and cleanup verification, guarded
+node PID1 command boundary, browser trace preload, and a process runner with finite process-group
+SIGKILL deadlines (`forge-recovery-process.ts`). Killing a Docker client does not kill its
+remote process. Any future node sampler therefore needs its own verified remote hard deadline,
+as well as receipt-backed teardown of the owned node. Current code does not launch a sampler.
+
+The one historical 2026-10-16 run used candidate `9c5828e43879059ec5708df4a381d4fa5cdbb36c`.
+Its original cold OOM and restored-checker failures remain in the immutable external evidence
+listed in [verification](../../openspec/changes/forge-restart-state/verify.md#one-instrumented-fresh-worktree-lab).
+No later lab or warm retry replaces them. The CLI will remain unavailable until the lab owner's
+creation-receipt contract is designed and proven, including partial creation and name races.
+
+### Creation attempts and manual recovery
+
+Each k3d `up` durably reserves a distinct creation journal before creating resources, then
+records ready or failed. Journals are owner-only files under
+`.puni/fleet-labs/k3d/.attempts/<lab-id>/<attempt-id>.json`; ordinary `down` preserves them.
+They record the creation attempt and Docker daemon identity, not ownership of individual
+containers, networks or volumes.
+
+Direct network and registry creation also reserve pending operations under
+`.puni/fleet-labs/k3d/.attempts/<lab-id>/<attempt-id>.operations/`. Operation schema v2 binds the slot to its lab-derived Docker kind/name and rejects earlier v1
+operation files. Each successful command records the full Docker ID it returned before the next creation starts. Errors and malformed or
+lost responses leave pending evidence; never resolve them by adopting a name or label. These
+receipts do not cover k3d-created resources or the registry's volumes. Read-only receipt assessment
+requires the same daemon, exact inspected IDs, kinds and names, and no foreign attachments; it grants no cleanup
+authority. Ordinary `down` preserves this evidence alongside the journal.
+
+A failed `up` reports its attempt and journal path. Its resource inventory is unknown: resources
+may remain, and the journal does not identify them. `up` disables k3d v5.9.0 automatic failure
+rollback with `--no-rollback`; the wrapper never starts cleanup. Inspect exact resource identities
+manually before cleanup. Ordinary `down` still derives its targets from names and
+labels; a journal does not make that teardown safe for recovery or prove which attempt created
+an object. The separate journal-consuming lifecycle refuses deletion, and the F9 recovery CLI
+remains disabled pending complete resource evidence and an identity-safe executor.

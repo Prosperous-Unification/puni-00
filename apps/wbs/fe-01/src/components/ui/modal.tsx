@@ -52,7 +52,7 @@ export const ModalOverlay = forwardRef<
   return (
     <DialogPrimitive.Overlay
       ref={ref}
-      className={cn('fixed inset-0 z-50 bg-black/40', className)}
+      className={cn('fixed inset-0 z-(--layer-modal) bg-black/40', className)}
       {...props}
     />
   );
@@ -125,7 +125,7 @@ export const ModalContent = forwardRef<
   ComponentRef<typeof DialogPrimitive.Content>,
   ModalContentProps
 >(function ModalContent(
-  { className, side = 'centre', closeButton = true, children, ...props },
+  { className, side = 'centre', closeButton = true, children, onPointerDownOutside, ...props },
   ref,
 ) {
   return (
@@ -135,11 +135,31 @@ export const ModalContent = forwardRef<
         ref={ref}
         data-modal-surface={side}
         className={cn(
-          'bg-background text-foreground fixed z-50 flex max-h-[90vh] flex-col gap-4 overflow-y-auto p-6',
+          'bg-background text-foreground fixed z-(--layer-modal) flex max-h-[90vh] flex-col gap-4 overflow-y-auto p-6',
           SIDE_CLS[side],
           className,
         )}
         {...props}
+        // A toast is drawn above every modal (`--layer-toast`), so a tap on
+        // its ✕ is a tap outside this surface, and Radix would close the
+        // surface under it. Dismissing what happened is not leaving what the
+        // reader was doing.
+        //
+        // `[data-toast]` as well as the stack: Radix reports a mouse's
+        // pointer-down outside only once the click has landed, and by then
+        // the ✕ has dismissed its toast, so the target is a detached node
+        // whose ancestors stop at the toast it was in.
+        //
+        // Proof: with this guard removed, `a refused import is drawn above the
+        // sheet it was chosen on` (`e2e/plan-import.spec.ts`) failed on the
+        // sheet being hidden after the toast's ✕ was tapped. Watched 2026-10-16.
+        onPointerDownOutside={(event) => {
+          onPointerDownOutside?.(event);
+          const target = event.target;
+          if (target instanceof Element && target.closest('[data-toasts], [data-toast]') !== null) {
+            event.preventDefault();
+          }
+        }}
       >
         <PageShortcutsHeld />
         {children}
