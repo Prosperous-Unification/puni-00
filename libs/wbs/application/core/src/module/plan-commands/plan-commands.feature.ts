@@ -1,9 +1,7 @@
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { OrganizationScope } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
-  DirectoryCatalog,
   Person,
   PersonWithTeams,
   ServiceTeam,
@@ -18,16 +16,10 @@ import {
 } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
-import type { ProjectCrossReferenceKind } from '../../ports/project-values';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
 import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
-import type {
-  DirectoryOutcome,
-  DirectoryRefusal,
-  RemoveDirectoryOutcome,
-} from '../directory/directory.resource';
-import type { WorkItemRefusal } from '../work-item/work-item.resource';
+import type { DirectoryOutcome, RemoveDirectoryOutcome } from '../directory/directory.resource';
 import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
@@ -35,6 +27,7 @@ import type {
   CommandTransaction,
 } from './admitted-scope.resource';
 import { applyCommand, bindCommands, CommandContext, CommandRefused } from './command-bindings';
+import { crossingRefusal, type PlainReason, refuseForeignReferences } from './command-references';
 import type { PlanCommandServices } from './plan-command-graph';
 
 export type { PlanCommandServices } from './plan-command-graph';
@@ -88,18 +81,6 @@ export type AppliedCommand =
       };
     }[EntityKind];
 
-type PlainReason =
-  | Exclude<
-      WorkItemRefusal,
-      'deadline_before_project_start' | 'descendant_step_on_leaf' | 'node_on_parent'
-    >
-  | DirectoryRefusal
-  | 'calendar_range'
-  | 'too_many_commands'
-  | 'project_required'
-  | 'unknown_ref'
-  | 'missing_id'
-  | 'duplicate_ref';
 export type Refusal =
   | { reason: PlainReason; detail?: never }
   | {
@@ -690,158 +671,4 @@ function admissionOf(access: ResourceAccess, grant: GrantedAdmission | null): Ed
 function legacyOutcome(outcome: ScopedBatchOutcome): BatchOutcome {
   if ('refusal' in outcome) throw new Error('a legacy batch was refused as out of scope');
   return outcome;
-}
-
-/**
- * Refuses a command naming a row or step outside the project, for the
- * references a command can name without leaving them in the project's final
- * state — a removed dependency's predecessor, a cleared value's step, a
- * placement's parent or sibling — which the closure check after the command
- * would never see — and a capacity's team, which a cleared capacity leaves
- * nowhere at all.
- */
-async function refuseForeignReferences(
-  graph: PlanCommandServices,
-  projectId: string,
-  command: PlanCommand,
-  context: CommandContext,
-  scope: OrganizationScope,
-): Promise<void> {
-  const named = (id: unknown, ref: unknown): string | null =>
-    context.id(typeof id === 'string' ? id : undefined, typeof ref === 'string' ? ref : undefined);
-  const rows = [
-    'predecessorId' in command || 'predecessorRef' in command
-      ? named(
-          'predecessorId' in command ? command.predecessorId : undefined,
-          'predecessorRef' in command ? command.predecessorRef : undefined,
-        )
-      : null,
-    'parentId' in command || 'parentRef' in command
-      ? named(
-          'parentId' in command ? command.parentId : undefined,
-          'parentRef' in command ? command.parentRef : undefined,
-        )
-      : null,
-    'afterId' in command || 'afterRef' in command
-      ? named(
-          'afterId' in command ? command.afterId : undefined,
-          'afterRef' in command ? command.afterRef : undefined,
-        )
-      : null,
-  ];
-  // Proof: skipping this check made `refuses a foreign predecessor, parent,
-  // sibling and step even where the final state would not show it` in
-  // `command-organization.controller.db.test.ts` answer 200 instead of 404
-  // for the removed foreign dependency; watched 2026-09-27.
-  for (const id of rows) {
-    if (id !== null && !(await graph.workItems.hasWorkItemInProject(projectId, id))) {
-      context.refuse({ reason: 'not_found' });
-    }
-  }
-  // Proof: skipping this check made `refuses clearing a foreign team's
-  // capacity as it refuses an absent team's` in
-  // `command-organization.controller.db.test.ts` answer 200 instead of 404;
-  // watched 2026-09-27.
-  // Proof: skipping this check made `refuses a foreign directory id exactly as
-  // an absent one, before anything is written` in
-  // `command-organization.controller.db.test.ts` answer `unknown_tag` for a
-  // foreign team beside an absent tag and `unknown_team` for an absent team
-  // beside it, telling the two apart; watched 2026-09-27.
-  for (const [catalog, ids, reason] of directoryReferencesOf(command, context)) {
-    if (ids.length === 0) continue;
-    const owned = new Set(
-      (await graph.directory.listWithin(catalog, { kind: 'scoped', scope })).map(
-        (entry) => entry.id,
-      ),
-    );
-    if (ids.some((id) => !owned.has(id))) context.refuse({ reason });
-  }
-  if (command.kind === 'setCapacity') {
-    const teamId = context.required(command.teamId, command.teamRef);
-    const owned = await graph.directory.listWithin('teams', {
-      kind: 'scoped',
-      scope,
-    });
-    // `not_found`, the answer the capacity service gives a team nobody holds.
-    if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
-  }
-  // Proof: skipping the step check alone made the same test answer 200 instead
-  // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
-  // 2026-09-27.
-  if (
-    'stepId' in command &&
-    typeof command.stepId === 'string' &&
-    !(await graph.workItems.hasStepInProject(projectId, command.stepId))
-  ) {
-    context.refuse({ reason: 'unknown_step' });
-  }
-}
-
-/**
- * The directory entries a project command names, refs resolved, each with the
- * refusal an entry nobody holds already earns. Checked before the command runs:
- * the services validate these globally, so a foreign id would otherwise be
- * told apart from an absent one, and a label a patch sets and then drops (a
- * `serviceTeamId` beside `teamRefs: []`) would leave nothing for the closure.
- */
-function directoryReferencesOf(
-  command: PlanCommand,
-  context: CommandContext,
-): [DirectoryCatalog, readonly string[], PlainReason][] {
-  if (command.kind === 'setAssignee') {
-    const person = context.id(command.personId, command.personRef);
-    return [['people', person === null ? [] : [person], 'unknown_person']];
-  }
-  if (command.kind === 'startAttempt') {
-    const executor = command.executorPersonId;
-    return [['people', executor === undefined ? [] : [executor], 'unknown_person']];
-  }
-  if (command.kind !== 'patchWorkItem') return [];
-  const { patch } = command;
-  const teams = context.ids(patch.teamIds, patch.teamRefs);
-  if (patch.serviceTeamId !== undefined && patch.serviceTeamId !== null) {
-    teams.push(patch.serviceTeamId);
-  }
-  return [
-    ['teams', teams, 'unknown_team'],
-    ['tags', context.ids(patch.tagIds, patch.tagRefs), 'unknown_tag'],
-    ['services', context.ids(patch.serviceIds, patch.serviceRefs), 'unknown_service'],
-    ['workItemTypes', context.ids(patch.typeIds, patch.typeRefs), 'unknown_type'],
-    ['externalSystems', (patch.externalRefs ?? []).map((each) => each.systemId), 'unknown_system'],
-  ];
-}
-
-/** The refusal a command earns for leaving the project referencing `kind` outside it. */
-function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
-  switch (kind) {
-    case 'estimate_step':
-    case 'actual_step':
-    case 'step_progress_step':
-    case 'step_measure_step':
-    case 'step_node_attempt_step':
-    case 'assignment_step':
-      return 'unknown_step';
-    case 'assignment_person':
-    case 'step_node_attempt_person':
-      return 'unknown_person';
-    case 'work_item_tag':
-      return 'unknown_tag';
-    case 'work_item_team':
-    case 'work_item_service_team':
-    case 'project_team_capacity':
-      return 'unknown_team';
-    case 'work_item_type':
-      return 'unknown_type';
-    case 'work_item_service_link':
-    case 'work_item_service':
-      return 'unknown_service';
-    case 'work_item_external_ref':
-      return 'unknown_system';
-    case 'work_item_parent':
-    case 'dependency_endpoint':
-    case 'incoming_step_row':
-    case 'incoming_parent':
-    case 'incoming_dependency':
-      return 'not_found';
-  }
 }
