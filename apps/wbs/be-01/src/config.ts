@@ -23,6 +23,8 @@ export const BeConfig = type({
   'WBS_DELEGATION_SIGNING_KEY?': 'string',
   'WBS_DELEGATION_VERIFY_KEY?': 'string',
   'ORGANIZATION_DNS_RESOLVERS?': 'string',
+  // Proof: widening this to string accepted invalid values in `proof scheduling overrides`.
+  'ORGANIZATION_DOMAIN_PROOF_SCHEDULING?': "'enabled'|'disabled'",
   'SOLVER_BUDGET_MS?': 'string.integer.parse',
   'SOLVER_SEARCH_WORKERS?': 'string.integer.parse',
   'SOLVER_MEMORY_LIMIT_MB?': 'string.integer.parse',

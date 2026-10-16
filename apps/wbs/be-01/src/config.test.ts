@@ -15,6 +15,19 @@ const VALID = {
 };
 
 describe('BeConfig', () => {
+  it('accepts only explicit enabled or disabled proof scheduling overrides', () => {
+    expect(loadConfig(VALID).ORGANIZATION_DOMAIN_PROOF_SCHEDULING).toBeUndefined();
+    for (const configured of ['enabled', 'disabled'])
+      expect(
+        loadConfig({ ...VALID, ORGANIZATION_DOMAIN_PROOF_SCHEDULING: configured })
+          .ORGANIZATION_DOMAIN_PROOF_SCHEDULING,
+      ).toBe(configured);
+    for (const configured of ['', 'true', 'yes'])
+      expect(() =>
+        loadConfig({ ...VALID, ORGANIZATION_DOMAIN_PROOF_SCHEDULING: configured }),
+      ).toThrow();
+  });
+
   it('keeps DNS disabled only for absent resolver configuration', () => {
     expect(loadConfig(VALID).organizationDnsResolvers).toBeUndefined();
     expect(

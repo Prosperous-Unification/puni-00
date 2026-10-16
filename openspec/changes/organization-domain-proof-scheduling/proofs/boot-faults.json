@@ -1,0 +1,177 @@
+[
+  {
+    "fault": "no-dns-guard",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "without authoritative DNS",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n122 |         startListener: () => {\n123 |           listeners += 1;\n124 |         },\n125 |       },\n126 |     ).catch((cause: unknown) => cause);\n127 |     expect(failure instanceof Error).toBe(true);\n                                           ^\nerror: expect(received).toBe(expected)\n\nExpected: true\nReceived: false\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:127:38)\n(fail) boot-owned retained proof scheduling > enabled scheduling without authoritative DNS opens no source or listener [125.31ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [1.84s]\n"
+  },
+  {
+    "fault": "disabled-guard",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "disabled scheduling",
+    "exit": 1,
+    "observation": "constructor(\n45 |     private readonly db: SQLiteBunDatabase,\n46 |     private readonly gate: Gate,\n47 |     private readonly policyDirectory?: string,\n48 |     readonly resolver: DomainResolver = {\n49 |       lookupTxt: () => Promise.reject(new Error('authoritative DNS resolver unavailable')),\n                                               ^\nerror: authoritative DNS resolver unavailable\n      at lookupTxt (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/adapters/store-sqlite/src/domain-claim.ts:49:43)\n      at matchesProof (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/application/core/src/service/domain-proof.service.ts:33:23)\n      at checkDomainProofs (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/application/core/src/service/domain-proof.service.ts:105:27)\n      at async <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/boot.ts:478:25)\n      at async <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/domain-proof-worker.ts:93:22)\n(fail) boot-owned retained proof scheduling > disabled scheduling creates no worker, lookup or wait for absent [85.38ms]\n\n 0 pass\n 11 filtered out\n 2 fail\n 2 expect() calls\nRan 2 tests across 1 file. [1.92s]\n"
+  },
+  {
+    "fault": "worker-binding",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "immediate configured",
+    "exit": 1,
+    "observation": "       startProofWorker: (schedule) => {\n183 |           workers += 1;\n184 |           return startDomainProofWorker({ ...schedule, wait: clock.wait });\n185 |         },\n186 |       });\n187 |       expect(workers).toBe(1);\n                            ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:187:23)\n(fail) boot-owned retained proof scheduling > immediate configured sweep honors organization activation true [111.72ms]\n182 |         startProofWorker: (schedule) => {\n183 |           workers += 1;\n184 |           return startDomainProofWorker({ ...schedule, wait: clock.wait });\n185 |         },\n186 |       });\n187 |       expect(workers).toBe(1);\n                            ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:187:23)\n(fail) boot-owned retained proof scheduling > immediate configured sweep honors organization activation false [68.22ms]\n\n 0 pass\n 11 filtered out\n 2 fail\n 2 expect() calls\nRan 2 tests across 1 file. [1.86s]\n"
+  },
+  {
+    "fault": "resolver-binding",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "immediate configured",
+    "exit": 1,
+    "observation": "adonly policyDirectory?: string,\n48 |     readonly resolver: DomainResolver = {\n49 |       lookupTxt: () => Promise.reject(new Error('authoritative DNS resolver unavailable')),\n                                               ^\nerror: authoritative DNS resolver unavailable\n      at lookupTxt (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/adapters/store-sqlite/src/domain-claim.ts:49:43)\n      at matchesProof (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/application/core/src/service/domain-proof.service.ts:33:23)\n      at checkDomainProofs (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/application/core/src/service/domain-proof.service.ts:105:27)\n      at async <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/boot.ts:478:25)\n      at async <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/domain-proof-worker.ts:93:22)\n(fail) boot-owned retained proof scheduling > immediate configured sweep honors organization activation true [116.46ms]\n(pass) boot-owned retained proof scheduling > immediate configured sweep honors organization activation false [68.12ms]\n\n 1 pass\n 11 filtered out\n 1 fail\n 6 expect() calls\nRan 2 tests across 1 file. [1.88s]\n"
+  },
+  {
+    "fault": "owned-disposal",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "stop aborts DNS",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n303 |     });\n304 |     const signal = await entered.promise;\n305 |     const stopping = running.stop();\n306 |     await Bun.sleep(0);\n307 |     expect(listenerStops).toBe(1);\n308 |     expect(signal.aborted).toBe(true);\n                                 ^\nerror: expect(received).toBe(expected)\n\nExpected: true\nReceived: false\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:308:28)\n(fail) boot-owned retained proof scheduling > stop aborts DNS but keeps storage open until cleanup joins [129.78ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [1.82s]\n"
+  },
+  {
+    "fault": "join-disposal",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "stop aborts DNS",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n304 |     const signal = await entered.promise;\n305 |     const stopping = running.stop();\n306 |     await Bun.sleep(0);\n307 |     expect(listenerStops).toBe(1);\n308 |     expect(signal.aborted).toBe(true);\n309 |     expect(order).toEqual(['abort']);\n                        ^\nerror: expect(received).toEqual(expected)\n\n  [\n    \"abort\",\n+   \"close\",\n  ]\n\n- Expected  - 0\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:309:19)\n(fail) boot-owned retained proof scheduling > stop aborts DNS but keeps storage open until cleanup joins [131.85ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [1.81s]\n"
+  },
+  {
+    "fault": "listener-first",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "stop aborts DNS",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n\n# Unhandled error between tests\n-------------------------------\n422 |             });\n                  ^\nerror: Unexpected }\n    at /tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/boot.ts:422:13\n-------------------------------\n\n\n 0 pass\n 1 fail\n 1 error\nRan 1 test across 1 file. [173.00ms]\n"
+  },
+  {
+    "fault": "worker-rejection-observer",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "latches unexpected worker rejection",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n400 |           completed: fails ? Promise.reject(fault) : Promise.resolve(),\n401 |           stop: () => Promise.resolve(),\n402 |         }),\n403 |       });\n404 |       const failure = running.backgroundFailure.current();\n405 |       expect(failure).toBeDefined();\n                            ^\nerror: expect(received).toBeDefined()\n\nReceived: undefined\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:405:23)\n(fail) boot-owned retained proof scheduling > latches unexpected worker rejection [119.61ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [1.80s]\n"
+  },
+  {
+    "fault": "premature-completion",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "latches unexpected worker normal",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n400 |           completed: fails ? Promise.reject(fault) : Promise.resolve(),\n401 |           stop: () => Promise.resolve(),\n402 |         }),\n403 |       });\n404 |       const failure = running.backgroundFailure.current();\n405 |       expect(failure).toBeDefined();\n                            ^\nerror: expect(received).toBeDefined()\n\nReceived: undefined\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:405:23)\n(fail) boot-owned retained proof scheduling > latches unexpected worker normal completion [118.04ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [1.79s]\n"
+  },
+  {
+    "fault": "expected-stop",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "stop aborts DNS",
+    "exit": 1,
+    "observation": ".aborted).toBe(true);\n309 |     expect(order).toEqual(['abort']);\n310 |     reply.reject(new DnsUnavailableError('cancelled after controlled cleanup'));\n311 |     await stopping;\n312 |     expect(order).toEqual(['abort', 'close']);\n313 |     expect(running.backgroundFailure.current()).toBeUndefined();\n                                                      ^\nerror: expect(received).toBeUndefined()\n\nReceived: {\n  cause: 490 |               });\n491 |               void worker.completed.then(\n492 |                 () => {\n493 |                   if (true)\n494 |                     backgroundFailure.report(\n495 |                       new Error('domain proof worker completed before shutdown'),\n                                ^\nerror: domain proof worker completed before shutdown\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/boot.ts:495:27)\n,\n}\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:313:49)\n(fail) boot-owned retained proof scheduling > stop aborts DNS but keeps storage open until cleanup joins [136.93ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 5 expect() calls\nRan 1 test across 1 file. [1.81s]\n"
+  },
+  {
+    "fault": "dns-modeled-boundary",
+    "path": "apps/wbs/be-01/src/runtime/authoritative-dns/failures.ts",
+    "test": "immediate configured",
+    "exit": 1,
+    "observation": "ursive (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts:186:11)\n      at async discoverAuthorities (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts:129:32)\n      at async lookupTxt (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts:90:38)\n      at async matchesProof (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/application/core/src/service/domain-proof.service.ts:32:29)\n      at async checkDomainProofs (/tmp/puni-domain-proof-scheduler-sol/libs/wbs/application/core/src/service/domain-proof.service.ts:105:27)\n      at async <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/boot.ts:478:25)\n      at async <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/domain-proof-worker.ts:93:22)\n(fail) boot-owned retained proof scheduling > immediate configured sweep honors organization activation true [120.66ms]\n(pass) boot-owned retained proof scheduling > immediate configured sweep honors organization activation false [74.15ms]\n\n 1 pass\n 11 filtered out\n 1 fail\n 6 expect() calls\nRan 2 tests across 1 file. [1.88s]\n"
+  },
+  {
+    "fault": "activation-read",
+    "path": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+    "test": "immediate configured sweep honors organization activation false",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/domain-proof.boot.db.test.ts:\n189 |       running.backgroundFailure.observe((failure) => {\n190 |         failed.reject(failure.cause);\n191 |       });\n192 |       await Promise.race([clock.entered.promise, failed.promise]);\n193 |       expect(clock.count()).toBe(1);\n194 |       expect(lookups > 0).toBe(activated);\n                                ^\nerror: expect(received).toBe(expected)\n\nExpected: false\nReceived: true\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:194:27)\n(fail) boot-owned retained proof scheduling > immediate configured sweep honors organization activation false [130.42ms]\n\n 0 pass\n 12 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [1.83s]\n"
+  },
+  {
+    "fault": "latch-first",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "latches the first failure",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n44 |     background.source.observe((failure) => {\n45 |       observed.push(failure.cause);\n46 |     });\n47 |     background.report(first);\n48 |     background.report(new Error('later failure'));\n49 |     expect(observed).toEqual([first]);\n                          ^\nerror: expect(received).toEqual(expected)\n\n  [\n    [Error: first failure],\n+   [Error: later failure],\n  ]\n\n- Expected  - 0\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:49:22)\n(fail) be process supervision > latches the first failure and synchronously notifies observers once [0.35ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [22.00ms]\n"
+  },
+  {
+    "fault": "observer-registration",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "later background failure",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n88 | \n89 |   test('a later background failure starts shutdown without a signal', async () => {\n90 |     const fixture = createFixture();\n91 |     const supervisor = superviseBe(fixture.running, fixture.effects);\n92 |     fixture.backgroundFailure.report(new Error('periodic sweep failed'));\n93 |     expect(fixture.stops()).toBe(1);\n                                 ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:93:29)\n(fail) be process supervision > a later background failure starts shutdown without a signal [0.39ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [13.00ms]\n"
+  },
+  {
+    "fault": "latched-observer",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "already-latched",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n65 |   test('observes an already-latched failure synchronously and exits one after disposal', async () => {\n66 |     const fixture = createFixture();\n67 |     const fault = new Error('immediate sweep failure');\n68 |     fixture.backgroundFailure.report(fault);\n69 |     const supervisor = superviseBe(fixture.running, fixture.effects);\n70 |     expect(fixture.stops()).toBe(1);\n                                 ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:70:29)\n(fail) be process supervision > observes an already-latched failure synchronously and exits one after disposal [0.38ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [19.00ms]\n"
+  },
+  {
+    "fault": "memoized-shutdown",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "shares repeated signal",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n52 | \n53 |   test('shares repeated signal shutdown and exits only after disposal', async () => {\n54 |     const fixture = createFixture();\n55 |     const supervisor = superviseBe(fixture.running, fixture.effects);\n56 |     const stopping = supervisor.stop();\n57 |     expect(supervisor.stop()).toBe(stopping);\n                                   ^\nerror: expect(received).toBe(expected)\n\nExpected: Promise { <pending> }\nReceived: serializes to the same string\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:57:31)\n(fail) be process supervision > shares repeated signal shutdown and exits only after disposal [0.46ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [20.00ms]\n"
+  },
+  {
+    "fault": "joined-shutdown",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "shares repeated signal",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n54 |     const fixture = createFixture();\n55 |     const supervisor = superviseBe(fixture.running, fixture.effects);\n56 |     const stopping = supervisor.stop();\n57 |     expect(supervisor.stop()).toBe(stopping);\n58 |     expect(fixture.stops()).toBe(1);\n59 |     expect(fixture.exits).toEqual([]);\n                               ^\nerror: expect(received).toEqual(expected)\n\n- []\n+ [\n+   0,\n+ ]\n\n- Expected  - 1\n+ Received  + 3\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:59:27)\n(fail) be process supervision > shares repeated signal shutdown and exits only after disposal [0.48ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 3 expect() calls\nRan 1 test across 1 file. [14.00ms]\n"
+  },
+  {
+    "fault": "disposal-failure-exit",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "disposal rejection",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n110 |     const stopping = supervisor.stop();\n111 |     const fault = new Error('database close failed');\n112 |     fixture.disposal.reject(fault);\n113 |     await stopping;\n114 |     expect(failures).toEqual([fault]);\n115 |     expect(fixture.exits).toEqual([1]);\n                                ^\nerror: expect(received).toEqual(expected)\n\n  [\n-   1,\n+   0,\n  ]\n\n- Expected  - 1\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:115:27)\n(fail) be process supervision > disposal rejection exits one and preserves the disposal failure [0.53ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [18.00ms]\n"
+  },
+  {
+    "fault": "background-failure-wins",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "background failure wins",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n81 |     const stopping = supervisor.stop();\n82 |     fixture.backgroundFailure.report(new Error('lookup cleanup failed during stop'));\n83 |     expect(fixture.stops()).toBe(1);\n84 |     fixture.disposal.resolve(undefined);\n85 |     await stopping;\n86 |     expect(fixture.exits).toEqual([1]);\n                               ^\nerror: expect(received).toEqual(expected)\n\n  [\n-   1,\n+   0,\n  ]\n\n- Expected  - 1\n+ Received  + 1\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:86:27)\n(fail) be process supervision > background failure wins a concurrent signal shutdown [0.48ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [23.00ms]\n"
+  },
+  {
+    "fault": "automatic-shutdown",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "later background failure",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n88 | \n89 |   test('a later background failure starts shutdown without a signal', async () => {\n90 |     const fixture = createFixture();\n91 |     const supervisor = superviseBe(fixture.running, fixture.effects);\n92 |     fixture.backgroundFailure.report(new Error('periodic sweep failed'));\n93 |     expect(fixture.stops()).toBe(1);\n                                 ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:93:29)\n(fail) be process supervision > a later background failure starts shutdown without a signal [0.39ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [21.00ms]\n"
+  },
+  {
+    "fault": "scheduling-enum",
+    "path": "apps/wbs/be-01/src/config.ts",
+    "test": "proof scheduling overrides",
+    "exit": 1,
+    "observation": "OMAIN_PROOF_SCHEDULING,\n24 |       ).toBe(configured);\n25 |     for (const configured of ['', 'true', 'yes'])\n26 |       expect(() =>\n27 |         loadConfig({ ...VALID, ORGANIZATION_DOMAIN_PROOF_SCHEDULING: configured }),\n28 |       ).toThrow();\n             ^\nerror: expect(received).toThrow()\n\nReceived function did not throw\nReceived value: {\n  PORT: 3100,\n  INTERNAL_AUTH_SECRET: \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n  LOG_LEVEL: \"info\",\n  GW_URL: \"http://localhost:3200\",\n  DB_PATH: \"/srv/wbs/data/wbs.db\",\n  JWT_SIGNING_KEY_CURRENT: \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\n  AUTH_MODE: \"local\",\n  APP_ORIGIN: \"http://localhost:4200\",\n  BROWSER_SESSION_AUTHORITY: \"disabled\",\n  ORGANIZATION_DOMAIN_PROOF_SCHEDULING: \"\",\n  delegationKeys: undefined,\n  appOrigin: \"http://localhost:4200\",\n  organizationDnsResolvers: undefined,\n  SOLVER_BUDGET_MS: 60000,\n  SOLVER_SEARCH_WORKERS: 2,\n  SOLVER_MEMORY_LIMIT_MB: 512,\n}\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/config.test.ts:28:9)\n(fail) BeConfig > accepts only explicit enabled or disabled proof scheduling overrides [1.33ms]\n\n 0 pass\n 25 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [136.00ms]\n"
+  },
+  {
+    "fault": "startup-order",
+    "path": "apps/wbs/be-01/src/boot.ts",
+    "test": "failed synchronous listener|failed schema admission",
+    "exit": 1,
+    "observation": "       workers += 1;\n251 |         return startDomainProofWorker(schedule);\n252 |       },\n253 |     }).catch((cause: unknown) => cause);\n254 |     expect(failure instanceof Error).toBe(true);\n255 |     expect(workers).toBe(0);\n                          ^\nerror: expect(received).toBe(expected)\n\nExpected: 0\nReceived: 1\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:255:21)\n(fail) boot-owned retained proof scheduling > failed synchronous listener startup starts no proof resource and closes storage [119.39ms]\n265 |         workers += 1;\n266 |         return startDomainProofWorker(schedule);\n267 |       },\n268 |     }).catch((cause: unknown) => cause);\n269 |     expect(failure instanceof Error).toBe(true);\n270 |     expect(workers).toBe(0);\n                          ^\nerror: expect(received).toBe(expected)\n\nExpected: 0\nReceived: 1\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/domain-proof.boot.db.test.ts:270:21)\n(fail) boot-owned retained proof scheduling > failed schema admission starts no worker [71.19ms]\n\n 0 pass\n 11 filtered out\n 2 fail\n 4 expect() calls\nRan 2 tests across 1 file. [1.88s]\n"
+  },
+  {
+    "fault": "reentrant-order",
+    "path": "apps/wbs/be-01/src/runtime/be-supervisor.ts",
+    "test": "reentrant failure",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-supervisor.test.ts:\n126 |         },\n127 |       },\n128 |       fixture.effects,\n129 |     );\n130 |     const stopping = supervisor.stop();\n131 |     expect(fixture.stops()).toBe(1);\n                                  ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 2\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-supervisor.test.ts:131:29)\n(fail) be process supervision > reentrant failure during stop still disposes exactly once [0.63ms]\n\n 0 pass\n 6 filtered out\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [17.00ms]\n"
+  },
+  {
+    "fault": "entrypoint-main",
+    "path": "apps/wbs/be-01/src/main.ts",
+    "test": "^main.ts",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-entrypoints.test.ts:\n49 |           stderr: 'pipe',\n50 |         },\n51 |       );\n52 |       const [exit, errors] = await Promise.all([child.exited, new Response(child.stderr).text()]);\n53 |       expect(errors).toBe('');\n54 |       expect(exit).toBe(1);\n                        ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-entrypoints.test.ts:54:20)\n(fail) main.ts supervises a latched worker failure and joins disposal before exit one [1623.59ms]\n\n 0 pass\n 1 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [1.65s]\n"
+  },
+  {
+    "fault": "entrypoint-dev",
+    "path": "apps/wbs/be-01/src/dev/main.ts",
+    "test": "dev/main.ts",
+    "exit": 1,
+    "observation": "bun test v1.4.2 (744846f84)\n\napps/wbs/be-01/src/runtime/be-entrypoints.test.ts:\n49 |           stderr: 'pipe',\n50 |         },\n51 |       );\n52 |       const [exit, errors] = await Promise.all([child.exited, new Response(child.stderr).text()]);\n53 |       expect(errors).toBe('');\n54 |       expect(exit).toBe(1);\n                        ^\nerror: expect(received).toBe(expected)\n\nExpected: 1\nReceived: 0\n\n      at <anonymous> (/tmp/puni-domain-proof-scheduler-sol/apps/wbs/be-01/src/runtime/be-entrypoints.test.ts:54:20)\n(fail) dev/main.ts supervises a latched worker failure and joins disposal before exit one [1559.55ms]\n\n 0 pass\n 1 filtered out\n 1 fail\n 2 expect() calls\nRan 1 test across 1 file. [1.58s]\n"
+  }
+]

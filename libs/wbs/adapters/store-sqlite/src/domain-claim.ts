@@ -38,7 +38,7 @@ export interface OpenedDomainClaim {
  * Domain claims and their single verified owner. Initial challenge issuance
  * is mounted only after activation and checks current super-admin authority;
  * DNS verification and retained proof checks are available through injected
- * ports; the periodic worker remains stopped in production.
+ * ports; boot schedules retained checks only with authoritative DNS configuration.
  */
 export class DomainClaimRepository implements DomainChallenges, DomainProofChecks {
   constructor(

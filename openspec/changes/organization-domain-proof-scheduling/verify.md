@@ -87,3 +87,46 @@ Five separately watched production-path mutations were restored before verificat
 Receipts: `/tmp/domain-proof-queued-*.log`. An additional repository case verifies cancellation during the already-admitted synchronous commit clock still returns checked=1 and the committed timestamps. A core case preserves completion exceptions raised after parent cancellation. Adapter files, boot and entrypoints remain untouched; no push was performed.
 
 Verification for queued completion checkpoint: the same four focused suites passed 82 tests, 0 failed, 276 assertions (`/tmp/domain-proof-queued-checkpoint-tests.log`). Focused ESLint for the six changed code files exited 0; the absent cached Nx graph still skips module-boundary lint. Change-specific OpenSpec validation returned 1 valid change with no issues. Changed-file formatting and whitespace checks passed. Full typecheck, build, host gate, CI, adapter integration, production activation and external live-domain evidence remain unverified.
+
+## Boot, adapter and process ownership integration
+
+The reviewed DNS successor `0f6f8f2796ef4eab0a8f8a4e9fcbf0fdcc7e9798` was merged with ancestry preserved at `161c225cc`. The private expected error now subclasses the framework-free core DNS unavailable error. Boot shares one mounted domain repository/resolver with the immediate sweep and owns its stop/join disposer before yielding. Scheduler configuration defaults to enabled with authoritative DNS and disabled without it; explicit enabled without DNS fails before source/listener acquisition.
+
+RunningBe now exposes a terminal failure latch with synchronous observer replay. Unexpected worker rejection and premature normal completion are observed before their first asynchronous turn can be lost. Both entrypoints use the shared supervisor: background failure initiates memoized disposal, a signal uses the same path, disposal is awaited before exit, and failure wins a concurrent signal. Failure during shutdown remains terminal.
+
+The new boot suite uses the existing real-app makeApp/startListener composition seams with a virtual listener because native listen returned EPERM in this sandbox. It exercises the real boot, repository, core service and authoritative adapter. This is boot/repository composition evidence, not live socket or external-domain evidence. The entrypoint tests run both real entrypoint scripts in separate Bun subprocesses with boot/solver boundary fixtures and the real supervisor, proving disposal markers are written before exit 1.
+
+Initial RED evidence included absent supervisor module, absent RunningBe failure source, and missing configuration refusal. Final serial focused command selected the core proof service, worker unit/SQLite suites, boot scheduling, supervisor, both entrypoints, config, existing authoritative-DNS boot, mounted domain controller, and all four DNS adapter unit suites: **304 pass, 0 fail, 800 assertions across 13 files, 21.01 seconds**. Full output: `/tmp/domain-proof-scheduler-final-tests.log`.
+
+The watched fault set is recorded in [proofs/boot-faults.json](proofs/boot-faults.json). All 25 separate production mutations returned nonzero with observed behavior failure, then were restored:
+
+- missing-DNS admission; explicit/default scheduling selection; worker startup binding; shared resolver binding;
+- owned release; awaited release; listener-first release;
+- startup before listener/schema readiness; worker rejection observation; premature completion; expected-stop distinction;
+- adapter modeled-error inheritance; organization activation read;
+- first-failure latch; observer registration; already-latched replay;
+- repeated and reentrant shutdown memoization; awaited shutdown; disposal-failure and concurrent-background-failure exit outcomes; failure-triggered shutdown;
+- configuration enum; each real entrypoint supervisor binding.
+
+The missing worker-stop await initially survived the original ten-microtask assertion. The test was strengthened to hold DNS cleanup across a full event-loop turn. Repeating the same fault then observed `close` while only `abort` was permitted. No joined-disposal claim relies on the earlier weak test.
+
+Additional green cases prove absent organization marker is not recreated and performs no DNS, failed synchronous listener/schema admission starts no worker, stop waits for held DNS cleanup and held write admission before SQLite closes, repeated stop closes once, expected stop produces no background failure, and actual DnsCleanupError remains terminal during stop. Prior 32/32/1, per-process serialization, currentness and queued-cancellation proofs remain in the selected regression run.
+
+No full local Nx, build, typecheck, browser, native socket, live DNS ownership, hosted CI, exact-SHA h2puni gate, deployment, synchronization, archive or push has been performed for this checkpoint. Module-boundary lint remains unverified without a cached Nx graph. External attended domain evidence remains open; this source checkpoint does not close WBS010.5.4.
+
+Reproduction command for the final focused regression:
+
+```sh
+bun test libs/wbs/application/core/src/service/domain-proof.service.test.ts \
+  apps/wbs/be-01/src/runtime/domain-proof-worker.test.ts \
+  apps/wbs/be-01/src/runtime/domain-proof-worker.db.test.ts \
+  apps/wbs/be-01/src/runtime/be-supervisor.test.ts \
+  apps/wbs/be-01/src/runtime/be-entrypoints.test.ts \
+  apps/wbs/be-01/src/domain-proof.boot.db.test.ts \
+  apps/wbs/be-01/src/config.test.ts \
+  apps/wbs/be-01/src/authoritative-dns.boot.db.test.ts \
+  apps/wbs/be-01/src/controller/domain-organization.controller.db.test.ts \
+  apps/wbs/be-01/src/runtime/authoritative-dns/*.test.ts --timeout 10000
+```
+
+Fresh focused ESLint exited 0 for all twelve changed TypeScript files (with the disclosed module-boundary warning). Changed-file Prettier and whitespace checks and both scheduler/DNS change validations are recorded at the source checkpoint. Exact Astra source review remains pending before publishing.

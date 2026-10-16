@@ -2,7 +2,7 @@
 
 ### Requirement: Configured authoritative DNS schedules retained proof checks
 
-WBS SHALL start retained proof scheduling only when authoritative DNS is explicitly configured. It SHALL immediately process at most 32 due verified claims, then repeat after a fixed one-hour delay following each completed sweep. A process SHALL run at most one sweep at a time. The lookup and commit bound SHALL preserve validation of every verified claim before selecting due work; database reads are not bounded by this limit. Due claims SHALL be ordered by last check time and claim ID so completed checks yield to older due claims on later sweeps. Existing seven-day eligibility and fourteen-day suspension SHALL remain authoritative. Concurrent deployment colors MAY perform redundant lookups; transactional currentness SHALL reject stale results.
+WBS SHALL start retained proof scheduling by default when authoritative DNS is explicitly configured, and SHALL leave it stopped when configuration is absent. An explicit enabled/disabled override SHALL be validated; enabled without configured resolvers SHALL reject before opening storage or the listener. It SHALL immediately process at most 32 due verified claims, then repeat after a fixed one-hour delay following each completed sweep. A process SHALL run at most one sweep at a time. The lookup and commit bound SHALL preserve validation of every verified claim before selecting due work; database reads are not bounded by this limit. Due claims SHALL be ordered by last check time and claim ID so completed checks yield to older due claims on later sweeps. Existing seven-day eligibility and fourteen-day suspension SHALL remain authoritative. Concurrent deployment colors MAY perform redundant lookups; transactional currentness SHALL reject stale results.
 
 #### Scenario: Bounded startup and eventual progress
 
@@ -31,7 +31,7 @@ WBS SHALL start retained proof scheduling only when authoritative DNS is explici
 
 ### Requirement: Proof scheduling owns cancellation and failures
 
-Shutdown SHALL cancel future scheduling and in-flight DNS work, join the sweep before closing its database, and prevent a cancelled lookup from recording a failed proof. Modeled DNS unavailability SHALL use existing warning and suspension persistence. Unexpected resolver or repository failures SHALL reject the worker completion promise. Suspended claims SHALL remain recoverable through the existing manual verification path.
+Shutdown SHALL cancel future scheduling and in-flight DNS work, join the sweep before closing its database, and prevent a cancelled lookup from recording a failed proof. Modeled DNS unavailability SHALL use existing warning and suspension persistence. Unexpected resolver or repository failures SHALL reject the worker completion promise. Boot SHALL latch such rejection and unexpected normal completion before a process observer can miss them. Both entrypoints SHALL share one supervisor that disposes once, joins all resources before exit, and exits 1 for a background or disposal failure even if a signal concurrently requested shutdown. Suspended claims SHALL remain recoverable through the existing manual verification path.
 
 #### Scenario: Stop during lookup
 
@@ -50,3 +50,15 @@ Shutdown SHALL cancel future scheduling and in-flight DNS work, join the sweep b
 - **GIVEN** a day-fourteen proof completion is waiting for the database write turn
 - **WHEN** the scheduler is cancelled before the completion transaction begins
 - **THEN** the claim keeps its old check and success timestamps and verified status, and cancellation is returned without counting checked or stale work
+
+#### Scenario: Immediate failure and concurrent signal
+
+- **GIVEN** a worker failure is already latched or occurs while a signal is joining shutdown
+- **WHEN** either process entrypoint supervises the running backend
+- **THEN** disposal runs once, its completion is awaited, and the process exits 1
+
+#### Scenario: Listener and schema admission fail
+
+- **GIVEN** synchronous listener readiness or schema admission throws
+- **WHEN** boot acquires the server
+- **THEN** no proof worker starts and acquired storage and listener resources are released

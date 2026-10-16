@@ -272,7 +272,7 @@ export class OrganizationHarness {
     this.startOptimizer();
   }
 
-  /** Runs one injected dormant worker pass against this harness's SQLite claim store. */
+  /** Runs one injected worker pass against this harness's SQLite claim store. */
   checkDomains(
     at: number,
     now: () => number = () => at,

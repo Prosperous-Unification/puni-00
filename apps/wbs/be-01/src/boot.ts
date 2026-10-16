@@ -38,9 +38,11 @@ import { runMigrations } from './repository/migrate';
 import { UserRepository } from './repository/user';
 import { AuthoritativeDnsResolver, type DnsTransport } from './runtime/authoritative-dns/resolver';
 import { SocketDnsTransport } from './runtime/authoritative-dns/transport';
+import { type BackgroundFailureSource, createBackgroundFailure } from './runtime/be-supervisor';
 import { REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys } from './runtime/delegation-keys';
+import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { refusingEmailDelivery } from './runtime/email-delivery';
 import { organizationCookieBinding } from './runtime/organization-cookie';
 import {
@@ -77,6 +79,8 @@ export interface BootOptions {
   delegationKeys?: DelegationKeys;
   /** Explicit recursive IPs; absence retains the refusing domain resolver. */
   organizationDnsResolvers?: readonly string[];
+  /** Defaults to enabled exactly when authoritative DNS is configured. */
+  organizationDomainProofScheduling?: 'enabled' | 'disabled';
   oidc?: OidcRouteOptions;
   localIdentity?: AuthenticatedUser;
   version?: string;
@@ -180,6 +184,8 @@ function browserComposition(
 }
 
 export interface RunningBe {
+  /** Terminal worker failure; observation immediately replays an already-latched cause. */
+  readonly backgroundFailure: BackgroundFailureSource;
   services: BeServices;
   /** Remains refusing even when a matching delegation key pair is configured. */
   delegationIssuer: DelegationIssuer;
@@ -188,6 +194,8 @@ export interface RunningBe {
 }
 
 interface BootDependencies {
+  /** Injects the scheduler clock/lifecycle while retaining the boot-owned sweep. */
+  readonly startProofWorker?: typeof startDomainProofWorker;
   /** Local protocol fixtures keep the production adapter, codec and destination guards. */
   readonly dnsTransport?: DnsTransport;
   /** Opens the source whose lifetime this boot owns. */
@@ -212,7 +220,7 @@ type BuiltApp = ReturnType<typeof buildApp>;
  * reach — the same shape of gap as the `runRetention` that had no caller at all.
  *
  * **It owns what it acquires.** The bag below opens the source, composes the
- * services, starts the retention timer and mounts the listener, in that order,
+ * services, starts retention, mounts the listener and starts configured proof scheduling, in that order,
  * and releases them in the reverse of it. A step that fails takes the whole
  * startup down with it and gives back every resource the earlier steps took;
  * that is why this is `async` — `source.close()` and `retention.stop()` are
@@ -226,6 +234,15 @@ export async function bootBe01(
   // Keys are parsed even while production refuses delegation, so a broken
   // configured pair cannot hide until a later activation.
   if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
+  const schedulesProofs =
+    opts.organizationDomainProofScheduling === undefined
+      ? opts.organizationDnsResolvers !== undefined
+      : opts.organizationDomainProofScheduling === 'enabled';
+  // Proof: removing this guard made `enabled scheduling without authoritative
+  // DNS` open SQLite and reach the listener instead of refusing configuration.
+  if (schedulesProofs && opts.organizationDnsResolvers === undefined)
+    throw new Error('domain proof scheduling requires authoritative DNS configuration');
+  const backgroundFailure = createBackgroundFailure();
   const domainResolver =
     opts.organizationDnsResolvers === undefined
       ? undefined
@@ -233,7 +250,7 @@ export async function bootBe01(
           opts.organizationDnsResolvers,
           dependencies.dnsTransport ?? new SocketDnsTransport(),
         );
-  const state = { migrationsApplied: false };
+  const state = { migrationsApplied: false, stopping: false };
   const bag = await DiBag.createBuilder()
     .withServices({
       // One connection for the process, opened through `openDrizzle` so the
@@ -310,6 +327,9 @@ export async function bootBe01(
             factoryCtx,
           ): BuiltApp => {
             const db = source.db;
+            // Proof: removing this resolver binding made the activated
+            // `immediate configured sweep` fail instead of recording DNS absence.
+            const domains = new DomainClaimRepository(db, services.gate, undefined, domainResolver);
             const browser = browserComposition(opts, services, db);
             const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
@@ -338,7 +358,7 @@ export async function bootBe01(
               ),
               // Proof: omitted binding answered configured boot's real TXT
               // acceptance with 503 dns_unavailable instead of 200 (2026-10-16).
-              domains: new DomainClaimRepository(db, services.gate, undefined, domainResolver),
+              domains,
               sessionPolicies: new SessionPolicyRepository(db, services.gate),
               pendingMemberships: new ScimUserRepository(db, services.gate),
               enterpriseConnections: new EnterpriseConnectionRepository(db, services.gate),
@@ -457,6 +477,47 @@ export async function bootBe01(
             factoryCtx.pushDisposer(async () => {
               await services.optimizer?.stop();
             });
+            // Proof: bypassing this selection started workers in both
+            // `disabled scheduling` cases. Removing the binding made `immediate
+            // configured sweep` see zero workers. Moving startup before ready
+            // made failed-listener and failed-schema tests observe one worker.
+            if (schedulesProofs) {
+              const worker = (dependencies.startProofWorker ?? startDomainProofWorker)({
+                sweep: async (signal, limit) => {
+                  await runDomainProofWorker(
+                    domains,
+                    services.clock.now(),
+                    () => services.clock.now(),
+                    limit,
+                    signal,
+                  );
+                },
+              });
+              factoryCtx.pushDisposer(async () => {
+                state.stopping = true;
+                // Proof: omitting this release left DNS un-aborted in
+                // `stop aborts DNS`; removing await closed SQLite while that
+                // test still held cleanup. It spans an event-loop turn because
+                // ten microtasks let the missing-await mutation survive.
+                await worker.stop();
+              });
+              void worker.completed.then(
+                () => {
+                  // Proof: suppressing this report hid `latches unexpected
+                  // worker normal completion`; reporting during expected stop
+                  // broke `stop aborts DNS`'s empty-failure assertion.
+                  if (!state.stopping)
+                    backgroundFailure.report(
+                      new Error('domain proof worker completed before shutdown'),
+                    );
+                },
+                (cause: unknown) => {
+                  // Proof: omitting this observer hid `latches unexpected
+                  // worker rejection`. Cleanup failure during stop remains terminal.
+                  backgroundFailure.report(cause);
+                },
+              );
+            }
             state.migrationsApplied = true;
             if (opts.migrateOnStartup === true) opts.logger.info('migrations applied');
             return app;
@@ -479,6 +540,7 @@ export async function bootBe01(
   const app = bag.resolve('server');
 
   return {
+    backgroundFailure: backgroundFailure.source,
     services,
     // Proof (2026-09-28): replacing this binding with an accepting function
     // failed boot.db.test.ts's configured-key issuer refusal assertion.
@@ -486,7 +548,8 @@ export async function bootBe01(
     port: app.server?.port ?? opts.port,
     /**
      * Releases in the reverse of the start order: the listener stops accepting,
-     * then the optimizer, then the retention sweep is waited out, then the file
+     * then the proof scheduler is aborted and joined, then the optimizer and
+     * retention sweep are waited out, then the file
      * is closed.
      *
      * Proof: closing first made the boot lifecycle test observe both
@@ -498,6 +561,9 @@ export async function bootBe01(
      * Repeated calls do not rerun disposers. They replay the first close's
      * outcome, including its cleanup error.
      */
-    stop: () => bag.close(),
+    stop: () => {
+      state.stopping = true;
+      return bag.close();
+    },
   };
 }

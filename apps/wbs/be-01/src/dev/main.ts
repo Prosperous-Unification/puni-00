@@ -17,6 +17,7 @@ import { bootBe01 } from '../boot';
 import { loadConfig } from '../config';
 import { oidcRouteOptionsFromEnv } from '../controller/oidc-options';
 import { installSolverLauncher } from '../module/solver-launcher/check';
+import { superviseBe } from '../runtime/be-supervisor';
 import {
   createLocalSolverSpawner,
   localSolverCapabilities,
@@ -55,6 +56,7 @@ try {
     internalAuthSecret: cfg.INTERNAL_AUTH_SECRET,
     browserSessionAuthority: cfg.BROWSER_SESSION_AUTHORITY,
     organizationDnsResolvers: cfg.organizationDnsResolvers,
+    organizationDomainProofScheduling: cfg.ORGANIZATION_DOMAIN_PROOF_SCHEDULING,
     oidc: cfg.AUTH_MODE === 'oidc' ? oidcRouteOptionsFromEnv(process.env) : undefined,
     localIdentity:
       cfg.AUTH_MODE === 'local'
@@ -79,17 +81,18 @@ try {
   process.exit(1);
 }
 
+// Proof: removing this binding made the entrypoint subprocess exit 0 on a
+// latched worker failure instead of joining disposal and exiting 1.
+const supervisor = superviseBe(running, {
+  exit: (code) => {
+    process.exit(code);
+  },
+  report: (cause) => {
+    logger.error({ err: cause }, 'be-01 background or disposal failure');
+  },
+});
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
   process.on(signal, () => {
-    void running.stop().then(
-      () => {
-        logger.info({ signal }, 'be-01 stopped');
-        process.exit(0);
-      },
-      (err: unknown) => {
-        logger.error({ err, signal }, 'be-01 did not stop cleanly');
-        process.exit(1);
-      },
-    );
+    void supervisor.stop();
   });
 }
