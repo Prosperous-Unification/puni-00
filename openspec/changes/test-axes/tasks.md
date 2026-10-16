@@ -106,6 +106,8 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1c.2 Compose real Manual observations over the same exact committed candidate and external policy. Preserve current/stale/failed/overdue and skipped outcomes; join full nested identity, evaluation instant and digest, refusing unreadable or mismatched reports without partial JSON.
 - [ ] 4.1c.3 Complete watched production guard/dependency negatives, installed dispatch, canonical digest and focused regression validation. Record actual evidence and independent review. Parent 4.1, T2, source reconciliation and certification remain open; WBS080.39 remains in progress.
 
+- [x] 4.1c.4 Add a closed version-two Browser authority to the unchanged diagnostic ledger over real Browser and mandatory Performance observations; retain exact v1 behavior. Allocate fresh scenarios preserving journal prefix, observe production RED/GREEN, prove full nested joins before assignments with repinned fault and watched guard negatives, preserve outcomes and labelled debt, prove installed parity, and record owning/adjacent tests and scoped uncached checks. Parent 4.1, 4.1c.3, T2, source reconciliation and certification remain open.
+
 ## 4.1b.11 Browser Architecture membership (WBS080.39)
 
 - [x] 4.1b.11a Allocate scenarios through the production allocator preserving the journal prefix; observe actual invokeCli unknown-command RED; specify exact authority and committed/reviewed-empty contract.

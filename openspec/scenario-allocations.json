@@ -1074,6 +1074,30 @@
       "id": "TEST-AXES-131",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser scenarios preserve installed dispatch and canonical identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-132",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger retains complete observations and v1 compatibility"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-133",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger refuses closed authority and exact observation join faults"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-134",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger preserves outcomes and source debt without cross-level credit"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-135",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser ledger validates the full tree and installed dispatch"
     }
   ]
 }
