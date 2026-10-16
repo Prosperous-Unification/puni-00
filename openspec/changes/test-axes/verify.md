@@ -4327,35 +4327,35 @@ The first actual `invokeCli` owning test failed with `unknown command: inspect-b
 
 Each row below changed only production source temporarily, ran its named production CLI test, observed the test runner exit 1 with a failed assertion, and restored the exact source before continuing. Coherent dependency faults wrap the real Browser levels reader and reseal changed return values; selected-reader faults and selected Git tag objects exercise their named boundaries. This table claims bounded guard detection, not authenticated observations or whole-repository acceptance.
 
-| Injected production fault | Observed failing test         | Evidence                                                                   |
-| ------------------------- | ----------------------------- | -------------------------------------------------------------------------- |
-| `sha`                     | `symbolic and annotated`      | `/tmp/browser-scenarios-watch-sha.log`; test runner exit 1                 |
-| `committed`               | `WATCH_committed`             | `/tmp/browser-scenarios-watch-committed.log`; test runner exit 1           |
-| `selected-revision`       | `symbolic and annotated`      | `/tmp/browser-scenarios-watch-selected-revision.log`; test runner exit 1   |
-| `revision`                | `WATCH_.*revision`            | `/tmp/browser-scenarios-watch-revision.log`; test runner exit 1            |
-| `candidate`               | `WATCH_.*candidate`           | `/tmp/browser-scenarios-watch-candidate.log`; test runner exit 1           |
-| `mode`                    | `WATCH_.*mode`                | `/tmp/browser-scenarios-watch-mode.log`; test runner exit 1                |
-| `digest`                  | `WATCH_.*digest`              | `/tmp/browser-scenarios-watch-digest.log`; test runner exit 1              |
-| `isolation`               | `real wrong level`            | `/tmp/browser-scenarios-watch-isolation.log`; test runner exit 1           |
-| `policy`                  | `WATCH_policy`                | `/tmp/browser-scenarios-watch-policy.log`; test runner exit 1              |
-| `scenarios-authority`     | `real wrong level`            | `/tmp/browser-scenarios-watch-scenarios-authority.log`; test runner exit 1 |
-| `capability`              | `source usage`                | `/tmp/browser-scenarios-watch-capability.log`; test runner exit 1          |
-| `terminal`                | `WATCH_terminal`              | `/tmp/browser-scenarios-watch-terminal.log`; test runner exit 1            |
-| `citation-grammar`        | `terminal malformed citation` | `/tmp/browser-scenarios-watch-citation-grammar.log`; test runner exit 1    |
-| `inactive`                | `terminal inactive citation   | retired citation`                                                          | `/tmp/browser-scenarios-watch-inactive.log`; test runner exit 1 |
-| `unidentified`            | `refuses unidentified`        | `/tmp/browser-scenarios-watch-unidentified.log`; test runner exit 1        |
-| `whole-tree`              | `unrelated competing`         | `/tmp/browser-scenarios-watch-whole-tree.log`; test runner exit 1          |
-| `nested`                  | `real nested suite`           | `/tmp/browser-scenarios-watch-nested.log`; test runner exit 1              |
-| `digest-payload`          | `real isolated Browser`       | `/tmp/browser-scenarios-watch-digest-payload.log`; test runner exit 1      |
-| `certification`           | `real isolated Browser`       | `/tmp/browser-scenarios-watch-certification.log`; test runner exit 1       |
-| `authentication`          | `real isolated Browser`       | `/tmp/browser-scenarios-watch-authentication.log`; test runner exit 1      |
-| `exit`                    | `terminal missing citation`   | `/tmp/browser-scenarios-watch-exit.log`; test runner exit 1                |
-| `arity`                   | `source usage`                | `/tmp/browser-scenarios-watch-arity.log`; test runner exit 1               |
-| `cli-mode`                | `source usage`                | `/tmp/browser-scenarios-watch-cli-mode.log`; test runner exit 1            |
-| `missing-kind`            | `terminal missing citation`   | `/tmp/browser-scenarios-watch-missing-kind.log`; test runner exit 1        |
-| `case-order`              | `canonical cases`             | `/tmp/browser-scenarios-watch-case-order.log`; test runner exit 1          |
-| `other-capability`        | `keeps passed failed skipped` | `/tmp/browser-scenarios-watch-other-capability.log`; test runner exit 1    |
-| `scenario-inventory`      | `real isolated Browser`       | `/tmp/browser-scenarios-watch-scenario-inventory.log`; test runner exit 1  |
+| Injected production fault | Observed failing test                               | Evidence                                                                   |
+| ------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------- |
+| `sha`                     | `symbolic and annotated`                            | `/tmp/browser-scenarios-watch-sha.log`; test runner exit 1                 |
+| `committed`               | `WATCH_committed`                                   | `/tmp/browser-scenarios-watch-committed.log`; test runner exit 1           |
+| `selected-revision`       | `symbolic and annotated`                            | `/tmp/browser-scenarios-watch-selected-revision.log`; test runner exit 1   |
+| `revision`                | `WATCH_.*revision`                                  | `/tmp/browser-scenarios-watch-revision.log`; test runner exit 1            |
+| `candidate`               | `WATCH_.*candidate`                                 | `/tmp/browser-scenarios-watch-candidate.log`; test runner exit 1           |
+| `mode`                    | `WATCH_.*mode`                                      | `/tmp/browser-scenarios-watch-mode.log`; test runner exit 1                |
+| `digest`                  | `WATCH_.*digest`                                    | `/tmp/browser-scenarios-watch-digest.log`; test runner exit 1              |
+| `isolation`               | `real wrong level`                                  | `/tmp/browser-scenarios-watch-isolation.log`; test runner exit 1           |
+| `policy`                  | `WATCH_policy`                                      | `/tmp/browser-scenarios-watch-policy.log`; test runner exit 1              |
+| `scenarios-authority`     | `real wrong level`                                  | `/tmp/browser-scenarios-watch-scenarios-authority.log`; test runner exit 1 |
+| `capability`              | `source usage`                                      | `/tmp/browser-scenarios-watch-capability.log`; test runner exit 1          |
+| `terminal`                | `WATCH_terminal`                                    | `/tmp/browser-scenarios-watch-terminal.log`; test runner exit 1            |
+| `citation-grammar`        | `terminal malformed citation`                       | `/tmp/browser-scenarios-watch-citation-grammar.log`; test runner exit 1    |
+| `inactive`                | `terminal inactive citation` and `retired citation` | `/tmp/browser-scenarios-watch-inactive.log`; test runner exit 1            |
+| `unidentified`            | `refuses unidentified`                              | `/tmp/browser-scenarios-watch-unidentified.log`; test runner exit 1        |
+| `whole-tree`              | `unrelated competing`                               | `/tmp/browser-scenarios-watch-whole-tree.log`; test runner exit 1          |
+| `nested`                  | `real nested suite`                                 | `/tmp/browser-scenarios-watch-nested.log`; test runner exit 1              |
+| `digest-payload`          | `real isolated Browser`                             | `/tmp/browser-scenarios-watch-digest-payload.log`; test runner exit 1      |
+| `certification`           | `real isolated Browser`                             | `/tmp/browser-scenarios-watch-certification.log`; test runner exit 1       |
+| `authentication`          | `real isolated Browser`                             | `/tmp/browser-scenarios-watch-authentication.log`; test runner exit 1      |
+| `exit`                    | `terminal missing citation`                         | `/tmp/browser-scenarios-watch-exit.log`; test runner exit 1                |
+| `arity`                   | `source usage`                                      | `/tmp/browser-scenarios-watch-arity.log`; test runner exit 1               |
+| `cli-mode`                | `source usage`                                      | `/tmp/browser-scenarios-watch-cli-mode.log`; test runner exit 1            |
+| `missing-kind`            | `terminal missing citation`                         | `/tmp/browser-scenarios-watch-missing-kind.log`; test runner exit 1        |
+| `case-order`              | `canonical cases`                                   | `/tmp/browser-scenarios-watch-case-order.log`; test runner exit 1          |
+| `other-capability`        | `keeps passed failed skipped`                       | `/tmp/browser-scenarios-watch-other-capability.log`; test runner exit 1    |
+| `scenario-inventory`      | `real isolated Browser`                             | `/tmp/browser-scenarios-watch-scenario-inventory.log`; test runner exit 1  |
 
 Installed-registration removal also failed TEST-AXES-131 through the real built executable (`/tmp/browser-scenarios-watch-installed-registration.log`, test runner exit 1); the original Browser levels registration Proof remains adjacent to its original entry.
 
