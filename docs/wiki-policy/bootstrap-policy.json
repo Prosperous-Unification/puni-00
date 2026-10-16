@@ -334,6 +334,10 @@
         ],
         "exclude": [
           {
+            "kind": "prefix",
+            "value": "openspec"
+          },
+          {
             "kind": "suffix",
             "value": ".test.ts"
           },

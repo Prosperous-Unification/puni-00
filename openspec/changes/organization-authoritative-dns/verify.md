@@ -73,6 +73,19 @@ The private exchange now accepts a synchronous conversion callback, so routing v
 - Refreshed both 384MiB/45s-capped lib/spec typechecks and scoped resolver/test ESLint: exit 0. Changed-document strict OpenSpec: 1/1 valid; all OpenSpec: 238/238 valid. The earlier 58/31 regression receipts belong to the initial implementation candidate and were not repeated for this resolver-only correction.
 - Raw RED/GREEN/fault logs remain in `/tmp/puni-dns-codec-review/publication-*.log` and `fault-{decoded-work-deadline,decoded-attempt-abort,proof-publication-deadline,proof-publication-abort}.log` for local exact-review inspection.
 
+## Hosted CI classification repair
+
+Hosted run `38912457392`, Twilight job `117011601042`, stopped 11 reviewed pilot cases because `codec-review/reproduce.mjs` matched both the `openspec` prefix and the `source` `.mjs` suffix. It is the only tracked JavaScript/TypeScript file under `openspec/`; no source boundary selects it. Both repository policies now exclude the `openspec` prefix from source classification, matching their existing document/config exclusions. The classifier and its multiple-match refusal are unchanged.
+
+The new production CLI tests first failed in both policy copies with `matched 2 classification rules` (2 passed, 2 failed), then passed after the exclusions (4 passed, 0 failed). They retain runtime `.mjs` source membership and classify the OpenSpec script without executing it. Injecting the overlap by removing the exclusion is refused in both copies. Temporarily weakening the production ambiguity guard from `> 1` to `> 2` made both injected-overlap negatives fail with expected exit 1, received 0; the guard was restored before validation. Raw receipts are `/tmp/dns-classification-{red,green,overlap-fault}.log`.
+
+Serial checks after this repair:
+
+- `TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test apps/twilight-structure/twilight-burokrat/cli/src/inventory/classification.test.ts apps/twilight-structure/twilight-burokrat/cli/src/policy/pilot-policy.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000`: 44 passed, 0 failed, 674 assertions, 120.89s. The external mapping absence/unreadability, selector mismatch and ambiguity negatives passed. Receipt: `/tmp/dns-ci-policy-focused.log`.
+- Scoped ESLint with `NODE_OPTIONS=--max-old-space-size=512` and changed-file Prettier: exit 0.
+- Pinned OpenSpec 1.12.0 strict DNS change validation: 1/1 valid; all-spec validation: 238/238 valid. Receipts: `/tmp/dns-ci-openspec-{change,all}.log`.
+- No additional typecheck, full Nx, solver, browser, build, host gate, live DNS or deploy was run for this policy-only repair. Hosted CI still needs to judge the successor commit.
+
 ## Pending checks and external acceptance
 
 Independent exact-commit review, hosted CI and the canonical exact-SHA h2 gate are pending. No full local Nx gate, browser suite, production build, live DNS exchange or deployment was run. The graph command only establishes project graph generation. There is no separate core domain-proof unit suite in this tree; existing mounted domain route tests are the core regression path.
