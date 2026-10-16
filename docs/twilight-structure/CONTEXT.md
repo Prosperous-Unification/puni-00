@@ -477,6 +477,14 @@ A revision of a task's measured usage or checkbox state, distinct from the
 approved task definition.
 _Avoid_: Completion receipt, status
 
+**Bound progress receipt**:
+A progress receipt tied to one complete exported plan reference.
+_Avoid_: Fresh receipt, authenticated receipt
+
+**Selected accepted reference**:
+The plan reference a caller independently chooses as the acceptance basis for local progress admission.
+_Avoid_: Current WBS state, live authority
+
 **Planning broker**:
 The one principal per repository that validates and publishes accepted planning
 revisions.

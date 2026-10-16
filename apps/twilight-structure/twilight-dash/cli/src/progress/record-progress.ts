@@ -13,10 +13,11 @@ import {
 
 const flags = ['--entries', '--plan-reference', '--tasks', '--output'] as const;
 type Flag = (typeof flags)[number];
-const usage = `usage: dash record-progress ${flags.map((flag) => `${flag} <path>`).join(' ')}`;
 
 /** Strict grammar is resolved before any file is opened; diagnostics never echo operands. */
-function parseFlags(argv: readonly string[]): (flag: Flag) => string {
+function parseFlags(argv: readonly string[], version: 1 | 2): (flag: Flag) => string {
+  const command = version === 1 ? 'record-progress' : 'record-progress-v2';
+  const usage = `usage: dash ${command} ${flags.map((flag) => `${flag} <path>`).join(' ')}`;
   const allowed = new Set<string>(flags);
   const values = new Map<string, string>();
   for (let position = 0; position < argv.length; position += 2) {
@@ -131,7 +132,23 @@ function publishReceipt(path: string, bytes: string): void {
  * documents or failed exclusive publication. Nothing is acknowledged before write and close.
  */
 export function recordProgress(argv: readonly string[], write: (text: string) => unknown): void {
-  const value = parseFlags(argv);
+  produceProgress(argv, write, 1);
+}
+
+/** Explicit schema 2 producer; seals the complete reference digest into the receipt. */
+export function recordBoundProgress(
+  argv: readonly string[],
+  write: (text: string) => unknown,
+): void {
+  produceProgress(argv, write, 2);
+}
+
+function produceProgress(
+  argv: readonly string[],
+  write: (text: string) => unknown,
+  version: 1 | 2,
+): void {
+  const value = parseFlags(argv, version);
   const entries = readJson(value('--entries'), 'entries');
   const reference = decodeRecord(
     PlanReferenceRecord,
@@ -139,7 +156,15 @@ export function recordProgress(argv: readonly string[], write: (text: string) =>
     'plan reference',
   );
   const tasks = decodeRecord(PlanTasks, readJson(value('--tasks'), 'task export'), 'task export');
-  const body = { schemaVersion: 1, kind: 'progress-receipt', planRef: reference.planRef, entries };
+  // Proof: dispatching record-progress-v2 through schema 1 failed the production v2 receipt
+  // version/digest assertions in record-progress.test.ts (2026-10-16).
+  const body = {
+    schemaVersion: version,
+    kind: 'progress-receipt',
+    planRef: reference.planRef,
+    ...(version === 2 ? { referenceDigest: reference.referenceDigest } : {}),
+    entries,
+  };
   const receipt = decodeRecord(
     ProgressReceiptRecord,
     { ...body, receiptDigest: digestOf(body) },
