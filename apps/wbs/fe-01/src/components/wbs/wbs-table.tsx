@@ -2447,6 +2447,11 @@ export function WbsTable({
       ) : (
         <div
           data-toolbar
+          // A toolbar to a screen reader (F-094). Tab still walks it control by
+          // control: it holds Find and the start date, whose arrow keys move a
+          // caret, so arrow-key roving would take them away.
+          role="toolbar"
+          aria-label="Plan"
           // Said out loud, because a control that is unavailable for a moment
           // and one that is unavailable for good look the same otherwise —
           // see {@link busyAffordance} for the click this makes visible.

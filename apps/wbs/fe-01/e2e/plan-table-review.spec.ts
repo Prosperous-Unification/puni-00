@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test';
+import { expect, type Locator, type Page, test } from '@playwright/test';
 import type { PlanCommandWire } from '@wbs/contracts';
 
 import {
@@ -803,9 +803,53 @@ test.describe('the quiet ink on a banded row (F-071)', () => {
         await paintedContrast(page, wordBox),
         'the search word on the band',
       ).toBeGreaterThanOrEqual(4.5);
+
+      // The same row has no QA figure: its Estimate box says `o/r/p` (F-091, D10).
+      const shorthand = spike.getByRole('combobox', { name: /^QA estimate for / });
+      await expect(shorthand).toHaveAttribute('placeholder', 'o/r/p');
+      await expect(shorthand).toHaveValue('');
+      const shorthandBox = await placeholderBox(shorthand);
+      // Proof: on 3e06eb5a4 (the shorthand's placeholder at 0.45 opacity) this
+      // failed on `the o/r/p shorthand on the band · Received: 1.965…` (light) and
+      // `2.354…` (dark).
+      expect(
+        await paintedContrast(page, shorthandBox),
+        'the o/r/p shorthand on the band',
+      ).toBeGreaterThanOrEqual(4.5);
     });
   }
 });
+
+/**
+ * A text box's placeholder extent: from the content box's left edge (or, for a
+ * centred box, from where the word starts), as wide as the word in the box's font.
+ */
+function placeholderBox(box: Locator) {
+  return box.evaluate((node) => {
+    if (!(node instanceof HTMLInputElement)) throw new Error('the placeholder is not on an input');
+    const style = getComputedStyle(node);
+    const context = document.createElement('canvas').getContext('2d');
+    if (context === null) throw new Error('no 2d canvas in this browser');
+    context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const rect = node.getBoundingClientRect();
+    const width = context.measureText(node.placeholder).width;
+    const inner =
+      rect.width -
+      Number.parseFloat(style.borderLeftWidth) -
+      Number.parseFloat(style.borderRightWidth) -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight);
+    const start =
+      rect.x + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.paddingLeft);
+    const offset =
+      style.textAlign === 'center'
+        ? (inner - width) / 2
+        : style.textAlign === 'right' || style.textAlign === 'end'
+          ? inner - width
+          : 0;
+    return { x: start + offset, y: rect.y, width, height: rect.height };
+  });
+}
 
 test('holds a lone chip too wide for its cell steady, counted', async ({ page }, testInfo) => {
   // Review of PR #457, finding 6: a first chip wider than the line leaves the

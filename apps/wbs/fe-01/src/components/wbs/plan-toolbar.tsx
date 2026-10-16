@@ -1753,8 +1753,14 @@ export function PlanToolbar({
         (`toolbar-panels.spec.ts`). The inner gap is the bar's own `gap-x-1.5`, so the width
         the budgets in `project-settings.spec.ts` and `optimization-cue.spec.ts`
         add up is unchanged; they count the controls by role, not by child.
+        Named groups (F-094), so a screen reader hears the grouping the eye sees.
       */}
-      <div data-toolbar-end className="ml-auto flex shrink-0 items-center gap-1.5">
+      <div
+        data-toolbar-end
+        role="group"
+        aria-label="Whole plan"
+        className="ml-auto flex shrink-0 items-center gap-1.5"
+      >
         {undo}
         {redo}
         {shortcuts}
@@ -1763,7 +1769,12 @@ export function PlanToolbar({
           The schedule controls stay a group of their own inside it (F-005):
           Starts, Plan with and Reset layout never part.
         */}
-        <div data-schedule className="flex shrink-0 items-center gap-1.5">
+        <div
+          data-schedule
+          role="group"
+          aria-label="Schedule"
+          className="flex shrink-0 items-center gap-1.5"
+        >
           {starts}
           {method}
           {layoutReset}

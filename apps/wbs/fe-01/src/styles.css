@@ -1172,16 +1172,14 @@
   }
 
   /* Full `--quiet-ink`, no opacity: a placeholder is the only word an empty
-     cell says, and it has to clear 4.5:1 on a banded row (UI review F-071). */
+     cell says, and it has to clear 4.5:1 on a banded row (UI review F-071).
+     The Estimate cells' `o/r/p` too (F-091, decision D10): it drew at 0.45
+     opacity, 1.96:1 light and 2.35:1 dark on the band, and is the only thing an
+     empty estimate says. Proof: `plan-table-review.spec.ts` `the o/r/p shorthand
+     on the band`. */
   [data-grid] ::placeholder {
     color: var(--quiet-ink);
     opacity: 1;
-  }
-
-  /* The estimate shorthand's `o/r/p` is a reminder of a syntax, not a prompt to
-     fill anything in: quieter than the rest. */
-  [data-grid] td[data-column$='-final'] ::placeholder {
-    opacity: 0.45;
   }
 
   /*

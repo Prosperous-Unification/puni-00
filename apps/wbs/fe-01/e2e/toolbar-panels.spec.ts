@@ -358,6 +358,23 @@ test.describe('the toolbar rows', () => {
     });
   }
 
+  test('names the bar and its end groups to a screen reader (F-094)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openPlan(page);
+    // Proof: on 3e06eb5a4 this failed on `getByRole('toolbar', { name: 'Plan' })`
+    // `element(s) not found`: the F-005/F-056 grouping was visual only, a flat run
+    // of buttons to a screen reader.
+    const toolbar = page.getByRole('toolbar', { name: 'Plan' });
+    await expect(toolbar).toBeVisible();
+    const end = toolbar.getByRole('group', { name: 'Whole plan' });
+    for (const name of ['Undo', 'Redo', 'Keyboard shortcuts'])
+      await expect(end.getByRole('button', { name })).toBeVisible();
+    await expect(end.locator('details[data-export]')).toBeVisible();
+    const schedule = end.getByRole('group', { name: 'Schedule' });
+    await expect(schedule.getByLabel('Project start date')).toBeVisible();
+    await expect(schedule.getByLabel('Final estimate')).toBeVisible();
+  });
+
   test('the Find count does not move the controls beside it (F-016)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await openPlan(page);

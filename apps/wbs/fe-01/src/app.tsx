@@ -113,20 +113,29 @@ function ThemedAccountMenu({
 /** The sentence for a session read that failed for a reason of its own. */
 const SESSION_UNCHECKED = 'Could not check your session.';
 
+/** A session read the form cannot help on: which page it draws, and its sentence. */
+export interface Unanswered {
+  readonly kind: 'unavailable' | 'refused';
+  readonly sentence: string;
+}
+
 /**
- * What a session read the client could not complete means for the gate (F-079).
+ * What a session read the client could not complete means for the gate (F-079,
+ * F-095).
  *
- * `sign-in`: the read was refused (a 401 or 403 the contract does not model, such
- * as a site gateway's challenge) or withdrawn, so the form is the way on, with
- * `notice` above it. `unavailable`: the server did not answer it — no connection,
- * a 5xx from the proxy in front of a stopped be-01, or a reply that is not the
- * contract's — and signing in could not help, so no credential boxes are drawn.
+ * `sign-in`: the read was refused as "no session" or withdrawn, so the form is
+ * the way on, with `notice` above it: a 401 the contract does not model says
+ * "You are not signed in.", and one carrying a `WWW-Authenticate` challenge says
+ * the site gateway turned it away ({@link failureMessage}). `refused`: a 403,
+ * which the session read never answers itself, so something in front of be-01
+ * (a WAF, CDN or proxy) said no before be-01 was asked; signing in could not
+ * change that. `unavailable`: the server did not answer it — no connection, a
+ * 5xx from the proxy in front of a stopped be-01, or a reply that is not the
+ * contract's. Neither of the last two draws credential boxes.
  */
 export function sessionReadFault(
   failure: ClientFailure,
-):
-  | { readonly kind: 'sign-in'; readonly notice: string }
-  | { readonly kind: 'unavailable'; readonly sentence: string } {
+): { readonly kind: 'sign-in'; readonly notice: string } | Unanswered {
   switch (failure.code) {
     case 'cancelled':
       return { kind: 'sign-in', notice: '' };
@@ -136,8 +145,19 @@ export function sessionReadFault(
       return { kind: 'unavailable', sentence: SESSION_UNCHECKED };
     case 'unexpected_status':
     case 'invalid_response':
-      if (failure.status === 401 || failure.status === 403)
-        return { kind: 'sign-in', notice: failureMessage(failure) };
+      if (failure.status === 401)
+        return {
+          kind: 'sign-in',
+          notice: failure.headers.has('www-authenticate')
+            ? failureMessage(failure)
+            : 'You are not signed in.',
+        };
+      if (failure.status === 403)
+        return {
+          kind: 'refused',
+          sentence:
+            'Something in front of the server refused this request, so your session could not be checked.',
+        };
       if (failure.status >= 500)
         return { kind: 'unavailable', sentence: 'The server is not available right now.' };
       return { kind: 'unavailable', sentence: 'The server returned an unexpected response.' };
@@ -145,6 +165,18 @@ export function sessionReadFault(
       return unreachable(failure);
   }
 }
+
+/** What each page the form cannot help on says under its sentence. */
+const UNANSWERED_COPY = {
+  unavailable: {
+    title: 'Server unavailable',
+    hint: 'Try again in a moment. Signing in will not help until the server answers.',
+  },
+  refused: {
+    title: 'Access refused',
+    hint: 'Signing in will not help until the request is let through. Check your network or site access, then try again.',
+  },
+} as const;
 
 /**
  * The signed-out column's top padding per card: half the column's height above
@@ -212,33 +244,32 @@ function SignedOutPage({
 }
 
 /**
- * The signed-out page while the session cannot be read (F-079): the sentence and
- * a Try again that reads the session again, and no sign-in form — an outage is
- * not a sign-in problem, and a form under it invites a password the server
- * cannot check either.
+ * The signed-out page while the session cannot be read (F-079), or a proxy
+ * refused the read (F-095): the heading, the sentence and a Try again that reads
+ * the session again, and no sign-in form — neither is a sign-in problem, and a
+ * form under it invites a password the server cannot check either.
  */
 function ServerUnavailable({
-  sentence,
+  unanswered,
   rechecking,
   onTryAgain,
 }: {
-  sentence: string;
+  unanswered: Unanswered;
   rechecking: boolean;
   onTryAgain: () => void;
 }): React.JSX.Element {
+  const copy = UNANSWERED_COPY[unanswered.kind];
   return (
     <SignedOutPage card="outage">
-      <Card className="w-full max-w-sm" data-server-unavailable>
+      <Card className="w-full max-w-sm" data-server-unavailable={unanswered.kind}>
         <CardHeader>
-          <CardTitle>Server unavailable</CardTitle>
+          <CardTitle>{copy.title}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           <p className="text-sm" role="alert">
-            {sentence}
+            {unanswered.sentence}
           </p>
-          <p className="text-muted-foreground text-sm">
-            Try again in a moment. Signing in will not help until the server answers.
-          </p>
+          <p className="text-muted-foreground text-sm">{copy.hint}</p>
           <Button className="h-11 w-full" type="button" disabled={rechecking} onClick={onTryAgain}>
             {rechecking ? 'Trying again…' : 'Try again'}
           </Button>
@@ -258,9 +289,9 @@ function AppContent({
   const [session, setSession] = useState<Session | null>(null);
   const [checked, setChecked] = useState(false);
   const [sessionError, setSessionError] = useState('');
-  // The sentence for a session read the server did not answer (F-079); null
-  // while the last read was answered, either way.
-  const [unavailable, setUnavailable] = useState<string | null>(null);
+  // A session read the form cannot help on (F-079, F-095); null while the last
+  // read was answered, either way.
+  const [unavailable, setUnavailable] = useState<Unanswered | null>(null);
   // Bumped by Try again: the session read's effect runs once per attempt.
   const [attempt, setAttempt] = useState(0);
   const [rechecking, setRechecking] = useState(false);
@@ -368,8 +399,8 @@ function AppContent({
             return;
           case 'failure': {
             const fault = sessionReadFault(reply.failure);
-            if (fault.kind === 'unavailable') setUnavailable(fault.sentence);
-            else setSessionError(fault.notice);
+            if (fault.kind === 'sign-in') setSessionError(fault.notice);
+            else setUnavailable(fault);
             return;
           }
           case 'refusal':
@@ -379,7 +410,7 @@ function AppContent({
               case 'invalid_body':
               case 'invalid_query':
               case 'invalid_params':
-                setUnavailable(SESSION_UNCHECKED);
+                setUnavailable({ kind: 'unavailable', sentence: SESSION_UNCHECKED });
                 return;
               default:
                 return unreachable(reply.body);
@@ -389,7 +420,8 @@ function AppContent({
         }
       })
       .catch(() => {
-        if (active && requestedAt === sessionRevision.current) setUnavailable(SESSION_UNCHECKED);
+        if (active && requestedAt === sessionRevision.current)
+          setUnavailable({ kind: 'unavailable', sentence: SESSION_UNCHECKED });
       })
       .finally(() => {
         if (!active) return;
@@ -442,7 +474,7 @@ function AppContent({
   if (session === null && unavailable !== null)
     return (
       <ServerUnavailable
-        sentence={unavailable}
+        unanswered={unavailable}
         rechecking={rechecking}
         onTryAgain={() => {
           setRechecking(true);
