@@ -685,7 +685,7 @@ Step blockage facts and nested move/deletion replay capabilities are cumulative 
 
 The disposable Docker regression is `bunx nx run tool-remote-scripts:test:backend-recreation`. It requires the pinned Alpine image named in the proof script already installed, uses a unique project/network and scratch bind only, and verifies complete cleanup. It reproduces dynamic idle aliases and proves forced recreation, no dependency starts, and literal environment preservation.
 
-`/internal/forward` remains a pure acknowledgment endpoint; setter, import and activation-shaped frames confer no write or deploy authority. SQLite StepBlockage activation remains a separate durable application boundary. This Compose barrier does not activate it.
+`/internal/forward` remains a pure acknowledgment endpoint; setter, import and activation-shaped frames confer no write or deploy authority. The `--check-backend-recovery` operation is read-only and never activates StepBlockage writers. Activation requires the explicit operation described in [Attended Compose activation](#attended-compose-activation).
 
 The Debian backend runtime copies `/bin/busybox` from Docker Official Image
 `busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092`.
