@@ -47,7 +47,7 @@ Initial RED receipts included the missing resolver, codec and transport, absent 
 
 ## R5 execution
 
-[86 serial fault receipts](codec-review/fault-receipts.json) name the precise source mutation, focused Bun command, nonzero exit and observed failed test. Every edit was restored in `finally`. The recorder rejected syntax errors, external timeout exits and Bun timeout failures; a timeout was not accepted as proof. Adjacent production `Proof:` comments refer to the observed failures. Existing store guards retain their original comments and now have additional mounted adapter-path receipts.
+[90 serial fault receipts](codec-review/fault-receipts.json) name the precise source mutation, focused Bun command, nonzero exit and observed failed test. Every edit was restored in `finally`. The recorder rejected syntax errors, external timeout exits and Bun timeout failures; a timeout was not accepted as proof. Adjacent production `Proof:` comments refer to the observed failures. Existing store guards retain their original comments and now have additional mounted adapter-path receipts.
 
 | Boundary                      | Independently observed faults                                                                                                                                                                                               |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,6 +61,17 @@ Initial RED receipts included the missing resolver, codec and transport, absent 
 | Production/transaction        | Omitted binding, resolver bypass, empty-on-error, activation bypass; commit membership, activation, challenge, expiry snapshot and expiry time; removed unique owner index allowed two concurrent 200 responses             |
 
 The restored suite covers deferred close acknowledgment, late events after cleanup failure, no proof until closure, timed-out peer retry only after acknowledgment, shared UDP/TCP attempt identity, late TC fallback without resetting deadlines, concurrent crossed replies, and a mounted near-4,800ms cancellation returning 503 after joined cleanup and before the unchanged five-second route guard. Native socket behavior is exercised with controlled socket factories, not live DNS. The mounted protocol fixtures preserve the production adapter, codec, boot wiring, signed browser context, activation reader and disposable SQLite transaction.
+
+## Exact review correction after c9c1bd552
+
+Independent review found a publication gap: a synchronous decoder could cross the absolute cutoff after the exchange's pre-decode clock read, or caller cancellation could be queued before the final await resumed. Four production-path cases first returned `['proof-A', 'other']` instead of rejecting. Expanded RED covered eight cases: packet/text conversion crossing the shared cutoff, synchronous caller abort, queued shared cutoff/caller abort, and local attempt cutoff/cancellation during TXT conversion. All eight failed before the fix (0 passed/8 failed).
+
+The private exchange now accepts a synchronous conversion callback, so routing validation and TXT conversion finish before its final attempt cutoff/cancellation checks. Lookup rechecks the shared cutoff and cancellation after awaiting accepted values, before publishing. Socket cleanup/error precedence is unchanged. A positive 899ms conversion control still succeeds.
+
+- Restored focused DNS/config/mounted command from the table above: **199 passed, 0 failed**, 6 files, 10.29s.
+- Independently removed decoded-work cutoff, decoded-attempt abort check, publication cutoff and publication abort check: each focused test failed with proof strings returned instead of an error, exit 1, without timeout. The four receipts extend the earlier 86 to 90; all edits were restored.
+- Refreshed both 384MiB/45s-capped lib/spec typechecks and scoped resolver/test ESLint: exit 0. Changed-document strict OpenSpec: 1/1 valid; all OpenSpec: 238/238 valid. The earlier 58/31 regression receipts belong to the initial implementation candidate and were not repeated for this resolver-only correction.
+- Raw RED/GREEN/fault logs remain in `/tmp/puni-dns-codec-review/publication-*.log` and `fault-{decoded-work-deadline,decoded-attempt-abort,proof-publication-deadline,proof-publication-abort}.log` for local exact-review inspection.
 
 ## Pending checks and external acceptance
 

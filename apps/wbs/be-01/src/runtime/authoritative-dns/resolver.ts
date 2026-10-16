@@ -91,8 +91,15 @@ export class AuthoritativeDnsResolver implements DomainResolver {
       for (const address of authorities) {
         lifetime.signal.throwIfAborted();
         try {
-          const reply = await this.exchange(address, name, 'TXT', false, lifetime);
-          return readTxt(reply, name);
+          const values = await this.exchange(address, name, 'TXT', false, lifetime, (reply) =>
+            readTxt(reply, name),
+          );
+          // Proof: removing the publication cutoff failed `refuses publication after final packet decoding crosses queued_deadline` (2026-10-16).
+          if (this.timers.nowMs() >= lifetime.workExpiresAt)
+            throw new DnsUnavailableError('DNS proof publication deadline exceeded');
+          // Proof: removing the publication abort check failed `refuses publication after final packet decoding crosses queued_abort` (2026-10-16).
+          lifetime.signal.throwIfAborted();
+          return values;
         } catch (failure) {
           // Proof: bypassing empty on error failed
           // `distinguishes authoritative absence from unusable DNS evidence: outage` (2026-10-16).
@@ -167,9 +174,10 @@ export class AuthoritativeDnsResolver implements DomainResolver {
     for (const address of this.resolvers) {
       lifetime.signal.throwIfAborted();
       try {
-        const reply = await this.exchange(address, name, type, true, lifetime);
-        readRoutingRecords(reply, name, type);
-        return reply;
+        return await this.exchange(address, name, type, true, lifetime, (reply) => {
+          readRoutingRecords(reply, name, type);
+          return reply;
+        });
       } catch (failure) {
         if (!(failure instanceof DnsUnavailableError)) throw failure;
         lifetime.signal.throwIfAborted();
@@ -178,14 +186,15 @@ export class AuthoritativeDnsResolver implements DomainResolver {
     throw new DnsUnavailableError('DNS recursive discovery unavailable');
   }
 
-  /** UDP and its optional same-peer TCP fallback share one attempt budget. */
-  private async exchange(
+  /** UDP, TCP fallback and synchronous evidence conversion share one attempt budget. */
+  private async exchange<T>(
     address: string,
     name: string,
     type: 'NS' | 'A' | 'AAAA' | 'TXT',
     recursive: boolean,
     lifetime: LookupLifetime,
-  ): Promise<DnsPacket> {
+    accept: (reply: DnsPacket) => T,
+  ): Promise<T> {
     lifetime.signal.throwIfAborted();
     const started = this.timers.nowMs();
     // Proof: bypassing delayed clock failed
@@ -262,7 +271,13 @@ export class AuthoritativeDnsResolver implements DomainResolver {
         if ((question.flags & packet.TRUNCATED_RESPONSE) !== 0) {
           continue;
         }
-        return decodePacket(bytes);
+        const accepted = accept(decodePacket(bytes));
+        // Proof: removing the decoded work cutoff failed `refuses final text conversion after local attempt deadline` (2026-10-16).
+        if (this.timers.nowMs() >= workExpiresAt)
+          throw new DnsUnavailableError('DNS decoded response work budget exhausted');
+        // Proof: removing the decoded attempt abort check failed `refuses final text conversion after local attempt cancellation` (2026-10-16).
+        attempt.throwIfAborted();
+        return accepted;
       }
       throw new DnsUnavailableError('DNS complete response unavailable');
     } finally {

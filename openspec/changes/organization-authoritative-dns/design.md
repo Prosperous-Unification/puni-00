@@ -46,6 +46,8 @@ One lookup owns its sockets/timers and confirms closure before publishing proof 
 
 The adapter uses a 4,900ms absolute settlement bound inside the unchanged five-second route guard, with network work ending by 4,800ms. Each attempt has an absolute hard bound of the earlier of start+1,000ms and the lookup hard bound; network work ends at the earlier of start+900ms and the lookup work bound. UDP and TCP share these timestamps. Caller cancellation immediately stops accepting bytes and requests closure, then awaits bounded cleanup; it does not publish proof.
 
+Attempt work includes packet decoding, routing validation and TXT conversion through a private synchronous acceptance callback. Recheck the absolute attempt cutoff and cancellation after that conversion. Recheck the shared absolute cutoff and caller cancellation after the final await, immediately before publishing values; delayed timer callbacks and queued aborts cannot extend either budget.
+
 On response, failure or abort, initiate close exactly once and join its acknowledgment until the earlier of now+100ms, the attempt hard bound and the lookup hard bound. An ordinary outcome publishes only after close acknowledgment. A thrown close or expired join is a terminal `DnsCleanupError`: no peer retry, no proof, and closure is explicitly unconfirmed. The adapter must not disguise this as an ordinary DNS timeout or assert a resource was closed when close failed. Cancel all owned timers on settlement; late callbacks cannot publish or retry. A bounded transport join also detects an injected transport that ignores cancellation. Generic race-first deadline helpers cannot own this DNS lifetime because their abort race can mask required cleanup failure.
 
 ## Follow-ups and external prerequisites

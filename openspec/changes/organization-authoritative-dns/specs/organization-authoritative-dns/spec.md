@@ -87,6 +87,13 @@ Discovery, authoritative attempts and TCP fallback SHALL share a maximum five-se
 - **WHEN** lookup starts or completes late
 - **THEN** it rejects, leaves no pending socket/timer and cannot promote a claim
 
+#### Scenario: Synchronous conversion and queued cancellation cannot extend deadlines
+
+- **GIVEN** final packet decoding or TXT conversion crosses the absolute work cutoff, or cancellation arrives during conversion or before publication
+- **WHEN** timer callbacks have not yet run or the final await resumes
+- **THEN** the adapter rejects instead of returning proof
+- **AND** a crossed shared cutoff prevents another endpoint query
+
 #### Scenario: Ownership changes during network work
 
 - **GIVEN** a challenge rotates, membership is removed, activation changes or another organization wins ownership while lookup is pending

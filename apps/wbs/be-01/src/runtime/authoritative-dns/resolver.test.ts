@@ -112,6 +112,168 @@ describe('authoritative DNS resolver production boundary', () => {
     }
   });
 
+  it.each([
+    ['packet', 'deadline'],
+    ['packet', 'abort'],
+    ['text', 'deadline'],
+    ['text', 'abort'],
+    ['packet', 'queued_deadline'],
+    ['packet', 'queued_abort'],
+  ] as const)('refuses publication after final %s decoding crosses %s', async (stage, fault) => {
+    const timers = new DeadlineClock();
+    let instant = 0;
+    let textCalls = 0;
+    const controller = new AbortController();
+    const requests: DnsExchange[] = [];
+    const crossBoundary = (): void => {
+      if (fault === 'deadline') instant = 4_800;
+      else if (fault === 'queued_deadline')
+        queueMicrotask(() => {
+          instant = 4_800;
+        });
+      else if (fault === 'queued_abort')
+        queueMicrotask(() => {
+          controller.abort('private caller reason');
+        });
+      else controller.abort('private caller reason');
+    };
+    const originalPacket = packet.decode;
+    const originalText = Reflect.get(TextDecoder.prototype, 'decode');
+    const packetDecode = spyOn(packet, 'decode').mockImplementation(
+      Object.assign(
+        (bytes: Buffer) => {
+          const reply = originalPacket(bytes);
+          packet.decode.bytes = originalPacket.bytes;
+          if (
+            stage === 'packet' &&
+            reply.type === 'response' &&
+            reply.questions?.[0]?.type === 'TXT'
+          )
+            crossBoundary();
+          return reply;
+        },
+        { bytes: 0 },
+      ),
+    );
+    const textDecode = spyOn(TextDecoder.prototype, 'decode').mockImplementation(function (
+      this: TextDecoder,
+      ...parameters: Parameters<TextDecoder['decode']>
+    ) {
+      const text = originalText.call(this, ...parameters);
+      // The first proof-A conversion is wire preflight; the second is final readTxt.
+      if (stage === 'text' && text === 'proof-A' && ++textCalls === 2) crossBoundary();
+      return text;
+    });
+    try {
+      const resolver = new AuthoritativeDnsResolver(
+        ['10.0.0.53'],
+        {
+          exchange: async (request) => {
+            await Promise.resolve();
+            requests.push(request);
+            if (originalPacket(request.packet).questions![0].type === 'A')
+              return answer(request, {
+                answers: [
+                  { name: 'ns.example.com', type: 'A', ttl: 60, data: '8.8.8.8' },
+                  { name: 'ns.example.com', type: 'A', ttl: 60, data: '9.9.9.9' },
+                ],
+              });
+            return answer(request);
+          },
+        },
+        { nowMs: () => instant, schedule: timers.schedule },
+      );
+      await expectRejection(resolver.lookupTxt(owner, controller.signal));
+      expect(
+        requests.filter((request) => originalPacket(request.packet).questions![0].type === 'TXT'),
+      ).toHaveLength(1);
+      expect(timers.active).toBe(0);
+    } finally {
+      packetDecode.mockRestore();
+      textDecode.mockRestore();
+    }
+  });
+  it.each(['deadline', 'cancellation'] as const)(
+    'refuses final text conversion after local attempt %s',
+    async (fault) => {
+      const timers = new DeadlineClock();
+      let instant = 0;
+      let textCalls = 0;
+      let cancelAttempt: (() => void) | undefined;
+      const original = Reflect.get(TextDecoder.prototype, 'decode');
+      const decode = spyOn(TextDecoder.prototype, 'decode').mockImplementation(function (
+        this: TextDecoder,
+        ...parameters: Parameters<TextDecoder['decode']>
+      ) {
+        const text = original.call(this, ...parameters);
+        if (text === 'proof-A' && ++textCalls === 2) {
+          if (fault === 'deadline') instant = 900;
+          else {
+            if (cancelAttempt === undefined) throw new Error('attempt timer absent');
+            cancelAttempt();
+          }
+        }
+        return text;
+      });
+      try {
+        const resolver = new AuthoritativeDnsResolver(
+          ['10.0.0.53'],
+          {
+            exchange: async (request) => {
+              await Promise.resolve();
+              return answer(request);
+            },
+          },
+          {
+            nowMs: () => instant,
+            schedule: (ms, fire) => {
+              if (ms === 900) cancelAttempt = fire;
+              return timers.schedule(ms, fire);
+            },
+          },
+        );
+        await expectRejection(resolver.lookupTxt(owner, new AbortController().signal));
+        expect(timers.active).toBe(0);
+      } finally {
+        decode.mockRestore();
+      }
+    },
+  );
+  it('accepts final proof conversion just before the attempt deadline', async () => {
+    const timers = new DeadlineClock();
+    let instant = 0;
+    const original = packet.decode;
+    const decode = spyOn(packet, 'decode').mockImplementation(
+      Object.assign(
+        (bytes: Buffer) => {
+          const reply = original(bytes);
+          packet.decode.bytes = original.bytes;
+          if (reply.type === 'response' && reply.questions?.[0]?.type === 'TXT') instant = 899;
+          return reply;
+        },
+        { bytes: 0 },
+      ),
+    );
+    try {
+      const resolver = new AuthoritativeDnsResolver(
+        ['10.0.0.53'],
+        {
+          exchange: async (request) => {
+            await Promise.resolve();
+            return answer(request);
+          },
+        },
+        { nowMs: () => instant, schedule: timers.schedule },
+      );
+      expect(await resolver.lookupTxt(owner, new AbortController().signal)).toEqual([
+        'proof-A',
+        'other',
+      ]);
+      expect(timers.active).toBe(0);
+    } finally {
+      decode.mockRestore();
+    }
+  });
   it('preserves BOM, whitespace, case and duplicate TXT records', async () => {
     const text = '\ufeff MixedCase ';
     const { resolver } = fixture((request) =>

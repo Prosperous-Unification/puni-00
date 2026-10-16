@@ -958,6 +958,50 @@
       "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'bounds one endpoint attempt'",
       "exit": 1,
       "observed": "(fail) authoritative DNS resolver production boundary > bounds one endpoint attempt and ignores late replies after abort"
+    },
+    {
+      "guard": "decoded-work-deadline",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS decoded response work budget exhausted",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'final text conversion after local attempt deadline'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses final text conversion after local attempt deadline"
+    },
+    {
+      "guard": "decoded-attempt-abort",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "        attempt.throwIfAborted();\n        return accepted;",
+        "to": "        return accepted;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'final text conversion after local attempt cancellation'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses final text conversion after local attempt cancellation"
+    },
+    {
+      "guard": "proof-publication-deadline",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "disableConditionThrowing": "DNS proof publication deadline exceeded",
+        "occurrence": 0
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'packet decoding crosses queued_deadline'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses publication after final packet decoding crosses queued_deadline"
+    },
+    {
+      "guard": "proof-publication-abort",
+      "file": "apps/wbs/be-01/src/runtime/authoritative-dns/resolver.ts",
+      "mutation": {
+        "from": "          lifetime.signal.throwIfAborted();\n          return values;",
+        "to": "          return values;"
+      },
+      "command": "bun test apps/wbs/be-01/src/runtime/authoritative-dns/resolver.test.ts -t 'packet decoding crosses queued_abort'",
+      "exit": 1,
+      "observed": "(fail) authoritative DNS resolver production boundary > refuses publication after final packet decoding crosses queued_abort"
     }
   ]
 }
