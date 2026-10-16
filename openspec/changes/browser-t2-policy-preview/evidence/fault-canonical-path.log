@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+76 |   expect(call.stdout).toBe('');
+77 |   expect(call.stderr.length).toBeGreaterThan(0);
+78 |   if (message !== undefined) expect(call.stderr).toContain(message);
+                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "canonical absolute"
+Received: "ENOENT: no such file or directory, lstat '/tmp/puni-browser-t2-policy-impl-sol-20261016/proposal.json'\n"
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:78:50)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:153:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-003] refuses relative proposed policy [1083.43ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:153:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-003] refuses noncanonical proposed policy [1291.49ms]
+
+ 0 pass
+ 84 filtered out
+ 2 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [3.36s]

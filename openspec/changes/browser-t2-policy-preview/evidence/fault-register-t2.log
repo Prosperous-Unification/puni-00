@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+487 |   expect(refused.stderr.toString().length).toBeGreaterThan(0);
+488 | }, 120000);
+489 |
+490 | test('[BROWSER-T2-POLICY-PREVIEW-013] existing diagnostic and rule-policy contracts are unchanged', async () => {
+491 |   const { registeredRules } = await import('../rules/registry');
+492 |   expect(registeredRules().some((rule) => rule.id === 'T2')).toBe(false);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:492:62)
+(fail) [BROWSER-T2-POLICY-PREVIEW-013] existing diagnostic and rule-policy contracts are unchanged [0.63ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [990.00ms]

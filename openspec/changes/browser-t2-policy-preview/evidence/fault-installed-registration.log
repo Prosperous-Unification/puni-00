@@ -1,0 +1,58 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+474 |     setup.proposal.disposition = { mode };
+475 |     writeFileSync(setup.proposalPath, JSON.stringify(setup.proposal));
+476 |     const source = await invokeCli(setup.argv);
+477 |     const installed = run();
+478 |     expect(source.exitCode, source.stderr).toBe(mode === 'observe' ? 0 : 1);
+479 |     expect(installed.exitCode, installed.stderr.toString()).toBe(source.exitCode);
+                                                                  ^
+error: unknown command: inspect-browser-t2-policy
+usage: twilight-burokrat <command> ...
+
+commands:
+  twilight-burokrat validate-record <kind> <json>
+  twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
+  twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
+  twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
+  twilight-burokrat inspect-evaluation-coverage <repository> <full-sha> <external-rule-policy> <external-coverage-review>
+  twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
+  twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>
+  twilight-burokrat inspect-browser-source-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>
+  twilight-burokrat inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>
+  twilight-burokrat inspect-performance-sources <repository> <committed-sha> <external-rule-policy>
+  twilight-burokrat inspect-spec-sources <repository> <committed-sha>
+  twilight-burokrat inspect-browser-performance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
+  twilight-burokrat inspect-browser-architecture <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
+  twilight-burokrat inspect-browser-conformance <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
+  twilight-burokrat inspect-browser-memberships <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <external-authority>
+  twilight-burokrat inspect-performance-levels <repository> <committed-sha> <external-facts-authority> <external-rule-policy>
+  twilight-burokrat inspect-browser-t2-policy <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> <external-proposed-policy> --now <UTC-instant>
+  twilight-burokrat inspect-browser-t2 <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>
+  twilight-burokrat inspect-browser-scenario-ledger <repository> <full-committed-sha> <external-rule-policy> <capability> <external-ledger-authority> --now <UTC-instant>
+  twilight-burokrat inspect-scenario-ledger <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability> <external-ledger-authority> --now <UTC instant>
+  twilight-burokrat inspect-performance-scenarios <repository> <committed-sha> <external-rule-policy> <external-level-authority> <capability>
+  twilight-burokrat inspect-level-facts <repository> <committed-sha> <external-authority>
+  twilight-burokrat inspect-manual <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
+  twilight-burokrat inspect-manual-observation <repository> <committed-sha> <external-rule-policy> <report-path> --now <UTC instant>
+  twilight-burokrat explain <rule-id> [<repository> <rule-policy-json>]
+  twilight-burokrat scenario <import|allocate|validate> <repository> <openspec-spec-path> [--predecessor <id>]
+  twilight-burokrat template <list|show <id>|verify <id> <committed|staged|working> <repository> <revision-or-base> <subject>>
+  twilight-burokrat lint <committed|staged|working> <repository> <revision-or-base>
+  twilight-burokrat prepare-activation <flags>
+  twilight-burokrat prepare-relocation-activation <flags>
+
+
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:479:61)
+(fail) [BROWSER-T2-POLICY-PREVIEW-012] source and installed previews retain identity and only citation refusals exit one [4067.60ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [5.12s]

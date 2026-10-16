@@ -1,0 +1,88 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:265:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema root key [1402.88ms]
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+76 |   expect(call.stdout).toBe('');
+77 |   expect(call.stderr.length).toBeGreaterThan(0);
+78 |   if (message !== undefined) expect(call.stderr).toContain(message);
+                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "Validation failed"
+Received: "Browser T2 proposed policy binding differs from actual observation\n"
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:78:50)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:265:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema binding key [1291.68ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:265:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema disposition key [1243.52ms]
+70 |   ];
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:75:38)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:265:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema observe prefixes [1246.24ms]
+71 |   return { ...setup, browserT2, proposal, proposalPath, argv };
+72 | }
+73 | async function refuse(argv: string[], message?: string) {
+74 |   const call = await invokeCli(argv);
+75 |   expect(call.exitCode, call.stderr).toBe(1);
+76 |   expect(call.stdout).toBe('');
+                           ^
+error: expect(received).toBe(expected)
+
+- ""
++ "{"schemaVersion":1,"kind":"browser-t2-policy-preview","revision":"fc5d658eacf56bd0c11eda9f76ffe3c64... (32471 bytes truncated) ...ifies":false,"observationDigest":"3557392149fd8fda14e99b9c990a617069571a6f86a901d1683d7a0509cf1eaf"}
++ "
+
+- Expected  - 1
++ Received  + 2
+
+      at refuse (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:76:23)
+      at async <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:265:11)
+(fail) [BROWSER-T2-POLICY-PREVIEW-005] refuses proposal schema enforce prefixes [1267.22ms]
+
+ 0 pass
+ 81 filtered out
+ 5 fail
+ 9 expect() calls
+Ran 5 tests across 1 file. [7.44s]
