@@ -27,4 +27,4 @@ The threat matrix in design.md describes future required observations, not compl
 
 ## Unverified and deferred
 
-No tests, crypto execution, signing, key enrollment, policy installation, trust activation, live WBS read/write, full Nx/Burokrat/browser gate, hosted CI or canonical h2 gate were run for this packet. Architecture review, all owner decisions and any implementation/production acceptance remain pending. WBS080.25 remains in progress; no WBS writes are part of this change. Existing held roundtrip publication remains unresolved.
+The read-only live WBS row lookup described above supplied planning evidence. No WBS commands or writes, live progress publication/application acceptance, tests, crypto execution, signing, key enrollment, policy installation, trust activation, full Nx/Burokrat/browser gate, hosted CI or canonical h2 gate were run for this packet. Architecture review, all owner decisions and any implementation/production acceptance remain pending. WBS080.25 remains in progress. Existing held roundtrip publication remains unresolved.
