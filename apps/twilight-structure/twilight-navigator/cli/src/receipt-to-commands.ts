@@ -30,7 +30,8 @@ export interface CommandBatchDocument {
 /** Measures in the fixed order their commands are emitted. */
 const MEASURE_ORDER = ['token_actual', 'hours_actual'] as const;
 
-async function readDecoded<Decoded>(
+/** Strict required JSON boundary shared by conversion and selected-reference admission. */
+export async function readDecoded<Decoded>(
   path: string,
   role: string,
   decode: (input: unknown) => Decoded,

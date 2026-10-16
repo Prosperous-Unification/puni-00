@@ -1,0 +1,55 @@
+# Verification
+
+Base: public main `5274046bd`. Persistent checkout: `.worktrees/wbs08025-local-admission-sol`.
+Scope: local receipt admission relative to an independently caller-selected accepted reference.
+No authentication, live WBS freshness or application claim is made.
+
+## Observed focused checks
+
+- Before implementation, the corrected admission fixture failed all nine cases because `admit-progress` was unsupported (exit 2). The first fixture attempt incorrectly named `dependencies`; this was corrected to the real v9 `stepBlockages` before observing the feature RED.
+- Admission focused file: 15 pass, 0 fail, 91 assertions, 4.04 seconds (before final proof comments and the independent substitution-test strengthening).
+- Dash versioned producer: RED on unsupported `record-progress-v2`; then 1 pass, 0 fail, 65 filtered, 4 assertions, 7.89 seconds (before adding downstream admission assertions).
+
+## R5 mutation observations
+
+Each mutant ran as one focused Bun file/test filter, sequentially, with its original source restored in `finally`. Exact logs are `/tmp/wbs08025-<name>.log` in the implementation host; the durable observations follow. All listed final mutants exited 1 because the specified production-path negative failed.
+
+| Mutant                                             | Observed failure                                                                                                                                                                             |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Remove legacy schema refusal throw                 | Legacy admission returned exit 0 and wrote output; expected exit 1. Legacy conversion test remains in the same scenario.                                                                     |
+| Replace receipt/producer digest guard with false   | Redigested receipt naming B against producer/selected A returned exit 0; expected refusal.                                                                                                   |
+| Replace producer/accepted digest guard with false  | Real v9 export A with selected B returned exit 0; expected refusal. The fixture asserts equal PlanRef/tasks digest and unequal reference digests after changing only blockedAt.              |
+| Substitute producer for accepted-reference decoder | Redigested unknown-key accepted input returned exit 0; expected malformed refusal.                                                                                                           |
+| Ignore bound receipt unknown keys                  | Redigested extra field reached output; expected refusal.                                                                                                                                     |
+| Return true for bound receipt digest validation    | Changed observedAt without redigesting reached output; expected refusal.                                                                                                                     |
+| Widen bound referenceDigest to string              | Malformed reference digest passed decoding and reached producer mismatch; expected malformed receipt diagnostic. This proves the boundary diagnostic; a later equality still refused output. |
+| Remove bound entries minimum                       | Empty entries reached output; expected refusal.                                                                                                                                              |
+| Open output with w instead of wx                   | Occupied output was replaced and command returned exit 0; expected refusal and unchanged bytes.                                                                                              |
+
+The first receipt/producer equality mutant survived: its test also selected B, so the later producer/accepted comparison refused the invocation. The test was strengthened to select A while substituting B into the receipt. All nine mutants above were then rerun and failed their targeted negative tests.
+
+## Resource limits and unavailable checks
+
+Focused checks were coordinated with the other worker on this laptop. Mutation runs and final recovery checks ran sequentially; the regression orchestration deviation is documented below. Mutation-run MemAvailable ranged from 16,142 to 18,487 MiB; the runner refuses below 4 GiB. No full Nx gate, browser suite, build, full survey or h2puni gate was run. OpenSpec CLI was initially absent from PATH and the checkout; `BUN_TMPDIR=/tmp bunx --bun @fission-ai/openspec@1.12.0 validate admit-progress-against-selected-reference --json` subsequently exited 0 with valid true and no issues. One frozen dependency install was authorized for the isolated checkout.
+
+## Scoped regression results
+
+- `bun test apps/twilight-structure/twilight-navigator/cli/src/admit-progress.test.ts --timeout=30000`: 15 pass, 0 fail, 91 assertions, 5.55 seconds.
+- `bun test apps/twilight-structure/twilight-navigator/cli/src/receipt-to-commands.test.ts --timeout=30000`: 28 pass, 0 fail, 138 assertions, 8.38 seconds.
+- `bun test apps/twilight-structure/twilight-burokrat/cli/src/contracts/navigator-records.test.ts --timeout=30000`: 12 pass, 0 fail, 20 assertions, 3.06 seconds.
+- `bun test apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts -t 'production consumers retain|dispatcher uses no clocks|record-progress-v2 explicitly' --timeout=30000`: 3 pass, 0 fail, 63 filtered, 12 assertions, 15.82 seconds. Includes the actual v2 Dash output admitted by the Navigator entrypoint.
+- A further restored mutation dispatched `record-progress-v2` through the v1 producer: its focused production test failed with expected schema 2, received 1 (8.23 seconds).
+- Scoped ESLint on the eight changed TypeScript files exited 0 after correcting test-only unknown JSON typing and a void arrow callback. `@nx/enforce-module-boundaries` was skipped because no cached ProjectGraph exists; this is not a complete lint-gate claim.
+- `tsc --build --force apps/twilight-structure/twilight-navigator/cli/tsconfig.json`: exit 0.
+- `tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`: exit 0.
+- `tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json`: unavailable dependency, TS2307 for `@noble/hashes/sha2.js` and `@noble/hashes/utils.js` imported by existing shared test-evidence code. The initial checkout inherited dependencies from the ancestor checkout and had no own frozen install. After the frozen install, `bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json` exited 0.
+- `git diff --check`: exit 0.
+
+The four regression invocations accidentally overlapped: the orchestration awaited tool responses but did not initially drain the returned running sessions. All four sessions were then drained before any further check started. MemAvailable was 18,217 MiB and swap use was zero after that overlap. This violated the intended sequential execution constraint; no observed memory pressure occurred. The later Dash mutation, lint and each scoped typecheck ran to completion individually. After the test-only type annotations and frozen install, the final admission rerun passed all 15 tests and 91 assertions in 3.86 seconds. The install first failed with EROFS on Bun's default temporary directory; `BUN_TMPDIR=/tmp bun install --frozen-lockfile` then exited 0, checking 1,573 installs across 1,447 packages with no changes.
+
+## Final source check
+
+- Final admission file, including the redigested missing-referenceDigest negative: 16 pass, 0 fail, 97 assertions, 4.74 seconds.
+- Pinned OpenSpec 1.12.0 validation of this change: exit 0, valid true, no issues.
+- Scoped Prettier check of all changed code/docs and the complete change directory: exit 0, all matched files formatted.
+- Task checkboxes describe the completed local source slice. Hosted CI and the full host gate remain unrun and required before merge.

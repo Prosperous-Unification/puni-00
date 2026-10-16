@@ -90,4 +90,28 @@ records the observed checks and fault proofs.
 The [receipt consistency change](../../../../openspec/changes/navigator-receipt-plan-consistency/verify.md)
 records the shared checker proofs and scoped verification.
 
-Version 9 requires strict root `stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid. Facts stay in the original export; Navigator emits schema-2 tasks with native units and no blockage commands or eligibility calculation. Version 7 keeps schema 1, versions 8 and 9 use schema 2, and future version 10 is refused before output. The reference records the original wire version and hashes the raw input bytes. A blockedAt-only change therefore changes the export and reference digests while preserving tasks and their digest. Receipts bind the six-field PlanRef; they make no blockage freshness claim.
+Version 9 requires strict root `stepBlockages` direct facts: existing leaf owners, existing steps, unique owner/step pairs and safe integer `blockedAt` values. Negative instants and facts retained on done progress are valid. Facts stay in the original export; Navigator emits schema-2 tasks with native units and no blockage commands or eligibility calculation. Version 7 keeps schema 1, versions 8 and 9 use schema 2, and future version 10 is refused before output. The reference records the original wire version and hashes the raw input bytes. A blockedAt-only change therefore changes the export and reference digests while preserving tasks and their digest. Schema 1 receipts bind the six-field PlanRef. Schema 2 receipts also bind the complete reference digest; neither establishes live WBS freshness.
+
+## `twin admit-progress`
+
+Dash `record-progress-v2` produces a bound receipt. To propose commands against an independently selected accepted reference:
+
+```sh
+bun apps/twilight-structure/twilight-navigator/cli/src/entrypoint.ts admit-progress \
+  --receipt /path/to/bound-progress-receipt.json \
+  --plan-reference /path/to/producer-reference.json \
+  --tasks /path/to/tasks.json \
+  --accepted-reference /path/to/selected-accepted-reference.json \
+  --output /path/to/new-command-batch.json
+```
+
+All five flags are required once. Admission requires schema 2 and both digest equalities:
+receipt reference digest = producer reference digest = selected accepted reference digest.
+Existing plan/task/entry consistency checks precede exclusive owner-only batch publication.
+A receipt bound to export A is refused against selected export B even when their PlanRef and
+tasks are equal. Schema 1 remains available through `receipt-to-commands`.
+
+The caller owns accepted-reference selection. This command establishes consistency with that
+selection and proposes commands; it does not authenticate records, discover current WBS state,
+or apply the batch. Proofs and verification limits are in the
+[admission change](../../../../openspec/changes/admit-progress-against-selected-reference/verify.md).
