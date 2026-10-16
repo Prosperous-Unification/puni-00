@@ -7,7 +7,7 @@ export interface ClockRead {
   readonly text: string;
 }
 
-/** Globals that are a clock, or can reach one, in every value position. */
+/** Runtime globals that are clocks or can reach them; local Performance observations are distinct. */
 const clockGlobals = new Set(['performance', 'Temporal', 'globalThis', 'global', 'window', 'self']);
 /** Globals whose other members are not clocks: only a literal non-clock member may be read. */
 const clockHolders = new Set(['process', 'Bun']);
@@ -107,10 +107,32 @@ function isNonClockMemberOf(node: ts.Identifier): boolean {
   return false;
 }
 
-function isClockIdentifier(node: ts.Identifier): boolean {
+function isLocalPerformance(node: ts.Identifier, checker: ts.TypeChecker): boolean {
+  // Proof: widening this lexical exemption failed the detector's other-global parameter assertions.
+  if (node.text !== 'performance') return false;
+  // Proof: using the property symbol failed the detector's unbound global shorthand assertion.
+  const symbol = ts.isShorthandPropertyAssignment(node.parent)
+    ? checker.getShorthandAssignmentValueSymbol(node.parent)
+    : checker.getSymbolAtLocation(node);
+  const declaration = symbol?.valueDeclaration;
+  if (declaration === undefined) return false;
+  // Proof: removing this boundary failed the detector's ambient declaration-file assertion.
+  if (declaration.getSourceFile().isDeclarationFile) return false;
+  // Proof: removing the declared-ambient boundary failed its declare-const performance assertion.
+  for (let current: ts.Node = declaration; !ts.isSourceFile(current); current = current.parent)
+    if (
+      ts.canHaveModifiers(current) &&
+      ts.getModifiers(current)?.some((modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword)
+    )
+      return false;
+  return true;
+}
+
+function isClockIdentifier(node: ts.Identifier, checker: ts.TypeChecker): boolean {
   if (isMemberName(node) || isInTypePosition(node)) return false;
   if (node.text === 'Date') return !isPureDateUse(node);
-  if (clockGlobals.has(node.text)) return true;
+  // Proof: deleting local binding resolution failed local parameter/const cases and both real package scans; admitting ambient performance lost clock assertions.
+  if (clockGlobals.has(node.text)) return !isLocalPerformance(node, checker);
   if (clockHolders.has(node.text)) return !isNonClockMemberOf(node);
   return false;
 }
@@ -143,8 +165,8 @@ function isClockModuleLoad(node: ts.Node): boolean {
   return !ts.isStringLiteralLike(specifier) || clockModules.has(specifier.text);
 }
 
-function isClockRead(node: ts.Node): boolean {
-  if (ts.isIdentifier(node)) return isClockIdentifier(node);
+function isClockRead(node: ts.Node, checker: ts.TypeChecker): boolean {
+  if (ts.isIdentifier(node)) return isClockIdentifier(node, checker);
   return isClockMemberName(node) || isClockModuleLoad(node);
 }
 
@@ -153,26 +175,39 @@ function isClockRead(node: ts.Node): boolean {
  * so comments and type positions never count.
  *
  * A clock reference is any value use of `Date` other than `new Date(x)` with a defined argument,
- * `Date.parse`, `Date.UTC` or `instanceof Date`; any value use of `performance`, `Temporal` or a
+ * `Date.parse`, `Date.UTC` or `instanceof Date`; any value use of ambient `performance`, `Temporal` or a
  * global object; any use of `process` or `Bun` other than a literal non-clock member; any member,
  * key, binding or named import called `hrtime`, `uptime`, `nanoseconds`, `timeOrigin`,
  * `randomUUIDv7` or `DateTimeFormat`; and any load of `perf_hooks` or of a computed module
- * specifier. Not caught: clocks outside the JavaScript runtime (file times, a subprocess that runs
+ * specifier. A real non-ambient runtime local binding named `performance` is an observation,
+ * not the global clock; initializers/defaults are still scanned, and member/import/module rules
+ * remain unconditional. Lexical symbols are resolved within this source without loading libraries
+ * or imported modules. Not caught: clocks outside the JavaScript runtime (file times, a subprocess that runs
  * `date`), computed keys on other objects (`os[key]()`, `Reflect.get(os, name)`), `new Date(arg)`
  * whose argument is undefined only at runtime, and code built at runtime (`eval`, `new Function`).
  * Twilight Burokrat's and Twilight Dash's `no-ambient-clock.test.ts` apply it to their packages.
  */
 export function findClockReads(path: string, source: string): ClockRead[] {
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
+  // This checker only binds the supplied file; declarations from libraries or imported modules are never loaded.
+  const options: ts.CompilerOptions = {
+    noLib: true,
+    noResolve: true,
+    target: ts.ScriptTarget.Latest,
+  };
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = (fileName) => (fileName === path ? file : undefined);
+  const checker = ts.createProgram([path], options, host).getTypeChecker();
   const reads: ClockRead[] = [];
   const visit = (node: ts.Node): void => {
-    if (isClockRead(node)) {
+    if (isClockRead(node, checker)) {
       reads.push({
         path,
         line: file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1,
         text: node.getText(file),
       });
     }
+    // Proof: appending performance.now() to the real legacy ledger failed Burokrat's package clock scan after lexical exemptions.
     ts.forEachChild(node, visit);
   };
   visit(file);

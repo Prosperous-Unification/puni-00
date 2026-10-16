@@ -1945,3 +1945,7 @@ _Avoid_: ownership claim, cleanup authorization
 **Pending creation operation**:
 A reserved direct creation whose outcome has not been durably recorded. The external resource may exist.
 _Avoid_: failed creation, absent resource
+
+**Reviewed-empty membership**:
+An explicit review assertion that no member of a named earlier test level belongs to the reviewed fixture scope. It carries no execution or certification claim.
+_Avoid_: unknown membership, passing Performance result

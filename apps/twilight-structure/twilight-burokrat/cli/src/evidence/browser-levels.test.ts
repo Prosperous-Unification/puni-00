@@ -304,6 +304,7 @@ async function observation(setup: ReturnType<typeof fixture>): Promise<Record<st
 
 async function prepare(
   memberships = { conformance: false, architecture: false, performance: false },
+  performanceEmpty = false,
 ) {
   const setup = fixture();
   const targets = memberships.conformance
@@ -335,6 +336,7 @@ async function prepare(
         fixtures: [{ ruleId: 'F7', file: 'src/architecture/f7.architecture.test.ts' }],
       }),
     );
+  if (performanceEmpty) rmSync(join(setup.root, declarationPath));
   // Empty Architecture forbids suffix discovery only when the policy is committed.
   git(setup.root, ['add', '.']);
   git(setup.root, ['commit', '-m', 'memberships']);
@@ -379,13 +381,19 @@ async function prepare(
         ? { kind: 'committed', ...pin(architecturePath) }
         : { kind: 'reviewed-empty' },
     },
-    performance: {
-      schemaVersion: 1,
-      ...scope,
-      declaration: pin(declarationPath),
-      config: pin(performanceConfig),
-      project: declaration.project,
-    },
+    performance: performanceEmpty
+      ? {
+          schemaVersion: 2,
+          ...scope,
+          performance: { kind: 'reviewed-empty' },
+        }
+      : {
+          schemaVersion: 1,
+          ...scope,
+          declaration: pin(declarationPath),
+          config: pin(performanceConfig),
+          project: declaration.project,
+        },
   };
   const paths = {
     review: join(setup.policyPath, '..', 'review.json'),
@@ -869,3 +877,26 @@ test('[TEST-AXES-124] built installed executable preserves complete isolated and
     'usage: twilight-burokrat inspect-browser-levels',
   );
 }, 120_000);
+
+test('[TEST-AXES-125] real composer accepts explicit empty Performance without fabricating results', async () => {
+  const setup = await prepare(undefined, true);
+  const expected = await upstream(setup);
+  const observed = await facts(setup);
+  expect(observed['performance']).toEqual(expected['performance']);
+  expect(expected['performance']['memberships']).toEqual({
+    performance: { kind: 'reviewed-empty' },
+    manual: { kind: 'unknown' },
+    conformance: { kind: 'unknown' },
+    architecture: { kind: 'unknown' },
+  });
+  expect(observed['bindings']).toEqual([{ fixture: file, level: 'browser' }]);
+  expect(observed['isolation']).toEqual({ kind: 'isolated', level: 'browser' });
+  expect(observed['sources']).toEqual(
+    [manifestPath, file].sort().map((path) => ({
+      path,
+      mode: '100644',
+      contentDigest: hashBytes(readFileSync(join(setup.root, path))),
+    })),
+  );
+  expect(observed['certifies']).toBe(false);
+});
