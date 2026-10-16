@@ -91,11 +91,14 @@ function ProjectViews({
     onSelect(project, next);
   };
   const viewControls = (
+    // `outline` so the view that is not shown is plain and the shown one wears the
+    // button's pressed fill (ui-review F-116): two filled buttons said nothing.
     <div role="group" aria-label="Project view" className="flex shrink-0 gap-1">
       <Button
         ref={(selector) => {
           focusSelector(selector, 'plan');
         }}
+        variant="outline"
         size="sm"
         className={isDesktop ? undefined : 'min-h-11'}
         type="button"
@@ -114,6 +117,7 @@ function ProjectViews({
         ref={(selector) => {
           focusSelector(selector, 'board');
         }}
+        variant="outline"
         size="sm"
         className={isDesktop ? undefined : 'min-h-11'}
         type="button"

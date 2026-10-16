@@ -228,6 +228,19 @@ describe('one modal for the project’s five settings', () => {
     expect(screen.getByLabelText('How many of Backend at once')).toBeInTheDocument();
   });
 
+  itDom('starts every section under its tab, with no heading of its own (F-122)', () => {
+    mounted();
+    open();
+
+    // Proof: on 3e06eb5a4 this failed with `expected [ 'Schedule optimization' ] to deeply
+    // equal []`: Optimization was the one section of six with an h3 over its paragraph.
+    const headings = screen
+      .getAllByRole('tabpanel', { hidden: true })
+      .flatMap((panel) => [...panel.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]')])
+      .map((heading) => heading.textContent.trim());
+    expect(headings).toEqual([]);
+  });
+
   itDom('every section is reachable from the tab list, by click and by arrow key', () => {
     mounted();
     open();

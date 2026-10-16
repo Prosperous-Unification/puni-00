@@ -555,6 +555,34 @@
   button:not([data-grid], [data-grid] *) {
     background-color: transparent;
   }
+
+  /*
+   * A disabled radio drawn by the palette rather than the engine: a ring and,
+   * when checked, a dot, both in `--muted-foreground` on `--background`. The
+   * engine's own disabled discs were a pale and a paler grey, 1.44:1 apart in
+   * the light palette and 2.43:1 in the dark one, so a locked step's unit and
+   * the schedule Fast holds while optimization is off could not be read
+   * (ui-review F-118, F-119). `--muted-foreground` stands at least 4.5:1 off
+   * `--background` in both palettes, so checked and unchecked differ by more
+   * than WCAG 1.4.11's 3:1, which `settings-vocabulary.spec.ts` measures off the
+   * pixels. Enabled radios keep the platform's drawing, and the phone floor's
+   * unlayered 22px still sizes this one. The margin is the platform's own, so a
+   * disabled row stands where an enabled one does.
+   */
+  input[type='radio']:disabled:not([data-grid], [data-grid] *) {
+    appearance: none;
+    box-sizing: border-box;
+    width: 13px;
+    height: 13px;
+    margin: 3px 3px 0 5px;
+    border: 1px solid var(--muted-foreground);
+    border-radius: 50%;
+    background: var(--background);
+  }
+
+  input[type='radio']:disabled:checked:not([data-grid], [data-grid] *) {
+    background: radial-gradient(circle, var(--muted-foreground) 0 35%, var(--background) 40%);
+  }
 }
 
 /*
