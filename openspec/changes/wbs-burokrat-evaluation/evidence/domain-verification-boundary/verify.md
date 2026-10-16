@@ -21,7 +21,7 @@ The internal helper adds a typed signature matching the existing port outcome un
 
 Final lint rerun: after removing that unused JSDoc-only type import, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/domain-verification-graph.json` exited 0 and produced a fresh graph. The same focused ESLint command then exited 0 with no diagnostics and no skipped module-boundary warning. This graph generation did not execute project gates.
 
-`bunx prettier --check` over both TypeScript files and both evidence Markdown files exited 0; `git diff --check` exited 0. Normal hooks are installed through `bun run tools/tool-git-hooks/src/install.ts`; commit hook output is recorded after committing.
+`bunx prettier --check` over both TypeScript files and both evidence Markdown files exited 0; `git diff --check` exited 0. Normal hooks were installed through `bun run tools/tool-git-hooks/src/install.ts`. The command `git commit -m 'refactor(wbs): extract domain verification capture'` exited 0 and created `d49abda031982ad70495cff291f56423cfebf451`; its captured stdout/stderr is preserved verbatim in [commit-hooks.log](commit-hooks.log). The receipt records successful lint, format, plaintext-secrets, private-nesting, prepare-commit-msg and commit-msg hooks. The tool-wiki hook exited successfully while explicitly reporting `inactive`, `certified: false`, because the external activation root is not provisioned. Doc caps and migration hooks reported no matching staged files. This receipt certifies hook execution for that implementation commit only.
 
 ## Integration and limits
 
