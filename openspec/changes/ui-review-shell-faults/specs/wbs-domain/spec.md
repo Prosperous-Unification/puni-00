@@ -20,7 +20,7 @@ the window and anchored by its top near the window's middle.
 #### Scenario: the outage card in the signed-out column
 
 - **WHEN** the session read answers 502 at 1440 × 900 or 375 × 812
-- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, inside the window, and within 48px of vertical centre
+- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, inside the window, and with its top on the sign-in card’s anchor (decision D11, `ui-review-signin-gantt`)
 
 #### Scenario: the server comes back
 
