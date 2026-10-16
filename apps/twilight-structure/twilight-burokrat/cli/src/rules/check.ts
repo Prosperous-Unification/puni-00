@@ -29,6 +29,7 @@ import {
   loadRulePolicy,
   loadRulePolicyWithIdentity,
   ruleMode,
+  type RulePolicy,
 } from './rule-policy';
 import type { SpecificationsReport } from './specifications';
 import { evaluateSpecifications } from './specifications';
@@ -159,7 +160,8 @@ function readKindOutcome(
   }
 }
 
-function digestCandidate(candidate: CandidateSnapshot): string {
+/** Canonical identity shared by complete check and committed diagnostics. */
+export function digestCandidate(candidate: CandidateSnapshot): string {
   return hashCanonical({
     selection: candidate.selection,
     entries: candidate.entries,
@@ -191,8 +193,8 @@ export function identifyCandidate(
   };
 }
 
-/** Runs every selected rule over one candidate and returns one verdict. Never certifies. */
-export function checkCandidate(request: CheckRequest): Verdict {
+/** Runs the shared engine once and retains the exact inputs and index ownership for diagnostics. */
+export function executeCheckCandidate(request: CheckRequest) {
   const candidateRoot = resolveCandidateRoot(request.repository);
   // Proof: on 2026-09-20, passing the caller's interior directory here made the containment test
   // receive empty stderr instead of the required inside-candidate refusal.
@@ -202,7 +204,13 @@ export function checkCandidate(request: CheckRequest): Verdict {
   // `ruleIds: []` while the verdict still said `allowed: true`.
   const selected: readonly RegisteredRule[] =
     request.ruleId === undefined ? registeredRules() : [selectRule(request.ruleId)];
-  for (const rule of selected) assertPolicyInputs(policy, rule.id);
+  const sizeCeilings: NonNullable<RulePolicy['sizeCeilings']>[] = [];
+  for (const rule of selected) {
+    if (rule.id === 'F7') {
+      assertPolicyInputs(policy, 'F7');
+      sizeCeilings.push(policy.sizeCeilings);
+    } else assertPolicyInputs(policy, rule.id);
+  }
   // Proof: disabling this selected-rule check made the production CLI test accept
   // Performance evidence while evaluating only MOD-INDEX.
   if (
@@ -248,6 +256,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
     );
     return relationshipOutcome;
   };
+  const indexes = readIndexOutcome(candidateRoot, candidate);
   const context = {
     repository: candidateRoot,
     candidate,
@@ -266,7 +275,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
     ...(performanceEvidence === undefined ? {} : { performanceEvidence }),
     performancePolicyDigest: loadedPolicy.digest,
     candidateDigest,
-    indexes: readIndexOutcome(candidateRoot, candidate),
+    indexes,
     kinds: readKindOutcome(candidateRoot, candidate, policy.kindInventory?.path),
     relationships,
     scenariosReport,
@@ -284,7 +293,7 @@ export function checkCandidate(request: CheckRequest): Verdict {
       findings.push(toFinding(rule.id, mode, observation, policy.adoptedSet));
     }
   }
-  return {
+  const verdict: Verdict = {
     schemaVersion: 1,
     // The identity `lintTrustedCandidate` in `policy/trust.ts` records.
     candidate: candidateDigest,
@@ -299,6 +308,12 @@ export function checkCandidate(request: CheckRequest): Verdict {
     certifies: false,
     ...(scenarioOutcome?.ok ? { scenarios: scenarioOutcome.report } : {}),
   };
+  return { verdict, candidate, loadedPolicy, indexes, sizeCeilings };
+}
+
+/** Runs every selected rule over one candidate and returns the unchanged public verdict. */
+export function checkCandidate(request: CheckRequest): Verdict {
+  return executeCheckCandidate(request).verdict;
 }
 
 function candidateRequest(kind: string, revision: string): CandidateRequest {

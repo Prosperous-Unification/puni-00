@@ -32,6 +32,8 @@ const validatorCommands = new Set([
   'inspect-manual',
   // Proof: removing registration made the installed executable reject the documented command.
   'inspect-manual-observation',
+  // Proof: omitting registration made the built coverage dispatch test report unknown command before installed authority.
+  'inspect-evaluation-coverage',
   'inspect-performance',
   // Proof: removing this registration made the built executable reject the command before
   // the validator's named usage refusal (installed-dispatch.test.ts).
@@ -76,6 +78,7 @@ commands:
   twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>
   twilight-burokrat check <committed|staged|working> <repository> <revision-or-base> <rule-policy-json> [--rule <rule-id>] [--performance-evidence <json>]
+  twilight-burokrat inspect-evaluation-coverage <repository> <full-sha> <external-rule-policy> <external-coverage-review>
   twilight-burokrat inspect-performance <repository> <committed-sha> <external-rule-policy>
   twilight-burokrat inspect-browser-scenarios <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority> <capability>
   twilight-burokrat inspect-browser-levels <repository> <committed-sha> <external-rule-policy> <ordinary|packaged|portable> <review-authority> <conformance-authority> <architecture-authority> <performance-authority>
