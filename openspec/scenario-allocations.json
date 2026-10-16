@@ -1098,6 +1098,30 @@
       "id": "TEST-AXES-135",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Browser ledger validates the full tree and installed dispatch"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-136",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger preserves full observations without Performance execution"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-137",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger refuses strict authorities and broken observation joins"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-138",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger retains outcomes manual observations and labelled debt"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-139",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Browser-only ledger validates full tree installed dispatch and legacy compatibility"
     }
   ]
 }

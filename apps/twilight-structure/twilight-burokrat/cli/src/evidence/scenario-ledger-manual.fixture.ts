@@ -28,6 +28,7 @@ export function createLedgerManualFixture(
   outcome: 'passed' | 'failed' | 'skipped' = 'passed',
   overdue = false,
   stale = false,
+  extraFiles: Record<string, string> = {},
 ) {
   const disposition = {
     schemaVersion: 1,
@@ -54,6 +55,7 @@ export function createLedgerManualFixture(
     'source/module.ts': 'export const lamp = true;\n',
     'manual/disposition.json': JSON.stringify(disposition),
     'manual/procedure.json': JSON.stringify(procedure),
+    ...extraFiles,
   });
   const now = '2026-10-15T00:00:00.000Z';
   const base = dirname(setup.policyPath);
