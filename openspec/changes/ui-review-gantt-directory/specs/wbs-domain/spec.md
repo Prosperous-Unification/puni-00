@@ -2,14 +2,18 @@
 
 ### Requirement: A lane stack writes one label
 
-Bars of one row that share their band in lanes (a lane stack) SHALL write no on-bar label of their
-own. The stack SHALL write one label across the drawn union of its bars and the whole bar band: the
-row's number, then `N steps`, then `no estimate` when no bar in it is estimated, or `U no estimate`
-otherwise. The number SHALL lead and be whole. Where only the number fits, the label SHALL be the
-number; where the number does not fit, nothing SHALL be written. The label SHALL sit on a patch of
-the page's ground in the page's ink, and SHALL clear 4.5:1 in light and dark. The exported SVG
-SHALL write the same label. This supersedes `gantt-legibility`'s rule that each label in a laned
-row takes its lane's height.
+Bars of one row that share their band in lanes (a lane stack) SHALL write no on-bar label in a
+lane. The stack SHALL write one label across the whole bar band: the row's number, then `N
+steps`, then `no estimate` when no bar in it is estimated, or `U no estimate` otherwise. The
+number SHALL lead and be whole. Where only the number fits, the label SHALL be the number; where
+the number does not fit, nothing SHALL be written. The label SHALL sit on a patch of the page's
+ground in the page's ink, and SHALL clear 4.5:1 in light and dark.
+
+When exactly one estimated bar of the stack runs past every placeholder's assumed span, the
+stack's label SHALL span only up to the placeholders' end, and that bar SHALL write its own words
+(as any bar does) across the whole band from there to its end, on a patch of its own fill. The
+exported SVG SHALL write the same labels. The `gantt-legibility` change's per-lane label rule is
+amended in place to match.
 
 #### Scenario: one short estimated step beside an unestimated one
 
@@ -22,6 +26,13 @@ row takes its lane's height.
 
 - **GIVEN** a leaf with two unestimated steps
 - **THEN** its one label reads `020 · 2 steps · no estimate`
+
+#### Scenario: a long estimated step after an unestimated one
+
+- **GIVEN** a leaf whose first step is unestimated and whose second is estimated at ten days
+- **WHEN** the chart draws the two bars in lanes at one instant
+- **THEN** the stack's label `030 · 2 steps · 1 no estimate` spans the placeholder's assumed span
+- **AND** the ten-day bar writes `030 · Row long` from there to its end, at 4.5:1 or better
 
 ### Requirement: Directory load lines use the app's link ink
 

@@ -29,3 +29,25 @@ takes under half the option, and was watched failing again on the owner-first or
 | e2e `are the palette’s ink, not the browser’s link blue` (F-102)         | code before the change                     | light `rgb(0, 0, 238)`, dark `rgb(158, 158, 255)`                            |
 | vitest `names a column the way the table’s header does` (F-105)          | code before the change                     | `Enter in Prio: expected [ 'Links', 'Depends on', …(15) ] to include 'Prio'` |
 | e2e `every entry’s date is still on screen at 1024` (F-107)              | `entryMeta` owner first                    | `the date in (local-dev · 16 Oct) is cut off`, received 33                   |
+
+## Follow-up after the #519 review (2026-10-17, F-138, F-140, F-142)
+
+On `ui-review/gantt-directory` with origin/main 5274046bd (#514) merged in. That merge had one
+conflict in `e2e/header.spec.ts`: #515's `two imports of one long name read apart at every width` and
+this lane's F-107 test sat at the same place. Both tests were kept in full. Shift 3700,
+`--workers 2`.
+
+| Command                                                      | Result                                    |
+| ------------------------------------------------------------ | ----------------------------------------- |
+| `header.spec.ts` on the merged tree                          | 16 passed                                 |
+| `lint:fast typecheck -p wbs-fe-01 --skip-nx-cache`           | Successfully ran                          |
+| Vitest `gantt-bar-labels`, `gantt-panel`, `gantt-panel-fill` | 311 passed                                |
+| Playwright `gantt-legibility.spec.ts`, `directory.spec.ts`   | 18 passed                                 |
+| Playwright marker rule, `--repeat-each 2`                    | 2 passed, `changedPixels=0` at every rung |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`     | 225 passed, 0 failed                      |
+
+| Check                                                           | Injected fault                         | Observed                                                                 |
+| --------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------ |
+| vitest `keeps an estimated bar’s own words where it runs past…` | code at 52cdd2ae5; `spill` always null | `sand-dev’s own label: expected null not to be null`                     |
+| vitest `writes a lane stack’s one label in the file…`           | spills ignored in the SVG export       | `expected [ 'sand · 2 steps · 1 no estimate' ] to deeply equal [ …(2) ]` |
+| e2e `a row whose steps share one instant…` (`030` row)          | `gantt-panel.tsx` at 52cdd2ae5         | `labels for 030`, received list missing `bar: 030 · Row long`            |

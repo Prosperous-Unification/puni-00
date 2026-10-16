@@ -21,9 +21,10 @@ WBS app draws something a reader cannot read whole, or in a colour no token name
 
 - Bars that share a band in lanes write no label of their own. Their **lane stack** writes one
   label across the band, `010.3.06 · 3 steps · 2 no estimate`, or `· no estimate` when nobody
-  estimated any of them. It sits on a patch of the page's ground in the page's ink. The exported
-  SVG writes the same. This supersedes the F-012 rule in `gantt-legibility` that each label takes
-  its lane.
+  estimated any of them. It sits on a patch of the page's ground in the page's ink. One estimated
+  bar that runs past the placeholders keeps its own words there, on its own fill (F-138). The
+  exported SVG writes the same. `gantt-legibility`'s F-012 rule that each label takes its lane is
+  amended in place (F-140).
 - The Directory's load line uses the app's link classes (`LINK_CLASS`) at regular weight.
 - The cheat sheet says `Enter in Priority`, the column's header.
 - A project's meta reads date first, `(16 Oct · local-dev)`, in the picker and on its hover card.

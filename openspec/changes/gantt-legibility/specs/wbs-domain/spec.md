@@ -110,9 +110,10 @@ the caret to stand over.
 
 ### Requirement: The Gantt chart stays legible at every rung and in both themes
 
-Every on-bar label SHALL be drawn inside its own bar's lane: where bars share a
-row in lanes, each label SHALL take its lane's height, no two labels SHALL
-overlap, and a lane too short for the label's line SHALL carry no label.
+No two on-bar labels SHALL overlap. Where bars share a row in lanes, a lane
+SHALL carry no label of its own: the lane stack writes one label across the
+whole band, and an estimated bar that runs past the stack's placeholders
+writes its own words past them (`ui-review-gantt-directory`).
 
 Every on-bar label SHALL clear 4.5:1 WCAG contrast against the bar it sits on,
 measured from the computed label colour and the bar's computed fill composited
@@ -145,8 +146,8 @@ struck through or dashed, and a pressed toggle SHALL be drawn filled.
 
 - **GIVEN** a leaf whose two steps are both unestimated
 - **WHEN** the chart draws its two placeholders in two lanes
-- **THEN** each reads its number (and `no estimate` after it where that fits)
-  inside its own lane and the two labels do not overlap
+- **THEN** neither lane carries a label of its own, and the row's number is
+  written once, by the lane stack (`020 · 2 steps · no estimate`)
 
 #### Scenario: every bar colour, light and dark
 

@@ -4,6 +4,9 @@
 - [x] 1.2 Failing e2e on a seeded plan: the number once per row, no two labels' glyphs touching
 - [x] 1.3 `labelBandOf`, `laneStacksOf`, `stackText` and the stack label, live and in the SVG export
 - [x] 1.4 Stack labels joined to the contrast and overlap e2e checks
+- [x] 1.5 Failing Vitest and e2e for a ten-day estimated bar laned with a placeholder (F-138), then `LaneStack.spill` and `barLabelPlaceOf`, live and in the SVG export
+- [x] 1.6 Pin the F-101 e2e counts (F-142)
+- [x] 1.7 Amend `gantt-legibility`'s per-lane label rule, scenario, tasks and verify in place (F-140)
 
 ## 2. Directory load line (F-102)
 
