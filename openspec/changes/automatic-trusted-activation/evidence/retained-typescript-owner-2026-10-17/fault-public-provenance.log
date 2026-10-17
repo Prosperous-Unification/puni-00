@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [191.55ms]
+165 |     expect(Object.isFrozen(binding)).toBe(true);
+166 |     expect(Object.isFrozen(binding.request)).toBe(true);
+167 |     expect(Object.isFrozen(binding.request.configPaths)).toBe(true);
+168 |     expect(Object.isFrozen(binding.request.publicEntrypoints)).toBe(true);
+169 |     expect(Object.isFrozen(binding.provenance)).toBe(true);
+170 |     expect(binding.provenance).not.toBe(owned.provenance);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not {
+  snapshotIdentity: "23bfb2932a9d73c56f6f13338280095e425b7ce39c8d64dde6bb65621786ecef",
+  classificationPolicyIdentity: "ea77d3a232de029273e3ca761024c4528b64f56b76e29689ce9edb106f65f339",
+  runtimeClosureIdentity: "c678436fb3bbcfd52db094e5fbc1aefe35a52198bfdf43aab54d0dae0ee3465d",
+  resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  runtimeTrust: "unverified",
+  namespacePolicyIdentity: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+}
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:170:36)
+(fail) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [119.64ms]
+(pass) exact extraction deeply freezes envelope without changing enumerable canonical bytes [113.59ms]
+(pass) exact extraction registers only after compiler cap and freeze succeed [105.96ms]
+
+ 3 pass
+ 1 fail
+ 67 expect() calls
+Ran 4 tests across 1 file. [1.51s]

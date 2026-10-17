@@ -5463,3 +5463,70 @@ new command receipt JSON files needed Prettier's command-array formatting. Lint,
 secrets, private nesting and inactive tool-wiki checks passed. The refused transcript and
 receipt remain as normal-hook-format-refusal.log{,.json}. Only JSON formatting was corrected;
 no hook was bypassed. Final normal-commit completion is supplied externally with its SHA/tree.
+
+## 2026-10-17 exact-owner successful TypeScript extraction (.3e5a)
+
+Candidate starts at exact reviewed implicit-parity SHA
+`0adc3b5077c1a8c464cf99dc841fe29a0667bf5b` in an isolated `/tmp` clone. Its ignored
+`node_modules` symlink uses the existing pinned workspace dependency tree; no fresh install
+is claimed. Evidence is in `evidence/retained-typescript-owner-2026-10-17/`. Every runtime,
+compiler and lint phase uses the existing source evidence `rss-guard.py`, enforcing a
+900 MiB process-tree ceiling. Independent phases run serially in coordination with the PM.
+
+The four small noLib owner tests first failed on the old production module (0 pass / 4 fail,
+peak 353020 KiB). The final restored suite passes 4 tests / 71 assertions at 347472 KiB.
+It observes exact cached binding identity, owned request/provenance equality, primitive/plain/
+spread/JSON/inherited/proxy/getter-poison refusal, no poisoned property reads, caller path
+mutation independence, recursively frozen private records and complete output graphs.
+The canonical oracle captures actual envelope bytes through a test-only Object.freeze spy
+before freezing, compares after freezing, then verifies bytes remain equal after attempted
+mutations at every reachable object. No runtime brand key is added. Existing noLib SHA-1 and
+SHA-256 legacy parity both pass (2 tests / 74 assertions, 40 filtered, peak 357612 KiB).
+
+The nine independent runtime omissions all fail named production-path owner assertions:
+
+| Fault                                    | Observed failure                                                     | Peak process-tree KiB |
+| ---------------------------------------- | -------------------------------------------------------------------- | --------------------: |
+| Owner refusal omitted                    | Impostor accessor does not throw                                     |                351888 |
+| Snapshot freeze omitted                  | Compiler callback sees unfrozen request wrapper/arrays               |                354700 |
+| All freezing omitted                     | Frozen graph assertions and injected freeze-failure expectation fail |                350604 |
+| Child enqueue omitted                    | Nested frozen record assertions fail despite frozen root             |                354480 |
+| Binding uses caller request              | Callback-mutated request differs from captured expected paths        |                354400 |
+| Registration after cap, before freeze    | Accessor accepts the captured key after injected freeze failure      |                355680 |
+| Private provenance aliases public object | Copied-record identity assertion fails                               |                354160 |
+| Registration omitted                     | Exact successful envelope accessor refuses                           |                353980 |
+| Registration before cap                  | Accessor accepts captured one-byte-short failed envelope key         |                355468 |
+
+The copied-provenance alias fault proves the explicit copied-record identity/isolation
+contract only. It does not strengthen runtime authentication or content integrity. The
+WeakMap.set witness records actual extraction owner registration keys; timing negatives
+exercise both the short cap and injected envelope freeze exception independently. The
+original compiler failure also publishes no registered extraction.
+
+Compile-only test witnesses reject structural reconstruction, mutable root fields and
+nested relationship/census/request mutations. Removing the private brand fails with an
+unused @ts-expect-error at 434960 KiB; removing readonly mapping independently loses root,
+relationship and request directives at 436756 KiB. Restored scoped TypeScript checking
+includes both new owner and existing mount tests and exits 0 at 434596 KiB.
+
+Initial scoped ESLint exited 0 but skipped module boundaries because the clone lacked an Nx
+project graph; that output is not the accepted lint evidence. Explicit
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx show projects --json`
+succeeds at 267668 KiB, creating the graph. Subsequent scoped ESLint exits 0 at 759848 KiB
+with an empty log and no skipped rule. The final graph-backed scoped lint, after the last
+test-only additions, also exits 0 with an empty log at 771508 KiB. Its first attempt rejected
+compile-only invalid method calls, so those witnesses now assign readonly array lengths;
+the independent type omission negatives were rerun and restored lint/typecheck pass.
+Pinned cached OpenSpec 1.12.0 strict validation reports 1/1 valid at 113440 KiB.
+Exact independent review and normal hooks remain pending.
+
+Full ES5/implicit test families, combined mount suite, full h2puni gate, repository-wide
+format/test/lint/typecheck/build, secrets CI and migration CI are unrun. No protected freeze,
+CompilerReadManifestV1, parser/loader authentication or parent .3 completion is claimed.
+Task .3e5a remains unchecked pending independent review and the required gate. No push,
+publication, merge, deploy or WBS write occurred.
+
+Evidence log normalization strips only trailing spaces/tabs/CR per line and preserves one
+final LF for nonempty logs. Exact raw files remain under
+`/tmp/retained-owner-raw-evidence-20261017`; normalized-log-receipts.json binds original and
+normalized SHA-256 values. This preserves unfiltered git whitespace checking.

@@ -9,7 +9,7 @@ import {
   type TypeScriptLimits,
 } from '@twilight-burokrat/judge';
 
-import type { RetainedNamespace } from './review-namespace';
+import type { RetainedNamespace, RetainedNamespaceProvenance } from './review-namespace';
 import type { ReviewRuntime } from './review-runtime';
 import type { RetainedCandidate } from './review-selection-objects';
 import {
@@ -36,6 +36,57 @@ export interface RetainedTypeScriptExtractionRequest {
   readonly requestLimits: RetainedTypeScriptRequestLimits;
 }
 
+// Proof: removing readonly makes the compile-only root/nested/request mutation directives unused.
+type DeepReadonly<T> = T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
+declare const ExtractionBrand: unique symbol;
+type ExtractionEnvelope = {
+  runtimeTrust: 'unverified';
+  provenance: RetainedNamespaceProvenance;
+  byteReads: ReturnType<typeof sealRetainedTypeScriptReads>;
+} & ReturnType<typeof extractTypeScriptRelationshipsFromSource>;
+/** Exact successful extraction; its private brand adds no enumerable or symbol property. */
+export type RetainedTypeScriptExtraction = DeepReadonly<ExtractionEnvelope> & {
+  // Proof: brand omission makes the compile-only structural reconstruction directive unused.
+  readonly [ExtractionBrand]: true;
+};
+type ExtractionProvenance = DeepReadonly<{
+  request: { configPaths: string[]; publicEntrypoints: string[] };
+  provenance: RetainedNamespaceProvenance;
+}>;
+const Extractions = new WeakMap<object, ExtractionProvenance>();
+
+/**
+ * Reads the cached private binding of the exact successful extraction object.
+ * Foreign objects, including wrappers and proxies, are refused without property reads or IO.
+ * @throws Error when extraction was not published by this module.
+ */
+export function readRetainedTypeScriptExtractionProvenance(
+  extraction: unknown,
+): ExtractionProvenance {
+  const binding =
+    typeof extraction === 'object' && extraction !== null ? Extractions.get(extraction) : undefined;
+  // Proof: owner-check omission admits impostors; `exact extraction owner rejects impostors` observes no throw.
+  if (binding === undefined) throw new Error('owned retained TypeScript extraction required');
+  return binding;
+}
+
+/** Freezes the extraction graph, which contains no caller capabilities or mutable input paths. */
+function freezeExtraction<T extends object>(root: T): DeepReadonly<T> {
+  const pending: object[] = [root];
+  const seen = new WeakSet<object>();
+  for (const value of pending) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    const children: unknown[] = Object.values(value);
+    for (const child of children)
+      if (typeof child === 'object' && child !== null) pending.push(child);
+    // Proof: blanket freeze omission loses frozen assertions; child-enqueue omission independently loses nested freeze.
+    Object.freeze(value);
+  }
+  // Boundary: every reachable object in the newly constructed value has been frozen above.
+  return root as DeepReadonly<T>;
+}
+
 function captureLimits<K extends string>(
   limits: Readonly<Record<K, number>>,
   names: readonly K[],
@@ -59,11 +110,14 @@ function captureLimits<K extends string>(
  * admission. Source ceilings are positive; compiler and request ceilings may be zero.
  * The final ceiling covers the complete envelope, including provenance. IO budgets do not
  * bound synchronous compiler CPU or heap. Successful extraction seals its raw byte census.
- * No full compiler read manifest, freeze integration, installed runtime
- * authentication, default-library parity or general config-generated escape policy is supplied.
+ * Only successful, fully frozen envelopes receive a private exact-object request binding.
+ * No full compiler read manifest, protected freeze integration, installed runtime
+ * authentication or general config-generated escape policy is supplied.
  * @throws Error for invalid requests, foreign owners, config/compiler failures or exceeded bounds.
  */
-export function extractRetainedTypeScriptRelationships(input: RetainedTypeScriptExtractionRequest) {
+export function extractRetainedTypeScriptRelationships(
+  input: RetainedTypeScriptExtractionRequest,
+): RetainedTypeScriptExtraction {
   const { namespace, candidate, runtime, request, sourceLimits, compilerLimits, requestLimits } =
     input;
   // Proof: output/compiler/source-snapshot substitutions lose `callbacks mutate caller objects`;
@@ -174,6 +228,8 @@ export function extractRetainedTypeScriptRelationships(input: RetainedTypeScript
     configPaths: capturePaths(configPaths, configCount),
     publicEntrypoints: capturePaths(publicEntrypoints, publicCount),
   };
+  // Proof: snapshot-freeze omission reaches the compiler callback with unfrozen request arrays.
+  freezeExtraction(capturedRequest);
   const source = createRetainedTypeScriptSource(
     namespace,
     candidate,
@@ -194,5 +250,14 @@ export function extractRetainedTypeScriptRelationships(input: RetainedTypeScript
   // Proof: envelope-cap omission admits one byte below exact in `final envelope one byte below exact`.
   if (Buffer.byteLength(serializeCanonical(envelope)) > capturedRequestLimits.maximumOutputBytes)
     throw new Error('retained TypeScript output ceiling exceeded');
-  return envelope;
+  const frozen = freezeExtraction(envelope);
+  // Proof: original-request substitution loses callback-mutation snapshots; public-provenance alias
+  // substitution loses copied-record identity only, not authentication or content integrity.
+  const binding = freezeExtraction({ request: capturedRequest, provenance: { ...provenance } });
+  // Proof: omitted registration loses exact-owner positives; registration before the cap exposes
+  // failed envelopes to the WeakMap.set witness in `registers only after compiler cap and freeze succeed`.
+  // Independent registration after the cap but before freeze exposes the injected freeze-failure key.
+  Extractions.set(frozen, binding);
+  // Boundary: successful cap and deep freeze precede the private exact-object registration above.
+  return frozen as RetainedTypeScriptExtraction;
 }

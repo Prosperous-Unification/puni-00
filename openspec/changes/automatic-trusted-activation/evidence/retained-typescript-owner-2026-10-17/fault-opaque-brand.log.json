@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--noEmit",
+    "-p",
+    "/tmp/retained-owner-sol-20261017/openspec/changes/automatic-trusted-activation/evidence/retained-typescript-owner-2026-10-17/focused-tests.tsconfig.json"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 434960,
+  "ceilingKiB": 921600
+}

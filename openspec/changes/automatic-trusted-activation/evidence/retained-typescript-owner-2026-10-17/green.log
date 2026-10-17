@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [213.66ms]
+(pass) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [146.63ms]
+(pass) exact extraction deeply freezes envelope without changing enumerable canonical bytes [114.61ms]
+(pass) exact extraction registers only after compiler cap and freeze succeed [144.31ms]
+
+ 4 pass
+ 0 fail
+ 70 expect() calls
+Ran 4 tests across 1 file. [1.57s]

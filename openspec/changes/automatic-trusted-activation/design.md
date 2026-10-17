@@ -2358,3 +2358,18 @@ retained replay. This is an operational proof boundary, with no combined-suite h
 product cancellation claim. Exact closure/census/public declaration observations establish
 pinned implicit-default parity only; executing parser/loader authentication, full compiler
 read manifests, freeze integration and parent .3 remain open.
+
+### Exact-owner successful TypeScript extraction (2.1d.1.3e5a)
+
+The extraction module privately maps the exact successful envelope to a cached, deeply frozen
+binding containing copied validated request paths and a copied retained namespace provenance.
+The accessor accepts unknown and performs only a WeakMap lookup after an object/null check;
+proxies, inherited shapes and serialized copies receive no authority. A declare-only private
+unique symbol brands the recursively readonly TypeScript type without changing runtime bytes.
+
+Copied request arrays and their wrapper freeze before source creation or compiler callbacks.
+After source admission, core success, census sealing and the existing whole-envelope canonical
+cap, an iterative WeakSet traversal freezes all envelope objects. Only then may registration
+publish ownership. Caller objects and capabilities are never traversed. Failed compilation,
+short output bounds and freeze exceptions publish no owned envelope. The binding retains
+unverified runtime trust and confers no protected freeze or runtime authentication authority.

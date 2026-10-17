@@ -1465,3 +1465,26 @@ come from exact closure tuples. The census SHALL preserve unverified runtime tru
 
 This narrow census supplies no CompilerReadManifestV1, runtime authentication/completeness,
 implicit default-library breadth or freeze integration and does not change namespace V1.
+
+### Requirement: Exact-owner successful retained TypeScript extraction
+
+The retained compiler SHALL return an opaque deeply readonly extraction with the same enumerable
+canonical envelope and unverified runtime trust. A private exact-object binding SHALL cache a
+deeply frozen copied request and namespace provenance. No public constructor or registration
+capability SHALL exist.
+
+#### Scenario: Only the exact successful envelope exposes its cached provenance
+
+- **WHEN** the extraction provenance accessor receives an exact successful extraction
+- **THEN** repeated calls return the same deeply frozen private binding
+- **AND** plain objects, primitives, spreads, JSON copies, inherited shapes and proxies refuse
+  without reading their properties or performing IO
+
+#### Scenario: Success freezes snapshots and publication follows every boundary
+
+- **WHEN** retained extraction validates and copies request paths
+- **THEN** copied arrays and their wrapper freeze before callbacks while caller inputs remain mutable
+- **AND** successful core extraction, census sealing and the complete-envelope ceiling precede
+  iterative deep freeze and exact-object registration
+- **AND** nested relationship, extractor, provenance and census mutations cannot change canonical bytes
+- **AND** compiler failure, a one-byte-short cap or a freeze exception publishes no owned envelope

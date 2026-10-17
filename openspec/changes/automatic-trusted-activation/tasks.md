@@ -375,6 +375,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       under the 900 MiB process-tree guard; no combined-suite memory claim. Namespace V1,
       production and unverified trust remain unchanged; full manifest/authentication/freeze and
       parent .3 remain open pending independent review and required gate.
+- [ ] 2.1d.1.3e5a Publish exact-owner successful TypeScript extractions with a private
+      WeakMap request/provenance binding and opaque deeply readonly type. Freeze copied request
+      arrays before callbacks, preserve canonical envelope bytes and unverified trust, cap then
+      deeply freeze before registration. Refuse plain/copy/JSON/prototype/proxy/getter impostors
+      without property reads. Prove mutable caller inputs, stable cached binding, complete nested
+      immutability and no registration after compiler, cap or freeze failure. Watch independent
+      lookup, snapshot/original request, root/child freeze, copied provenance identity, cap/freeze
+      registration and omitted-registration faults; remove readonly and brand for compile negatives. This prerequisite supplies no protected freeze, authentication or full manifest;
+      acceptance remains pending independent review and the required gate.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,
