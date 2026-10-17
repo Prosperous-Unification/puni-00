@@ -240,7 +240,11 @@ export function EstimatingPanel({
       void apply();
       return;
     }
-    if (event.key === 'Escape' && dirty) {
+    // Not while the triple travels, for the ladder's reason (ui-review F-110).
+    // Proof: on 2026-10-17, without `!section.busy`, `Escape while the weights
+    // travel leaves the sent triple in the boxes` (estimating-panel.test.tsx)
+    // failed on `expected '4' to be '1'`.
+    if (event.key === 'Escape' && dirty && !section.busy) {
       setDraft(draftOfWeights(pertWeights));
       section.clear();
     }

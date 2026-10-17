@@ -24,7 +24,8 @@ locked by estimates SHALL show the reason as text on the row and as the group's 
 disabled checked radio SHALL stand at least 3:1 off a disabled unchecked one. The Optimization
 radios SHALL read `Fast`, `Priority-first` and `Finish-first`, on one line at 375 px. No settings
 section SHALL carry a heading of its own. The priority ladder SHALL show a header row naming its
-columns, aligned with them at 1440 px and 375 px. A section that scrolls SHALL end with bottom
+columns, aligned with them at 1440 px and 1024 px; below 640 px each band names its own numbers
+instead (`ui-review-settings-escape`). A section that scrolls SHALL end with bottom
 room equal to the surface's top padding.
 
 #### Scenario: a step that holds estimates

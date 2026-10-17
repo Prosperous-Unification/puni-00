@@ -170,6 +170,44 @@ describe('the estimating panel', () => {
     expect(setArithmetic).not.toHaveBeenCalled();
   });
 
+  itDom('Escape while the weights travel leaves the sent triple in the boxes (F-110)', async () => {
+    let land = (): void => {
+      throw new Error('the weights never left');
+    };
+    function Plan() {
+      const [weights, setWeights] = useState<PertWeightsView>(DEFAULT_WEIGHTS);
+      return (
+        <EstimatingPanel
+          method="pert"
+          pertWeights={weights}
+          estimateRounding="ceil"
+          setArithmetic={async (arithmetic) => {
+            await new Promise<void>((resolve) => {
+              land = resolve;
+            });
+            if (arithmetic.pertWeights !== undefined) setWeights(arithmetic.pertWeights);
+          }}
+          onChanged={async () => {
+            await Promise.resolve();
+          }}
+          onDirtyChange={() => undefined}
+        />
+      );
+    }
+    render(<Plan />);
+    fireEvent.change(boxFor('Realistic'), { target: { value: '1' } });
+    applyWeights();
+    await settle();
+
+    fireEvent.keyDown(boxFor('Realistic'), { key: 'Escape' });
+    expect(boxFor('Realistic').value).toBe('1');
+    land();
+    await settle();
+
+    expect(boxFor('Realistic').value).toBe('1');
+    expect(screen.getByText(/The weights is applied\./)).toBeInTheDocument();
+  });
+
   itDom('landed weights offer Undo, which sends the triple they replaced (F-060)', async () => {
     const sent: Arithmetic[] = [];
     function Plan() {
