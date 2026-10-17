@@ -1339,3 +1339,34 @@ Restored normal pre-commit passed at **1,208,438,784 bytes**. Actual
 lint selection equals exactly the three staged TS paths once each. Final candidate
 hashes still match source bytes after the real hook fault and restoration. Normal
 commit hooks will run again; no hook was bypassed.
+
+### Browser refusal compatibility found during current-main integration (2026-10-17)
+
+The Step history had already added `referenced_by_step_parallel` to shared HTTP
+refusals at the previous local integration tip `f5a53f72`; its existing browser
+consumers were missed. The clean merge of pinned main `e8894d0145` did not change
+`plan-refusal.ts`. A scoped frontend typecheck of that combined tree exposed two
+TS2345 exhaustive-union failures in step removal and project commands. This was
+a pre-existing Step consumer gap, not a regression introduced by the main merge.
+
+The bounded fix adds explicit decoder cases and a readable preservation sentence,
+retaining unknown-variant failure, shared response nodes and existing writer
+refresh policy. New real PlanWriter tests cover both typed WbsRequestError
+responses plus a completed request before a command refusal. They assert refused
+outcome, one announcement, no retry, settled busy state, no refresh obligation
+from the refused request and preservation of the completed prefix's refresh.
+No public sparse editor or writer is enabled.
+
+RED observed 3 new failures and 11 existing passes, each new failure reaching
+`Unexpected response variant: object`. GREEN and the exact post-restoration
+control passed all 14 cases. Independent production mutations removed the step
+decoder case, command decoder case and sentence: respectively 1, 2 and 3 tests
+failed for their expected boundary/wording diagnostic. The runner restored exact
+pre-comment source bytes; final Proof comments and source hashes are recorded
+separately. Both the 27-entry production frontend typecheck and the plan-writer
+module typecheck, including the new tests, passed afterward.
+
+Full current-main composition receipts, exact commands, resource-disqualified
+attempts and verification limits are in `integration-main-e8894d0-verify-2026-10-17.md`
+and its evidence packet. The full host gate and browser checks remain outside
+this bounded compatibility follow-up.

@@ -412,3 +412,23 @@ project deletion; bystander policy SHALL remain byte-equal.
 
 - **WHEN** a target is absent, open, waiting, contract-only or fails an earlier dependency check
 - **THEN** its existing behavior precedes sparse access even if sparse storage is unavailable
+
+### Requirement: Browser writer presents sparse preservation refusals
+
+The existing plan writer SHALL recognize `referenced_by_step_parallel` from step deletion
+and project command responses as a modeled refusal. It SHALL announce once that retained
+step parallelism prevents the change, return `refused`, release busy state and issue no retry.
+A refused request SHALL add no refresh obligation; earlier completed requests in the same
+gesture SHALL retain their existing resource refresh obligations. Unknown variants SHALL
+continue to reach the exhaustive failure boundary.
+
+#### Scenario: Step deletion and commands meet retained sparse policy
+
+- **WHEN** either existing mutation route answers the typed sparse-preservation 409
+- **THEN** the writer publishes one readable preservation refusal, returns refused and releases busy
+- **AND** it retries nothing and performs no success or ambiguous-outcome reread
+
+#### Scenario: A completed gesture prefix precedes a sparse refusal
+
+- **WHEN** an earlier request completes before the command request is refused for sparse policy
+- **THEN** only the completed request's resources are reread and the writer remains refused

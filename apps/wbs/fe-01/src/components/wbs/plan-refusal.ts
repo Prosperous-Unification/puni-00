@@ -295,6 +295,9 @@ function stepRemoveCode(refusal: RefusalOf<'deleteApiProjectsByIdStepsByStepId'>
       // cases throw `Unexpected response variant: object` instead of reporting
       // the refusal; watched in plan-writer.test.ts, 2026-10-14.
       return refusal.error;
+    // Proof: removing this case failed the writer's step-removal sparse refusal (2026-10-17).
+    case 'referenced_by_step_parallel':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -470,6 +473,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
       // Proof: omitting this arm made the plan writer's disabled-admission
       // cases throw `Unexpected response variant: object` instead of reporting
       // the refusal; watched in plan-writer.test.ts, 2026-10-14.
+      return refusal.error;
+    // Proof: removing this case failed both sparse command writer cases (2026-10-17).
+    case 'referenced_by_step_parallel':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -707,6 +713,9 @@ export const PLAN_REFUSALS: RefusalWords = {
     // `node_done`, reading `That change could not be completed (node_done).`;
     // watched 2026-10-12.
     step_blockage_inactive: 'Step blockage changes are not enabled on this server.',
+    // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
+    referenced_by_step_parallel:
+      'That change cannot be made while the affected steps have individual parallelism overrides.',
     node_done:
       'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:
