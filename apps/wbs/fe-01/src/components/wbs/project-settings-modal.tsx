@@ -190,12 +190,15 @@ export interface ProjectSettingsModalProps {
  * the write is in the air, and the modal then closes by itself once nothing is
  * held — or stays open on the refusal if be-01 said no. Escape waits the same
  * way, except in a field, where it is the field's own key: it puts the field
- * back and the modal stays.
+ * back where it is, and while anything is held the modal neither moves nor
+ * speaks (UI review F-112).
  *
  * **Closing over an edit is refused, and the refusal shows where** (D3). Each
  * panel reports whether it holds an uncommitted draft or a write in flight;
- * Escape, the ✕ and a click outside all go through {@link requestClose}, which
- * refuses while any does and switches to the first section that does. Switching
+ * Escape outside a field, the ✕ and a click outside all go through
+ * {@link requestClose}, which refuses while any holds a draft and switches to
+ * the first section that does; a hold that is only travelling is waited out
+ * quietly. Switching
  * rather than only announcing: a refusal naming a section the reader cannot see
  * is a refusal they have to go looking for.
  *
@@ -351,11 +354,12 @@ export function ProjectSettingsModal({
   /**
    * Closes if nothing is held, or refuses and shows what is holding it.
    *
-   * Every way out goes through here — Escape and the click away via Radix's
-   * handlers below, the ✕ via `onOpenChange(false)`. Answers whether it closed,
-   * so a Radix handler can `preventDefault()` the dismissal it would otherwise
-   * perform on its own. `leaving` is the ✕ and the click outside: refused, they
-   * leave {@link closeWanted} set, and the close happens when the hold clears.
+   * Every way out goes through here — Escape outside a field and the click
+   * away via Radix's handlers below, the ✕ via `onOpenChange(false)`. Answers
+   * whether it closed, so a Radix handler can `preventDefault()` the dismissal
+   * it would otherwise perform on its own. `leaving` is a request to leave:
+   * refused, it leaves {@link closeWanted} set, and the close happens when the
+   * hold clears.
    *
    * Proof: the `if (first !== undefined)` refusal below deleted, so this always
    * closes, and both `an in-flight write holds the modal open and is shown` and
@@ -368,16 +372,17 @@ export function ProjectSettingsModal({
     const held = SECTIONS.map((s) => s.id).filter((id) => dirtyRef.current.has(id));
     const first = held.at(0);
     if (first !== undefined) {
-      // Leaving over writes that are only travelling is not refused out loud:
-      // the ✕ or the click away that blurred the field is what sent them, and
-      // the modal closes when they land. Jumping to their section with the red
+      // Writes that are only travelling are never refused out loud: nothing in
+      // them can be finished or cancelled, they clear by themselves, and the
+      // foot already says `Saving …`. Jumping to their section with the red
       // "Finish it or cancel it" was the refusal contradicting the close it was
-      // about to make (Fable review of #453, blocking 1).
+      // about to make (Fable review of #453, blocking 1), and, for a request
+      // that was not leaving, the sentence under `Saving …` (ui-review F-111).
       // Proof: on 2026-10-14, against 6d4d02f33 (no such branch), `leaving over
       // a write in flight says it is saving, not that an edit is unsaved` failed
       // on `expected <p role="alert" …(1)></p> to be null`.
-      if (leaving && held.every((id) => busyRef.current.has(id))) {
-        setCloseWanted(true);
+      if (held.every((id) => busyRef.current.has(id))) {
+        if (leaving) setCloseWanted(true);
         return false;
       }
       show(first);
@@ -455,9 +460,15 @@ export function ProjectSettingsModal({
     document.getElementById(tabId(target.id))?.focus();
   }
 
-  const holding = refused
-    ? (dirtySections.find((id) => !busySections.includes(id)) ?? dirtySections[0])
-    : undefined;
+  // Only a section holding something the reader can finish or cancel is named.
+  // A refusal over a hold that is now only travelling — a refused write fixed
+  // and sent again — says nothing until it lands: it then clears with the hold
+  // (F-080), or be-01 refuses again and the section is held, not travelling.
+  // Proof: on 2026-10-17, with the old `?? dirtySections[0]` fallback, `a
+  // refused ladder sent again says it is saving, not that it is unsaved`
+  // (project-settings-modal.test.tsx) failed on `expected 'Priorities has an
+  // unsaved edit. Finis…' to be undefined` (ui-review F-111).
+  const holding = refused ? dirtySections.find((id) => !busySections.includes(id)) : undefined;
   const travelling =
     closeWanted && holding === undefined
       ? SECTIONS.filter((s) => dirtySections.includes(s.id)).map((s) => s.label)
@@ -511,12 +522,26 @@ export function ProjectSettingsModal({
         // Radix performs the dismissal itself unless the event is prevented, so
         // a refused close has to be said here and not only in `onOpenChange`.
         //
-        // Escape in a field is that field's: it puts the field back, so the
-        // refusal it meets is not a request to leave once the hold clears.
-        // Radix listens on the document's capture phase, before the field's own
-        // handler, so the target is what tells the two apart.
+        // Escape in a field is that field's: it puts the field back where it
+        // is (D7), so while anything is held it is neither a request to leave
+        // nor a reason to refuse one. Refusing here switched the modal to
+        // another section's held draft, with the red sentence, and took the
+        // focus out of the box whose Escape it was (ui-review F-112). With
+        // nothing held it closes, as Escape anywhere else does. Radix listens on
+        // the document's capture phase, before the field's own handler, so the
+        // target is what tells the two apart.
+        // Proof: on 2026-10-17, with a field's Escape sent through
+        // `requestClose(false)` as before, `Escape in one section’s box puts it
+        // back there, whatever another holds` (project-settings-modal.test.tsx)
+        // failed on `toHaveAttribute("aria-selected", "true")` for Timezone, and
+        // `Escape in a box whose ladder travels says only that it is saving`
+        // on `expected 'Priorities has an unsaved edit. Finis…' to be undefined`.
         onEscapeKeyDown={(event) => {
-          if (!requestClose(!isField(event.target))) event.preventDefault();
+          if (isField(event.target)) {
+            if (dirtyRef.current.size > 0) event.preventDefault();
+            return;
+          }
+          if (!requestClose(true)) event.preventDefault();
         }}
         onInteractOutside={(event) => {
           if (!requestClose(true)) event.preventDefault();

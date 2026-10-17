@@ -566,31 +566,45 @@
   }
 
   /*
-   * A disabled radio drawn by the palette rather than the engine: a ring and,
-   * when checked, a dot, both in `--muted-foreground` on `--background`. The
-   * engine's own disabled discs were a pale and a paler grey, 1.44:1 apart in
-   * the light palette and 2.43:1 in the dark one, so a locked step's unit and
-   * the schedule Fast holds while optimization is off could not be read
-   * (ui-review F-118, F-119). `--muted-foreground` stands at least 4.5:1 off
+   * Every radio drawn by the palette rather than the engine: a ring and, when
+   * checked, a dot, on `--background`. One drawing, so a state is told by its
+   * ink and never by its shape (ui-review F-158): in the dark palette the
+   * engine filled an enabled unchecked radio with a (59,59,59) disc while a
+   * locked one was a hollow ring, so the locked control read emptier than the
+   * live one beside it. An enabled radio's ink is `--foreground`; a disabled
+   * one's is `--muted-foreground`, quieter and never emptier. The engine's own
+   * disabled discs were a pale and a paler grey, 1.44:1 apart in the light
+   * palette and 2.43:1 in the dark one, so a locked step's unit and the
+   * schedule Fast holds while optimization is off could not be read (ui-review
+   * F-118, F-119). `--muted-foreground` stands at least 4.5:1 off
    * `--background` in both palettes, so checked and unchecked differ by more
    * than WCAG 1.4.11's 3:1, which `settings-vocabulary.spec.ts` measures off the
-   * pixels. Enabled radios keep the platform's drawing, and the phone floor's
-   * unlayered 22px still sizes this one. The margin is the platform's own, so a
-   * disabled row stands where an enabled one does.
+   * pixels. The phone floor's unlayered 22px still sizes it. The margin is the
+   * platform's own, so a row stands where it stood.
+   *
+   * `flex-shrink: 0` because a radio is a flex item beside its label, and a
+   * two-line label squeezed the phone's 22px radios to 13–15px, each by a
+   * different amount (ui-review F-157).
    */
-  input[type='radio']:disabled:not([data-grid], [data-grid] *) {
+  input[type='radio']:not([data-grid], [data-grid] *) {
+    --radio-ink: var(--foreground);
     appearance: none;
     box-sizing: border-box;
+    flex-shrink: 0;
     width: 13px;
     height: 13px;
     margin: 3px 3px 0 5px;
-    border: 1px solid var(--muted-foreground);
+    border: 1px solid var(--radio-ink);
     border-radius: 50%;
     background: var(--background);
   }
 
-  input[type='radio']:disabled:checked:not([data-grid], [data-grid] *) {
-    background: radial-gradient(circle, var(--muted-foreground) 0 35%, var(--background) 40%);
+  input[type='radio']:disabled:not([data-grid], [data-grid] *) {
+    --radio-ink: var(--muted-foreground);
+  }
+
+  input[type='radio']:checked:not([data-grid], [data-grid] *) {
+    background: radial-gradient(circle, var(--radio-ink) 0 35%, var(--background) 40%);
   }
 }
 

@@ -630,6 +630,103 @@ describe('closing over an edit', () => {
   });
 });
 
+describe('Escape in a field over something held elsewhere or in the air', () => {
+  /** What the modal says when it refuses a close, as against a section's own problem line. */
+  const refusal = (): string | undefined =>
+    screen
+      .queryAllByRole('alert')
+      .map((each) => each.textContent)
+      .find((words) => words.includes('has an unsaved edit'));
+
+  itDom('Escape in a box whose ladder travels says only that it is saving (F-111)', async () => {
+    const write = held();
+    mounted({
+      priorities: {
+        bands: DEFAULT_PRIORITY_BANDS,
+        setBands: () => write.promise,
+        onChanged: () => Promise.resolve(),
+      },
+    });
+    open();
+    fireEvent.click(tab('Priorities'));
+    const band = screen.getByLabelText<HTMLInputElement>('Name of band 1');
+    fireEvent.change(band, { target: { value: 'Blocker' } });
+    fireEvent.keyDown(band, { key: 'Enter' });
+    await settle();
+
+    fireEvent.keyDown(band, { key: 'Escape' });
+    await settle();
+
+    expect(dialog()).toBeInTheDocument();
+    expect(refusal()).toBeUndefined();
+    expect(dialog().querySelector('[data-settings-saving]')?.textContent).toBe(
+      'Saving Priorities…',
+    );
+    write.land();
+    await settle();
+  });
+
+  itDom(
+    'a refused ladder sent again says it is saving, not that it is unsaved (F-111)',
+    async () => {
+      const write = held();
+      const setBands = vi
+        .fn<(bands: readonly PriorityBandView[]) => Promise<void>>()
+        .mockRejectedValueOnce(new Error('band_default_must_be_inside_its_own_band'))
+        .mockImplementation(() => write.promise);
+      mounted({ priorities: { bands: DEFAULT_PRIORITY_BANDS, setBands, onChanged: vi.fn() } });
+      open();
+      fireEvent.click(tab('Priorities'));
+      const writes = screen.getByLabelText<HTMLInputElement>('Critical writes');
+      fireEvent.change(writes, { target: { value: '90' } });
+      fireEvent.keyDown(writes, { key: 'Enter' });
+      await settle();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      await settle();
+      expect(refusal()).toContain('Priorities has an unsaved edit');
+
+      fireEvent.change(writes, { target: { value: '12' } });
+      fireEvent.keyDown(writes, { key: 'Enter' });
+      await settle();
+
+      expect(setBands).toHaveBeenCalledTimes(2);
+      expect(refusal()).toBeUndefined();
+      write.land();
+      await settle();
+    },
+  );
+
+  itDom(
+    'Escape in one section’s box puts it back there, whatever another holds (F-112)',
+    async () => {
+      const setBands = vi.fn<(bands: readonly PriorityBandView[]) => Promise<void>>(() =>
+        Promise.reject(new Error('band_default_must_be_inside_its_own_band')),
+      );
+      mounted({ priorities: { bands: DEFAULT_PRIORITY_BANDS, setBands, onChanged: vi.fn() } });
+      open();
+      fireEvent.click(tab('Priorities'));
+      const writes = screen.getByLabelText<HTMLInputElement>('Critical writes');
+      fireEvent.change(writes, { target: { value: '90' } });
+      fireEvent.keyDown(writes, { key: 'Enter' });
+      await settle();
+      fireEvent.click(tab('Timezone'));
+      const zone = document.getElementById('project-timezone');
+      if (!(zone instanceof HTMLInputElement)) throw new Error('no Timezone box');
+      zone.focus();
+      fireEvent.change(zone, { target: { value: 'UTCX' } });
+
+      fireEvent.keyDown(zone, { key: 'Escape' });
+      await settle();
+
+      expect(dialog()).toBeInTheDocument();
+      expect(zone.value).toBe('UTC');
+      expect(tab('Timezone')).toHaveAttribute('aria-selected', 'true');
+      expect(refusal()).toBeUndefined();
+      expect(document.activeElement).toBe(zone);
+    },
+  );
+});
+
 describe('the section it reopens on', () => {
   itDom('reopens where it was left, per project', async () => {
     mounted();
