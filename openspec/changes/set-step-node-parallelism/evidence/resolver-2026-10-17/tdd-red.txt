@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/step-parallel.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+SyntaxError: Export named 'resolveStepParallel' not found in module '/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.ts'.
+-------------------------------
+
+
+ 0 pass
+ 1 fail
+ 1 error
+Ran 1 test across 1 file. [41.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 18968576, "exitCode": 1}

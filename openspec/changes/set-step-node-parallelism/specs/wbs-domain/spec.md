@@ -105,3 +105,26 @@ SHALL fail visibly.
 - **WHEN** its first child is added through the complete feature
 - **THEN** the override is remapped with the other concrete node facts in the same transaction,
   or the operation refuses atomically with the affected reference
+
+### Requirement: Pure node policy resolution preserves provenance
+
+The domain resolver SHALL accept one concrete step-node pair, a row maximum and an optional
+stored override. It SHALL validate the row maximum even when an override is supplied, validate
+any supplied override maximum, and reject an override naming either a different work item or
+a different step. Absence SHALL return inherited provenance and the row maximum. Presence
+SHALL return explicit provenance and the override maximum, including equality with the row
+maximum. The returned maximum SHALL be detached from the supplied mutable fact. This resolver
+slice SHALL leave resource projections, scheduler consumers, writers and stepless boundaries unchanged.
+
+#### Scenario: Equal explicit value remains authored
+
+- **GIVEN** row maximum 1 and an explicit Dev override of 1
+- **WHEN** the pure resolver is called before and after the row maximum changes to 4
+- **THEN** both calls return explicit provenance and maximum 1
+
+#### Scenario: Resolved policy composes with existing resource clamps
+
+- **GIVEN** row maximum 4, explicit QA maximum 2 and pools of 8 and 3
+- **WHEN** the pure resolver output is passed to the existing resource resolver
+- **THEN** unnamed Dev has width 3 and unnamed QA has width 2
+- **AND** a named QA has width 1 while an unsized-only Dev retains width 4

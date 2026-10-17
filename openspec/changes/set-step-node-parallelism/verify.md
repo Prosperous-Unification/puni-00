@@ -101,3 +101,52 @@ No production behavior changed, so the portable build and migration lint were no
 the migration rollback cases remain included in the fresh focused run. No push, host gate,
 merge or deployment was performed. External Tool Wiki activation remains inactive and is
 not a claimed certification.
+
+## Pure resolver prerequisite — 2026-10-17
+
+Scope is task 4.0 only, based on exact recoverable foundation
+`fea8863394fc08a64920d170e3fd1622e6881de4`, isolated at
+`/tmp/puni-step-parallel-resolver-20261017`. No live consumer, scheduler, schema,
+writer, transport or stepless behavior changed. The unavailable later transport
+head `1b4b9e3` was not reconstructed. Tasks 4.1–4.4 remain unchecked.
+
+All commands below ran serially through `python3 evidence/.../rss-guard.py`
+(from the repository root with the full change evidence path), with a 768 MiB
+process-tree RSS ceiling sampled every 20 ms. The wrapper and rerunnable mutations
+are retained in `evidence/resolver-2026-10-17/`; each transcript ends with exit and
+sampled peak. Sampling is observed process-tree RSS, not a kernel memory limit.
+Existing root `node_modules` was linked; no frozen dependency install is claimed.
+
+- TDD: missing-export RED retained in `tdd-red.txt`; a typed throwing stub then
+  produced five behavior failures (`tdd-behavior-red.txt`) before implementation.
+- `bun test libs/wbs/domain/domain/src/step-parallel.test.ts libs/wbs/domain/domain/src/node-resources.test.ts`:
+  **32 passed, 0 failed**, including provenance, sibling isolation, explicit
+  equality/default change, independent pair guards, invalid values on each route,
+  inclusive limits, resource composition and mutable-fact isolation.
+- `python3 .../mutations.py`: **seven independent faults each exited 1** with the
+  intended behavior test failing: ignoring overrides, equality collapse, each pair
+  guard omitted, each value-validation call omitted, and a returned getter retaining
+  the mutable fact. See `mutation-receipts.json` and corresponding transcripts.
+- `bunx tsc --build --force libs/wbs/domain/domain/tsconfig.json`: **exit 0**,
+  sampled peak 311619584 bytes.
+- Initial scoped ESLint found three numeric test-name template errors, corrected
+  using `String`. Its module-boundary rule skipped without the project graph.
+  `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx graph --file=/tmp/step-parallel-resolver-graph.json`
+  then exited 0, peak 276324352 bytes. Final scoped ESLint over the two TypeScript
+  files **exited 0 without warnings**, peak 684322816 bytes (`lint-final.txt`).
+- Pinned OpenSpec 1.12.0 via its existing cached CLI:
+  `validate set-step-node-parallelism --strict --json`: **1 passed, 0 failed**,
+  no issues (`openspec.txt`).
+
+Full repository tests, builds, all-change OpenSpec validation and the exact-SHA
+h2puni host gate are not run by this local prerequisite slice. No integration,
+release, push, merge or deployment claim is made.
+
+Normal `git commit` hooks passed, including scoped ESLint, formatting, plaintext
+secrets and private nesting; commit-message hooks also passed. The initial commit
+receipt is retained in `evidence/resolver-2026-10-17/commit-hooks.txt` (peak
+718348288 bytes, below 768 MiB). The repository's migration and doc-cap hooks
+skipped because this slice stages no matching files. Tool Wiki returned visible
+`inactive`, `certified:false` because its external activation root is not provisioned;
+this is not a Tool Wiki certification claim. Adding this receipt uses the same
+normal hooks on amend.

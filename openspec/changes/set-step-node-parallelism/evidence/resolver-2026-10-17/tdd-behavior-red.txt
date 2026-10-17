@@ -1,0 +1,78 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/step-parallel.test.ts:
+24 | export function resolveStepParallel(
+25 |   node: StepNodeRef,
+26 |   rowMaximum: number,
+27 |   override: StoredStepParallel | undefined,
+28 | ): StepParallel {
+29 |   throw new Error('step parallel resolution is not implemented');
+                                                                    ^
+error: step parallel resolution is not implemented
+      at resolveStepParallel (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.ts:29:64)
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:11:12)
+(fail) resolveStepParallel > inherits Dev four while QA explicitly requests two [0.18ms]
+24 | export function resolveStepParallel(
+25 |   node: StepNodeRef,
+26 |   rowMaximum: number,
+27 |   override: StoredStepParallel | undefined,
+28 | ): StepParallel {
+29 |   throw new Error('step parallel resolution is not implemented');
+                                                                    ^
+error: step parallel resolution is not implemented
+      at resolveStepParallel (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.ts:29:64)
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:19:12)
+(fail) resolveStepParallel > retains explicit one when equal to the row default and after it becomes four [0.06ms]
+(pass) resolveStepParallel > refuses a fact belonging to another work item [0.05ms]
+(pass) resolveStepParallel > refuses a fact belonging to another step [0.01ms]
+(pass) resolveStepParallel > refuses row maximum 0 with and without a valid override [0.04ms]
+(pass) resolveStepParallel > refuses override maximum 0 [0.02ms]
+(pass) resolveStepParallel > refuses row maximum 1001 with and without a valid override [0.03ms]
+(pass) resolveStepParallel > refuses override maximum 1001
+(pass) resolveStepParallel > refuses row maximum 1.5 with and without a valid override
+(pass) resolveStepParallel > refuses override maximum 1.5
+(pass) resolveStepParallel > refuses row maximum NaN with and without a valid override
+(pass) resolveStepParallel > refuses override maximum NaN
+(pass) resolveStepParallel > refuses row maximum Infinity with and without a valid override
+(pass) resolveStepParallel > refuses override maximum Infinity
+(pass) resolveStepParallel > refuses row maximum -Infinity with and without a valid override
+(pass) resolveStepParallel > refuses override maximum -Infinity
+24 | export function resolveStepParallel(
+25 |   node: StepNodeRef,
+26 |   rowMaximum: number,
+27 |   override: StoredStepParallel | undefined,
+28 | ): StepParallel {
+29 |   throw new Error('step parallel resolution is not implemented');
+                                                                    ^
+error: step parallel resolution is not implemented
+      at resolveStepParallel (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.ts:29:64)
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:43:14)
+(fail) resolveStepParallel > accepts both inclusive bounds as inherited and explicit maxima [0.11ms]
+24 | export function resolveStepParallel(
+25 |   node: StepNodeRef,
+26 |   rowMaximum: number,
+27 |   override: StoredStepParallel | undefined,
+28 | ): StepParallel {
+29 |   throw new Error('step parallel resolution is not implemented');
+                                                                    ^
+error: step parallel resolution is not implemented
+      at resolveStepParallel (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.ts:29:64)
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:50:22)
+(fail) resolveStepParallel > detaches the resolved maximum from the supplied mutable fact [0.03ms]
+24 | export function resolveStepParallel(
+25 |   node: StepNodeRef,
+26 |   rowMaximum: number,
+27 |   override: StoredStepParallel | undefined,
+28 | ): StepParallel {
+29 |   throw new Error('step parallel resolution is not implemented');
+                                                                    ^
+error: step parallel resolution is not implemented
+      at resolveStepParallel (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.ts:29:64)
+      at <anonymous> (/tmp/puni-step-parallel-resolver-20261017/libs/wbs/domain/domain/src/step-parallel.test.ts:58:23)
+(fail) resolveStepParallel > composes with named-person, narrowest-pool and unsized-team resource rules [0.08ms]
+
+ 14 pass
+ 5 fail
+ 20 expect() calls
+Ran 19 tests across 1 file. [19.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 22294528, "exitCode": 1}

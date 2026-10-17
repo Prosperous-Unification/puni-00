@@ -49,3 +49,13 @@ show inheritance and clearing explicitly. These are authored requirements, not i
 Focused source parity, adapter corruption and raw SQL migration tests exercise production
 paths. `verify.md` and `evidence/receipts.json` record observed injected faults. No proof comment
 is added until its mutation caused the named negative to fail.
+
+## Pure resolver prerequisite (2026-10-17)
+
+`resolveStepParallel` accepts `StepNodeRef`, the row maximum and an optional
+`StoredStepParallel`; it returns `{ kind: 'inherited' | 'explicit', maxParallel: number }`.
+It validates both numeric inputs and the supplied fact's exact pair. Provenance is derived
+from presence alone. A copied numeric property prevents later fact mutation from changing
+an already resolved value. Stores retain existence, leaf and project checks. Resource-rule
+composition is tested directly without admitting this prerequisite into any live consumer.
+The unavailable later sparse transport head is not reconstructed by this slice.
