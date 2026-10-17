@@ -384,6 +384,16 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       lookup, snapshot/original request, root/child freeze, copied provenance identity, cap/freeze
       registration and omitted-registration faults; remove readonly and brand for compile negatives. This prerequisite supplies no protected freeze, authentication or full manifest;
       acceptance remains pending independent review and the required gate.
+- [ ] 2.1d.1.3e5b Add public exact-owner retained candidate review provenance as a narrow prerequisite.
+      Cache frozen readonly request/snapshot/verified-history scalars after all public-open checks;
+      validate the closed raw request then copy declared fields and canonically validate that owned
+      snapshot, distinguish complete empty history from legacy null and keep
+      internal phase-one views unregistered. Prove SHA-1/SHA-256, no ambient IO/budget use,
+      impostor refusal without property reads and no binding after malformed/repinned history or
+      final owner failure. Watch lookup/freeze, three scalar substitutions, complete-null,
+      legacy-promotion, late caller reread, omitted registration and early-registration faults.
+      Candidate implementation and focused proofs are recorded in verify.md; acceptance stays
+      open pending independent review and required gate. No full manifest/authentication claim.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

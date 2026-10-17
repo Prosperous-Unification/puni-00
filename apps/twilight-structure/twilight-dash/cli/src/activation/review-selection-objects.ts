@@ -135,6 +135,30 @@ export interface RetainedCandidate {
   readBlob(gitObjectId: string, path: string): Uint8Array;
 }
 
+/** The exact validated request, snapshot and verified history pin owned by one public candidate. */
+export interface RetainedReviewProvenance {
+  readonly requestIdentity: string;
+  readonly snapshotIdentity: string;
+  /** Null identifies only legacy head-only capture, including callers supplying an unused pin. */
+  readonly historyManifestIdentity: string | null;
+}
+
+const ReviewProvenance = new WeakMap<object, RetainedReviewProvenance>();
+
+/**
+ * Requires the exact successfully opened public candidate and returns its cached frozen binding.
+ * Performs no property reads, IO, hashing or parser-budget work; copied and proxy owners refuse.
+ */
+export function readRetainedReviewProvenance(candidate: unknown): RetainedReviewProvenance {
+  const provenance =
+    candidate !== null && typeof candidate === 'object'
+      ? ReviewProvenance.get(candidate)
+      : undefined;
+  // Proof: lookup-omission loses poisoned/copied-owner refusal in review-selection-provenance.test.ts.
+  if (provenance === undefined) throw new Error('owned retained review candidate required');
+  return provenance;
+}
+
 const GraphProvenance = new WeakMap<
   RetainedCandidate,
   Readonly<{
@@ -224,7 +248,40 @@ function openRetainedCandidate(
   // Proof: removing held-owner capture fences made the historical owner-change
   // test publish ready references after its fourth ownership check should refuse.
   input.history?.assertOwner();
-  const request = assertActivationRequest(rawRequest);
+  // Proof: generic-clone-before-admission reads the undeclared getter/buffer sentinel;
+  // closed-admission-omission accepts it. Only declared fields may be copied after admission.
+  const validatedRequest = assertActivationRequest(rawRequest);
+  const subject = validatedRequest.subject;
+  const copiedSubject =
+    subject.kind === 'pull-request'
+      ? { kind: subject.kind, number: subject.number }
+      : subject.kind === 'protected-revision'
+        ? { kind: subject.kind, ref: subject.ref }
+        : {
+            kind: subject.kind,
+            groupRef: subject.groupRef,
+            members: subject.members.map((member) => ({
+              repositoryId: member.repositoryId,
+              pullRequestNumber: member.pullRequestNumber,
+              headSha: member.headSha,
+            })),
+          };
+  // Proof: snapshot-validation-omission loses canonical refusal after caller mutation during
+  // capture; late-caller-reread loses the final owner callback's mutation-isolation assertion.
+  const request = assertActivationRequest({
+    schemaVersion: validatedRequest.schemaVersion,
+    repositoryId: validatedRequest.repositoryId,
+    subject: copiedSubject,
+    targetRef: validatedRequest.targetRef,
+    headSha: validatedRequest.headSha,
+    baseSha: validatedRequest.baseSha,
+    policyIdentity: validatedRequest.policyIdentity,
+    mappingIdentity: validatedRequest.mappingIdentity,
+    toolkitIdentity: validatedRequest.toolkitIdentity,
+    authorityIdentity: validatedRequest.authorityIdentity,
+    auditGeneration: validatedRequest.auditGeneration,
+    requestIdentity: validatedRequest.requestIdentity,
+  });
   const binding = validateGitHubRepositoryBinding(input.binding);
   // Proof: replacing each comparator independently let the matching foreign request open.
   // The repository-ID trial also repackaged the manifest to avoid masking by the later join.
@@ -322,7 +379,7 @@ function openRetainedCandidate(
     return Uint8Array.from(entry.bytes);
   };
   const historyObjects = new Map<string, Uint8Array>(retained.rawBlobs);
-  const historyManifest =
+  const retainedHistory =
     input.history === undefined
       ? null
       : readHistoryManifest(
@@ -332,6 +389,7 @@ function openRetainedCandidate(
           historyObjects,
           retained.manifestBytes,
         );
+  const historyManifest = retainedHistory === null ? null : retainedHistory.manifest;
   if (historyManifest !== null && input.history !== undefined) {
     verifyHistoricalObjects(
       historyManifest,
@@ -394,6 +452,19 @@ function openRetainedCandidate(
     Object.freeze({
       snapshotIdentity,
       classificationPolicyIdentity: hashBytes(serializeCanonical(input.classificationPolicy)),
+    }),
+  );
+  // Proof: registration-omission loses exact-owner success; early-registration exposes the
+  // WeakMap.set-captured candidate after the final held-owner fence throws.
+  ReviewProvenance.set(
+    candidate,
+    // Proof: freeze-omission loses Object.isFrozen; independent request/snapshot/history
+    // substitutions lose exact scalar equality. complete-history-null and legacy-pin-promotion
+    // lose the complete empty-history and legacy null assertions, respectively.
+    Object.freeze({
+      requestIdentity: request.requestIdentity,
+      snapshotIdentity,
+      historyManifestIdentity: retainedHistory === null ? null : retainedHistory.identity,
     }),
   );
   return candidate;
@@ -461,7 +532,7 @@ function readHistoryManifest(
   historyIdentity: string | undefined,
   rawObjects: Map<string, Uint8Array>,
   candidateManifestBytes: string,
-): RetainedHistoryManifest {
+): { manifest: RetainedHistoryManifest; identity: string } {
   const policy = input.history;
   if (policy === undefined || historyIdentity === undefined || !Sha256Pattern.test(historyIdentity))
     throw new Error('historical retained identity absent or malformed');
@@ -492,7 +563,7 @@ function readHistoryManifest(
       requireCompleteStorageBounds(rawObjects, policy, candidateManifestBytes, bytes);
     }
   }
-  return manifest;
+  return { manifest, identity: historyIdentity };
 }
 
 function freezeOwnedDocument<T extends object>(document: T): Readonly<T> {
@@ -1021,7 +1092,7 @@ function prepareRetainedLocalReviewCandidate(
             existing.manifestBytes,
           );
           verifyHistoricalObjects(
-            existingHistory,
+            existingHistory.manifest,
             retainedView(existing.manifest, existing.rawBlobs),
             input.history,
             request.requestIdentity,
@@ -1063,7 +1134,7 @@ function prepareRetainedLocalReviewCandidate(
             published.manifestBytes,
           );
           verifyHistoricalObjects(
-            publishedHistory,
+            publishedHistory.manifest,
             retainedView(published.manifest, published.rawBlobs),
             input.history,
             request.requestIdentity,

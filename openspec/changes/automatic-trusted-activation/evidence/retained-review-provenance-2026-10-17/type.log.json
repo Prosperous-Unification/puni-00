@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--project",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-review-provenance-2026-10-17/focused-tests.tsconfig.json",
+    "--noEmit"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 418876,
+  "ceilingKiB": 921600
+}

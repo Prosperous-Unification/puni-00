@@ -2373,3 +2373,26 @@ cap, an iterative WeakSet traversal freezes all envelope objects. Only then may 
 publish ownership. Caller objects and capabilities are never traversed. Failed compilation,
 short output bounds and freeze exceptions publish no owned envelope. The binding retains
 unverified runtime trust and confers no protected freeze or runtime authentication authority.
+
+### Retained candidate review provenance prerequisite (2.1d.1.3e5b)
+
+Only the public `openRetainedCandidate` success path registers a review binding in a private
+WeakMap. Its readonly record contains exactly the validated detached activation request identity,
+the opened snapshot identity and the verified history manifest pin. The private history reader
+returns the exact pin whose raw bytes and canonical document passed validation; callers continue
+to verify the complete historical object closure before publication. A complete empty history
+has a nonnull pin. Legacy head-only capture has null, even if its caller supplies an unused pin.
+
+The raw request first passes its closed schema. Only declared scalar and subject/member fields
+are copied, and a second canonical request validation checks that exact owned snapshot. Generic
+cloning before admission is forbidden because it traverses rejected extras. The final held-owner
+callback cannot change the admitted identity through the caller's mutable object. Registration follows request/binding,
+snapshot, Git-object/classification, history and final held-owner checks. Internal phase-one
+retained views never register. Failure publishes no review capability. The accessor accepts
+unknown, checks only object/null and performs a private WeakMap lookup: primitive, copied,
+inherited, getter-poisoned and proxy values refuse without property reads. Exact-owner repeats
+return the same frozen three-scalar record without IO, hashing or parser-budget consumption.
+
+This prerequisite preserves existing graph provenance, candidate shape, namespace V1 and
+TypeScript envelope bytes. It supplies no CompilerReadManifestV1, protected freeze integration,
+runtime authentication or parent .3 completion.

@@ -1488,3 +1488,30 @@ capability SHALL exist.
   iterative deep freeze and exact-object registration
 - **AND** nested relationship, extractor, provenance and census mutations cannot change canonical bytes
 - **AND** compiler failure, a one-byte-short cap or a freeze exception publishes no owned envelope
+
+### Requirement: Exact-owner retained candidate review provenance
+
+A successfully opened public retained candidate SHALL own a private cached readonly frozen
+record containing exactly `requestIdentity`, `snapshotIdentity` and `historyManifestIdentity`.
+The record SHALL bind the detached validated activation request and exact verified retained pins.
+
+#### Scenario: Public candidate provenance preserves complete and legacy history semantics
+
+- **WHEN** a SHA-1 or SHA-256 public candidate passes all request, snapshot, history and final
+  held-owner checks
+- **THEN** its accessor returns the exact request and snapshot identities plus the verified
+  history manifest pin, including a nonnull pin for complete empty history
+- **AND** legacy head-only capture returns null even when supplied an irrelevant history pin
+- **AND** closed raw validation precedes copying declared fields; the copied request passes
+  canonical validation before use, without cloning undeclared getters or buffers
+- **AND** caller request mutation after validation cannot change the binding or freeze the caller
+
+#### Scenario: Only the exact public candidate exposes its cached record
+
+- **WHEN** the provenance accessor receives an exact successfully opened public candidate
+- **THEN** repeated calls return the same frozen three-scalar record without property reads,
+  IO, rehashing or parser-budget use, even after the original repository and retained store disappear
+- **AND** primitives, plain/spread/JSON copies, inherited shapes, getter poison and proxies refuse
+  without reading their properties
+- **AND** internal phase-one views, wrong raw pins, repinned malformed or noncanonical history,
+  history/request binding mismatches and final held-owner failure publish no binding

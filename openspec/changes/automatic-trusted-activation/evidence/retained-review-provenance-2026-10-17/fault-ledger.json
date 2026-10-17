@@ -1,0 +1,124 @@
+[
+  {
+    "fault": "lookup-omission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 430836,
+    "failedTests": [
+      "(fail) review binding refuses primitive, copied, inherited and poisoned owners without property reads [79.46ms]",
+      "(fail) phase-one retained views never acquire public review bindings [78.47ms]"
+    ]
+  },
+  {
+    "fault": "freeze-omission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 439440,
+    "failedTests": [
+      "(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [92.02ms]",
+      "(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [83.99ms]"
+    ]
+  },
+  {
+    "fault": "request-substitution",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 450976,
+    "failedTests": [
+      "(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [112.42ms]",
+      "(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [90.69ms]",
+      "(fail) request binding is detached before an owner callback mutates the caller request [102.25ms]",
+      "(fail) one legacy snapshot opens distinct candidate request bindings [85.42ms]",
+      "(fail) declared protected-revision subject remains coherent in the owned request snapshot [96.05ms]",
+      "(fail) declared merge-group subject remains coherent in the owned request snapshot [91.84ms]"
+    ]
+  },
+  {
+    "fault": "snapshot-substitution",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 437360,
+    "failedTests": [
+      "(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [92.95ms]",
+      "(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [77.28ms]"
+    ]
+  },
+  {
+    "fault": "history-substitution",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 430612,
+    "failedTests": [
+      "(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [102.22ms]",
+      "(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [79.16ms]"
+    ]
+  },
+  {
+    "fault": "complete-history-null",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 427584,
+    "failedTests": [
+      "(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [89.35ms]",
+      "(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [87.39ms]"
+    ]
+  },
+  {
+    "fault": "legacy-pin-promotion",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 438472,
+    "failedTests": [
+      "(fail) legacy review binding keeps null despite an irrelevant supplied history pin [86.99ms]"
+    ]
+  },
+  {
+    "fault": "late-caller-reread",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 438828,
+    "failedTests": [
+      "(fail) request binding is detached before an owner callback mutates the caller request [99.94ms]"
+    ]
+  },
+  {
+    "fault": "registration-omission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 450012,
+    "failedTests": [
+      "(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [96.87ms]",
+      "(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [92.62ms]",
+      "(fail) legacy review binding keeps null despite an irrelevant supplied history pin [100.96ms]",
+      "(fail) request binding is detached before an owner callback mutates the caller request [98.58ms]",
+      "(fail) one legacy snapshot opens distinct candidate request bindings [78.93ms]",
+      "(fail) declared protected-revision subject remains coherent in the owned request snapshot [90.06ms]",
+      "(fail) declared merge-group subject remains coherent in the owned request snapshot [98.73ms]"
+    ]
+  },
+  {
+    "fault": "early-registration",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 439328,
+    "failedTests": [
+      "(fail) final held-owner failure publishes no binding even for an internally captured candidate [85.01ms]"
+    ]
+  },
+  {
+    "fault": "generic-clone-before-admission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 430440,
+    "failedTests": [
+      "(fail) closed request refusal precedes copying an undeclared getter or buffer [89.57ms]",
+      "(fail) owned request snapshot is revalidated after caller mutation during capture [91.88ms]"
+    ]
+  },
+  {
+    "fault": "closed-admission-omission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 437896,
+    "failedTests": [
+      "(fail) closed request refusal precedes copying an undeclared getter or buffer [98.00ms]",
+      "(fail) owned request snapshot is revalidated after caller mutation during capture [91.01ms]"
+    ]
+  },
+  {
+    "fault": "snapshot-validation-omission",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 444552,
+    "failedTests": [
+      "(fail) owned request snapshot is revalidated after caller mutation during capture [100.52ms]"
+    ]
+  }
+]

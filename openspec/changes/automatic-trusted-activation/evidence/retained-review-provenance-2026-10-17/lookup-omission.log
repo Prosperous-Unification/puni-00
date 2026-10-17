@@ -1,0 +1,62 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+(pass) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [87.77ms]
+(pass) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [82.52ms]
+207 |     JSON.parse(JSON.stringify(candidate)),
+208 |     Object.create(candidate),
+209 |     poison,
+210 |     proxy,
+211 |   ])
+212 |     expect(() => readRetainedReviewProvenance(foreign)).toThrow(ownershipError);
+                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained review candidate required"
+
+Received function did not throw
+Received value: {
+  requestIdentity: "",
+  snapshotIdentity: "",
+  historyManifestIdentity: null,
+}
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:212:57)
+(fail) review binding refuses primitive, copied, inherited and poisoned owners without property reads [79.46ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [94.42ms]
+(pass) request binding is detached before an owner callback mutates the caller request [94.17ms]
+(pass) failed wrong-raw history publishes no review binding [101.86ms]
+(pass) failed repinned-canonical history publishes no review binding [93.83ms]
+(pass) failed repinned-noncanonical history publishes no review binding [98.43ms]
+(pass) failed malformed history publishes no review binding [89.76ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [90.51ms]
+319 |   });
+320 |   try {
+321 |     fixture();
+322 |     expect(captured.length).toBeGreaterThan(0);
+323 |     for (const candidate of captured)
+324 |       expect(() => readRetainedReviewProvenance(candidate)).toThrow(ownershipError);
+                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained review candidate required"
+
+Received function did not throw
+Received value: {
+  requestIdentity: "",
+  snapshotIdentity: "",
+  historyManifestIdentity: null,
+}
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:324:61)
+(fail) phase-one retained views never acquire public review bindings [78.47ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [89.35ms]
+(pass) one legacy snapshot opens distinct candidate request bindings [113.45ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [72.13ms]
+(pass) declared protected-revision subject remains coherent in the owned request snapshot [87.00ms]
+(pass) declared merge-group subject remains coherent in the owned request snapshot [84.59ms]
+
+ 14 pass
+ 2 fail
+ 55 expect() calls
+Ran 16 tests across 1 file. [2.38s]

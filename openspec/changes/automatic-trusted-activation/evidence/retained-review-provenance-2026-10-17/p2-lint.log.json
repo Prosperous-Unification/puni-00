@@ -1,0 +1,15 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 847044,
+  "ceilingKiB": 921600
+}

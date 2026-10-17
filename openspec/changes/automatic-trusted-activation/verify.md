@@ -5530,3 +5530,64 @@ Evidence log normalization strips only trailing spaces/tabs/CR per line and pres
 final LF for nonempty logs. Exact raw files remain under
 `/tmp/retained-owner-raw-evidence-20261017`; normalized-log-receipts.json binds original and
 normalized SHA-256 values. This preserves unfiltered git whitespace checking.
+
+## Retained candidate review provenance prerequisite — 2026-10-17
+
+The uncommitted `.3e5b` candidate starts at reviewed owner commit
+`ae8b28df37a3c579a958f85381e21048df6ea37f` in isolated
+`/tmp/puni-review-provenance-sol-20261017`. Its ignored `node_modules` symlink references the
+existing pinned workspace tree; no fresh dependency install is claimed. Production changes are
+confined to `activation/review-selection-objects.ts`. Dedicated tests import no existing large
+suite. Evidence is in `evidence/retained-review-provenance-2026-10-17/`.
+
+Initial TDD RED observed the missing export before implementation (0 pass, 1 missing-export
+failure, 65476 KiB). Review then found generic cloning before validation could traverse rejected
+undeclared values. The revision first validates the closed raw request, copies every declared
+scalar and subject/member field explicitly, then validates the exact owned snapshot canonically.
+It never generically clones caller values. Review's getter/buffer sentinel, canonical capture
+mutation and distinct-request controls are included in the final suite.
+
+Restored focused tests pass 16 tests / 70 assertions at 415944 KiB, including real SHA-1/SHA-256
+Git capture, complete empty-history pins, legacy null despite a caller pin, exact frozen cached
+scalars, mutable caller request isolation, primitive/copy/JSON/inherited/getter/proxy refusal
+without property reads and phase-one nonpublication. Both repository roots are deleted before
+accessor replay; filesystem/Git traps are explicitly invoked, then repeated accessors and the
+single allowed parser read succeed. Four altered-history cases (wrong raw pin, canonical repinned
+foreign request, noncanonical repin and malformed repin) publish no binding. Final held-owner
+failure refuses; the timing fault uses a test-only WeakMap.set spy to capture the internal
+candidate and expose incorrectly early registration. Two valid legacy requests open distinct
+candidate bindings for the identical snapshot. Pull-request, protected-revision and merge-group
+subject copies preserve exact validated request identity.
+
+All thirteen independent production faults fail named focused tests, recorded in
+`fault-ledger.json`: lookup omission, freeze omission, request substitution, snapshot
+substitution, history substitution, complete-history null, legacy pin promotion, late caller
+request reread, registration omission, registration before final held-owner fence, generic
+cloning before admission, closed admission omission and copied snapshot validation omission.
+Every fault is restored; final fault peak process-tree RSS is 450976 KiB. The copied-snapshot
+validation omission was strengthened to a legacy head-only fixture: it returns a candidate
+instead of throwing (444552 KiB), proving the safety boundary without later history masking. The checked-in
+`run-mutants.py` defines the exact substitutions and restores production in `finally`.
+The existing focused object/history regression selection passes 6 tests / 12 assertions with
+163 filtered tests, peak 427544 KiB. It covers both Git formats, nonempty complete history,
+empty history, owner change and noncanonical history reopen after the private helper return change.
+
+The final restored scoped TypeScript check exits 0 at 415676 KiB. The explicit daemon-disabled
+Nx project graph build succeeds at 267096 KiB. Initial lint/type failures were test annotation,
+void-expression, method-spy, unnecessary-null and import-order diagnostics, preserved in logs.
+The final restored graph-backed scoped lint exits 0 at 834200 KiB with an empty log and no
+skipped rule. Pinned cached OpenSpec 1.12.0 strict validation and scoped formatting are recorded
+in the final evidence receipts. Runtime, type, graph and lint phases run serially under the existing 900 MiB RSS guard
+in the coordinated heavy lane.
+
+Independent review, normal commit hooks and required gate remain pending. No full h2puni gate,
+full repository format/test/lint/typecheck/build, compiler parity families, secrets CI or migration
+CI are claimed. Task .3e5b remains unchecked. This prerequisite changes no graph provenance,
+namespace V1 or TypeScript envelope bytes and supplies no CompilerReadManifestV1, runtime
+or loader authentication, protected freeze integration or parent .3 completion. No push, WBS
+write, publication or deployment occurred.
+
+Evidence normalization strips only trailing spaces/tabs/CR per line and preserves one final LF
+for nonempty logs. Exact raw files remain under `/tmp/retained-review-provenance-raw-20261017`;
+`normalized-log-receipts.json` binds original and normalized SHA-256 values. Runtime failures
+and tool diagnostics remain in the committed evidence rather than being removed.

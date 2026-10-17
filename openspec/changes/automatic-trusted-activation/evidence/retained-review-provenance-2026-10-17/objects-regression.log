@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts:
+(pass) owned sha1 object store prepares, reopens, and reads real Git objects [122.81ms]
+(pass) owned sha256 object store prepares, reopens, and reads real Git objects [106.82ms]
+(pass) historical held owner change fences ready publication [197.73ms]
+(pass) historical complete census retains every duplicate use with sorted unique provenance [224.46ms]
+(pass) historical empty history is complete only for an installed empty declaration census [191.35ms]
+(pass) historical reopen refuses noncanonical manifest even under matching whole digest [172.53ms]
+
+ 6 pass
+ 163 filtered out
+ 0 fail
+ 12 expect() calls
+Ran 6 tests across 1 file. [2.01s]
