@@ -5317,3 +5317,35 @@ evidence commit. Task 2.1 and WBS080.39 remain open. Full h2puni gate, hosted CI
 release acceptance, push and merge have not run; the coordinator owns integration
 and independent exact-commit review. No trusted execution, scenario citation,
 coverage, admission or certification claim follows from these checks.
+
+### Committed execution and report inspection
+
+Normal implementation commit is `1a3fa48c0b3042290c10da61db5d8c44f40f0dd9`. All normal hooks passed,
+including lint, format, secrets, private nesting and tool-wiki, with a sampled
+process-tree peak of **896700 KiB** under the 1280 MiB cap. Migration and doc-cap
+hooks had no matching files. Tool-wiki reported inactive and certified false
+because external activation is absent. No hook was bypassed.
+
+The exact committed target ran uncached with seeded stale XML and produced
+**5 pass, 0 fail, 25 assertions**, exit 0, peak **172956 KiB**.
+Report SHA-256: `13941642ed132942af89c55da1945e60fbe089b9ad47467640b662697369a7fc`.
+Selected manifest SHA-256: `46acb8d29987db82a33476bb69f7c989b926764b1505b33b04608667a0c33447`.
+Candidate digest: `1724428c30c2ab52872f5ee2195a041dd4e8feb58c4eaf042441f6affa78f4d3`.
+
+Production `inspect-bun-test-reports` exited 0, peak **625028 KiB**, retaining
+all five passing cases and exact selected source tuples. All case levels and
+isolation remain unresolved; authentication is absent and certification false.
+Complete observation digest: `0a8decd8c42302cb7fada052ab6f1f9adbaa40cb140f54052a6a1353be77aa62`.
+
+Independent Python XML/Git/SHA-256 reconciliation exited 0 at **21000 KiB**.
+It compared all five cases including nested describe ancestry, selected source
+mode/blob/content hashes, selected manifest bytes, outcome-independent case
+identities and the full canonical observation payload with terminal newline.
+The external report and authority are copied byte-for-byte into the evidence
+directory; raw operational output and the parity script are included.
+
+Task **2.1m** is complete. Task 2.1 and WBS080.39 remain open. Independent
+review, exact-head CI, canonical h2puni gate, publication and integration remain
+coordinator work. The existing target shell-path contract is unchanged; no
+whitespace/glob safety expansion, trusted execution receipts, scenario citation
+credit, coverage, admission or certification is claimed.

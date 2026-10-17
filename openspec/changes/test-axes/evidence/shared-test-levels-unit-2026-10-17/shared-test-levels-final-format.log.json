@@ -1,0 +1,48 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "prettier",
+    "--write",
+    "openspec/changes/test-axes/tasks.md",
+    "openspec/changes/test-axes/verify.md",
+    "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/authority.json",
+    "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-commit.log.json",
+    "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-committed-unit.log.json",
+    "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-inspector.log.json",
+    "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-parity.log.json",
+    "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-format-evidence.log.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 323892,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "prettier",
+      "--write",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/authority.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-commit.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-committed-unit.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-inspector.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-parity.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-format-evidence.log.json"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/node_modules/.bin/prettier",
+      "--write",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/authority.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-commit.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-committed-unit.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-inspector.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-parity.log.json",
+      "openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-format-evidence.log.json"
+    ]
+  ]
+}
