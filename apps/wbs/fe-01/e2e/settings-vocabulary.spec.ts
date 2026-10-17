@@ -220,10 +220,13 @@ for (const viewport of [
   });
 }
 
-test('a scrolling section ends with the room the modal starts with, at 1024×768 (F-123)', async ({
+test('a scrolling section ends with the room the modal starts with, at 1024×700 (F-123)', async ({
   page,
 }, info) => {
-  await page.setViewportSize({ width: 1024, height: 768 });
+  // 700 rather than the review's 768: since the base layer took the platform's
+  // groove and padding off a bare `<fieldset>` (UI review F-153), Estimating fits
+  // at 1024×768 and the precondition below failed on `Estimating fits`.
+  await page.setViewportSize({ width: 1024, height: 700 });
   const dialog = await openSettings(page, info.titlePath.join(' '), info.workerIndex);
   await dialog.getByRole('tab', { name: 'Estimating' }).click();
   const measured = await dialog.evaluate((surface) => {
@@ -239,7 +242,7 @@ test('a scrolling section ends with the room the modal starts with, at 1024×768
       top: Number.parseFloat(getComputedStyle(surface).paddingTop),
     };
   });
-  expect(measured.scrolls, 'Estimating fits at 1024×768, so this measures nothing').toBe(true);
+  expect(measured.scrolls, 'Estimating fits at 1024×700, so this measures nothing').toBe(true);
   // Proof: on 3e06eb5a4 this failed with `Expected: >= 23 Received: 0`: scrolled to its
   // end, the closing paragraph sat on the box's bottom edge.
   expect(measured.room).toBeGreaterThanOrEqual(measured.top - NEARLY);

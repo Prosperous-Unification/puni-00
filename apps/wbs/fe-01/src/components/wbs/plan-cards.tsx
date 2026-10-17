@@ -2386,7 +2386,7 @@ function CardDependsField({
               placeholder="search by number or name"
               data-cell={cellKey(row.id, 'depends')}
               data-card-depends-input
-              className={`${TAP} border-input bg-background box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={typed}
               onChange={(event) => {
                 setTyped(event.target.value);

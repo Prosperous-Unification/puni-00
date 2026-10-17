@@ -598,10 +598,9 @@ const chartChip = (extra?: string): string =>
     // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
     // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
     // put 8px above and below a 10px word, and the chips measured 18px against
-    // the scale `<select>`'s 16px. `border-border` for the same reason in the
-    // other direction: `variant: 'outline'` brings `border-input`, and this
-    // bar's border is `border-border`.
-    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
+    // the scale `<select>`'s 16px. The edge is the `outline` variant's own
+    // `--control-edge`, as every control box's is (UI review F-152).
+    'h-4 rounded px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
     'focus-visible:ring-1 focus-visible:ring-offset-1',
     extra,
   );
@@ -7730,7 +7729,7 @@ export function GanttRenderer({
           // chevron this corner has no room to redraw. So the four classes the
           // bar is made of are stated here instead, and the height is the same
           // `h-4` the chips take.
-          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
+          className="border-control-edge hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);

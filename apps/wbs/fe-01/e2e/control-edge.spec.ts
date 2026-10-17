@@ -58,5 +58,25 @@ for (const scheme of ['light', 'dark'] as const) {
       expect(edge.outside, `${name}: outside`).toBeGreaterThanOrEqual(3);
       expect(edge.inside, `${name}: inside`).toBeGreaterThanOrEqual(3);
     }
+
+    // Every other control box on the bar draws the same edge (F-152, F-137): the
+    // disclosures, the selects and the text boxes beside the outline buttons.
+    // Proof, watched 2026-10-17: before this change the first of them failed
+    // on `Find: outside · Expected: >= 3 · Received: 1.22…` (light) and
+    // `1.44…` (dark), the `--input` hairline.
+    const boxes = [
+      ['Find', page.getByRole('textbox', { name: 'Find', exact: true })],
+      ['Project start date', page.getByLabel('Project start date')],
+      ['Final estimate', page.getByLabel('Final estimate')],
+      ...['Saved plans', 'Filters', 'Views', 'Columns', 'Export / Import'].map(
+        (name) => [name, page.locator('summary', { hasText: name })] as const,
+      ),
+    ] as const;
+    for (const [name, control] of boxes) {
+      await expect(control).toBeVisible();
+      const edge = await paintedLeftEdge(page, control);
+      expect(edge.outside, `${name}: outside`).toBeGreaterThanOrEqual(3);
+      expect(edge.inside, `${name}: inside`).toBeGreaterThanOrEqual(3);
+    }
   });
 }
