@@ -775,18 +775,21 @@ describe('every Vitest command states its own time budgets', () => {
 });
 
 describe('every cached target declares what it reads', () => {
-  it('never caches Burokrat checks of installed trusted package bytes', async () => {
+  it('never caches suites checking installed trusted package bytes', async () => {
     const projectGraph = await createProjectGraphAsync({ exitOnError: true });
     const taskGraph = createTaskGraph(
       projectGraph,
       {},
-      ['twilight-burokrat'],
+      ['twilight-burokrat', 'twilight-dash'],
       ['test'],
       undefined,
       {},
     );
     // Proof: restoring cache:true made Nx's native task graph report true here (2026-10-15).
     expect(taskGraph.tasks['twilight-burokrat:test'].cache).toBe(false);
+    // Proof: omitting Dash's cache:false made this native task-graph assertion receive true.
+    // Its suite reads installed TypeScript bytes outside Nx's tracked file map (2026-10-17).
+    expect(taskGraph.tasks['twilight-dash:test'].cache).toBe(false);
   });
 
   it('hashes Navigator subprocess contract dependencies in Burokrat tests', async () => {
