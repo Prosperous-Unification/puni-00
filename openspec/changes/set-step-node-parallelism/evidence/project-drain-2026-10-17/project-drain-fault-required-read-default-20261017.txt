@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) finish throws on absent sparse evidence and rolls back the graph and slot transaction [151.08ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) finish throws on unreadable sparse evidence and rolls back the graph and slot transaction [134.73ms]
+
+ 0 pass
+ 43 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [482.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 114475008, "exitCode": 1}

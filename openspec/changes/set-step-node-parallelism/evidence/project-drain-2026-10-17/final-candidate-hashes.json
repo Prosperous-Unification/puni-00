@@ -1,0 +1,13 @@
+{
+  "hashes": {
+    "libs/wbs/adapters/store-sqlite/src/optimization-drain.ts": "cf93840f4c51ca52684562da9b38da9c1e896c40aa01191e399c7bc861e06057",
+    "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts": "688bb72c387d1cfd715438728de69b99100a797abe81836505d42e58c32d338d",
+    "libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts": "8ec188830e97baae3889bfaddf5fdab6046b7bdaaf98c73b13dbac3a805fe66b",
+    "apps/wbs/be-01/src/services.db.test.ts": "f27c18b6606b7d2310f2f26ee1f4bd1b9fa7813caeaf47d705af335f8e496ea9"
+  },
+  "provenance": "Only Proof comments and formatting differ from historical restoration hashes; exact final bytes tested by raw-restored and installed-restored receipts.",
+  "testReceipts": [
+    "project-drain-raw-restored-20261017.txt",
+    "project-drain-installed-restored-20261017.txt"
+  ]
+}

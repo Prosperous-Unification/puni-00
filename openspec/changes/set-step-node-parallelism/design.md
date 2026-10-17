@@ -177,3 +177,24 @@ exact journal. Redo-create and undo-delete reach this guard independently of
 owner revision drift. Redo-duplicate replays the historical snapshot without
 rereading the original source; the same destination guard still applies. This
 slice adds no sparse history ownership, public writer, version 10 document or UI.
+
+## Terminal project drain preservation prerequisite (2026-10-17)
+
+The project arm of `finishDrainIn` owns terminal graph deletion for raw finish,
+last-slot release and expired-slot reclaim. It must synchronously validate sparse
+facts through the transaction it already owns, after absent/open/waiting and
+legacy/typed dependency checks, before any graph cleanup. Incident selection uses
+left owner and step joins and includes facts whose owner OR step belongs to the
+deleting project. Both references must exist, the owner must still be a leaf,
+both projects must equal the deleting project, and the authored maximum must be
+an integer from 1 through 1000. Invalid trusted evidence or unavailable storage
+throws; it must not disappear into either cascade or a modeled drain result.
+
+Valid local facts, including explicit equality with the row default, cascade only
+when the terminal project deletion succeeds. Bystander facts remain byte-equal.
+The validation shares the slot transaction, so failure restores a released or
+expired slot and any preceding retirement. Installed service capture and event
+recording remain in their source unit of work; later faults restore the graph,
+sparse facts, journal and event sequences. Contract-only retirement and existing
+absent/open/waiting outcomes do not consult sparse policy. No writer, document
+version, scheduling or UI behavior is enabled by this prerequisite.

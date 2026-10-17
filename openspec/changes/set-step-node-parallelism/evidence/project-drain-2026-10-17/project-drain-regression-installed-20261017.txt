@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/services.db.test.ts:
+(pass) buildServices > restores initial reclaim and the whole populated victim when after-capture fails [598.54ms]
+(pass) buildServices > restores initial reclaim and the whole populated victim when event-insert fails [621.47ms]
+(pass) buildServices > restores the exact last slot and populated graph when release event recording fails [187.92ms]
+(pass) buildServices > rolls back last-slot deletion and token when after-capture fails [184.25ms]
+(pass) buildServices > records a populated final-drain event through installed startup reconciliation [551.04ms]
+(pass) buildServices > records a populated final-drain event through the installed periodic reconciliation tick [519.40ms]
+(pass) buildServices > restores the populated sweep after a borrowed after-capture fault [546.63ms]
+(pass) buildServices > removes a populated project graph while retaining shared and bystander rows [175.84ms]
+(pass) buildServices > rolls back earlier populated cleanup when a later step removal fails [136.24ms]
+(pass) buildServices > keeps another project’s empty plan rows when a populated neighbor finishes [135.47ms]
+(pass) buildServices > restores populated deletion when a later recipient event insert fails [191.37ms]
+(pass) buildServices > restores populated deletion when after-capture fails [160.76ms]
+{"level":"warn","time":1792216644361,"service":"be-01","err":{"occurrence_id":"AE_E8J79KN9CM7KWZ7YJDT75G8HYK","fingerprint":"fp1_0c34d762ac5f93517a1143f4d767bfb0","as_json":{"name":"PushFailed"},"stack":["PushFailed: push failed with 400: gateway refused","    at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/runtime-portable/src/push-client.ts:104:25)","    at async untilAborted (/tmp/puni-project-drain-parallel-20261017/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-project-drain-parallel-20261017/libs/wbs/application/core/src/runtime/deadline.ts:32:25)","    at async deliver (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/runtime-portable/src/push-client.ts:79:27)","    at async untilAborted (/tmp/puni-project-drain-parallel-20261017/libs/wbs/application/core/src/runtime/deadline.ts:59:26)","    at async withinDeadline (/tmp/puni-project-drain-parallel-20261017/libs/wbs/application/core/src/runtime/deadline.ts:32:25)"],"as_string_format":"derived","v":"corj/v0.15"},"subscription":"project:B","msg":"project event recorded but not pushed"}
+(pass) buildServices > releases the writer before held populated deletion delivery and preserves replay [147.81ms]
+(pass) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after after-capture [190.64ms]
+(pass) installed project drain sparse policy rollback > finish restores sparse policy, graph, journal and events after event-insert [194.92ms]
+(pass) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after after-capture [179.55ms]
+(pass) installed project drain sparse policy rollback > last-release restores sparse policy, graph, journal and events after event-insert [251.29ms]
+
+ 17 pass
+ 121 filtered out
+ 0 fail
+ 140 expect() calls
+Ran 17 tests across 1 file. [7.25s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 687079424, "exitCode": 0}

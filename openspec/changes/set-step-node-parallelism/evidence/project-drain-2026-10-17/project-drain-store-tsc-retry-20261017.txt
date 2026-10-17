@@ -1,0 +1,1 @@
+{"ceilingBytes": 1342177280, "sampledPeakBytes": 1342750720, "killed": true}

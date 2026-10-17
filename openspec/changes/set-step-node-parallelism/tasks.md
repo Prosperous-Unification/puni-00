@@ -28,6 +28,8 @@
 - [x] 3.2.5 Implement required admitted sparse source reader after size refusal and before IDs/stamps/writes; prove scope, ordering, detachment and required failures.
 - [x] 3.1.6 Write restore destination sparse-preservation RED for redo-create/undo-delete, preceding-patch rollback, history outcomes, trusted failures and precedence controls.
 - [x] 3.2.6 Implement admitted restore destination guard after deletion-state refusal and before mutation; prove independent omissions, late reads, overbroad reads and swallowed throws.
+- [x] 3.1.7 Write terminal project drain sparse validation RED for both incident directions, trusted corruption/storage failures, raw finish/release/reclaim, exact bystanders and installed event rollback.
+- [x] 3.2.7 Implement synchronous transaction-local incident sparse validation after drain/dependency checks and before deletion; prove each ownership, range, required-read and transaction boundary independently.
 - [ ] 3.2 Implement atomic remap/refusal and snapshot/history ownership of sparse facts.
 - [x] 3.2.2 Implement required admitted-scope sparse create guard before writes; preserve typed node details through the shared 409 and prove each boundary.
 - [ ] 3.3 Write copy/import/export/saved-plan version and ID remapping RED; allocate current schema versions.

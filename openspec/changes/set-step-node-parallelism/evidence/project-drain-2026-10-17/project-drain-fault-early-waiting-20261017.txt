@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+45 | 	transaction(transaction, config = {}) {
+46 | 		const tx = new SQLiteBunTransaction("sync", this.dialect, this, this.relations);
+47 | 		let result;
+48 | 		this.client.transaction(() => {
+49 | 			result = transaction(tx);
+50 | 		})[config.behavior ?? "deferred"]();
+                             ^
+DrizzleQueryError: Failed query: select "step_parallel"."work_item_id", "step_parallel"."step_id", "step_parallel"."max_parallel", "work_item"."project_id", "step"."project_id", EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = "step_parallel"."work_item_id") from "step_parallel" left join "work_item" on "work_item"."id" = "step_parallel"."work_item_id" left join "step" on "step"."id" = "step_parallel"."step_id" where (("work_item"."project_id" = ?) or ("step"."project_id" = ?))
+params: target,target
+      at transaction (bun:sqlite:407:13)
+      at transaction (/home/df/wd/puni/puni-00/.worktrees/shared-restore-activation-sol/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:192:16)
+(fail) waiting keeps existing precedence before unreadable sparse evidence [181.10ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+Ran 1 test across 1 file. [417.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 108785664, "exitCode": 1}

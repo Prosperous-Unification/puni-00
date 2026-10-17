@@ -1200,3 +1200,142 @@ Restored normal pre-commit passed at **1,046,327,296 bytes**. Its lint invocatio
 multiset equals all three staged TS paths exactly once, including both production
 paths and the mounted test. The final receipt and selection proof are retained in
 the evidence directory; trailing whitespace in text receipts is normalized only.
+
+## Terminal project drain static preparation (2026-10-17)
+
+New isolated clone `/tmp/puni-project-drain-parallel-20261017` starts at exact
+committed restore prerequisite `aa88509a384564711321cfccdac84d4a8cfcb48c`;
+the original restore clone and mode0600 complete-history bundle remain intact.
+Static preparation adds a focused raw drain test file with finish/release/reclaim
+valid-policy controls; both cross-project incident directions; missing owner/step,
+parent ownership, invalid maxima and absent/unreadable storage negatives; and
+absent/open/waiting/contract/dependency precedence controls. Installed-services
+scaffolds cover finish and last-slot release with after-capture/event insertion
+faults, exact sparse facts and graph/journal restoration, followed by clean retry.
+
+Tasks3.1.7/3.2.7 remain unchecked. No production edit has been made. No Bun, Nx,
+tests, hooks, formatter or OpenSpec CLI has run in this new clone pending the PM's
+serial heavy lane grant. RED failures, minimum implementation, GREEN and watched
+independent guard/scope/timing/transaction faults remain unverified. Existing
+public writer, transfer, version10, scheduler, UI and release tasks remain open.
+
+Astra static scaffold corrections: reference-corruption setup captures, drops and
+restores only `step_parallel_owner_insert` around injected reference rows; turning
+off foreign keys and checks does not disable that trigger. The owner/step/project,
+parent and range negatives assert distinct sparse validation diagnostics, so an
+independent SQLite foreign-key error cannot count as guard proof. No runtime
+result is claimed for these corrected fixtures before the heavy lane grant.
+
+Additional static review coverage: typed-dependency precedence has its own case;
+a populated estimate carries a first-cleanup abort witness and requires the sparse
+range diagnostic instead of that trigger's error. A corrupt nonincident bystander
+maximum must remain byte-equal while target deletion succeeds on each raw path.
+Raw snapshots now include populated project_access and optimized_schedule_cache;
+slot paths seed cache and generation so rollback must restore preceding retirement
+as well as the token. The bounded scaffold now contains45 raw cases and4 installed
+rollback/retry cases. All remain unrun, with no production edits.
+
+Spec-fixture alignment: each installed rollback fixture now seeds a second target
+step `A-policy-step` and target pair maximum4 alongside `A/A-step` maximum1.
+Bystander `B/B-step` remains maximum4. Both equal-default and unequal target facts
+are therefore present in the rollback/retry snapshots described by the delta.
+This is a static fixture correction; runtime remains unverified.
+
+### Terminal drain RED, implementation and proofs
+
+The corrected raw scaffold ran45 cases before production edits: **12 pass /
+33 fail / 69 assertions**, peak **176,758,784 bytes**. All eleven fault categories
+failed on each of raw finish, last-slot release and expired reclaim. Distinct
+sparse diagnostics excluded incidental SQLite FK failures from the owner/step
+proofs. Installed capture/event rollback fixtures already passed as baseline
+controls: **4 pass / 36 assertions**, peak **623,271,936 bytes**.
+
+The minimal project-arm guard performs synchronous transaction-local left owner
+and step joins, selects owner-OR-step incident facts, validates missing references,
+both project identities, leaf ownership and the existing integer maximum rule.
+It runs after all existing drain and legacy/typed checks and before estimate or
+other graph cleanup. Required query failure propagates. Raw GREEN passed **45 /
+45 tests,102 assertions**, peak **166,707,200 bytes**. Prettier passed at
+**353,517,568 bytes**.
+
+`evidence/project-drain-2026-10-17/mutation-receipts.json` records **19 independently
+watched production-path faults**, each exit1 with named behavioral assertion
+failures and no cap kill. `prove-project-drain.py` restores both production files
+in `finally` and checks restoration. Omit/direction/inner-join/null/project/leaf/
+range/read-default faults each catch their specific sparse boundary. A first
+estimate-cleanup trigger witnesses a read moved too late; unavailable storage
+witnesses reads moved before waiting or typed-dependency precedence. A corrupt
+nonincident bystander catches an overbroad read. Release committed before finish
+loses generation/slot/cache; reclaim committed immediately after deleting expired
+slots loses its slot. A COMMIT substituted for installed unit-of-work error
+rollback fails all four graph/journal/event assertions. Those faults stop before
+the later sparse assertion; restored passing controls separately check exact sparse
+state.
+That last proof breaks the rollback dependency; it introduces no UOW production
+change. Highest mutation peak is **604,082,176 bytes**. All runtime test and fault
+runs use the default900MiB monitored process-tree cap; no higher cap or install
+has been used in this slice at this checkpoint.
+
+Restored raw regression passed **123 tests / 317 assertions** across the new
+sparse drain suite, existing optimization drain and sparse repository suite,
+peak **642,461,696 bytes**. Installed regression and scoped checks were pending at that checkpoint; final
+passing receipts are recorded below. No host gate completion is claimed.
+
+Astra review qualified all19 mutation receipts with no P0–P2 production defect.
+Historical restoration hashes are retained in
+`historical-restored-source-hashes.json`; later edits add only observed Proof
+comments and formatting. Final source hashes are recorded separately after final formatting and tied to
+restored regression receipts below. The outer-UOW fault
+claim is limited to the graph/journal/event assertion actually reached; it does
+not claim a later sparse assertion executed on that failing path.
+
+### Final scoped checks and exact candidate
+
+Installed restored regression passed **17 tests / 140 assertions**, peak
+**687,079,424 bytes**. After final Proof comments/formatting, exact unchanged source
+bytes passed raw **45 tests / 102 assertions** at **159,137,792 bytes** and installed
+**4 tests / 36 assertions** at **596,668,416 bytes**. Both named receipts are retained
+beside `final-candidate-hashes.json`; its before/after hashes were compared across
+those runs. Historical hashes remain distinct. Astra cleared code and all19
+mutation receipts; no further behavioral test was requested.
+
+Both compiler configs are retained as scoped provenance, with explicit paths,
+Bun types and no project references; their imported dependency programs exceed the
+selected entry files. These are scoped results, not a full repository typecheck.
+Store native tsc hit900MiB at **944,123,904 bytes**, then the PM-approved1280MiB
+retry hit **1,342,750,720 bytes**. Fresh available memory was16,393MiB and14,439MiB
+before the separate authorized retries. The approved1800MiB store retry passed
+without diagnostics at **1,730,093,056 bytes**. Installed-services tsc hit900MiB
+at **947,826,688 bytes**; after fresh available17,855MiB, the approved1800MiB
+retry passed at **1,189,007,360 bytes**. Every cap kill is resource-disqualified.
+
+Fresh Nx graph passed at **362,278,912 bytes**. Real graph-backed production and
+raw-test ESLint passed at **769,298,432** and **844,931,072 bytes**. Installed
+ESLint hit900MiB at **950,931,456 bytes**; after fresh available16,186MiB its
+approved1280MiB retry passed at **1,129,791,488 bytes**. No boundary rule was
+skipped. Pinned OpenSpec1.12.0 selected strict and required all-change validation
+passed at **78,278,656** and **133,922,816 bytes**. Required scoped checks are complete. Final normal hook proof and packaging
+receipts follow below.
+
+Canonical Lefthook installation and effective-config comparison passed. Local
+configuration preserves every original group, command and selection, serializes
+pre-commit and runs real graph-backed ESLint once per selected TS path. Seven
+wrapper proofs passed: exact positive ordering, first/middle/last nonzero stop,
+empty argv exit64, and watched failure of the fail-fast/empty guards when removed.
+The first comparison attempt named a nonexistent receipt extension; the corrected
+comparison uses the installed YAML parser and passed. Normal-hook900 was killed
+at **947,060,736 bytes**, a resource-disqualified receipt. After fresh available
+17,494MiB and PM authorization, normal-hook1280 passed at **1,214,459,904 bytes**.
+A real staged `projectDrainHookLintFault` was refused by active
+`@typescript-eslint/no-unused-vars` in normal Lefthook lint (exit1,
+**1,218,572,288 bytes**); exact source/index restoration is recorded separately.
+
+Tool Wiki remains inactive/not-certified because no external activation root is
+provisioned. Doc-caps and migration lint groups have no matching paths. Full host
+and broad Nx gates, push, merge and deploy remain unrun; integration must use the
+exact-SHA h2puni gate. No public writer, version10, scheduler or UI task is closed.
+
+Restored normal pre-commit passed at **1,208,438,784 bytes**. Actual
+lint selection equals exactly the three staged TS paths once each. Final candidate
+hashes still match source bytes after the real hook fault and restoration. Normal
+commit hooks will run again; no hook was bypassed.

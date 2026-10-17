@@ -1,0 +1,17 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { deepStrictEqual, strictEqual } from 'node:assert';
+import { parse } from '/tmp/puni-project-drain-parallel-20261017/node_modules/yaml/dist/index.js';
+const original=parse(readFileSync('lefthook.yml','utf8'));
+const dumped=readFileSync('/tmp/project-drain-effective-lefthook-20261017.txt','utf8');
+const effective=parse(dumped.slice(0,dumped.lastIndexOf('{"ceilingBytes"')));
+strictEqual(parse(readFileSync('lefthook-local.yml','utf8'))['pre-commit'].parallel,false);
+strictEqual(effective['pre-commit'].parallel===true,false);
+for (const [group,configuration] of Object.entries(original)) {
+ deepStrictEqual(Object.keys(configuration.commands).sort(),Object.keys(effective[group].commands).sort());
+ for (const [name,command] of Object.entries(configuration.commands)) {
+  const actual=effective[group].commands[name];
+  strictEqual(actual.run,group==='pre-commit'&&name==='lint'?'/tmp/puni-project-drain-parallel-20261017/.git/project-drain-lint-staged.sh {staged_files}':command.run);
+  for (const key of ['glob','exclude']) if(key in command) deepStrictEqual(actual[key],Array.isArray(command[key])?command[key]:[command[key]]);
+ }
+}
+writeFileSync('/tmp/project-drain-effective-config-proof-20261017.json',JSON.stringify({allOriginalGroupsAndCommands:true,allOriginalSelections:true,serialPreCommit:true,lintOnlyChangedToSerialPerFile:true},null,2)+'\n');

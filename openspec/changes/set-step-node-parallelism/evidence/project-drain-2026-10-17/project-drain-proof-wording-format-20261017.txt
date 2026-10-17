@@ -1,0 +1,4 @@
+libs/wbs/adapters/store-sqlite/src/optimization-drain.ts 215ms (unchanged)
+apps/wbs/be-01/src/services.db.test.ts 795ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 262ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 340115456, "exitCode": 0}

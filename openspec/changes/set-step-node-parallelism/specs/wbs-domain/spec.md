@@ -375,3 +375,40 @@ replay its historical snapshot without rereading its original source policy.
 - **THEN** that existing refusal precedes sparse access
 - **AND** empty selected policy or unrelated policy permits replay with its exact facts intact
 - **AND** root restoration succeeds without consulting a poisoned sparse reader
+
+### Requirement: Terminal project drain validates incident sparse policy
+
+The project arm of terminal optimization drain SHALL validate sparse facts
+synchronously inside its existing transaction after absent, open, waiting and
+existing dependency refusals and before deletion. Selection SHALL include facts
+incident through an owner OR step in the deleting project and SHALL preserve
+missing references through left joins. Selected owner and step SHALL exist in
+the deleting project, the owner SHALL be a leaf and the maximum SHALL be an
+integer from 1 through 1000. Malformed or unavailable trusted evidence SHALL throw
+without graph deletion. Valid local policy SHALL cascade with successful terminal
+project deletion; bystander policy SHALL remain byte-equal.
+
+#### Scenario: Both incident directions prevent cross-project cascades
+
+- **GIVEN** target-owner/foreign-step or foreign-owner/target-step sparse evidence
+- **WHEN** raw finish, last-slot release or expired reclaim reaches terminal project deletion
+- **THEN** validation throws and restores all graph, generation, slot and sparse state
+
+#### Scenario: Trusted malformed and unavailable evidence cannot become absence
+
+- **GIVEN** a selected missing owner, missing step, parent owner or invalid maximum
+- **OR** absent or unreadable sparse storage
+- **WHEN** terminal project deletion is attempted
+- **THEN** it throws before cleanup and rolls back preceding slot and generation changes
+
+#### Scenario: Valid policy survives every rollback boundary
+
+- **GIVEN** valid equal-default and unequal target policy plus bystander policy and journal history
+- **WHEN** installed deletion or last-slot release fails after capture or during event insertion
+- **THEN** graph, sparse facts, journal, slots, events and sequences are restored exactly
+- **AND** retry after removing the fault deletes only the target policy and graph
+
+#### Scenario: Existing drain outcomes retain precedence
+
+- **WHEN** a target is absent, open, waiting, contract-only or fails an earlier dependency check
+- **THEN** its existing behavior precedes sparse access even if sparse storage is unavailable

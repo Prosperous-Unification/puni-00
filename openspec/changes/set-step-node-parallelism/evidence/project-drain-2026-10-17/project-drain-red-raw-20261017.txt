@@ -1,0 +1,583 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+(pass) finish deletes valid equal-default and unequal sparse facts only at terminal project deletion [144.36ms]
+(pass) last-release deletes valid equal-default and unequal sparse facts only at terminal project deletion [110.40ms]
+(pass) expired-reclaim deletes valid equal-default and unequal sparse facts only at terminal project deletion [100.37ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism project mismatch"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on target-owner-foreign-step sparse evidence and rolls back the graph and slot transaction [92.10ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism project mismatch"
+Received message: "Failed query: delete from \"step\" where \"step\".\"project_id\" = ?\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on foreign-owner-target-step sparse evidence and rolls back the graph and slot transaction [108.37ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid work-item reference"
+Received message: "Failed query: delete from \"step\" where \"step\".\"project_id\" = ?\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on missing-owner sparse evidence and rolls back the graph and slot transaction [98.60ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid step reference"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on missing-step sparse evidence and rolls back the graph and slot transaction [88.09ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism owner is not a leaf"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on parent sparse evidence and rolls back the graph and slot transaction [92.02ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on zero sparse evidence and rolls back the graph and slot transaction [94.86ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on fraction sparse evidence and rolls back the graph and slot transaction [93.35ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on too-large sparse evidence and rolls back the graph and slot transaction [92.20ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) finish throws on absent sparse evidence and rolls back the graph and slot transaction [112.94ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) finish throws on unreadable sparse evidence and rolls back the graph and slot transaction [128.13ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+Received message: "Failed query: delete from \"estimate\" where \"estimate\".\"work_item_id\" in (select \"id\" from \"work_item\" where \"work_item\".\"project_id\" = ?)\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on cleanup-order sparse evidence and rolls back the graph and slot transaction [105.76ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism project mismatch"
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on target-owner-foreign-step sparse evidence and rolls back the graph and slot transaction [106.16ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism project mismatch"
+Received message: "Failed query: delete from \"step\" where \"step\".\"project_id\" = ?\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on foreign-owner-target-step sparse evidence and rolls back the graph and slot transaction [110.07ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid work-item reference"
+Received message: "Failed query: delete from \"step\" where \"step\".\"project_id\" = ?\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on missing-owner sparse evidence and rolls back the graph and slot transaction [119.57ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid step reference"
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on missing-step sparse evidence and rolls back the graph and slot transaction [116.59ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism owner is not a leaf"
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on parent sparse evidence and rolls back the graph and slot transaction [112.44ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on zero sparse evidence and rolls back the graph and slot transaction [118.46ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on fraction sparse evidence and rolls back the graph and slot transaction [116.75ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on too-large sparse evidence and rolls back the graph and slot transaction [112.18ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) last-release throws on absent sparse evidence and rolls back the graph and slot transaction [114.72ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  released: true,
+  retirement: "finished",
+  deletion: "finished",
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) last-release throws on unreadable sparse evidence and rolls back the graph and slot transaction [118.45ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+Received message: "Failed query: delete from \"estimate\" where \"estimate\".\"work_item_id\" in (select \"id\" from \"work_item\" where \"work_item\".\"project_id\" = ?)\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) last-release throws on cleanup-order sparse evidence and rolls back the graph and slot transaction [110.07ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism project mismatch"
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on target-owner-foreign-step sparse evidence and rolls back the graph and slot transaction [131.65ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism project mismatch"
+Received message: "Failed query: delete from \"step\" where \"step\".\"project_id\" = ?\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on foreign-owner-target-step sparse evidence and rolls back the graph and slot transaction [107.23ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid work-item reference"
+Received message: "Failed query: delete from \"step\" where \"step\".\"project_id\" = ?\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on missing-owner sparse evidence and rolls back the graph and slot transaction [109.00ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid step reference"
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on missing-step sparse evidence and rolls back the graph and slot transaction [110.86ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism owner is not a leaf"
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on parent sparse evidence and rolls back the graph and slot transaction [108.78ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on zero sparse evidence and rolls back the graph and slot transaction [103.38ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on fraction sparse evidence and rolls back the graph and slot transaction [98.18ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on too-large sparse evidence and rolls back the graph and slot transaction [98.83ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) expired-reclaim throws on absent sparse evidence and rolls back the graph and slot transaction [104.62ms]
+148 |         sqlite.run('PRAGMA foreign_keys = ON');
+149 |         sqlite.close();
+150 |       }
+151 |       const before = snapshot(sparseTable);
+152 |       if (fault === 'absent' || fault === 'unreadable') {
+153 |         expect(() => runDrain(path)).toThrow();
+                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  reclaimed: 1,
+  finished: 1,
+  waiting: 0,
+}
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:153:38)
+(fail) expired-reclaim throws on unreadable sparse evidence and rolls back the graph and slot transaction [105.48ms]
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism must be an integer from 1 to 1000"
+Received message: "Failed query: delete from \"estimate\" where \"estimate\".\"work_item_id\" in (select \"id\" from \"work_item\" where \"work_item\".\"project_id\" = ?)\nparams: target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) expired-reclaim throws on cleanup-order sparse evidence and rolls back the graph and slot transaction [104.76ms]
+(pass) absent keeps existing precedence before unreadable sparse evidence [98.73ms]
+(pass) open keeps existing precedence before unreadable sparse evidence [94.49ms]
+(pass) waiting keeps existing precedence before unreadable sparse evidence [100.36ms]
+(pass) contract-only keeps existing precedence before unreadable sparse evidence [98.15ms]
+(pass) dependency-refusal keeps existing precedence before unreadable sparse evidence [85.02ms]
+(pass) typed-dependency-refusal keeps existing precedence before unreadable sparse evidence [81.50ms]
+(pass) finish keeps nonincident corrupt bystander policy byte-equal without validating it [84.77ms]
+(pass) last-release keeps nonincident corrupt bystander policy byte-equal without validating it [101.42ms]
+(pass) expired-reclaim keeps nonincident corrupt bystander policy byte-equal without validating it [100.68ms]
+
+ 12 pass
+ 33 fail
+ 69 expect() calls
+Ran 45 tests across 1 file. [4.95s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 176758784, "exitCode": 1}
