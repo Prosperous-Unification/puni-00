@@ -356,6 +356,9 @@ export function createRetainedTypeScriptSource(
     if (values === undefined) return undefined;
     const indexedValues: readonly (string | undefined)[] = values;
     const count = indexedValues.length;
+    // Proof: count-safe/count-negative omissions reach the copy/index sentinels in
+    // `captured pattern arrays refuse noninteger proxy lengths before any link copies`.
+    if (!Number.isSafeInteger(count) || count < 0) throw new Error('source pattern count invalid');
     // Proof: pattern-count omission loses `enumeration patterns` (named RED in final fault ledger).
     if (count > limits.maximumPatterns - patterns)
       throw new Error('source pattern count ceiling exceeded');

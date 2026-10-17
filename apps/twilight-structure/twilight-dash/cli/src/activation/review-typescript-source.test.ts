@@ -750,3 +750,35 @@ test('captured patterns refuse a missing indexed entry after caller getter trunc
     'source pattern missing',
   );
 });
+
+test('captured pattern arrays refuse noninteger proxy lengths before any link copies', () => {
+  const f = setup();
+  const copy = spyOn(Uint8Array, 'from').mockImplementation(() => {
+    throw new Error('copy reached');
+  });
+  try {
+    for (const count of [NaN, undefined, 1.5, -1, Infinity]) {
+      const patterns = new Proxy(['**/*'], {
+        get(target, name, receiver) {
+          if (name === 'length') return count;
+          if (name === '0') throw new Error('indexed pattern reached');
+          const selected: unknown = Reflect.get(target, name, receiver);
+          return selected;
+        },
+      });
+      for (const position of ['extensions', 'exclude', 'include']) {
+        expect(() =>
+          f.source.readDirectory(
+            root,
+            position === 'extensions' ? patterns : ['.ts'],
+            position === 'exclude' ? patterns : undefined,
+            position === 'include' ? patterns : undefined,
+          ),
+        ).toThrow('source pattern count invalid');
+      }
+    }
+    expect(copy).not.toHaveBeenCalled();
+  } finally {
+    copy.mockRestore();
+  }
+});

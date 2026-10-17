@@ -5035,3 +5035,21 @@ After the explicit indexed boundary type, the full source suite again passed
 Scoped final library typecheck passed exit 0, peak 524644 KiB
 (`aggregate-typecheck-final.log`). All ten omissions were rerun against this
 final source view; `faults.json` records the fresh watched failures.
+
+### 2026-10-17 e2 captured pattern count repair
+
+A genuine array Proxy can report NaN, undefined, fractional, negative or infinite length.
+The new direct-source production-path test first failed at its forbidden copy sentinel.
+`capturePatterns` now validates the captured length as a nonnegative safe integer before
+charging the pattern count or reading an index. Independent count-safe and count-negative
+omissions each failed the same named production test; restored controls passed all three
+extension/exclude/include positions, 16 assertions. Evidence:
+`evidence/retained-pattern-count-2026-10-17/`.
+
+In the clean isolated predecessor checkout, the restored complete direct source suite passed
+83/83, 289 assertions, sampled process-tree peak 645956 KiB. Scoped library typecheck passed.
+All checks used a 512 MiB heap and the existing 921600 KiB process-tree RSS guard. This is a
+local boundary fix; no compiler mount, namespace recipe, installed runtime trust, full gate,
+build or CI acceptance is claimed. Existing tests' broader typecheck limitations remain.
+Normal commit hooks use the already proven per-file serial ESLint scheduling while retaining
+all hook commands; the successful commit receipt is reported with its exact successor SHA.
