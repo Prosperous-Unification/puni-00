@@ -16,6 +16,7 @@ import {
   createRetainedTypeScriptSource,
   readRetainedTypeScriptSourceProvenance,
   type RetainedTypeScriptSourceLimits,
+  sealRetainedTypeScriptReads,
 } from './review-typescript-source';
 
 export interface RetainedTypeScriptRequestLimits {
@@ -57,7 +58,8 @@ function captureLimits<K extends string>(
  * provenance. Captures finite limits and bounded unique candidate request paths before source
  * admission. Source ceilings are positive; compiler and request ceilings may be zero.
  * The final ceiling covers the complete envelope, including provenance. IO budgets do not
- * bound synchronous compiler CPU or heap. No compiler read manifest, freeze, installed runtime
+ * bound synchronous compiler CPU or heap. Successful extraction seals its raw byte census.
+ * No full compiler read manifest, freeze integration, installed runtime
  * authentication, default-library parity or general config-generated escape policy is supplied.
  * @throws Error for invalid requests, foreign owners, config/compiler failures or exceeded bounds.
  */
@@ -96,6 +98,8 @@ export function extractRetainedTypeScriptRelationships(input: RetainedTypeScript
       'maximumSteps',
       'maximumReads',
       'maximumReadBytes',
+      'maximumReadEntries',
+      'maximumReadLedgerBytes',
       'maximumPathBytes',
       'maximumTargetBytes',
       'maximumExpandedPathBytes',
@@ -184,7 +188,9 @@ export function extractRetainedTypeScriptRelationships(input: RetainedTypeScript
     capturedCompilerLimits,
   );
   // Proof: provenance-envelope substitution loses the full owned provenance equality in `sha1 matches legacy`.
-  const envelope = { runtimeTrust: provenance.runtimeTrust, provenance, ...extracted };
+  // Proof: mount-before-success loses `byte census seals only after successful extraction`; mount-census omission loses its returned tuple assertions.
+  const byteReads = sealRetainedTypeScriptReads(source);
+  const envelope = { runtimeTrust: provenance.runtimeTrust, provenance, byteReads, ...extracted };
   // Proof: envelope-cap omission admits one byte below exact in `final envelope one byte below exact`.
   if (Buffer.byteLength(serializeCanonical(envelope)) > capturedRequestLimits.maximumOutputBytes)
     throw new Error('retained TypeScript output ceiling exceeded');

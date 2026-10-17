@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [368.45ms]
+864 |   const patterns = new Proxy(['*.ts'], {
+865 |     get() {
+866 |       throw new Error('forbidden pattern getter');
+867 |     },
+868 |   });
+869 |   expect(() => source.readDirectory(root, undefined, undefined, patterns)).toThrow('sealed');
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "sealed"
+Received message: "forbidden pattern getter"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:869:76)
+(fail) byte census records raw candidate package BOM and probe symlink acquisitions only [136.32ms]
+
+ 1 pass
+ 91 filtered out
+ 1 fail
+ 28 expect() calls
+Ran 2 tests across 1 file. [1454.00ms]

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 
-import { hashBytes } from '@twilight-burokrat/judge';
+import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { spyOn } from 'bun:test';
 import { expect, test } from 'bun:test';
 import ts from 'typescript';
@@ -11,6 +11,7 @@ import { readRetainedFileIdentity } from './review-selection-objects';
 import {
   createRetainedTypeScriptSource,
   readRetainedTypeScriptSourceProvenance,
+  sealRetainedTypeScriptReads,
 } from './review-typescript-source';
 import { fixture } from './review-typescript-source.test.fixture';
 
@@ -27,6 +28,8 @@ const limits = {
   maximumSteps: 10000,
   maximumReads: 100,
   maximumReadBytes: 10000,
+  maximumReadEntries: 100,
+  maximumReadLedgerBytes: 100000,
   maximumPathBytes: 1024,
   maximumTargetBytes: 1024,
   maximumExpandedPathBytes: 4096,
@@ -781,4 +784,253 @@ test('captured pattern arrays refuse noninteger proxy lengths before any link co
   } finally {
     copy.mockRestore();
   }
+});
+
+test('byte census records raw candidate package BOM and probe symlink acquisitions only', () => {
+  const f = fixture(
+    'sha1',
+    undefined,
+    {
+      'a.ts': '\uFEFFexport {};',
+      'package.json': '{"type":"module"}',
+      'unused.ts': 'unused',
+    },
+    { z: 'a.ts', alias: 'a.ts' },
+  );
+  const namespace = createRetainedNamespace(f.candidate, f.runtime, namespaceLimits);
+  const source = createRetainedTypeScriptSource(namespace, f.candidate, f.runtime, limits);
+  expect(source.pathKind(`${root}/unused.ts`)).toBe('file');
+  expect(source.readFile(`${root}/absent`)).toBeUndefined();
+  expect(source.pathKind(`${root}/z`)).toBe('file');
+  expect(source.readFile(`${root}/alias`)).toBe('export {};');
+  expect(source.readFile(`${root}/a.ts`)).toBe('export {};');
+  expect(source.readFile(`${root}/package.json`)).toBe('{"type":"module"}');
+  expect(source.readFile(`${root}/node_modules/pkg/index.d.ts`)).toBe('x');
+  const census = sealRetainedTypeScriptReads(source);
+  expect(census).toEqual({
+    schemaVersion: 1,
+    kind: 'retained-typescript-byte-reads',
+    entries: [
+      {
+        namespace: 'runtime',
+        path: 'node_modules/pkg/index.d.ts',
+        revision: null,
+        identity: hashBytes('x'),
+        byteLength: 1,
+      },
+      {
+        namespace: 'candidate',
+        path: 'a.ts',
+        revision: null,
+        identity: hashBytes('\uFEFFexport {};'),
+        byteLength: 13,
+      },
+      {
+        namespace: 'candidate',
+        path: 'package.json',
+        revision: null,
+        identity: hashBytes('{"type":"module"}'),
+        byteLength: 17,
+      },
+      {
+        namespace: 'candidate',
+        path: 'alias',
+        revision: null,
+        identity: hashBytes('a.ts'),
+        byteLength: 4,
+      },
+      {
+        namespace: 'candidate',
+        path: 'z',
+        revision: null,
+        identity: hashBytes('a.ts'),
+        byteLength: 4,
+      },
+    ],
+  });
+  expect(Object.isFrozen(census)).toBe(true);
+  expect(Object.isFrozen(census.entries)).toBe(true);
+  for (const entry of census.entries) expect(Object.isFrozen(entry)).toBe(true);
+  expect(sealRetainedTypeScriptReads(source)).toBe(census);
+  for (const invoke of [
+    () => source.getCurrentDirectory(),
+    () => source.pathKind(root),
+    () => source.readFile(`${root}/a.ts`),
+    () => source.getDirectories(root),
+    () => source.readDirectory(root),
+    () => source.realpath(`${root}/a.ts`),
+  ])
+    expect(invoke).toThrow('sealed');
+  const patterns = new Proxy(['*.ts'], {
+    get() {
+      throw new Error('forbidden pattern getter');
+    },
+  });
+  expect(() => source.readDirectory(root, undefined, undefined, patterns)).toThrow('sealed');
+  const foreign = new Proxy(
+    { ...source },
+    {
+      get() {
+        throw new Error('foreign accessor touched');
+      },
+    },
+  );
+  expect(() => sealRetainedTypeScriptReads(foreign)).toThrow('owned retained TypeScript');
+});
+
+test('byte census exact ceilings precede owner copies and repeated tuples do not grow', () => {
+  const f = setup();
+  f.source.readFile(`${root}/a.ts`);
+  const bytes = Buffer.byteLength(serializeCanonical(sealRetainedTypeScriptReads(f.source)));
+  const exact = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReadEntries: 1,
+    maximumReadLedgerBytes: bytes,
+  });
+  exact.readFile(`${root}/a.ts`);
+  exact.readFile(`${root}/a.ts`);
+  const copy = spyOn(f.candidate, 'read').mockImplementation(() => {
+    throw new Error('copy sentinel');
+  });
+  try {
+    expect(() => exact.readFile(`${root}/src/b.ts`)).toThrow('read entry ceiling');
+    const short = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+      ...limits,
+      maximumReadLedgerBytes: bytes - 1,
+    });
+    expect(() => short.readFile(`${root}/a.ts`)).toThrow('read ledger byte ceiling');
+    expect(copy).not.toHaveBeenCalled();
+  } finally {
+    copy.mockRestore();
+  }
+  expect(Buffer.byteLength(serializeCanonical(sealRetainedTypeScriptReads(exact)))).toBe(bytes);
+  const bounded = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReads: 1,
+  });
+  bounded.readFile(`${root}/a.ts`);
+  expect(() => bounded.readFile(`${root}/a.ts`)).toThrow('read ceiling');
+});
+
+test('byte census empty wrapper and safe explicit limits reject before copies', () => {
+  const f = setup();
+  const empty = sealRetainedTypeScriptReads(f.source);
+  expect(empty.entries).toEqual([]);
+  const bytes = Buffer.byteLength(serializeCanonical(empty));
+  expect(() =>
+    createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+      ...limits,
+      maximumReadLedgerBytes: bytes - 1,
+    }),
+  ).toThrow('read ledger byte ceiling');
+  const source = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReadLedgerBytes: bytes,
+  });
+  expect(sealRetainedTypeScriptReads(source)).toEqual(empty);
+  for (const field of ['maximumReadEntries', 'maximumReadLedgerBytes'])
+    for (const ceiling of [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, undefined])
+      expect(() =>
+        createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+          ...limits,
+          [field]: ceiling,
+        }),
+      ).toThrow('positive safe integer');
+});
+
+test('byte census failed owner copy contributes no tuple', () => {
+  const f = setup();
+  const copy = spyOn(f.candidate, 'read').mockImplementation(() => {
+    throw new Error('copy failure');
+  });
+  try {
+    expect(() => f.source.readFile(`${root}/a.ts`)).toThrow('copy failure');
+  } finally {
+    copy.mockRestore();
+  }
+  expect(sealRetainedTypeScriptReads(f.source).entries).toEqual([]);
+});
+
+test('byte census runtime ledger shortage precedes runtime copy and rereads charge bytes', () => {
+  const f = setup();
+  const path = `${root}/node_modules/pkg/index.d.ts`;
+  f.source.readFile(path);
+  const bytes = Buffer.byteLength(serializeCanonical(sealRetainedTypeScriptReads(f.source)));
+  const source = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReadLedgerBytes: bytes - 1,
+  });
+  const copy = spyOn(f.runtime, 'readFile').mockImplementation(() => {
+    throw new Error('runtime copy sentinel');
+  });
+  try {
+    expect(() => source.readFile(path)).toThrow('read ledger byte ceiling');
+    expect(copy).not.toHaveBeenCalled();
+  } finally {
+    copy.mockRestore();
+  }
+  const bounded = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReadBytes: 1,
+  });
+  bounded.readFile(path);
+  expect(() => bounded.readFile(path)).toThrow('read byte ceiling');
+});
+
+test('byte census two entry comma contributes to exact byte ceiling', () => {
+  const f = setup();
+  f.source.readFile(`${root}/a.ts`);
+  f.source.readFile(`${root}/src/b.ts`);
+  const bytes = Buffer.byteLength(serializeCanonical(sealRetainedTypeScriptReads(f.source)));
+  const exact = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReadLedgerBytes: bytes,
+  });
+  exact.readFile(`${root}/a.ts`);
+  exact.readFile(`${root}/src/b.ts`);
+  expect(Buffer.byteLength(serializeCanonical(sealRetainedTypeScriptReads(exact)))).toBe(bytes);
+  const short = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+    ...limits,
+    maximumReadLedgerBytes: bytes - 1,
+  });
+  short.readFile(`${root}/a.ts`);
+  const copy = spyOn(f.candidate, 'read').mockImplementation(() => {
+    throw new Error('second copy sentinel');
+  });
+  try {
+    expect(() => short.readFile(`${root}/src/b.ts`)).toThrow('read ledger byte ceiling');
+    expect(copy).not.toHaveBeenCalled();
+  } finally {
+    copy.mockRestore();
+  }
+});
+
+test('byte census UTF8 order differs from UTF16 and acquisition order', () => {
+  const f = fixture('sha1', undefined, { '\uE000.ts': 'same', '\u{10000}.ts': 'same' }, {});
+  const namespace = createRetainedNamespace(f.candidate, f.runtime, namespaceLimits);
+  const source = createRetainedTypeScriptSource(namespace, f.candidate, f.runtime, limits);
+  source.readFile(`${root}/\u{10000}.ts`);
+  source.readFile(`${root}/\uE000.ts`);
+  expect(sealRetainedTypeScriptReads(source).entries.map((entry) => entry.path)).toEqual([
+    '\uE000.ts',
+    '\u{10000}.ts',
+  ]);
+});
+
+test('byte census enumeration records link acquisitions without file metadata reads', () => {
+  const f = setup();
+  expect(f.source.readDirectory(root, ['.ts'])).toEqual([
+    `${root}/a.ts`,
+    `${root}/node_modules/pkg/index.d.ts`,
+    `${root}/src/b.ts`,
+  ]);
+  expect(sealRetainedTypeScriptReads(f.source).entries).toEqual([
+    {
+      namespace: 'candidate',
+      path: 'link',
+      revision: null,
+      identity: hashBytes('a.ts'),
+      byteLength: 4,
+    },
+  ]);
 });

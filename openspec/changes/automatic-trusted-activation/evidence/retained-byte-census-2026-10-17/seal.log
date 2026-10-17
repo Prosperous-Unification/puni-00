@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [366.51ms]
+858 |     () => source.readFile(`${root}/a.ts`),
+859 |     () => source.getDirectories(root),
+860 |     () => source.readDirectory(root),
+861 |     () => source.realpath(`${root}/a.ts`),
+862 |   ])
+863 |     expect(invoke).toThrow('sealed');
+                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "sealed"
+
+Received function did not throw
+Received value: "/__puni_review__/candidate"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:863:20)
+(fail) byte census records raw candidate package BOM and probe symlink acquisitions only [120.88ms]
+
+ 1 pass
+ 91 filtered out
+ 1 fail
+ 22 expect() calls
+Ran 2 tests across 1 file. [1438.00ms]

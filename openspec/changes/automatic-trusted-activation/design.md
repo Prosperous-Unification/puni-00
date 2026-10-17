@@ -2278,3 +2278,30 @@ Legacy @typescript/old/lib and namespace typescript/lib still differ. No default
 compiler read manifest, freeze, runtime authentication, general config-generated escape policy or
 synchronous compiler CPU/heap containment follows. The test process RSS guard is operational
 proof protection, not a product cancellation mechanism.
+
+### Retained source byte-read census (2.1d.1.3e4a)
+
+The exact owned source records successful raw byte acquisitions in `readNode`, including link
+bytes acquired during path probes and enumeration. Each tuple is `{namespace, path, revision,
+identity, byteLength}`. Candidate tuples use the retained source path and private raw identity;
+runtime tuples use the exact closure path and identity. Every revision is null. Metadata-only
+access, misses and unused declared runtime entries do not enter the census. Raw BOM bytes count
+before file decoding. Aliases deduplicate their final file tuple while retaining each distinct
+link path, even when two link blobs have identical bytes.
+
+The wrapper is `{schemaVersion:1, kind:"retained-typescript-byte-reads", entries:[...]}`. Entries
+are deduplicated by complete canonical tuple encoding and ordered by UTF-8 bytes of that encoding.
+The canonical serializer sorts object keys and appends one final LF. `maximumReadEntries` and
+`maximumReadLedgerBytes` are explicit positive safe integers captured with the other source limits.
+The byte ceiling includes the empty wrapper and LF, each entry's canonical bytes without its
+standalone LF, and one comma after the first entry. New tuples reserve this exact contribution
+before the owner copies bytes; insertion follows successful acquisition. Repeated acquisitions
+consume the existing execution read/byte budgets without ledger growth.
+
+`sealRetainedTypeScriptReads` looks up the exact source owner without reading caller properties.
+It caches a deeply frozen census and permanently bars subsequent source callbacks. Provenance
+remains readable. The compiler mount seals after successful core extraction and includes the
+census in the existing complete-envelope output ceiling. Failed core extraction does not seal.
+This is a narrow byte-read census, not CompilerReadManifestV1, runtime authentication, closure
+completeness, default-library parity or freeze integration. Namespace V1 and unverified trust
+remain the existing contracts.

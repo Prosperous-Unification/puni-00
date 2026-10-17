@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { posix } from 'node:path';
 
-import type { TypeScriptSource } from '@twilight-burokrat/judge';
+import { serializeCanonical, type TypeScriptSource } from '@twilight-burokrat/judge';
 import ts from 'typescript';
 
 import { walkRetainedCurrent } from './review-current-path';
@@ -23,6 +23,8 @@ export interface RetainedTypeScriptSourceLimits {
   readonly maximumSteps: number;
   readonly maximumReads: number;
   readonly maximumReadBytes: number;
+  readonly maximumReadEntries: number;
+  readonly maximumReadLedgerBytes: number;
   readonly maximumPathBytes: number;
   readonly maximumTargetBytes: number;
   readonly maximumExpandedPathBytes: number;
@@ -72,6 +74,34 @@ export function readRetainedTypeScriptSourceProvenance(
   if (provenance === undefined) throw new Error('owned retained TypeScript source required');
   return provenance;
 }
+export interface RetainedTypeScriptByteRead {
+  readonly namespace: 'candidate' | 'runtime';
+  readonly path: string;
+  readonly revision: null;
+  readonly identity: string;
+  readonly byteLength: number;
+}
+export interface RetainedTypeScriptByteReads {
+  readonly schemaVersion: 1;
+  readonly kind: 'retained-typescript-byte-reads';
+  readonly entries: readonly Readonly<RetainedTypeScriptByteRead>[];
+}
+const ReadOwners = new WeakMap<TypeScriptSource, () => Readonly<RetainedTypeScriptByteReads>>();
+/**
+ * Seals the exact owned source after its last callback, returning a cached deeply frozen
+ * census of successful raw byte acquisitions. Metadata probes, misses and unused declared
+ * files are absent. Canonical entry encodings sort by UTF-8 bytes; revisions remain null.
+ * This census authenticates neither compiler execution nor completeness of its runtime.
+ * @throws Error for copied or foreign sources, without invoking their accessors.
+ */
+export function sealRetainedTypeScriptReads(
+  source: TypeScriptSource,
+): Readonly<RetainedTypeScriptByteReads> {
+  const seal = ReadOwners.get(source);
+  // Proof: owner omission loses copied/accessor refusal in `raw candidate package BOM`.
+  if (seal === undefined) throw new Error('owned retained TypeScript source required');
+  return seal();
+}
 /**
  * Admits exact owned censuses and exposes only the fixed virtual candidate namespace.
  * Reads reserve raw bytes before copying and decode fatal UTF-8 (file BOMs strip;
@@ -82,8 +112,10 @@ export function readRetainedTypeScriptSourceProvenance(
  * Pattern arrays capture their length once before indexed reads; missing entries throw.
  * Include/exclude patterns admit no '.'/'..' components; all syntax is checked before
  * literal-prefix link reads. This does not claim full tsconfig pattern compatibility.
- * This is direct source admission only: no compiler, config parser or read manifest runs,
+ * The byte census records acquisitions before decoding; sealing bars all later callbacks.
+ * This is direct source admission only: no compiler, config parser or full read manifest runs,
  * and {@link readRetainedTypeScriptSourceProvenance} preserves unverified runtime trust.
+ * Census limits include canonical wrapper/LF, tuple bytes without their standalone LF and commas.
  * @throws Error for foreign owners, identity drift, malformed/outside paths or exceeded bounds.
  */
 export function createRetainedTypeScriptSource(
@@ -113,6 +145,8 @@ export function createRetainedTypeScriptSource(
     // Proof: limit-snapshot omission loses `source snapshots` (named RED in final fault ledger).
     maximumReads: installedLimits.maximumReads,
     maximumReadBytes: installedLimits.maximumReadBytes,
+    maximumReadEntries: installedLimits.maximumReadEntries,
+    maximumReadLedgerBytes: installedLimits.maximumReadLedgerBytes,
     maximumPathBytes: installedLimits.maximumPathBytes,
     maximumTargetBytes: installedLimits.maximumTargetBytes,
     maximumExpandedPathBytes: installedLimits.maximumExpandedPathBytes,
@@ -124,6 +158,7 @@ export function createRetainedTypeScriptSource(
     maximumReturnedPathBytes: installedLimits.maximumReturnedPathBytes,
   };
   for (const ceiling of Object.values(limits))
+    // Proof: safe-limits/positive-limits omissions lose `empty wrapper` for the new ledger ceilings.
     // Proof: limit-grammar omission loses `explicit positive finite` (named RED in final fault ledger).
     if (!Number.isSafeInteger(ceiling) || ceiling < 1)
       throw new Error('source limit must be a positive safe integer');
@@ -131,6 +166,18 @@ export function createRetainedTypeScriptSource(
   if (namespace.nodes.length > limits.maximumNodes) throw new Error('source node ceiling exceeded');
   const matchFiles = readMatcher();
   const nodes = new Map(namespace.nodes.map((node) => [node.path, node]));
+  const ledger = new Map<string, Readonly<RetainedTypeScriptByteRead>>();
+  let sealed: Readonly<RetainedTypeScriptByteReads> | undefined;
+  let ledgerBytes = Buffer.byteLength(
+    serializeCanonical({ schemaVersion: 1, kind: 'retained-typescript-byte-reads', entries: [] }),
+  );
+  // Proof: wrapper-cap omission loses `empty wrapper`.
+  if (ledgerBytes > limits.maximumReadLedgerBytes)
+    throw new Error('source read ledger byte ceiling exceeded');
+  function assertOpen(): void {
+    // Proof: seal omission permits later callbacks in `raw candidate package BOM`.
+    if (sealed !== undefined) throw new Error('retained TypeScript source sealed');
+  }
   let reads = 0;
   let readBytes = 0;
   function readNode(node: Exclude<RetainedNamespaceNode, { kind: 'directory' }>): Uint8Array {
@@ -143,15 +190,44 @@ export function createRetainedTypeScriptSource(
     // Proof: read-byte-cap omission loses `byte reserve precedes` (named RED in final fault ledger).
     if (identity.byteLength > limits.maximumReadBytes - readBytes)
       throw new Error('source read byte ceiling exceeded');
+    // Proof: path/identity substitutions lose exact raw tuples in `raw candidate package BOM`.
+    const entry: RetainedTypeScriptByteRead = {
+      namespace: node.kind === 'runtime-file' ? 'runtime' : 'candidate',
+      path: node.source.path,
+      revision: null,
+      identity:
+        node.kind === 'runtime-file'
+          ? node.source.identity
+          : readRetainedFileIdentity(candidate, node.source.path, node.source.blob).rawIdentity,
+      byteLength: identity.byteLength,
+    };
+    const encoding = serializeCanonical(entry);
+    // Proof: dedup omission loses repeated exact-fit reads in `exact ceilings`.
+    const fresh = !ledger.has(encoding);
+    // Proof: exact-contribution overcharge loses `exact ceilings`; comma omission loses `two entry comma` before its second-copy sentinel.
+    const contribution = Buffer.byteLength(encoding) - 1 + (ledger.size === 0 ? 0 : 1);
+    // Proof: entry-cap omission reaches the copy sentinel in `exact ceilings`.
+    if (fresh && ledger.size >= limits.maximumReadEntries)
+      throw new Error('source read entry ceiling exceeded');
+    // Proof: ledger-cap omission reaches candidate/runtime copy sentinels in `exact ceilings` and `runtime ledger`.
+    if (fresh && contribution > limits.maximumReadLedgerBytes - ledgerBytes)
+      throw new Error('source read ledger byte ceiling exceeded');
     reads += 1;
     readBytes += identity.byteLength;
-    return node.kind === 'runtime-file'
-      ? runtime.readFile(node.source)
-      : candidate.read(
-          node.source.path,
-          node.source.blob,
-          readRetainedFileIdentity(candidate, node.source.path, node.source.blob).rawIdentity,
-        );
+    const bytes =
+      node.kind === 'runtime-file'
+        ? runtime.readFile(node.source)
+        : candidate.read(
+            node.source.path,
+            node.source.blob,
+            readRetainedFileIdentity(candidate, node.source.path, node.source.blob).rawIdentity,
+          );
+    if (fresh) {
+      // Proof: record/freeze-entry omissions lose `raw candidate package BOM`; early insertion loses `failed owner copy`.
+      ledger.set(encoding, Object.freeze(entry));
+      ledgerBytes += contribution;
+    }
+    return bytes;
   }
   let probes = 0;
   let steps = 0;
@@ -165,6 +241,8 @@ export function createRetainedTypeScriptSource(
     return Buffer.byteLength(text);
   }
   function assertQuery(path: string): string {
+    assertOpen();
+    // Proof: query-seal omission reaches the forbidden pattern getter in `raw candidate package BOM`.
     measure(path, limits.maximumPathBytes, 'path');
     if (
       // Proof: path-unicode omission loses `direct malformed or outside` (named RED in final fault ledger).
@@ -191,6 +269,8 @@ export function createRetainedTypeScriptSource(
     return relative;
   }
   function probe(): void {
+    assertOpen();
+    // Proof: probe-seal omission permits cwd access in `raw candidate package BOM`.
     // Proof: probe-cap omission loses `lifetime probes` (named RED in final fault ledger).
     if (probes >= limits.maximumProbes) throw new Error('source probe ceiling exceeded');
     probes += 1;
@@ -495,6 +575,22 @@ export function createRetainedTypeScriptSource(
       );
     },
     realpath: (path: string) => returnPath(resolvePath(path).path),
+  });
+  ReadOwners.set(source, () => {
+    // Proof: cache omission loses repeated finalizer identity in `raw candidate package BOM`.
+    if (sealed === undefined) {
+      // Proof: reverse-sort and utf16-sort substitutions lose `raw candidate package BOM` and `UTF8 order`.
+      const entries = [...ledger.entries()]
+        .sort(([a], [b]) => Buffer.compare(Buffer.from(a), Buffer.from(b)))
+        .map(([, entry]) => entry);
+      // Proof: freeze-envelope/freeze-entries omissions lose `raw candidate package BOM`.
+      sealed = Object.freeze({
+        schemaVersion: 1,
+        kind: 'retained-typescript-byte-reads',
+        entries: Object.freeze(entries),
+      });
+    }
+    return sealed;
   });
   Owners.set(source, provenance);
   return source;

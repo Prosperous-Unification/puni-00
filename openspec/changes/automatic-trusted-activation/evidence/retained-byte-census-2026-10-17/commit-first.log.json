@@ -1,0 +1,6 @@
+{
+  "command": ["git", "commit", "-m", "feat(twilight-dash): retain bounded source byte-read census"],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 798108,
+  "ceilingKiB": 921600
+}

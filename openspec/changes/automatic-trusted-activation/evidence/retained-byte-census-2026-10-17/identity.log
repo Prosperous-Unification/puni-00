@@ -1,0 +1,71 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [353.02ms]
+805 |   expect(source.readFile(`${root}/alias`)).toBe('export {};');
+806 |   expect(source.readFile(`${root}/a.ts`)).toBe('export {};');
+807 |   expect(source.readFile(`${root}/package.json`)).toBe('{"type":"module"}');
+808 |   expect(source.readFile(`${root}/node_modules/pkg/index.d.ts`)).toBe('x');
+809 |   const census = sealRetainedTypeScriptReads(source);
+810 |   expect(census).toEqual({
+                       ^
+error: expect(received).toEqual(expected)
+
+  {
+    "entries": [
+      {
+        "byteLength": 1,
+-       "identity": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
++       "identity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "namespace": "runtime",
+        "path": "node_modules/pkg/index.d.ts",
+        "revision": null,
+      },
+      {
+        "byteLength": 13,
+-       "identity": "8daf901ecb6536b26e0632b480b6bfadd62d24ec1b886523d10fd0d24392fb7f",
++       "identity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "namespace": "candidate",
+        "path": "a.ts",
+        "revision": null,
+      },
+      {
+        "byteLength": 17,
+-       "identity": "6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1",
++       "identity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "namespace": "candidate",
+        "path": "package.json",
+        "revision": null,
+      },
+      {
+        "byteLength": 4,
+-       "identity": "0d18d4eb377a214157ad45e7ee0f189a2d7370788a483e729c7f269d94cafe41",
++       "identity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "namespace": "candidate",
+        "path": "alias",
+        "revision": null,
+      },
+      {
+        "byteLength": 4,
+-       "identity": "0d18d4eb377a214157ad45e7ee0f189a2d7370788a483e729c7f269d94cafe41",
++       "identity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "namespace": "candidate",
+        "path": "z",
+        "revision": null,
+      },
+    ],
+    "kind": "retained-typescript-byte-reads",
+    "schemaVersion": 1,
+  }
+
+- Expected  - 5
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:810:18)
+(fail) byte census records raw candidate package BOM and probe symlink acquisitions only [130.26ms]
+
+ 1 pass
+ 91 filtered out
+ 1 fail
+ 13 expect() calls
+Ran 2 tests across 1 file. [1435.00ms]

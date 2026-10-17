@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+ 996 |   short.readFile(`${root}/a.ts`);
+ 997 |   const copy = spyOn(f.candidate, 'read').mockImplementation(() => {
+ 998 |     throw new Error('second copy sentinel');
+ 999 |   });
+1000 |   try {
+1001 |     expect(() => short.readFile(`${root}/src/b.ts`)).toThrow('read ledger byte ceiling');
+                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "read ledger byte ceiling"
+Received message: "second copy sentinel"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:1001:54)
+(fail) byte census two entry comma contributes to exact byte ceiling [154.61ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1114.00ms]

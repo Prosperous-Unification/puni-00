@@ -5111,3 +5111,95 @@ had a total Record type despite its deliberate missing-key refusal. The map boun
 explicitly permits undefined entries, retaining the refusal with no cast or lint suppression.
 `mount-commit-first.log` is a failed hook receipt, not a successful commit. The final retry is
 reported externally with its exact SHA.
+
+### 2026-10-17 retained source byte-read census (.3e4a)
+
+Baseline bundle SHA-256 `b7884ec4cb71904300072c29dbf865942ef67f84b63fbf3405fd9699de5c78dc`
+was verified before cloning. The isolated clone started at exact reviewed
+`fad025cc9052ef5b2d52e30bc1fc3736e015c9f3`, tree `c8e76202f8cfad4cae6a12db6c8a81bd2f45f6aa`.
+The predecessor dependency directory was reused by symlink after `cmp bun.lock` succeeded;
+no fresh dependency installation is claimed. The cached OpenSpec 1.12.0 executable supplied
+apply instructions for this existing change. Namespace V1 and runtime trust are unchanged.
+
+The source records successful raw acquisitions with exact candidate private identities and
+runtime closure identities, retained/closure paths and revision:null. Raw BOM bytes survive in
+census length/identity even where file text strips them. Metadata probes, misses and unused
+mounted runtime dependencies are absent. Probe/enumeration link reads are present, final-file
+aliases deduplicate, distinct link paths sharing bytes remain distinct, and repeated reads still
+exhaust execution budgets. Complete canonical entry encodings sort by UTF-8 bytes. U+E000.ts
+and U+10000.ts share identical content and are acquired in reverse order; the expected order
+independently distinguishes UTF-8 from JavaScript UTF-16 comparison.
+
+The exact canonical wrapper/LF/tuple/comma contribution is charged before candidate or runtime
+owner copies. Single- and two-entry exact equality passes; shortages reach no copy sentinel,
+including the second copy after a first accepted tuple. Failed owner copies contribute no tuple.
+The exact-source finalizer caches a deeply frozen census, refuses copied/accessor sources,
+bars every callback before later pattern access, and leaves provenance readable. The mount
+seals after successful shared extraction and caps the whole envelope including byteReads.
+A failed core extraction leaves its internally captured source available for later callbacks.
+
+Evidence is in `evidence/retained-byte-census-2026-10-17/`. The initial missing-export RED is an
+API absence error rather than a production negative. `source-first-green.log` is a failed run:
+its exact-fit test caught a one-byte overcharge from counting the standalone entry LF. The
+correct contribution removes that LF while retaining the wrapper LF. `source-enumeration-red.log`
+is a test expectation failure: ordinary enumeration includes the declared runtime .d.ts path;
+the corrected test lists that metadata path and still requires only acquired link bytes in census. `mount-first.log` is a
+failed test expectation (literal config byte length was 74; actual independently counted JSON
+length is 66), not a production defect. The original `query-seal-disqualified.log` is explicitly
+disqualified: its sentinel message contained "sealed" and accidentally matched the refusal
+assertion. The sentinel now says "forbidden pattern getter"; corrected `query-seal.log` watches
+the production omission fail before restored GREEN. No failed or disqualified trial is claimed
+as proof.
+
+`faults.json` records each independent watched production omission/substitution and its bounded
+process-tree receipt. Faults cover record/path/identity, dedup, reverse/UTF-16 sorting, entry and
+ledger/wrapper ceilings, source owner and cached finalizer, each seal entry check (query pattern
+getter and cwd probe), all three freeze layers, failed-copy insertion, finite/positive limits,
+exact contribution and comma, mounted census omission, premature sealing, forged unused runtime
+record and complete-envelope cap. Every accepted fault has exit 1 and a named failing production
+path test; production is restored in a finally block. Adjacent Proof comments identify the faults.
+
+The scoped library and focused mount-test TypeScript checks pass. The broader spec check fails
+with existing namespace/runtime/direct-source test typing errors (including direct-source lines
+78 and 318); no new census test error is reported. This broader check is not passed. All guarded
+checks use a 512 MiB Node heap and the existing sampled 921600 KiB process-tree watchdog; the
+watchdog supplies operational proof protection, not product compiler CPU/heap containment.
+
+Normal commit hooks retain all commands with local serial scheduling and per-file ESLint to
+respect the memory ceiling. The Nx module-boundary lint cannot run without a cached project
+graph in this isolated clone; named active lint rules still execute. No h2puni full gate, full
+repository format/test/lint/typecheck/build, CI secrets/migration checks, deployed activation,
+runtime authentication/completeness, full CompilerReadManifestV1, default-library parity or freeze
+integration is claimed. Parent .3 and this scoped acceptance remain unchecked pending exact review
+and the required gate. No push, merge, deploy or WBS write is performed.
+
+Final scoped receipts:
+
+| Check                                                                                       | Observed outcome                     | Sampled process-tree peak (KiB) |
+| ------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------: |
+| Direct source suite (`source-restored-final.log`)                                           | 93 pass, 0 fail, 356 assertions      |                          644180 |
+| Mount suite (includes SHA-1/SHA-256 removed-root noLib replay) (`mount-restored-final.log`) | 21 pass, 0 fail, 329 assertions      |                          363960 |
+| Scoped library TypeScript (`type-lib-final.log`)                                            | exit 0                               |                          515808 |
+| Focused mount-test TypeScript (`type-mount-tests-final.log`)                                | exit 0                               |                          427584 |
+| Broad spec TypeScript (`type-spec.log`)                                                     | exit 1, existing errors listed above |                          700352 |
+| OpenSpec validate --all --json (`openspec-final.log`)                                       | exit 0                               |                          132608 |
+
+All **26** accepted independent faults were watched RED; their maximum sampled
+process-tree peak was **382120 KiB**, below 921600 KiB.
+
+The first normal commit attempt was refused by active ESLint for an unnecessary second
+undefined check in the new mount test after TypeScript had already narrowed the captured source.
+The redundant check was removed, retaining the production failure assertion and subsequent
+readability assertion. `commit-first.log` is the failed hook receipt (peak 798108 KiB), not a
+successful commit. The successful retry is reported with its exact SHA externally.
+
+The next normal hook run refused formatting of the short command array in `commit-first.log.json`;
+all census receipt JSON was then passed through Prettier. The original hook stdout is preserved at `/tmp/puni-retained-byte-census-commit-20261017.log`.
+`commit-first.log` removes only line-end ASCII spaces/tabs for presentation; the raw and
+presentation SHA-256 identities and exact transformation are in `commit-first-transcript.json`.
+The initial unfiltered whitespace check reported five raw transcript lines. The normalized
+committed transcript now passes the unfiltered check.
+
+The next retry passed formatting but active ESLint then refused import ordering in the mount
+module; its earlier lint pass was not established. ESLint autofix sorted only the import group.
+The final retry retains every normal hook command and runs after the unfiltered whitespace check.

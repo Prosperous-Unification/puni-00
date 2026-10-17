@@ -342,6 +342,16 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       omissions and compiler/config/selected-missing refusals. Default-library parity, runtime
       authentication/completeness, compiler read manifest/freeze and parent .3 remain open; scoped
       acceptance stays unchecked until recorded checks and exact review pass.
+- [ ] 2.1d.1.3e4a Record retained source successful raw byte acquisitions with private candidate
+      and exact runtime tuples, revision:null, exact deduplication and canonical UTF-8 ordering.
+      Bound entries and full ledger bytes before owner copies; preserve existing repeat-read
+      execution budgets. Seal only the exact source owner into a cached deeply frozen census,
+      bar later callbacks, and mount it after successful extraction inside the whole-envelope cap.
+      Prove package/BOM/link probes, alias deduplication, unused runtime absence, exact-fit/shortage,
+      copied-owner/accessor refusal, failed-copy/extraction behavior and independent omissions.
+      Preserve SHA-1/SHA-256 removed-root noLib replay. This does not close full read manifest,
+      runtime authentication, default-library parity, freeze or parent .3; scoped acceptance
+      remains unchecked pending exact review and required gate.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

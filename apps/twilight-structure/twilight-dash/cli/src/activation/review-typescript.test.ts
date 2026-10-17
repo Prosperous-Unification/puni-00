@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import { join } from 'node:path';
 
-import { serializeCanonical } from '@twilight-burokrat/judge';
+import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { expect, spyOn, test } from 'bun:test';
 import ts from 'typescript';
 
@@ -17,6 +17,8 @@ const sourceLimits = {
   maximumSteps: 100000,
   maximumReads: 1000,
   maximumReadBytes: 1000000,
+  maximumReadEntries: 1000,
+  maximumReadLedgerBytes: 1000000,
   maximumPathBytes: 2048,
   maximumTargetBytes: 1024,
   maximumExpandedPathBytes: 4096,
@@ -74,6 +76,7 @@ function setup(
     }),
     'node_modules/pkg/index.d.ts': 'export interface PackageType { title: string }',
     'parser.js': 'parser',
+    'node_modules/unused/index.d.ts': 'export interface Unused {}',
   };
   const f = fixture(
     format,
@@ -580,4 +583,47 @@ test('changed owned provider changes its public declaration selector identity', 
       declaration.text.includes('value: string'),
     ),
   ).toBe(true);
+});
+
+test('retained compiler byte census seals only after successful extraction', () => {
+  const f = setup();
+  const create = sources.createRetainedTypeScriptSource;
+  let captured: ReturnType<typeof create> | undefined;
+  const admission = spyOn(sources, 'createRetainedTypeScriptSource').mockImplementation(
+    (...args) => {
+      captured = create(...args);
+      return captured;
+    },
+  );
+  try {
+    const envelope = extractRetainedTypeScriptRelationships(f);
+    expect(envelope.byteReads.entries).toContainEqual({
+      namespace: 'candidate',
+      path: 'tsconfig.json',
+      revision: null,
+      identity: hashBytes(
+        JSON.stringify({ extends: './base.json', include: ['src/**/*.ts', 'globals.d.ts'] }),
+      ),
+      byteLength: 66,
+    });
+    expect(envelope.byteReads.entries.some((entry) => entry.path === 'parser.js')).toBe(false);
+    expect(
+      envelope.byteReads.entries.some((entry) => entry.path === 'node_modules/unused/index.d.ts'),
+    ).toBe(false);
+    expect(
+      envelope.byteReads.entries.some((entry) => entry.path === 'node_modules/pkg/package.json'),
+    ).toBe(true);
+    if (captured === undefined) throw new Error('source absent');
+    expect(sources.sealRetainedTypeScriptReads(captured)).toBe(envelope.byteReads);
+    expect(() => captured?.readFile('/__puni_review__/candidate/tsconfig.json')).toThrow('sealed');
+    expect(() =>
+      extractRetainedTypeScriptRelationships({
+        ...f,
+        request: { ...f.request, configPaths: ['missing.json'] },
+      }),
+    ).toThrow();
+    expect(captured.readFile('/__puni_review__/candidate/tsconfig.json')).toBeDefined();
+  } finally {
+    admission.mockRestore();
+  }
 });

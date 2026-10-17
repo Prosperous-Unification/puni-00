@@ -38,6 +38,8 @@ test('installed matcher signature drift refuses before publishing a source', () 
       maximumSteps: 100,
       maximumReads: 100,
       maximumReadBytes: 10000,
+      maximumReadEntries: 100,
+      maximumReadLedgerBytes: 100000,
       maximumPathBytes: 1024,
       maximumTargetBytes: 1024,
       maximumExpandedPathBytes: 4096,

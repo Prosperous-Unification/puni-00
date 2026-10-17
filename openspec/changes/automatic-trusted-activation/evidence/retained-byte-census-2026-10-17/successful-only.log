@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+946 |   try {
+947 |     expect(() => f.source.readFile(`${root}/a.ts`)).toThrow('copy failure');
+948 |   } finally {
+949 |     copy.mockRestore();
+950 |   }
+951 |   expect(sealRetainedTypeScriptReads(f.source).entries).toEqual([]);
+                                                              ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   {
++     "byteLength": 10,
++     "identity": "2e29cd9a98755c46896f7a2d56524db2d6d96b248e36db46de14c30bf47c8d05",
++     "namespace": "candidate",
++     "path": "a.ts",
++     "revision": null,
++   },
++ ]
+
+- Expected  - 1
++ Received  + 9
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:951:57)
+(fail) byte census failed owner copy contributes no tuple [120.55ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1078.00ms]

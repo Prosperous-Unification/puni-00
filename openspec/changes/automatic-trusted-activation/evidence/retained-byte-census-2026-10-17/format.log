@@ -1,0 +1,8 @@
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts 197ms
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts 128ms
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts 9ms
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts 10ms (unchanged)
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts 51ms
+openspec/changes/automatic-trusted-activation/design.md 338ms
+openspec/changes/automatic-trusted-activation/tasks.md 110ms (unchanged)
+openspec/changes/automatic-trusted-activation/specs/automatic-trusted-activation/spec.md 172ms

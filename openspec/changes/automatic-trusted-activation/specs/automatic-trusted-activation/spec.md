@@ -1395,3 +1395,39 @@ This mount supplies no compiler read manifest, freeze, runtime authentication, g
 config-generated escape policy or synchronous compiler CPU/heap bound. The noLib parity proof
 makes no default-library parity claim: legacy uses @typescript/old/lib while namespace V1 uses
 typescript/lib, and installed wrapper metadata can differ from the executing compiler.
+
+### Requirement: Retained source byte-read census
+
+The retained TypeScript source SHALL record every successful raw acquisition through its owned
+read boundary as a tuple `{namespace, path, revision:null, identity, byteLength}`. Candidate paths
+and raw identities SHALL come from private retained metadata; runtime paths and identities SHALL
+come from exact closure tuples. The census SHALL preserve unverified runtime trust.
+
+#### Scenario: Byte acquisition differs from metadata and declared availability
+
+- **WHEN** a file, package metadata or link is acquired, including a link reached by probing
+  or enumeration
+- **THEN** the successful acquisition enters the census with raw bytes counted before decoding,
+  including BOM bytes
+- **AND** metadata-only probes, misses, failed owner copies and unused declared runtime files
+  are absent; aliases deduplicate exact final-file tuples while distinct link paths remain
+
+#### Scenario: Exact canonical census bounds precede owner copies
+
+- **WHEN** a new tuple would exceed explicit positive safe integer `maximumReadEntries` or
+  `maximumReadLedgerBytes`
+- **THEN** the source throws before copying bytes or inserting the tuple
+- **AND** the canonical byte ceiling includes wrapper, final LF, entries and commas; equality
+  passes and a one-byte shortage refuses; repeat tuples still consume existing execution budgets
+- **AND** complete canonical tuple encodings deduplicate exact tuples and sort by UTF-8 bytes
+
+#### Scenario: Only an exact owned source can seal its final byte census
+
+- **WHEN** `sealRetainedTypeScriptReads` receives the exact admitted source
+- **THEN** it returns its cached deeply frozen census and bars all subsequent source operations
+- **AND** copied sources and accessor traps confer no authority
+- **AND** the compiler mount seals only after successful core extraction and counts the census
+  inside its complete-envelope ceiling; failed core extraction leaves the source open
+
+This narrow census supplies no CompilerReadManifestV1, runtime authentication/completeness,
+default-library parity or freeze integration and does not change namespace V1.
