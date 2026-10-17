@@ -44,6 +44,7 @@ export function fixture(
   },
   links: Record<string, string> = { link: 'a.ts' },
   runtimeContent: Uint8Array | Record<string, string | undefined> = Buffer.from('x'),
+  maximumRuntimeBytes = 10000,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'namespace-'));
   roots.push(root);
@@ -166,10 +167,10 @@ export function fixture(
       maximumEntries: 100,
       maximumPathBytes: 1024,
       maximumReads: 100,
-      maximumBytes: 10000,
+      maximumBytes: maximumRuntimeBytes,
       maximumProbes: 1000,
-      maximumReadBytes: 10000,
-      maximumOwnedBytes: 10000,
+      maximumReadBytes: maximumRuntimeBytes,
+      maximumOwnedBytes: maximumRuntimeBytes,
     },
   });
   return { root, sourceRepository, storeBase, runtimeRoot, candidate, runtime };

@@ -5245,3 +5245,108 @@ Successor scoped receipts (all under the same 921600 KiB process-tree ceiling):
 | `type-lib.log`       | exit 0                                                |   515440 |
 | `openspec.log`       | exit 0                                                |   128640 |
 | `lint-wrapper.log`   | exit 0, coverage and injected failure assertions pass |    31288 |
+
+### 2026-10-17 explicit ES5 standard-library parity (.3e4b1)
+
+Base: reviewed `.3e4a` `57ac0521cccf33946d666f97dadaa5715730cc3a`, tree
+`cdef38e938a95851e1e83a60167f50c752dc725f`, independently cloned from the complete-history
+bundle SHA-256 `5dccde061fef0988a043f12b2f5574c2661ffbccb7cf69340c16925149bf3fd7`.
+Only tests/fixtures and this OpenSpec packet change; production adapters are unchanged. The
+existing noLib parity remains a regression control. Explicit ES5 mode removes inherited noLib
+and handwritten globals, selects `lib:['es5'],types:[]`, and retains compiler package metadata.
+
+Pinned installed `@typescript/old` files are byte-checked after fatal UTF-8 decoding and
+re-encoding, then captured at V1 `node_modules/typescript/lib/<basename>` paths. Legacy receives
+byte-identical library files under its existing `@typescript/old/lib` path. Exact raw lengths:
+`lib.es5.d.ts` 218972, `lib.decorators.d.ts` 13153, `lib.decorators.legacy.d.ts` 1287; total
+233412 bytes. The ES5 library's only lib references are decorators and decorators.legacy;
+neither dependency has further lib references. The exact library census excludes a declared
+unreferenced library and any implicit lib.d.ts/DOM libraries. Public declarations exercise
+`ReadonlyArray<string>` and `Date`. SHA-1 and SHA-256 full legacy relationship/extractor equality
+survives deletion of source, object-store and runtime roots under verified ambient-route traps.
+Each missing required library refuses; physical post-capture mutation has no effect; adding a
+valid comment changes library census identity while extractor/relationships remain equal.
+
+Evidence: `evidence/retained-es5-parity-2026-10-17/`. Initial RED (`puni-es5-red.log`) observed
+both hash modes producing an empty library census against the exact three required tuples.
+GREEN followed only the explicit fixture-mode/library capture changes. Two intermediate budget
+instrumentation failures are disqualified: an unbound owned-method call and comparing unrelated
+cross-fixture snapshot provenance. Both were corrected; the final budget witness measures real
+owned acquisitions with methods bound to their owners and compares the portable relationship
+and byte-census fields across independent fixtures. A separate typecheck widened expected
+`namespace` to string; a literal type annotation fixed it. The first lint reported dynamic delete
+and unbound methods; both were corrected without disabling rules.
+
+Measured budget witness: raw/source and compiler reads 235702 bytes; census 11 entries / 1974
+canonical bytes; full envelope 4779 canonical bytes. Every exact-fit check passes and every
+one-byte/one-entry shortage refuses. ES5-only runtime capture/replay limits are explicitly
+1000000 bytes; the shared fixture's 10000-byte defaults remain in force for other callers.
+
+| Watched injected fault                    | Observed negative                                                |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| Substitute ambient ts.sys library reads   | SHA-1/SHA-256 deleted-root replay fails on the ambient trap      |
+| Bypass retained readNode for libraries    | Exact three-library census assertion receives no library tuples  |
+| Suppress library census insertion         | Exact three-library census assertion fails                       |
+| Substitute wrong library raw identity     | Exact expected identity tuples differ                            |
+| Omit source library byte accounting       | One-byte-short source read budget succeeds and assertion fails   |
+| Omit compiler library byte accounting     | One-byte-short compiler read budget succeeds and assertion fails |
+| Omit full-envelope byte accounting        | One-byte-short envelope succeeds and assertion fails             |
+| Restore physical filesystem library reads | SHA-1/SHA-256 deleted-root replay fails on the filesystem trap   |
+
+`faults.json` records eight watched exit-1 failures, then restores all production originals.
+Adjacent test `Proof:` comments point to the exact tuple and envelope assertions. The local,
+ignored lefthook override serializes commands and lints each staged TypeScript path in order,
+preserving every hook. `lint-wrapper.json` records both paths executed, an injected first-path
+exit 23 stopping the wrapper, and removal of exit propagation incorrectly returning zero after
+the second path. No hook bypass or tracked hook configuration change is used.
+
+Recorded focused checks (Node heap 512 MiB; process-tree RSS ceiling 921600 KiB):
+
+- Restored mount file: 30 tests / 510 assertions pass, peak 419220 KiB; final strengthened
+  real-library legacy parity: 30 tests / 514 assertions pass, peak 687760 KiB.
+- Shared source regression: 94 tests / 358 assertions pass, peak 642196 KiB.
+- Focused test typecheck: exit 0, peak 433316 KiB.
+- Per-file ESLint: exit 0, peaks 751924 and 685912 KiB. Initial lint lacked a project graph;
+  fresh guarded Nx graph generation passed at 276172 KiB before final hook lint.
+- Pinned cached OpenSpec 1.12.0 strict change validation: exit 0, peak 106312 KiB;
+  `validate --all --json`: exit 0, peak 136048 KiB.
+- Budget measurement rerun: one test / exact thresholds pass, peak 411136 KiB.
+
+The source-regression and graph processes briefly overlapped after an early poll. Their separate
+recorded peaks sum to 918368 KiB; this is not a combined guarded-run claim. Subsequent checks
+and normal commit hooks run serially. Final normal-commit hook receipt is supplied separately
+with the resulting commit SHA/tree, because a commit cannot contain its own completion output.
+
+Skipped: full h2puni gate, full repository test/lint/typecheck/build, secrets CI and migration CI
+were not run on this laptop. This slice remains unchecked pending exact independent review and
+the required gate. No claim is made for implicit default-library breadth, runtime parser/loader
+authentication, CompilerReadManifestV1, freeze integration, or parent `.3` completion. No push,
+merge, deploy or WBS edit occurred.
+
+Review correction: the original require-based physical-dependence injection bypassed Bun's ESM
+filesystem spy and failed with ENOENT. That receipt is preserved as
+`disqualified-require-physical-library-dependence.log` and explicitly rejected in
+`disqualified-physical-proof.json`; it is not an accepted interception proof. The corrected
+injection adds the same ESM `import * as fs from 'node:fs'` binding used by the test, calls
+`fs.readFileSync`, and requires exactly two `error: forbidden ambient route` observations
+(one per Git format) with no ENOENT. The ambient ts.sys dependency fault now requires the same
+explicit sentinel. `faults.json` records these strengthened sentinel observations separately.
+
+Corrected fault restoration: four noLib/ES5 SHA-1/SHA-256 replay controls pass, 166 assertions,
+peak 379712 KiB. Final focused typecheck passes at 433008 KiB. Exact Astra re-review closed the
+physical-dependency P2 with no remaining P0–P3 findings; the required host gate remains pending.
+
+The first normal commit was refused by graph-backed module-boundary lint (exit 1, peak
+796332 KiB): the pre-existing relative import of the preserved legacy producer is outside the
+production facade. The import now has an adjacent test-only rule exception explaining its role
+as the independent parity oracle; no production facade export was added. The failed hook stdout
+and receipt are preserved as `normal-hook-refusal.log{,.json}`. Format, plaintext secrets,
+private nesting and inactive-tool-wiki checks passed on that refused attempt; migration/doc caps
+were visibly inapplicable. Final normal-hook success is supplied as a separate receipt.
+
+Unfiltered staged `git diff --check` initially found trailing whitespace / excess EOF blank lines
+in raw lint-failure and graph stdout. Tracked log evidence is normalized only by stripping those
+characters and retaining one final LF. Exact originals remain under
+`/tmp/puni-es5-raw-evidence-20261017/`; `normalized-log-receipts.json` records each raw path,
+SHA-256, normalized SHA-256 and transformation. The successful final commit must pass unfiltered
+`git show --check`; the whitespace finding is not suppressed.

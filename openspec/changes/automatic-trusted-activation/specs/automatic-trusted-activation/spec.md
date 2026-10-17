@@ -1371,6 +1371,23 @@ extraction SHALL explicitly retain unverified runtime trust.
   declarations, configuration identities and compiler identity as the preserved legacy producer
 - **AND** intercepted filesystem, Git, environment, cwd and ts.sys routes cannot supply access
 
+#### Scenario: Explicit retained ES5 standard libraries preserve legacy extraction
+
+- **GIVEN** a candidate selecting `lib: ['es5'], types: []` with no inherited noLib setting or
+  handwritten globals, and exact pinned installed ES5/decorators/decorators.legacy raw bytes
+  declared at namespace V1 `node_modules/typescript/lib/<basename>` paths
+- **WHEN** the preserved legacy producer receives byte-identical libraries at its existing
+  `@typescript/old/lib` paths, then physical capture roots disappear before retained extraction
+- **THEN** SHA-1 and SHA-256 captures preserve complete legacy relationships, public declarations,
+  configuration identities and compiler identity under intercepted ambient IO routes
+- **AND** actual standard-library types appear in public exports; the census library subset is
+  exactly the three selected raw identities/lengths, excluding an extra declared unused library
+- **AND** each absent required library refuses without ambient fallback, physical mutation after
+  capture has no effect, and valid changed captured library bytes change census identity even
+  when the extracted relationships stay equal
+- **AND** source/compiler read budgets, census bounds and whole-envelope bytes include library
+  observations, with exact-fit success and one-byte-short refusal
+
 #### Scenario: Request admission precedes source construction
 
 - **WHEN** retained extraction receives config and public entrypoint arrays and explicit limits
@@ -1393,7 +1410,7 @@ extraction SHALL explicitly retain unverified runtime trust.
 
 This mount supplies no compiler read manifest, freeze, runtime authentication, general
 config-generated escape policy or synchronous compiler CPU/heap bound. The noLib parity proof
-makes no default-library parity claim: legacy uses @typescript/old/lib while namespace V1 uses
+makes no implicit default-library breadth claim: legacy uses @typescript/old/lib while namespace V1 uses
 typescript/lib, and installed wrapper metadata can differ from the executing compiler.
 
 ### Requirement: Retained source byte-read census
@@ -1430,4 +1447,4 @@ come from exact closure tuples. The census SHALL preserve unverified runtime tru
   inside its complete-envelope ceiling; failed core extraction leaves the source open
 
 This narrow census supplies no CompilerReadManifestV1, runtime authentication/completeness,
-default-library parity or freeze integration and does not change namespace V1.
+implicit default-library breadth or freeze integration and does not change namespace V1.

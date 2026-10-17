@@ -1,0 +1,138 @@
+[
+  {
+    "fault": "ambient-library-substitution",
+    "testPattern": "compiler ES5.*capture roots",
+    "watchedFailure": true,
+    "expectedSentinel": "error: forbidden ambient route",
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler ES5.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 379880,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "bypass-retained-library-read",
+    "testPattern": "ES5 compiler sha1 records",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "ES5 compiler sha1 records"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 388540,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "suppressed-library-entry",
+    "testPattern": "ES5 compiler sha1 records",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "ES5 compiler sha1 records"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 394356,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "wrong-library-identity",
+    "testPattern": "ES5 compiler sha1 records",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "ES5 compiler sha1 records"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 392000,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-library-byte-accounting",
+    "testPattern": "library observations",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "library observations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 432468,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-compiler-byte-accounting",
+    "testPattern": "library observations",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "library observations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 429504,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omitted-envelope-accounting",
+    "testPattern": "library observations",
+    "watchedFailure": true,
+    "expectedSentinel": null,
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "library observations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 422680,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "restored-physical-library-dependence",
+    "testPattern": "compiler ES5.*capture roots",
+    "watchedFailure": true,
+    "expectedSentinel": "error: forbidden ambient route",
+    "observedSentinel": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler ES5.*capture roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 384072,
+    "ceilingKiB": 921600
+  }
+]

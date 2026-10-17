@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained compiler noLib sha1 matches legacy after all capture roots disappear [243.79ms]
+(pass) retained compiler ES5 sha1 matches legacy after all capture roots disappear [353.81ms]
+(pass) retained compiler noLib sha256 matches legacy after all capture roots disappear [156.49ms]
+(pass) retained compiler ES5 sha256 matches legacy after all capture roots disappear [235.17ms]
+(pass) retained compiler rejects malformed or noncandidate requests before retained reads [139.59ms]
+(pass) retained compiler bounds and captures fixed request lengths before indexed getters [148.63ms]
+(pass) retained compiler snapshots limits and refuses final envelope one byte below exact [138.00ms]
+(pass) retained compiler refuses bad config [100.76ms]
+(pass) retained compiler refuses diagnostics [102.02ms]
+(pass) retained compiler refuses selected missing [118.66ms]
+(pass) retained compiler refuses selected escape [131.04ms]
+(pass) retained compiler captures request and all ceilings before source callbacks mutate caller objects [141.26ms]
+(pass) retained compiler snapshots each path and limit getter once and refuses sparse entries [146.09ms]
+(pass) retained compiler refuses missing selected config and public entrypoint [147.50ms]
+(pass) retained compiler rejects absent package metadata and foreign owners [211.32ms]
+(pass) retained compiler refuses array impostors before source admission [123.69ms]
+(pass) retained compiler validates every limit field before source admission [142.68ms]
+(pass) retained compiler bounds UTF8 paths and public count before admission [128.67ms]
+(pass) retained compiler bounds path codeunits before UTF8 encoding [120.29ms]
+(pass) retained compiler enforces mounted source and compiler budgets [151.42ms]
+(pass) retained compiler validates captured proxy array lengths before indexed reads [138.13ms]
+(pass) changed owned provider changes its public declaration selector identity [294.55ms]
+(pass) retained compiler byte census seals only after successful extraction [133.65ms]
+(pass) retained ES5 compiler sha1 records exact pinned library bytes [194.74ms]
+(pass) retained ES5 compiler sha256 records exact pinned library bytes [175.93ms]
+(pass) retained ES5 compiler exposes real standard library types [191.92ms]
+(pass) retained ES5 compiler refuses each absent required library without ambient fallback [463.09ms]
+(pass) retained ES5 compiler ignores physical library mutation after capture [212.54ms]
+(pass) retained ES5 compiler observes changed valid library bytes without relationship changes [308.60ms]
+(pass) retained ES5 compiler includes library observations in read and envelope budgets [1613.68ms]
+
+ 30 pass
+ 0 fail
+ 510 expect() calls
+Ran 30 tests across 1 file. [7.85s]

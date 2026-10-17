@@ -2305,3 +2305,29 @@ census in the existing complete-envelope output ceiling. Failed core extraction 
 This is a narrow byte-read census, not CompilerReadManifestV1, runtime authentication, closure
 completeness, default-library parity or freeze integration. Namespace V1 and unverified trust
 remain the existing contracts.
+
+### Explicit ES5 retained compiler parity (2.1d.1.3e4b1)
+
+The existing noLib regression remains a control. A separate fixture mode selects
+`compilerOptions: { lib: ['es5'], types: [] }`, omits noLib in the inherited base config and
+omits handwritten global declarations and their include. It captures the installed pinned
+`@typescript/old/lib/{lib.es5,lib.decorators,lib.decorators.legacy}.d.ts` bytes at namespace V1
+`node_modules/typescript/lib/<basename>`. Legacy extraction receives byte-identical files at its
+existing `@typescript/old/lib` path. Compiler package metadata is preserved. UTF-8 transport is
+accepted only after a fatal decode and byte-for-byte re-encoding assertion. The measured raw
+library lengths are 218972, 13153 and 1287 bytes (233412 total). ES5's only lib directives select
+`decorators` and `decorators.legacy`; those files reference no further libraries.
+
+The fixture's runtime cap is explicitly raised to 1000000 bytes for capture and bounded replay;
+shared fixture defaults remain 10000. Source/compiler execution caps remain 1000000. Exact-fit
+and one-byte-short checks measure source raw acquisitions, compiler text reads, census entry
+count/canonical bytes and the whole output envelope. A declared unreferenced library must stay
+absent from the exact three-library census subset. `ReadonlyArray<string>` and `Date` public
+exports exercise installed declarations. Missing any required library refuses. Physical library
+mutation after capture cannot change retained extraction; valid changed captured bytes change
+the census identity while relationships remain equal.
+
+Both Git hash formats compare complete legacy extractor/relationship identities after source,
+object-store and runtime deletion with filesystem, ts.sys, Git, environment and cwd traps. This
+is explicit ES5 parity, with no namespace V1 recipe change and no claim about implicit default
+library breadth, runtime parser/loader authentication, CompilerReadManifestV1 or freeze.

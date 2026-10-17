@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "tsc",
+    "--noEmit",
+    "-p",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-es5-parity-2026-10-17/focused-tests.tsconfig.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 433316,
+  "ceilingKiB": 921600
+}

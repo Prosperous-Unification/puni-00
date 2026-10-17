@@ -352,6 +352,16 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       Preserve SHA-1/SHA-256 removed-root noLib replay. This does not close full read manifest,
       runtime authentication, default-library parity, freeze or parent .3; scoped acceptance
       remains unchecked pending exact review and required gate.
+- [ ] 2.1d.1.3e4b1 Prove explicit ES5 standard-library legacy parity with pinned installed
+      @typescript/old library bytes captured at namespace V1 typescript/lib paths. Preserve the
+      noLib regression; compare full extraction/identity for SHA-1 and SHA-256 after physical
+      roots disappear under ambient traps. Verify exact three-library raw census, absent unused
+      declared library, each required-library absence, physical mutation independence, valid byte
+      identity changes, and exact source/compiler/census/envelope budgets. Watch independent
+      ambient substitution, retained-read bypass, suppressed entry, wrong identity, byte accounting
+      and restored physical-dependence faults. This explicit lib:['es5'],types:[] fixture supplies
+      no implicit default-lib breadth, runtime authentication, compiler read manifest or freeze;
+      acceptance remains pending exact review and the required gate.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

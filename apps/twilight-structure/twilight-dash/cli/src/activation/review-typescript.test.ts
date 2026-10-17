@@ -5,6 +5,7 @@ import { hashBytes, serializeCanonical } from '@twilight-burokrat/judge';
 import { expect, spyOn, test } from 'bun:test';
 import ts from 'typescript';
 
+// eslint-disable-next-line @nx/enforce-module-boundaries -- Parity requires the preserved legacy producer as its independent oracle; it is intentionally absent from the production facade.
 import { extractTypeScriptRelationships } from '../../../../twilight-burokrat/cli/src/relationships/typescript';
 import { createRetainedNamespace, readRetainedNamespaceProvenance } from './review-namespace';
 import { extractRetainedTypeScriptRelationships } from './review-typescript';
@@ -62,12 +63,19 @@ function setup(
   config = '{}',
   entry = "export { value } from './provider'; export type { PackageType } from 'pkg';",
   provider = 'export const value: number = 1;',
+  libraries?: Record<string, string>,
 ) {
   const metadata = fs.readFileSync(
     join(import.meta.dir, '../../../../../../node_modules/typescript/package.json'),
     'utf8',
   );
   const content = {
+    ...(libraries === undefined
+      ? {}
+      : {
+          'node_modules/typescript/lib/lib.unreferenced.d.ts': 'interface UnreferencedLibrary {}',
+          ...libraries,
+        }),
     'node_modules/typescript/package.json': metadata,
     'node_modules/pkg/package.json': JSON.stringify({
       name: 'pkg',
@@ -84,12 +92,12 @@ function setup(
     {
       'tsconfig.json': JSON.stringify({
         extends: './base.json',
-        include: ['src/**/*.ts', 'globals.d.ts'],
+        include: libraries === undefined ? ['src/**/*.ts', 'globals.d.ts'] : ['src/**/*.ts'],
         ...JSON.parse(config),
       }),
       'base.json': JSON.stringify({
         compilerOptions: {
-          noLib: true,
+          ...(libraries === undefined ? { noLib: true } : { lib: ['es5'] }),
           types: [],
           strict: true,
           module: 'esnext',
@@ -99,7 +107,7 @@ function setup(
           paths: { '@local/*': ['src/*'] },
         },
       }),
-      'globals.d.ts': globals,
+      ...(libraries === undefined ? { 'globals.d.ts': globals } : {}),
       'src/index.ts': entry,
       'src/provider.ts': provider,
       'src/consumer.ts': "import { value } from '@local/provider'; export const copy = value;",
@@ -107,6 +115,7 @@ function setup(
     },
     {},
     content,
+    libraries === undefined ? 10000 : 1000000,
   );
   const namespace = createRetainedNamespace(f.candidate, f.runtime, {
     maximumEntries: 100,
@@ -124,94 +133,118 @@ function setup(
   };
 }
 for (const format of ['sha1', 'sha256'] as const)
-  test(`retained compiler ${format} matches legacy after all capture roots disappear`, () => {
-    const f = setup(format);
-    // The legacy recipe needs old's matching metadata even with noLib. Both paths use identical compiler identity bytes.
-    fs.mkdirSync(join(f.runtimeRoot, 'node_modules/@typescript/old/lib'), { recursive: true });
-    fs.writeFileSync(
-      join(f.runtimeRoot, 'node_modules/@typescript/old/package.json'),
-      fs.readFileSync(
-        join(import.meta.dir, '../../../../../../node_modules/@typescript/old/package.json'),
-        'utf8',
-      ),
-    );
-    const legacy = extractTypeScriptRelationships(
-      f.sourceRepository,
-      f.request,
-      join(f.runtimeRoot, 'node_modules'),
-    );
-    expect(legacy.relationships.imports.length).toBe(3);
-    for (const root of [f.sourceRepository, f.storeBase, f.runtimeRoot])
-      fs.rmSync(root, { recursive: true });
-    const originalEnvironment = process.env;
-    process.env = new Proxy(originalEnvironment, {
-      get() {
-        throw new Error('forbidden ambient route');
-      },
-    });
-    const traps = [
-      spyOn(fs, 'openSync'),
-      spyOn(fs, 'lstatSync'),
-      spyOn(fs, 'realpathSync'),
-      spyOn(ts.sys, 'directoryExists'),
-      spyOn(ts.sys, 'getDirectories'),
-      spyOn(ts.sys, 'realpath'),
-      spyOn(fs, 'readFileSync'),
-      spyOn(fs, 'statSync'),
-      spyOn(fs, 'readdirSync'),
-      spyOn(Bun, 'spawnSync'),
-      spyOn(process, 'cwd'),
-      spyOn(ts.sys, 'readFile'),
-      spyOn(ts.sys, 'fileExists'),
-      spyOn(ts.sys, 'readDirectory'),
-      spyOn(ts.sys, 'getCurrentDirectory'),
-    ];
-    for (const trap of traps)
-      trap.mockImplementation(
-        Object.assign(
-          () => {
-            throw new Error('forbidden ambient route');
-          },
-          {
-            native: () => {
-              throw new Error('forbidden ambient route');
-            },
-          },
+  for (const mode of ['noLib', 'ES5'] as const)
+    test(`retained compiler ${mode} ${format} matches legacy after all capture roots disappear`, () => {
+      const libraries = mode === 'ES5' ? readLibraries() : undefined;
+      const entry =
+        mode === 'ES5'
+          ? "export { value } from './provider'; export type { PackageType } from 'pkg'; export const names: ReadonlyArray<string> = ['es5'].map((name) => name.toUpperCase()); export const epoch: Date = new Date(0);"
+          : undefined;
+      const f = setup(format, '{}', entry, undefined, libraries);
+      // The legacy recipe needs old's matching metadata even with noLib. Both paths use identical compiler identity bytes.
+      fs.mkdirSync(join(f.runtimeRoot, 'node_modules/@typescript/old/lib'), { recursive: true });
+      fs.writeFileSync(
+        join(f.runtimeRoot, 'node_modules/@typescript/old/package.json'),
+        fs.readFileSync(
+          join(import.meta.dir, '../../../../../../node_modules/@typescript/old/package.json'),
+          'utf8',
         ),
       );
-    try {
-      for (const invoke of [
-        () => fs.openSync('x', 'r'),
-        () => fs.lstatSync('x'),
-        () => fs.realpathSync('x'),
-        () => ts.sys.directoryExists('x'),
-        () => ts.sys.getDirectories('x'),
-        () => ts.sys.realpath?.('x'),
-        () => fs.readFileSync('x'),
-        () => fs.statSync('x'),
-        () => fs.readdirSync('x'),
-        () => Bun.spawnSync(['git']),
-        () => process.cwd(),
-        () => ts.sys.readFile('x'),
-        () => ts.sys.fileExists('x'),
-        () => ts.sys.readDirectory('x'),
-        () => ts.sys.getCurrentDirectory(),
-        () => process.env['PATH'],
-      ])
-        expect(invoke).toThrow('forbidden ambient route');
-      for (const trap of traps) trap.mockClear();
-      const extracted = extractRetainedTypeScriptRelationships(f);
-      expect(extracted.runtimeTrust).toBe('unverified');
-      expect(extracted.provenance.runtimeTrust).toBe('unverified');
-      expect(extracted.provenance).toEqual(readRetainedNamespaceProvenance(f.namespace));
-      expect(extracted.extractor).toEqual(legacy.extractor);
-      expect(extracted.relationships).toEqual(legacy.relationships);
-      for (const trap of traps) expect(trap).not.toHaveBeenCalled();
-    } finally {
-      process.env = originalEnvironment;
-      for (const trap of traps) trap.mockRestore();
-    }
-  });
+      for (const [path, text] of Object.entries(libraries ?? {}))
+        fs.writeFileSync(
+          join(f.runtimeRoot, path.replace('/typescript/', '/@typescript/old/')),
+          text,
+        );
+      const legacy = extractTypeScriptRelationships(
+        f.sourceRepository,
+        f.request,
+        join(f.runtimeRoot, 'node_modules'),
+      );
+      expect(legacy.relationships.imports.length).toBe(3);
+      for (const root of [f.sourceRepository, f.storeBase, f.runtimeRoot])
+        fs.rmSync(root, { recursive: true });
+      const originalEnvironment = process.env;
+      process.env = new Proxy(originalEnvironment, {
+        get() {
+          throw new Error('forbidden ambient route');
+        },
+      });
+      const traps = [
+        spyOn(fs, 'openSync'),
+        spyOn(fs, 'lstatSync'),
+        spyOn(fs, 'realpathSync'),
+        spyOn(ts.sys, 'directoryExists'),
+        spyOn(ts.sys, 'getDirectories'),
+        spyOn(ts.sys, 'realpath'),
+        spyOn(fs, 'readFileSync'),
+        spyOn(fs, 'statSync'),
+        spyOn(fs, 'readdirSync'),
+        spyOn(Bun, 'spawnSync'),
+        spyOn(process, 'cwd'),
+        spyOn(ts.sys, 'readFile'),
+        spyOn(ts.sys, 'fileExists'),
+        spyOn(ts.sys, 'readDirectory'),
+        spyOn(ts.sys, 'getCurrentDirectory'),
+      ];
+      for (const trap of traps)
+        trap.mockImplementation(
+          Object.assign(
+            () => {
+              throw new Error('forbidden ambient route');
+            },
+            {
+              native: () => {
+                throw new Error('forbidden ambient route');
+              },
+            },
+          ),
+        );
+      try {
+        for (const invoke of [
+          () => fs.openSync('x', 'r'),
+          () => fs.lstatSync('x'),
+          () => fs.realpathSync('x'),
+          () => ts.sys.directoryExists('x'),
+          () => ts.sys.getDirectories('x'),
+          () => ts.sys.realpath?.('x'),
+          () => fs.readFileSync('x'),
+          () => fs.statSync('x'),
+          () => fs.readdirSync('x'),
+          () => Bun.spawnSync(['git']),
+          () => process.cwd(),
+          () => ts.sys.readFile('x'),
+          () => ts.sys.fileExists('x'),
+          () => ts.sys.readDirectory('x'),
+          () => ts.sys.getCurrentDirectory(),
+          () => process.env['PATH'],
+        ])
+          expect(invoke).toThrow('forbidden ambient route');
+        for (const trap of traps) trap.mockClear();
+        const extracted = extractRetainedTypeScriptRelationships(f);
+        expect(extracted.runtimeTrust).toBe('unverified');
+        expect(extracted.provenance.runtimeTrust).toBe('unverified');
+        expect(extracted.provenance).toEqual(readRetainedNamespaceProvenance(f.namespace));
+        expect(extracted.extractor).toEqual(legacy.extractor);
+        expect(extracted.relationships).toEqual(legacy.relationships);
+        if (libraries !== undefined) {
+          expectLibraries(extracted, libraries);
+          expect(
+            extracted.relationships.publicDeclarations[0]?.declarations.some((declaration) =>
+              declaration.text.includes('ReadonlyArray<string>'),
+            ),
+          ).toBe(true);
+          expect(
+            extracted.relationships.publicDeclarations[0]?.declarations.some((declaration) =>
+              declaration.text.includes('Date'),
+            ),
+          ).toBe(true);
+        }
+        for (const trap of traps) expect(trap).not.toHaveBeenCalled();
+      } finally {
+        process.env = originalEnvironment;
+        for (const trap of traps) trap.mockRestore();
+      }
+    });
 
 test('retained compiler rejects malformed or noncandidate requests before retained reads', () => {
   const f = setup();
@@ -626,4 +659,210 @@ test('retained compiler byte census seals only after successful extraction', () 
   } finally {
     admission.mockRestore();
   }
+});
+
+const libraryNames = ['lib.es5.d.ts', 'lib.decorators.d.ts', 'lib.decorators.legacy.d.ts'] as const;
+function readLibraries() {
+  return Object.fromEntries(
+    libraryNames.map((name) => {
+      const bytes = fs.readFileSync(
+        join(import.meta.dir, '../../../../../../node_modules/@typescript/old/lib', name),
+      );
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      expect(Buffer.from(text)).toEqual(bytes);
+      expect([...text.matchAll(/<reference lib="([^"]+)"/g)].map((match) => match[1])).toEqual(
+        name === 'lib.es5.d.ts' ? ['decorators', 'decorators.legacy'] : [],
+      );
+      return [`node_modules/typescript/lib/${name}`, text];
+    }),
+  );
+}
+function expectLibraries(
+  extracted: ReturnType<typeof extractRetainedTypeScriptRelationships>,
+  libraries: Record<string, string>,
+) {
+  // Proof: library entry suppression/raw identity substitution/bypassed retained reads fail the exact library tuple assertion.
+  expect(extracted.byteReads.entries.filter((entry) => entry.path.includes('/lib/'))).toEqual(
+    Object.entries(libraries)
+      .map(([path, text]) => ({
+        namespace: 'runtime' as const,
+        path,
+        revision: null,
+        identity: hashBytes(text),
+        byteLength: Buffer.byteLength(text),
+      }))
+      .sort((a, b) =>
+        Buffer.compare(Buffer.from(serializeCanonical(a)), Buffer.from(serializeCanonical(b))),
+      ),
+  );
+}
+
+for (const format of ['sha1', 'sha256'] as const)
+  test(`retained ES5 compiler ${format} records exact pinned library bytes`, () => {
+    const libraries = readLibraries();
+    expect(
+      Object.values(libraries).reduce((count, text) => count + Buffer.byteLength(text), 0),
+    ).toBe(233412);
+    const f = setup(format, '{}', undefined, undefined, libraries);
+    const extracted = extractRetainedTypeScriptRelationships(f);
+    expectLibraries(extracted, libraries);
+    expect(extracted.byteReads.entries.some((entry) => entry.path === 'globals.d.ts')).toBe(false);
+    expect(extracted.relationships.publicDeclarations[0]?.declarations.length).toBeGreaterThan(0);
+  });
+
+test('retained ES5 compiler exposes real standard library types', () => {
+  const f = setup(
+    'sha1',
+    '{}',
+    "export const names: ReadonlyArray<string> = ['es5']; export const epoch: Date = new Date(0);",
+    undefined,
+    readLibraries(),
+  );
+  const extracted = extractRetainedTypeScriptRelationships(f);
+  expect(
+    extracted.relationships.publicDeclarations[0]?.declarations.some((declaration) =>
+      declaration.text.includes('ReadonlyArray<string>'),
+    ),
+  ).toBe(true);
+  expect(
+    extracted.relationships.publicDeclarations[0]?.declarations.some((declaration) =>
+      declaration.text.includes('Date'),
+    ),
+  ).toBe(true);
+});
+
+test('retained ES5 compiler refuses each absent required library without ambient fallback', () => {
+  for (const name of libraryNames) {
+    const libraries = Object.fromEntries(
+      Object.entries(readLibraries()).filter(
+        ([path]) => path !== `node_modules/typescript/lib/${name}`,
+      ),
+    );
+    const f = setup('sha1', '{}', undefined, undefined, libraries);
+    const traps = [spyOn(fs, 'readFileSync'), spyOn(ts.sys, 'readFile')];
+    for (const trap of traps)
+      trap.mockImplementation(() => {
+        throw new Error('forbidden library fallback');
+      });
+    try {
+      expect(() => extractRetainedTypeScriptRelationships(f)).toThrow('compiler failed');
+      for (const trap of traps) expect(trap).not.toHaveBeenCalled();
+    } finally {
+      for (const trap of traps) trap.mockRestore();
+    }
+  }
+});
+
+test('retained ES5 compiler ignores physical library mutation after capture', () => {
+  const libraries = readLibraries();
+  const f = setup('sha1', '{}', undefined, undefined, libraries);
+  const before = extractRetainedTypeScriptRelationships(f);
+  for (const path of Object.keys(libraries))
+    fs.writeFileSync(join(f.runtimeRoot, path), 'broken physical library');
+  const after = extractRetainedTypeScriptRelationships(f);
+  expect(after).toEqual(before);
+  expectLibraries(after, libraries);
+});
+
+test('retained ES5 compiler observes changed valid library bytes without relationship changes', () => {
+  const libraries = readLibraries();
+  const before = extractRetainedTypeScriptRelationships(
+    setup('sha1', '{}', undefined, undefined, libraries),
+  );
+  const path = 'node_modules/typescript/lib/lib.es5.d.ts';
+  const changed = {
+    ...libraries,
+    [path]: libraries[path] + '\n// retained byte identity change\n',
+  };
+  const after = extractRetainedTypeScriptRelationships(
+    setup('sha1', '{}', undefined, undefined, changed),
+  );
+  expect(after.extractor).toEqual(before.extractor);
+  expect(after.relationships).toEqual(before.relationships);
+  expectLibraries(after, changed);
+  expect(after.byteReads.entries.find((entry) => entry.path === path)?.identity).not.toBe(
+    before.byteReads.entries.find((entry) => entry.path === path)?.identity,
+  );
+});
+
+test('retained ES5 compiler includes library observations in read and envelope budgets', () => {
+  const libraries = readLibraries();
+  const f = setup('sha1', '{}', undefined, undefined, libraries);
+  let acquiredBytes = 0;
+  const candidateRead = f.candidate.read.bind(f.candidate);
+  const runtimeRead = f.runtime.readFile.bind(f.runtime);
+  const reads = [
+    spyOn(f.candidate, 'read').mockImplementation((...args) => {
+      const bytes = candidateRead(...args);
+      acquiredBytes += bytes.byteLength;
+      return bytes;
+    }),
+    spyOn(f.runtime, 'readFile').mockImplementation((...args) => {
+      const bytes = runtimeRead(...args);
+      acquiredBytes += bytes.byteLength;
+      return bytes;
+    }),
+  ];
+  let extracted: ReturnType<typeof extractRetainedTypeScriptRelationships>;
+  try {
+    extracted = extractRetainedTypeScriptRelationships(f);
+  } finally {
+    for (const read of reads) read.mockRestore();
+  }
+  expect(acquiredBytes).toBeGreaterThanOrEqual(233412);
+  const envelopeBytes = Buffer.byteLength(serializeCanonical(extracted));
+  const ledgerBytes = Buffer.byteLength(serializeCanonical(extracted.byteReads));
+  const entryCount = extracted.byteReads.entries.length;
+  for (const [name, exact] of [
+    ['maximumReadBytes', acquiredBytes],
+    ['maximumReadLedgerBytes', ledgerBytes],
+    ['maximumReadEntries', entryCount],
+  ] as const) {
+    const exactFixture = setup('sha1', '{}', undefined, undefined, libraries);
+    const exactExtraction = extractRetainedTypeScriptRelationships({
+      ...exactFixture,
+      sourceLimits: { ...exactFixture.sourceLimits, [name]: exact },
+    });
+    expect(exactExtraction.byteReads).toEqual(extracted.byteReads);
+    expect(exactExtraction.relationships).toEqual(extracted.relationships);
+    Bun.gc(true);
+    const shortFixture = setup('sha1', '{}', undefined, undefined, libraries);
+    expect(() =>
+      extractRetainedTypeScriptRelationships({
+        ...shortFixture,
+        sourceLimits: { ...shortFixture.sourceLimits, [name]: exact - 1 },
+      }),
+    ).toThrow('source read');
+    Bun.gc(true);
+  }
+  const compilerExact = setup('sha1', '{}', undefined, undefined, libraries);
+  expect(
+    extractRetainedTypeScriptRelationships({
+      ...compilerExact,
+      compilerLimits: { ...compilerExact.compilerLimits, maximumReadBytes: acquiredBytes },
+    }).byteReads,
+  ).toEqual(extracted.byteReads);
+  Bun.gc(true);
+  const compilerShort = setup('sha1', '{}', undefined, undefined, libraries);
+  expect(() =>
+    extractRetainedTypeScriptRelationships({
+      ...compilerShort,
+      compilerLimits: { ...compilerShort.compilerLimits, maximumReadBytes: acquiredBytes - 1 },
+    }),
+  ).toThrow('read byte limit');
+  Bun.gc(true);
+  // Proof: omitting whole-envelope byte accounting makes the one-byte-short library envelope succeed.
+  expect(
+    extractRetainedTypeScriptRelationships({
+      ...f,
+      requestLimits: { ...f.requestLimits, maximumOutputBytes: envelopeBytes },
+    }),
+  ).toEqual(extracted);
+  const shortEnvelopeFixture = setup('sha1', '{}', undefined, undefined, libraries);
+  expect(() =>
+    extractRetainedTypeScriptRelationships({
+      ...shortEnvelopeFixture,
+      requestLimits: { ...f.requestLimits, maximumOutputBytes: envelopeBytes - 1 },
+    }),
+  ).toThrow('retained TypeScript output');
 });
