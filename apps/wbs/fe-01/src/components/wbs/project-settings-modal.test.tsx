@@ -697,6 +697,45 @@ describe('Escape in a field over something held elsewhere or in the air', () => 
   );
 
   itDom(
+    'Escape in a refused box after a waiting ✕ puts it back and keeps the modal (563 review)',
+    async () => {
+      // The ✕ over a travelling ladder asks to leave once it lands; be-01 refuses
+      // it instead, and the reader, back in the box, presses Escape. That is the
+      // field's key, not a second request to leave: the draft goes and the modal
+      // stays, as D7 says.
+      let refuse = (): void => {
+        throw new Error('the ladder never left');
+      };
+      const setBands = vi.fn<(bands: readonly PriorityBandView[]) => Promise<void>>(
+        () =>
+          new Promise<void>((_, reject) => {
+            refuse = () => {
+              reject(new Error('band_default_must_be_inside_its_own_band'));
+            };
+          }),
+      );
+      mounted({ priorities: { bands: DEFAULT_PRIORITY_BANDS, setBands, onChanged: vi.fn() } });
+      open();
+      fireEvent.click(tab('Priorities'));
+      const band = screen.getByLabelText<HTMLInputElement>('Name of band 1');
+      fireEvent.change(band, { target: { value: 'Blocker' } });
+      fireEvent.keyDown(band, { key: 'Enter' });
+      await settle();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      await settle();
+      refuse();
+      await settle();
+      expect(refusal()).toContain('Priorities has an unsaved edit');
+
+      fireEvent.keyDown(band, { key: 'Escape' });
+      await settle();
+
+      expect(screen.queryByRole('dialog', { name: 'Project settings' })).not.toBeNull();
+      expect(band.value).toBe('Critical');
+    },
+  );
+
+  itDom(
     'Escape in one section’s box puts it back there, whatever another holds (F-112)',
     async () => {
       const setBands = vi.fn<(bands: readonly PriorityBandView[]) => Promise<void>>(() =>

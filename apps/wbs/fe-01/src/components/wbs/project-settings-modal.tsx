@@ -530,15 +530,26 @@ export function ProjectSettingsModal({
         // nothing held it closes, as Escape anywhere else does. Radix listens on
         // the document's capture phase, before the field's own handler, so the
         // target is what tells the two apart.
+        // It does drop a pending leave: a reader who presses Escape in a box
+        // has started on the refusal, as any other key inside says.
         // Proof: on 2026-10-17, with a field's Escape sent through
         // `requestClose(false)` as before, `Escape in one section’s box puts it
         // back there, whatever another holds` (project-settings-modal.test.tsx)
-        // failed on `toHaveAttribute("aria-selected", "true")` for Timezone, and
-        // `Escape in a box whose ladder travels says only that it is saving`
-        // on `expected 'Priorities has an unsaved edit. Finis…' to be undefined`.
+        // failed on `toHaveAttribute("aria-selected", "true")` for Timezone. With
+        // that and the quiet branch's old `leaving &&` guard both restored (the
+        // base), `Escape in a box whose ladder travels says only that it is
+        // saving` failed on `expected 'Priorities has an unsaved edit. Finis…'
+        // to be undefined`; the widened quiet branch alone also keeps it green.
+        // Proof: on 2026-10-18, without `setCloseWanted(false)` here, `Escape in
+        // a refused box after a waiting ✕ puts it back and keeps the modal`
+        // failed on `expected null not to be null` — the revert emptied the
+        // hold and the waiting ✕ closed the modal (563 review, blocking 1).
         onEscapeKeyDown={(event) => {
           if (isField(event.target)) {
-            if (dirtyRef.current.size > 0) event.preventDefault();
+            if (dirtyRef.current.size > 0) {
+              event.preventDefault();
+              setCloseWanted(false);
+            }
             return;
           }
           if (!requestClose(true)) event.preventDefault();

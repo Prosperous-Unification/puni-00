@@ -17,7 +17,9 @@ filled live one (F-158).
 ## What Changes
 
 - Escape in a group box (ladder, PERT weights) does nothing while the group's write travels.
-- Escape in a field never refuses a close or switches section; with nothing held it still closes.
+- Escape in a field never refuses a close or switches section, and drops a pending close request;
+  with nothing held it still closes. Steps' boxes forget their draft on Escape, as Teams' does
+  (F-162, from the #563 review).
 - A hold that is only travelling is waited out quietly by every close request, and the refusal
   sentence names only a section holding something that can be finished or cancelled.
 - Below 640 px the ladder header is not drawn; each band's number line says `Starts at` and

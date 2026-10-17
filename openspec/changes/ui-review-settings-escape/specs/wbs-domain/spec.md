@@ -17,6 +17,16 @@ SHALL leave the box showing what was sent.
 - **WHEN** be-01 has refused the ladder and the reader types in the Timezone box and presses Escape
 - **THEN** the zone is put back, Timezone stays shown with the focus in its box, and no "has an unsaved edit" sentence appears
 
+#### Scenario: Escape in a refused box after a waiting close
+
+- **WHEN** the reader asked to close over a travelling ladder, be-01 refused it, and the reader presses Escape in the band
+- **THEN** the band is put back and the modal stays open
+
+#### Scenario: Escape in a Steps box
+
+- **WHEN** a reader types in a step's name, allowance or the New step box and presses Escape
+- **THEN** that box shows what be-01 holds (or is empty) and nothing is sent when it is left
+
 ### Requirement: A hold that is only travelling is never refused out loud
 
 When every section that holds something holds only a write in flight, a close request SHALL be

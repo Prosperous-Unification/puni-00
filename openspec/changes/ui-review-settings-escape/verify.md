@@ -36,3 +36,13 @@ false Received: true` (the header shown).
 - F-158 `settings-vocabulary.spec.ts` `a locked radio is drawn as a live one is`: dark `Expected:
 < 1.1 Received: 1.799…`; light `Expected: > 4.76… Received: 1`. With `outline: none` injected
   into the radio rule, both palettes failed on `Expected: not "none"`.
+
+## Review round (#563, 2026-10-18)
+
+- Blocking 1 `project-settings-modal.test.tsx` `Escape in a refused box after a waiting ✕ puts it
+back and keeps the modal`: on 511740151 `expected null not to be null` (the modal closed).
+- F-162 `steps-panel.test.tsx` `Escape in a Steps box forgets what was typed there`: on 511740151
+  `expected 'Review' to be 'QA'`.
+- F-164: the `onEscapeKeyDown` Proof now names the fault its F-111 half needs (both the handler and
+  the quiet branch's `leaving &&` guard reverted).
+- Runs after the fixes are listed in the lane record and the PR.
