@@ -1,0 +1,17 @@
+{
+  "command": ["bunx", "--no-install", "nx", "graph", "--file=tmp/shared-failures-graph.json"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 234016,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    ["bunx", "--no-install", "nx", "graph", "--file=tmp/shared-failures-graph.json"],
+    ["git", "diff", "--name-only", "--no-renames", "--relative", "main", "HEAD"],
+    ["git", "merge-base", "main", "HEAD"],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/nx",
+      "graph",
+      "--file=tmp/shared-failures-graph.json"
+    ]
+  ]
+}

@@ -1161,3 +1161,17 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 - **GIVEN** reordered cases changed outcomes duplicate identities or parser dependency faults
 - **WHEN** source and installed production dispatch inspect the report
 - **THEN** ordering preserves identity outcome and provenance changes alter the observation digest and duplicate or lost-outcome observations are refused or detected by production assertions
+
+### Requirement: Shared failures isolated Unit runner
+
+`shared-failures:test:unit:level` SHALL collect exactly shared-failures Unit test files under `src`, use literal `./` operands, preserve the 10000ms timeout and write `tmp/junit/shared-failures.unit.xml`. It SHALL clear that report before selection and refuse empty or failed selection before Bun runs. Production verification SHALL audit registration, complete Unit collection, target inventory and report identity. Existing `test` and `test:unit` commands SHALL remain classified as unreported legacy runners without evidence credit.
+
+#### Scenario: [TEST-AXES-153] Shared failures executes complete isolated Unit collection
+
+- **WHEN** the isolated target runs against shared-failures
+- **THEN** only `src/report-failure.test.ts` is collected and a fresh parseable JUnit report records all twenty passing cases, excluding database and TSX files and nested matching decoys
+
+#### Scenario: [TEST-AXES-154] Shared failures refuses collection drift and stale evidence
+
+- **WHEN** registration or a target is missing, a target is unknown, selection omits a Unit file or admits another level, report identity differs, or selection is empty or fails
+- **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report and preserved legacy commands gain no report credit

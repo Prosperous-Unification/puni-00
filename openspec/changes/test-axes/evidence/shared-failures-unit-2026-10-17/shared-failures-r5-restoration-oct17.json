@@ -1,0 +1,11 @@
+{
+  "before": {
+    "/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/test-levels.ts": "84a0b841480ea824e9e00fb92ae493528d16b50942f6a3a1e7b3187cce8c605b",
+    "/tmp/puni-shared-failures-unit-oct17/libs/shared/domain/failures/project.json": "13ba6030c39d612ce9a42d83f3b105db3d61dea68a0ec3ea85be69c77ee8fc04"
+  },
+  "after": {
+    "/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/test-levels.ts": "84a0b841480ea824e9e00fb92ae493528d16b50942f6a3a1e7b3187cce8c605b",
+    "/tmp/puni-shared-failures-unit-oct17/libs/shared/domain/failures/project.json": "13ba6030c39d612ce9a42d83f3b105db3d61dea68a0ec3ea85be69c77ee8fc04"
+  },
+  "equal": true
+}
