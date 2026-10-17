@@ -70,6 +70,7 @@ const RUNTIME_SURFACE = [
   'extractDeclaredRelationshipsFromSource',
   'extractNxRelationships',
   'extractNxRelationshipsFromSource',
+  'extractTypeScriptRelationshipsFromSource',
   'identifyDeclarationExtractor',
   'freezeExhaustivePlan',
   'freezeExhaustivePlanFromSource',
