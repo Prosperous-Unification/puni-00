@@ -141,7 +141,17 @@ export function TimezonePanel({
   }
 
   function apply(): void {
-    if (!dirty || section.busy) return;
+    // Nothing to send also ends a wait: a peer who saved the very zone typed
+    // here, while the list was read, left the box clean, and the line must not
+    // go on saying the zone applies once the list is read (UI review F-082).
+    // Proof: on 2026-10-16, without the `setWaiting(false)` here, `stops
+    // waiting when a peer saves the very zone that was typed`
+    // (settings-busy.test.tsx) failed on `Unable to find an element with the
+    // text: Saved as Europe/Kyiv.`.
+    if (!dirty || section.busy) {
+      setWaiting(false);
+      return;
+    }
     if (list.state !== 'ready') {
       setWaiting(true);
       return;

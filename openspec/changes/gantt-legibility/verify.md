@@ -13,7 +13,9 @@ pointed-row-offscreen live-caret mobile` — first run 159 passed, 3 failed (str
 
 ## R5 proofs (each watched failing)
 
-- F-012 `gantt-bar-labels.test.tsx`: `labelLaneOf` back to the whole bar band →
+- F-012 `gantt-bar-labels.test.tsx` (as it stood then; the lane labels were
+  replaced by the lane stack label and `labelLaneOf` by `labelBandOf` in
+  `ui-review-gantt-directory`): `labelLaneOf` back to the whole bar band →
   `sand-plan label bottom: expected 50.96 to be less than or equal to 42.01`.
   Browser, on the base commit: `? · 130 · Row guess over ? · 130 · Row guess`.
 - F-037: base code → `expected '? · 010 · KB · Strip' to be 'no estimate'`.

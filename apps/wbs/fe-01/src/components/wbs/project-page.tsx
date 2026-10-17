@@ -91,11 +91,14 @@ function ProjectViews({
     onSelect(project, next);
   };
   const viewControls = (
+    // `outline` so the view that is not shown is plain and the shown one wears the
+    // button's pressed fill (ui-review F-116): two filled buttons said nothing.
     <div role="group" aria-label="Project view" className="flex shrink-0 gap-1">
       <Button
         ref={(selector) => {
           focusSelector(selector, 'plan');
         }}
+        variant="outline"
         size="sm"
         className={isDesktop ? undefined : 'min-h-11'}
         type="button"
@@ -114,6 +117,7 @@ function ProjectViews({
         ref={(selector) => {
           focusSelector(selector, 'board');
         }}
+        variant="outline"
         size="sm"
         className={isDesktop ? undefined : 'min-h-11'}
         type="button"
@@ -1217,6 +1221,18 @@ export function ProjectPage({
                 // width` (`e2e/header.spec.ts`) failed on `[3,3]` lines at 375
                 // without it. Watched 2026-10-16.
                 //
+                // From `md` up the list is at least the picker's widest, 18rem
+                // (`md:min-w-72`), and never just the input's leftover width:
+                // the input is a flex child, so what the header's neighbours
+                // take (the Plan / Board selector's outline, #528) it loses, and
+                // a list tied to it made a name a paragraph at 1024. The bar
+                // leaves well over 18rem right of the input at every `md` width,
+                // and `max-w-[calc(100vw-1rem)]` still caps it.
+                // Proof: without `md:min-w-72`, `two imports of one long name
+                // read apart at every width` failed on `a name takes more than
+                // two lines at 1024px: [3,3]` and on `the list is narrower than
+                // 18rem at 1024px`, `Received: 196`. Watched 2026-10-16.
+                //
                 // Proof: back to `min-w-full`, `the widest entry be-01 permits
                 // stays inside the window` in `e2e/header.spec.ts` failed at
                 // every one of 1280, 1024 and 900 on the precondition —
@@ -1224,7 +1240,7 @@ export function ProjectPage({
                 // as wide as the text — and, with that precondition relaxed to
                 // read the bound underneath, on `the listbox reaches 46px past
                 // the window at 900px`. Watched in Chromium, 2026-08-09.
-                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 w-full max-w-[calc(100vw-1rem)] list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md max-md:w-[calc(100vw-2rem)]"
+                className="bg-popover text-popover-foreground absolute top-full left-0 z-10 m-0 max-h-60 w-full max-w-[calc(100vw-1rem)] list-none overflow-y-auto rounded-md border p-1 text-sm shadow-md max-md:w-[calc(100vw-2rem)] md:min-w-72"
               >
                 {entries.map((entry) => (
                   // The ARIA combobox pattern is the boundary that makes this
@@ -1287,7 +1303,7 @@ export function ProjectPage({
                     <span className="min-w-0 break-words">{entry.name}</span>
                     {/*
                       A real space in the text, not only the `gap` beside it: an
-                      entry's accessible name is `Rewire the shed (kat · 1 Jun)`
+                      entry's accessible name is `Rewire the shed (1 Jun · kat)`
                       and the string somebody hears has to have the word break
                       in it. A whitespace-only node between two flex items is
                       not itself an item, so it costs no second gap on screen.
@@ -1303,7 +1319,8 @@ export function ProjectPage({
                       still on screen, out of the accessibility tree — `tells
                       two projects of one name apart by their owners` failed on
                       `Unable to find an accessible element with the role
-                      "option" and name "Rewire the shed (kat · 1 Jun)"`.
+                      "option" and name "Rewire the shed (kat · 1 Jun)"` (the meta
+                      was owner-first then).
                       Watched, 2026-08-09.
                     */}
                     <span className="text-muted-foreground min-w-0 truncate">

@@ -29,12 +29,14 @@ export const OBJECTIVE_LABEL: Readonly<Record<ScheduleObjectiveView, string>> = 
 };
 
 /**
- * What a variant is called in a sentence.
+ * What a variant is called in a sentence, and on the settings panel's radios.
  *
  * Spelled out rather than `OBJECTIVE_LABEL`'s abbreviation, because a sentence
- * is what a screen reader reads out and "Pri" is not a word. The two are the
- * settings panel's own pair — its radio labels are the short names and its
- * description is these.
+ * is what a screen reader reads out and "Pri" is not a word. The settings
+ * panel's radios read these too since ui-review F-119: a control label is not
+ * abbreviated, and the panel's own description, two lines above, says
+ * "priority-first and finish-first". The cue's pill keeps the short names,
+ * where there is room for two words at most.
  */
 export const OBJECTIVE_SENTENCE: Readonly<Record<ScheduleObjectiveView, string>> = {
   pri: 'Priority-first',

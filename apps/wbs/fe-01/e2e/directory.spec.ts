@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { createProject } from './create-project';
+import { measureInk } from './measure-ink';
 
 /**
  * The directory page, against the real stack and measured by a browser.
@@ -298,4 +299,39 @@ test.describe('the directory on a laptop', () => {
     });
     expect(new Set(rows).size, 'the panels are stacked at 1024px').toBe(1);
   });
+});
+
+test.describe('the directory’s load lines', () => {
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`are the palette’s ink, not the browser’s link blue, ${scheme} (F-102)`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await openTheDirectory(page);
+      const name = `Load ${tag}`;
+      await addPerson(page, name);
+      const line = page.getByRole('link', { name: new RegExp(`^Load of ${name}: `) });
+      await expect(line).toBeVisible();
+
+      // Proof: with the link's own classes back to a bare `underline`, this
+      // failed in light on `rgb(0, 0, 238)` and in dark on
+      // `rgb(158, 158, 255)` — the user agent's link colours, which no token
+      // names; watched 2026-10-16.
+      const painted = await line.evaluate((node) => getComputedStyle(node).color);
+      const token = await page.evaluate(() => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--foreground)';
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      });
+      expect(painted, 'the load line is not the palette’s own ink').toBe(token);
+      const ink = await measureInk(line);
+      expect(
+        ink.contrast,
+        `the load line reads at ${ink.contrast.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 });

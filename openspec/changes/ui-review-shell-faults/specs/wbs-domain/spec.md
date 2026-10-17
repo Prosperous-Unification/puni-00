@@ -3,8 +3,8 @@
 ### Requirement: The session gate tells an outage from a refusal
 
 On load the app SHALL read the session once and SHALL draw the sign-in form only when that read says
-there is no session: a 200 answer with no user, a modelled refusal of the credential, or a 401 or 403
-the contract does not model. When the read cannot be completed for any other reason — no connection,
+there is no session: a 200 answer with no user, a modelled refusal of the credential, or a 401 the
+contract does not model (a 403 is `ui-review-shell-a11y`'s `Access refused`). When the read cannot be completed for any other reason — no connection,
 a 5xx answer, a reply that is not the contract's, a modelled refusal of the request's shape, or a
 thrown error — the app SHALL draw a `Server unavailable` state with one sentence naming the cause,
 SHALL NOT draw credential fields or sign-in links, and SHALL offer Try again, which SHALL read the
@@ -20,7 +20,7 @@ the window and anchored by its top near the window's middle.
 #### Scenario: the outage card in the signed-out column
 
 - **WHEN** the session read answers 502 at 1440 × 900 or 375 × 812
-- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, inside the window, and within 48px of vertical centre
+- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, inside the window, and with its top on the sign-in card’s anchor (decision D11, `ui-review-signin-gantt`)
 
 #### Scenario: the server comes back
 

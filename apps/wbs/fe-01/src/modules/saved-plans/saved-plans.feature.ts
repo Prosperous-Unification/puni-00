@@ -4,6 +4,7 @@ import { createChannel } from '@/modules/channel';
 
 import {
   type OpenedSavedPlans,
+  SAVED_PLANS_CHANGED,
   type SavedPlanListState,
   type SavedPlanRoutes,
   type SavedPlans,
@@ -198,7 +199,22 @@ export function openSavedPlans({
 }: SavedPlansReader & { readonly routes: SavedPlanRoutes }): OpenedSavedPlans {
   const changes = createChannel<undefined>();
   let current: SavedPlanListState = { kind: 'loading' };
-  const watch = watchShelf(routes, projectId, (next) => {
+  const revisions = createChannel<undefined>();
+  let revision = 0;
+  const watched: ShelfWatchDeps = {
+    ...routes,
+    subscribe: (id, onChange) =>
+      routes.subscribe(id, (changed) => {
+        // Proof: on 2026-10-16, counting every broadcast here failed `does not count a shelf
+        // broadcast as a move of the live plan` on `expected 1 to be +0`.
+        if (changed !== SAVED_PLANS_CHANGED && isCurrent()) {
+          revision += 1;
+          revisions.publish(undefined);
+        }
+        onChange(changed);
+      }),
+  };
+  const watch = watchShelf(watched, projectId, (next) => {
     // Proof: on 2026-09-27, publishing regardless here (s1) failed `changes nothing once its
     // runtime is withdrawn, not even with the read it had in flight` on `expected { kind: 'ready',
     // rows: [ { …(7) } ] } to deeply equal { kind: 'loading' }`.
@@ -213,6 +229,10 @@ export function openSavedPlans({
     isCurrent() ? send() : Promise.reject(new SavedPlansWithdrawnError());
   const savedPlans: SavedPlans = {
     shelf: { subscribe: (onChange) => changes.subscribe(onChange), snapshot: () => current },
+    livePlanRevision: {
+      subscribe: (onChange) => revisions.subscribe(onChange),
+      snapshot: () => revision,
+    },
     refresh: () => {
       // Proof: on 2026-09-27, refreshing regardless here (s4) failed `reads nothing when refreshed
       // once its runtime is withdrawn` on `expected [ 'list:p1', 'list:p1' ] to deeply equal

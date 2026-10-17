@@ -580,8 +580,8 @@ const BAR_RADIUS_PX = 3;
  *
  * **On and off since ui-review F-013** (2026-10-13): a toggle switched off
  * was dashed and struck through, which the review read as a disabled
- * control. Off is now drawn plain and pressed is drawn filled
- * ({@link CHART_TOGGLE_PRESSED}). The review also asked for the toolbar's
+ * control. Off is now drawn plain and pressed is drawn filled, by the rule
+ * every pressed button follows since ui-review F-116 (`button.tsx`'s `PRESSED`). The review also asked for the toolbar's
  * 32px size; that is left open in the lane record, because the strip's
  * metrics are pinned by a gate. The scroll-sync end no longer pins them
  * (`plan-terminal-tail.ts` fits the two faces' tails, ui-review F-055), and
@@ -603,16 +603,8 @@ const chartChip = (extra?: string): string =>
     // bar's border is `border-border`.
     'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
     'focus-visible:ring-1 focus-visible:ring-offset-1',
-    CHART_TOGGLE_PRESSED,
     extra,
   );
-
-/**
- * How a pressed toggle on the strip is drawn: filled in the accent, so on and
- * off differ by more than a word, and neither looks like a disabled control.
- */
-const CHART_TOGGLE_PRESSED =
-  'aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:border-ring/60';
 
 /**
  * How wide the priority cap at a bar's left edge is drawn, in px.
@@ -1089,36 +1081,190 @@ function leadOf(room: LabelRoom): string {
 const PLACEHOLDER_WORDS = 'no estimate';
 
 /**
- * How tall a lane must be before a label is written in it, in CSS pixels.
+ * Where a label box stands, in CSS pixels down from the chart's first row: the
+ * row's whole bar band.
  *
- * A bar shares its row with others only in a cluster that holds an unestimated
- * placeholder ({@link GanttBar.lane}); each lane is then a slice of the bar's
- * height. Two lanes are 8.96px, which holds the 9px label's digits and
- * x-height; three are 6px, which holds nothing legible, so those bars write
- * nothing and their hover cards still name them.
+ * A bar drawn in a lane ({@link GanttBar.lane}) writes nothing of its own and
+ * gets null: a lane is at most half the band, 8.96px, and two 9px lines with no
+ * leading between them read as one overprinted line (`010.3.06` over
+ * `010.3.06`, `010.3.08 …` over `010.3.08 · no estimate`, ui-review F-101).
+ * Its stack's one label says what the lanes hold instead ({@link laneStacksOf}).
+ *
+ * Proof: the lane check removed (every lane writing in its own half band, as
+ * after F-012), and `writes one label for a row’s laned bars, over their whole
+ * band, none over another` failed on `expected <span …(4)></span> to be null`
+ * for `sand-plan`; watched 2026-10-16.
  */
-const LABEL_LANE_MIN_PX = 8;
-
-/**
- * Where a bar's label box stands, in CSS pixels down from the chart's first
- * row: the bar's **own lane**, never the whole row band.
- *
- * Proof: written as the whole bar's band (`rowIndex + BAR_INSET` and
- * `BAR_HEIGHT`) — what painted two lanes' labels over each other as
- * `01010.3.0606` (ui-review F-012) — and `paints one label per bar, each
- * inside its own lane, none over another` failed on `sand-plan label bottom:
- * expected 50.96 to be less than or equal to 42.01`; watched 2026-10-13.
- *
- * @returns null where the lane is too short for a label ({@link LABEL_LANE_MIN_PX}).
- */
-export function labelLaneOf(bar: {
+export function labelBandOf(bar: {
   rowIndex: number;
-  lane: number;
   lanes: number;
 }): { topPx: number; heightPx: number } | null {
-  const heightPx = (BAR_HEIGHT * ROW_PX) / bar.lanes;
-  if (heightPx < LABEL_LANE_MIN_PX) return null;
-  return { topPx: (bar.rowIndex + BAR_INSET) * ROW_PX + bar.lane * heightPx, heightPx };
+  if (bar.lanes > 1) return null;
+  return rowBandOf(bar.rowIndex);
+}
+
+/** A row's whole bar band, in CSS pixels down from the chart's first row. */
+function rowBandOf(rowIndex: number): { topPx: number; heightPx: number } {
+  return { topPx: (rowIndex + BAR_INSET) * ROW_PX, heightPx: BAR_HEIGHT * ROW_PX };
+}
+
+/** Where a bar writes its own words: its span in cells, the band, and whether it spilled. */
+export interface BarLabelPlace {
+  x: number;
+  width: number;
+  band: { topPx: number; heightPx: number };
+  /**
+   * True past a lane stack's placeholders ({@link LaneStack.spill}): the
+   * band's other lane is bare canvas there, so the words sit on a patch of the
+   * bar's own fill.
+   */
+  spilled: boolean;
+}
+
+/**
+ * Where a drawn bar's own label goes: its own span over its band, or, for a
+ * laned bar, only its spill past its stack's placeholders; null for a laned
+ * bar with no spill, whose stack writes for it.
+ */
+export function barLabelPlaceOf(
+  placed: PlacedBar,
+  spills: ReadonlyMap<string, LaneSpill>,
+): BarLabelPlace | null {
+  const spill = spills.get(placed.bar.sliceId);
+  if (spill !== undefined) {
+    return { x: spill.x, width: spill.width, band: rowBandOf(placed.bar.rowIndex), spilled: true };
+  }
+  const band = labelBandOf(placed.bar);
+  return band === null ? null : { x: placed.x, width: placed.width, band, spilled: false };
+}
+
+/** The stacks' spills by the spilling bar's slice — see {@link barLabelPlaceOf}. */
+export function spillsOf(stacks: readonly LaneStack[]): ReadonlyMap<string, LaneSpill> {
+  return new Map(
+    stacks.flatMap((stack) => (stack.spill === null ? [] : [[stack.spill.sliceId, stack.spill]])),
+  );
+}
+
+/**
+ * The bars of one row that share their band in lanes, written as one label.
+ *
+ * Unknown slices take no schedule time, so a leaf's unestimated steps and the
+ * estimated step beside them are drawn at one instant, split into lanes
+ * ({@link GanttBar.lane}). Each lane is too short to carry words
+ * ({@link labelBandOf}), so the stack says once what the lanes hold — the
+ * row's number, how many steps, how many nobody estimated — and each bar's
+ * hover card still names its own step.
+ */
+export interface LaneStack {
+  /** The stack's first bar, by drawn start: what its label is keyed and found by. */
+  sliceId: string;
+  rowIndex: number;
+  /** The row's number, which the label opens with as every bar's label does. */
+  number: string;
+  /**
+   * Where the stack's label stands, in calendar cells: the drawn union of its
+   * bars, less the part of a {@link spill} past the placeholders.
+   */
+  x: number;
+  width: number;
+  steps: number;
+  unestimated: number;
+  /**
+   * The one estimated bar that runs past every placeholder of the stack, and
+   * the cells past them, where it writes its own words over the whole band;
+   * null when none does, or when two do and would write over each other.
+   */
+  spill: LaneSpill | null;
+}
+
+/** An estimated bar's own label room past its stack's placeholders — see {@link LaneStack.spill}. */
+export interface LaneSpill {
+  sliceId: string;
+  x: number;
+  width: number;
+}
+
+/**
+ * The lane stacks among the drawn bars: per row, the laned bars swept by drawn
+ * start into runs whose drawn spans overlap (touching ends do not), the run
+ * `withPlaceholderLanes` split into lanes, read back in cells.
+ *
+ * An estimated bar of real length shares its start with the placeholders
+ * before it (Plan unestimated, Dev ten days), so it is laned with them; past
+ * the placeholders' assumed spans the band's other lane is empty, and the bar
+ * keeps its own words there ({@link LaneStack.spill}, ui-review F-138).
+ *
+ * Proof: with `spill` always null, `keeps an estimated bar’s own words where
+ * it runs past the placeholders` failed on `sand-dev’s own label: expected
+ * null not to be null`; watched 2026-10-17.
+ */
+export function laneStacksOf(bars: readonly PlacedBar[]): LaneStack[] {
+  const laned = bars
+    .filter(({ bar }) => bar.lanes > 1)
+    .sort((left, right) => left.bar.rowIndex - right.bar.rowIndex || left.x - right.x);
+  const runs: PlacedBar[][] = [];
+  let reach = -Infinity;
+  for (const placed of laned) {
+    const run = runs.at(-1);
+    if (run?.[0].bar.rowIndex !== placed.bar.rowIndex || placed.x >= reach) {
+      runs.push([placed]);
+      reach = placed.x + placed.width;
+    } else {
+      run.push(placed);
+      reach = Math.max(reach, placed.x + placed.width);
+    }
+  }
+  return runs.map((run) => {
+    const [first] = run;
+    const end = (placed: PlacedBar): number => placed.x + placed.width;
+    const x = Math.min(...run.map((placed) => placed.x));
+    const unknownEnd = Math.max(
+      ...run.filter(({ bar }) => !bar.estimated).map((placed) => end(placed)),
+    );
+    const spilling = run.filter((placed) => placed.bar.estimated && end(placed) > unknownEnd);
+    const kept = spilling.length === 1 ? run.filter((placed) => placed !== spilling[0]) : run;
+    const spill =
+      spilling.length === 1
+        ? { sliceId: spilling[0].bar.sliceId, x: unknownEnd, width: end(spilling[0]) - unknownEnd }
+        : null;
+    return {
+      sliceId: first.bar.sliceId,
+      rowIndex: first.bar.rowIndex,
+      number: first.bar.workItemNumber,
+      x,
+      width: Math.max(...kept.map((placed) => end(placed))) - x,
+      steps: run.length,
+      unestimated: run.filter(({ bar }) => !bar.estimated).length,
+      spill,
+    };
+  });
+}
+
+/**
+ * What a lane stack writes: `number · 3 steps · 2 no estimate`, or
+ * `number · 2 steps · no estimate` where nobody estimated any of them. The
+ * number leads and yields to nothing, as in {@link barText}: the box crops the
+ * words, a stack with room for the number alone says the number, and one
+ * without room for it says nothing.
+ */
+export function stackText(
+  stack: Pick<LaneStack, 'steps' | 'unestimated'>,
+  room: LabelRoom,
+): string | null {
+  const leadPx = room.number.length * LABEL_CHAR_PX;
+  if (room.px >= leadPx + ELLIPSIS_PX) {
+    const unknown =
+      stack.unestimated === stack.steps
+        ? PLACEHOLDER_WORDS
+        : `${String(stack.unestimated)} ${PLACEHOLDER_WORDS}`;
+    return [room.number, `${String(stack.steps)} steps`, unknown].join(LABEL_SEPARATOR);
+  }
+  return room.px >= leadPx ? room.number : null;
+}
+
+/** A lane stack's label room: its drawn union less the plain pads; it wears no tick. */
+export function stackRoomFor(stack: LaneStack, dayPx: number): LabelRoom {
+  return labelRoomFor(stack.number, stack.width, dayPx, { done: false, estimated: false });
 }
 
 /**
@@ -2901,15 +3047,20 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
   const labelClips = document.createElementNS(SVG_NS, 'defs');
   root.appendChild(labelClips);
 
-  for (const [index, { bar, x, width }] of drawnBars.entries()) {
+  const stacks = laneStacksOf(drawnBars);
+  const spills = spillsOf(stacks);
+  for (const [index, placed] of drawnBars.entries()) {
+    const { bar } = placed;
+    const place = barLabelPlaceOf(placed, spills);
+    if (place === null) continue;
+    const { x, width, band: lane } = place;
     const room = labelRoomFor(bar.workItemNumber, width, dayPx, bar);
     const who =
       bar.personName === null
         ? poolLabelFor(bar.team, bar.width, room)
         : barLabelFor(bar.personName, room);
     const shown = barText(who, bar.workItemName, room);
-    const lane = labelLaneOf(bar);
-    if (shown === null || lane === null) continue;
+    if (shown === null) continue;
     const barLeft = gutterPx + x * dayPx + CHART_PAD_PX;
     const barTop = ROW_PX + lane.topPx;
     const clipId = `gantt-bar-label-clip-${String(index)}`;
@@ -2921,6 +3072,19 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
 
     const left = barLeft + LABEL_PAD_LEFT_PX;
     const top = barTop + lane.heightPx / 2 + 3;
+    if (place.spilled) {
+      // Past the placeholders the band's other lane is bare canvas: the
+      // words sit on a patch of the bar's own fill, as on the live chart.
+      const patch = svgRect(
+        left - 2,
+        top - 9,
+        shown.length * LABEL_CHAR_PX + 4,
+        12,
+        bar.personColor,
+      );
+      patch.setAttribute('clip-path', `url(#${clipId})`);
+      root.appendChild(patch);
+    }
     const label = svgText(left, top, shown, {
       fontSize: 9,
       fontWeight: '600',
@@ -2931,6 +3095,40 @@ function buildStandaloneGanttSvg(input: StandaloneGanttSvgInput): SVGSVGElement 
     // so real font metrics cannot carry this label into its neighbour. The
     // cloned bar retains the full barFacts aria-label; this visible copy is
     // presentation-only and must not announce a shorter duplicate.
+    label.setAttribute('clip-path', `url(#${clipId})`);
+    label.setAttribute('aria-hidden', 'true');
+    root.appendChild(label);
+  }
+
+  // A lane stack's one label, as the live chart writes it ({@link
+  // laneStacksOf}): the page's ink on a patch of the page's ground, clipped to
+  // the stack's band. The patch is the estimated text width, clipped with it.
+  for (const [index, stack] of stacks.entries()) {
+    const shown = stackText(stack, stackRoomFor(stack, dayPx));
+    const band = labelBandOf({ rowIndex: stack.rowIndex, lanes: 1 });
+    if (shown === null || band === null) continue;
+    const stackLeft = gutterPx + stack.x * dayPx + CHART_PAD_PX;
+    const stackTop = ROW_PX + band.topPx;
+    const clipId = `gantt-stack-label-clip-${String(index)}`;
+    const clip = document.createElementNS(SVG_NS, 'clipPath');
+    clip.setAttribute('id', clipId);
+    clip.setAttribute('clipPathUnits', 'userSpaceOnUse');
+    clip.appendChild(
+      svgRect(stackLeft, stackTop, stack.width * dayPx - LABEL_PAD_PX, band.heightPx, '#000'),
+    );
+    labelClips.appendChild(clip);
+    const left = stackLeft + LABEL_PAD_LEFT_PX;
+    const middle = stackTop + band.heightPx / 2;
+    const patch = svgRect(
+      left - 2,
+      middle - 6,
+      shown.length * LABEL_CHAR_PX + 4,
+      12,
+      theme.background,
+    );
+    patch.setAttribute('clip-path', `url(#${clipId})`);
+    root.appendChild(patch);
+    const label = svgText(left, middle + 3, shown, { fontSize: 9, fill: theme.foreground });
     label.setAttribute('clip-path', `url(#${clipId})`);
     label.setAttribute('aria-hidden', 'true');
     root.appendChild(label);
@@ -3614,7 +3812,8 @@ export function GanttRenderer({
   const viewportPxReading = useRef(0);
   /**
    * Takes {@link scrolledPx} off one scroll box: on its own scroll events, and
-   * whenever a box is mounted — Full puts the chart in a new box at 0.
+   * whenever a box is mounted — Full puts the chart in a new box, which the
+   * mount effect first scrolls to the old box's offset (F-126).
    */
   const readTheScroll = useCallback((port: HTMLElement): void => {
     if (port.scrollLeft === scrolledPxReading.current) return;
@@ -3719,9 +3918,22 @@ export function GanttRenderer({
     if (!(row instanceof HTMLElement)) {
       throw new Error("the chart's scroll box holds no content row to watch");
     }
-    // A new box starts at `scrollLeft` 0, and the caption's month and the
-    // marker-rule density are read off the scroll — so the offset is taken
-    // from the box on screen, not carried over from the one Full replaced.
+    // A new box starts at `scrollLeft` 0, so the offset the box Full replaced
+    // was left at is put on it first (ui-review F-126): a reader who scrolled to
+    // October and pressed Full lands on October, and again on Close. Pixels
+    // carry the day, because Full changes the box's width and not the scale.
+    // On the first mount the reading is 0 and this writes nothing. The browser
+    // clamps an offset past the new box's end.
+    //
+    // Proof: with this assignment removed, `e2e/scroll-stability.e2e.ts` `Full
+    // keeps the chart’s horizontal scroll on the way in and out` failed on `in
+    // Full · Expected: 600 · Received: 0`, and `gantt-panel.test.tsx` `carries
+    // the box's offset into Full and back out` on `expected +0 to be 236`.
+    // Watched 2026-10-16.
+    if (port.scrollLeft !== scrolledPxReading.current) port.scrollLeft = scrolledPxReading.current;
+    // Then the offset is taken from the box on screen, because the caption's
+    // month and the marker-rule density are read off the scroll and a clamped
+    // write lands short of what was asked.
     //
     // Proof: with this line removed, `gantt-panel.test.tsx` `names the month
     // of the box on screen after Full is switched on and off` failed on
@@ -4202,6 +4414,8 @@ export function GanttRenderer({
    * the flags and links have to ask about.
    */
   const drawnBars = placed.bars;
+  const laneStacks = useMemo(() => laneStacksOf(drawnBars), [drawnBars]);
+  const laneSpills = useMemo(() => spillsOf(laneStacks), [laneStacks]);
   // Proof: removing invalidation left the chooser and pending hover alive after
   // same-generation filter/collapse/rung changes (subday-review-proof-placement).
   useLayoutEffect(() => {
@@ -5960,7 +6174,13 @@ export function GanttRenderer({
               click that takes the plan to a row belongs to the rect underneath,
               and a span on top would swallow it in its middle.
             */}
-        {drawnBars.map(({ bar, x, width }) => {
+        {drawnBars.map((placed) => {
+          const { bar } = placed;
+          // Its own span, or for a laned bar only the cells past its stack's
+          // placeholders — see {@link barLabelPlaceOf}.
+          const place = barLabelPlaceOf(placed, laneSpills);
+          if (place === null) return null;
+          const { x, width, band: lane } = place;
           // The row's number first, then who is on the bar, then its name —
           // see {@link barText}; an unestimated bar says `number · no
           // estimate` ({@link PLACEHOLDER_WORDS}). The room is the **drawn**
@@ -5975,8 +6195,7 @@ export function GanttRenderer({
               ? poolLabelFor(bar.team, bar.width, room)
               : barLabelFor(bar.personName, room);
           const shown = barText(who, bar.workItemName, room);
-          const lane = labelLaneOf(bar);
-          if (shown === null || lane === null) return null;
+          if (shown === null) return null;
           return (
             <span
               key={`${bar.sliceId}-label`}
@@ -6002,8 +6221,8 @@ export function GanttRenderer({
                 // schedule: the label's pixel is the bar's pixel only with
                 // the same band added. See {@link CHART_PAD_PX}.
                 left: x * dayPx + CHART_PAD_PX,
-                // The bar's own lane, so two bars sharing a row never write
-                // over each other — see {@link labelLaneOf}.
+                // The row's bar band; a laned bar has none and its stack
+                // writes for it below — see {@link labelBandOf}.
                 top: lane.topPx,
                 width: width * dayPx,
                 height: lane.heightPx,
@@ -6014,7 +6233,7 @@ export function GanttRenderer({
                 paddingRight: labelPadRightPx(bar.done, width * dayPx),
               }}
             >
-              {bar.stop === 'blocked_by_proxy' ? (
+              {bar.stop === 'blocked_by_proxy' || place.spilled ? (
                 // The hatch's red stripes run across the whole bar, and a dark
                 // label crossing them fell to 3.70:1 against a stripe. The
                 // words sit on a patch of the bar's own fill instead, so the
@@ -6025,7 +6244,9 @@ export function GanttRenderer({
                 // on its bar` failed in both schemes on the hatched orange
                 // bar at 3.6966327586007055; watched 2026-10-14.
                 // An assumed bar's words are the page's ink, so their patch
-                // is the page's ground.
+                // is the page's ground. A spilled label (F-138) stands half
+                // over bare canvas past its stack's placeholders, so it takes
+                // the same patch of its own fill.
                 <span
                   data-gantt-label-ground
                   className={cn('rounded-sm px-0.5', bar.estimated ? '' : 'bg-background')}
@@ -6039,9 +6260,39 @@ export function GanttRenderer({
             </span>
           );
         })}
+        {laneStacks.map((stack) => {
+          // One label for the bars that share a band in lanes — see
+          // {@link laneStacksOf}. It crosses lanes of different fills, so it
+          // sits on a patch of the page's ground in the page's ink, as an
+          // assumed bar's words do over a hatch.
+          const shown = stackText(stack, stackRoomFor(stack, dayPx));
+          const band = labelBandOf({ rowIndex: stack.rowIndex, lanes: 1 });
+          if (shown === null || band === null) return null;
+          return (
+            <span
+              key={`${stack.sliceId}-stack-label`}
+              data-gantt-stack-label={stack.sliceId}
+              aria-hidden="true"
+              className="text-foreground pointer-events-none absolute overflow-hidden text-[9px] font-normal text-ellipsis whitespace-nowrap"
+              style={{
+                left: stack.x * dayPx + CHART_PAD_PX,
+                top: band.topPx,
+                width: stack.width * dayPx,
+                height: band.heightPx,
+                lineHeight: `${String(band.heightPx)}px`,
+                paddingLeft: LABEL_PAD_LEFT_PX,
+                paddingRight: LABEL_PAD_PX,
+              }}
+            >
+              <span data-gantt-label-ground className="bg-background rounded-sm px-0.5">
+                {shown}
+              </span>
+            </span>
+          );
+        })}
       </>
     ),
-    [dayPx, drawnBars],
+    [dayPx, drawnBars, laneStacks, laneSpills],
   );
 
   /**

@@ -141,3 +141,40 @@ This hosted proof closes the mouse paint evidence gap above. No local browser,
 Nx or full gate ran for this documentation update. The source CI workspace
 gate was still running when this receipt was recorded; aggregate gates remain
 required before merge. No merge, archive or deploy is recorded here.
+
+## Lane review round (#515 BLOCK) on `ui-review/integration-4`, 2026-10-16
+
+Command results on the lane commit `89b1b62e`; its watched proofs are listed
+under Historical review-round proofs above.
+
+- `bunx nx run-many -t test:unit test -p wbs-fe-01 --skip-nx-cache` — both targets succeeded (exit 0).
+- `bunx nx run-many -t lint:fast typecheck -p wbs-fe-01 --skip-nx-cache` — passed.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — 215/215 passed (after amending `project-dropdown-details`).
+- Playwright: header, project-picker, plan-import, reference-cell-panel, mobile, hints, hover-cards, import-with-ai, toolbar-panels, dark-mode, directory, home, keyboard, project-settings, gantt — 229 passed (27.7 min); `reference-cells.spec.ts --repeat-each 3` — 15 passed.
+
+## Re-merge of main 5274046bd (#514), 2026-10-17
+
+Main's F-092 rule set kept (bottom sheets wrap, compact lists ellipsis + fact card); round-2 additions kept. Shift 1700, `--workers 2`:
+
+- header, plan-import, project-settings — 27 passed.
+- `reference-cells.spec.ts --repeat-each 3` — 18 passed (includes the card paint probe on main's wrapped line, watched failing with the card at `zIndex: 20`).
+- `lint:fast` + `typecheck` (wbs-fe-01) — passed; `openspec validate --all --json` — 224/224.
+
+## Integration-4 fix: list width independent of the header, 2026-10-16
+
+On `ui-review/integration-4` (#528's outline Plan / Board selector), the list at the input's width was 196px at 1024. Fix: `md:min-w-72` on the listbox. Shift 5500:
+
+- Proof (before the fix): `header.spec.ts` › `two imports of one long name read apart at every width` failed on `a name takes more than two lines at 1024px: [3,3]`, and the new check failed on `the list is narrower than 18rem at 1024px`, `Received: 196`.
+- After: header 18 passed; plan-import 5 passed; mobile 28 passed; toolbar-panels 20 passed (`--workers 2`).
+- `lint:fast` + `typecheck` (wbs-fe-01) passed; `openspec validate --all --json` — 231/231.
+
+## Merge of main 5fdc19839 (#556, #561) into integration-4, 2026-10-16
+
+Main's reconciled `hover-card.tsx` (pure placement extracted, card layer
+already present) and its verify, tasks and spec wording kept; integration-4's
+`md:min-w-72`, its 18rem rule, scenario and header assertion kept. Shift 6100,
+`--workers 2`:
+
+- header, plan-import, project-settings, reference-cells, hints, hover-cards — 85 passed (4.3m), including the mouse paint probe at `reference-cells.spec.ts:703`.
+- `vitest` `project-page.test.tsx`, `hover-card.test.tsx`, `hover-card-placement.test.ts` — 147 passed.
+- `lint:fast` + `typecheck` (wbs-fe-01) — passed; `openspec validate --all --json` — 247/247.

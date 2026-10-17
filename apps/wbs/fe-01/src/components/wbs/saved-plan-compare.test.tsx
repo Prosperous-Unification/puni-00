@@ -32,6 +32,7 @@ const ready = (over: Partial<Extract<SavedPlanComparisonState, { kind: 'ready' }
     diff: { input: [], schedule: [] },
     schedules: { left: { kind: 'present' }, right: { kind: 'present' } },
     rows: [row()],
+    livePlanRevision: 0,
     ...over,
   }) satisfies SavedPlanComparisonState;
 

@@ -53,6 +53,17 @@ export function scheduleWords(row: SavedPlanListEntryView): string {
 }
 
 /**
+ * A row's meta line as one sentence — when (unless the name already is the
+ * time), by whom, and what came along — for its hover card, where a clause the
+ * row had to ellipsise is read whole: the line's `data-fact`, the app's hover
+ * card in place of a native `title`.
+ */
+export function metaWords(row: SavedPlanListEntryView): string {
+  const who = `saved by ${row.createdBy} ${scheduleWords(row)}`;
+  return isNamedByTime(row) ? who : `${longInstant(row.createdAt)} ${who}`;
+}
+
+/**
  * A row's name, and the rename that is an edit on it rather than a modal.
  *
  * 8.2's second half. The saved plan itself is immutable — `name` is the one
@@ -274,26 +285,36 @@ function SavedPlanRow({
         ) : (
           <SavedPlanName row={row} onRename={onRename} />
         )}
-        <span className="text-muted-foreground truncate">
-          {/*
-            The time in the app's words and the reader's own zone (F-067), the
-            instant itself in `dateTime` for a machine. Left out for a row whose
-            name already is the time: the same moment twice in two lines was
-            the defect. (Until 2026-10-14 the words were `toLocaleString`'s, so
-            one shelf spelt one instant three ways.)
-          */}
+        {/*
+          The time in the app's words and the reader's own zone (F-067), the
+          instant itself in `dateTime` for a machine. Left out for a row whose
+          name already is the time: the same moment twice in two lines was
+          the defect. (Until 2026-10-14 the words were `toLocaleString`'s, so
+          one shelf spelt one instant three ways.)
+
+          Three clauses that wrap between each other and never inside one
+          (F-103): one `truncate` line cut a named row at `with it…` in the
+          panel's 380 px, which is the one clause that says what the
+          checkpoint holds. A name too long for the row still ellipsises
+          inside `saved by …`, and the fact (the app's own title; the plan
+          draws no native tooltips) carries the whole sentence.
+        */}
+        <span
+          className="saved-plan-list__meta text-muted-foreground flex flex-wrap gap-x-1"
+          data-fact={metaWords(row)}
+        >
           {!isNamedByTime(row) && (
-            <>
-              <time
-                className="saved-plan-list__when"
-                dateTime={new Date(row.createdAt).toISOString()}
-              >
-                {longInstant(row.createdAt)}
-              </time>{' '}
-            </>
-          )}
-          <span className="saved-plan-list__who">saved by {row.createdBy}</span>{' '}
-          <span className="saved-plan-list__schedule">{scheduleWords(row)}</span>
+            <time
+              className="saved-plan-list__when whitespace-nowrap"
+              dateTime={new Date(row.createdAt).toISOString()}
+            >
+              {longInstant(row.createdAt)}
+            </time>
+          )}{' '}
+          <span className="saved-plan-list__who max-w-full truncate whitespace-nowrap">
+            saved by {row.createdBy}
+          </span>{' '}
+          <span className="saved-plan-list__schedule whitespace-nowrap">{scheduleWords(row)}</span>
         </span>
       </div>
       {confirming && onRemove !== undefined ? (

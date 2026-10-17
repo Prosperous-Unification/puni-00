@@ -1,7 +1,7 @@
 ## 1. Labels (F-012, F-037)
 
-- [x] 1.1 Failing component test: one label per bar, inside its own lane, none overlapping; placeholder reads `no estimate`
-- [x] 1.2 `labelLaneOf` and the placeholder words; browser overlap check
+- [x] 1.1 Failing component test: one label per bar, inside its own lane, none overlapping; placeholder reads `no estimate` (lane labels since superseded by the lane stack label, `ui-review-gantt-directory`)
+- [x] 1.2 `labelLaneOf` (since `labelBandOf`, `ui-review-gantt-directory`) and the placeholder words; browser overlap check
 
 ## 2. Contrast (F-038)
 

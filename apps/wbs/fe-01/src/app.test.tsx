@@ -270,6 +270,54 @@ describe('the session gate when the session read fails', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  /*
+   * A 403 the contract does not model (the session read has no 403 of its own):
+   * a WAF, CDN or proxy in front of be-01 said no before be-01 was asked, so it
+   * is an outage-like state with its own heading, not a sign-in problem (F-095).
+   */
+  itDom.each([
+    ['a proxy 403', failed({ code: 'unexpected_status', status: 403, headers: new Headers() })],
+    [
+      'a 403 page that is not JSON',
+      failed({ code: 'invalid_response', reason: 'json', status: 403, headers: new Headers() }),
+    ],
+  ])('draws the access-refused state for %s, with no credential boxes', async (_, reply) => {
+    me.mockResolvedValue(reply);
+
+    renderApp();
+
+    // Proof: on 3e06eb5a4 (a 403 routed to `sign-in` with failureMessage's notice)
+    // this failed on `Unable to find role="heading" and name "Access refused"`: the
+    // form was drawn under "The server returned an unexpected response. Try again."
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Access refused' })).toBeDefined();
+    });
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Something in front of the server refused this request, so your session could not be checked.',
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeDefined();
+    expect(screen.queryByRole('heading', { name: 'Server unavailable' })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Username' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Continue with SSO' })).toBeNull();
+  });
+
+  itDom('says you are not signed in above the form for a 401 with no challenge', async () => {
+    me.mockResolvedValue(
+      failed({ code: 'invalid_response', reason: 'json', status: 401, headers: new Headers() }),
+    );
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Continue with SSO' })).toBeDefined();
+    });
+    // Proof: on 3e06eb5a4 this failed on `expected 'The server returned an unexpected
+    // res…' to be 'You are not signed in.'` — the F-079 wording on the one branch
+    // whose way on is the form.
+    expect(screen.getByRole('alert').textContent).toBe('You are not signed in.');
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
   itDom('keeps the sign-in form for a gateway that refuses the read', async () => {
     me.mockResolvedValue(
       failed({

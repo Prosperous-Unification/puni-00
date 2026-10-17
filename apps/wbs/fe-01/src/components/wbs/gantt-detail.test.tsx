@@ -150,6 +150,46 @@ describe('the detail switch, over the runtime the page publishes', () => {
     expect(held.result.current.shown).toBe(false);
   });
 
+  /**
+   * Links that become unknown again belong to another plan: a project switch
+   * hands the chart generation 0 before the next plan's first read. The
+   * never-said default is then decided again, both ways (ui-review F-088).
+   *
+   * Proof: on the code before F-088 (the latch kept once set), this failed on
+   * `expected false to be true` at the first `rerender({ edges: true })`.
+   * Watched 2026-10-16.
+   */
+  itDom('decides the never-said default again once the links are unknown again', () => {
+    const held = renderHook(({ edges }) => useGanttDetail(edges), {
+      wrapper: wrapperFor(emptySlot()),
+      initialProps: { edges: false as boolean | null },
+    });
+    expect(held.result.current.shown).toBe(false);
+    held.rerender({ edges: null });
+    expect(held.result.current.shown).toBe(false);
+    held.rerender({ edges: true });
+    expect(held.result.current.shown).toBe(true);
+    held.rerender({ edges: null });
+    expect(held.result.current.shown).toBe(false);
+    held.rerender({ edges: false });
+    expect(held.result.current.shown).toBe(false);
+  });
+
+  // Proof: with the unlatch also clearing the reader's answer (`setSaid(null)`
+  // beside `setOpening(null)`), this failed on `expected true to be false`.
+  // Watched 2026-10-16.
+  itDom('keeps a remembered answer across links that become unknown again', async () => {
+    const slot = emptySlot();
+    await publishOver(slot, fakeBrowserStorage({ [GANTT_DETAIL_KEY]: 'false' }));
+    const held = renderHook(({ edges }) => useGanttDetail(edges), {
+      wrapper: wrapperFor(slot),
+      initialProps: { edges: false as boolean | null },
+    });
+    held.rerender({ edges: null });
+    held.rerender({ edges: true });
+    expect(held.result.current.shown).toBe(false);
+  });
+
   // Proof: with `shown` held off until the links are known (`opening === null
   // ? false : …`), this failed on `expected false to be true`. Watched
   // 2026-10-15.

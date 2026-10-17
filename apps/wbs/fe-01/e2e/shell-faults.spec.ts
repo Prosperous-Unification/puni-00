@@ -53,9 +53,10 @@ test.describe('the session gate when the server is down (F-079)', () => {
     // The outage card sits in the sign-in page's own column (F-093). Proof,
     // watched 2026-10-15: #479's top-left page (`p-8` main, `mb-6` heading)
     // with only `data-sign-in` added to its card failed at 1440 on `the column
-    // is off the window’s middle · Expected: <= 1 · Received: 496`; the shared
-    // column under the sign-in card's 15.5rem anchor failed on `the column is
-    // off the window’s vertical centre · Expected: <= 48 · Received: 188`.
+    // is off the window’s middle · Expected: <= 1 · Received: 496`. The card
+    // now stands on the sign-in card's own anchor, about 188px above true
+    // centre at 1440, so the word mark does not move between the two (F-125,
+    // D11); `expectAnchoredColumn` holds it to that anchor.
     for (const size of [
       { width: 1440, height: 900 },
       { width: 375, height: 812 },
@@ -72,6 +73,36 @@ test.describe('the session gate when the server is down (F-079)', () => {
 
     await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Server unavailable' })).toHaveCount(0);
+  });
+});
+
+test.describe('the session gate when a proxy refuses the read (F-095)', () => {
+  test('draws the access-refused state, in the sign-in column, with no form', async ({ page }) => {
+    // A WAF's "access denied" page: a 403 in HTML, before be-01 is asked.
+    await page.route('**/api/auth/me', (route) =>
+      route.fulfill({ status: 403, contentType: 'text/html', body: '<h1>Access denied</h1>' }),
+    );
+    await page.goto('/');
+
+    // Proof: on 3e06eb5a4 this failed on `getByRole('heading', { name: 'Access refused' })`
+    // `element(s) not found`: the sign-in form was drawn under "The server returned an
+    // unexpected response. Try again."
+    await expect(page.getByRole('heading', { name: 'Access refused' })).toBeVisible();
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      await page.setViewportSize(size);
+      await expectAnchoredColumn(page);
+    }
+    await expect(page.getByRole('alert')).toHaveText(
+      'Something in front of the server refused this request, so your session could not be checked.',
+    );
+    await expect(page.getByRole('textbox', { name: 'Username' })).toHaveCount(0);
+
+    await page.unroute('**/api/auth/me');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
   });
 });
 
@@ -125,11 +156,70 @@ test.describe('the connection pill (D9)', () => {
   });
 });
 
+/** The link dot's shape, and the header's height around it. */
+function readLinkDot(page: Page) {
+  return page.evaluate(() => {
+    const dot = document.querySelector('header [data-link-dot]');
+    const bar = document.querySelector('header');
+    if (dot === null || bar === null) throw new Error('the header draws no link dot');
+    const style = getComputedStyle(dot);
+    return {
+      state: dot.getAttribute('data-link-dot'),
+      filled: style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      ring: Number.parseFloat(style.borderTopWidth),
+      width: Math.round(dot.getBoundingClientRect().width),
+      header: Math.round(bar.getBoundingClientRect().height),
+    };
+  });
+}
+
+test('tells Live from Reconnecting by the dot’s shape, not colour alone (F-097)', async ({
+  page,
+}, testInfo) => {
+  const seeded = await seedFourRows(page, 'dot-shape', testInfo.workerIndex);
+  let down = true;
+  await page.routeWebSocket('**/ws', (socket) => {
+    if (down) void socket.close();
+    else socket.connectToServer();
+  });
+  await openSeededPlan(page, seeded);
+  await expect(pill(page).getByRole('heading', { name: 'Reconnecting' })).toBeAttached();
+
+  const reconnecting = new Map<number, Awaited<ReturnType<typeof readLinkDot>>>();
+  for (const width of [375, 1024]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 768 });
+    const read = await readLinkDot(page);
+    // Proof: on 3e06eb5a4 (a grey disc) this failed on `the reconnecting dot is a
+    // filled disc · Expected: false · Received: true` at 375: green vs grey was the
+    // whole difference below 1440 px (WCAG 1.4.1).
+    expect(read.filled, 'the reconnecting dot is a filled disc').toBe(false);
+    expect(read.ring, 'the reconnecting dot has no ring').toBeGreaterThanOrEqual(1);
+    reconnecting.set(width, read);
+  }
+
+  down = false;
+  await expect(pill(page).getByRole('heading', { name: 'Live' })).toBeAttached({
+    timeout: 30_000,
+  });
+  for (const width of [375, 1024]) {
+    await page.setViewportSize({ width, height: width === 375 ? 812 : 768 });
+    const read = await readLinkDot(page);
+    expect(read.filled, 'the live dot is not filled').toBe(true);
+    expect(read.ring, 'the live dot wears a ring').toBe(0);
+    const before = reconnecting.get(width);
+    // The ring takes the disc's own box, so neither state moves or wraps the header.
+    expect(read.width, `the dot changed size at ${String(width)}`).toBe(before?.width);
+    expect(read.header, `the header changed height at ${String(width)}`).toBe(before?.header);
+  }
+});
+
 /**
  * The contrast of a row's drop edge against the cell it is drawn on, per edge:
- * the strongest inset shadow at least 2px deep on the top (`above`) or the
- * bottom (`below`) of the target row's cells, rasterised through a canvas for
- * `external-refs.spec.ts`' reason (`oklch(…)` has no luminance as a string).
+ * the strongest inset shadow at least 2px deep on the top or the bottom of the
+ * target row's cells (`into`'s outline), or the line laid over the row on that
+ * edge (`above`, `below`: `[data-drop-line]`, UI review F-128), rasterised
+ * through a canvas for `external-refs.spec.ts`' reason (`oklch(…)` has no
+ * luminance as a string).
  */
 function dropEdgeContrast(page: Page, number: string): Promise<{ top: number; bottom: number }> {
   return page.evaluate((rowNumber) => {
@@ -176,6 +266,13 @@ function dropEdgeContrast(page: Page, number: string): Promise<{ top: number; bo
       const edge = depth >= 2 ? 'top' : depth <= -2 ? 'bottom' : null;
       if (edge !== null) edges[edge] = Math.max(edges[edge], ratio(rgbOf(colour), ground));
     }
+    const line = document.querySelector('[data-drop-line]');
+    const lineEdge = line?.getAttribute('data-drop-line');
+    if (line !== null && (lineEdge === 'top' || lineEdge === 'bottom'))
+      edges[lineEdge] = Math.max(
+        edges[lineEdge],
+        ratio(rgbOf(getComputedStyle(line).backgroundColor), ground),
+      );
     return edges;
   }, number);
 }

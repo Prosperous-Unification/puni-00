@@ -23,6 +23,9 @@ export interface Roster {
 /** What the panel says while the link is down, when nobody's presence can be known. */
 const UNKNOWN = 'Who else is here is not known until the link is back.';
 
+/** What `Live` means, said in the fact card ahead of the roster (D9 amendment, F-096). */
+const LIVE_MEANS = 'edits by other people and who is here arrive as they happen.';
+
 export interface PresencePanelProps extends Roster {
   me: string;
 }
@@ -68,12 +71,18 @@ export interface PresencePanelProps extends Roster {
  * contradiction. `Reconnecting` is the stream's real behaviour and the table's
  * line says the same word.
  *
+ * The Live fact card says what Live means before the roster (F-096): the pill's
+ * one chance to teach that Live is the stream, not the server.
+ *
  * **While reconnecting, presence is unknown** (F-077): no names, no count and no
  * "Nobody yet." — neither the last roster heard nor an empty one is known to be
  * true. The panel says so to a screen reader and in its fact card. Below 1440px
- * that leaves the grey dot alone, as the collapsed roster leaves a dot and a
- * count: a visible `Reconnecting` there wrapped the phone's first header row
- * into two, and the plan's own line under the toolbar already says it in words.
+ * that leaves the dot alone, as the collapsed roster leaves a dot and a count: a
+ * visible `Reconnecting` there wrapped the phone's first header row into two.
+ * So the dot carries the state in **shape** as well as colour (F-097, WCAG
+ * 1.4.1): a filled green disc while Live, a hollow grey ring while
+ * Reconnecting, the same 8px box so the row does not move; the word itself is
+ * on the fact card a pointer opens.
  */
 export function PresencePanel({ me, users, connected }: PresencePanelProps) {
   const headingId = useId();
@@ -85,17 +94,19 @@ export function PresencePanel({ me, users, connected }: PresencePanelProps) {
       data-fact={
         !connected
           ? `${state}: ${UNKNOWN.toLowerCase()}`
-          : users.length === 0
-            ? `${state}: nobody yet`
-            : `${state}: ${roster}`
+          : `${state}: ${LIVE_MEANS} Here now: ${users.length === 0 ? 'nobody yet' : roster}.`
       }
+      data-fact-lead={state}
       className="flex min-w-0 items-center gap-1.5 text-xs"
     >
       <span
         aria-hidden="true"
+        data-link-dot={connected ? 'live' : 'reconnecting'}
         className={cn(
           'size-2 shrink-0 rounded-full',
-          connected ? 'bg-[var(--status-done)]' : 'bg-muted-foreground',
+          connected
+            ? 'bg-[var(--status-done)]'
+            : 'border-muted-foreground border-[1.5px] bg-transparent',
         )}
       />
       <h2

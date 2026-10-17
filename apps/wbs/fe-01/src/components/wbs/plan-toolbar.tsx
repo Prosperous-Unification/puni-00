@@ -412,6 +412,51 @@ export function ColumnsControl({
 }
 
 /**
+ * Closes the Export / Import menu once a one-shot item in `panel` is chosen, until React detaches
+ * the panel (a React 19 ref callback's cleanup).
+ *
+ * Every item but the Mermaid lanes setting is a one-shot, and a menu closes once its choice is
+ * made (UI review F-106, F-127): a button (a copy, a download, the Import with AI dialog) closes
+ * it on its click, the JSON import once a file is chosen, not on the label's click, which only
+ * opens the picker. The setting is a `<select>`, so neither reaches it. The focus goes to the
+ * summary, what opened the menu, since the item it was on is hidden now.
+ *
+ * Native listeners on the panel rather than React props, because the panel is a plain container
+ * of controls and not itself interactive. They run in the bubble before React's root listener,
+ * so the menu is shut before an item's own handler (Radix opening its dialog) runs.
+ *
+ * @throws When the panel is not inside a `<details>` with a `<summary>`: it is written inside one.
+ */
+function closeOnChoice(panel: HTMLDivElement | null): (() => void) | undefined {
+  if (panel === null) return undefined;
+  const close = (): void => {
+    const menu = panel.closest('details');
+    const summary = menu?.querySelector(':scope > summary');
+    if (menu === null || !(summary instanceof HTMLElement))
+      throw new Error('the Export / Import panel is outside its <details> menu');
+    menu.open = false;
+    summary.focus();
+  };
+  const onClick = (event: MouseEvent): void => {
+    if (event.target instanceof Element && event.target.closest('button') !== null) close();
+  };
+  // Proof: on 2026-10-16, with this listener's close taken out, the file step of `closes Export
+  // / Import after every one-shot item, and keeps it for Mermaid lanes (F-127)` failed on
+  // `expected true to be false`.
+  const onChange = (event: Event): void => {
+    if (event.target instanceof HTMLInputElement && event.target.type === 'file') close();
+  };
+  // Proof: on 2026-10-16, with the click listener's close taken out, the same case failed on
+  // `expected [ 'Copy as Markdown', …(6) ] to deeply equal []`.
+  panel.addEventListener('click', onClick);
+  panel.addEventListener('change', onChange);
+  return () => {
+    panel.removeEventListener('click', onClick);
+    panel.removeEventListener('change', onChange);
+  };
+}
+
+/**
  * Named filters this browser has saved for this project — R10 F4, beside
  * {@link FilterFacets} because naming a filter and ticking one are the same
  * act's two moments.
@@ -425,6 +470,13 @@ export function ColumnsControl({
  * the same bargain `Clear filters` makes: a view named for the whole,
  * unfiltered plan has nothing to be picked back to, because opening a project
  * already shows the whole plan.
+ *
+ * **An empty name does not turn Save off (UI review F-104).** Views and Saved
+ * plans are sibling panels with one anatomy, and Saved plans names a plan saved
+ * with no name by its time. A view saved with no name is named by what it asks
+ * of the plan — {@link filterWords}, the words its row's fact already shows —
+ * and Enter in the field saves, as it does there. A name a view already has
+ * replaces that view rather than listing a second one (F-140).
  */
 export function SavedViews({
   views,
@@ -443,7 +495,14 @@ export function SavedViews({
 }) {
   const [name, setName] = useState('');
   const filtering = isFiltering(current);
-  const canSave = filtering && name.trim() !== '';
+  const save = (): void => {
+    const typed = name.trim();
+    // Proof: on 2026-10-16, saving `typed` as it stood failed `names a view by what it filters
+    // when no name is typed, as Saved plans does (F-104)` on `expected [ '' ] to deeply equal
+    // [ 'team Billing' ]`.
+    onSave(typed === '' ? filterWords(current, labels).join('; ') : typed);
+    setName('');
+  };
   return (
     <details ref={useClosedOnDismiss()} data-saved-views className="relative">
       <summary
@@ -456,7 +515,13 @@ export function SavedViews({
         data-saved-views-panel
         className="scroll-cue bg-popover absolute z-50 mt-1 max-h-[min(40rem,calc(100dvh-10rem))] w-64 overflow-y-auto rounded-md border p-3 text-sm shadow-md"
       >
-        <div className="mb-2 flex gap-1.5">
+        <form
+          className="mb-2 flex gap-1.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (filtering) save();
+          }}
+        >
           <Input
             className="h-8 flex-1 text-xs"
             aria-label="Name this view"
@@ -469,22 +534,21 @@ export function SavedViews({
           <Button
             variant="outline"
             size="sm"
-            type="button"
-            disabled={!canSave}
+            type="submit"
+            disabled={!filtering}
             // What the button does while there is something to save, and why it
             // is off while there is not — the second is about the plan in front
             // of the reader, so it does not wait.
             {...(filtering
-              ? { 'data-hint': 'Save the Find box and the ticked filters under this name' }
+              ? {
+                  'data-hint':
+                    'Save the Find box and the ticked filters. With no name, it is named by what it filters.',
+                }
               : { 'data-fact': 'Nothing is filtered — there is no view to name' })}
-            onClick={() => {
-              onSave(name.trim());
-              setName('');
-            }}
           >
             Save
           </Button>
-        </div>
+        </form>
         {views.length === 0 ? (
           <p className="text-muted-foreground text-xs">No saved views yet.</p>
         ) : (
@@ -1177,10 +1241,23 @@ export function PlanToolbar({
         current={currentCriteria}
         labels={filterLabels}
         onSave={(name) => {
-          const next = [
-            ...savedViews,
-            { id: crypto.randomUUID(), name, criteria: currentCriteria, hiddenColumnIds },
-          ];
+          // One name names one view (UI review F-140): a save under a name a view already has
+          // replaces that view where it stands, so a double press of Save, or a derived name
+          // saved twice, cannot list two identical rows.
+          // Proof: on 2026-10-16, appending regardless failed `a save under a name a view
+          // already has replaces that view, not a second row (F-140)` on `expected [ Array(3) ]
+          // to deeply equal [ 'team Billing' ]`.
+          const named = savedViews.find((view) => view.name === name);
+          const saved = {
+            id: named?.id ?? crypto.randomUUID(),
+            name,
+            criteria: currentCriteria,
+            hiddenColumnIds,
+          };
+          const next =
+            named === undefined
+              ? [...savedViews, saved]
+              : savedViews.map((view) => (view.id === named.id ? saved : view));
           setSavedViews(next);
           rememberSavedViews(projectId, next);
         }}
@@ -1424,6 +1501,7 @@ export function PlanToolbar({
             // lights on hover and focus, with a rule between the exports, the imports and
             // the one setting. It was nine bordered buttons in a column (UI review F-031).
             className="bg-popover absolute z-50 mt-1 flex w-56 flex-col items-stretch rounded-md border p-1 shadow-md"
+            ref={closeOnChoice}
           >
             <Button
               variant="ghost"
@@ -1753,8 +1831,14 @@ export function PlanToolbar({
         (`toolbar-panels.spec.ts`). The inner gap is the bar's own `gap-x-1.5`, so the width
         the budgets in `project-settings.spec.ts` and `optimization-cue.spec.ts`
         add up is unchanged; they count the controls by role, not by child.
+        Named groups (F-094), so a screen reader hears the grouping the eye sees.
       */}
-      <div data-toolbar-end className="ml-auto flex shrink-0 items-center gap-1.5">
+      <div
+        data-toolbar-end
+        role="group"
+        aria-label="Whole plan"
+        className="ml-auto flex shrink-0 items-center gap-1.5"
+      >
         {undo}
         {redo}
         {shortcuts}
@@ -1763,7 +1847,12 @@ export function PlanToolbar({
           The schedule controls stay a group of their own inside it (F-005):
           Starts, Plan with and Reset layout never part.
         */}
-        <div data-schedule className="flex shrink-0 items-center gap-1.5">
+        <div
+          data-schedule
+          role="group"
+          aria-label="Schedule"
+          className="flex shrink-0 items-center gap-1.5"
+        >
           {starts}
           {method}
           {layoutReset}

@@ -137,6 +137,20 @@
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
+  /*
+   * The edge of an `outline` button: the slate of `--muted-foreground` a few
+   * steps lighter, so the boundary that is the control's only cue clears 3:1
+   * on the page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
+   * `--accent`; WCAG 1.4.11). `--input` stays the hairline a text box draws:
+   * as a button's edge it measured 1.22:1 light and 1.28:1 dark against the
+   * sign-in card (UI review F-124).
+   *
+   * Proof: with the `outline` variant back on `border-input`,
+   * `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed on
+   * `Continue with SSO: outside · Expected: >= 3 · Received: 1.22…` (light) and
+   * `1.28…` (dark). Watched 2026-10-16.
+   */
+  --control-edge: oklch(0.62 0.03 257);
   /* A list that drops over the table (`PICKER_PANEL_STYLE`). Its own token
      because a 12% black shadow is invisible on the dark page, where a list
      ran into the rows under it with nothing at its edge (UI review F-022). */
@@ -216,6 +230,8 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
+  /* 4.17:1 on the card, 4.71:1 on the page, 3.43:1 on the hover fill. */
+  --control-edge: oklch(0.58 0.03 257);
   --popover-shadow: 0 0 0 1px oklch(1 0 0 / 14%), 0 6px 18px oklch(0 0 0 / 60%);
   --highlight: oklch(0.62 0.12 96);
   --status-done: oklch(0.72 0.15 148);
@@ -403,6 +419,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-control-edge: var(--control-edge);
   --color-ring: var(--ring);
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -546,6 +563,34 @@
    */
   button:not([data-grid], [data-grid] *) {
     background-color: transparent;
+  }
+
+  /*
+   * A disabled radio drawn by the palette rather than the engine: a ring and,
+   * when checked, a dot, both in `--muted-foreground` on `--background`. The
+   * engine's own disabled discs were a pale and a paler grey, 1.44:1 apart in
+   * the light palette and 2.43:1 in the dark one, so a locked step's unit and
+   * the schedule Fast holds while optimization is off could not be read
+   * (ui-review F-118, F-119). `--muted-foreground` stands at least 4.5:1 off
+   * `--background` in both palettes, so checked and unchecked differ by more
+   * than WCAG 1.4.11's 3:1, which `settings-vocabulary.spec.ts` measures off the
+   * pixels. Enabled radios keep the platform's drawing, and the phone floor's
+   * unlayered 22px still sizes this one. The margin is the platform's own, so a
+   * disabled row stands where an enabled one does.
+   */
+  input[type='radio']:disabled:not([data-grid], [data-grid] *) {
+    appearance: none;
+    box-sizing: border-box;
+    width: 13px;
+    height: 13px;
+    margin: 3px 3px 0 5px;
+    border: 1px solid var(--muted-foreground);
+    border-radius: 50%;
+    background: var(--background);
+  }
+
+  input[type='radio']:disabled:checked:not([data-grid], [data-grid] *) {
+    background: radial-gradient(circle, var(--muted-foreground) 0 35%, var(--background) 40%);
   }
 }
 
@@ -912,8 +957,8 @@
    * Anything added to the two rules below has to join this chain, and its
    * negative has to hover the row it is about.
    *
-   * `[data-drop='into']` and not `[data-drop]`: `above` and `below` draw an
-   * edge on the `<td>`s and leave `--cell-bg` alone, so a row being dragged
+   * `[data-drop='into']` and not `[data-drop]`: `above` and `below` draw a
+   * line laid over the row and leave `--cell-bg` alone, so a row being dragged
    * past keeps its hover.
    */
   [data-grid]
@@ -1193,16 +1238,14 @@
   }
 
   /* Full `--quiet-ink`, no opacity: a placeholder is the only word an empty
-     cell says, and it has to clear 4.5:1 on a banded row (UI review F-071). */
+     cell says, and it has to clear 4.5:1 on a banded row (UI review F-071).
+     The Estimate cells' `o/r/p` too (F-091, decision D10): it drew at 0.45
+     opacity, 1.96:1 light and 2.35:1 dark on the band, and is the only thing an
+     empty estimate says. Proof: `plan-table-review.spec.ts` `the o/r/p shorthand
+     on the band`. */
   [data-grid] ::placeholder {
     color: var(--quiet-ink);
     opacity: 1;
-  }
-
-  /* The estimate shorthand's `o/r/p` is a reminder of a syntax, not a prompt to
-     fill anything in: quieter than the rest. */
-  [data-grid] td[data-column$='-final'] ::placeholder {
-    opacity: 0.45;
   }
 
   /*
@@ -1565,9 +1608,11 @@
    * Where a dropped row would land. Last, so these beat the separators above
    * them — same specificity, and the cascade reads source order.
    *
-   * `above` and `below` draw a 2px line on that edge of the target; `into` draws
-   * the target's whole outline and tints it, because "inside this row" is the
-   * whole row taking the dragged one as a child. The ink is `--primary`, the
+   * `into` draws the target's whole outline and tints it, because "inside this
+   * row" is the whole row taking the dragged one as a child. `above` and `below`
+   * are not drawn here: their 2px line starts at the depth the drop lands at,
+   * which only the row's measured outline knows, so `wbs-table.tsx` lays it
+   * over the table (`dropLineOf`, UI review F-128) in this same ink. The ink is `--primary`, the
    * strongest the palette has, and not `--ring`: a `--ring` line measured 2.6:1
    * against the lit row in light, under the 3:1 WCAG 1.4.11 asks of a graphical
    * cue, and the `into` tint alone was the same grey as the pointed row's light,
@@ -1600,16 +1645,6 @@
       inset -2px 0 0 var(--grid-drop-edge),
       inset 0 2px 0 var(--grid-drop-edge),
       inset 0 -2px 0 var(--grid-drop-edge);
-  }
-
-  [data-grid] tbody tr[data-drop='above'] td {
-    box-shadow:
-      inset 0 2px 0 var(--grid-drop-edge),
-      inset 0 -1px 0 var(--border);
-  }
-
-  [data-grid] tbody tr[data-drop='below'] td {
-    box-shadow: inset 0 -2px 0 var(--grid-drop-edge);
   }
 
   /*
@@ -2096,6 +2131,23 @@
 
 [data-sheet-rows] > details[open] > summary::after {
   transform: rotate(90deg);
+}
+
+/*
+ * A settings box whose section's write is in the air (UI review F-081). The box
+ * is `readOnly` rather than `disabled`, so it keeps the focus (F-066), and it
+ * drew exactly like an editable one: same ink, fill and text cursor, with a
+ * caret that took keystrokes it then dropped. Muted fill, `--quiet-ink` (which
+ * clears 4.5:1 on `--muted` in both themes, `settings-layout.spec.ts`), the
+ * progress cursor and no caret say "not now" without moving anything; the
+ * focus ring stays. Unlayered, because the box's own `bg-background` is a
+ * utility and a component-layer rule loses to it.
+ */
+[role='tabpanel'][aria-busy='true'] input:read-only:not([type='radio'], [type='checkbox']) {
+  background-color: var(--muted);
+  color: var(--quiet-ink);
+  cursor: progress;
+  caret-color: transparent;
 }
 
 [data-picker-list] [role='option'] {

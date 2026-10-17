@@ -378,3 +378,31 @@ describe('what the section tells the modal it is holding', () => {
     await settle();
   });
 });
+
+describe('the ladder as a sighted reader meets it', () => {
+  itDom('heads its columns in one row the screen reader skips (F-120)', () => {
+    stubbed();
+
+    // Proof: on 3e06eb5a4 this failed with `expected null not to be null`: the start,
+    // range and writes boxes were named only by their aria-labels.
+    const header = document.querySelector('[data-priority-header]');
+    expect(header).not.toBeNull();
+    expect(header).toHaveAttribute('aria-hidden', 'true');
+    expect([...(header?.children ?? [])].map((cell) => cell.textContent)).toEqual([
+      '',
+      'Band',
+      'Starts at',
+      'Holds',
+      'Writes',
+    ]);
+  });
+
+  itDom('calls the column by the name its header carries (F-121)', () => {
+    stubbed();
+
+    // Proof: on 3e06eb5a4 this failed with `Unable to find an element with the text:
+    // /in the Priority column/`: the sentence said "the Prio column".
+    expect(screen.getByText(/in the Priority column puts on a row/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('Prio ');
+  });
+});
