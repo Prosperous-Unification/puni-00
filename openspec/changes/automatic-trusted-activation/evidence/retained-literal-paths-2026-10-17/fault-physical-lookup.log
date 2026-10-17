@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 361086976, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+221 |       identity: hashBytes(Buffer.from('src')),
+222 |       byteLength: 3,
+223 |     });
+224 |     fs.rmSync(captured.root, { recursive: true });
+225 |     const forbidden = (): never => {
+226 |       throw new Error('ambient literal paths lookup');
+                                                          ^
+error: ambient literal paths lookup
+      at forbidden (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:226:53)
+      at admitLiteralPaths (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:241:14)
+      at parseProject (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:315:5)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:124:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:243:33)
+(fail) retained literal paths sha1 replays after physical roots disappear [246.23ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1207.00ms]

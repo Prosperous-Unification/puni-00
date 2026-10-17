@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 682754048, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+(pass) retained effective rootDirs refuses absolute outside before program with types empty [142.02ms]
+(pass) retained effective rootDirs refuses relative outside before program with types empty [142.17ms]
+(pass) retained effective rootDirs refuses inherited outside before program with types empty [165.68ms]
+(pass) retained effective rootDirs refuses ancestor escape before program with types empty [164.28ms]
+(pass) retained effective rootDirs refuses absent escape descendant before program with types empty [158.97ms]
+(pass) retained effective rootDirs admits existing [225.45ms]
+(pass) retained effective rootDirs admits normalized [135.88ms]
+(pass) retained effective rootDirs admits missing [154.73ms]
+(pass) retained effective rootDirs admits inherited [171.90ms]
+(pass) retained effective rootDirs admits override discarded outside [163.32ms]
+(pass) retained effective rootDirs admits valid candidate link [145.15ms]
+(pass) retained effective rootDirs admits omitted ordinary probes [164.72ms]
+(pass) retained effective rootDirs sha1 replays after physical roots disappear [143.28ms]
+(pass) retained effective rootDirs sha256 replays after physical roots disappear [165.49ms]
+(pass) retained effective rootDirs bounds long roots before source UTF8 encoding [118.05ms]
+(pass) retained effective rootDirs charges repeated compiler admission at exact fit [4322.67ms]
+(pass) retained effective rootDirs charges repeated source admission at exact fit [4396.95ms]
+(pass) retained effective rootDirs charges repeated steps admission at exact fit [4433.31ms]
+(pass) retained effective rootDirs resolves generated fallback with exact declaration and census [142.58ms]
+(pass) retained effective rootDirs refuses second project before its host and owner publication [129.89ms]
+
+ 20 pass
+ 0 fail
+ 76 expect() calls
+Ran 20 tests across 1 file. [16.75s]

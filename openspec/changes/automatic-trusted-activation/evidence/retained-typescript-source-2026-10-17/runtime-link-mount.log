@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+401 |   const f = fromPaths(
+402 |     { 'dir/a.ts': 'a' },
+403 |     { 'aliases/link': '../dir', rootAlias: 'aliases/link/..' },
+404 |   );
+405 |   expect(f.source.pathKind(root + '/rootAlias')).toBe('directory');
+406 |   expect(() => f.source.readFile(root + '/rootAlias/node_modules/pkg/index.d.ts')).toThrow(
+                                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "symlink target invalid"
+
+Received function did not throw
+Received value: "x"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:406:84)
+(fail) candidate link expansion cannot mount runtime through a root alias [122.60ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1085.00ms]

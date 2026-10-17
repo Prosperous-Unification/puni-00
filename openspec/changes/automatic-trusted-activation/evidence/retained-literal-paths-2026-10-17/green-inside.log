@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 361299968, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+(pass) retained literal paths admits inside missing [233.65ms]
+(pass) retained literal paths admits inside linked [180.00ms]
+(pass) retained literal paths admits discarded outside [151.76ms]
+(pass) retained literal paths admits empty replacement [176.45ms]
+(pass) retained literal paths admits wildcard substitution untouched [151.25ms]
+
+ 5 pass
+ 17 filtered out
+ 0 fail
+ 11 expect() calls
+Ran 5 tests across 1 file. [1.84s]

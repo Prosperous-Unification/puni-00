@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 663961600, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+(pass) retained literal paths refuses absolute outside before host and owner [206.37ms]
+(pass) retained literal paths refuses relative outside before host and owner [169.54ms]
+(pass) retained literal paths refuses inherited outside before host and owner [146.77ms]
+(pass) retained literal paths refuses wildcard key fixed outside before host and owner [139.51ms]
+(pass) retained literal paths refuses ancestor escape before host and owner [146.11ms]
+(pass) retained literal paths refuses absent descendant escape before host and owner [155.78ms]
+(pass) retained literal paths admits inside missing [197.02ms]
+(pass) retained literal paths admits inside linked [164.09ms]
+(pass) retained literal paths admits discarded outside [162.13ms]
+(pass) retained literal paths admits empty replacement [132.53ms]
+(pass) retained literal paths admits wildcard substitution untouched [145.83ms]
+(pass) retained literal paths resolves exact fallback with exact declarations and census [138.85ms]
+(pass) retained literal paths resolves fixed wildcard target with exact declarations and census [172.79ms]
+(pass) retained literal paths resolves declaring origin with exact declarations and census [174.68ms]
+(pass) retained literal paths resolves baseUrl replaces origin with exact declarations and census [140.48ms]
+(pass) retained literal paths sha1 replays after physical roots disappear [178.87ms]
+(pass) retained literal paths sha256 replays after physical roots disappear [173.80ms]
+(pass) retained literal paths charges shared compiler admission at exact fit [4453.78ms]
+(pass) retained literal paths charges shared source admission at exact fit [4331.48ms]
+(pass) retained literal paths charges shared steps admission at exact fit [4281.82ms]
+(pass) retained literal paths refuses second project before its host and census publication [158.30ms]
+(pass) retained literal paths bounds long roots before source UTF8 encoding [158.60ms]
+
+ 22 pass
+ 0 fail
+ 85 expect() calls
+Ran 22 tests across 1 file. [17.09s]

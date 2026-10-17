@@ -1,0 +1,8 @@
+{
+  "command": ["bun", "/tmp/typescript-io-f7.ts"],
+  "exitCode": 0,
+  "peakTreeRssBytes": 162328576,
+  "seconds": 0.522,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 300
+}

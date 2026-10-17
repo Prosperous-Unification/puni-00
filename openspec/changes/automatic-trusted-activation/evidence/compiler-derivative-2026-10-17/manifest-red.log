@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+(pass) first escaping wildcard attempt throws before candidate IO or safe fallback [398.38ms]
+(pass) explicit extension fast path observes normalized attempt before tryFile [257.23ms]
+(pass) missing attempts preserve order and success stops later substitutions [233.18ms]
+(pass) ordinary ancestor package probes produce no paths attempt [250.91ms]
+(pass) package typesVersions substitutions do not claim compiler options origin [256.35ms]
+(pass) build refuses altered upstream executable [14.87ms]
+(pass) exact replacement refuses absent matches [0.07ms]
+(pass) exact replacement refuses needle needle matches
+(pass) manifest verifier refuses output tampering and digest rebinding [64.11ms]
+(pass) explicit extension refusal prevents every file and directory probe [234.17ms]
+(pass) bare package types entry uses typesVersions without compiler options event [238.94ms]
+(pass) explicit artifact carries compiler manifest upstream license and modification notice [250.60ms]
+(pass) artifact reader refuses absent compiler.cjs [54.78ms]
+(pass) artifact reader refuses absent manifest.json [51.48ms]
+(pass) artifact reader refuses absent LICENSE.txt [54.41ms]
+(pass) artifact reader refuses absent NOTICE [47.80ms]
+(pass) artifact reader refuses altered compiler.cjs [53.78ms]
+(pass) artifact reader refuses altered manifest.json [50.68ms]
+(pass) artifact reader refuses altered LICENSE.txt [44.33ms]
+(pass) artifact reader refuses altered NOTICE [37.79ms]
+(pass) builder refuses missing section after pinned input verification [61.74ms]
+(pass) builder refuses duplicate section after pinned input verification [53.79ms]
+(pass) builder refuses altered output after pinned input verification [78.04ms]
+(pass) artifact reader refuses unreadable compiler.cjs [47.83ms]
+(pass) artifact reader refuses unreadable manifest.json [36.88ms]
+(pass) artifact reader refuses unreadable LICENSE.txt [42.07ms]
+(pass) artifact reader refuses unreadable NOTICE [38.48ms]
+(pass) manifest refuses malformed closed shape null [31.06ms]
+(fail) manifest refuses malformed closed shape %j [5000.75ms]
+  ^ this test timed out after 5000ms, before its done callback was called. If a done callback was not intended, remove the last parameter from the test callback function
+(pass) manifest refuses malformed closed shape {} [49.49ms]
+(pass) manifest refuses malformed closed shape {"unexpected":true} [30.70ms]
+283 | test('returned manifest cannot rebind later verifier identities', async () => {
+284 |   const upstream = await readFile(require.resolve('@typescript/old/lib/typescript.js'), 'utf8');
+285 |   const artifact = buildCompilerDerivative(upstream);
+286 |   expect(() => { Reflect.set(artifact.manifest, 'inputSha256', '0'.repeat(64));
+287 |     verifyCompilerDerivative(artifact.source, { ...artifact.manifest, inputSha256: '0'.repeat(64) });
+288 |   }).toThrow('manifest');
+           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "manifest"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:288:6)
+(fail) returned manifest cannot rebind later verifier identities [39.71ms]
+(pass) writer refuses absent upstream license before artifact creation [16.27ms]
+(pass) writer refuses altered upstream license before artifact creation [8.87ms]
+
+2 tests failed:
+(fail) manifest refuses malformed closed shape %j [5000.75ms]
+  ^ this test timed out after 5000ms, before its done callback was called. If a done callback was not intended, remove the last parameter from the test callback function
+(fail) returned manifest cannot rebind later verifier identities [39.71ms]
+
+ 32 pass
+ 2 fail
+ 56 expect() calls
+Ran 34 tests across 1 file. [8.15s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 532955136, "exitCode": 1}

@@ -1,0 +1,298 @@
+[
+  {
+    "fault": "omit-base",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "a63f234b8ed2edcb9fd0697b16f6feacd4f9983d5a498d1e586d7b290ba94100",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 366735360,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses absolute outside before program with types empty [224.98ms]"
+    ]
+  },
+  {
+    "fault": "usage-gate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "5cc87c5dffc93f46fb93dc2afd6a222e03c0a0a9c595917759039ce125109c3c",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 362434560,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses absolute outside before program with types empty [238.28ms]"
+    ]
+  },
+  {
+    "fault": "types-empty-gate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "92257008a97b88db637cda59c3545ddd7c44a69d08aa42a8150ef137905d7bb0",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 359837696,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses absolute outside before program with types empty [237.58ms]"
+    ]
+  },
+  {
+    "fault": "masked-pathkind",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "dce7ac3c15fa962e6326d7a87717910623790bdeea79df8d56b7dfeb65c59a28",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 364625920,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses absolute outside before program with types empty [220.23ms]"
+    ]
+  },
+  {
+    "fault": "raw-base",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "f1da67c7fd32e54587018fa4be1dea13d430326248aee67d17395233187fe24d",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "preserves effective normalization",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 186638336,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained baseUrl admission preserves effective normalization {} ./types [19.60ms]",
+      "(fail) retained baseUrl admission preserves effective normalization {\"baseUrl\":\"./types\"} ../../outside [1.70ms]",
+      "(fail) retained baseUrl admission preserves effective normalization {\"baseUrl\":\"\"} undefined [1.35ms]"
+    ]
+  },
+  {
+    "fault": "discarded-inherited",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "6e27ff807a679bde2d1344af8f3ce2c9facc50d305d2ade72df2d232118a156c",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "admits override discarded outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 358010880,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl admits override discarded outside [157.06ms]"
+    ]
+  },
+  {
+    "fault": "wrong-base",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "b8935c8661f4eaa99d3748b28d9b1be9614e2b51beff64e6338c1b783950d63d",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "preserves effective normalization",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 190885888,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained baseUrl admission preserves effective normalization {} ./types [16.67ms]",
+      "(fail) retained baseUrl admission preserves effective normalization {\"baseUrl\":\"./types\"} ../../outside [1.82ms]",
+      "(fail) retained baseUrl admission preserves effective normalization {\"baseUrl\":\"\"} undefined [1.55ms]"
+    ]
+  },
+  {
+    "fault": "require-existence",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "d211595b0735a671cb98711af18dd209c8a97635429a5050a07ddc596baf2fe9",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "admits missing",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 358510592,
+    "exitCode": 1,
+    "observedFailure": ["(fail) retained effective baseUrl admits missing [156.39ms]"]
+  },
+  {
+    "fault": "invent-default",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "eef941937810f2db1fd4e36b8a3dceb6c6db00fde4ddb3bd63cc42d0291ce9b2",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "preserves effective normalization {} undefined",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 184586240,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained baseUrl admission preserves effective normalization {} undefined [17.83ms]"
+    ]
+  },
+  {
+    "fault": "remove-option",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "cdf90dec14079fcb7d1bc7eeac98e92088d8e847a520ebca5115b8a8b508631b",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "direct bare provider",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 359321600,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl resolves direct bare provider with exact declaration and census [220.55ms]"
+    ]
+  },
+  {
+    "fault": "rewrite-option",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "1a39ccd7d6767ba4926e928b52606228d45f1a1d3f946f87fce10fa2692bb34c",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "direct bare provider",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 362340352,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl resolves direct bare provider with exact declaration and census [191.00ms]"
+    ]
+  },
+  {
+    "fault": "lexical-only",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "76eaf1329e5f36bd3e834e86bcd69d37581506968d2112c2105709bc9352e2e6",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses ancestor escape",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 359669760,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses ancestor escape before program with types empty [166.19ms]"
+    ]
+  },
+  {
+    "fault": "bypass-source",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "c845a496324fe38412c5853bf3a418a26af10bbb1354a5ac805ab279bd4f1162",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 366497792,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses absolute outside before program with types empty [214.54ms]"
+    ]
+  },
+  {
+    "fault": "omit-compiler-charge",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "0f48b0c8dd7eaa1031f5fcdf6f8f09070fedbb170c6d437ebc3d5ae6443d3a2b",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "charges shared compiler",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363835392,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl charges shared compiler admission at exact fit [4018.20ms]"
+    ]
+  },
+  {
+    "fault": "reset-compiler-charge",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "868735de3878b2a6d2549f2c3e54747710ad90cdb931040f8f1fdc641effb525",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "charges shared compiler",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 643293184,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl charges shared compiler admission at exact fit [4237.29ms]"
+    ]
+  },
+  {
+    "fault": "physical-lookup",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "dbe984ea856afb94816ecc9ac774d9dc588d1e80416bae64fbf18a93d72adaf5",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "sha1 replays",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 358195200,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl sha1 replays after physical roots disappear [256.35ms]"
+    ]
+  },
+  {
+    "fault": "source-path-fence",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "e26a279cb4205c58709e4ac7a67b3a291522cab32d084585d88d3c04f1d85f2e",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "bounds long roots",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 365748224,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl bounds long roots before source UTF8 encoding [258.72ms]"
+    ]
+  },
+  {
+    "fault": "omit-source-charge",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "d5637d7100fd83e0fef9ed5b5d344ff1727889d7d22ddf74a246da3d91953c16",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "charges shared source",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363704320,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl charges shared source admission at exact fit [2354.68ms]"
+    ]
+  },
+  {
+    "fault": "reset-source-charge",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "55279f7d229937b3caf615fc20e3c875baf57dc66aae9ed3cb678851d1030698",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "charges shared source",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 621805568,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl charges shared source admission at exact fit [4420.18ms]"
+    ]
+  },
+  {
+    "fault": "global-admission",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "41d014bd36ac858ccf90f9428aac105c27fcd154efd86e3865b76270c090d3e9",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "previous modes preserve outside baseUrl",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 185520128,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) previous modes preserve outside baseUrl as ordinary namespace probes [5.57ms]"
+    ]
+  },
+  {
+    "fault": "host-before-admission",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "36536cab2bf96087b40cd6bc45df2f4a20ed45b4a57fb48c4f0480466dca2fca",
+    "injectedIdentity": "1a91b0064dd9103c8026df458a1f51ac0622c8351de5c3d3d2a9132db7334ed3",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 357265408,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained effective baseUrl refuses absolute outside before program with types empty [145.99ms]"
+    ]
+  }
+]

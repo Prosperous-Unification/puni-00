@@ -1,0 +1,48 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+120 |     },
+121 |     (c: ReturnType<typeof fixture>['closure']) => {
+122 |       c.files[0].byteLength = -1;
+123 |     },
+124 |   ])
+125 |     expect(() => readReviewRuntime(capture(change))).toThrow();
+                                                           ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [
+      {
+        byteLength: 6,
+        identity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+        path: "parser.js",
+        role: "program",
+      }, {
+        byteLength: 8,
+        identity: "e996bb0ea465fae70d3e3c66b3b6e02d33d2f1eb76d5958720578b6cf359cc2e",
+        path: "typescript.js",
+        role: "dependency",
+      }
+    ],
+    foreign: 1,
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "dd67b3724301aa578217f753ebdd72829aefe1ffb15c669a085e480a9a2d59ea",
+  readFile: [Function: readFile],
+}
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:125:54)
+(fail) rejects closed schema, noncanonical paths, duplicate and unordered paths [8.23ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [930.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 330997760, "exitCode": 1}

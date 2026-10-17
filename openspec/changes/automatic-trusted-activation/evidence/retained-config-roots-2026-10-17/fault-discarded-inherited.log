@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+254 |       // Proof: path-empty-component omission loses `direct malformed or outside` (named RED in final fault ledger).
+255 |       path.includes('//') ||
+256 |       // Proof: path-outside omission loses `direct malformed or outside` (named RED in final fault ledger).
+257 |       (path !== root && !path.startsWith(`${root}/`))
+258 |     )
+259 |       throw new Error('source path outside or malformed');
+                                                              ^
+error: source path outside or malformed
+      at assertQuery (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:259:57)
+      at resolvePath (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:283:22)
+      at pathKind (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:510:24)
+      at admitConfigurationRoot (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:105:14)
+      at parseProject (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:247:14)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:124:40)
+      at extractRetainedTypeScriptRelationships (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:194:23)
+(fail) retained effective rootDirs admits override discarded outside [148.01ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1092.00ms]

@@ -1,0 +1,10 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 691716096,
+  "exitCode": 0
+}

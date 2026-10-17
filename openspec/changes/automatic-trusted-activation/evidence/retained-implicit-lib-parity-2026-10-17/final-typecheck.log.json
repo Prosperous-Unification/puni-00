@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--noEmit",
+    "-p",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-implicit-lib-parity-2026-10-17/focused-tests.tsconfig.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 434696,
+  "ceilingKiB": 921600
+}

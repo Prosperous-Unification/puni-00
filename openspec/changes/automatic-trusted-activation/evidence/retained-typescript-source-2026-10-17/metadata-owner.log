@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+53 |   const tuple = f.candidate.snapshot.entries.find((e) => e.path === 'a.ts');
+54 |   if (!tuple) throw new Error('fixture absent');
+55 |   const identity = readRetainedFileIdentity(f.candidate, tuple.path, tuple.blob);
+56 |   expect(identity).toEqual({ rawIdentity: hashBytes('export {};'), byteLength: 10 });
+57 |   expect(Object.isFrozen(identity)).toBe(true);
+58 |   expect(() => readRetainedFileIdentity({ ...f.candidate }, tuple.path, tuple.blob)).toThrow(
+                                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained candidate"
+Received message: "undefined is not an object (evaluating 'FileIdentities.get(candidate).get')"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:58:86)
+(fail) owned file identity authenticates tuple without consuming candidate reads [141.50ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1152.00ms]

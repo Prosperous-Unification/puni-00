@@ -1,0 +1,12 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts
+     8:1   warning  Unused eslint-disable directive (no problems were reported from '@nx/enforce-module-boundaries')
+   191:17  error    Unsafe assignment of an `any` value                                                               @typescript-eslint/no-unsafe-assignment
+   194:43  error    Unsafe member access .compilerOptions on an `any` value                                           @typescript-eslint/no-unsafe-member-access
+  1036:9   error    Unnecessary conditional, the types have no overlap                                                @typescript-eslint/no-unnecessary-condition
+
+✖ 4 problems (3 errors, 1 warning)
+  0 errors and 1 warning potentially fixable with the `--fix` option.

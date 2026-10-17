@@ -1,0 +1,116 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+141 |       requestIdentity: request.requestIdentity,
+142 |       snapshotIdentity: prepared.snapshotIdentity,
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+    "historyManifestIdentity": "dd704199217400ed60b455067006f55568098949b0f8117ff68b134e24764d0c",
+-   "requestIdentity": "477d597c621031369b643477bbe81f6d7586faa8b72465ac32d010fcab6df58c",
++   "requestIdentity": "0000000000000000000000000000000000000000000000000000000000000000",
+    "snapshotIdentity": "edc5a2e92e8b06f72189b1c48fedd32bfaa310e8b0dc6e07557d90b8fefc587d",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:146:21)
+(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [112.42ms]
+141 |       requestIdentity: request.requestIdentity,
+142 |       snapshotIdentity: prepared.snapshotIdentity,
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+    "historyManifestIdentity": "c37a793ed2a5e5564bf009f42c879d94d60cf7af6e20eefffdcb68e881c0fe8a",
+-   "requestIdentity": "6a35bfeda96b8f6b57a830d93589a553b77632dd37b2e884ac964d8d6edb7112",
++   "requestIdentity": "0000000000000000000000000000000000000000000000000000000000000000",
+    "snapshotIdentity": "517c56f6bf3fe796634cb84a6f87390242e08c1db793f2f83ec64b243010a244",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:146:21)
+(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [90.69ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [88.88ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [90.56ms]
+228 |     if (calls === 2) request.requestIdentity = 'd'.repeat(64);
+229 |   });
+230 |   const candidate = owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity);
+231 |   expect(calls).toBe(2);
+232 |   expect(request.requestIdentity).not.toBe(original);
+233 |   expect(readRetainedReviewProvenance(candidate).requestIdentity).toBe(original);
+                                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "477d597c621031369b643477bbe81f6d7586faa8b72465ac32d010fcab6df58c"
+Received: "0000000000000000000000000000000000000000000000000000000000000000"
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:233:67)
+(fail) request binding is detached before an owner callback mutates the caller request [102.25ms]
+(pass) failed wrong-raw history publishes no review binding [95.02ms]
+(pass) failed repinned-canonical history publishes no review binding [97.24ms]
+(pass) failed repinned-noncanonical history publishes no review binding [97.01ms]
+(pass) failed malformed history publishes no review binding [92.34ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [86.56ms]
+(pass) phase-one retained views never acquire public review bindings [97.26ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [70.77ms]
+348 |   const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = request;
+349 |   const later = createActivationRequest({ ...fields, auditGeneration: 2 }).request;
+350 |   const first = owner.open(request, prepared.snapshotIdentity);
+351 |   const second = owner.open(later, prepared.snapshotIdentity);
+352 |   expect(first).not.toBe(second);
+353 |   expect(readRetainedReviewProvenance(first).requestIdentity).toBe(request.requestIdentity);
+                                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: "ed1fe66fa4fe7f8fd7c68dd849402900e20ee780b6327048198c50efc33872e2"
+Received: "0000000000000000000000000000000000000000000000000000000000000000"
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:353:63)
+(fail) one legacy snapshot opens distinct candidate request bindings [85.42ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [85.24ms]
+374 | test.each(['protected-revision', 'merge-group'] as const)('declared %s subject remains coherent in the owned request snapshot', (kind) => {
+375 |   const { owner, request, prepared } = fixture('sha1', false);
+376 |   const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = request;
+377 |   const selected = createActivationRequest({ ...fields, subject: kind === 'protected-revision' ? { kind, ref: request.targetRef } : { kind, groupRef: 'refs/heads/merge-group', members: [{ repositoryId: request.repositoryId, pullRequestNumber: 7, headSha: request.headSha }] } }).request;
+378 |   const candidate = owner.open(selected, prepared.snapshotIdentity);
+379 |   expect(readRetainedReviewProvenance(candidate).requestIdentity).toBe(selected.requestIdentity);
+                                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "7109fb48bbeb1ace54b009904e34b37ff69379831507b44a20bdb29afddb0267"
+Received: "0000000000000000000000000000000000000000000000000000000000000000"
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:379:67)
+(fail) declared protected-revision subject remains coherent in the owned request snapshot [96.05ms]
+374 | test.each(['protected-revision', 'merge-group'] as const)('declared %s subject remains coherent in the owned request snapshot', (kind) => {
+375 |   const { owner, request, prepared } = fixture('sha1', false);
+376 |   const { requestIdentity: _identity, schemaVersion: _schema, ...fields } = request;
+377 |   const selected = createActivationRequest({ ...fields, subject: kind === 'protected-revision' ? { kind, ref: request.targetRef } : { kind, groupRef: 'refs/heads/merge-group', members: [{ repositoryId: request.repositoryId, pullRequestNumber: 7, headSha: request.headSha }] } }).request;
+378 |   const candidate = owner.open(selected, prepared.snapshotIdentity);
+379 |   expect(readRetainedReviewProvenance(candidate).requestIdentity).toBe(selected.requestIdentity);
+                                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: "a13e1fcaa80378c46bb325ba4f882ae89085666eeb64d710d2f0752457409ba7"
+Received: "0000000000000000000000000000000000000000000000000000000000000000"
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:379:67)
+(fail) declared merge-group subject remains coherent in the owned request snapshot [91.84ms]
+
+ 10 pass
+ 6 fail
+ 44 expect() calls
+Ran 16 tests across 1 file. [2.44s]

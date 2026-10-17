@@ -1,0 +1,9 @@
+
+/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts
+  1:1  error  Projects cannot be imported by a relative or absolute path, and must begin with a npm scope  @nx/enforce-module-boundaries
+  1:1  error  Run autofix to sort these imports!                                                           simple-import-sort/imports
+
+✖ 2 problems (2 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 765894656, "exitCode": 1}

@@ -1,0 +1,6 @@
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts 162ms (unchanged)
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts 85ms (unchanged)
+openspec/changes/automatic-trusted-activation/design.md 338ms (unchanged)
+openspec/changes/automatic-trusted-activation/specs/automatic-trusted-activation/spec.md 154ms (unchanged)
+openspec/changes/automatic-trusted-activation/verify.md 622ms
+{"ceilingBytes": 805306368, "sampledPeakBytes": 342487040, "exitCode": 0}

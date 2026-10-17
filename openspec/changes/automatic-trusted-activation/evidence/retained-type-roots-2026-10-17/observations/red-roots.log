@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+51 |   ['absent escape descendant', ['escape/absent/deep'], undefined, { escape: '../outside' }],
+52 | ] as const) test(`retained effective typeRoots refuses ${label} before program with types empty`, () => {
+53 |   const captured = setup(roots === undefined ? undefined : [...roots], { inherited: inherited === undefined ? undefined : [...inherited], links: { ...links } });
+54 |   const original = ts.createProgram;
+55 |   let programs = 0;
+56 |   const program = spyOn(ts, 'createProgram').mockImplementation((...args: Parameters<typeof ts.createProgram>) => {
+                       ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:56:19)
+(fail) retained effective typeRoots refuses absolute outside before program with types empty [186.03ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1132.00ms]

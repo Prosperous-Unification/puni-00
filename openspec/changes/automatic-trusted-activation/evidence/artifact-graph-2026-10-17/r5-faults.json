@@ -1,0 +1,1578 @@
+[
+  {
+    "name": "limit grammar",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumRuleBytes and safe integer grammar",
+      "(fail) enforces maximumRules and safe integer grammar",
+      "(fail) enforces maximumSelectors and safe integer grammar",
+      "(fail) enforces maximumSelectorBytes and safe integer grammar",
+      "(fail) enforces maximumEntries and safe integer grammar",
+      "(fail) enforces maximumReads and safe integer grammar",
+      "(fail) enforces maximumReadBytes and safe integer grammar",
+      "(fail) enforces maximumArtifacts and safe integer grammar",
+      "(fail) enforces maximumWork and safe integer grammar",
+      "(fail) enforces maximumEdges and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumRuleBytes and safe integer grammar",
+      "(fail) enforces maximumRules and safe integer grammar",
+      "(fail) enforces maximumSelectors and safe integer grammar",
+      "(fail) enforces maximumSelectorBytes and safe integer grammar",
+      "(fail) enforces maximumEntries and safe integer grammar",
+      "(fail) enforces maximumReads and safe integer grammar",
+      "(fail) enforces maximumReadBytes and safe integer grammar",
+      "(fail) enforces maximumArtifacts and safe integer grammar",
+      "(fail) enforces maximumWork and safe integer grammar",
+      "(fail) enforces maximumEdges and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "!Number.isSafeInteger(ceiling) || ceiling < 1",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "decoder pin",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse",
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "identifyArtifactDecoder(input.decoderFiles) !== rule.decoderIdentity",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "entry cap",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumEntries and safe integer grammar",
+      "(fail) enforces maximumEntries and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "input.candidate.entries.length > input.limits.maximumEntries",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "artifact cap",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumArtifacts and safe integer grammar",
+      "(fail) enforces maximumArtifacts and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "selected.length > input.limits.maximumArtifacts",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "read cap",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumReads and safe integer grammar",
+      "(fail) enforces maximumReads and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "reads >= input.limits.maximumReads",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "read bytes",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumReadBytes and safe integer grammar",
+      "(fail) enforces maximumReadBytes and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "!Number.isSafeInteger(readBytes) || readBytes > input.limits.maximumReadBytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "duplicate identities",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) duplicate evidence identity refuses census",
+      "(fail) duplicate evidence identity refuses census"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "identities.size !== records.length",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "duplicate paths",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) duplicate evidence path refuses census",
+      "(fail) duplicate evidence path refuses census"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "paths.size !== records.length",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "work cap",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumWork and safe integer grammar",
+      "(fail) installed selector work is charged before expansion",
+      "(fail) installed cartesian work is charged before expansion",
+      "(fail) enforces maximumWork and safe integer grammar",
+      "(fail) installed selector work is charged before expansion",
+      "(fail) installed cartesian work is charged before expansion"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "work >= limits.maximumWork",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "edge cap",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumEdges and safe integer grammar",
+      "(fail) enforces maximumEdges and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "edges >= limits.maximumEdges",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "self edge",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) refuses installed self dependencies",
+      "(fail) refuses installed self dependencies"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "source === target",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "response cardinality",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) refuses ambiguous response binding",
+      "(fail) refuses ambiguous response binding"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "matches.length !== 1",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "response invocation",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) refuses foreign response binding",
+      "(fail) refuses foreign response binding"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "response.invocationId === review.invocationId",
+      "after": "true",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "response payload",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) refuses payload response binding",
+      "(fail) refuses payload response binding"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "hashBytes(response.payload) === review.rawResponseArtifact",
+      "after": "true",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "empty source",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "sources.length === 0",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "empty target",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "targets.length === 0",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "cycle",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) refuses installed cycle dependencies",
+      "(fail) refuses installed cycle dependencies"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "queue.length !== records.length",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "output cap",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "new TextEncoder().encode(bytes).length > limits.maximumOutputBytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "validation join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses validation substitution",
+      "(fail) independent verification refuses validation substitution"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "graph.validationId !== census.validationId",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "rule identity join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses rule substitution"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "supplied.artifactGraphRuleIdentity !== census.artifactGraphRuleIdentity",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "coverage join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses coverage substitution"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "graph.artifacts.length !== census.records.length",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "descriptor artifact join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact artifactId descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "descriptor?.artifactId !== evidence.descriptor.artifactId",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "descriptor path join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact path descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "descriptor.path !== evidence.descriptor.path",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "descriptor blob join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent exact blob descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "descriptor.blob !== evidence.descriptor.blob",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "descriptor kind join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent exact recordKind descriptor comparison",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent exact recordKind descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "descriptor.recordKind !== evidence.descriptor.recordKind",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "exact bytes join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses byte substitution"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "supplied.bytes !== encoded.bytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "exact digest join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses identity substitution"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "supplied.identity !== encoded.identity",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "edge join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "serializeCanonical(descriptor.references) !==\n        serializeCanonical([...expected].sort(compareCanonicalText))",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "root join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses root substitution"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "serializeCanonical(graph.roots) !== serializeCanonical(deriveRoots(census.records, references))",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "retained record fatal UTF8",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) invalid UTF-8 cannot become replacement text inside an otherwise valid record"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "new TextDecoder('utf-8', { fatal: true }).decode(bytes)",
+      "after": "new TextDecoder('utf-8', { fatal: false }).decode(bytes)",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts",
+      "--test-name-pattern",
+      "invalid UTF-8 cannot become replacement text inside an otherwise valid record"
+    ],
+    "observation": "Removing fatal decoding only at the exact retained-record decode(bytes) expression accepted literal 0xff in an otherwise valid payload; the negative failed because the production builder did not throw. Restoring the decoder passed the same test. The earlier generic first-occurrence recipe-decoder mutation was a duplicate recipe proof and is disqualified."
+  },
+  {
+    "name": "record schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) strict candidate-inventory decoder refuses malformed standalone census record",
+      "(fail) strict benchmark-corpus decoder refuses malformed standalone census record",
+      "(fail) strict experiment-manifest decoder refuses malformed standalone census record",
+      "(fail) strict opaque-transcript decoder refuses malformed standalone census record",
+      "(fail) strict review-receipt decoder refuses malformed standalone census record",
+      "(fail) strict candidate-inventory decoder refuses malformed standalone census record",
+      "(fail) strict benchmark-corpus decoder refuses malformed standalone census record",
+      "(fail) strict experiment-manifest decoder refuses malformed standalone census record",
+      "(fail) strict opaque-transcript decoder refuses malformed standalone census record",
+      "(fail) strict review-receipt decoder refuses malformed standalone census record"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "decodeRecord(recordKind, JSON.parse(source) as unknown)",
+      "after": "JSON.parse(source) as ContractRecord",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "rule order/unique",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse",
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "compareCanonicalText(rule.additionalEdges[index - 1].ruleId, edge.ruleId) < 0",
+      "after": "true",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "runtime trust schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) runtime trust promotion is rejected at the document boundary"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "runtimeTrust: \"'unverified'\",",
+      "after": "runtimeTrust: 'string',",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "snapshot join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": ["(fail) snapshot provenance cannot be relabeled by graph caller"],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.ts",
+      "before": "provenance.snapshotIdentity !== input.snapshotIdentity",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "classification join",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) classification provenance refuses a different valid installed policy",
+      "(fail) install-time classification policy is owned independently of caller mutation"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.ts",
+      "before": "hashCanonical(policy) !== provenance.classificationPolicyIdentity",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "wrapper grammar",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) every installed graph limit rejects invalid grammar before retained reads"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.ts",
+      "before": "!Number.isSafeInteger(ceiling) || ceiling < 1",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "wrapper entries",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": ["(fail) classification and record reads share maximumEntries"],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.ts",
+      "before": "candidate.snapshot.entries.length > limits.maximumEntries",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "wrapper reads",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": ["(fail) classification and record reads share maximumReads"],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.ts",
+      "before": "reads >= limits.maximumReads",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "wrapper bytes",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": ["(fail) classification and record reads share maximumReadBytes"],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.ts",
+      "before": "!Number.isSafeInteger(readBytes) || readBytes > limits.maximumReadBytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "owned capability provenance",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": ["(fail) copied capability cannot omit retained evidence census"],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+      "before": "provenance === undefined",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "adjacency lookup",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) refuses installed self dependencies",
+      "(fail) refuses installed cycle dependencies",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumEdges and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison",
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) refuses installed self dependencies",
+      "(fail) refuses installed cycle dependencies",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumEdges and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "const adjacency = references.get(source.descriptor.artifactId);",
+      "after": "const adjacency = undefined;",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "root target lookup",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) refuses installed cycle dependencies",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison",
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) refuses installed cycle dependencies",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "const count = indegrees.get(target);",
+      "after": "const count = undefined;",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "traversal adjacency",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison",
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "const targets = references.get(identity);",
+      "after": "const targets = undefined;",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "producer adjacency",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison",
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "const dependencies = references.get(descriptor.artifactId);",
+      "after": "const dependencies = undefined;",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "snapshot digest grammar",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) snapshot identity must be a full digest",
+      "(fail) snapshot identity must be a full digest"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "parseOrThrow(Sha256, input.snapshotIdentity);",
+      "after": "",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "duplicate endpoint recipes",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) installed rules cannot repeat the same endpoint recipe under different IDs",
+      "(fail) installed rules cannot repeat the same endpoint recipe under different IDs"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "new Set(rule.additionalEdges.map(({ source, target }) => hashCanonical({ source, target })))\n      .size === rule.additionalEdges.length",
+      "after": "true",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "graph version schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse",
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "schemaVersion: '1',",
+      "after": "schemaVersion: 'number',",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "graph kind schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse",
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "kind: \"'review-artifact-graph-rule'\",",
+      "after": "kind: 'string',",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "graph algorithm schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse",
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "algorithm: \"'record-dependencies.v1'\",",
+      "after": "algorithm: 'string',",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "graph closed schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse",
+      "(fail) closed rule, decoder pin, unique sorted rules and strict record schema refuse"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "})\n  .onUndeclaredKey('reject')\n  .narrow",
+      "after": "})\n  .narrow",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "traversal target lookup",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "observedFailures": [
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) refuses installed cycle dependencies",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison",
+      "(fail) derives exact container edge, roots, bytes and pinned identity without digest guessing",
+      "(fail) decodes all five allowlisted kinds and preserves semantic pins as non-edges",
+      "(fail) installed selectors use component prefixes and full sorted Cartesian edges",
+      "(fail) refuses installed cycle dependencies",
+      "(fail) independent verification refuses coverage substitution",
+      "(fail) independent verification refuses edge substitution",
+      "(fail) independent verification refuses root substitution",
+      "(fail) independent verification refuses descriptor substitution",
+      "(fail) independent verification refuses byte substitution",
+      "(fail) independent verification refuses schema substitution",
+      "(fail) independent verification refuses identity substitution",
+      "(fail) independent verification refuses rule substitution",
+      "(fail) independent verification refuses validation substitution",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) enforces maximumOutputBytes and safe integer grammar",
+      "(fail) runtime trust promotion is rejected at the document boundary",
+      "(fail) installed segment selector derives exact endpoints",
+      "(fail) installed name selector derives exact endpoints",
+      "(fail) independent edge completeness refuses a structurally valid resealed legacy graph",
+      "(fail) independent exact artifactId descriptor comparison",
+      "(fail) independent exact path descriptor comparison",
+      "(fail) independent exact blob descriptor comparison",
+      "(fail) independent exact recordKind descriptor comparison"
+    ],
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "    for (const target of targets) {\n      const count = indegrees.get(target);",
+      "after": "    for (const target of targets) {\n      const count = undefined;",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "raw recipe bytes",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "input.ruleBytes.length > input.limits.maximumRuleBytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) enforces maximumRuleBytes and safe integer grammar",
+      "(fail) raw recipe byte ceiling refuses before decoding malformed bytes",
+      "(fail) enforces maximumRuleBytes and safe integer grammar",
+      "(fail) raw recipe byte ceiling refuses before decoding malformed bytes"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "rule count",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "rule.additionalEdges.length > input.limits.maximumRules",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) enforces maximumRules and safe integer grammar",
+      "(fail) enforces maximumRules and safe integer grammar"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "selector count",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "rule.additionalEdges.length > Math.floor(input.limits.maximumSelectors / 2)",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) enforces maximumSelectors and safe integer grammar",
+      "(fail) enforces maximumSelectors and safe integer grammar"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "selector bytes",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "new TextEncoder().encode(endpoint.pathSelector.value).length >\n        input.limits.maximumSelectorBytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) enforces maximumSelectorBytes and safe integer grammar",
+      "(fail) enforces maximumSelectorBytes and safe integer grammar"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "raw recipe fatal UTF8",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "new TextDecoder('utf-8', { fatal: true }).decode(input.ruleBytes)",
+      "after": "new TextDecoder('utf-8', { fatal: false }).decode(input.ruleBytes)",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) raw recipe UTF-8 decoding is strict",
+      "(fail) raw recipe UTF-8 decoding is strict"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "installed selector work charge",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "        charge();\n        return (",
+      "after": "        return (",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) installed selector work is charged before expansion",
+      "(fail) installed cartesian work is charged before expansion",
+      "(fail) installed selector work is charged before expansion",
+      "(fail) installed cartesian work is charged before expansion"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "Cartesian work charge",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "        charge();\n        add(source, target);",
+      "after": "        add(source, target);",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) installed cartesian work is charged before expansion",
+      "(fail) installed cartesian work is charged before expansion"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "verification byte ceiling",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "documentBytes.length > input.limits.maximumVerificationBytes",
+      "after": "false",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) verification byte ceiling refuses malformed oversized bytes before schema parsing",
+      "(fail) enforces maximumVerificationBytes and safe integer grammar",
+      "(fail) verification byte ceiling refuses malformed oversized bytes before schema parsing"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "verification fatal UTF8",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "new TextDecoder('utf-8', { fatal: true }).decode(documentBytes)",
+      "after": "new TextDecoder('utf-8', { fatal: false }).decode(documentBytes)",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) verification document UTF-8 decoding is strict",
+      "(fail) verification document UTF-8 decoding is strict"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "closed endpoint schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "  pathSelector: ContentSelector,\n}).onUndeclaredKey('reject');",
+      "after": "  pathSelector: ContentSelector,\n});",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) installed endpoint rejects undeclared authority fields",
+      "(fail) installed endpoint rejects undeclared authority fields"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "closed edge schema",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "const EdgeRule = type({ ruleId: OpaqueId, source: Endpoint, target: Endpoint }).onUndeclaredKey(\n  'reject',\n);",
+      "after": "const EdgeRule = type({ ruleId: OpaqueId, source: Endpoint, target: Endpoint });",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) installed edge rejects undeclared authority fields",
+      "(fail) installed edge rejects undeclared authority fields"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  },
+  {
+    "name": "closed verification envelope",
+    "exitCode": 1,
+    "failedAssertions": true,
+    "mutation": {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.ts",
+      "before": "  runtimeTrust: \"'unverified'\",\n}).onUndeclaredKey('reject');",
+      "after": "  runtimeTrust: \"'unverified'\",\n});",
+      "occurrence": 1
+    },
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/artifact-graph.test.ts"
+    ],
+    "observedFailures": [
+      "(fail) verification document rejects undeclared authority fields",
+      "(fail) verification document rejects undeclared authority fields"
+    ],
+    "observation": "Production call-path assertion failed after independent guard omission or missing internal dependency injection; restored suite recorded separately."
+  }
+]

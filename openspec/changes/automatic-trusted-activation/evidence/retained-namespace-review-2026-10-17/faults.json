@@ -1,0 +1,116 @@
+[
+  {
+    "fault": "recipe-pin",
+    "needle": "      namespacePolicyIdentity,",
+    "replacement": "      namespacePolicyIdentity: '0'.repeat(64),",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "binds emitted namespace pin"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349136,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) binds emitted namespace pin to the exact canonical V1 recipe [125.78ms]"
+    ]
+  },
+  {
+    "fault": "recipe-field",
+    "needle": "  runtimeMountPrefix: CandidateRoot,\n  workingDirectory: CandidateRoot,",
+    "replacement": "  runtimeMountPrefix: CandidateRoot,",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "binds emitted namespace pin"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 341528,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) binds emitted namespace pin to the exact canonical V1 recipe [125.08ms]"
+    ]
+  },
+  {
+    "fault": "freeze-policy",
+    "needle": "const NamespacePolicy = Object.freeze({",
+    "replacement": "const NamespacePolicy = ({",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "binds emitted namespace pin"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 343556,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) binds emitted namespace pin to the exact canonical V1 recipe [87.41ms]"
+    ]
+  },
+  {
+    "fault": "freeze-policy-candidate-components",
+    "needle": "Object.freeze(['.git', 'node_modules'])",
+    "replacement": "['.git', 'node_modules']",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "binds emitted namespace pin"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 351104,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) binds emitted namespace pin to the exact canonical V1 recipe [95.23ms]"
+    ]
+  },
+  {
+    "fault": "freeze-policy-runtime-components",
+    "needle": "Object.freeze(['.git'])",
+    "replacement": "['.git']",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "binds emitted namespace pin"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345328,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) binds emitted namespace pin to the exact canonical V1 recipe [96.91ms]"
+    ]
+  },
+  {
+    "fault": "freeze-policy-modes",
+    "needle": "Object.freeze(['100644', '100755', '120000'])",
+    "replacement": "['100644', '100755', '120000']",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "binds emitted namespace pin"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349952,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) binds emitted namespace pin to the exact canonical V1 recipe [101.62ms]"
+    ]
+  }
+]

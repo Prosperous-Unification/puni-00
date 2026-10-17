@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+129 |         extractRetainedTypeScriptRelationships(captured);
+130 |         upper = ceiling;
+131 |       } catch (cause) {
+132 |         let failure = cause;
+133 |         while (failure instanceof Error && !/probe|step/.test(failure.message)) failure = failure.cause;
+134 |         if (!(failure instanceof Error) || !/probe|step/.test(failure.message)) throw cause;
+                                                                                            ^
+error: trusted TypeScript compiler identity is unreadable
+      at minimum (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:134:87)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:145:16)
+(fail) retained effective typeRoots charges repeated compiler admission at exact fit [432.26ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1389.00ms]

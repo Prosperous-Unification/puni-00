@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+165 |         return createHost(...args);
+166 |       },
+167 |     );
+168 |     try {
+169 |       expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow(/outside|escape/);
+170 |       expect(hostCreations).toBe(0);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:170:29)
+(fail) retained effective rootDirs refuses absolute outside before program with types empty [164.17ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1118.00ms]

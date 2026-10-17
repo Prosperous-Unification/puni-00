@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 668065792, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:
+(pass) retained effective baseUrl refuses absolute outside before program with types empty [165.47ms]
+(pass) retained effective baseUrl refuses relative outside before program with types empty [137.36ms]
+(pass) retained effective baseUrl refuses inherited outside before program with types empty [158.17ms]
+(pass) retained effective baseUrl refuses ancestor escape before program with types empty [167.74ms]
+(pass) retained effective baseUrl refuses absent escape descendant before program with types empty [168.62ms]
+(pass) retained effective baseUrl admits existing [206.04ms]
+(pass) retained effective baseUrl admits normalized [152.63ms]
+(pass) retained effective baseUrl admits missing [154.78ms]
+(pass) retained effective baseUrl admits inherited [138.14ms]
+(pass) retained effective baseUrl admits override discarded outside [142.09ms]
+(pass) retained effective baseUrl admits valid candidate link [145.22ms]
+(pass) retained effective baseUrl admits omitted ordinary probes [140.12ms]
+(pass) retained effective baseUrl sha1 replays after physical roots disappear [152.32ms]
+(pass) retained effective baseUrl sha256 replays after physical roots disappear [117.77ms]
+(pass) retained effective baseUrl bounds long roots before source UTF8 encoding [150.20ms]
+(pass) retained effective baseUrl charges shared compiler admission at exact fit [4249.86ms]
+(pass) retained effective baseUrl charges shared source admission at exact fit [4532.07ms]
+(pass) retained effective baseUrl charges shared steps admission at exact fit [4117.23ms]
+(pass) retained effective baseUrl resolves direct bare provider with exact declaration and census [148.72ms]
+(pass) retained effective baseUrl resolves inherited bare provider with exact declaration and census [176.74ms]
+(pass) retained effective baseUrl refuses second project before its host and owner publication [143.89ms]
+(pass) retained effective baseUrl preserves wildcard paths with src base [146.25ms]
+(pass) retained effective baseUrl preserves wildcard paths with omitted base [121.17ms]
+
+ 23 pass
+ 0 fail
+ 87 expect() calls
+Ran 23 tests across 1 file. [16.90s]

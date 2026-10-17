@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+302 |   await writeFile(join(upstreamDirectory, 'lib/typescript.js'),
+303 |     await readFile(require.resolve('@typescript/old/lib/typescript.js')));
+304 |   if (fault === 'altered') await writeFile(join(upstreamDirectory, 'LICENSE.txt'), 'wrong license');
+305 |   const copied = await import(modulePath) as typeof import('./compiler-derivative');
+306 |   const directory = join(root, 'artifact');
+307 |   await expect(copied.writeCompilerDerivative(directory)).rejects.toThrow(
+                                                                        ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "license digest"
+Received message: "ENOENT: no such file or directory, open '/tmp/compiler-license-fault-4ke6of/node_modules/@typescript/old/ThirdPartyNoticeText.txt'"
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:307:67)
+(fail) writer refuses altered upstream license before artifact creation [33.73ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [57.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 38981632, "exitCode": 1}

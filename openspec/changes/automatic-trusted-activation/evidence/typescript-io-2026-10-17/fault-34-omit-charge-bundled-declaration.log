@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+426 |   const declaration = extraction.relationships.publicDeclarations[0];
+427 |   if (declaration === undefined) throw new Error('fixture public declaration absent');
+428 |   const { identity: _identity, ...selector } = declaration;
+429 |   const observed = Buffer.byteLength(JSON.stringify(selector)) + declaration.declarations.reduce((total, entry) => total + Buffer.byteLength(entry.text), 0);
+430 |   expect(extractTypeScriptRelationshipsFromSource(workspace, request, source, { ...limits, maximumObservedOutputBytes: observed })).toEqual(extraction);
+431 |   expect(() => extractTypeScriptRelationshipsFromSource(workspace, request, source, { ...limits, maximumObservedOutputBytes: observed - 1 })).toThrow('TypeScript observed output byte limit exceeded');
+                                                                                                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript observed output byte limit exceeded"
+
+Received function did not throw
+Received value: {
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+  },
+  relationships: {
+    imports: [],
+    reverseEdges: [],
+    publicDeclarations: [
+      {
+        configPath: "tsconfig.json",
+        entrypoint: "src/index.ts",
+        configurationIdentity: "d23f0d77bd7cc2b7f19ac54c8ca6ae605db216050ccd10a47aff388093aca786",
+        declarations: [
+          {
+            sourcePath: "src/index.ts",
+            emittedPath: "bundle.d.ts",
+            text: "declare module \"src/index\" {\n    global {\n        interface Array<T> {\n        }\n        interface Boolean {\n        }\n        interface Function {\n        }\n        interface CallableFunction {\n        }\n        interface NewableFunction {\n        }\n        interface IArguments {\n        }\n        interface Number {\n        }\n        interface Object {\n        }\n        interface RegExp {\n        }\n        interface String {\n        }\n    }\n    export interface Value {\n        label: string;\n    }\n}\n",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+        },
+        identity: "f9d84f710dd94ccd457ea378bf345582ed80409caa8094db77e4e8253dc866ea",
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:431:143)
+(fail) observation budget charges bundled declaration text before accumulation [73.40ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [635.00ms]

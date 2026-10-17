@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+157 | });
+158 |
+159 | test('previous retained type roots mode preserves rootDirs as ordinary namespace probes', () => {
+160 |   const { source } = fixture({ 'tsconfig.json': JSON.stringify({ compilerOptions: { noLib: true, types: [], rootDirs: ['/outside/generated'] }, files: ['globals.d.ts', 'src/index.ts'] }) });
+161 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });
+162 |   system.admitConfigurationRoot = () => { throw new Error('unexpected explicit admission'); };
+                                                                                               ^
+error: unexpected explicit admission
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:162:90)
+      at parseProject (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:244:62)
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:164:12)
+(fail) previous retained type roots mode preserves rootDirs as ordinary namespace probes [7.51ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+Ran 1 test across 1 file. [546.00ms]

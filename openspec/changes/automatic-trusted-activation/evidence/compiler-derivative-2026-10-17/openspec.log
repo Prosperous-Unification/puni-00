@@ -1,0 +1,2 @@
+error: Could not find an existing 'openspec' binary to run. Stopping because --no-install was passed.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 454656, "exitCode": 1}

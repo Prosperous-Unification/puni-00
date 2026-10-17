@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 644939776, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+(pass) retained literal paths charges shared compiler admission at exact fit [4494.21ms]
+
+ 1 pass
+ 21 filtered out
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [5.45s]

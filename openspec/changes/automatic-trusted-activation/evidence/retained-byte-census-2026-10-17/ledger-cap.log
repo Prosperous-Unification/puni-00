@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+896 |     expect(() => exact.readFile(`${root}/src/b.ts`)).toThrow('read entry ceiling');
+897 |     const short = createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+898 |       ...limits,
+899 |       maximumReadLedgerBytes: bytes - 1,
+900 |     });
+901 |     expect(() => short.readFile(`${root}/a.ts`)).toThrow('read ledger byte ceiling');
+                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "read ledger byte ceiling"
+Received message: "copy sentinel"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:901:50)
+(fail) byte census exact ceilings precede owner copies and repeated tuples do not grow [128.38ms]
+962 |   });
+963 |   const copy = spyOn(f.runtime, 'readFile').mockImplementation(() => {
+964 |     throw new Error('runtime copy sentinel');
+965 |   });
+966 |   try {
+967 |     expect(() => source.readFile(path)).toThrow('read ledger byte ceiling');
+                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "read ledger byte ceiling"
+Received message: "runtime copy sentinel"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:967:41)
+(fail) byte census runtime ledger shortage precedes runtime copy and rereads charge bytes [126.24ms]
+
+ 0 pass
+ 91 filtered out
+ 2 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [1243.00ms]

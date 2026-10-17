@@ -68,6 +68,15 @@ export {
   RelativePath,
 } from './contracts/records';
 export {
+  type ArtifactDecoderFiles,
+  type ArtifactGraphLimits,
+  ArtifactGraphRuleV1,
+  buildArtifactGraph,
+  type BuiltArtifactGraph,
+  identifyArtifactDecoder,
+  verifyArtifactGraph,
+} from './evidence/artifact-graph';
+export {
   compareCanonicalText,
   hashBytes,
   hashCanonical,
@@ -103,8 +112,21 @@ export {
   extractDeclaredRelationshipsFromSource,
   identifyDeclarationExtractor,
 } from './relationships/declarations';
-export { type NxRelationships } from './relationships/nx';
+export { extractNxRelationships } from './relationships/nx';
+export {
+  extractNxRelationshipsFromSource,
+  type NxRelationships,
+  type NxSource,
+} from './relationships/nx-core';
 export { type ExtractorIdentity } from './relationships/typescript';
+export type {
+  TypeScriptConfigurationMode,
+  TypeScriptSource,
+} from './relationships/typescript-compiler';
+export {
+  extractTypeScriptRelationshipsFromSource,
+  type TypeScriptLimits,
+} from './relationships/typescript-core';
 export { AuditFinding } from './review/audit';
 export {
   type ExhaustiveFreezeDocuments,

@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+187 |       ];
+188 |       for (const trap of traps)
+189 |         trap.mockImplementation(
+190 |           Object.assign(
+191 |             () => {
+192 |               throw new Error('forbidden ambient route');
+                                                             ^
+error: forbidden ambient route
+      at <anonymous> (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:192:56)
+      at readNode (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:220:52)
+      at readFile (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:520:60)
+      at readFile (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:96:42)
+      at getSourceFile (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:308:27)
+      at findSourceFileWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129221:23)
+      at findSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129138:20)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129089:22)
+      at getSourceFileFromReferenceWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129060:26)
+      at processSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129087:5)
+      at processRootFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128919:5)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127739:11)
+      at forEach (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:2309:22)
+      at createProgram (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127738:9)
+      at parseProject (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:221:22)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:114:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:184:21)
+      at <anonymous> (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:222:27)
+(fail) retained compiler ES5 sha1 matches legacy after all capture roots disappear [402.16ms]
+187 |       ];
+188 |       for (const trap of traps)
+189 |         trap.mockImplementation(
+190 |           Object.assign(
+191 |             () => {
+192 |               throw new Error('forbidden ambient route');
+                                                             ^
+error: forbidden ambient route
+      at <anonymous> (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:192:56)
+      at readNode (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:220:52)
+      at readFile (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:520:60)
+      at readFile (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:96:42)
+      at getSourceFile (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:308:27)
+      at findSourceFileWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129221:23)
+      at findSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129138:20)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129089:22)
+      at getSourceFileFromReferenceWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129060:26)
+      at processSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129087:5)
+      at processRootFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128919:5)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127739:11)
+      at forEach (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:2309:22)
+      at createProgram (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127738:9)
+      at parseProject (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:221:22)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:114:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:184:21)
+      at <anonymous> (/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:222:27)
+(fail) retained compiler ES5 sha256 matches legacy after all capture roots disappear [226.36ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 46 expect() calls
+Ran 2 tests across 1 file. [1.61s]

@@ -1,0 +1,81 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts
+    1:1   error  Run autofix to sort these imports!                                                 simple-import-sort/imports
+   41:28  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+   79:17  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  105:65  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  107:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  110:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  113:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  113:26  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  119:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  122:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  177:33  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  179:31  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  207:42  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  222:9   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  229:9   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  230:9   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  243:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  246:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  249:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  252:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  255:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  258:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  259:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  262:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  262:26  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  268:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  269:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  272:7   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  359:3   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  404:24  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  405:5   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  406:5   error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  430:17  error  This assertion is unnecessary since it does not change the type of the expression  @typescript-eslint/no-unnecessary-type-assertion
+  445:11  error  Do not throw undefined                                                             @typescript-eslint/only-throw-error
+
+/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts
+   69:24  error  Invalid type "number" of template literal expression                                        @typescript-eslint/restrict-template-expressions
+  209:26  error  Invalid type "number" of template literal expression                                        @typescript-eslint/restrict-template-expressions
+  264:34  error  Unsafe usage of ThrowStatement                                                              no-unsafe-finally
+  267:9   error  Unsafe usage of ThrowStatement                                                              no-unsafe-finally
+  284:9   error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+✖ 39 problems (39 errors, 0 warnings)
+  33 errors and 0 warnings potentially fixable with the `--fix` option.
+
+
+exit status 1
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 4.75 seconds)
+✓ tool-wiki (0.01 seconds)
+✓ plaintext-secrets (0.03 seconds)
+✓ private-nesting (0.03 seconds)
+✓ format (1.84 seconds)
+✗ lint (4.72 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 834781184, "exitCode": 1}

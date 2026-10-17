@@ -1,0 +1,34 @@
+{
+  "disqualified": [
+    {
+      "run": "red-compiler.log",
+      "reason": "Initial malformed cases spyOn a TS accessor unsupported by Bun; those six errors provide no feature proof. Effective admission assertions in same log were real RED, but corrected-red is controlling."
+    },
+    {
+      "run": "red-outside.log",
+      "reason": "Two escape substitutions omitted './' and reached a TS nonrelative-path diagnostic; corrected-red is controlling."
+    },
+    {
+      "run": "initial green compiler tool transcript (log later replaced by corrected green)",
+      "reason": "Inherited ${configDir} expected /candidate/configs/types incorrectly; pinned parser expands template at consumer basePath so effective target is /candidate/types. Corrected only test oracle; original configDir RED is not accepted.",
+      "command": [
+        "bun",
+        "test",
+        "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts"
+      ],
+      "exitCode": 1,
+      "sampledPeakBytes": 375345152,
+      "observed": "38 pass,1 fail (configDir expectation)"
+    },
+    {
+      "run": "lint-initial.log",
+      "reason": "No graph was cached, so Nx boundary rule skipped; three real lint errors after formatting. Final graph-backed lint follows fresh graph and watched boundary mutation. Production selection rewritten as let+if preserving definedness; moved deprecation directive now covers its exact line.",
+      "status": "superseded by final zero-warning per-file ESLint and qualified boundary proof"
+    },
+    {
+      "run": "hook-restored-cap900.log",
+      "reason": "900MiB process-tree cap killed the normal restored pre-commit at944201728bytes; exit137 proves resource refusal, not a hook result. Fresh host free-m:31688total,12647used,3658free,19040availableMiB. PM authorized one-shot1100MiB restored retry.",
+      "restored": "hook-restored.log: exit0, sampledPeak945078272bytes,1100MiB cap"
+    }
+  ]
+}

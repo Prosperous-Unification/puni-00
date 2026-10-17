@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [361.49ms]
+(pass) byte census records raw candidate package BOM and probe symlink acquisitions only [135.50ms]
+
+ 2 pass
+ 91 filtered out
+ 0 fail
+ 29 expect() calls
+Ran 2 tests across 1 file. [1445.00ms]

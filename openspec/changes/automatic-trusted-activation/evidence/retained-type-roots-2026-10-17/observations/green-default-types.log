@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+(pass) retained omitted typeRoots wildcard types discover visible ambient declarations [226.73ms]
+(pass) retained omitted typeRoots and types preserve pinned no auto discovery [115.49ms]
+
+ 2 pass
+ 17 filtered out
+ 0 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [1426.00ms]

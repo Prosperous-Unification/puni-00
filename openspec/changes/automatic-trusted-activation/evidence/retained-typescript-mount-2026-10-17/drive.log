@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+240 |       { configPaths: ['tsconfig.json', 'tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
+241 |       { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts', 'src/index.ts'] },
+242 |     ])
+243 |       expect(() => extractRetainedTypeScriptRelationships({ ...f, request })).toThrow('request');
+244 |     expect(read).not.toHaveBeenCalled();
+245 |     expect(admission).not.toHaveBeenCalled();
+                                ^
+error: expect(received).not.toHaveBeenCalled()
+
+Expected number of calls: 0
+Received number of calls: 1
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:245:27)
+(fail) retained compiler rejects malformed or noncandidate requests before retained reads [145.84ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 16 expect() calls
+Ran 1 test across 1 file. [1187.00ms]

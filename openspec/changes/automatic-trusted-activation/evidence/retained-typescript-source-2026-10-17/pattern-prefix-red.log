@@ -1,0 +1,60 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+555 | });
+556 |
+557 | test.each(['include', 'exclude'] as const)('literal %s prefix walks file ancestors and effective alias parents', kind => {
+558 |  const f = fromPaths({ plain: 'x', 'dir/a.ts': 'a', 'dir/nested/b.ts': 'b', 'z.ts': 'z' }, { alias: 'dir/nested' });
+559 |  const read = (pattern: string) => kind === 'include' ? f.source.readDirectory(root, ['.ts'], undefined, [pattern]) : f.source.readDirectory(root, ['.ts'], [pattern], ['**/*']);
+560 |  expect(() => read('plain/../dir/**/*')).toThrow('not a directory');
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "not a directory"
+
+Received function did not throw
+Received value: [ "/__puni_review__/candidate/dir/a.ts", "/__puni_review__/candidate/dir/nested/b.ts" ]
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:560:42)
+(fail) literal include prefix walks file ancestors and effective alias parents [119.79ms]
+555 | });
+556 |
+557 | test.each(['include', 'exclude'] as const)('literal %s prefix walks file ancestors and effective alias parents', kind => {
+558 |  const f = fromPaths({ plain: 'x', 'dir/a.ts': 'a', 'dir/nested/b.ts': 'b', 'z.ts': 'z' }, { alias: 'dir/nested' });
+559 |  const read = (pattern: string) => kind === 'include' ? f.source.readDirectory(root, ['.ts'], undefined, [pattern]) : f.source.readDirectory(root, ['.ts'], [pattern], ['**/*']);
+560 |  expect(() => read('plain/../dir/**/*')).toThrow('not a directory');
+                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "not a directory"
+
+Received function did not throw
+Received value: [ "/__puni_review__/candidate/z.ts", "/__puni_review__/candidate/alias/b.ts" ]
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:560:42)
+(fail) literal exclude prefix walks file ancestors and effective alias parents [86.60ms]
+563 |  else expect(selected).toEqual([root+'/z.ts',root+'/alias/b.ts']);
+564 | });
+565 |
+566 | test('missing literal prefixes cannot normalize into selected includes or excludes', () => {
+567 |  const f = setup();
+568 |  expect(f.source.readDirectory(root, ['.ts'], undefined, ['missing/../src/**/*'])).toEqual([]);
+                                                                                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "/__puni_review__/candidate/src/b.ts",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:568:84)
+(fail) missing literal prefixes cannot normalize into selected includes or excludes [109.04ms]
+
+ 0 pass
+ 57 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [1285.00ms]

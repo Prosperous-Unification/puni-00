@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+202 | });
+203 | test('copied methods grant no authority and unlisted installed files stay unreachable', () => {
+204 |   const { input } = fixture();
+205 |   writeFileSync(join(input.runtimeRoot, 'extra.js'), 'unlisted');
+206 |   const runtime = readReviewRuntime(input);
+207 |   expect(() => ({ ...runtime }).readFile(runtime.closure.files[0])).toThrow('capability');
+                                                                          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "capability"
+
+Received function did not throw
+Received value: Uint8Array(6) [ 112, 97, 114, 115, 101, 114 ]
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:207:69)
+(fail) copied methods grant no authority and unlisted installed files stay unreachable [8.11ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [930.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 329830400, "exitCode": 1}

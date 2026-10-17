@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+650 |
+651 | test('drive-rooted matcher patterns refuse before literal link reads', () => {
+652 |  const f = setup();
+653 |  const trap = spyOn(Uint8Array, 'from').mockImplementation(() => { throw new Error('copy forbidden'); });
+654 |  try {
+655 |   expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link','C:/outside/**/*'])).toThrow('source pattern outside');
+                                                                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source pattern outside"
+Received message: "copy forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:655:94)
+(fail) drive-rooted matcher patterns refuse before literal link reads [142.46ms]
+
+ 0 pass
+ 66 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1114.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+238 |       { configPaths: [], publicEntrypoints: ['src/index.ts'] },
+239 |       { configPaths: ['tsconfig.json'], publicEntrypoints: [] },
+240 |       { configPaths: ['tsconfig.json', 'tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
+241 |       { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts', 'src/index.ts'] },
+242 |     ])
+243 |       expect(() => extractRetainedTypeScriptRelationships({ ...f, request })).toThrow('request');
+                                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request"
+Received message: "TypeScript public entrypoint src/index.ts resolved by 0 configs; expected exactly one emitting owner"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:243:79)
+(fail) retained compiler rejects malformed or noncandidate requests before retained reads [176.83ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [1120.00ms]

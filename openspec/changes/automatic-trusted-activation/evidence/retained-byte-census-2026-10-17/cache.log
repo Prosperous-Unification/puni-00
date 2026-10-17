@@ -1,0 +1,60 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [353.90ms]
+849 |     ],
+850 |   });
+851 |   expect(Object.isFrozen(census)).toBe(true);
+852 |   expect(Object.isFrozen(census.entries)).toBe(true);
+853 |   for (const entry of census.entries) expect(Object.isFrozen(entry)).toBe(true);
+854 |   expect(sealRetainedTypeScriptReads(source)).toBe(census);
+                                                    ^
+error: expect(received).toBe(expected)
+
+Expected: {
+  schemaVersion: 1,
+  kind: "retained-typescript-byte-reads",
+  entries: [
+    {
+      namespace: "runtime",
+      path: "node_modules/pkg/index.d.ts",
+      revision: null,
+      identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+      byteLength: 1,
+    }, {
+      namespace: "candidate",
+      path: "a.ts",
+      revision: null,
+      identity: "8daf901ecb6536b26e0632b480b6bfadd62d24ec1b886523d10fd0d24392fb7f",
+      byteLength: 13,
+    }, {
+      namespace: "candidate",
+      path: "package.json",
+      revision: null,
+      identity: "6dc1b06d6b093e9cccb20bee06a93836eee0420ae26803ca2ce4065d82f070d1",
+      byteLength: 17,
+    }, {
+      namespace: "candidate",
+      path: "alias",
+      revision: null,
+      identity: "0d18d4eb377a214157ad45e7ee0f189a2d7370788a483e729c7f269d94cafe41",
+      byteLength: 4,
+    }, {
+      namespace: "candidate",
+      path: "z",
+      revision: null,
+      identity: "0d18d4eb377a214157ad45e7ee0f189a2d7370788a483e729c7f269d94cafe41",
+      byteLength: 4,
+    }
+  ],
+}
+Received: serializes to the same string
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:854:47)
+(fail) byte census records raw candidate package BOM and probe symlink acquisitions only [107.63ms]
+
+ 1 pass
+ 91 filtered out
+ 1 fail
+ 21 expect() calls
+Ran 2 tests across 1 file. [1429.00ms]

@@ -1,0 +1,18 @@
+{
+  "paths": [
+    "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.test.fixture.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-current-path.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-history.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts"
+  ],
+  "count": 10,
+  "sameOrderedStagedPathSet": true,
+  "options": ["eslint"],
+  "allOtherHookCommandsAndGlobsUnchanged": true
+}

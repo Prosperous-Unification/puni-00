@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+ 98 |   const paths: string[] = [];
+ 99 |   source.pathKind = (path) => { paths.push(path); return 'absent'; };
+100 |   const system = boundSource(workspace, source, { kind: 'bounded', limits: { ...limits, maximumProbes: 2 } });
+101 |   system.admitTypeRoot('/outside/types');
+102 |   system.admitTypeRoot('/outside/types');
+103 |   expect(paths).toEqual(['/outside/types', '/outside/types']);
+                      ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/outside/types",
+-   "/outside/types",
+- ]
++ []
+
+- Expected  - 4
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:103:17)
+(fail) explicit type root admission delegates outside paths and charges repeated probes [0.65ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [544.00ms]

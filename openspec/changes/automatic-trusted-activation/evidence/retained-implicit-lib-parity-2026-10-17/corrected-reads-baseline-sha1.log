@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained compiler implicit sha1 matches legacy after all capture roots disappear [2001.23ms]
+
+ 1 pass
+ 31 filtered out
+ 0 fail
+ 126 expect() calls
+Ran 1 test across 1 file. [3.00s]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+525 | });
+526 |
+527 | test('compatible source mode preserves explicit outside root probes as absent', () => {
+528 |   const { source } = fixture({ 'tsconfig.json': JSON.stringify({ compilerOptions: { noLib: true, types: [], typeRoots: ['/outside/types'] }, files: ['globals.d.ts', 'src/index.ts'] }) });
+529 |   const original = source.pathKind;
+530 |   source.pathKind = (path) => { if (path.startsWith('/outside')) throw new Error('outside admission'); return original(path); };
+                                                                                                          ^
+error: outside admission
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:530:101)
+      at admitTypeRoot (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:99:14)
+      at parseProject (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:229:63)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:118:40)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:531:10)
+(fail) compatible source mode preserves explicit outside root probes as absent [6.70ms]
+
+ 0 pass
+ 30 filtered out
+ 1 fail
+Ran 1 test across 1 file. [533.00ms]

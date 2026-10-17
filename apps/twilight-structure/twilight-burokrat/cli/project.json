@@ -121,6 +121,15 @@
       "options": {
         "command": "bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"
       }
+    },
+    "build:compiler-derivative": {
+      "cache": false,
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist/compiler-derivative"],
+      "options": {
+        "command": "bun src/packaging/compiler-derivative-cli.ts",
+        "cwd": "apps/twilight-structure/twilight-burokrat/cli"
+      }
     }
   }
 }

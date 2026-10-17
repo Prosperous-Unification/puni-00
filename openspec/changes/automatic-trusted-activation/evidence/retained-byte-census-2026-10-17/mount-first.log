@@ -1,0 +1,104 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained compiler sha1 matches legacy after all capture roots disappear [268.93ms]
+(pass) retained compiler sha256 matches legacy after all capture roots disappear [161.41ms]
+(pass) retained compiler rejects malformed or noncandidate requests before retained reads [126.85ms]
+(pass) retained compiler bounds and captures fixed request lengths before indexed getters [155.34ms]
+(pass) retained compiler snapshots limits and refuses final envelope one byte below exact [146.67ms]
+(pass) retained compiler refuses bad config [148.78ms]
+(pass) retained compiler refuses diagnostics [146.02ms]
+(pass) retained compiler refuses selected missing [131.98ms]
+(pass) retained compiler refuses selected escape [151.07ms]
+(pass) retained compiler captures request and all ceilings before source callbacks mutate caller objects [146.72ms]
+(pass) retained compiler snapshots each path and limit getter once and refuses sparse entries [145.34ms]
+(pass) retained compiler refuses missing selected config and public entrypoint [149.17ms]
+(pass) retained compiler rejects absent package metadata and foreign owners [233.47ms]
+(pass) retained compiler refuses array impostors before source admission [154.98ms]
+(pass) retained compiler validates every limit field before source admission [152.14ms]
+(pass) retained compiler bounds UTF8 paths and public count before admission [148.27ms]
+(pass) retained compiler bounds path codeunits before UTF8 encoding [157.72ms]
+(pass) retained compiler enforces mounted source and compiler budgets [126.39ms]
+(pass) retained compiler validates captured proxy array lengths before indexed reads [144.28ms]
+(pass) changed owned provider changes its public declaration selector identity [286.98ms]
+592 |   const admission = spyOn(sources, 'createRetainedTypeScriptSource').mockImplementation((...args) => {
+593 |     captured = create(...args); return captured;
+594 |   });
+595 |   try {
+596 |     const envelope = extractRetainedTypeScriptRelationships(f);
+597 |     expect(envelope.byteReads.entries).toContainEqual({namespace: 'candidate', path: 'tsconfig.json', revision: null,
+                                             ^
+error: expect(received).toContainEqual(expected)
+
+Expected to contain: {
+  namespace: "candidate",
+  path: "tsconfig.json",
+  revision: null,
+  identity: "92590df8141606feb3acfc1134fc1976c454e47bb76f2294237e7f9597de5fa2",
+  byteLength: 74,
+}
+Received: [
+  {
+    namespace: "candidate",
+    path: "base.json",
+    revision: null,
+    identity: "6e42b9ff78267bfaef0087517f3f721cc1458bb521b56f9c2837628820fe8d5c",
+    byteLength: 178,
+  }, {
+    namespace: "candidate",
+    path: "globals.d.ts",
+    revision: null,
+    identity: "68d37cdd97178fb38226c3c96f5cadeb7fb57eb4d366a55f5d27cbed42bcf3e7",
+    byteLength: 227,
+  }, {
+    namespace: "candidate",
+    path: "src/provider.ts",
+    revision: null,
+    identity: "f23e03df30f78c48356ce6e340638bfcb4e830cbfa5bad43ff5b401407ee3854",
+    byteLength: 31,
+  }, {
+    namespace: "runtime",
+    path: "node_modules/pkg/index.d.ts",
+    revision: null,
+    identity: "39b881b2e1e6e090a80d7d7a9ea7f8892f01538342e71022972c59054c101c5c",
+    byteLength: 46,
+  }, {
+    namespace: "runtime",
+    path: "node_modules/pkg/package.json",
+    revision: null,
+    identity: "2ca3a7cd91755858e6edf68ac32124bf98a43649fcc95608862dbd85ecc36fe5",
+    byteLength: 53,
+  }, {
+    namespace: "candidate",
+    path: "tsconfig.json",
+    revision: null,
+    identity: "92590df8141606feb3acfc1134fc1976c454e47bb76f2294237e7f9597de5fa2",
+    byteLength: 66,
+  }, {
+    namespace: "candidate",
+    path: "src/consumer.ts",
+    revision: null,
+    identity: "dd2c9c814d6261b6d20618a15a8b6aad79e354925d2eb491c5af44e4c4fc85c2",
+    byteLength: 67,
+  }, {
+    namespace: "candidate",
+    path: "src/index.ts",
+    revision: null,
+    identity: "84529845ed6a26be172fbda8e6a1949022a33518419cbbba0c8b5592afabc9a1",
+    byteLength: 75,
+  }, {
+    namespace: "runtime",
+    path: "node_modules/typescript/package.json",
+    revision: null,
+    identity: "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+    byteLength: 841,
+  }
+]
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:597:40)
+(fail) retained compiler byte census seals only after successful extraction [129.17ms]
+
+ 20 pass
+ 1 fail
+ 322 expect() calls
+Ran 21 tests across 1 file. [4.36s]

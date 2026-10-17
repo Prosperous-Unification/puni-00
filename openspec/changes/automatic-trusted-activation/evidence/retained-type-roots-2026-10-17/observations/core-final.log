@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+(pass) compiler configuration mode rejects unknown before source callbacks [0.53ms]
+(pass) compatible source mode preserves explicit outside root probes as absent [74.33ms]
+(pass) retained configuration mode reaches every requested root project [2.08ms]
+
+ 3 pass
+ 28 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 3 tests across 1 file. [641.00ms]

@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+86 |       throw new Error('TypeScript directory entry limit exceeded');
+87 |     return paths;
+88 |   };
+89 |   const pathKind = (path: string): ReturnType<TypeScriptSource['pathKind']> => {
+90 |     probe();
+91 |     if (!admits(path)) throw new Error('outside generic probe');
+                                                                   ^
+error: outside generic probe
+      at pathKind (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:91:63)
+      at directoryExists (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:103:32)
+      at directoryProbablyExists (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:21187:40)
+      at getPackageJsonInfo (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45863:27)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45797:14)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:46466:20)
+      at forEachAncestorDirectory (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:9156:20)
+      at forEachAncestorDirectoryStoppingAtGlobalCache (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:46465:10)
+      at getPackageScopeForPath (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45794:10)
+      at loadModuleFromSelfNameReference (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45966:17)
+      at tryResolve (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45444:27)
+      at nodeModuleNameResolverWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45380:14)
+      at bundlerModuleNameResolver (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45301:10)
+      at resolveModuleName (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:45080:18)
+      at resolve (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127218:46)
+      at loadWithModeAwareCache (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127261:38)
+      at actualResolveModuleNamesWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127579:124)
+      at resolveModuleNamesWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127952:20)
+      at resolveNamesReusingOldState (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128088:14)
+      at resolveModuleNamesReusingOldState (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128044:12)
+      at processImportedModules (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129473:118)
+      at findSourceFileWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129285:7)
+      at findSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129138:20)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129089:22)
+      at getSourceFileFromReferenceWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129060:26)
+      at processSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129087:5)
+      at processRootFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128919:5)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127692:41)
+      at forEach (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:2309:22)
+      at createProgram (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127692:5)
+      at parseProject (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:240:22)
+      at map (1:11)
+(fail) retained omitted typeRoots wildcard types discover visible ambient declarations [158.78ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1111.00ms]

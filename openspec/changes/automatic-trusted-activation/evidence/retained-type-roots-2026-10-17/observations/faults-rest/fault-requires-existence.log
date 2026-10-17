@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+94 |     compilerLibraryDirectory: source.compilerLibraryDirectory,
+95 |     useCaseSensitiveFileNames: source.useCaseSensitiveFileNames,
+96 |     pathKind,
+97 |     admitTypeRoot: (path) => {
+98 |       probe();
+99 |       if (source.pathKind(path) === 'absent') throw new Error('type root absent');
+                                                                                     ^
+error: type root absent
+      at admitTypeRoot (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:99:81)
+      at parseProject (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:229:63)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:118:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:90:21)
+(fail) retained effective typeRoots admits missing [175.74ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1122.00ms]

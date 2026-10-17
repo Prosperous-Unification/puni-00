@@ -1,0 +1,127 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 368304128, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+314 |       throw new Error('long root encoding reached');
+315 |     }
+316 |     return original(text, ...args);
+317 |   });
+318 |   try {
+319 |     expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow(
+                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source path ceiling exceeded"
+
+Received function did not throw
+Received value: {
+  runtimeTrust: "unverified",
+  provenance: {
+    snapshotIdentity: "06da7094cb30c67064bceb5265b0d16c3e804581da2fac9e3058a9f08b5921ef",
+    classificationPolicyIdentity: "3444f53c03a72c1bfbcaaf8c022e8a96335fc90dfe4bd206b29770b4f221a307",
+    runtimeClosureIdentity: "249609de9ec256f3ae660ba6dd7f62f04334d3e3ac1ad2814c86a3dcf023b2d5",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    runtimeTrust: "unverified",
+    namespacePolicyIdentity: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+  },
+  byteReads: {
+    schemaVersion: 1,
+    kind: "retained-typescript-byte-reads",
+    entries: [
+      {
+        namespace: "candidate",
+        path: "globals.d.ts",
+        revision: null,
+        identity: "22a48226f2b3a5f2a31b4d9d4a89f35c564f349a4602e15e9edef42037acc85c",
+        byteLength: 227,
+      }, {
+        namespace: "candidate",
+        path: "tsconfig.json",
+        revision: null,
+        identity: "218ae7b5ccb78eba922399261e9855f9281f7a2768cb1b847b806c4f2e753dd1",
+        byteLength: 3121,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/pkg/index.d.ts",
+        revision: null,
+        identity: "3639ca9debfd961f62c875eee819f5d4e75ad7351495c2ed633021473f119814",
+        byteLength: 42,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/pkg/package.json",
+        revision: null,
+        identity: "2ca3a7cd91755858e6edf68ac32124bf98a43649fcc95608862dbd85ecc36fe5",
+        byteLength: 53,
+      }, {
+        namespace: "candidate",
+        path: "index.ts",
+        revision: null,
+        identity: "ba488e01a89418b34c000e7091c5901c6a12808602a5fa844edb96b946705ae6",
+        byteLength: 67,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/typescript/package.json",
+        revision: null,
+        identity: "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+        byteLength: 841,
+      }, {
+        namespace: "candidate",
+        path: "configs/base.json",
+        revision: null,
+        identity: "beecf8fd13dfcfc29b669c311dc8a7a4105efaed1ae8accf1941fd32de39fde5",
+        byteLength: 86,
+      }
+    ],
+  },
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+  },
+  relationships: {
+    imports: [
+      {
+        source: "index.ts",
+        specifier: "pkg",
+        target: "external:pkg",
+        importKind: "type-re-export",
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "b27707db3f4407a8b8c4367b5d726a76844ef5eaf8b0d3dbd6bd8b27b9cc6a4c",
+      }
+    ],
+    reverseEdges: [],
+    publicDeclarations: [
+      {
+        configPath: "tsconfig.json",
+        entrypoint: "index.ts",
+        configurationIdentity: "5d5603803ce452460fa3c493c5c1e99375efc4c4d245761f9bea6707a1f4437e",
+        declarations: [
+          {
+            sourcePath: "index.ts",
+            emittedPath: "index.d.ts",
+            text: "export type { Package } from 'pkg';\nexport declare const value: number;\n",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "f2ad26b933de8629ff70f487b8152a4aafb8bf39335cba80eb0f2b18cd788ca5",
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:319:68)
+(fail) retained literal paths bounds long roots before source UTF8 encoding [264.63ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1283.00ms]

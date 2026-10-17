@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts:
+(pass) exports exactly the judge surface and nothing that takes a store [813.47ms]
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+(pass) shared compiler source resolves imports and declaration closure without ambient hosts [63.48ms]
+(pass) project reference wildcard enumeration uses the supplied source [7.60ms]
+(pass) root config absent, directory and malformed stay distinct [0.90ms]
+(pass) compiler refuses maximumProbes before returning extraction [0.11ms]
+(pass) compiler refuses maximumReadBytes before returning extraction [0.02ms]
+(pass) compiler refuses maximumDirectoryEntries before returning extraction [0.28ms]
+(pass) compiler refuses maximumObservedOutputBytes before returning extraction [1.60ms]
+(pass) compiler refuses maximumOutputBytes before returning extraction [4.30ms]
+(pass) compiler source refuses escaping imports before invoking outside ports [2.36ms]
+(pass) compiler source rejects nonfinite, negative and fractional limits before IO [0.35ms]
+(pass) exact final output bytes include identity and empty selector families [6.51ms]
+(pass) case insensitive compiler preserves TypeScript Unicode canonical names [4.93ms]
+(pass) compiler declaration newline follows CRLF config [3.74ms]
+(pass) relative and scoped extends, paths aliases and package imports use source ports [7.25ms]
+(pass) compiler reads explicitly supplied default library bytes [3.59ms]
+(pass) source parsing does not execute candidate preload, package scripts or compiler plugins [3.32ms]
+(pass) compiler refuses absolute extends escape before outside ports [0.51ms]
+(pass) compiler refuses relative extends escape before outside ports [0.22ms]
+(pass) compiler refuses project reference escape before outside ports [2.59ms]
+(pass) compiler refuses type root escape before outside ports [3.39ms]
+(pass) compiler refuses canonical source symlink escape [0.81ms]
+(pass) unreadable config remains unreadable with source context [0.12ms]
+(pass) compiler snapshots finite limits before source callbacks mutate caller policy [2.92ms]
+(pass) automatic type root enumeration uses the source host [3.53ms]
+(pass) observation budget charges every emitted declaration and selector before accumulation [8.04ms]
+(pass) observation budget charges bundled declaration text before accumulation [8.16ms]
+(pass) ambient CommonJS filesystem read is intercepted before real canary IO [0.45ms]
+(pass) ambient CommonJS filesystem write is intercepted before real canary IO [0.15ms]
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-legacy.test.ts:
+(pass) legacy wrapper and source preserve full pre-seam relationships and identities including empty families [40.19ms]
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+(pass) compiler source counts repeated probes at exact boundary [0.92ms]
+(pass) compiler source counts repeated UTF8 read bytes at exact boundary [0.13ms]
+(pass) compiler source counts both directory enumeration routes at exact boundary [0.12ms]
+(pass) compiler observations count UTF8 bytes at exact boundary [3.03ms]
+(pass) compiler namespace misses never delegate outside paths to any source port [0.11ms]
+(pass) compiler ambient output callback refuses unexpected compiler writes [0.05ms]
+
+ 36 pass
+ 0 fail
+ 92 expect() calls
+Ran 36 tests across 4 files. [1029.00ms]

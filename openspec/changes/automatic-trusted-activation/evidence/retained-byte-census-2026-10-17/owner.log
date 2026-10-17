@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) reserves raw candidate and runtime bytes before any copy [326.01ms]
+873 |       get() {
+874 |         throw new Error('foreign accessor touched');
+875 |       },
+876 |     },
+877 |   );
+878 |   expect(() => sealRetainedTypeScriptReads(foreign)).toThrow('owned retained TypeScript');
+                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained TypeScript"
+Received message: "ReadOwners.get(source) is not a function. (In 'ReadOwners.get(source)()', 'ReadOwners.get(source)' is undefined)"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:878:54)
+(fail) byte census records raw candidate package BOM and probe symlink acquisitions only [126.46ms]
+
+ 1 pass
+ 91 filtered out
+ 1 fail
+ 29 expect() calls
+Ran 2 tests across 1 file. [1397.00ms]

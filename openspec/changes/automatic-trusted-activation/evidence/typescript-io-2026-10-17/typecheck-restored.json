@@ -1,0 +1,16 @@
+{
+  "command": [
+    "node",
+    "node_modules/typescript/bin/tsc6",
+    "--noEmit",
+    "--project",
+    "apps/twilight-structure/twilight-burokrat/cli/tsconfig.spec.json",
+    "--incremental",
+    "false"
+  ],
+  "exitCode": 1,
+  "peakTreeRssBytes": 716333056,
+  "seconds": 9.869,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 300
+}

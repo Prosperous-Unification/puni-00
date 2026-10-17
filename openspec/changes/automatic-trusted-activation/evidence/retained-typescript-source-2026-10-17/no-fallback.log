@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+308 |   ];
+309 |   const original = process.env['GIT_OBJECT_DIRECTORY'];
+310 |   try {
+311 |     for (const trap of traps)
+312 |       trap.mockImplementation(() => {
+313 |         throw new Error('ambient forbidden');
+                                                 ^
+error: ambient forbidden
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:313:44)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:334:21)
+(fail) all direct methods survive removed roots and intercepted ambient ports [140.31ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 11 expect() calls
+Ran 1 test across 1 file. [1086.00ms]

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 178148,
+  "ceilingKiB": 921600
+}

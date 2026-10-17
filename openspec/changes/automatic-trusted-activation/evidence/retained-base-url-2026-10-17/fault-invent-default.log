@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 184586240, "exitCode": 1}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+208 |     });
+209 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+210 |     const roots: string[] = [];
+211 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+212 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+213 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "/candidate",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:213:19)
+(fail) retained baseUrl admission preserves effective normalization {} undefined [17.83ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [612.00ms]

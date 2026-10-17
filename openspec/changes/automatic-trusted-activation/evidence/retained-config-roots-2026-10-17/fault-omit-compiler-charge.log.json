@@ -1,0 +1,348 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "charges repeated compiler admission"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 359352,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-ChDa8G/source'",
+      "git-upload-pack '/tmp/namespace-ChDa8G/source'"
+    ],
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-FziXtR/source'",
+      "git-upload-pack '/tmp/namespace-FziXtR/source'"
+    ],
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-TVxm9k/source'",
+      "git-upload-pack '/tmp/namespace-TVxm9k/source'"
+    ],
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-fsZ5gu/source'",
+      "git-upload-pack '/tmp/namespace-fsZ5gu/source'"
+    ],
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-jBgS1W/source'",
+      "git-upload-pack '/tmp/namespace-jBgS1W/source'"
+    ],
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-nVSEFa/source'",
+      "git-upload-pack '/tmp/namespace-nVSEFa/source'"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-ChDa8G/store/.pending-6Ts3Av/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-ChDa8G/source",
+      "cf85ab221265e236d73dfd26128e3d55775c8a93",
+      "cf85ab221265e236d73dfd26128e3d55775c8a93"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-ET8jF9/store/.pending-wVCDWi/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-ET8jF9/source",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-F3LJDV/store/.pending-qYjZVT/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-F3LJDV/source",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-FziXtR/store/.pending-Of4T1C/git",
+      "cat-file",
+      "blob",
+      "e9d6ac6404fc5f0923c1f1f21095745c397c9419"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-FziXtR/store/.pending-Of4T1C/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-FziXtR/source",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-GZFe2X/store/.pending-bbhxa0/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-GZFe2X/source",
+      "c5fd3999a86931cc6697eecfee7932784ada8e70",
+      "c5fd3999a86931cc6697eecfee7932784ada8e70"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-GhNZyH/store/.pending-qMh345/git",
+      "cat-file",
+      "blob",
+      "3cde3f6e8c50b588b6d456489655bf14807a84bf"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-HfWcyg/store/.pending-0FOjTS/git",
+      "cat-file",
+      "blob",
+      "3cde3f6e8c50b588b6d456489655bf14807a84bf"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-OFw7tO/store/.pending-QNT7eF/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-OFw7tO/source",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-OYYL8U/store/.pending-8yj6dm/git",
+      "cat-file",
+      "blob",
+      "da9f018f0ef074095573c36d60fe4d1459e2566c"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-QXWXx8/store/.pending-bBBgOO/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-QXWXx8/source",
+      "b1713054ed3d945e4974ed64fe037ccb85fb2200",
+      "b1713054ed3d945e4974ed64fe037ccb85fb2200"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-TVxm9k/store/.pending-Dt6ZVl/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-TVxm9k/source",
+      "cf85ab221265e236d73dfd26128e3d55775c8a93",
+      "cf85ab221265e236d73dfd26128e3d55775c8a93"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-WcTjTf/store/.pending-yTur89/git",
+      "cat-file",
+      "blob",
+      "57a89ab667eee1c1ce3543b2317f21fb4fabc597"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-Zdmhxf/store/.pending-nqdfTg/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-Zdmhxf/source",
+      "c5fd3999a86931cc6697eecfee7932784ada8e70",
+      "c5fd3999a86931cc6697eecfee7932784ada8e70"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-aqyHdc/store/.pending-io3TCD/git",
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e^{tree}"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-duCexo/store/.pending-XmOZAp/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-duCexo/source",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-fsZ5gu/store/.pending-pdfHFP/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-fsZ5gu/source",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-jBgS1W/store/.pending-Ja1N2N/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-jBgS1W/source",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d",
+      "b10d81b2060c0394dbb6f956a6a16024ccc4b02d"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-nSPYRp/store/.pending-5wU7A5/git",
+      "ls-tree",
+      "-r",
+      "-z",
+      "--full-tree",
+      "57773604f30c698b3f3b2b7ee79f4bf515199adc"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-nVSEFa/store/.pending-givQl8/git",
+      "cat-file",
+      "blob",
+      "57091730e94dffc1fe6da53c7c72327bcc6d6896"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-nVSEFa/store/.pending-givQl8/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-nVSEFa/source",
+      "c5fd3999a86931cc6697eecfee7932784ada8e70",
+      "c5fd3999a86931cc6697eecfee7932784ada8e70"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-unrNYS/store/.pending-eFhwpT/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-unrNYS/source",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e",
+      "e8f1868e43d4042e366bf79f11300b0ed04d797e"
+    ],
+    ["/usr/bin/git", "-C", "/tmp/namespace-F3LJDV/source", "commit", "-qm", "candidate"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-HaEBAj/source", "commit", "-qm", "candidate"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-IBHDZj/source", "config", "user.name", "Test"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-QXWXx8/source", "commit", "-qm", "candidate"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-SpE6Zm/source", "init", "-q", "--object-format=sha1"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-WcTjTf/source", "commit", "-qm", "candidate"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-aqyHdc/source", "commit", "-qm", "candidate"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-duCexo/source", "init", "-q", "--object-format=sha1"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-nSPYRp/source", "commit", "-qm", "candidate"],
+    ["/usr/bin/git", "-C", "/tmp/namespace-unrNYS/source", "init", "-q", "--object-format=sha1"],
+    ["/usr/lib/git-core/git", "maintenance", "run", "--auto", "--quiet"],
+    [
+      "/usr/lib/git-core/git",
+      "pack-objects",
+      "--revs",
+      "--thin",
+      "--stdout",
+      "--delta-base-offset"
+    ],
+    [
+      "/usr/lib/git-core/git",
+      "rev-list",
+      "--objects",
+      "--stdin",
+      "--not",
+      "--exclude-hidden=fetch",
+      "--all",
+      "--quiet",
+      "--alternate-refs"
+    ],
+    ["/usr/lib/git-core/git", "unpack-objects", "-q", "--pack_header=2,17"],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "charges repeated compiler admission"
+    ],
+    ["git-upload-pack", "/tmp/namespace-ChDa8G/source"],
+    ["git-upload-pack", "/tmp/namespace-TVxm9k/source"],
+    ["git-upload-pack", "/tmp/namespace-fsZ5gu/source"],
+    ["git-upload-pack", "/tmp/namespace-nVSEFa/source"]
+  ]
+}

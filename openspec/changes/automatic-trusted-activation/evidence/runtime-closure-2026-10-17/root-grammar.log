@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+232 |     ),
+233 |   ).toThrow('paths');
+234 |   const { input } = fixture();
+235 |   expect(() =>
+236 |     readReviewRuntime({ ...input, runtimeRoot: input.runtimeRoot + '/../runtime' }),
+237 |   ).toThrow('root');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "root"
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [
+      {
+        byteLength: 6,
+        identity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+        path: "parser.js",
+        role: "program",
+      }, {
+        byteLength: 8,
+        identity: "e996bb0ea465fae70d3e3c66b3b6e02d33d2f1eb76d5958720578b6cf359cc2e",
+        path: "typescript.js",
+        role: "dependency",
+      }
+    ],
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "a7d7265d46270b8b68a03beebcf7a6d2446a445ed78caddf4abd618088a32156",
+  readFile: [Function: readFile],
+}
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:237:5)
+(fail) rejects unsafe lengths, path prefix conflicts and noncanonical root aliases [9.64ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [930.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 331739136, "exitCode": 1}

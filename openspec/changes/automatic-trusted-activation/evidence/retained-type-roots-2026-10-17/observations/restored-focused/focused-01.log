@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+(pass) retained effective typeRoots refuses relative outside before program with types empty [196.05ms]
+
+ 1 pass
+ 17 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1164.00ms]

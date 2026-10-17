@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+(pass) binds emitted namespace pin to the exact canonical V1 recipe [106.06ms]
+
+ 1 pass
+ 43 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [1067.00ms]

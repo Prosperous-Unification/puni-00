@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+    "--test-name-pattern",
+    "bounds long roots"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 362640,
+  "ceilingKiB": 921600
+}

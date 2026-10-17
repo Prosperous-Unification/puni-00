@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "-t",
+    "preserves normalized typeRoots then rootDirs"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 178096,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "preserves normalized typeRoots then rootDirs"
+    ]
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "lefthook", "run", "pre-commit"],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 867932,
+  "ceilingKiB": 921600
+}

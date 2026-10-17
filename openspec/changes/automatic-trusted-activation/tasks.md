@@ -290,7 +290,146 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       third-revision and raw historical symlink authority, BOM current targets, legacy null
       history refusal and independently watched guard omissions. This bounded component does
       not close 2.1d.1.3, compiler/runtime closure, all eleven documents or external authority.
-- [ ] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
+- [ ] 2.1d.1.3b Extract the shared filesystem-independent static Nx selector core and mount an
+      additive retained Nx-plus-declarations composition with no caller-supplied Nx authority.
+      Preserve legacy identity, discovery, sorting, shallow defaults, implicit dependencies,
+      symlink/node_modules exclusions and refusals. Prove exact owned-candidate census,
+      tuple reads, source/store removal, no ambient read/execution and explicit entry/read/byte/
+      output limits, including incremental default-amplification refusal before selector hashing.
+      This bounded prerequisite leaves compiler/runtime closure and parent 2.1d.1.3 open.
+- [ ] 2.1d.1.3c Extract the shared TypeScript compiler IO seam behind the preserved
+      filesystem wrapper. Provide explicit config path-kind/read/enumeration, compiler-host,
+      resolution, canonical path, cwd, library and output routes; preserve full selectors and
+      identities. TDD wildcard project references and supplied default libraries under poisoned
+      ambient IO, root absent/directory/malformed/unreadable distinctions, extends/paths/packages,
+      escape refusals, non-execution and finite repeated-probe/read/enumeration/observation plus
+      exact final-output bounds. Watch independent route/guard omissions. This prerequisite
+      supplies no retained adapter, authenticated runtime pin or protected authority; .3 stays open.
+- [ ] 2.1d.1.3d Admit the strict independently pinned `ReviewRuntimeClosureV1` and
+      capture exactly its declared files as an immutable owned-byte capability. Bound manifest,
+      census, paths, probes, reads, retained bytes and lifetime copy allocation; reject malformed
+      schema/canonical pins, absent/unreadable/substituted files, leaf/ancestor symlinks and
+      candidate overlap. Prove exact tuples, copied-capability refusal, post-capture mutation
+      isolation, read-plus-cleanup failures and independent guard omissions. Extra installed
+      files confer no capability authority. This prerequisite leaves transitive completeness,
+      protected installation ownership, running-code identity, retained TypeScript host and
+      parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks.
+- [ ] 2.1d.1.3e1 Build the immutable retained namespace index and exact-owner provenance before
+      mounting TypeScript. Use fixed candidate/runtime dependency mappings, opaque symlink tuples,
+      byte-sorted metadata nodes and an independent canonical namespace recipe identity, proven by
+      literal canonical bytes, an externally computed digest and causal recipe/pin omissions. Count all
+      input entries before runtime filtering; bound nodes, each source/virtual path before allocation,
+      and all retained node/source path fields. Refuse copied/false-empty owners, invalid grammar,
+      forbidden components/modes, duplicates and non-directory ancestors. Prove source/store/runtime
+      removal, intercepted content/filesystem/Git traps, mutation isolation and independent omissions.
+      This bounded prerequisite leaves compiler mounting, runtime completeness/authentication and
+      parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks and exact review.
+- [ ] 2.1d.1.3e2 Complete direct retained TypeScriptSource methods and exact-owner provenance,
+      reserving candidate/runtime raw bytes before copy from private metadata. Join all three
+      owners and identities before census; snapshot finite explicit ceilings. Share current
+      component walking with declaration reads, preserving BOM/UTF8, ancestor checks, misses,
+      candidate-only bounded links and direct runtime mounts. Prove installed matcher parity
+      for admitted no-dot POSIX patterns, extension/include/exclude/depth/order and basename directories, pinned helper shape
+      refusal, removed-root interception and independent omission faults. No compiler invocation,
+      config parsing, compiler read manifest or freeze is supplied. Parent .3 remains open and
+      this scoped acceptance remains unchecked until all required checks and exact review pass.
+- [ ] 2.1d.1.3e3 Mount the exact owned retained TypeScript source into the shared compiler
+      with fixed workspace and source-owned unverified provenance. Snapshot finite source/compiler/
+      request ceilings and bounded nonempty unique canonical candidate request paths before callbacks;
+      cap the full returned envelope. Prove SHA-1/SHA-256 noLib legacy identity parity for wildcard
+      discovery, relative imports/reexports, aliases and a declared runtime package after all capture
+      roots disappear under intercepted ambient routes. Watch independent request/bound/snapshot
+      omissions and compiler/config/selected-missing refusals. Default-library parity, runtime
+      authentication/completeness, compiler read manifest/freeze and parent .3 remain open; scoped
+      acceptance stays unchecked until recorded checks and exact review pass.
+- [ ] 2.1d.1.3e4a Record retained source successful raw byte acquisitions with private candidate
+      and exact runtime tuples, revision:null, exact deduplication and canonical UTF-8 ordering.
+      Bound entries and full ledger bytes before owner copies; preserve existing repeat-read
+      execution budgets. Seal only the exact source owner into a cached deeply frozen census,
+      bar later callbacks, and mount it after successful extraction inside the whole-envelope cap.
+      Prove package/BOM/link probes, alias deduplication, unused runtime absence, exact-fit/shortage,
+      copied-owner/accessor refusal, failed-copy/extraction behavior and independent omissions.
+      Preserve SHA-1/SHA-256 removed-root noLib replay. This does not close full read manifest,
+      runtime authentication, default-library parity, freeze or parent .3; scoped acceptance
+      remains unchecked pending exact review and required gate.
+- [ ] 2.1d.1.3e4b1 Prove explicit ES5 standard-library legacy parity with pinned installed
+      @typescript/old library bytes captured at namespace V1 typescript/lib paths. Preserve the
+      noLib regression; compare full extraction/identity for SHA-1 and SHA-256 after physical
+      roots disappear under ambient traps. Verify exact three-library raw census, absent unused
+      declared library, each required-library absence, physical mutation independence, valid byte
+      identity changes, and exact source/compiler/census/envelope budgets. Watch independent
+      ambient substitution, retained-read bypass, suppressed entry, wrong identity, byte accounting
+      and restored physical-dependence faults. This explicit lib:['es5'],types:[] fixture supplies
+      no implicit default-lib breadth, runtime authentication, compiler read manifest or freeze;
+      acceptance remains pending exact review and the required gate.
+- [ ] 2.1d.1.3e4b2 Prove pinned implicit-default standard-library legacy parity with candidate
+      target/lib/noLib and handwritten globals omitted. Pin actual TypeScript 6.0.3 default
+      lib.es2025.full.d.ts recursive closure (82 files / 2936611 raw bytes), assert exact parsed
+      directive membership, fatal UTF-8 roundtrip and owned config omissions. Compare full
+      SHA-1/SHA-256 legacy extraction after root removal under invoked ambient traps; assert
+      Document/ES5 public types, exact library census and absent unused library. Prove absent
+      root/direct DOM/indirect promise refusal, physical mutation isolation, changed indirect
+      identity and exact/short source/compiler/census/envelope limits. Watch wrong default
+      selection, namespace redirect, ESM-intercepted physical read, indirect omission/identity,
+      byte and envelope accounting faults. Run each selected test in a fresh serial process
+      under the 900 MiB process-tree guard; no combined-suite memory claim. Namespace V1,
+      production and unverified trust remain unchanged; full manifest/authentication/freeze and
+      parent .3 remain open pending independent review and required gate.
+- [ ] 2.1d.1.3e5a Publish exact-owner successful TypeScript extractions with a private
+      WeakMap request/provenance binding and opaque deeply readonly type. Freeze copied request
+      arrays before callbacks, preserve canonical envelope bytes and unverified trust, cap then
+      deeply freeze before registration. Refuse plain/copy/JSON/prototype/proxy/getter impostors
+      without property reads. Prove mutable caller inputs, stable cached binding, complete nested
+      immutability and no registration after compiler, cap or freeze failure. Watch independent
+      lookup, snapshot/original request, root/child freeze, copied provenance identity, cap/freeze
+      registration and omitted-registration faults; remove readonly and brand for compile negatives. This prerequisite supplies no protected freeze, authentication or full manifest;
+      acceptance remains pending independent review and the required gate.
+- [ ] 2.1d.1.3e5b Add public exact-owner retained candidate review provenance as a narrow prerequisite.
+      Cache frozen readonly request/snapshot/verified-history scalars after all public-open checks;
+      validate the closed raw request then copy declared fields and canonically validate that owned
+      snapshot, distinguish complete empty history from legacy null and keep
+      internal phase-one views unregistered. Prove SHA-1/SHA-256, no ambient IO/budget use,
+      impostor refusal without property reads and no binding after malformed/repinned history or
+      final owner failure. Watch lookup/freeze, three scalar substitutions, complete-null,
+      legacy-promotion, late caller reread, omitted registration and early-registration faults.
+      Candidate implementation and focused proofs are recorded in verify.md; acceptance stays
+      open pending independent review and required gate. No full manifest/authentication claim.
+- [ ] 2.1d.1.3e6a Admit effective root-project TypeScript typeRoots through the retained source
+      after config parsing and before program construction, including inherited options and
+      types:[]; discarded overridden roots and omitted default roots remain untouched. Charge
+      each explicit root to compiler and source traversal budgets, preserve compatible generic
+      and legacy probes, and prove outside/link escape refusal, inside/missing/link success,
+      inheritance base, exact repeated bounds and removed-root SHA-1/SHA-256 replay. Record
+      watched independent omissions and maintain unverified trust and canonical census identities.
+      This supplies no general config admission, reference-config policy, full manifest or runtime
+      authentication; acceptance and parent .3 remain open pending review and required gate.
+- [ ] 2.1d.1.3e6b Admit effective root-project TypeScript rootDirs alongside typeRoots through
+      the retained source after parsing and before each project host. Preserve compatible and
+      retained-type-roots modes; activation selects the closed retained-config-roots mode.
+      Prove unused direct/inherited outside roots, ancestor escapes, effective overrides,
+      normalization, absent/linked roots, generated fallback declarations and byte census,
+      second-project host cutoff, shared repeated budget exact fits, long paths and removed-root
+      SHA-1/SHA-256 replay. Watch independent production faults and record their restoration.
+      Parent .3, full WBS/release/gate, general configuration admission, project-reference policy,
+      complete manifest and runtime authentication stay open pending their own work and evidence.
+- [ ] 2.1d.1.3e6c Admit effective root-project TypeScript baseUrl in retained-config-roots
+      after successful parsing and before each host. Use the parser-normalized effective value
+      whenever defined; keep omitted roots and earlier modes unchanged. Prove unused direct
+      and inherited escapes, overrides, inside missing and linked roots, exact shared budgets,
+      bare import declarations and census, wildcard paths compatibility, second-project cutoff,
+      and removed-root SHA-1/SHA-256 replay. Watch independent production faults and restore.
+      Wildcard paths admission, parent .3, full manifest, authentication and freeze stay open.
+- [ ] 2.1d.1.3e6d Admit effective literal TypeScript paths substitutions in retained-config-roots
+      after baseUrl and before the host, using the pinned compiler pure-path resolver and
+      effective baseUrl or parser-owned declaring pathsBasePath. Preserve key/array order,
+      duplicates, discarded inheritance, options and earlier modes; wildcard-bearing targets
+      remain outside this admission slice. Refuse malformed mappings, substitutions, origins
+      and helper shape. Prove unused escapes, fixed targets under wildcard keys, normalized
+      separators, inherited and overridden origins, missing/link roots, alias/fallback declarations,
+      exact shared budgets and SHA-1/SHA-256 removed-root replay with link census. Watch independent
+      production faults and restore. Parent .3, wildcard expansion, complete manifest,
+      authentication and freeze remain open pending separate work, review and required gate.
+- [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,
       missing extra-rule match, false-empty graph/edge list, cycles and bounds. Independently
@@ -524,3 +663,14 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       review and `bin/h2puni-gate.sh <sha>` before completion. Record printed running SHA,
       format/test/lint/typecheck/build and OpenSpec outputs, CI-only checks, every accepted
       R5 mutation, restored GREEN and any disqualified trial. Missing tools block the check.
+
+- [x] 2.1d.1.3e6e1 Build a separate deterministic pinned TypeScript 6.0.3 derivative emitting
+      synchronous compiler-options paths substitution attempts before candidate IO. Thread origin
+      through all three shared-helper callers; keep typesVersions and ordinary ancestor probes
+      distinct. Pin input/output bytes, exact transformations and manifest; carry license/notice.
+      TDD real resolveModuleName refusal before fallback/extension fast path, normalized candidates,
+      order/success termination and callback return isolation. Watch independent R5 negatives for
+      input/output/manifest/count guards and observation removal, including builder-path post-input
+      missing/duplicate sections and altered output. Verify all four artifact members together
+      and refuse each missing/altered member. Cover both typesVersions caller routes. Keep extraction unchanged;
+      wildcard admission, complete manifest and runtimeTrust remain unverified and open.

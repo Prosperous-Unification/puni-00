@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 360681472, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+236 |       // eslint-disable-next-line @typescript-eslint/no-deprecated -- Pinned TS6 paths resolution prefers effective baseUrl over parser-owned pathsBasePath.
+237 |       const base: unknown = options.baseUrl !== undefined ? options.baseUrl : options['pathsBasePath'];
+238 |       if (typeof base !== 'string')
+239 |         throw new Error('TypeScript effective paths requires a string baseUrl or pathsBasePath');
+240 |       system.admitConfigurationRoot(resolveLiteralPath(base, substitution));
+241 |       if (system.pathKind(resolveLiteralPath(base, substitution)) === 'absent') throw new Error('literal target absent');
+                                                                                                                             ^
+error: literal target absent
+      at admitLiteralPaths (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:241:120)
+      at parseProject (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:315:5)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:124:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:178:23)
+(fail) retained literal paths admits inside missing [177.50ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1125.00ms]

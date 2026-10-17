@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "nx", "graph", "--file=/tmp/puni-es5-project-graph.json"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 276172,
+  "ceilingKiB": 921600
+}

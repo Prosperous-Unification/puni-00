@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) expanded aggregate includes resolved target remaining and separators {"dir/a.ts":"x"} [193.41ms]
+(pass) expanded aggregate includes resolved target remaining and separators {"dir/a.ts":"x"} [170.29ms]
+(pass) expanded aggregate includes resolved target remaining and separators {"parent/target/a.ts":"x"} [171.95ms]
+(pass) pattern syntax admission precedes link copies "nul\u0000pattern" [103.22ms]
+(pass) pattern syntax admission precedes link copies "\\pattern" [105.03ms]
+(pass) pattern syntax admission precedes link copies "\ud800" [110.05ms]
+(pass) supplied enumeration depth refuses before link copies 0 [99.61ms]
+(pass) supplied enumeration depth refuses before link copies -1 [97.34ms]
+(pass) supplied enumeration depth refuses before link copies 1.5 [105.24ms]
+(pass) supplied enumeration depth refuses before link copies null [113.18ms]
+(pass) supplied enumeration depth refuses before link copies null [126.28ms]
+(pass) supplied enumeration depth refuses before link copies 31 [95.50ms]
+(pass) captured includes remain missing-only when caller getter truncates array [95.59ms]
+(pass) captured extensions ignore caller getter growth beyond admitted count [89.83ms]
+(pass) captured patterns refuse a missing indexed entry after caller getter truncation [109.67ms]
+
+ 15 pass
+ 67 filtered out
+ 0 fail
+ 27 expect() calls
+Ran 15 tests across 1 file. [2.76s]

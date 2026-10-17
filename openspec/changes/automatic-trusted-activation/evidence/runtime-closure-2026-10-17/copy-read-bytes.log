@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+427 |     ...input,
+428 |     limits: { ...input.limits, maximumReadBytes: 20 },
+429 |   });
+430 |   const entry = runtime.closure.files[0];
+431 |   expect(runtime.readFile(entry).length).toBe(6);
+432 |   expect(() => runtime.readFile(entry)).toThrow('read byte ceiling');
+                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "read byte ceiling"
+
+Received function did not throw
+Received value: Uint8Array(6) [ 112, 97, 114, 115, 101, 114 ]
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:432:41)
+(fail) copy reads have a distinct lifetime returned-byte bound [7.16ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [927.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 330182656, "exitCode": 1}

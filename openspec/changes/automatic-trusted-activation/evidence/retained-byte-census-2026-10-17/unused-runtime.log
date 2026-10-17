@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+607 |       byteLength: 66,
+608 |     });
+609 |     expect(envelope.byteReads.entries.some((entry) => entry.path === 'parser.js')).toBe(false);
+610 |     expect(
+611 |       envelope.byteReads.entries.some((entry) => entry.path === 'node_modules/unused/index.d.ts'),
+612 |     ).toBe(false);
+            ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:612:7)
+(fail) retained compiler byte census seals only after successful extraction [230.77ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1186.00ms]

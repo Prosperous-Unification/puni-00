@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained compiler sha1 matches legacy after all capture roots disappear [261.77ms]
+(pass) retained compiler sha256 matches legacy after all capture roots disappear [153.02ms]
+(pass) retained compiler rejects malformed or noncandidate requests before retained reads [144.51ms]
+(pass) retained compiler bounds and captures fixed request lengths before indexed getters [141.08ms]
+(pass) retained compiler snapshots limits and refuses final envelope one byte below exact [156.48ms]
+(pass) retained compiler refuses bad config [132.45ms]
+(pass) retained compiler refuses diagnostics [145.92ms]
+(pass) retained compiler refuses selected missing [135.64ms]
+(pass) retained compiler refuses selected escape [135.22ms]
+(pass) retained compiler captures request and all ceilings before source callbacks mutate caller objects [127.75ms]
+(pass) retained compiler snapshots each path and limit getter once and refuses sparse entries [129.23ms]
+(pass) retained compiler refuses missing selected config and public entrypoint [165.44ms]
+(pass) retained compiler rejects absent package metadata and foreign owners [206.84ms]
+(pass) retained compiler refuses array impostors before source admission [132.81ms]
+(pass) retained compiler validates every limit field before source admission [141.55ms]
+(pass) retained compiler bounds UTF8 paths and public count before admission [152.67ms]
+(pass) retained compiler bounds path codeunits before UTF8 encoding [137.47ms]
+(pass) retained compiler enforces mounted source and compiler budgets [145.02ms]
+(pass) retained compiler validates captured proxy array lengths before indexed reads [122.11ms]
+(pass) changed owned provider changes its public declaration selector identity [248.19ms]
+(pass) retained compiler byte census seals only after successful extraction [123.17ms]
+
+ 21 pass
+ 0 fail
+ 329 expect() calls
+Ran 21 tests across 1 file. [4.21s]

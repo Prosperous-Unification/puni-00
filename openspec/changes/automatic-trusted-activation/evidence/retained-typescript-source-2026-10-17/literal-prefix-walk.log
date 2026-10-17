@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+572 |     );
+573 |     const read = (pattern: string) =>
+574 |       kind === 'include'
+575 |         ? f.source.readDirectory(root, ['.ts'], undefined, [pattern])
+576 |         : f.source.readDirectory(root, ['.ts'], [pattern], ['**/*']);
+577 |     expect(() => read('plain/child/**/*')).toThrow('not a directory');
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "not a directory"
+
+Received function did not throw
+Received value: []
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:577:44)
+(fail) literal include prefix admits owned aliases and refuses file ancestors [139.23ms]
+572 |     );
+573 |     const read = (pattern: string) =>
+574 |       kind === 'include'
+575 |         ? f.source.readDirectory(root, ['.ts'], undefined, [pattern])
+576 |         : f.source.readDirectory(root, ['.ts'], [pattern], ['**/*']);
+577 |     expect(() => read('plain/child/**/*')).toThrow('not a directory');
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "not a directory"
+
+Received function did not throw
+Received value: [ "/__puni_review__/candidate/alias/b.ts", "/__puni_review__/candidate/dir/a.ts" ]
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:577:44)
+(fail) literal exclude prefix admits owned aliases and refuses file ancestors [125.60ms]
+(pass) missing literal prefixes cannot normalize into selected includes or excludes [122.70ms]
+
+ 1 pass
+ 62 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 3 tests across 1 file. [1339.00ms]

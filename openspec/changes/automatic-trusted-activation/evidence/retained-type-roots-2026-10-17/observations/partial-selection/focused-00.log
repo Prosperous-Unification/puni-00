@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [199.97ms]
+
+ 1 pass
+ 3 filtered out
+ 0 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [1167.00ms]

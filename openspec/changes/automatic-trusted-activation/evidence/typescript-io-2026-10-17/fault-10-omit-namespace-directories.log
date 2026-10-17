@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+57 | });
+58 |
+59 | test('compiler namespace misses never delegate outside paths to any source port', () => {
+60 |   const { source } = fixture();
+61 |   const forbidden = (): never => {
+62 |     throw new Error('outside source port invoked');
+                                                      ^
+error: outside source port invoked
+      at forbidden (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:62:50)
+      at getDirectories (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:106:31)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:73:17)
+(fail) compiler namespace misses never delegate outside paths to any source port [0.82ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [585.00ms]

@@ -1,0 +1,354 @@
+[
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "readRetainedCandidateProvenance(candidate);",
+    "replacement": "",
+    "testPattern": "copied false-empty",
+    "exitCode": 1,
+    "log": "fault-00.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "copied false-empty"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "selected.filter((entry) => entry.path.split('/').at(-1) === 'project.json').map((entry) => entry.path)",
+    "replacement": "[]",
+    "testPattern": "Nx derives",
+    "exitCode": 1,
+    "log": "fault-01.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "Nx derives"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "candidate.readBlob(blob, path)",
+    "replacement": "candidate.readBlob('0'.repeat(blob.length), path)",
+    "testPattern": "Nx derives",
+    "exitCode": 1,
+    "log": "fault-02.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "Nx derives"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "candidate.readBlob(blob, path)",
+    "replacement": "candidate.readBlob(blob, 'foreign.json')",
+    "testPattern": "Nx derives",
+    "exitCode": 1,
+    "log": "fault-03.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "Nx derives"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "entries.length > limits.maximumEntries",
+    "replacement": "false",
+    "testPattern": "enforces maximumEntries",
+    "exitCode": 1,
+    "log": "fault-04.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "enforces maximumEntries"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "reads >= limits.maximumReads",
+    "replacement": "false",
+    "testPattern": "enforces maximumReads",
+    "exitCode": 1,
+    "log": "fault-05.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "enforces maximumReads"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "!Number.isSafeInteger(nextBytes) || nextBytes > limits.maximumReadBytes",
+    "replacement": "false",
+    "testPattern": "enforces maximumReadBytes",
+    "exitCode": 1,
+    "log": "fault-06.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "enforces maximumReadBytes"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "Buffer.byteLength(serializeCanonical(extracted)) > limits.maximumOutputBytes",
+    "replacement": "false",
+    "testPattern": "enforces final envelope",
+    "exitCode": 1,
+    "log": "fault-07.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "enforces final envelope"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts",
+    "removed": "{ ...defaultTarget, ...projectTarget }",
+    "replacement": "{ ...projectTarget }",
+    "testPattern": "preserves discovery",
+    "exitCode": 1,
+    "log": "fault-08.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "preserves discovery"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts",
+    "removed": "textArray(input, 'implicitDependencies', path)",
+    "replacement": "[]",
+    "testPattern": "preserves discovery",
+    "exitCode": 1,
+    "log": "fault-09.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "preserves discovery"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "maximumEntries: limits.maximumEntries",
+    "replacement": "maximumEntries: 1",
+    "testPattern": "validates maximumEntries",
+    "exitCode": 1,
+    "log": "fault-10.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "validates maximumEntries"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "maximumReads: limits.maximumReads",
+    "replacement": "maximumReads: 1",
+    "testPattern": "validates maximumReads",
+    "exitCode": 1,
+    "log": "fault-11.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "validates maximumReads"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "maximumReadBytes: limits.maximumReadBytes",
+    "replacement": "maximumReadBytes: 1",
+    "testPattern": "validates maximumReadBytes",
+    "exitCode": 1,
+    "log": "fault-12.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "validates maximumReadBytes"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "removed": "maximumOutputBytes: limits.maximumOutputBytes",
+    "replacement": "maximumOutputBytes: 1",
+    "testPattern": "validates maximumOutputBytes",
+    "exitCode": 1,
+    "log": "fault-13.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "validates maximumOutputBytes"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "removed": "if (provenance === undefined) throw new Error('owned retained candidate source required');",
+    "replacement": "",
+    "testPattern": "copied false-empty",
+    "exitCode": 1,
+    "log": "fault-14.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "copied false-empty"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  },
+  {
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts",
+    "removed": "source.acceptSelector?.(selector);",
+    "replacement": "",
+    "testPattern": "amplification",
+    "exitCode": 1,
+    "log": "fault-15.log",
+    "command": [
+      "timeout",
+      "45s",
+      "bun",
+      "test",
+      "--preload",
+      "./tools/test/scratch/preload.ts",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+      "--test-name-pattern",
+      "amplification"
+    ],
+    "environment": {
+      "NODE_OPTIONS": "--max-old-space-size=640"
+    }
+  }
+]

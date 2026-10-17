@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+320 |     try {
+321 |       readReviewRuntime(input);
+322 |     } catch (cause) {
+323 |       failure = cause;
+324 |     }
+325 |     expect(failure).toBeInstanceOf(AggregateError);
+                          ^
+error: expect(received).toBeInstanceOf(expected)
+
+Expected constructor: [class AggregateError extends Error]
+Received value: 299 |     read.mockRestore();
+300 |   }
+301 | });
+302 | test('read failure preserves a simultaneous cleanup failure', () => {
+303 |   const { input } = fixture();
+304 |   const readFailure = new Error('injected read');
+                                ^
+error: injected read
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:304:27)
+
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:325:21)
+(fail) read failure preserves a simultaneous cleanup failure [7.08ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [925.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 345411584, "exitCode": 1}

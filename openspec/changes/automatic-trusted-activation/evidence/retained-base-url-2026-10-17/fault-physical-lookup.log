@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 358195200, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:
+242 |       identity: hashBytes(Buffer.from('src')),
+243 |       byteLength: 3,
+244 |     });
+245 |     fs.rmSync(captured.root, { recursive: true });
+246 |     const forbidden = (): never => {
+247 |       throw new Error('ambient baseUrl lookup');
+                                                    ^
+error: ambient baseUrl lookup
+      at forbidden (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:247:47)
+      at parseProject (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:253:54)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:124:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:264:33)
+(fail) retained effective baseUrl sha1 replays after physical roots disappear [256.35ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1234.00ms]

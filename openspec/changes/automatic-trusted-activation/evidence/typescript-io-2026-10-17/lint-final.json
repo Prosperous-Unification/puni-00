@@ -1,0 +1,20 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-declarations.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-imports.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-legacy.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.test.fixture.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.ts"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 815529984,
+  "seconds": 5.11,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 300
+}

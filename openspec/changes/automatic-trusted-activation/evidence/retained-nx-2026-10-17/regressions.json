@@ -1,0 +1,19 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts",
+    "--timeout=30000"
+  ],
+  "exitCode": 1,
+  "peakTreeRssBytes": 762839040,
+  "seconds": 15.033,
+  "rssCeilingBytes": 943718400,
+  "deadlineSeconds": 60
+}

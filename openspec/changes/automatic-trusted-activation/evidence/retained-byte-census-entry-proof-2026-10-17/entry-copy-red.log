@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+1039 | test('byte census entry count refuses before owner copy with ledger byte headroom', () => {
+1040 |   const f = setup({maximumReadEntries: 1});
+1041 |   f.source.readFile(`${root}/a.ts`);
+1042 |   const copy = spyOn(f.candidate, 'read').mockImplementation(() => {throw new Error('entry copy sentinel');});
+1043 |   try {
+1044 |     expect(() => f.source.readFile(`${root}/src/b.ts`)).toThrow('read entry ceiling');
+                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "read entry ceiling"
+Received message: "entry copy sentinel"
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:1044:57)
+(fail) byte census entry count refuses before owner copy with ledger byte headroom [133.76ms]
+
+ 0 pass
+ 93 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1081.00ms]

@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+176 |           'realpathSync',
+177 |           'existsSync',
+178 |         ] as const
+179 |       ).map((name) =>
+180 |         spyOn(fs, name).mockImplementation(() => {
+181 |           throw new Error('forbidden filesystem metadata');
+                                                               ^
+error: forbidden filesystem metadata
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:181:58)
+      at createRetainedNamespace (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.ts:100:20)
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:198:25)
+(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [102.06ms]
+
+ 0 pass
+ 42 filtered out
+ 1 fail
+ 9 expect() calls
+Ran 1 test across 1 file. [1069.00ms]

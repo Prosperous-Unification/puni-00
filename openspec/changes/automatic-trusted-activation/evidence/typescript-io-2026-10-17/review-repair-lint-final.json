@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 771436544,
+  "seconds": 3.415,
+  "rssCeilingBytes": 838860800,
+  "deadlineSeconds": 300
+}

@@ -1,0 +1,56 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+(pass) retains sha1 exact tuples after source/store/runtime removal without content IO [103.93ms]
+(pass) retains sha256 exact tuples after source/store/runtime removal without content IO [87.85ms]
+(pass) rejects copied and false-empty owners before accessing either census [89.57ms]
+(pass) rejects candidate path "" [92.97ms]
+(pass) rejects candidate path "/a" [91.94ms]
+(pass) rejects candidate path "a/" [106.93ms]
+(pass) rejects candidate path "a//b" [100.20ms]
+(pass) rejects candidate path "." [94.61ms]
+(pass) rejects candidate path ".." [85.44ms]
+(pass) rejects candidate path "a/./b" [86.39ms]
+(pass) rejects candidate path "a/../b" [87.31ms]
+(pass) rejects candidate path "a\\b" [80.09ms]
+(pass) rejects candidate path "a\u0000b" [105.34ms]
+(pass) rejects candidate path "a\ud800b" [115.61ms]
+(pass) rejects candidate path ".git/config" [87.33ms]
+(pass) rejects candidate path "a/.git/x" [83.64ms]
+(pass) rejects candidate path "node_modules/a" [91.26ms]
+(pass) rejects candidate path "a/node_modules/x" [96.29ms]
+(pass) rejects unsupported candidate mode 160000 [96.08ms]
+(pass) rejects unsupported candidate mode 040000 [90.90ms]
+(pass) rejects unsupported candidate mode 100664 [88.89ms]
+(pass) rejects duplicate mounts and file or opaque symlink ancestors [93.12ms]
+(pass) rejects visible runtime .git paths but excludes programs and other dependencies [96.01ms]
+(pass) validates maximumEntries positive safe integer [79.84ms]
+(pass) validates maximumNodes positive safe integer [96.08ms]
+(pass) validates maximumPathBytes positive safe integer [91.63ms]
+(pass) validates maximumTotalPathBytes positive safe integer [93.12ms]
+(pass) counts all runtime entries before visibility filtering [105.58ms]
+(pass) counts root and every derived directory in node ceiling [95.95ms]
+ 97 | for(const bound of Object.keys(limits) as (keyof typeof limits)[]) test(`validates ${bound} positive safe integer`,()=>{
+ 98 |   const f=fixture(); for(const value of [undefined,0,-1,NaN,Infinity,1.5,Number.MAX_SAFE_INTEGER+1]) expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,[bound]:value} as typeof limits)).toThrow('positive safe integer');
+ 99 | });
+100 | test('counts all runtime entries before visibility filtering',()=>{const f=fixture();expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumEntries:4})).toThrow('namespace entry ceiling');expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumEntries:5})).not.toThrow();});
+101 | test('counts root and every derived directory in node ceiling',()=>{const f=fixture();expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumNodes:7})).toThrow('namespace node ceiling');expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumNodes:8})).not.toThrow();});
+102 | test('caps source and virtual paths before UTF8 or concatenation allocation',()=>{const f=fixture();expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumPathBytes:49})).toThrow('namespace path ceiling');expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumPathBytes:50})).not.toThrow();const injected=injectEntries(f,[{path:'x'.repeat(2000),mode:'100644',blob:'a'.repeat(40)}]);try{expect(()=>createRetainedNamespace(injected.candidate,f.runtime,limits)).toThrow('namespace path ceiling');}finally{injected.restore();}});
+
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "namespace path ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:102:321)
+(fail) caps source and virtual paths before UTF8 or concatenation allocation [99.27ms]
+(pass) caps aggregate retained node and source path fields exactly [69.20ms]
+(pass) snapshots each installed limit once [88.28ms]
+
+1 tests failed:
+(fail) caps source and virtual paths before UTF8 or concatenation allocation [99.27ms]
+
+ 31 pass
+ 1 fail
+ 131 expect() calls
+Ran 32 tests across 1 file. [3.93s]

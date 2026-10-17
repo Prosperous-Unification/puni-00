@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+(pass) retained effective typeRoots admits valid candidate link [217.40ms]
+
+ 1 pass
+ 16 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1270.00ms]

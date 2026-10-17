@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+477 |  expect(() => source.pathKind(root + '/git')).toThrow('symlink target invalid');
+478 | });
+479 |
+480 | test('enumeration root walks file ancestors and alias parents before matcher normalization', () => {
+481 |  const f = fromPaths({ plain: 'x', 'dir/a.ts': 'a', 'dir/nested/b.ts': 'b', 'z.ts': 'z' }, { alias: 'dir/nested' });
+482 |  expect(() => f.source.readDirectory(root + '/plain/../dir')).toThrow('not a directory');
+                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "not a directory"
+
+Received function did not throw
+Received value: [ "/__puni_review__/candidate/dir/a.ts", "/__puni_review__/candidate/dir/nested/b.ts" ]
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:482:63)
+(fail) enumeration root walks file ancestors and alias parents before matcher normalization [156.18ms]
+
+ 0 pass
+ 48 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1105.00ms]

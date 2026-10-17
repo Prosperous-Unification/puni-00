@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+93 |   expect(() => runtime.readFile({ ...entry, identity: 'f'.repeat(64) })).toThrow('tuple');
+94 |   expect(() => runtime.readFile({ ...entry, byteLength: 5 })).toThrow('tuple');
+95 | });
+96 | test('requires the independent exact canonical pin', () => {
+97 |   const { input } = fixture();
+98 |   expect(() => readReviewRuntime({ ...input, runtimeClosureIdentity: 'f'.repeat(64) })).toThrow(
+                                                                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "identity"
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [
+      {
+        byteLength: 6,
+        identity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+        path: "parser.js",
+        role: "program",
+      }, {
+        byteLength: 8,
+        identity: "e996bb0ea465fae70d3e3c66b3b6e02d33d2f1eb76d5958720578b6cf359cc2e",
+        path: "typescript.js",
+        role: "dependency",
+      }
+    ],
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  readFile: [Function: readFile],
+}
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:98:89)
+(fail) requires the independent exact canonical pin [2.67ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [927.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 335941632, "exitCode": 1}

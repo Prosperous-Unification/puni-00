@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 363778048, "exitCode": 1}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+267 | });
+268 |
+269 | for (const shape of ['nonobject', 'array-map', 'primitive-map', 'nonarray', 'nonstring', 'missing-origin', 'nonstring-origin', 'nonstring-base', 'helper-absent', 'helper-signature', 'helper-version', 'helper-return', 'wildcard-only', 'empty-map'])
+270 |   test(`retained literal paths boundary ${shape} runs in isolated registry`, () => {
+271 |     const child = Bun.spawnSync([process.execPath, '--smol', 'test', `${import.meta.dir}/typescript-literal-paths.test.fixture.ts`], { env: { ...process.env, LITERAL_PATHS_SHAPE: shape }, stdout: 'pipe', stderr: 'pipe', timeout: 20000 });
+272 |     expect(child.stderr.toString()).toContain('1 pass');
+                                          ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "1 pass"
+Received: "\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\n45 |       expect(hostCreations).toBe(1);\n46 |       return;\n47 |     }\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\n                                                                                                          ^\nerror: expect(received).toThrow(expected)\n\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\nReceived message: \"null is not an object (evaluating 'substitution.includes')\"\n\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\n(fail) effective literal paths validates boundary before compiler host [6.55ms]\n\n 0 pass\n 1 fail\n 1 expect() calls\nRan 1 test across 1 file. [535.00ms]\n"
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:272:37)
+(fail) retained literal paths boundary nonstring runs in isolated registry [546.69ms]
+
+ 0 pass
+ 38 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1080.00ms]

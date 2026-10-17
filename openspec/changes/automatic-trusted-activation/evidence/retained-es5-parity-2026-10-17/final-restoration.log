@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained compiler noLib sha1 matches legacy after all capture roots disappear [259.59ms]
+(pass) retained compiler ES5 sha1 matches legacy after all capture roots disappear [372.59ms]
+(pass) retained compiler noLib sha256 matches legacy after all capture roots disappear [159.16ms]
+(pass) retained compiler ES5 sha256 matches legacy after all capture roots disappear [244.24ms]
+
+ 4 pass
+ 26 filtered out
+ 0 fail
+ 166 expect() calls
+Ran 4 tests across 1 file. [2.00s]

@@ -1,0 +1,6 @@
+{
+  "command": ["git", "hook", "run", "pre-commit"],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 943058944,
+  "exitCode": 1
+}

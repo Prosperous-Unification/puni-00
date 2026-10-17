@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+125 |   function readNode(node: Exclude<RetainedNamespaceNode, { kind: 'directory' }>): Uint8Array {
+126 |     const identity =
+127 |       node.kind === 'runtime-file'
+128 |         ? node.source
+129 |         : readRetainedFileIdentity(candidate, node.source.path, node.source.blob);
+130 |     if (reads >= limits.maximumReads) throw new Error('source read ceiling exceeded');
+                                                                                          ^
+error: source read ceiling exceeded
+      at readNode (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:130:85)
+      at readFile (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:378:60)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:396:17)
+(fail) source snapshots limit getters once [137.26ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1100.00ms]

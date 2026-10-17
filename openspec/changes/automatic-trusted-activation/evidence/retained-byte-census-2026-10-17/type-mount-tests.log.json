@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--noEmit",
+    "--project",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-byte-census-2026-10-17/focused-tests.tsconfig.json",
+    "--incremental",
+    "false"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 428776,
+  "ceilingKiB": 921600
+}

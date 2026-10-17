@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) literal include prefix walks file ancestors and effective alias parents [139.92ms]
+(pass) literal exclude prefix walks file ancestors and effective alias parents [111.41ms]
+563 |  else expect(selected).toEqual([root+'/z.ts',root+'/alias/b.ts']);
+564 | });
+565 |
+566 | test('missing literal prefixes cannot normalize into selected includes or excludes', () => {
+567 |  const f = setup();
+568 |  expect(f.source.readDirectory(root, ['.ts'], undefined, ['missing/../src/**/*'])).toEqual([]);
+                                                                                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "/__puni_review__/candidate/a.ts",
++   "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
++   "/__puni_review__/candidate/src/b.ts",
++ ]
+
+- Expected  - 1
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:568:84)
+(fail) missing literal prefixes cannot normalize into selected includes or excludes [122.09ms]
+
+ 2 pass
+ 57 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [1326.00ms]

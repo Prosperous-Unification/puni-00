@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+184 |     readReviewRuntime(
+185 |       capture((c) => {
+186 |         c.files.length = 0;
+187 |       }),
+188 |     ),
+189 |   ).toThrow('program');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "program"
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [],
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "be2d7ba1dfb34ed195e719107521606d30ad2cb8ff60fa3b8efc397095fa11dc",
+  readFile: [Function: readFile],
+}
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:189:5)
+(fail) rejects empty inventories, program-free inventories and noncanonical serialized bytes [7.68ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [927.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 330346496, "exitCode": 1}

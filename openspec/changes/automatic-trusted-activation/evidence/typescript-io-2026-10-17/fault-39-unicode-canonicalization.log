@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+150 |   );
+151 |   const diagnostics = projects.flatMap((project) => ts.getPreEmitDiagnostics(project.program));
+152 |   if (diagnostics.length > 0) {
+153 |     // Proof: removing this refusal made the `MissingType` fixture emit declarations and exit 0;
+154 |     // the production compiler-failure oracle expected exit 1.
+155 |     throw new Error(`TypeScript compiler failed: ${diagnostics.map(formatDiagnostic).join('; ')}`);
+                                                                                                       ^
+error: TypeScript compiler failed: Module '"./\u0130.js"' has no exported member 'Second'.; File name '/candidate/src/i̇.ts' differs from already included file name '/candidate/src/İ.ts' only in casing.
+  The file is in the program because:
+    Imported via './İ' from file '/candidate/src/index.ts'
+    Imported via './i̇' from file '/candidate/src/index.ts'
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:155:98)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:228:22)
+(fail) case insensitive compiler preserves TypeScript Unicode canonical names [67.38ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+Ran 1 test across 1 file. [625.00ms]

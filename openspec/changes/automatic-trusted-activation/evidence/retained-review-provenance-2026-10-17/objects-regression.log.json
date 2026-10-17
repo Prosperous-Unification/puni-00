@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.test.ts",
+    "--test-name-pattern",
+    "owned .* object store prepares|historical complete census|historical empty history|historical held owner change|historical reopen refuses noncanonical",
+    "--timeout=60000"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 427544,
+  "ceilingKiB": 921600
+}

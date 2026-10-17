@@ -1,0 +1,67 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+sync hooks: ✔️(pre-commit, prepare-commit-msg, commit-msg)
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+<--- Last few GCs --->
+
+[99:0x18707000]     6518 ms: Scavenge (interleaved) 504.5 (513.8) -> 503.8 (524.6) MB, pooled: 0 MB, 2.40 / 0.00 ms  (average mu = 0.576, current mu = 0.392) allocation failure;
+[99:0x18707000]     6649 ms: Mark-Compact (reduce) 510.7 (524.8) -> 507.5 (515.3) MB, pooled: 0 MB, 101.29 / 0.00 ms  (+ 1.0 ms in 109 steps since start of marking, biggest step 0.8 ms, walltime since start of marking 131 ms) (average mu = 0.502, current
+FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x757658 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc60e30  [node]
+ 3: 0xc60f1f  [node]
+ 4: 0xf047f5  [node]
+ 5: 0xf1615c  [node]
+ 6: 0xeeb613  [node]
+ 7: 0xec1120  [node]
+ 8: 0x13b8a18  [node]
+ 9: 0x1acd9b6  [node]
+Aborted (core dumped)
+
+exit status 134
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 9.33 seconds)
+✓ format (2.38 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ tool-wiki (0.00 seconds)
+✗ lint (6.89 seconds)

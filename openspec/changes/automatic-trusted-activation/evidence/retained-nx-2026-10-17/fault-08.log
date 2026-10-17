@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+1045 |   const fixture = nxFixture();
+1046 |   const legacy = extractNxRelationships(fixture.input.sourceRepository);
+1047 |   expect(extractRetainedNxRelationships(fixture.candidate, nxLimits)).toEqual(legacy);
+1048 |   expect(legacy.relationships.projects.map(({name}) => name)).toEqual(['alpha', 'zeta']);
+1049 |   expect(legacy.relationships.dependencies).toMatchObject([{source: 'alpha', target: 'zeta'}]);
+1050 |   expect(legacy.relationships.targets[0]?.configuration).toEqual({cache: true, options: {command: 'bun test'}, configurations: {}, parallelism: true});
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "cache": true,
+    "configurations": {},
+    "options": {
+      "command": "bun test",
+    },
+    "parallelism": true,
+  }
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1050:58)
+(fail) retained Nx preserves discovery sorting defaults dependencies and symlink exclusions [173.77ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1217.00ms]

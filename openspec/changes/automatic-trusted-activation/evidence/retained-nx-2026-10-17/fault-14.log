@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+1050 |   expect(legacy.relationships.targets[0]?.configuration).toEqual({cache: true, options: {command: 'bun test'}, configurations: {}, parallelism: true});
+1051 | });
+1052 |
+1053 | test('retained Nx refuses copied false-empty census before reads', () => {
+1054 |   const fixture = nxFixture();
+1055 |   expect(() => extractRetainedNxRelationships({...fixture.candidate, snapshot: {...fixture.candidate.snapshot, entries: []}}, nxLimits)).toThrow('owned retained candidate source required');
+                                                                                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained candidate source required"
+Received message: "Nx project configuration malformed: nx.json: retained Nx configuration absent: nx.json"
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1055:138)
+(fail) retained Nx refuses copied false-empty census before reads [275.94ms]
+
+ 0 pass
+ 77 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1269.00ms]

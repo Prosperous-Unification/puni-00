@@ -1,0 +1,17 @@
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts(142,29): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ requestIdentity: string; snapshotIdentity: string; historyManifestIdentity: string | undefined; }' is not assignable to parameter of type 'RetainedReviewProvenance'.
+      Types of property 'historyManifestIdentity' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string | null'.
+          Type 'undefined' is not assignable to type 'string | null'.
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts(159,31): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ requestIdentity: string; snapshotIdentity: string; historyManifestIdentity: string | undefined; }' is not assignable to parameter of type 'RetainedReviewProvenance'.
+      Types of property 'historyManifestIdentity' are incompatible.
+        Type 'string | undefined' is not assignable to type 'string | null'.
+          Type 'undefined' is not assignable to type 'string | null'.
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts(251,25): error TS2345: Argument of type 'WeakKey' is not assignable to parameter of type 'object'.
+  Type 'symbol' is not assignable to type 'object'.
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts(252,28): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts(270,26): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts(292,64): error TS7006: Parameter 'value' implicitly has an 'any' type.

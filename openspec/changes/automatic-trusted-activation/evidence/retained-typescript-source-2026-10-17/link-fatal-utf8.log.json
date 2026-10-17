@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "source rejects malformed owned link"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 341776,
+  "ceilingKiB": 921600
+}

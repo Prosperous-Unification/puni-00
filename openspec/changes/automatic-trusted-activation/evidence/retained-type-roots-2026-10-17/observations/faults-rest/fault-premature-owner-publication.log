@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+72 |   });
+73 |   try {
+74 |     expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow(/outside|escape/);
+75 |     expect(hostCreations).toBe(0);
+76 |     expect(seal).not.toHaveBeenCalled();
+77 |     expect(registered).toHaveLength(0);
+                            ^
+error: expect(received).toHaveLength(expected)
+
+Expected length: 0
+Received length: 1
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:77:24)
+(fail) retained effective typeRoots refuses absolute outside before program with types empty [146.78ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1148.00ms]

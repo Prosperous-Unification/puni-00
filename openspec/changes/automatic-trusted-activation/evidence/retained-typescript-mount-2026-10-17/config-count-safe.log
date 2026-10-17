@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+555 |             return selected;
+556 |           },
+557 |         });
+558 |         expect(() =>
+559 |           extractRetainedTypeScriptRelationships({ ...f, request: { ...f.request, [key]: paths } }),
+560 |         ).toThrow('request count');
+                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request count"
+Received message: "source admission reached"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:560:11)
+(fail) retained compiler validates captured proxy array lengths before indexed reads [179.83ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1130.00ms]

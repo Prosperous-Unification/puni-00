@@ -1,0 +1,5 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+
+error: regex "impossible-zero-selection-proof" matched 0 tests. Searched 1 file (skipping 19 tests) [953.00ms]

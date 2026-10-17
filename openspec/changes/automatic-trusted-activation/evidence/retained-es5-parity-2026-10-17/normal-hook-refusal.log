@@ -1,0 +1,33 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+/tmp/puni-es5-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts
+  8:1  error  Projects cannot be imported by a relative or absolute path, and must begin with a npm scope  @nx/enforce-module-boundaries
+
+✖ 1 problem (1 error, 0 warnings)
+
+
+exit status 1
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 9.48 seconds)
+✓ format (1.79 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ tool-wiki (0.00 seconds)
+✗ lint (7.59 seconds)

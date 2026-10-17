@@ -1,0 +1,16 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "--preload",
+    "./tools/test/scratch/preload.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+    "--test-name-pattern",
+    "accepts the exact final envelope ceiling with many selectors"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 372740096,
+  "seconds": 1.337,
+  "rssCeilingBytes": 943718400,
+  "deadlineSeconds": 60
+}

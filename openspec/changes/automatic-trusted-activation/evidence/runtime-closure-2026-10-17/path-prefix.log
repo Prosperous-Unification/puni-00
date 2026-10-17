@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+407 |     third.path = 'a/b';
+408 |     c.files.push(third);
+409 |   });
+410 |   const probe = spyOn(fs, 'realpathSync');
+411 |   try {
+412 |     expect(() => readReviewRuntime(input)).toThrow('ancestor');
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "ancestor"
+Received message: "runtime file absent"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:412:44)
+(fail) nonadjacent file ancestors refuse before bootstrap IO [4.04ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [920.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 336973824, "exitCode": 1}

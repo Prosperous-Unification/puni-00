@@ -4243,3 +4243,1854 @@ manifest-only correction. Hosted CI retry, full monorepo checks/build, canonical
 external authority, push, merge and deployment were not performed by this worker. The
 parent retains successor review, publication of the follow-up and gate requeue ownership;
 parent extraction tasks and external acceptance remain open.
+
+## 2026-10-17 bounded 2.1d.1.4 — retained artifact graph
+
+Implemented in an isolated clone based on accepted public main
+`7b9b414b9ceca73cc934ad92dd874803eb0658a0`; the pending source aggregate and publication
+were not changed. Burokrat owns the closed `ArtifactGraphRuleV1`, exact installed decoder
+source identity, deterministic producer and independent completeness verifier. Dash consumes
+only the exact owner-created retained candidate capability. Module-private provenance binds
+its authenticated manifest identity and owned classification policy; a copied Symbol-branded
+object cannot replace the census.
+
+All five allowlisted kinds are decoded from exact original bytes. Only review receipts add
+intrinsic dependencies: invocation plus raw UTF-8 payload hash resolves exactly one selected
+opaque transcript and targets its containing record-byte identity. Semantic pins and JSON-looking
+opaque payloads create no edges. Installed strict selectors add complete Cartesian edges,
+with component-aware prefixes and nonempty endpoints. Descriptors/references/zero-indegree
+roots are deterministic and sorted; self/cyclic/foreign/ambiguous dependencies refuse.
+Independent verification re-censuses the retained records and compares each descriptor field,
+complete edge list, roots, provenance, canonical graph bytes and digest. A resealed graph with
+omitted edges passes legacy `validateArtifacts` and is rejected by the new verifier.
+
+Raw installed recipe bytes and raw verification-document bytes have separate positive
+safe-integer caps before UTF-8/JSON/schema parsing. Installed rule count, selector count and
+UTF-8 selector length have explicit ceilings before relation expansion. Retained entry count,
+record count, shared classification/record read count and bytes, work, edge work and output
+bytes have independent ceilings. Selector comparisons and Cartesian pairs charge work before
+materialization. Decoder/uniqueness work is bounded by raw recipe bytes. Defaults are absent;
+the conservative installation values documented in design are illustrative explicit inputs.
+
+### RED and watched R5 faults
+
+Initial producer RED was missing `./artifact-graph`. Snapshot-pin relabeling, a different valid
+classification policy, and copied-capability false-empty census each initially returned a graph
+and failed their negative assertion; private ownership/provenance joins restored refusal.
+Raw recipe caps produced four failing bounds cases before implementation. Oversized malformed
+verification bytes initially reached schema parsing and failed the required byte-boundary
+assertion; the byte cap restored the early refusal. A duplicate endpoint recipe under distinct
+rule IDs initially succeeded and failed its negative before uniqueness was implemented.
+
+The final campaign independently omitted or broke 63 checks/dependencies. Every mutation ran
+a production producer/verifier call through Bun tests, exited 1 and contained a failing assertion.
+Exact mutations, commands and observed failed tests are retained in
+[evidence/artifact-graph-2026-10-17/r5-faults.json](evidence/artifact-graph-2026-10-17/r5-faults.json).
+Coverage, schema and rule-order diagnostics were strengthened when early campaign attempts
+showed that later guards masked their omission. Those masked attempts are not counted as
+proofs. Descriptor/edge/root mutations reseal canonical bytes and digest first, so the final
+byte comparison cannot mask their omission. Internal impossible map lookups are proved by
+injecting absent dependencies and observing the named production refusal. Adjacent `Proof:`
+comments identify the faults. No fault remains installed.
+
+### Fresh restored checks
+
+- Serial Bun regression over `artifact-graph.test.ts`, legacy `artifacts.test.ts`, facade,
+  retained graph, retained objects and retained declarations: **307 passed, 0 failed,
+  787 assertions**, 55.81 seconds. `/usr/bin/time -v` measured **534724 KiB maximum RSS**,
+  below the 1 GiB target. No full Nx gate was run.
+- After the scoped linter sorted the new facade exports, the graph/facade/retained-graph
+  controls passed again: **73 passed, 0 failed, 221 assertions**.
+- `bunx tsc --project <Burokrat|Dash>/tsconfig.spec.json --noEmit --incremental false`
+  passed for both affected projects, including their test sources.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show project twilight-dash --json`
+  produced the local project graph. Initial ESLint runs reported the missing graph and skipped
+  Nx module boundaries; final scoped lint runs use that graph. No skipped boundary rule is
+  counted as acceptance.
+- Cached official OpenSpec CLI 1.12.0 was invoked through
+  `bun /tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js`.
+  `status` and `instructions apply` reported `sdd-lean`, ready, 6/46 tasks complete before
+  this slice. `validate --all --json` reported **241 passed, 0 failed** (223 changes, 18 specs).
+  The missing shell `openspec` alias was resolved by locating this existing pinned CLI;
+  no installation or unavailable-tool exception was required.
+
+- Final scoped ESLint passed with the Nx module-boundary rule available; both spec-project
+  type checks, scoped Prettier and staged diff checks passed. Structured command/result
+  receipts are retained in [checks.json](evidence/artifact-graph-2026-10-17/checks.json).
+
+### Exact-commit UTF-8 proof correction
+
+Astra's review of `5cc3bd55308f3f245e3df0adeae9161a06d5285f` found that the generic
+`fatal UTF8` mutation hit the first decoder, which parses recipe bytes. It duplicated the
+separate recipe proof and did not prove the retained-record decoder. That receipt is
+disqualified and replaced by an exact mutation of
+`new TextDecoder('utf-8', { fatal: true }).decode(bytes)` only. The list remains **63 unique
+faults**, now with a distinct retained-record witness rather than the duplicated recipe entry.
+
+The existing fixture also selected the first `x` in `text/plain`; it now locates the exact
+`"payload":"x"` field before injecting `0xff`. With only retained fatal decoding disabled,
+the production builder accepted the replacement payload and the targeted negative exited 1
+with **Received function did not throw**. Restoring the decoder passed **1 test, 2 assertions**.
+`/usr/bin/time -v` measured RED **157048 KiB** and GREEN **155124 KiB** maximum RSS.
+Production decoding behavior is unchanged; the adjacent comment now names the exact
+retained boundary and observed negative. Updated exact mutation and command receipts live
+in the existing R5 and check JSON files. The original six-file regression numbers above are
+the earlier unchanged-behavior run. Fresh restored graph/facade/retained-graph controls passed
+**73 tests, 222 assertions**, exit 0 in 2.06 seconds; measured peak RSS was **391168 KiB**,
+below the 900 MiB correction budget.
+
+### Scope retained open
+
+Graph output explicitly reports `runtimeTrust: 'unverified'`. Exact decoder source bytes do
+not independently authenticate the compiler/transitive running runtime; parent 2.1d.1.3 remains
+open. This task neither generates all eleven documents nor changes V4 preparation provenance,
+selection, dispatch, external trust or WBS 030.6; 2.1d.1.5 remains open. The selected committed
+record-only graph cannot authenticate an external response container; missing selected response
+containers refuse. Full-repository corpus compatibility, resource fit and eleven-document
+freeze/replay remain required by 2.1d.1.5. No host/live/push/publication or full Nx/h2puni gate
+was performed in this local prerequisite slice.
+
+## 2026-10-17 bounded 2.1d.1.3b — retained static Nx prerequisite
+
+Isolated clone baseline: `3ddaec6dac1aa011cd6f07f3027ad41af5cc69a7`.
+Burokrat now shares the filesystem-independent static Nx selector core between the preserved
+legacy wrapper and Dash's owned retained adapter. Extractor identity and static selector
+semantics remain unchanged. The additive `extractRetainedNxDeclarations` composition derives
+Nx target authority before calling the existing declarations core; it accepts no Nx override.
+The prior declaration API and its fault witnesses remain intact. Exact ownership uses the
+existing private candidate provenance WeakMap through a neutral API; graph diagnostics remain
+unchanged. All explicit entry/read/byte/output limits reject missing, zero and NaN values.
+Selector bytes charge before hashing/appending to bound shared-default amplification; the
+final envelope check includes the extractor and array wrappers.
+
+### Observed controls and faults
+
+- SHA-1/SHA-256 mounted target-fact comparisons matched legacy Nx plus declarations after
+  deleting both original checkout and retained store following capability open. Ambient
+  filesystem/Git/spawn sentinels were active. Static plugin input contains throwing candidate
+  code. Discovery, sorting, shallow defaults, implicit dependencies, nested node_modules,
+  project symlink exclusion and nx.json current-byte symlink resolution have parity controls.
+- The focused Nx run passed **17 tests, 30 assertions** before the amplification/envelope
+  controls were added. The amplification negative first observed final-only output refusal,
+  then passed with the required early selector-byte diagnostic (**1 test, 1 assertion**).
+- The moved unreadable read initially lost the old named diagnostic; deferring source reads
+  inside the shared parser's context wrapper restored it. Final separate core tests passed
+  **2 tests, 2 assertions**; retained malformed UTF-8 remains a refusal.
+- **16 watched production mutations** each exited 1 with failing assertions; every source was
+  restored. These cover exact ownership call and private lookup, false-empty census, wrong
+  path/blob reads, all four limit validation and enforcement boundaries, default/dependency
+  omission and incremental amplification-hook omission. Exact commands, faults and diagnostic logs
+  are in [r5-faults.json](evidence/retained-nx-2026-10-17/r5-faults.json).
+- The final separate facade test passed **1 test, 5 assertions** and committed target-fact
+  tests passed **2 tests, 24 assertions**. Dash spec-project typecheck passed. Initial
+  pre-amplification Burokrat and Dash spec-project typechecks passed; the final Burokrat
+  attempt was stopped at the resource ceiling and is unavailable.
+- Scoped ESLint passed with the local Nx graph available, measured peak process-tree RSS
+  **905785344 bytes** (below 900 MiB). The graph query passed. OpenSpec strict validation
+  passed **1 change, 0 issues**. Structured check receipts and logs accompany the fault file.
+
+### Resource-limited checks and remaining scope
+
+A first combined regression finished **90 passed, 1 failed**, with the failure naming the
+facade's exact-export allowlist; the two new exports were then added to that allowlist and
+its separate final test passed. A subsequent combined run was watchdog-killed at sampled
+**1027784704 bytes**. It is not a passing regression. The declaration-only run was killed at
+**946814976 bytes** with an 800 MiB threshold. Fresh `bun --smol` declaration and graph runs
+were then stopped under a 600 MiB threshold at sampled **780812288** and **790052864 bytes**;
+the final Burokrat typecheck stopped at **630177792 bytes**. Sampling permits overshoot during
+rapid allocation. None of these stopped files was retried. Full restored declaration and graph
+regressions, and final Burokrat typecheck, require hosted validation. No full Nx gate/build,
+canonical h2puni gate or CI-only check was run.
+
+Normal Git hooks were installed in this clone. A clone-local Lefthook override serializes
+pre-commit commands to control RAM; the merged JSON dumps differ solely in pre-commit.parallel
+(true versus omitted false), preserving every command, glob and message hook. The override is
+removed after the commit. No command is skipped through this setting. External Tool Wiki
+activation remains unprovisioned, so its ordinary local hook can report inactive rather than
+certified admission.
+
+This is bounded static Nx work only. Parent 2.1d.1.3, compiler/runtime closure, all eleven
+freeze documents, V4 preparation provenance, full-repository fit and external authority remain
+open. No publication, push, merge, deployment, protected-provider operation or WBS mutation
+was performed.
+
+The first serial hook attempt was watchdog-stopped at sampled **636387328 bytes** under a
+600 MiB threshold, with no commit. The final clone-local override also runs the original
+`bunx eslint` command once per staged filename. Filenames were checked for simple safe
+characters; merged dumps differ only in `parallel` and the equivalent serial `lint.run`.
+Every remaining hook command/glob and both message hooks are preserved. The final commit
+attempt uses an 800 MiB stop threshold and a 384 MiB Node heap.
+
+The final normal-hook attempt returned **exit 1** because ESLint exhausted the explicit
+384 MiB Node heap. Peak process-tree RSS was **677314560 bytes**, below the 800 MiB stop
+threshold. Format, plaintext-secrets and private-nesting passed; Tool Wiki ran and reported
+inactive as expected without an external activation. Lint failed loudly. No commit was
+created and no hook was bypassed. Sanitized diagnostic output and receipt are retained as
+`evidence/retained-nx-2026-10-17/commit-per-file.{log,json}`. The local override was removed;
+normal-hook commit and exact-commit independent review remain pending. Task 2.1d.1.3b remains
+unchecked pending hosted regression/typecheck acceptance.
+
+Diagnostic logs strip ANSI escapes, trailing line whitespace and trailing empty lines; original local outputs remain in `/tmp/retained-nx-raw-logs`. These edits preserve diagnostics and assertion outcomes.
+
+Astra's staged review also found one byte of drift per selector in incremental accounting:
+`serializeCanonical` already contributes terminal LF. The charge is now canonical byte length
+plus **78**, equivalent to removing LF then adding identity-field/array-separator bytes. A
+512-target exact-final-envelope control was added. This narrow arithmetic correction and its
+new control were **not executed locally** after the 300 MiB handoff limit took effect; hosted
+validation remains required. The earlier amplification fault evidence precedes this correction.
+
+### Resumed exact-fit control and normal-hook attempt
+
+After the reference worker released the serial lane, the parent authorized only the new
+512-target exact-final-envelope control and one normal-hook attempt with a 640 MiB Node heap
+and 900 MiB process-tree watchdog. The fresh exact-fit control passed **1 test, 1 assertion**
+at **372740096 bytes** peak tree RSS. This verifies the corrected +78 accounting at the exact
+actual output ceiling. Its command/output receipt is `exact-fit-final.{json,log}` in the
+existing evidence directory. Full declaration/graph suites and final Burokrat typecheck remain
+unavailable as recorded above. The normal-hook configuration is again verified to differ only
+in serial scheduling and equivalent per-file lint batching; no hook command or glob is removed.
+The parent handoff receipt records the final commit-attempt disposition.
+
+The resumed 640 MiB-heap normal-hook attempt stayed within budget (**809889792 bytes**,
+22.367 seconds) and returned exit 1 for a real lint error: the new exact-fit test interpolates
+a number without explicit string conversion (`restrict-template-expressions`). Format,
+plaintext-secrets and private-nesting passed; Tool Wiki ran and reported inactive. No commit
+was created; no bypass or further retry was attempted. The local override was removed.
+The exact-fit behavior control passed as recorded above; the test's lint correction and normal
+commit remain pending. Final hook output/receipt are `commit-final.{log,json}`.
+
+The parent authorized a corrected-source retry after the concrete lint failure. The new test
+now uses explicit `String(index)` conversion, preserving its target names and behavior. The
+same complete serial/per-file hook configuration and safe staged filenames were reverified;
+the retry retains the 640 MiB Node heap and 900 MiB process-tree watchdog. Its final disposition
+is recorded in the durable handoff receipt.
+
+## 2026-10-17 bounded 2.1d.1.3c — shared TypeScript compiler IO prerequisite
+
+Baseline: `b4bb10c734f9baba48e05509c0fca4f7ffcf8711`; isolated clone
+`/tmp/puni-ts-io-sol-oct17`. The existing relationship CLI calls the preserved
+`extractTypeScriptRelationships(workspace, request, trustedModules)` wrapper. It now delegates
+its unchanged extractor/selector algorithm to the source-driven core, through explicit config
+path-kind/read/enumeration, compiler-host, module/type-resolution, realpath, cwd and library
+ports. Every compiler host callback is constructed explicitly; referenced-project wildcard
+reads no longer inherit `ts.createCompilerHost`'s ambient `readDirectory`. Directory-as-config
+remains unreadable rather than absent. A throwing source read's TypeScript diagnostic 5012 is
+also classified unreadable, with an independently watched predicate.
+
+The finite entrypoint snapshots and validates all five required safe nonnegative integer
+limits before IO. Repeated probes, UTF-8 reads, enumerated entries and compiler/selector output
+observations are charged before accumulation; the final canonical returned envelope has a
+separate exact byte bound including identities and empty families. The internal legacy policy
+preserves the filesystem wrapper's prior unbounded contract. Source implementations still own
+bounded return allocation; the shared core does not interrupt synchronous compiler work.
+
+Fresh accepted evidence lives in [typescript-io-2026-10-17](evidence/typescript-io-2026-10-17).
+Captured logs normalize terminal trailing whitespace; no evidence payload bytes are changed:
+
+- `focused-final.json/log`: **34 passed, 0 failed, 84 assertions**, including exact judge-facade
+  export census; sampled process-tree peak **367468544 bytes**. The focused source/compiler/
+  legacy files cover poisoned ambient TypeScript, filesystem, environment, output and execution
+  routes during wildcard project references, supplied default libraries, scoped/relative extends,
+  paths/package imports and automatic type-root enumeration; root absent/directory/malformed/
+  unreadable distinctions; escapes; candidate preload/scripts/plugins; all limits and exact
+  boundaries; Unicode canonicalization and CRLF. No candidate code executes.
+- `legacy-parity-fixed.json/log`: complete pre-seam relationships, extractor identities and
+  empty selector families compare deeply through both new source and preserved wrapper.
+  The fixture was captured from the unchanged baseline implementation using canonical trusted
+  module paths; its exact expected bytes live beside the parity test. The initial capture with
+  a symlink spelling of the trusted root correctly refused closure escape and was corrected.
+- `r5-faults.json` plus forty `fault-*.log` files: **40 independently watched faults**, all
+  failing actual tests after the exact-review correction below; the first commit’s filesystem
+  read/write ENOENT receipts are disqualified. No module-load/unhandled-error substitutes, maximum sampled peak
+  **204201984 bytes**. Each receipt records the exact mutation and command. These include
+  every host IO route, namespace admission route, absent/config/5012 guard, budget, invalid-limit
+  and caller-mutation fence, six output accumulation charges, ambient filesystem/Git/spawn/
+  write/environment/candidate-execution sentinels and Unicode canonicalization. Adjacent
+  `Proof:` comments name the corresponding witnesses. Initial default-host/readFile,
+  getDirectories and realpath mutations exposed missing witnesses; the final receipts replace
+  those escaped attempts. Restored final checks above passed after every mutation was removed.
+- `lint-final.json/log`: scoped ESLint over all nine changed TypeScript paths passed with a
+  fresh Nx project graph and no skipped module-boundary rule; peak **815529984 bytes**.
+  Later test typing corrections are also subject to the normal commit hook's same scoped lint.
+- `typecheck-acceptance.json/log`: pinned TypeScript 6 spec-project `--noEmit --incremental false`
+  passed at Node heap 600 MiB; peak **827400192 bytes**, below its 800 MiB sampled stop and
+  the 900 MiB task ceiling. Earlier native typechecking was watchdog-stopped at
+  **834330624 bytes** under a 780 MiB stop, and a 512 MiB Node heap retry exhausted heap.
+  Neither stopped/failed check is counted as acceptance.
+- `f7.json/log`: the production `measureSizes` rule read the five staged production source
+  blobs at the 800-line ceiling and returned `ok: true, report: []`: compiler **313**, core
+  **242**, declarations **360**, imports **263**, wrapper **39** lines. This checks these five
+  changed sources, not the whole repository's external size policy.
+- `openspec-validation.json/log`: pinned OpenSpec 1.12.0 strict change validation passed **1/1**.
+
+All accepted tests/checks ran serially under a sampled process-tree RSS watchdog. Focused fault
+runs stayed below 300 MiB while another worker held the heavy lane. The selected existing
+`relationships.test.ts -t 'publishes exact TypeScript'` CLI regression was stopped at
+**818991104 bytes** under a 780 MiB threshold and was not retried. Its wider real-runtime
+fixture, full relationship/declaration regressions, package build, complete repository corpus,
+canonical h2puni gate and CI remain **unverified here and require hosted validation**. No raw
+full Nx gate or full suite ran.
+
+Normal Git hooks are installed. The clone-local Lefthook override changes only
+`pre-commit.parallel` from true to false; the merged JSON dumps in the evidence directory prove
+that every command, glob and message hook is preserved. External Tool Wiki activation is
+unprovisioned, so its ordinary local hook may report inactive rather than certified admission.
+At this ledger write, the normal-hook commit and exact-commit independent review remain pending;
+2.1d.1.3c remains unchecked until those complete.
+
+This prerequisite supplies no retained TypeScript adapter, runtime/dependency closure pin,
+compiler read manifest, bounded parser settlement, all-eleven-document replay, protected
+selection/preparation authority or external trust. Parent 2.1d.1.3 and its encompassing tasks
+remain open. No publication, push, merge, deployment or WBS mutation occurred.
+
+### Exact-review correction of CommonJS filesystem evidence and snapshot wording
+
+Astra's review of `ef2c85a8adb705705c478a89c6f38bf30fe3f120` found two evidence
+failures, with no production-code finding. Faults 24 (`ambient-filesystem`) and 27
+(`ambient-write`) called `require('node:fs')`, which bypassed the spied ES-module namespace.
+They failed because `/candidate` did not exist, not because the intended sentinel intercepted IO.
+Those original **ENOENT receipts are disqualified**; the other 38 receipts remain causal.
+
+The test boundary now additionally poisons the actual CommonJS filesystem object's read/write
+functions with distinct markers. Two controlled real-canary tests independently failed before
+this repair: the read returned `read canary`, and the write returned without throwing. Restoring
+the spies passed both tests, with both canary contents unchanged and no extra directory entries.
+The production-path faults were then repeated with exactly the original injected CommonJS calls.
+Their corrected logs now fail with `forbidden ambient CommonJS filesystem read` and
+`forbidden ambient CommonJS filesystem write`, respectively, and no ENOENT. The two replacement
+entries in `r5-faults.json` explicitly name the invalid predecessor commit and their causal oracle;
+corrected sampled peaks were **177238016** and **183840768 bytes**. The final census remains
+**40 independently watched faults**, comprising 38 accepted original witnesses and two corrected
+filesystem witnesses. `review-repair-canaries-{red,green}.{json,log}` retain the boundary RED/GREEN.
+
+The spec's execution-limit scenario also overstated caller mutation: the implementation snapshots
+the original ceilings before IO. Caller mutation alone is not a refusal condition. The corrected
+scenario says the original ceiling remains authoritative and an attempted bypass of an exceeded
+ceiling refuses. The existing mutation test already proves that behavior; production code is unchanged.
+
+Restored scoped checks for this repair:
+
+- `review-repair-focused-final.json/log`: **36 passed, 0 failed, 92 assertions**, including
+  the unchanged exact facade census and legacy relationship identities; peak **367013888 bytes**.
+- `review-repair-lint-final.json/log`: changed test-file ESLint passed; peak **771436544 bytes**.
+- `review-repair-typecheck.json/log`: pinned TS6 spec-project check passed; peak **818311168 bytes**,
+  under an 800 MiB sampled stop and the 900 MiB task ceiling. A later callback-brace-only lint
+  correction preserves the checked types and return behavior.
+- `review-repair-openspec.json/log`: strict pinned OpenSpec change validation passed **1/1**.
+
+These commands ran serially under the same process-tree watchdog. Normal hooks and exact
+successor-commit review are pending at this correction ledger write. All earlier hosted-validation
+and runtime/retained-adapter limitations remain open; no publication or WBS mutation occurred.
+
+## Runtime closure declared-byte admission prerequisite — 2026-10-17
+
+Bounded local `.3d` work is based exactly on reviewed TypeScript IO seam
+`e260c0b2b3ff62bf90c78fe1b916c49297c1c7be`, in standalone clone
+`/tmp/puni-runtime-closure-sol-oct17`. Parent `.3` and `.3d` acceptance remain **open**:
+scoped lint/typecheck could not complete within resource limits. No WBS, external authority,
+compiler execution, full retained adapter, deployment or installation is claimed.
+
+The design and delta spec distinguish exact declared-byte admission from complete runtime
+closure authentication. Extra installed files are unauthenticated and inaccessible through the
+sole exact-tuple copy capability; they confer no discovery/enumeration/resolution/fallback.
+Protected installation ownership, transitive manifest completeness and executing compiler/runtime
+identity remain parent `.3` obligations. No UID/0600/single-link policy is inferred. Absent files
+and actual OS unreadability are separate tests. Read plus cleanup failures (including unexpected
+`throw undefined`) return no partial capability.
+
+Evidence: [`evidence/runtime-closure-2026-10-17`](evidence/runtime-closure-2026-10-17).
+The sampled process-tree watchdog stops at 768 MiB normally; the coordinator authorized one
+serial 900 MiB lint retry and one serial 900 MiB scoped typecheck retry after the initial stops.
+The 20 ms RSS samples are observations, not an unsampled peak guarantee. All large checks and
+fault processes ran serially; the FIFO test has one explicitly controlled child.
+
+Initial test-first run before source creation reported a missing-module RED (`0 pass, 1 fail,
+1 error`), which is import-boundary evidence only, not a semantic assertion proof. Later
+program-inventory and copied-capability additions were watched as assertion RED before their
+implementation. Production-path omission proofs supply the independent semantic negatives.
+
+Commands and observed limits:
+
+| Command                                                                                                                                                                                              | Observation                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python3 /tmp/runtime-rss-guard.py bun test apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts`                                                                         | Before final comments/format, 20 pass, 0 fail, 102 assertions; sampled peak 675,651,584 bytes, exit 0                                                                                    |
+| `python3 /tmp/runtime-faults.py`                                                                                                                                                                     | Final omission sweep: each listed mutant produced an intended assertion RED; source restored in `finally`; `faults.json` and per-fault logs retain exact needles/replacements/focus/exit |
+| `bunx eslint apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts` under initial 768 MiB guard | Stopped at sampled 817,197,056 bytes, exit 137; missing Nx ProjectGraph warning; lint unavailable                                                                                        |
+| `NODE_OPTIONS=--max-old-space-size=384` plus the same lint under authorized 900 MiB guard                                                                                                            | Heap OOM, exit 1, sampled peak 632,774,656 bytes; missing Nx ProjectGraph; **not a lint pass**, no further retry                                                                         |
+| `NODE_OPTIONS=--max-old-space-size=384 python3 /tmp/runtime-rss-guard.py bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`                                           | Initial 768 MiB stop at 818,847,744 bytes, exit 137, no diagnostics before stop                                                                                                          |
+| `RUNTIME_CLOSURE_RSS_MIB=900 NODE_OPTIONS=--max-old-space-size=512 python3 /tmp/runtime-rss-guard.py bunx tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`               | Authorized retry stopped at 946,601,984 bytes, exit 137, no diagnostics before stop; typecheck unavailable, no further retry                                                             |
+
+The initial fault sweep disqualified three escaped mutants: unsafe length was masked by a later
+byte ceiling; a file-prefix witness covered only adjacent paths; a permission-mode predicate was
+redundant with OS EACCES at uid 1000. The length witness now requires its named early refusal;
+`a, a-b, a/b` now proves the nonadjacent prefix fence before any bootstrap IO. The redundant mode
+policy was removed while OS unreadability remains tested. The second sweep's FIFO watchdog met
+Bun's test timeout rather than its intended assertion; the controlled deadline was shortened and
+watched as a production assertion RED. Initial/second ledgers remain historical, disqualified
+proofs; only final `faults.json` is the proof ledger. Adjacent `Proof:` comments name final faults.
+
+Final focused controls, formatting, OpenSpec validation, normal hooks and commit disposition are
+recorded below after their observed runs. Full h2puni gate, hosted CI, full-suite tests, builds,
+secrets/migration CI and all runtime-completeness/installation/execution claims remain unverified.
+
+First restored control after source and documentation format: `focused-final.log` reports
+**20 pass, 0 fail, 103 expect calls**, exit 0, sampled process-tree peak **675,545,088 bytes**
+under 768 MiB. `faults.json` now contains **40/40** assertion-failing omissions after the corrections below. Formatting of the two
+TypeScript files and four modified OpenSpec Markdown files passed, sampled peak **343,863,296
+bytes**, exit 0. `bunx --no-install @fission-ai/openspec@1.12.0 validate
+automatic-trusted-activation --strict --json` reported **1 passed, 0 failed, zero issues**, exit 0.
+The cached pinned CLI was available; no dependency installation or network fetch was needed.
+
+The first normal `git commit` hook attempt refused with 39 concrete lint diagnostics,
+exit 1, sampled tree peak **834,781,184 bytes** under the 900 MiB guard. Format, secret scanning
+and private nesting exited 0; tool-wiki exited 0 with `status: inactive, certified: false` because
+external activation is unprovisioned, which provides no Tool Wiki certification. Migration and
+doc-cap hook jobs had no matching files. `hooks-first.log` preserves this refusal. The coordinator
+authorized concrete lint repairs and one corrected normal-hook attempt; no bypass is used.
+
+Concrete repairs removed unnecessary test non-null assertions, sorted imports, converted numeric
+descriptor interpolation to `String`, moved aggregate rethrow after descriptor cleanup, and used
+optional chaining. A test-only lint directive documents the intentional `throw undefined` read
+fault. The authorized autofix operation ended with that one intentional test diagnostic before
+the directive was added, exit 1, sampled peak **829,636,608 bytes**; `lint-fix.log` is not a pass.
+
+A new exact-tuple test then reproduced a caller getter changing `path` between validation and
+lookup: expected `parser`, observed `compiler` (assertion RED). `readFile` now snapshots the tuple
+once, validates every field, and obtains bytes through the matched owned metadata path. Its
+`tuple-snapshot` production fault independently reintroduced the wrong-byte return and failed the
+assertion; restored GREEN also verifies one getter read. The raw-invalid-UTF-8 sentinel now
+proves fatal decode before any bootstrap probe; omitting fatal decoding produced assertion RED.
+Current `faults.json` contains **40/40** intended assertion failures; final source was restored.
+After these repairs and source formatting, `focused-final.log` reports **22 pass, 0 fail,
+108 expect calls**, exit 0, sampled tree peak **678,711,296 bytes**. The TypeScript-only format
+command exited 0, sampled peak **148,131,840 bytes**. Typecheck remains unavailable; `.3d` and
+parent `.3` remain unchecked/open even if the corrected hooks complete.
+
+## Review successor: bootstrap getter snapshots and portable physical-root encoding
+
+Predecessor reviewed SHA: `5ee40fc48c27aac25be5a5fa21dd135b70c82c5d`. Evidence is retained in
+[`evidence/runtime-closure-review-2026-10-17`](evidence/runtime-closure-review-2026-10-17).
+The predecessor's corrected normal-hook output is now committed as
+`predecessor-hooks-corrected.log`: exit 0, sampled peak **805,171,200 bytes** under 900 MiB.
+That hook ESLint execution reported no diagnostics, while explicitly **skipping the Nx module
+boundary rule because its ProjectGraph was missing**. Earlier standalone lint OOM/failures remain
+failures; the normal hook does not retroactively make them pass. Tool Wiki stayed inactive and
+uncertified, and matching migration/doc-cap jobs were absent. No full lint/gate claim is made.
+
+Review reproduced changing top-level getters: one small `closureBytes` return passed the byte
+cap before a larger pinned return was copied, and a pin getter returned two expected values
+before publishing a foreign third value. Both were assertion RED. Admission now snapshots roots,
+raw-byte reference, expected pin and limits object once at entry, copies captured limit values,
+checks/copies the captured bytes and publishes only the captured expected pin. The published-pin
+fault also uses real file reads to change the getter phase: rereading the getter after capture
+produces the foreign identity. Both production omissions caused intended assertion RED.
+
+The original Unicode exploit claim is **downgraded for pinned Bun 1.4.2**. This host's
+`path.join` and `path.resolve` normalize malformed UTF-16; tests construct lone-surrogate aliases
+by string concatenation, and the existing `resolve(path) !== path` check already refuses before
+filesystem IO. `native-unicode-before-fix.log` records that native predecessor control passing.
+The explicit UTF-8 round-trip fence strengthens the portable boundary. Its separate portability
+witness narrowly spies on the exact production `node:path.resolve` dependency to preserve the
+already absolute spelling, modeling Node-like lexical preservation. It uses real replacement-
+character directories and real open/read routes; omission of only the Unicode predicate then
+admits the alias and produces assertion RED. This is **not a pinned-host bypass**.
+`root-unicode-native-omission-control.log` confirms that even with the Unicode predicate omitted,
+Bun's native resolver still refuses: 1 pass, 8 assertions, exit 0, sampled peak **344,862,720 bytes**.
+Both native and modeled controls assert zero realpath/open/read calls on restored refusal.
+Physical-root byte caps precede the new UTF-8 round-trip allocation.
+
+The predecessor's 40-fault ledger remains historical, causally reviewed evidence for that SHA.
+The review-wave `faults.json` records **7/7** intended assertion RED omissions: byte-reference
+snapshot, published-pin snapshot, modeled Unicode fence, and replays of manifest cap, independent
+pin, copied limits and root-path cap after the snapshot/reordering edits. Source was restored
+in `finally`. No typecheck retry was attempted: typecheck and Nx boundary validation remain
+unavailable, `.3d` stays unchecked, and parent `.3` remains open. Final restored commands and
+normal successor hook disposition follow their observed runs below.
+
+Restored successor controls: guarded focused test exit 0, **27 pass, 0 fail, 130 expect calls**,
+sampled peak **674,443,264 bytes** under 768 MiB (`focused-final.log`). Guarded formatting of the
+two TypeScript files and three touched OpenSpec Markdown files exited 0, sampled peak
+**342,487,040 bytes** (`format-final.log`). Pinned cached `bunx --no-install
+@fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json` reported **1/1
+valid, zero issues**, exit 0 (`openspec-final.json`). `git diff --check` exited 0. The successor
+normal-hook log is reported with the committed SHA after its run; typecheck was not retried.
+
+### Retained namespace metadata prerequisite, 2026-10-17
+
+Scope: proposed **2.1d.1.3e1**, isolated clone `/tmp/puni-retained-namespace-sol-oct17`,
+branch `retained-namespace-sol-oct17`, exact reviewed base
+`9467df1a11304cdafb7e9d55a057fff92ea3abe3`. This implements metadata indexing and exact-owner
+provenance only. Both e1 and parent `.3` remain unchecked. No compiler mounting, transitive
+runtime completeness, installation authentication, executing-code identity, read manifest,
+all-eleven-document acceptance, protected authority, publication or WBS closure is claimed.
+
+Evidence: [`evidence/retained-namespace-2026-10-17`](evidence/retained-namespace-2026-10-17).
+`rss-guard.py` launches checks serially with `NODE_OPTIONS=--max-old-space-size=768`, samples
+aggregate descendant RSS every 50 ms and kills at a sampled 900 MiB ceiling. Samples do not
+prove an unsampled peak. `--smol` on final Bun controls reduces retained test-runner memory.
+The fresh scoped typecheck was killed at **932388 KiB**, exceeding the **921600 KiB** threshold
+between samples, exit **-9**, with no diagnostics before stop. No retry occurred. Typecheck
+remains unavailable; this is neither a source diagnosis nor a pass.
+
+The test-first missing-module run (`red.log`: 0 pass, 1 fail, 1 error) proves only the missing
+import boundary, not semantic behavior. Subsequent `green-first.log` and `green.log` expose an
+incorrect hand-counted path bound in the test fixture; the literal was corrected to the actual
+54 UTF-8 bytes. These are historical failures, not successful proof receipts. The final independent
+production omissions supply the semantic negative evidence below.
+
+| Check                                                                                               | Fresh observation                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun --smol test apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts` | `restored-final.log`: 43 pass, 0 fail, 174 assertions, exit 0; sampled peak 542284 KiB                                                                                       |
+| `bun --smol test apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts`   | `runtime-regression.log`: 27 pass, 0 fail, 130 assertions, exit 0; sampled peak 656324 KiB                                                                                   |
+| `python .../retained-namespace-2026-10-17/faults.py`                                                | 38 independent production mutants, each exit 1 with named assertion failure; sources restored in `finally`; sampled maximum 784976 KiB                                       |
+| `bunx --no-install eslint` over namespace source/tests and runtime source                           | `lint-first.log`: ten concrete diagnostics, fixed; `lint-second.log`: exit 0, peak 811384 KiB; Nx module boundaries explicitly skipped because cached ProjectGraph is absent |
+| `bunx --no-install tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`     | `typecheck.log.json`: killed at sampled 932388 KiB, exit -9; no diagnostics, no retry, unverified                                                                            |
+
+Every fault's exact source needle/replacement and focused production test are in `faults.py`;
+`faults.json` records commands, named failures, exits and process-tree observations, with a
+separate log and receipt for each trial. One harness needle initially matched both `path.length`
+and `length`; it was tightened before the byte-bound trial ran. No escaped or noncausal mutant
+is counted. Production predicates were restored between trials and after the sweep.
+
+| Failure proof family                       | Watched faults and observed production negatives                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact owners and false-empty censuses      | `candidate-owner`, `runtime-owner` lose separate copied-before-census and false-empty named refusals; `namespace-owner` loses copied-index refusal                                                                                                                                                                                                           |
+| Positive safe limits captured once         | `limit-snapshot` rereads changing getters; `limit-grammar` loses undefined/zero/NaN/unsafe negatives                                                                                                                                                                                                                                                         |
+| Entry/node/path/aggregate bounds           | `entry-cap` admits hidden runtime entries beyond the census bound; `node-cap` emits root plus seven nodes at ceiling seven; `path-codeunit-cap` reaches forbidden UTF-8 measurement; `path-byte-cap` reaches forbidden grammar allocation; `virtual-cap` admits a 54-byte virtual path at 53; `total-cap` admits retained paths one byte above the exact sum |
+| Path grammar                               | Independent `path-unicode`, `path-nul`, `path-backslash`, `path-component-empty`, `path-component-dot`, `path-component-traversal` lose named malformed-path refusals                                                                                                                                                                                        |
+| Forbidden components/modes and collisions  | `candidate-git`, `candidate-dependencies`, `mode`, `runtime-git`, `ancestor-conflict`, `duplicate-conflict` lose named refusals; ancestors include nonadjacent `a`, `a-b`, `a/child` for regular files and opaque symlinks                                                                                                                                   |
+| Fixed runtime visibility                   | `runtime-role` exposes program metadata under node_modules; `runtime-prefix` exposes the outside dependency                                                                                                                                                                                                                                                  |
+| Immutable published ownership              | Independent `freeze-node`, `freeze-candidate-tuple`, `freeze-runtime-tuple`, `freeze-array`, `freeze-index`, `freeze-provenance`, `freeze-runtime-provenance` lose explicit frozen/mutation assertions                                                                                                                                                       |
+| No ambient fallback or content consumption | `ambient-fs` uses an ES namespace import and reaches the verified `forbidden fs` sentinel; `ambient-git` reaches `forbidden Git`; `candidate-content` and `runtime-content` reach `forbidden retained content`; `ambient-metadata` reaches `forbidden filesystem metadata`; `ambient-environment` reaches `forbidden environment`                            |
+
+Positive SHA-1/SHA-256 tests acquire real owned candidates and independently pinned declared
+runtime files, then delete source repository, retained store and runtime roots before namespace
+creation. Filesystem/open/Git traps are invoked directly to prove interception before construction.
+They compare literal virtual nodes and exact producer tuples. A separate content-reader trial
+injects throwing reader methods after the provenance boundary and proves both interception and
+constructor non-use. Malformed tuples that Git cannot produce are **synthetic post-ownership
+trusted-state corruption**: tests return authentic owner's provenance through a narrow accessor
+spy and pass frozen altered metadata through the real constructor. They prove the namespace's
+predicate, not an end-to-end Git exploit or an ownership bypass. Unmocked exact-owner and
+false-empty tests remain separate. Every spy is restored in `finally`.
+
+Final scoped lint, formatting, strict OpenSpec validation, normal hooks and the commit are
+recorded after their observed runs. Full hosted h2puni gate/CI, complete-suite tests, build,
+repository-corpus fit, Nx module-boundary enforcement and the interrupted typecheck are
+unverified. No raw full Nx gate, push, merge, deployment, external messaging or WBS update ran.
+
+Final observed checks: strict pinned OpenSpec 1.12.0 validation reported **1/1 valid, zero
+issues**, exit 0, peak **112276 KiB** (`openspec.log`). The restored namespace control reports
+**43 pass, 0 fail, 174 assertions**, exit 0, peak **542284 KiB**. The final **38/38** fault ledger
+adds explicit environment and filesystem metadata sentinel interceptions to the original sweep.
+
+`LEFTHOOK_CONFIG=.git/lefthook.serial.yml bunx --no-install lefthook run pre-commit` ran normal
+installed hooks, exit **0**, sampled peak **889656 KiB** (`hooks-precommit.log`). The original
+and serial merged JSON dumps preserve all commands, globs and message hooks; only
+`pre-commit.parallel` changes to false (the normalized dump omits false). Format, lint,
+plaintext-secrets and private-nesting passed. Tool Wiki reported `status: inactive,
+certified: false` because its external activation root is unprovisioned; this is no certification.
+Migration, website migration and doc-cap jobs had no matching staged files. Lint again skipped
+Nx module-boundary enforcement for absent cached ProjectGraph; all other applicable source
+rules passed. The actual normal-hook `git commit` is performed under the same RSS guard after
+this ledger is staged; its external receipt and exact successor SHA are reported to the coordinator.
+No commit bypass is authorized or used. e1 and `.3` remain unchecked.
+
+The first actual normal-hook `git commit` passed, exit **0**, sampled peak **844148 KiB**;
+its external receipt is `/tmp/retained-namespace-commit.log{,.json}`. A subsequent diff check
+identified only trailing whitespace and terminal blank lines emitted by lint/Lefthook. Evidence
+logs were normalized for those presentation bytes only; commands, diagnostics and assertion
+content are preserved. Original logs are retained externally in
+`/tmp/retained-namespace-original-logs.tar.gz`. The final amendment uses normal hooks again;
+its exact SHA/tree and receipt are reported to the coordinator after completion.
+
+### Exact namespace recipe identity proof correction, 2026-10-17
+
+Astra's exact review of `c1f9a48d1ac354bf86f25aa18f2a7ec3c862e4b6` found one P2 evidence
+gap: the original namespace pin assertions admitted an unrelated constant digest. The original
+38 ownership/grammar/bounds/freeze/IO omission receipts remain causal for that reviewed source;
+they did not prove the recipe-to-pin binding. This successor adds that independent oracle.
+
+Evidence: [`evidence/retained-namespace-review-2026-10-17`](evidence/retained-namespace-review-2026-10-17).
+The hand-authored `namespace-policy.canonical.txt` contains exact byte-sorted V1 JSON keys and
+one terminal LF. The independent command `sha256sum .../namespace-policy.canonical.txt` emitted
+`6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec`; the complete command-path
+receipt is `namespace-policy.sha256`, and `sha256sum -c` reported OK, exit 0. The test embeds
+both bytes and expected digest as literals. It does not compute the expected pin using any
+production hashing helper or read its expected vector from production state.
+
+A narrow spy intercepts the actual production `hashCanonical` operand, runs production
+`serializeCanonical` over that captured operand and compares the bytes against the literal
+vector, then asserts that the emitted provenance pin equals the independently computed literal
+SHA-256. It also verifies one production hash call per constructor and a frozen recipe/object
+and nested arrays. Hashing moved from module load into the constructor after owner and limit
+validation; recipe values and emitted identity are unchanged. The recipe and its arrays remain
+private and frozen. No public test API was added. The spy is restored in `finally`.
+
+| Command / causal fault                                                                                           | Observed receipt                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Focused new oracle before constructor-time hashing                                                               | `oracle-red.log`: named assertion RED, captured bytes undefined; exit 1, peak 357304 KiB                            |
+| Focused new oracle after constructor-time hashing                                                                | `oracle-green.log`: pass; exit 0, peak 345740 KiB                                                                   |
+| `recipe-pin`: replace published pin with unrelated 64-zero digest                                                | Independent emitted-pin assertion RED: expected literal `6181...68ec`, received 64 zeros; exit 1, peak 349136 KiB   |
+| `recipe-field`: omit only policy `workingDirectory`                                                              | Independent literal canonical-byte assertion RED; exit 1, peak 341528 KiB                                           |
+| `freeze-policy`, `freeze-policy-candidate-components`, `freeze-policy-runtime-components`, `freeze-policy-modes` | Each independently loses its explicit frozen recipe/object or array assertion; each exit 1, peak at most 351104 KiB |
+| Restored full namespace suite                                                                                    | `restored-focused.log`: 44 pass, 0 fail, 181 assertions; exit 0, peak 557500 KiB                                    |
+| Scoped namespace source/test ESLint                                                                              | `lint.log`: exit 0, peak 788036 KiB; Nx module-boundary rule skipped for missing cached ProjectGraph                |
+
+The new `faults.py`/`faults.json` preserve all six exact needles/replacements, commands, named
+assertion failures, exits and sampled process-tree receipts. Sources are restored between
+trials and in `finally`. These add six causal trials to the reviewed historical 38; the original
+ledger is unchanged. Checks use the same serial 900 MiB RSS guard and 768 MiB Node heap setting;
+no typecheck retry, full Nx gate, build or broader suite ran. The interrupted typecheck and
+missing Nx graph remain unavailable, and e1 and parent `.3` remain unchecked.
+
+Strict OpenSpec validation and actual normal commit hooks are recorded after their observed
+runs; the reviewed commit is preserved and this correction will be a successor commit.
+
+Strict pinned OpenSpec validation passed **1/1, zero issues**, exit **0**, sampled peak
+**111912 KiB** (`openspec.log`). `sha256sum -c` again reported OK (`sha256sum-check.log`),
+and `git diff --check` exited 0 before staging. Actual normal commit hooks run under the same
+serial config/900 MiB guard after this ledger is staged; their external receipt will be
+`/tmp/retained-namespace-recipe-commit.log{,.json}` and the coordinator receives the exact
+successor SHA/tree after observed completion. No hook bypass or reviewed-commit amendment runs.
+
+## 2026-10-17 — direct retained TypeScript source, 2.1d.1.3e2
+
+Base: exact reviewed namespace successor `b8f1188a8be58898ac995061599ac01c8b97dd28`.
+Work is isolated in `/tmp/puni-retained-ts-source-sol-oct17`; no root checkout, push, merge,
+deployment or WBS update is performed. Evidence is
+[`evidence/retained-typescript-source-2026-10-17`](evidence/retained-typescript-source-2026-10-17).
+
+The factory admits all three exact owners before census and independently joins all four
+candidate/runtime provenance identities. Frozen source provenance preserves unverified runtime
+trust. Private candidate tuple metadata exposes raw digest/byte length without a content copy;
+source read count and raw-byte reservations precede candidate/runtime copies. The existing
+current declaration reader and new source share a component walk, preserving its existing
+callers and current/historical declaration semantics. File ancestors refuse before parent
+normalization. Candidate aliases cannot reach runtime mounts, including after query-root
+canonical spelling. Runtime files remain declared direct entries.
+
+The production adapter uses only the pinned installed `@typescript/old` 6.0.3 pure matcher
+behind an explicit version/function/arity boundary; the `typescript` package delegates to it.
+`boundSource` is unchanged. Product code invokes no compiler/config parser, emits no compiler
+read manifest and supplies no freeze input. Direct pattern admission is deliberately narrower
+than full tsconfig compatibility: include/exclude patterns have no `.`/`..` components and no
+Windows drive roots. All syntax is checked before any literal-prefix content read. Ordinary
+literal prefixes still walk candidate components, and all-missing includes cannot widen into
+the matcher's unrestricted empty-include behavior. Immediate directory names use installed
+sys Unicode string order, independently of the namespace's UTF-8 byte order.
+
+### Observed development and refusal proofs
+
+The ownership/read stage was observed RED then GREEN (3 tests); path/link stage RED then GREEN
+(27 tests/143 assertions); enumeration stage RED then GREEN (31 tests/175 assertions). Early
+invalid fixtures were refused upstream for lexical symlink escapes, a root `.` resolved target,
+undeclared binary content or incomplete fixture classification rules. Upstream admission was
+preserved. Effective escape uses an admitted ancestor alias; malformed owned-return tests inject
+faults only at the existing byte-copy dependency. Their injected bytes do not claim successful
+Git acquisition of invalid trusted state.
+
+Astra's WIP findings were reproduced and corrected: matcher normalization of query roots and
+literal prefixes, trailing-separator alias listing, and cwd output charging. The initial richer
+pattern rewrite experiment was discarded in favor of the explicit no-dot grammar. Its receipts
+are historical and do not establish final acceptance. `initial-unproven.json` and
+`faults-before-strict-grammar.json` retain disqualified trials: a later runtime mount guard masked
+one target-component omission, and the initial Unicode child fixture did not isolate its byte
+predicate. Final missing-runtime/.git target tests and a program-only runtime Unicode fixture
+produced independent named RED and restored GREEN for the intended predicates.
+
+The final `faults.json` records **64/64 independently injected production-path named REDs**,
+including owners/tuple/freeze, four provenance joins, every source work/read/path/link/pattern/
+enumeration/output bound, fatal decoding/BOM, file/escape ancestors, root/prefix alias
+provenance, no-match includes, matcher arity/version, Unicode directory order, and filesystem/cwd
+fallback dependencies. Every trial restores its source in `finally`; adjacent `Proof:` comments
+name its fault and observed test. Maximum sampled fault process tree: **683324 KiB**, below the
+900 MiB guard. The source-removal test separately proves active interceptions of filesystem,
+Git, cwd and `ts.sys` ports, then exercises all direct methods with those roots removed and an
+ambient Git override poisoned. Pre-removal installed-sys enumeration parity is a separate test.
+
+### Scoped checks and remaining limits
+
+All checks were serial under the sampled 900 MiB process-tree guard. Dependencies were reused
+read-only through the reviewed predecessor's installed `node_modules`; this lane did not perform
+a new dependency install. Node-based scoped lint used a 512 MiB heap ceiling.
+
+| Check                                            | Observed outcome                                                                                                                                                                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Final source direct suite                        | 67 pass, 0 fail, 246 assertions; exit 0 (`source-commit-control.log`), peak 659008 KiB                                                                                                                                                        |
+| Compiler seam regression                         | 7 pass, 0 fail, 16 assertions; peak 178148 KiB, exit 0 (`compiler-final.log`)                                                                                                                                                                 |
+| Namespace regression                             | 44 pass, 0 fail, 181 assertions; peak 561112 KiB, exit 0 (`namespace-final.log`)                                                                                                                                                              |
+| Existing declaration/Nx post-resolver regression | 79 pass, 0 fail, 109 assertions; peak 555056 KiB, exit 0 (`declarations-restored.log`)                                                                                                                                                        |
+| Fresh final declaration rerun                    | Memory-stopped after 21 passing cases; sampled 998904 KiB, exit -9 (`declarations-final.log`); no assertion failure before stop and no full-file retry                                                                                        |
+| Initial ten-file ESLint batch                    | Memory-stopped at sampled 951008 KiB, exit -9 (`lint.log`); not a pass                                                                                                                                                                        |
+| Ten named per-file ESLint checks                 | Each exit 0, max 770308 KiB (`lint-0.log` through `lint-9.log`); corrected import ordering and test method/Promise style, plus equivalent optional-chain tuple spelling                                                                       |
+| Scoped library typecheck                         | `bunx --no-install tsc --noEmit --project apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json --incremental false`: exit 0, peak 516760 KiB (`typecheck.log`); this predates only the final drive-root predicate, and was not retried |
+
+Nx module-boundary enforcement was skipped for absent cached ProjectGraph in all scoped ESLint
+runs; it remains unverified. The spec test project was not separately typechecked. The final
+full declaration rerun and final-predicate exact-tree typecheck are unavailable as described.
+Full hosted gate/CI, complete suites, build, corpus fit, compiler mounting, complete executing
+runtime authentication and external protected authority are unverified. e2, e1 and parent `.3`
+remain unchecked; these scoped checks are no activation certification.
+
+Normal hooks are installed. `hooks-original.json` and `hooks-serial.json` prove identical merged
+commands, globs/options and message hooks, with only pre-commit parallel scheduling changed to
+false (omitted by the normalized dump). Final strict OpenSpec validation and actual normal hooks
+are recorded after their observed runs. The actual commit receipt is retained externally so it
+can report that commit's exact SHA/tree without amending the reviewed predecessor.
+
+Initial normal serial pre-commit ran format, secrets, private nesting and Tool Wiki, but the
+ten-file grouped ESLint process exhausted its 512 MiB heap (lint exit 134; hook exit 1), sampled
+peak 867932 KiB. `hooks-original-heap-stopped.log` preserves that failure; it is not a lint pass.
+The coordinator authorized a clone-local equivalent per-file scheduler to retain complete hook
+coverage under the memory cap. Repository `lefthook.yml` remains unchanged.
+
+`hooks-per-file.json` differs from the original merged dump only in serial scheduling and lint
+run `bash .git/lint-staged-serial.sh {staged_files}`. The lint glob and every other command/option
+and message hook are identical. The wrapper invokes the original `bunx eslint` with each exact
+quoted hook-expanded path, the same cwd/environment/options/rules, and exits on any nonzero.
+`hook-wrapper-proof.json` proves paths with spaces are preserved; injected exit 23 at the second
+path stops before the third, and missing arguments refuse with exit 64. Actual expanded argv
+coverage is checked against the complete staged TypeScript/JavaScript path list after the run.
+
+The checked per-file normal pre-commit ran lint over all **10 exact ordered staged source/test
+paths**, with no omissions (`hook-expanded-coverage.json`), and all applicable lint rules passed;
+Nx module boundaries again reported unavailable. Its global exit was 1 solely because a newly
+added heap-failure receipt JSON needed Prettier; lint passed and peak was **820944 KiB**
+(`hooks-per-file-first.log`). That receipt was formatted and restaged before the actual normal
+commit. This failed pre-commit is not represented as a full hook pass.
+
+Strict pinned OpenSpec validation reported **1/1 valid, zero issues**, exit 0 at **112680 KiB**
+(`openspec.log`). Evidence logs were normalized only for trailing presentation whitespace and
+terminal blank lines; original log bytes remain in `/tmp/retained-ts-original-logs.tar.gz`.
+`source-files.sha256` binds the final ten code files; `sha256sum -c` and staged diff whitespace
+checks are required before the actual commit. Final commit hook receipt is retained outside
+the tree as `/tmp/retained-ts-commit.log{,.json}` and reported with the exact SHA/tree.
+
+## Retained TypeScript source review successor — 2026-10-17
+
+Isolated clone `/tmp/puni-retained-ts-aggregate-sol-oct17`, exact parent
+`355ba1ebd6276986dc8e7fa2917fc020e1b466f0`; original review clone untouched.
+Evidence: `evidence/retained-typescript-aggregate-2026-10-17/`.
+
+The original `expand-cap` fault replaced only `measure(target, ...)` with
+`Buffer.byteLength(target)`. Its target exceeded the cap by itself; it did not
+prove the aggregate guard. This successor keeps that target-only proof and replaces
+both overlapping aggregate checks with one subtraction fence reserving each
+component plus its separator. Three vectors separately exercise resolved-only,
+remaining-only, and both sides: totals 8/8/18 fit exactly, and caps 7/7/17 refuse
+although each individual part fits. `aggregate-separator-fence.log` watches all
+three overflow assertions fail when only the aggregate fence is omitted.
+
+Array capture now reads length once, reserves count, copies exactly those indices,
+and refuses missing indices. Missing-only includes use only the captured array.
+The two caller getter regressions observed RED against the parent implementation:
+truncating includes widened to unrestricted enumeration; appending extensions
+selected an unreserved extension. The extension fixture initially also included a
+legitimate runtime declaration; it was narrowed to `/src` to isolate the getter.
+
+Ten independent omissions produced named RED in `faults.json`: aggregate fence,
+NUL/backslash/surrogate syntax arms, integer/lower/upper supplied-depth arms,
+fixed capture count, original include-length reread, and missing captured index.
+Syntax and supplied-depth witnesses poison link copying, proving admission order.
+The trial runner restores source in `finally`; two ambiguous textual selectors
+were narrowed before their trials, without treating selector refusal as RED.
+
+Fresh restored source: **82 pass, 0 fail, 273 assertions**, process-tree peak
+639292 KiB (`aggregate-final-source.log`). A preliminary restored run failed
+71/10 because a local textual edit incorrectly replaced the internal
+`resolvePatterns` iteration and referenced an undefined count; the internal loop
+was restored. Its failed receipt is retained as `aggregate-green.log`, not a pass.
+The subsequent 81-test restored run passed before the missing-index test was added.
+
+Scoped library typecheck on final source passed exit 0, peak 524980 KiB:
+`bunx --no-install tsc --noEmit --project apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json --incremental false`.
+All guarded checks use 512 MiB heap and a sampled 921600 KiB process-tree ceiling.
+Strict pinned OpenSpec validation passed 1/1, zero issues (`openspec.log`).
+
+Normal commit hooks use clone-local `.git/lefthook.serial.yml` and
+`.git/lint-staged-serial.sh`. The original/per-file dump comparison proves only
+serial scheduling and per-file lint scheduling differ; every original command,
+glob and other hook remains. The wrapper uses identical `bunx eslint <path>`
+arguments, fails on any nonzero, preserves paths with spaces, and refuses an empty
+list. Fresh injected exit 23 stops before the third path
+(`hook-wrapper-proof.json`). Original parent grouped lint OOM remains recorded
+under its original evidence; no grouped pass is claimed here. Actual commit
+coverage and receipt are reported with the successor SHA after hooks finish.
+
+No shared resolver change, compiler invocation, full declaration retry, corpus fit,
+full gate/build or CI run in this successor. Earlier explicit limitations remain;
+e2 and parent .3 remain unchecked. Nx boundary lint remains unavailable without a
+cached ProjectGraph; named per-file ESLint proves only its active rules.
+
+The first successor normal commit was refused by ESLint `no-unnecessary-condition`
+for the captured missing-index check, peak 792592 KiB (`aggregate-commit.log`).
+The boundary array view now explicitly permits missing entries; no cast or lint
+suppression was added. Fresh selected controls passed on that final view (15 tests,
+27 assertions; `aggregate-indexed-controls.log`). This receipt is a failed hook,
+not a successful commit. The final retry receipt is external to its own commit.
+
+After the explicit indexed boundary type, the full source suite again passed
+82/82, 273 assertions, peak 641216 KiB (`aggregate-final-source-2.log`).
+Scoped final library typecheck passed exit 0, peak 524644 KiB
+(`aggregate-typecheck-final.log`). All ten omissions were rerun against this
+final source view; `faults.json` records the fresh watched failures.
+
+### 2026-10-17 e2 captured pattern count repair
+
+A genuine array Proxy can report NaN, undefined, fractional, negative or infinite length.
+The new direct-source production-path test first failed at its forbidden copy sentinel.
+`capturePatterns` now validates the captured length as a nonnegative safe integer before
+charging the pattern count or reading an index. Independent count-safe and count-negative
+omissions each failed the same named production test; restored controls passed all three
+extension/exclude/include positions, 16 assertions. Evidence:
+`evidence/retained-pattern-count-2026-10-17/`.
+
+In the clean isolated predecessor checkout, the restored complete direct source suite passed
+83/83, 289 assertions, sampled process-tree peak 645956 KiB. Scoped library typecheck passed.
+All checks used a 512 MiB heap and the existing 921600 KiB process-tree RSS guard. This is a
+local boundary fix; no compiler mount, namespace recipe, installed runtime trust, full gate,
+build or CI acceptance is claimed. Existing tests' broader typecheck limitations remain.
+Normal commit hooks use the already proven per-file serial ESLint scheduling while retaining
+all hook commands; the successful commit receipt is reported with its exact successor SHA.
+
+### 2026-10-17 retained compiler mounting (.3e3)
+
+`extractRetainedTypeScriptRelationships` internally constructs the owned source and mounts the
+unchanged shared compiler under fixed namespace V1 cwd. Request arrays, their captured integer
+lengths, every selected path and all three limit groups are admitted before source callbacks.
+The returned envelope explicitly includes unverified runtime trust and exact source-owned
+provenance; its final canonical byte cap includes both. Source limits are positive while
+compiler/request limits permit zero. Scoped acceptance and parent .3 remain unchecked.
+
+The focused mount suite passed **20/20, 307 assertions**, sampled process-tree peak 357636 KiB
+(`mount-metadata-final.log`). Both actual SHA-1 and SHA-256 Git captures compare the complete
+legacy extractor, imports, reverse/public selectors and configuration identities. Fixtures use
+noLib global declarations, wildcard includes/config extends, relative imports/reexports, path
+aliases and one declared runtime package with metadata. Compiler identity retains the actual
+installed typescript package metadata; the legacy noLib fixture separately uses the actual
+@typescript/old metadata for its existing version check. Removing source/store/runtime roots
+before replay and invoking every installed filesystem/Git/cwd/environment/ts.sys trap proves
+interception; subsequent replay makes no trapped calls. An alternate owned provider type changes
+its public declaration identity while the extractor and imports remain equal.
+
+Request-count Proxy tests first failed at the forbidden source-admission sentinel for NaN;
+array length is now independently validated as a safe integer before range checks or indexed
+reads. The source predecessor `6d7f9dae9f7e16c46ba81dda7a652801d7b10ed7` was independently
+checked out clean and passed all 83 direct source tests after its normal commit, peak 641716 KiB.
+Its count repair and proofs are recorded separately above.
+
+The mount's 26 independent watched omissions and receipts live in
+`evidence/retained-typescript-mount-2026-10-17/faults.json`; each production omission reaches a
+named failing test and restoration retains the original source. These cover safe/minimum
+limits, real arrays, safe captured counts, nonempty/count limits, missing paths, pre-encoding
+codeunits, UTF-8/aggregate bytes, drive/surrogate/reserved/RelativePath grammar, uniqueness,
+fixed-length copying, request/compiler/source/output snapshots, returned provenance and the
+whole-envelope ceiling. The initial missing-module RED and explicit count-admission RED are
+retained separately. Config/diagnostics/selected missing/escape and mounted compiler/source
+budgets refuse through the production mount.
+
+Scoped library and focused new-test typechecks passed. The broad spec typecheck failed in
+existing namespace/runtime/direct-source test typing; its first run also identified this slice's
+new realpath mock missing `native`, which was corrected before the focused new-test typecheck
+passed. A full project tsc build was stopped by the process-tree guard at 947380 KiB; no full
+project typecheck pass is claimed. Named ESLint active rules pass, while Nx boundary lint skips
+because the isolated checkout has no cached ProjectGraph. Normal commit hooks use the same
+serial per-file ESLint scheduling as the e2 predecessor, preserving all original commands.
+
+Every guarded final check uses a 512 MiB heap and 921600 KiB sampled process-tree ceiling.
+This operational watchdog supplies no product compiler CPU/heap bound. No default-library
+parity (legacy @typescript/old/lib versus namespace typescript/lib), compiler read manifest,
+freeze, runtime completeness/authentication, general config-generated escape policy, full
+repository corpus fit, full gate, build, CI or activation is claimed. Historical/Nx producers
+and the compatibility masking of outside probes remain unchanged. Tool-wiki hook output is
+explicitly inactive because no external activation root is provisioned.
+
+The first mount commit attempt was refused by normal ESLint: the per-runtime-file fixture map
+had a total Record type despite its deliberate missing-key refusal. The map boundary now
+explicitly permits undefined entries, retaining the refusal with no cast or lint suppression.
+`mount-commit-first.log` is a failed hook receipt, not a successful commit. The final retry is
+reported externally with its exact SHA.
+
+### 2026-10-17 retained source byte-read census (.3e4a)
+
+Baseline bundle SHA-256 `b7884ec4cb71904300072c29dbf865942ef67f84b63fbf3405fd9699de5c78dc`
+was verified before cloning. The isolated clone started at exact reviewed
+`fad025cc9052ef5b2d52e30bc1fc3736e015c9f3`, tree `c8e76202f8cfad4cae6a12db6c8a81bd2f45f6aa`.
+The predecessor dependency directory was reused by symlink after `cmp bun.lock` succeeded;
+no fresh dependency installation is claimed. The cached OpenSpec 1.12.0 executable supplied
+apply instructions for this existing change. Namespace V1 and runtime trust are unchanged.
+
+The source records successful raw acquisitions with exact candidate private identities and
+runtime closure identities, retained/closure paths and revision:null. Raw BOM bytes survive in
+census length/identity even where file text strips them. Metadata probes, misses and unused
+mounted runtime dependencies are absent. Probe/enumeration link reads are present, final-file
+aliases deduplicate, distinct link paths sharing bytes remain distinct, and repeated reads still
+exhaust execution budgets. Complete canonical entry encodings sort by UTF-8 bytes. U+E000.ts
+and U+10000.ts share identical content and are acquired in reverse order; the expected order
+independently distinguishes UTF-8 from JavaScript UTF-16 comparison.
+
+The exact canonical wrapper/LF/tuple/comma contribution is charged before candidate or runtime
+owner copies. Single- and two-entry exact equality passes; shortages reach no copy sentinel,
+including the second copy after a first accepted tuple. Failed owner copies contribute no tuple.
+The exact-source finalizer caches a deeply frozen census, refuses copied/accessor sources,
+bars every callback before later pattern access, and leaves provenance readable. The mount
+seals after successful shared extraction and caps the whole envelope including byteReads.
+A failed core extraction leaves its internally captured source available for later callbacks.
+
+Evidence is in `evidence/retained-byte-census-2026-10-17/`. The initial missing-export RED is an
+API absence error rather than a production negative. `source-first-green.log` is a failed run:
+its exact-fit test caught a one-byte overcharge from counting the standalone entry LF. The
+correct contribution removes that LF while retaining the wrapper LF. `source-enumeration-red.log`
+is a test expectation failure: ordinary enumeration includes the declared runtime .d.ts path;
+the corrected test lists that metadata path and still requires only acquired link bytes in census. `mount-first.log` is a
+failed test expectation (literal config byte length was 74; actual independently counted JSON
+length is 66), not a production defect. The original `query-seal-disqualified.log` is explicitly
+disqualified: its sentinel message contained "sealed" and accidentally matched the refusal
+assertion. The sentinel now says "forbidden pattern getter"; corrected `query-seal.log` watches
+the production omission fail before restored GREEN. No failed or disqualified trial is claimed
+as proof.
+
+`faults.json` records each independent watched production omission/substitution and its bounded
+process-tree receipt. Faults cover record/path/identity, dedup, reverse/UTF-16 sorting, entry and
+ledger/wrapper ceilings, source owner and cached finalizer, each seal entry check (query pattern
+getter and cwd probe), all three freeze layers, failed-copy insertion, finite/positive limits,
+exact contribution and comma, mounted census omission, premature sealing, forged unused runtime
+record and complete-envelope cap. Every accepted fault has exit 1 and a named failing production
+path test; production is restored in a finally block. Adjacent Proof comments identify the faults.
+
+The scoped library and focused mount-test TypeScript checks pass. The broader spec check fails
+with existing namespace/runtime/direct-source test typing errors (including direct-source lines
+78 and 318); no new census test error is reported. This broader check is not passed. All guarded
+checks use a 512 MiB Node heap and the existing sampled 921600 KiB process-tree watchdog; the
+watchdog supplies operational proof protection, not product compiler CPU/heap containment.
+
+Normal commit hooks retain all commands with local serial scheduling and per-file ESLint to
+respect the memory ceiling. The Nx module-boundary lint cannot run without a cached project
+graph in this isolated clone; named active lint rules still execute. No h2puni full gate, full
+repository format/test/lint/typecheck/build, CI secrets/migration checks, deployed activation,
+runtime authentication/completeness, full CompilerReadManifestV1, default-library parity or freeze
+integration is claimed. Parent .3 and this scoped acceptance remain unchecked pending exact review
+and the required gate. No push, merge, deploy or WBS write is performed.
+
+Final scoped receipts:
+
+| Check                                                                                       | Observed outcome                     | Sampled process-tree peak (KiB) |
+| ------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------: |
+| Direct source suite (`source-restored-final.log`)                                           | 93 pass, 0 fail, 356 assertions      |                          644180 |
+| Mount suite (includes SHA-1/SHA-256 removed-root noLib replay) (`mount-restored-final.log`) | 21 pass, 0 fail, 329 assertions      |                          363960 |
+| Scoped library TypeScript (`type-lib-final.log`)                                            | exit 0                               |                          515808 |
+| Focused mount-test TypeScript (`type-mount-tests-final.log`)                                | exit 0                               |                          427584 |
+| Broad spec TypeScript (`type-spec.log`)                                                     | exit 1, existing errors listed above |                          700352 |
+| OpenSpec validate --all --json (`openspec-final.log`)                                       | exit 0                               |                          132608 |
+
+All **26** accepted independent faults were watched RED; their maximum sampled
+process-tree peak was **382120 KiB**, below 921600 KiB.
+
+The first normal commit attempt was refused by active ESLint for an unnecessary second
+undefined check in the new mount test after TypeScript had already narrowed the captured source.
+The redundant check was removed, retaining the production failure assertion and subsequent
+readability assertion. `commit-first.log` is the failed hook receipt (peak 798108 KiB), not a
+successful commit. The successful retry is reported with its exact SHA externally.
+
+The next normal hook run refused formatting of the short command array in `commit-first.log.json`;
+all census receipt JSON was then passed through Prettier. The original hook stdout is preserved at `/tmp/puni-retained-byte-census-commit-20261017.log`.
+`commit-first.log` removes only line-end ASCII spaces/tabs for presentation; the raw and
+presentation SHA-256 identities and exact transformation are in `commit-first-transcript.json`.
+The initial unfiltered whitespace check reported five raw transcript lines. The normalized
+committed transcript now passes the unfiltered check.
+
+The next retry passed formatting but active ESLint then refused import ordering in the mount
+module; its earlier lint pass was not established. ESLint autofix sorted only the import group.
+The final retry retains every normal hook command and runs after the unfiltered whitespace check.
+
+### 2026-10-17 entry-count proof isolation after exact review of `1e70f350`
+
+Astra's exact review of `1e70f3502202bf368753e32b6633ad2219e649a1` found no P0–P2
+and one P3 evidence mismatch: the entry-count Proof comment claimed the owner-copy sentinel,
+while its existing `entry-cap.log` actually reached the later ledger-byte refusal. That original
+transcript is preserved and is not relabeled as an owner-copy observation.
+
+The successor adds `byte census entry count refuses before owner copy with ledger byte headroom`.
+It sets only maximumReadEntries=1, retaining the normal 100000-byte ledger ceiling, acquires the
+first tuple, then installs the owner-copy sentinel before acquiring a different second tuple.
+`evidence/retained-byte-census-entry-proof-2026-10-17/entry-fault.py` removes only the production
+entry-count guard, requires a named failing test containing `entry copy sentinel`, and restores
+the source in finally. `entry-copy-red.log` watches that exact fault reach the copy boundary;
+the restored source suite passes 94 tests. The adjacent production Proof now names this test
+and successor receipt. Runtime behavior is unchanged.
+
+The same evidence folder contains `lint-wrapper.py` and `lint-wrapper.json`. The proof reads
+the exact configured inline command from local lefthook configuration, records its SHA-256,
+expands the five TypeScript paths changed by the reviewed e4a slice, and records the current
+staged TypeScript subset. It substitutes only an isolated executable that records argv for this
+shell-wrapper proof; normal commit hooks continue to run actual ESLint. The successful run
+observes exactly one `bunx eslint <path>` invocation for each covered path. Injecting exit 23
+at the second path propagates exactly 23 and stops before the remaining paths. Removing only
+`|| exit $?` loses that oracle: the injected failure is followed by the remaining invocations
+and the shell returns zero. The existing real ESLint failures and final actual hook pass remain
+separate observations. This proof changes no tracked or local hook command.
+
+Original raw/normalized hook transcripts and their identity receipt remain intact. The broad
+spec typecheck errors and absent Nx cached ProjectGraph remain unpassed as recorded above;
+full host gate/build/CI and parent acceptance remain pending. No push or WBS write occurs.
+
+Successor scoped receipts (all under the same 921600 KiB process-tree ceiling):
+
+| Receipt              | Observed outcome                                      | Peak KiB |
+| -------------------- | ----------------------------------------------------- | -------: |
+| `entry-copy-red.log` | exit 1, entry copy sentinel observed                  |   349320 |
+| `source-green.log`   | 94 pass, 0 fail, 358 assertions                       |   634728 |
+| `mount-green.log`    | 21 pass, 0 fail, 329 assertions                       |   360212 |
+| `type-lib.log`       | exit 0                                                |   515440 |
+| `openspec.log`       | exit 0                                                |   128640 |
+| `lint-wrapper.log`   | exit 0, coverage and injected failure assertions pass |    31288 |
+
+### 2026-10-17 explicit ES5 standard-library parity (.3e4b1)
+
+Base: reviewed `.3e4a` `57ac0521cccf33946d666f97dadaa5715730cc3a`, tree
+`cdef38e938a95851e1e83a60167f50c752dc725f`, independently cloned from the complete-history
+bundle SHA-256 `5dccde061fef0988a043f12b2f5574c2661ffbccb7cf69340c16925149bf3fd7`.
+Only tests/fixtures and this OpenSpec packet change; production adapters are unchanged. The
+existing noLib parity remains a regression control. Explicit ES5 mode removes inherited noLib
+and handwritten globals, selects `lib:['es5'],types:[]`, and retains compiler package metadata.
+
+Pinned installed `@typescript/old` files are byte-checked after fatal UTF-8 decoding and
+re-encoding, then captured at V1 `node_modules/typescript/lib/<basename>` paths. Legacy receives
+byte-identical library files under its existing `@typescript/old/lib` path. Exact raw lengths:
+`lib.es5.d.ts` 218972, `lib.decorators.d.ts` 13153, `lib.decorators.legacy.d.ts` 1287; total
+233412 bytes. The ES5 library's only lib references are decorators and decorators.legacy;
+neither dependency has further lib references. The exact library census excludes a declared
+unreferenced library and any implicit lib.d.ts/DOM libraries. Public declarations exercise
+`ReadonlyArray<string>` and `Date`. SHA-1 and SHA-256 full legacy relationship/extractor equality
+survives deletion of source, object-store and runtime roots under verified ambient-route traps.
+Each missing required library refuses; physical post-capture mutation has no effect; adding a
+valid comment changes library census identity while extractor/relationships remain equal.
+
+Evidence: `evidence/retained-es5-parity-2026-10-17/`. Initial RED (`puni-es5-red.log`) observed
+both hash modes producing an empty library census against the exact three required tuples.
+GREEN followed only the explicit fixture-mode/library capture changes. Two intermediate budget
+instrumentation failures are disqualified: an unbound owned-method call and comparing unrelated
+cross-fixture snapshot provenance. Both were corrected; the final budget witness measures real
+owned acquisitions with methods bound to their owners and compares the portable relationship
+and byte-census fields across independent fixtures. A separate typecheck widened expected
+`namespace` to string; a literal type annotation fixed it. The first lint reported dynamic delete
+and unbound methods; both were corrected without disabling rules.
+
+Measured budget witness: raw/source and compiler reads 235702 bytes; census 11 entries / 1974
+canonical bytes; full envelope 4779 canonical bytes. Every exact-fit check passes and every
+one-byte/one-entry shortage refuses. ES5-only runtime capture/replay limits are explicitly
+1000000 bytes; the shared fixture's 10000-byte defaults remain in force for other callers.
+
+| Watched injected fault                    | Observed negative                                                |
+| ----------------------------------------- | ---------------------------------------------------------------- |
+| Substitute ambient ts.sys library reads   | SHA-1/SHA-256 deleted-root replay fails on the ambient trap      |
+| Bypass retained readNode for libraries    | Exact three-library census assertion receives no library tuples  |
+| Suppress library census insertion         | Exact three-library census assertion fails                       |
+| Substitute wrong library raw identity     | Exact expected identity tuples differ                            |
+| Omit source library byte accounting       | One-byte-short source read budget succeeds and assertion fails   |
+| Omit compiler library byte accounting     | One-byte-short compiler read budget succeeds and assertion fails |
+| Omit full-envelope byte accounting        | One-byte-short envelope succeeds and assertion fails             |
+| Restore physical filesystem library reads | SHA-1/SHA-256 deleted-root replay fails on the filesystem trap   |
+
+`faults.json` records eight watched exit-1 failures, then restores all production originals.
+Adjacent test `Proof:` comments point to the exact tuple and envelope assertions. The local,
+ignored lefthook override serializes commands and lints each staged TypeScript path in order,
+preserving every hook. `lint-wrapper.json` records both paths executed, an injected first-path
+exit 23 stopping the wrapper, and removal of exit propagation incorrectly returning zero after
+the second path. No hook bypass or tracked hook configuration change is used.
+
+Recorded focused checks (Node heap 512 MiB; process-tree RSS ceiling 921600 KiB):
+
+- Restored mount file: 30 tests / 510 assertions pass, peak 419220 KiB; final strengthened
+  real-library legacy parity: 30 tests / 514 assertions pass, peak 687760 KiB.
+- Shared source regression: 94 tests / 358 assertions pass, peak 642196 KiB.
+- Focused test typecheck: exit 0, peak 433316 KiB.
+- Per-file ESLint: exit 0, peaks 751924 and 685912 KiB. Initial lint lacked a project graph;
+  fresh guarded Nx graph generation passed at 276172 KiB before final hook lint.
+- Pinned cached OpenSpec 1.12.0 strict change validation: exit 0, peak 106312 KiB;
+  `validate --all --json`: exit 0, peak 136048 KiB.
+- Budget measurement rerun: one test / exact thresholds pass, peak 411136 KiB.
+
+The source-regression and graph processes briefly overlapped after an early poll. Their separate
+recorded peaks sum to 918368 KiB; this is not a combined guarded-run claim. Subsequent checks
+and normal commit hooks run serially. Final normal-commit hook receipt is supplied separately
+with the resulting commit SHA/tree, because a commit cannot contain its own completion output.
+
+Skipped: full h2puni gate, full repository test/lint/typecheck/build, secrets CI and migration CI
+were not run on this laptop. This slice remains unchecked pending exact independent review and
+the required gate. No claim is made for implicit default-library breadth, runtime parser/loader
+authentication, CompilerReadManifestV1, freeze integration, or parent `.3` completion. No push,
+merge, deploy or WBS edit occurred.
+
+Review correction: the original require-based physical-dependence injection bypassed Bun's ESM
+filesystem spy and failed with ENOENT. That receipt is preserved as
+`disqualified-require-physical-library-dependence.log` and explicitly rejected in
+`disqualified-physical-proof.json`; it is not an accepted interception proof. The corrected
+injection adds the same ESM `import * as fs from 'node:fs'` binding used by the test, calls
+`fs.readFileSync`, and requires exactly two `error: forbidden ambient route` observations
+(one per Git format) with no ENOENT. The ambient ts.sys dependency fault now requires the same
+explicit sentinel. `faults.json` records these strengthened sentinel observations separately.
+
+Corrected fault restoration: four noLib/ES5 SHA-1/SHA-256 replay controls pass, 166 assertions,
+peak 379712 KiB. Final focused typecheck passes at 433008 KiB. Exact Astra re-review closed the
+physical-dependency P2 with no remaining P0–P3 findings; the required host gate remains pending.
+
+The first normal commit was refused by graph-backed module-boundary lint (exit 1, peak
+796332 KiB): the pre-existing relative import of the preserved legacy producer is outside the
+production facade. The import now has an adjacent test-only rule exception explaining its role
+as the independent parity oracle; no production facade export was added. The failed hook stdout
+and receipt are preserved as `normal-hook-refusal.log{,.json}`. Format, plaintext secrets,
+private nesting and inactive-tool-wiki checks passed on that refused attempt; migration/doc caps
+were visibly inapplicable. Final normal-hook success is supplied as a separate receipt.
+
+Unfiltered staged `git diff --check` initially found trailing whitespace / excess EOF blank lines
+in raw lint-failure and graph stdout. Tracked log evidence is normalized only by stripping those
+characters and retaining one final LF. Exact originals remain under
+`/tmp/puni-es5-raw-evidence-20261017/`; `normalized-log-receipts.json` records each raw path,
+SHA-256, normalized SHA-256 and transformation. The successful final commit must pass unfiltered
+`git show --check`; the whitespace finding is not suppressed.
+
+### 2026-10-17 pinned implicit-default standard-library parity (.3e4b2)
+
+Base: exact reviewed `.3e4b1` commit `e43ecad594f7932fa11b55971bbb26af9820f530`,
+cloned from its complete-history bundle. Only tests/fixtures and this OpenSpec packet change;
+production adapters, namespace V1 and explicit unverified runtime trust remain unchanged.
+Evidence: `evidence/retained-implicit-lib-parity-2026-10-17/`.
+
+The initial 18-file / 2673922-byte lib.d.ts proposal was falsified by `baseline-sha1.log`:
+the unchanged legacy producer requested lib.es2025.full.d.ts. TypeScript 6.0.3 selects ES2025
+when target is omitted; parseProject adds only emit options, and the compiler host calls the
+installed getDefaultLibFileName. The corrected fixed sorted closure contains 82 files and
+2936611 raw bytes. Independent recursive parsing of lib directives equals this list; fatal
+UTF-8 decoding and exact re-encoding preserve bytes. The fixture pins ts.version to 6.0.3.
+Both captured candidate configs explicitly omit target/lib/noLib, and the captured candidate
+contains no handwritten globals. Legacy receives identical library bytes under @typescript/old/lib;
+retained replay receives the unchanged namespace V1 typescript/lib paths.
+
+Initial corrected capture refused runtime maximumReads128 because descriptor capture counts
+EOF checks; `corrected-baseline-sha1.log` preserves that failure. Runtime reads512 were then
+approved; all other finite caps remain those in design.md. The original physical-mutation
+witness tried two extractions through one runtime owner and correctly exhausted its 8 MiB
+lifetime returned-byte budget. `physical-mutation-runtime-cap-refusal.log` preserves it. The
+corrected witness compares one baseline-owner extraction with one extraction from an owner whose
+physical libraries were overwritten after capture, asserting exact extractor/relationships/
+byteReads plus its own namespace provenance. No production cap was raised.
+
+Every named acceptance test runs alone in a fresh serial process under the 921600 KiB process
+tree guard. Positive receipts require exactly one selected passing test and zero failures.
+SHA-1/SHA-256 full legacy equality survives removal of all capture roots under invoked ambient
+filesystem/Git/cwd/environment/ts.sys traps; Document, ReadonlyArray<string> and Date appear in
+public exports. Exact library census membership includes all 82 identity/length tuples and
+excludes the declared unused library. Missing root, direct DOM and transitive promise libraries
+refuse without ambient fallback. Changed valid indirect bytes alter their census identity while
+relationships stay equal. Exact source/compiler/census/envelope limits pass at equality and
+refuse a one-unit shortage.
+
+| Fresh-process acceptance phase | Peak KiB |
+| ------------------------------ | -------: |
+| `budget-census-entries`        |   653552 |
+| `budget-census-bytes`          |   664368 |
+| `budget-envelope`              |   833848 |
+| `absent-root`                  |   377388 |
+| `absent-dom`                   |   450084 |
+| `absent-transitive`            |   680948 |
+| `physical-mutation`            |   671928 |
+| `changed-indirect`             |   667484 |
+| `restored-sha1`                |   852320 |
+| `restored-sha256`              |   868652 |
+| `control-nolib-sha1`           |   365184 |
+| `control-nolib-sha256`         |   363436 |
+| `control-es5-sha1`             |   421188 |
+| `control-es5-sha256`           |   420268 |
+| `budget-source`                |   697888 |
+| `budget-compiler`              |   648792 |
+
+All listed phases exit 0. These are separate per-test observations, not a combined-suite
+900 MiB claim. Initial successful individual SHA-1/SHA-256 trials peaked at 857796/863908 KiB;
+final strengthened parity receipts are in the table.
+
+| Watched production-path fault      | Peak KiB |
+| ---------------------------------- | -------: |
+| `redirect-library-namespace`       |   611860 |
+| `esm-physical-library-read`        |   613556 |
+| `ambient-library-substitution`     |   633936 |
+| `omitted-indirect-census-entry`    |   858864 |
+| `wrong-indirect-identity`          |   860508 |
+| `omitted-source-byte-accounting`   |   839708 |
+| `omitted-compiler-byte-accounting` |   831816 |
+| `omitted-envelope-accounting`      |   827208 |
+| `wrong-default-selection`          |   638448 |
+
+All nine faults produce exit 1 and exactly the expected named failing test; a guard kill is
+not accepted as a negative proof. ESM physical reads and ts.sys substitutions each require the
+exact forbidden ambient route sentinel once and no ENOENT. The original wrong-default selector
+mutation failed the legacy oracle before retained mounting, so its receipt is preserved as
+`disqualified-legacy-only-default-selection.log` and rejected in
+`disqualified-default-selection.json`. The corrected mutation applies only when the system's
+library directory is the retained V1 path, leaves legacy selection intact, and requires the
+explicit extractRetainedTypeScriptRelationships stack witness (`retainedMountReached:true`).
+All production originals are restored after every fault, including on runner failure.
+
+Source regression: 94 tests / 358 assertions pass, peak 638196 KiB. Initial focused typecheck
+passed at 435268 KiB. First test lint found unsafe JSON assignment/member access and an
+unnecessary dictionary conditional; typed unknown parsing and own-key admission corrected them.
+Restored test-file lint passes at 763500 KiB; fixture lint passes at 683292 KiB.
+Initial Nx graph output exited 0 after socket denial without creating a graph, and is rejected
+as evidence. With NX_DAEMON=false and NX_ISOLATE_PLUGINS=false, a fresh graph command exited 0
+at 270588 KiB and both the requested JSON and .nx/workspace-data/project-graph.json were observed.
+
+The local ignored lefthook override serializes commands and lints each staged TypeScript path,
+preserving normal hooks. `lint-wrapper.json` covers both changed files, injected first-path
+exit 23 stopping execution and the observed false zero when exit propagation is removed.
+
+Final clean SHA-1 restoration: one test / 131 assertions passes at 861860 KiB. Final focused
+typecheck exits 0 at 434696 KiB. Pinned cached OpenSpec 1.12.0 strict change validation is
+1/1 valid at 113448 KiB; all-document validation exits 0 at 141112 KiB. Exact independent
+re-review and normal commit hook receipt remain pending. Full combined mount suite, full
+h2puni gate, repository-wide test/lint/typecheck/build, secrets CI and migration CI are unrun.
+No full CompilerReadManifestV1, parser/loader authentication, freeze or parent .3 completion is
+claimed. This task remains unchecked pending review and required gate. No push, publication,
+merge, deploy or WBS write occurred.
+
+Raw log whitespace normalization, where needed, strips only line-end spaces/tabs/CR and keeps
+one final LF. Exact original files remain under /tmp/implicit-lib-parity-raw-evidence-20261017;
+normalized-log-receipts.json binds each original and normalized hash. This avoids suppressing
+unfiltered git diff/show whitespace checks.
+
+The first normal commit attempt was refused by format (exit 1, peak 790976 KiB): three
+new command receipt JSON files needed Prettier's command-array formatting. Lint, plaintext
+secrets, private nesting and inactive tool-wiki checks passed. The refused transcript and
+receipt remain as normal-hook-format-refusal.log{,.json}. Only JSON formatting was corrected;
+no hook was bypassed. Final normal-commit completion is supplied externally with its SHA/tree.
+
+## 2026-10-17 exact-owner successful TypeScript extraction (.3e5a)
+
+Candidate starts at exact reviewed implicit-parity SHA
+`0adc3b5077c1a8c464cf99dc841fe29a0667bf5b` in an isolated `/tmp` clone. Its ignored
+`node_modules` symlink uses the existing pinned workspace dependency tree; no fresh install
+is claimed. Evidence is in `evidence/retained-typescript-owner-2026-10-17/`. Every runtime,
+compiler and lint phase uses the existing source evidence `rss-guard.py`, enforcing a
+900 MiB process-tree ceiling. Independent phases run serially in coordination with the PM.
+
+The four small noLib owner tests first failed on the old production module (0 pass / 4 fail,
+peak 353020 KiB). The final restored suite passes 4 tests / 71 assertions at 347472 KiB.
+It observes exact cached binding identity, owned request/provenance equality, primitive/plain/
+spread/JSON/inherited/proxy/getter-poison refusal, no poisoned property reads, caller path
+mutation independence, recursively frozen private records and complete output graphs.
+The canonical oracle captures actual envelope bytes through a test-only Object.freeze spy
+before freezing, compares after freezing, then verifies bytes remain equal after attempted
+mutations at every reachable object. No runtime brand key is added. Existing noLib SHA-1 and
+SHA-256 legacy parity both pass (2 tests / 74 assertions, 40 filtered, peak 357612 KiB).
+
+The nine independent runtime omissions all fail named production-path owner assertions:
+
+| Fault                                    | Observed failure                                                     | Peak process-tree KiB |
+| ---------------------------------------- | -------------------------------------------------------------------- | --------------------: |
+| Owner refusal omitted                    | Impostor accessor does not throw                                     |                351888 |
+| Snapshot freeze omitted                  | Compiler callback sees unfrozen request wrapper/arrays               |                354700 |
+| All freezing omitted                     | Frozen graph assertions and injected freeze-failure expectation fail |                350604 |
+| Child enqueue omitted                    | Nested frozen record assertions fail despite frozen root             |                354480 |
+| Binding uses caller request              | Callback-mutated request differs from captured expected paths        |                354400 |
+| Registration after cap, before freeze    | Accessor accepts the captured key after injected freeze failure      |                355680 |
+| Private provenance aliases public object | Copied-record identity assertion fails                               |                354160 |
+| Registration omitted                     | Exact successful envelope accessor refuses                           |                353980 |
+| Registration before cap                  | Accessor accepts captured one-byte-short failed envelope key         |                355468 |
+
+The copied-provenance alias fault proves the explicit copied-record identity/isolation
+contract only. It does not strengthen runtime authentication or content integrity. The
+WeakMap.set witness records actual extraction owner registration keys; timing negatives
+exercise both the short cap and injected envelope freeze exception independently. The
+original compiler failure also publishes no registered extraction.
+
+Compile-only test witnesses reject structural reconstruction, mutable root fields and
+nested relationship/census/request mutations. Removing the private brand fails with an
+unused @ts-expect-error at 434960 KiB; removing readonly mapping independently loses root,
+relationship and request directives at 436756 KiB. Restored scoped TypeScript checking
+includes both new owner and existing mount tests and exits 0 at 434596 KiB.
+
+Initial scoped ESLint exited 0 but skipped module boundaries because the clone lacked an Nx
+project graph; that output is not the accepted lint evidence. Explicit
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx show projects --json`
+succeeds at 267668 KiB, creating the graph. Subsequent scoped ESLint exits 0 at 759848 KiB
+with an empty log and no skipped rule. The final graph-backed scoped lint, after the last
+test-only additions, also exits 0 with an empty log at 771508 KiB. Its first attempt rejected
+compile-only invalid method calls, so those witnesses now assign readonly array lengths;
+the independent type omission negatives were rerun and restored lint/typecheck pass.
+Pinned cached OpenSpec 1.12.0 strict validation reports 1/1 valid at 113440 KiB.
+Exact independent review and normal hooks remain pending.
+
+Full ES5/implicit test families, combined mount suite, full h2puni gate, repository-wide
+format/test/lint/typecheck/build, secrets CI and migration CI are unrun. No protected freeze,
+CompilerReadManifestV1, parser/loader authentication or parent .3 completion is claimed.
+Task .3e5a remains unchecked pending independent review and the required gate. No push,
+publication, merge, deploy or WBS write occurred.
+
+Evidence log normalization strips only trailing spaces/tabs/CR per line and preserves one
+final LF for nonempty logs. Exact raw files remain under
+`/tmp/retained-owner-raw-evidence-20261017`; normalized-log-receipts.json binds original and
+normalized SHA-256 values. This preserves unfiltered git whitespace checking.
+
+## Retained candidate review provenance prerequisite — 2026-10-17
+
+The uncommitted `.3e5b` candidate starts at reviewed owner commit
+`ae8b28df37a3c579a958f85381e21048df6ea37f` in isolated
+`/tmp/puni-review-provenance-sol-20261017`. Its ignored `node_modules` symlink references the
+existing pinned workspace tree; no fresh dependency install is claimed. Production changes are
+confined to `activation/review-selection-objects.ts`. Dedicated tests import no existing large
+suite. Evidence is in `evidence/retained-review-provenance-2026-10-17/`.
+
+Initial TDD RED observed the missing export before implementation (0 pass, 1 missing-export
+failure, 65476 KiB). Review then found generic cloning before validation could traverse rejected
+undeclared values. The revision first validates the closed raw request, copies every declared
+scalar and subject/member field explicitly, then validates the exact owned snapshot canonically.
+It never generically clones caller values. Review's getter/buffer sentinel, canonical capture
+mutation and distinct-request controls are included in the final suite.
+
+Restored focused tests pass 16 tests / 70 assertions at 415944 KiB, including real SHA-1/SHA-256
+Git capture, complete empty-history pins, legacy null despite a caller pin, exact frozen cached
+scalars, mutable caller request isolation, primitive/copy/JSON/inherited/getter/proxy refusal
+without property reads and phase-one nonpublication. Both repository roots are deleted before
+accessor replay; filesystem/Git traps are explicitly invoked, then repeated accessors and the
+single allowed parser read succeed. Four altered-history cases (wrong raw pin, canonical repinned
+foreign request, noncanonical repin and malformed repin) publish no binding. Final held-owner
+failure refuses; the timing fault uses a test-only WeakMap.set spy to capture the internal
+candidate and expose incorrectly early registration. Two valid legacy requests open distinct
+candidate bindings for the identical snapshot. Pull-request, protected-revision and merge-group
+subject copies preserve exact validated request identity.
+
+All thirteen independent production faults fail named focused tests, recorded in
+`fault-ledger.json`: lookup omission, freeze omission, request substitution, snapshot
+substitution, history substitution, complete-history null, legacy pin promotion, late caller
+request reread, registration omission, registration before final held-owner fence, generic
+cloning before admission, closed admission omission and copied snapshot validation omission.
+Every fault is restored; final fault peak process-tree RSS is 450976 KiB. The copied-snapshot
+validation omission was strengthened to a legacy head-only fixture: it returns a candidate
+instead of throwing (444552 KiB), proving the safety boundary without later history masking. The checked-in
+`run-mutants.py` defines the exact substitutions and restores production in `finally`.
+The existing focused object/history regression selection passes 6 tests / 12 assertions with
+163 filtered tests, peak 427544 KiB. It covers both Git formats, nonempty complete history,
+empty history, owner change and noncanonical history reopen after the private helper return change.
+
+The final restored scoped TypeScript check exits 0 at 415676 KiB. The explicit daemon-disabled
+Nx project graph build succeeds at 267096 KiB. Initial lint/type failures were test annotation,
+void-expression, method-spy, unnecessary-null and import-order diagnostics, preserved in logs.
+The final restored graph-backed scoped lint exits 0 at 834200 KiB with an empty log and no
+skipped rule. Pinned cached OpenSpec 1.12.0 strict validation and scoped formatting are recorded
+in the final evidence receipts. Runtime, type, graph and lint phases run serially under the existing 900 MiB RSS guard
+in the coordinated heavy lane.
+
+Independent review, normal commit hooks and required gate remain pending. No full h2puni gate,
+full repository format/test/lint/typecheck/build, compiler parity families, secrets CI or migration
+CI are claimed. Task .3e5b remains unchecked. This prerequisite changes no graph provenance,
+namespace V1 or TypeScript envelope bytes and supplies no CompilerReadManifestV1, runtime
+or loader authentication, protected freeze integration or parent .3 completion. No push, WBS
+write, publication or deployment occurred.
+
+Evidence normalization strips only trailing spaces/tabs/CR per line and preserves one final LF
+for nonempty logs. Exact raw files remain under `/tmp/retained-review-provenance-raw-20261017`;
+`normalized-log-receipts.json` binds original and normalized SHA-256 values. Runtime failures
+and tool diagnostics remain in the committed evidence rather than being removed.
+
+## Effective retained typeRoots admission prerequisite — 2026-10-17 (candidate)
+
+Scope: task 2.1d.1.3e6a, based on exact parent
+`9f24cb210eb921ea504d0f2533b2c2fb28412252`. The shared core admits only effective
+parser-normalized root-project typeRoots when retained activation selects the closed mode.
+Generic source calls and the filesystem wrapper default to compatible probes. No nested
+reference-config policy, general config admission, full read manifest, authenticated runtime
+or parent .3 completion is claimed.
+
+Initial focused RED: explicit absolute outside typeRoots with types:[] returned a successful
+unverified envelope instead of throwing (347944 KiB process-tree RSS); explicit admission
+unit failed because admitTypeRoot did not exist (174752 KiB). The first pre-program spy targeted
+a TypeScript accessor unsupported by Bun spyOn; it failed during setup and is not RED evidence.
+The corrected oracle spies the normal compiler-host construction function and checks no census
+sealing on admission refusal. All commands use the existing 900 MiB process-tree RSS guard.
+
+At the initial RED checkpoint, implementation, focused GREEN, independent fault proofs, scope
+checks, independent review, normal commit hooks and required gate were pending. Task .3e6a and parent .3 remain unchecked.
+
+The strengthened retained root matrix passes its original seventeen selected tests, each in a
+fresh guarded process, including exact source/compiler probe and step fits plus one-less
+refusals, repeated equivalent roots, long-path pre-encoding, inherited declaring-base roots,
+discarded overrides, missing inside roots and ancestor-link escapes through absent descendants.
+Both SHA-1 and SHA-256 replays now include a valid candidate link; the oracle asserts its raw
+`alias -> types` census identity/length and canonical equality after all physical roots disappear.
+Outside refusals observe zero compiler-host constructions, zero census sealing and zero private
+request/provenance WeakMap registrations. The restored matrix maximum is 363032 KiB; the
+initial step-budget trial peaked at 658256 KiB. Neither exceeded the 921600 KiB ceiling.
+
+Independent review exposed a mistaken ambient-discovery assumption. The pinned executing
+TypeScript 6.0.3 `usesWildcardTypes` tests for literal '*', and
+`getAutomaticTypeDirectiveNames` returns `options.types ?? []` otherwise. The trial that omitted
+both options but referenced an ambient marker failed with Missing AmbientMarker (353784 KiB);
+it is retained as a disqualified assumption. Two corrected controls pass: omitted-both preserves
+no automatic discovery, while omitted typeRoots plus `types:['*']` resolves a visible declared
+@types/ambient package and preserves outside ancestor probes as absent (2 tests, 355520 KiB).
+
+All twenty independent faults fail their named focused assertions and restore production in
+`finally`. The ledger records loop omission, masked admission, wrong declaring base, raw-only
+inspection, discarded inherited validation, automatic-discovery gating, required existence,
+lexical-only admission, generic outside-probe throws, global retained mode, missing compiler
+charge, missing source delegation, missing mode validation, long-root pre-encoding omission,
+physical lookup, program-before-admission ordering, premature owner publication, substituted
+runtime trust, substituted census and compatible retained mount. Peak fault RSS is 358668 KiB.
+The physical dependency fault reaches the invoked ambient sentinel after deleted-root setup;
+the ordering fault observes one compiler host, and premature publication observes one private
+registration. Proof comments identify the observed tests beside admission, mode and mount code.
+
+Final compiler/core controls pass 6 tests (180864/188796 KiB). Existing legacy parity passes
+noLib and implicit-library SHA-1/SHA-256 as four separately selected fresh processes;
+implicit SHA-256 is largest at 866440 KiB. Exact-owner and registration regressions pass 2 tests
+(351212 KiB), and the separately selected, correctly filed census-sealing regression passes
+1 test (358608 KiB). The focused type check exits 0 at 435084 KiB; daemon-disabled Nx project
+graph exits 0 at 271652 KiB. Initial scoped lint found a test void-expression, fixed with braces;
+judge-facade, compiler tests, compiler implementation and core tests then pass (maximum
+741340 KiB). Core lint rejects a closed-union redundant comparison, so runtime mode admission
+uses a closed list membership check; its restored check and renewed omission proof are pending.
+
+The initial direct TypeScript accessor spy, lexically outside link fixture and repeated-owner
+budget trial failed during test setup/fixture policy and are preserved as excluded evidence.
+The link fixture now uses a lexically contained chain that escapes only after component-wise
+link expansion; each budget attempt captures a fresh owner to avoid consuming unrelated
+acquisition lifetime budgets. `run-focused.py` now rejects selections without passing tests and
+routes the census test to review-typescript.test.ts, separately from owner regression selections.
+
+Remaining: restored final lint/type/format/OpenSpec checks, independent final review, normal
+commit hooks and the required h2puni gate. No full repository format/test/lint/typecheck/build,
+CI secrets/migration checks, push, WBS write, publication or deployment is claimed. Scoped task
+.3e6a and parent .3 remain unchecked. Runtime trust stays unverified; no full manifest,
+authentication, protected freeze or general config admission is supplied.
+
+The final mode-membership omission again reaches the forbidden getter (178416 KiB), and
+restored core controls pass 3 tests (185300 KiB). Final scoped tsc exits 0 at 438184 KiB.
+Every changed TypeScript file passes per-file lint; new roots tests needed bound Buffer forwarding
+for the encoding sentinel, then pass at 747292 KiB. Final core and activation lint peaks are
+662564 and 665736 KiB. Pinned OpenSpec 1.12.0 strict scoped validation exits 0 at 110720 KiB.
+Both corrected TS6 controls also pass separately in fresh processes (357264/357376 KiB), and
+the restored long-path oracle passes at 343376 KiB.
+
+The focused evidence runner requires exact passing test counts (three compiler/core controls,
+two owner controls, one for each other selection). A watched partial owner regex runs one test
+and Bun exits 0, but the runner refuses because two are required. An earlier zero-match trial
+exits 1 from Bun itself, so it is excluded as proof of the runner's own count check. All driver
+substitutions restore in finally. Normalized observations preserve raw SHA-256 bindings under
+`/tmp/type-roots-raw-20261017`; log whitespace normalization strips trailing spaces/tabs/CR and
+keeps one final LF, while JSON receipts receive scoped Prettier formatting.
+
+Independent precommit review found no P0–P2 and verified all counts and receipt hashes.
+Current remaining work is final commit review, normal commit hooks and required gate;
+scoped final formatting receipts are recorded beside the other checks. No broader gate or CI
+claim is made, and task .3e6a and parent .3 remain unchecked.
+
+## Effective retained rootDirs admission prerequisite — 2026-10-17 (candidate)
+
+Scope: 2.1d.1.3e6b, isolated `/tmp/retained-config-roots-sol-oct17` at exact predecessor
+`afbdc2ea83f1763a5e27155e26bf6a3ead40c2f1`. Evidence directory:
+`evidence/retained-config-roots-2026-10-17/`. Parent .3 and the full WBS/release/gate remain open.
+
+Initial RED used fresh serial Bun processes under a watched 921,600 KiB process-tree ceiling.
+The direct unused absolute outside rootDirs test returned a successful unverified envelope rather
+than throwing (358,344 KiB peak). The normalized typeRoots→rootDirs order test expected five
+sequential roots and observed none (178,408 KiB peak). The second-project outside-root test also
+failed to throw (356,032 KiB peak). Production implementation followed those observed failures.
+
+Focused GREEN, production fault proofs, formatting, scoped lint/typecheck, OpenSpec validation,
+independent review and normal hooks are pending. No completion or required-gate claim is made.
+
+Initial GREEN: the compiler file passed 11 tests/24 assertions (183,688 KiB peak); the new
+retained rootDirs file passed 20 tests/76 assertions (358,912 KiB peak). After that run the
+compiler observer was strengthened to distinguish `/candidate/configs/types` from a wrongly
+rebased `/candidate/types`, compatible-mode coverage was added, and unused ambient fixture
+content was removed. Restored GREEN for those final tests remains pending.
+
+Fifteen independent production substitutions then failed the intended named tests, all exit 1.
+The exact baseline/injected SHA-256 identities, failing test names, commands and RSS receipts
+are retained in `fault-ledger.json` and adjacent `fault-*.log{,.json}`. The highest peak was
+359,352 KiB, below the 921,600 KiB cap. Every production source was restored byte-for-byte to
+its recorded baseline after the batch: compiler `9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791`,
+core `988782269168521ac5749d35a8668df45f00de7597f20bab080be8b31de1f12a`, mount
+`7b41fed9a2d02bcfb6d36d18155d0971bc063b8694559eab092613dbd82afb58`. Adjacent Proof
+comments were added only after observing these failures.
+
+| Injected fault        | Observed failing behavior                      | Peak process-tree KiB |
+| --------------------- | ---------------------------------------------- | --------------------: |
+| omit-rootdirs         | `refuses absolute outside`                     |               353,764 |
+| raw-only              | `refuses inherited outside`                    |               356,024 |
+| wrong-base            | `preserves normalized typeRoots then rootDirs` |               178,096 |
+| discarded-inherited   | `admits override discarded outside`            |               350,840 |
+| host-before-admission | `refuses absolute outside`                     |               351,984 |
+| types-empty-gating    | `refuses absolute outside`                     |               355,124 |
+| requires-existence    | `admits missing`                               |               348,944 |
+| masked-source-route   | `refuses absolute outside`                     |               357,740 |
+| omit-compiler-charge  | `charges repeated compiler admission`          |               359,352 |
+| mount-old-mode        | `refuses absolute outside`                     |               358,148 |
+| omit-new-type-roots   | `refuses absolute outside`                     |               356,092 |
+| global-rootdirs       | `previous retained type roots mode`            |               176,192 |
+| omit-mode-validation  | `configuration mode rejects unknown`           |               178,972 |
+| deduplicate-rootdirs  | `charges repeated compiler admission`          |               359,268 |
+| reverse-order         | `preserves normalized typeRoots then rootDirs` |               177,756 |
+
+No required h2puni gate, full repository test/lint/typecheck/build, eleven-document generation,
+manifest or runtime-authentication proof has been run for this slice. Dependencies are linked to
+the existing workspace installation; a fresh frozen installation is deferred to the required gate.
+The local ignored Lefthook override changes only pre-commit parallelism; all commands and argv
+remain unchanged. Its effective-config review is complete, while normal hooks, staged-negative
+proof and independent exact-candidate review remain pending. Task .3e6b and parent .3 stay open.
+
+Restored scoped checks after the final Proof comments and formatting all returned exit 0:
+
+| Command scope                                    | Fresh outcome          | Peak process-tree KiB |
+| ------------------------------------------------ | ---------------------- | --------------------: |
+| changed TS/OpenSpec/evidence JSON Prettier write | exit 0                 |               339,968 |
+| compiler tests                                   | 11 pass, 25 assertions |               185,088 |
+| shared runner tests                              | 31 pass, 74 assertions |               219,628 |
+| existing typeRoots controls                      | 19 pass, 70 assertions |               365,948 |
+| new rootDirs controls                            | 20 pass, 76 assertions |               642,496 |
+| focused test tsconfig, noEmit                    | exit 0                 |               438,364 |
+| Dash library tsconfig, noEmit, incremental false | exit 0                 |               516,608 |
+
+All 81 restored tests and 245 assertions passed. Each command ran serially in a fresh watched
+process tree with a 921,600 KiB ceiling; there were no cap events. Exact commands and outcomes
+are in `green-restored-*.log{,.json}`, `type-*.log{,.json}` and `format-write.log{,.json}`.
+The formatter ran before these checks. No production behavior changed after the fault batch;
+only adjacent Proof comments and formatting changed. Static `git diff --check` also returned 0.
+Astra's read-only scoped review found no P0–P3 issue in the inspected candidate diff; final
+lint/OpenSpec/hook evidence and exact committed-candidate review remain pending.
+
+Initial changed-file ESLint checks each returned exit 0 in a fresh serial process with
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install eslint <file>`. Peaks in KiB:
+compiler 657,296; core 657,628; retained mount 664,920; compiler tests 733,676; new retained
+config-root tests 724,132. Exact argv and output are `lint-0` through `lint-4.log{,.json}`.
+These five initial outcomes were partial: each warned that no cached ProjectGraph existed and
+skipped `@nx/enforce-module-boundaries`; lint-4 also warned that its boundary suppression was
+unused. Those exit codes do not establish a passing boundary check and are not accepted as final
+lint evidence.
+Pinned OpenSpec 1.12.0 status, apply instructions and strict change validation returned exit 0
+at 110,240, 112,460 and 104,916 KiB respectively (`openspec-*.log{,.json}`). Strict validation
+reported one pass, zero failures and no issues. Apply reports schema sdd-lean, ready, 7/59 tasks
+complete; planning-complete metadata is not implementation acceptance. The local task and its
+parent remain unchecked. Staged hook negative, normal hook execution and final exact-candidate
+review remain pending; no commit, push, merge, deploy or required-gate claim is made.
+
+The lint gap was repaired with fresh `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx
+--no-install nx graph --file=/tmp/config-roots-project-graph.json`: exit 0, peak 274,288 KiB.
+Both the requested JSON and `.nx/workspace-data/project-graph.json` were observed. Five fresh
+changed-file ESLint runs then returned exit 0 with empty stdout and no skipped rule or warning:
+compiler 660,944; core 663,108; retained mount 669,484; compiler tests 726,152; new config-root
+tests 737,764 KiB (`lint-graph-0` through `lint-graph-4.log{,.json}`).
+
+A production-path boundary negative prepended a cross-app relative import of WBS be-01 config
+to the compiler module. Actual ESLint exited 1 at 752,840 KiB and named
+`@nx/enforce-module-boundaries` (also import sorting); it did not report a skipped rule. Source
+bytes were restored to their recorded SHA-256, and a fresh restored lint returned 0 with empty
+stdout at 664,256 KiB. `lint-boundary-proof.json` retains the import and exact before/after hashes;
+`lint-boundary-{fault,restored}.log{,.json}` retain command/output receipts. All ran serially under
+921,600 KiB, without cap events.
+
+Committed display logs remove tool-emitted trailing whitespace and terminal empty lines.
+`normalized-log-provenance.json` preserves the exact raw UTF-8 transcripts with raw and display
+SHA-256 identities, so the output normalization does not erase original observations. Independent
+staged review covers the new test and evidence; normal staged-negative and hook checks remain
+pending, with task .3e6b and parent .3 open.
+
+Normal hooks were installed with `bunx --no-install lefthook install` (exit 0) and effective
+configuration was dumped. The ignored local override contains only `pre-commit: {parallel:false}`;
+all eight pre-commit commands, argv/globs/exclusions and both trailer hooks remain intact.
+`hook-inputs.json`, `hook-effective-config.log{,.json}` and `hook-install.log{,.json}` retain the
+scope and installed-hook identities. No tracked hook configuration changed.
+
+The actual staged-negative hook first reached the named syntax refusal under the 921,600 KiB
+cap, then its unchanged combined ESLint command reached 939,336 KiB and the guard killed the
+hook process with -9. Wrapper exit 1 is not a hook-level refusal proof; that interrupted outcome
+is retained explicitly in `hook-negative-cap900*`. Fresh `free -m` showed 19,559 MiB available
+(31,688 total; 12,128 used; 5,097 free). The coordinator authorized a one-shot 1,310,720 KiB
+process-tree ceiling for the unchanged serial negative/positive hook batch, avoiding command or
+per-file lint changes.
+
+With that authorized ceiling, the real staged TypeScript syntax injection made actual Lefthook
+exit 1, reporting Prettier SyntaxError and ESLint Parsing error at 1,005,736 KiB. Worktree source,
+index bytes and staged tree were restored exactly to
+`239033ccf4650121fd97ec535f5af20e731708f4`; `hook-negative-proof.json` records all before/after
+hashes. A fresh normal pre-commit then returned actual exit 0 at 1,007,224 KiB. Both hook runs
+completed all five applicable command groups: format, lint, plaintext-secrets, private-nesting
+and tool-wiki. Doc caps and both migration groups were visibly inapplicable to the staged paths.
+No module-boundary rule was skipped and no lint warning appeared. Tool-wiki visibly reported
+inactive, certified:false because the external activation root is not provisioned; this is not
+certified admission. Exact argv/resource receipts and transcripts are `hook-{negative,positive}*`.
+
+Staged read-only review found no P0–P3 issues after the lint-evidence correction. Actual normal
+commit/trailer execution, final committed-candidate review and the required gate remain pending.
+Task .3e6b and parent .3 remain open. There has been no push, merge or deploy.
+
+## Effective retained baseUrl admission prerequisite — 2026-10-17 (candidate)
+
+Scope: 2.1d.1.3e6c, isolated `/tmp/puni-baseurl-sol-20261017` at exact predecessor
+`5d6ca664328eeb59817b15181a32b2b26165c417`, tree `3c82f16ed15b669d01d3ae67113c17be11f7389a`.
+Transport bundle SHA-256 `cb5605cf430c4593bf99347472d06dc3cc3d530119b5bf5ac7b7675954cfb5f4`.
+Dependencies reuse `/tmp/retained-config-roots-sol-oct17/node_modules`; both exact bun.lock
+SHA-256 values were `15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c`.
+No install/network was used. Runs use `/tmp/runtime-rss-guard.py` with a 900 MiB process-tree ceiling.
+
+Initial normalized compiler RED returned no admitted roots for inherited, overridden and empty
+baseUrl, with three expected failures and one omitted-root pass (187,514,880-byte sampled peak).
+The initial extraction RED was disqualified because TS 6.0.3 deprecated baseUrl; explicitly setting
+ignoreDeprecations to 6.0 in the tiny noLib fixture restored the intended unused-absolute-outside
+RED: extraction returned an unverified envelope instead of refusing (363,696,128-byte peak).
+Logs live in `evidence/retained-base-url-2026-10-17/`. Further GREEN, watched production faults,
+checks, independent review and normal hooks remain pending. Parent .3, manifest, authentication,
+freeze and wildcard paths admission remain open.
+
+First focused GREEN: compiler 16 pass / 0 fail / 35 assertions, 191,672,320-byte peak.
+BaseUrl extraction 21 pass / 2 fail / 87 assertions, 688,594,944-byte peak. The two failures
+were the budget comparison's expected one-probe delta: adding baseUrl changed ordinary package
+lookup by 27 additional probes, giving 28 total. The budget fixture now uses an export-only source
+without imports, preserving the separate real bare-import and package resolution controls.
+The corrected budget run remains pending; this failed GREEN is retained as evidence.
+
+Corrected export-only budget controls passed 3 tests / 15 assertions, sampled peak 658,956,288
+bytes. Each dimension observes exact fit and one-less refusal; the compiler/source admission delta
+is one without unrelated import probes. The 21 independent production faults below each returned
+exit 1 with named assertion failures, no syntax/import failures and no cap event. The harness
+restored source bytes in finally and independently checked compiler/source hashes against every
+ledger sourceIdentity. Restored absolute-outside control passed 1 test / 4 assertions (356,216,832
+bytes). `fault-ledger.json` records exact source/injection hashes, patterns, names, exits and peaks.
+
+| Fault                 | Observed failing control                         |  Peak bytes |
+| --------------------- | ------------------------------------------------ | ----------: |
+| omit-base             | `refuses absolute outside`                       | 366,735,360 |
+| usage-gate            | `refuses absolute outside`                       | 362,434,560 |
+| types-empty-gate      | `refuses absolute outside`                       | 359,837,696 |
+| masked-pathkind       | `refuses absolute outside`                       | 364,625,920 |
+| raw-base              | `preserves effective normalization`              | 186,638,336 |
+| discarded-inherited   | `admits override discarded outside`              | 358,010,880 |
+| wrong-base            | `preserves effective normalization`              | 190,885,888 |
+| require-existence     | `admits missing`                                 | 358,510,592 |
+| invent-default        | `preserves effective normalization {} undefined` | 184,586,240 |
+| remove-option         | `direct bare provider`                           | 359,321,600 |
+| rewrite-option        | `direct bare provider`                           | 362,340,352 |
+| lexical-only          | `refuses ancestor escape`                        | 359,669,760 |
+| bypass-source         | `refuses absolute outside`                       | 366,497,792 |
+| omit-compiler-charge  | `charges shared compiler`                        | 363,835,392 |
+| reset-compiler-charge | `charges shared compiler`                        | 643,293,184 |
+| physical-lookup       | `sha1 replays`                                   | 358,195,200 |
+| source-path-fence     | `bounds long roots`                              | 365,748,224 |
+| omit-source-charge    | `charges shared source`                          | 363,704,320 |
+| reset-source-charge   | `charges shared source`                          | 621,805,568 |
+| global-admission      | `previous modes preserve outside baseUrl`        | 185,520,128 |
+| host-before-admission | `refuses absolute outside`                       | 357,265,408 |
+
+Adjacent Proof comments were added after these watched failures. Restored full focused suites,
+format, typecheck, lint, OpenSpec, independent review, hooks and required gate remain pending.
+
+After formatting and adjacent Proof comments, all 109 restored tests / 342 assertions passed in
+fresh serial process trees under the 900 MiB ceiling. No cap events occurred.
+
+| Check                       | Fresh outcome           |  Peak bytes |
+| --------------------------- | ----------------------- | ----------: |
+| format                      | exit 0                  | 326,479,872 |
+| green-restored-compiler     | 16 pass / 35 assertions | 189,014,016 |
+| green-restored-base-url     | 23 pass / 87 assertions | 668,065,792 |
+| green-restored-type-roots   | 19 pass / 70 assertions | 672,063,488 |
+| green-restored-config-roots | 20 pass / 76 assertions | 682,754,048 |
+| green-restored-core         | 31 pass / 74 assertions | 212,312,064 |
+| type-focused                | exit 0                  | 437,542,912 |
+| type-dash-lib               | exit 0                  | 527,958,016 |
+
+Exact argv, exits and sampled peaks are recorded in the matching `.receipt.json` files; raw
+transcripts are retained in `.log` files. Lint/OpenSpec, independent review, normal hooks and the
+required gate remain pending. The local prerequisite and parent task remain unchecked.
+
+Astra's independent read-only review of the stable scoped baseUrl candidate reported no P0–P3
+findings. It inspected all 21 fault transcripts and accepted six positive/dependency-control
+failures as relevant to the protected behavior. Final lint/OpenSpec, hooks, exact committed-candidate
+review and required gate remain pending; this review does not close parent .3 or the manifest,
+authentication, freeze or wildcard paths admission work.
+
+Fresh Nx graph creation returned exit 0 (276,766,720-byte peak), with both requested graph JSON
+and `.nx/workspace-data/project-graph.json` present. Initial production lint exposed the pinned
+TS6 baseUrl API's deprecation; its two named no-deprecated errors are retained in
+`lint-initial-deprecated.log`. A narrow adjacent suppression explains why this parser boundary
+must still admit that supported deprecated option. No option semantics changed. Initial test lint
+exposed an optional value in its test-name template; explicit String conversion preserves the name.
+That failure is retained in `lint-initial-test-template.log`.
+
+All three changed-path ESLint runs then returned exit 0 with no warnings or skipped rules:
+compiler 681,648,128 bytes, compiler tests 746,123,264 bytes, baseUrl tests 737,431,552 bytes.
+The real cross-app relative-import fault exited 1 and named @nx/enforce-module-boundaries
+(763,985,920-byte peak). Restored compiler bytes matched SHA-256
+`a98b9418e73b8233e6121f6af0ee7dc4c058c25c691e2d7c736842ee1827f158`, and fresh restored lint
+returned exit 0 without warnings (677,498,880-byte peak). Exact imports, identities, argv and
+receipts live in `lint-boundary-proof.json` and matching logs/receipts.
+
+Pinned OpenSpec 1.12.0 status, apply instructions and strict selected-change validation returned
+exit 0 (108,249,088 / 112,443,392 / 110,329,856-byte peaks). Strict validation reported one pass,
+zero failures and no issues. Apply reports sdd-lean, ready, 7/60 complete; metadata does not close
+implementation acceptance. No process exceeded the 900 MiB tree cap. Final formatting, affected
+focused reruns, normal hooks, exact committed-candidate review and required gate remain pending.
+
+After the annotation and test-name correction, final formatting returned exit 0 (326,479,872-byte
+peak); affected compiler tests passed 16/35 assertions (189,014,016 bytes) and baseUrl tests passed
+23/87 assertions (668,065,792 bytes). These final receipts replace the matching first restored
+receipts; the table above now reports their final observed peaks. Other restored regression and
+type receipts remain from the preceding batch, before only comments and the equivalent test-name
+conversion changed. Cached staged diff whitespace validation returned 0. Normal hooks and final
+exact-candidate review remain pending, with no commit or full-gate claim.
+
+Installed Lefthook 2.1.12 with the normal install command and compared its dumped effective
+configuration against tracked lefthook.yml. All eight command groups, exact run strings, globs,
+exclusions and both trailer hooks match; only the ignored local override changes pre-commit
+parallelism from true to false. `hook-inputs.json` records the tracked/override/installed hook
+identities and the semantic comparison. No tracked hook configuration changed.
+
+The actual `git hook run pre-commit` over the staged deliberate invalid production declaration
+returned exit 1: Prettier reported SyntaxError and ESLint reported its named parsing error. Peak
+was 923,234,304 bytes under the 900 MiB ceiling. Source bytes and the exact staged tree were
+restored in finally and independently compared; `hook-negative-proof.json` records both trees,
+staged paths and restored identity. The restored positive's first 900 MiB attempt was killed at
+944,590,848 bytes after formatter success; `hook-restored-capped900` preserves that failed check.
+Fresh host free-m reported 19,478 MiB available, and no hook/eslint descendants remained. With the
+root PM's explicit one-shot authorization, the unchanged normal hook command then passed exit 0
+under a 1024 MiB cap at 956,133,376 bytes. No hook command was split or bypassed.
+
+The restored positive passed format, graph-backed lint without skipped boundary rules, plaintext
+secrets, private nesting and tool-wiki. Doc caps, WBS migration lint and website migration lint
+skipped because no staged paths matched their scopes. Tool-wiki visibly returned inactive because
+no external activation root is provisioned; this establishes no certification. Raw log whitespace
+normalization preserves original UTF-8 transcripts and raw/display hashes in
+`normalized-log-provenance.json`. Final metadata formatting, exact staged hook-input review,
+normal commit and the required full gate remain pending. Parent .3, manifest, authentication,
+freeze and wildcard paths admission remain open.
+
+## Effective literal TypeScript paths prerequisite — 2026-10-17 (candidate)
+
+Scope: task `2.1d.1.3e6d`, effective literal paths substitutions in retained-config-roots.
+The isolated clone starts at commit `4d074d89672c2dc3706992b3377d73d2310709cb`, tree
+`a1f18afa58786a54ee0e5ae3afdf61af728681f9`. Lockfile donor identity and pinned compiler
+forwarder/runtime identities are retained in
+`evidence/retained-literal-paths-2026-10-17/orientation.json`.
+
+The parser owns effective mapping replacement, declaring pathsBasePath, effective baseUrl and
+`${configDir}` substitution. The pinned parser substitutes an inherited configDir template at
+the consuming root project's basePath, while ordinary inherited relative targets retain the
+parent pathsBasePath. Admission uses those effective values without reinterpreting either.
+The private pure resolver follows compiler backslash/drive normalization and performs no IO.
+
+### Initial focused evidence
+
+Every listed run used a fresh serial process with the 900 MiB process-tree RSS cap; command
+receipts and raw logs live in `evidence/retained-literal-paths-2026-10-17/`.
+
+| Run                                                         | Observed output                                                        |    Sampled peak bytes |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------: |
+| corrected compiler RED                                      | 1 pass, 17 fail; ordered admission and isolated boundary assertions    |             386334720 |
+| corrected retained outside RED                              | 0 pass, 6 fail; extraction returned instead of refusing unused targets |             362995712 |
+| restored compiler GREEN with explicit malformed host cutoff | 39 pass, 0 fail                                                        |             377683968 |
+| restored retained outside GREEN                             | 6 pass, 0 fail                                                         |             357928960 |
+| initial inside controls                                     | 5 pass, 0 fail                                                         |             361299968 |
+| initial aliases and fallbacks                               | 4 pass, 0 fail                                                         |             369582080 |
+| initial SHA-1/SHA-256 removed-root replay                   | 2 pass, 0 fail                                                         |             364752896 |
+| initial second-project host cutoff                          | 1 pass, 0 fail                                                         |             357838848 |
+| initial long-root encoding cutoff                           | 1 pass, 0 fail                                                         |             357740544 |
+| pinned OpenSpec status/apply                                | ready; sdd-lean, 7/61 tasks complete                                   | 111280128 / 113635328 |
+
+Disqualified evidence is listed in `disqualified.json`. The first malformed-boundary harness
+attempt used an unsupported TS accessor spy; corrected RED uses isolated module registries.
+Two first-run escape strings lacked a leading `./` and reached a compiler option diagnostic.
+The first configDir oracle expected the declaring directory; the pinned parser actually returns
+the consumer directory. That original configDir RED supplies no feature proof. Its corrected
+oracle requires a watched omission before acceptance.
+
+### Shared budget and watched production faults
+
+All three isolated budget controls passed (1 pass, 0 fail each), including exact-fit success,
+one-less refusal and repeated literal charging after existing typeRoots work. Compiler/source
+probe minima increase by two for two duplicate literals; traversal-step work increases.
+Sampled peaks: compiler 644939776, source 658309120, steps 643432448 bytes.
+
+The 38 independent faults in `fault-ledger.json` each exited 1 with named expected assertions,
+with maximum sampled process-tree RSS 710443008 bytes and no cap kills. The additional
+`omit-configdir` fault specifically establishes the corrected consumer-directory oracle.
+All production files restored in the fault runner's finally block; the restored compiler suite
+passed 39/0 and retained outside suite passed 6/0. Final malformed fixtures observe actual host
+construction as well as cwd callbacks, and empty/wildcard-only controls require no origin or
+private resolver. Logs include both isolated inner and outer failures for boundary faults.
+
+| Injected production fault | Expected observed oracle                         |
+| ------------------------- | ------------------------------------------------ |
+| `omit-literals`           | refuses absolute outside                         |
+| `usage-gate`              | refuses absolute outside                         |
+| `types-gate`              | refuses absolute outside                         |
+| `masked-admission`        | refuses absolute outside                         |
+| `bypass-source`           | refuses absolute outside                         |
+| `wrong-origin`            | admission preserves declaring origin             |
+| `ignore-base-override`    | admission preserves baseUrl override             |
+| `node-normalization`      | admission preserves normalized separators        |
+| `require-existence`       | admits inside missing                            |
+| `lexical-only`            | refuses ancestor escape                          |
+| `filter-wildcard-keys`    | refuses wildcard key fixed outside               |
+| `admit-wildcards`         | admits wildcard substitution untouched           |
+| `reverse-mappings`        | admission preserves prior roots then key order   |
+| `deduplicate`             | admission preserves declaring origin             |
+| `remove-options`          | resolves exact fallback                          |
+| `reverse-fallback`        | resolves exact fallback                          |
+| `omit-compiler-charge`    | charges shared compiler                          |
+| `reset-compiler-charge`   | charges shared compiler                          |
+| `omit-source-charge`      | charges shared source                            |
+| `reset-source-charge`     | charges shared source                            |
+| `omit-step-charge`        | charges shared steps                             |
+| `physical-lookup`         | sha1 replays                                     |
+| `omit-link-census`        | admits inside linked                             |
+| `path-fence`              | bounds long roots                                |
+| `mapping-guard`           | boundary nonobject                               |
+| `array-mapping-guard`     | boundary array-map                               |
+| `substitutions-guard`     | boundary nonarray                                |
+| `string-guard`            | boundary nonstring runs                          |
+| `origin-guard`            | boundary missing-origin                          |
+| `default-origin`          | boundary missing-origin                          |
+| `helper-callable`         | boundary helper-absent                           |
+| `helper-version`          | boundary helper-version                          |
+| `helper-signature`        | boundary helper-signature                        |
+| `helper-return`           | boundary helper-return                           |
+| `global-admission`        | previous modes preserve literal paths            |
+| `late-admission`          | refuses absolute outside                         |
+| `merge-discarded`         | admits discarded outside                         |
+| `omit-configdir`          | admission preserves consumer configDir expansion |
+
+Raw transcripts, command/RSS receipts, mutation source hashes and before/after identities are
+retained beside `inject-faults.py.txt` and `run-checks.py.txt`. Mutation hashes identify code
+before the final adjacent Proof comments and formatting; the comments record those observed
+faults without altering their behavior. No fault run was disqualified in this batch.
+
+### Final scoped checks and successor review
+
+Prettier, focused test types, Dash library types and pinned strict OpenSpec validation passed.
+The initial lint run had no cached graph and found real deprecation/ternary errors after
+formatting; it is retained as `lint-initial.log`, not accepted as boundary evidence. Final code
+uses an explicit if/else: read baseUrl first and read pathsBasePath only when baseUrl is
+undefined. This preserves the reviewed access order and refusal of null or nonstring origins. The deprecation directive covers
+its exact line. Fresh Nx graph creation and all four scoped ESLint processes passed without
+warnings or skipped rules. Injecting a cross-product import failed the named
+`@nx/enforce-module-boundaries` rule; restored lint passed and the source hash matched.
+
+Final restored suites passed: compiler 39/0, literal paths 22/0, baseUrl 23/0, rootDirs 20/0,
+typeRoots 19/0 and compiler core 31/0. Exact command logs and RSS receipts accompany each run;
+all stayed within the 900 MiB cap. Installed normal hook configuration is retained. The earlier
+Astra static review covered tree `6e0d5a4623fd7679160725dc062d02b64d50fa83` with no P0-P3;
+formatting and the definedness-preserving lint adjustment require successor clearance.
+Raw transcripts are retained byte-for-byte in deterministic `.log.raw.gz` archives with raw,
+archive and normalized display SHA-256 identities in `normalized-log-provenance.json`. Display
+logs strip trailing whitespace and ensure a final newline; originals remain recoverable.
+The installed normal pre-commit rejected injected production syntax (exit 1, sampled peak
+943058944 bytes). Its 900 MiB restored run was killed at 944201728 bytes and is disqualified.
+Fresh host memory showed 19040 MiB available; the PM authorized one restored retry at 1100 MiB.
+That normal hook passed at 945078272 bytes, with formatter, lint, secrets and private-nesting
+commands active. Migration, website-migration and doc-cap hooks had no matching changed files.
+Tool Wiki explicitly returned `inactive`, `certified:false`: external activation is unprovisioned.
+No hook was bypassed or reconfigured. Hook proof precedes the final access-order correction;
+after that correction compiler 39/0, focused types, formatter and graph-backed source lint pass.
+The actual normal commit must rerun hooks on that final code. Exact successor clearance and
+resulting commit/bundle identities are recorded in the final handoff. The task checkbox and parent `.3` remain open.
+This slice claims no wildcard expansion, reference-config policy, complete compiler manifest,
+protected freeze, authentication, full repository gate, public publication, merge or deployment.

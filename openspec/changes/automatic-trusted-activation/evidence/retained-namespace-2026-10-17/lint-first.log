@@ -1,0 +1,30 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts
+  174:46  error  Unsafe return of a value of type error                                                                                                                                                                                                                                                                                                      @typescript-eslint/no-unsafe-return
+  277:20  error  Returning a void expression from an arrow function shorthand is forbidden. Please add braces to the arrow function                                                                                                                                                                                                                          @typescript-eslint/no-confusing-void-expression
+  351:57  error  This assertion is unnecessary since it does not change the type of the expression                                                                                                                                                                                                                                                           @typescript-eslint/no-unnecessary-type-assertion
+  434:21  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  435:19  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value.
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  444:11  error  Passing a string to String() does not change the type or value of the string                                                                                                                                                                                                                                                                @typescript-eslint/no-unnecessary-type-conversion
+  462:25  error  A `require()` style import is forbidden                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-require-imports
+  462:63  error  `import()` type annotations are forbidden                                                                                                                                                                                                                                                                                                   @typescript-eslint/consistent-type-imports
+
+/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.ts
+  120:8   error  Unsafe call of a type that could not be resolved    @typescript-eslint/no-unsafe-call
+  154:11  error  Unnecessary conditional, the types have no overlap  @typescript-eslint/no-unnecessary-condition
+
+✖ 10 problems (10 errors, 0 warnings)
+  2 errors and 0 warnings potentially fixable with the `--fix` option.

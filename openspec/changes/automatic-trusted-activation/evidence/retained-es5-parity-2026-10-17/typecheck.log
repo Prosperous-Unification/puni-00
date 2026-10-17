@@ -1,0 +1,6 @@
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts(669,5): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ namespace: string; path: string; revision: null; identity: string; byteLength: number; }[]' is not assignable to parameter of type 'Readonly<RetainedTypeScriptByteRead>[]'.
+      Type '{ namespace: string; path: string; revision: null; identity: string; byteLength: number; }' is not assignable to type 'Readonly<RetainedTypeScriptByteRead>'.
+        Types of property 'namespace' are incompatible.
+          Type 'string' is not assignable to type '"candidate" | "runtime"'.

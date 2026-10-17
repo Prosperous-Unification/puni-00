@@ -1,0 +1,11 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 775815168,
+  "exitCode": 0
+}

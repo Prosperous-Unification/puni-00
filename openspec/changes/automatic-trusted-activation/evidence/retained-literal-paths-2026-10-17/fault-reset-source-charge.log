@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 672178176, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+280 |       return lower;
+281 |     }
+282 |     const once = minimum();
+283 |     const repeated = minimum({ unused: ['./types', './types'] });
+284 |     if (dimension === 'steps') expect(repeated).toBeGreaterThan(once);
+285 |     else expect(repeated - once).toBe(2);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 0
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:285:34)
+(fail) retained literal paths charges shared source admission at exact fit [4196.78ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [5.04s]

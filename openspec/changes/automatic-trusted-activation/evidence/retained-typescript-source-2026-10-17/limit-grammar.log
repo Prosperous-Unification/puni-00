@@ -1,0 +1,359 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumNodes [138.52ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumProbes [103.30ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumSteps [113.68ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumReads [116.78ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumReadBytes [115.40ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumPathBytes [109.66ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumTargetBytes [102.91ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumExpandedPathBytes [113.89ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumLinkExpansions [111.66ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumDirectoryDepth [121.60ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumPatterns [101.57ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumPatternBytes [111.87ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumEnumeratedEntries [117.98ms]
+190 |     expect(() =>
+191 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+192 |         ...limits,
+193 |         [key]: value,
+194 |       }),
+195 |     ).toThrow('positive safe integer');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:195:7)
+(fail) explicit positive finite source ceiling required: maximumReturnedPathBytes [90.98ms]
+
+ 0 pass
+ 51 filtered out
+ 14 fail
+ 14 expect() calls
+Ran 14 tests across 1 file. [2.53s]

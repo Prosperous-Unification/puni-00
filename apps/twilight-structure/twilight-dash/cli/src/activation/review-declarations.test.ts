@@ -15,16 +15,23 @@ import { parseOrThrow } from '@shared/validation';
 import {
   ClassificationPolicy,
   extractDeclaredRelationships,
+  extractNxRelationships,
   hashBytes,
   hashCanonical,
   RelationshipRequest,
+  serializeCanonical,
 } from '@twilight-burokrat/judge';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { monotonicClock } from '../clock';
 import { validateGitHubRepositoryBinding } from './github-source';
 import { createActivationRequest } from './request';
-import { extractRetainedDeclarations, type RetainedDeclarationInput } from './review-declarations';
+import {
+  extractRetainedDeclarations,
+  extractRetainedNxDeclarations,
+  type RetainedDeclarationInput,
+} from './review-declarations';
+import { extractRetainedNxRelationships } from './review-nx';
 import { installLocalReviewSource } from './review-selection-objects';
 const roots: string[] = [];
 afterEach(() => {
@@ -1000,3 +1007,224 @@ test.each(['sha1', 'sha256'] as const)(
     }
   },
 );
+
+// A false-empty project census or caller-supplied Nx targets must fail the mounted fact check.
+test.each(['sha1', 'sha256'] as const)(
+  'retained %s Nx derives target facts after source and store removal',
+  (format) => {
+    const fixture = declarationFixture(format, (repository, facts) => {
+      writeFileSync(
+        join(repository, 'nx.json'),
+        JSON.stringify({
+          targetDefaults: { check: { options: { command: 'default' }, cache: true } },
+        }),
+      );
+      mkdirSync(join(repository, 'app'));
+      writeFileSync(
+        join(repository, 'app/project.json'),
+        JSON.stringify({ name: 'app', targets: { check: { options: { command: 'bun test' } } } }),
+      );
+      facts.push({
+        factId: 'target',
+        family: 'targets',
+        kind: 'nx-target',
+        at: { kind: 'current' },
+        project: 'app',
+        target: 'check',
+        expectedConfiguration: {
+          options: { command: 'bun test' },
+          cache: true,
+          configurations: {},
+          parallelism: true,
+        },
+      });
+    });
+    const legacyNx = extractNxRelationships(fixture.input.sourceRepository);
+    const legacy = extractDeclaredRelationships(
+      fixture.input.sourceRepository,
+      fixture.input.sourceRepository,
+      fixture.candidate.snapshot,
+      fixture.selected,
+      legacyNx.relationships,
+    );
+    rmSync(fixture.input.sourceRepository, { recursive: true });
+    rmSync(fixture.input.storeBase, { recursive: true });
+    const restore = refuseAmbientReads();
+    try {
+      expect(extractRetainedNxRelationships(fixture.candidate, nxLimits)).toEqual(legacyNx);
+      expect(extractRetainedNxDeclarations({ ...fixture.extraction, nxLimits })).toEqual(legacy);
+    } finally {
+      restore();
+    }
+  },
+);
+
+const nxLimits = {
+  maximumEntries: 100,
+  maximumReads: 100,
+  maximumReadBytes: 65536,
+  maximumOutputBytes: 65536,
+};
+
+function nxFixture(mutate?: (repository: string) => void) {
+  return declarationFixture('sha1', (repository) => {
+    writeFileSync(
+      join(repository, 'nx.json'),
+      JSON.stringify({
+        targetDefaults: { check: { cache: true, options: { defaultOnly: true } } },
+        plugins: ['./throw-plugin.ts'],
+      }),
+    );
+    writeFileSync(join(repository, 'throw-plugin.ts'), "throw new Error('candidate executed');");
+    for (const [path, name] of [
+      ['z/project.json', 'alpha'],
+      ['a/project.json', 'zeta'],
+    ] as const) {
+      mkdirSync(dirname(join(repository, path)), { recursive: true });
+      writeFileSync(
+        join(repository, path),
+        JSON.stringify({
+          name,
+          tags: ['z', 'a'],
+          ...(name === 'alpha' ? { implicitDependencies: ['zeta'] } : {}),
+          targets: { check: { options: { command: 'bun test' } } },
+        }),
+      );
+    }
+    mkdirSync(join(repository, 'nested/node_modules/ignored'), { recursive: true });
+    writeFileSync(join(repository, 'nested/node_modules/ignored/project.json'), '{invalid');
+    symlinkSync('z/project.json', join(repository, 'project.json'));
+    symlinkSync('z', join(repository, 'alias'));
+    mutate?.(repository);
+  });
+}
+
+test('retained Nx preserves discovery sorting defaults dependencies and symlink exclusions', () => {
+  const fixture = nxFixture();
+  const legacy = extractNxRelationships(fixture.input.sourceRepository);
+  expect(extractRetainedNxRelationships(fixture.candidate, nxLimits)).toEqual(legacy);
+  expect(legacy.relationships.projects.map(({ name }) => name)).toEqual(['alpha', 'zeta']);
+  expect(legacy.relationships.dependencies).toMatchObject([{ source: 'alpha', target: 'zeta' }]);
+  expect(legacy.relationships.targets[0]?.configuration).toEqual({
+    cache: true,
+    options: { command: 'bun test' },
+    configurations: {},
+    parallelism: true,
+  });
+});
+
+test('retained Nx refuses copied false-empty census before reads', () => {
+  const fixture = nxFixture();
+  expect(() =>
+    extractRetainedNxRelationships(
+      { ...fixture.candidate, snapshot: { ...fixture.candidate.snapshot, entries: [] } },
+      nxLimits,
+    ),
+  ).toThrow('owned retained candidate source required');
+});
+
+for (const [fault, modify, diagnostic] of [
+  [
+    'absent nx',
+    (repository: string) => {
+      rmSync(join(repository, 'nx.json'));
+    },
+    'configuration absent: nx.json',
+  ],
+  [
+    'malformed nx',
+    (repository: string) => {
+      writeFileSync(join(repository, 'nx.json'), '{invalid');
+    },
+    'configuration malformed: nx.json',
+  ],
+  [
+    'duplicate names',
+    (repository: string) => {
+      writeFileSync(join(repository, 'a/project.json'), '{"name":"alpha"}');
+    },
+    'duplicate alpha',
+  ],
+  [
+    'unknown dependency',
+    (repository: string) => {
+      writeFileSync(
+        join(repository, 'a/project.json'),
+        '{"name":"zeta","implicitDependencies":["foreign"]}',
+      );
+    },
+    'dependency zeta -> foreign',
+  ],
+] as const) {
+  test(`retained Nx refuses ${fault}`, () => {
+    const fixture = nxFixture(modify);
+    expect(() => extractRetainedNxRelationships(fixture.candidate, nxLimits)).toThrow(diagnostic);
+  });
+}
+
+for (const bound of Object.keys(nxLimits) as (keyof typeof nxLimits)[]) {
+  test(`retained Nx validates ${bound}`, () => {
+    const fixture = nxFixture();
+    for (const value of [0, NaN, undefined])
+      expect(() =>
+        extractRetainedNxRelationships(fixture.candidate, {
+          ...nxLimits,
+          [bound]: value,
+        }),
+      ).toThrow(`${bound} must be a positive safe integer`);
+  });
+  test(`retained Nx enforces ${bound}`, () => {
+    const fixture = nxFixture();
+    expect(() =>
+      extractRetainedNxRelationships(fixture.candidate, { ...nxLimits, [bound]: 1 }),
+    ).toThrow(/retained Nx .* exceeded/);
+  });
+}
+
+test('retained Nx preserves nx.json symlink current-byte resolution', () => {
+  const fixture = nxFixture((repository) => {
+    writeFileSync(join(repository, 'nx-config.json'), readFileSync(join(repository, 'nx.json')));
+    rmSync(join(repository, 'nx.json'));
+    symlinkSync('nx-config.json', join(repository, 'nx.json'));
+  });
+  expect(extractRetainedNxRelationships(fixture.candidate, nxLimits)).toEqual(
+    extractNxRelationships(fixture.input.sourceRepository),
+  );
+});
+
+test('retained Nx bounds shared-default amplification before hashing selectors', () => {
+  const fixture = nxFixture((repository) => {
+    writeFileSync(
+      join(repository, 'nx.json'),
+      JSON.stringify({ targetDefaults: { check: { large: 'x'.repeat(4096) } } }),
+    );
+  });
+  expect(() =>
+    extractRetainedNxRelationships(fixture.candidate, { ...nxLimits, maximumOutputBytes: 6000 }),
+  ).toThrow('retained Nx selector byte ceiling exceeded');
+});
+
+test('retained Nx enforces final envelope bytes', () => {
+  const fixture = nxFixture();
+  const extracted = extractNxRelationships(fixture.input.sourceRepository);
+  expect(() =>
+    extractRetainedNxRelationships(fixture.candidate, {
+      ...nxLimits,
+      maximumOutputBytes: Buffer.byteLength(serializeCanonical(extracted)) - 1,
+    }),
+  ).toThrow('retained Nx output byte ceiling exceeded');
+});
+
+test('retained Nx accepts the exact final envelope ceiling with many selectors', () => {
+  const fixture = nxFixture((repository) => {
+    const targets = Object.fromEntries(
+      Array.from({ length: 512 }, (_, index) => [`target${String(index)}`, {}]),
+    );
+    writeFileSync(join(repository, 'a/project.json'), JSON.stringify({ name: 'zeta', targets }));
+  });
+  const legacy = extractNxRelationships(fixture.input.sourceRepository);
+  const maximumOutputBytes = Buffer.byteLength(serializeCanonical(legacy));
+  expect(
+    extractRetainedNxRelationships(fixture.candidate, { ...nxLimits, maximumOutputBytes }),
+  ).toEqual(legacy);
+});

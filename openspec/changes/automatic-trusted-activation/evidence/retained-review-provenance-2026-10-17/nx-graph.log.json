@@ -1,0 +1,16 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "--no-install",
+    "nx",
+    "show",
+    "projects",
+    "--json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 267096,
+  "ceilingKiB": 921600
+}

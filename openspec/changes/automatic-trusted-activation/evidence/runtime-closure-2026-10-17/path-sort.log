@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+275 |     const input = capture(change);
+276 |     const open = spyOn(fs, 'openSync');
+277 |     const realpath = spyOn(fs, 'realpathSync');
+278 |     try {
+279 |       expect(() => readReviewRuntime(input)).toThrow();
+280 |       expect(open).not.toHaveBeenCalled();
+                             ^
+error: expect(received).not.toHaveBeenCalled()
+
+Expected number of calls: 0
+Received number of calls: 10
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:280:24)
+(fail) manifest refusals precede all bootstrap filesystem probes [4.69ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 20 expect() calls
+Ran 1 test across 1 file. [934.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 334426112, "exitCode": 1}

@@ -1,6 +1,5 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { posix } from 'node:path';
 
 import { parseOrThrow, type } from '@shared/validation';
 import {
@@ -11,6 +10,7 @@ import {
   serializeCanonical,
 } from '@twilight-burokrat/judge';
 
+import { walkRetainedCurrent } from './review-current-path';
 import type { RetainedCandidate } from './review-selection-objects';
 
 export interface HistoricalDiscoveryLimits {
@@ -44,58 +44,49 @@ export function readRetainedCurrent(
   requestedPath: string,
 ): Uint8Array {
   const seen = new Set<string>();
-  const resolved: string[] = [];
-  const remaining = requestedPath.split('/');
-  while (remaining.length > 0) {
-    const component = remaining.shift();
-    if (component === undefined || component === '' || component === '.') continue;
-    if (component === '..') {
-      // Proof: omitting this pop-boundary check lost the mounted current-symlink escape refusal.
-      if (resolved.pop() === undefined)
-        throw new Error(`historical declaration escapes candidate: ${requestedPath}`);
-      continue;
-    }
-    const path = [...resolved, component].join('/');
-    const entry = candidate.snapshot.entries.find((selected) => selected.path === path);
-    if (entry?.mode === '120000') {
-      // Proof: omission reached the retained read ceiling instead of the mounted cycle refusal.
+  const resolved = walkRetainedCurrent(requestedPath, {
+    lookup: (path) => {
+      const entry = candidate.snapshot.entries.find((selected) => selected.path === path);
+      if (entry !== undefined)
+        return { kind: entry.mode === '120000' ? ('symlink' as const) : ('file' as const), entry };
+      if (
+        path === '' ||
+        candidate.snapshot.entries.some((selected) => selected.path.startsWith(`${path}/`))
+      )
+        return { kind: 'directory' as const, entry: undefined };
+      return undefined;
+    },
+    readLink: (path, node) => {
       if (seen.has(path)) throw new Error(`historical declaration symlink cycle: ${requestedPath}`);
       seen.add(path);
-      const raw = candidate.readBlob(entry.blob, path);
+      if (node.entry === undefined) throw new Error('historical declaration symlink tuple absent');
+      const raw = candidate.readBlob(node.entry.blob, path);
       let target: string;
       try {
-        // Proof: removing fatal UTF-8 lost the malformed-link refusal; stripping BOM lost
-        // SHA-256 current-symlink parity for the exact BOM-prefixed selected target.
         target = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
       } catch (cause) {
         throw new Error(`historical declaration symlink malformed: ${path}`, { cause });
       }
-      // Proof: independent empty, absolute and NUL predicate omissions lost their mounted refusals.
       if (target.length === 0 || target.startsWith('/') || target.includes('\0'))
         throw new Error(`historical declaration symlink target invalid: ${path}`);
-      remaining.unshift(...target.split('/'));
-      continue;
-    }
-    // Proof: omitting this intermediate-node guard made both Git-format regular-file
-    // traversal tests extract PORT=3100 despite the legacy path refusal.
-    if (entry !== undefined && remaining.length > 0)
-      throw new Error(`historical declaration path is not a directory: ${path}`);
-    // Proof: omitting prefix membership made both missing-directory traversal tests
-    // normalize missing/../.env.example into a selected readable authority.
-    if (
-      entry === undefined &&
-      (remaining.length === 0 ||
-        !candidate.snapshot.entries.some((selected) => selected.path.startsWith(`${path}/`)))
-    )
-      throw new Error(`historical declaration absent: ${requestedPath}`);
-    resolved.push(component);
-  }
-  const path = posix.join(...resolved);
-  const entry = candidate.snapshot.entries.find((selected) => selected.path === path);
+      return target;
+    },
+    // The historical caller retains its prior finite census/read authority; the source adapter adds lifetime work ceilings.
+    step: () => undefined,
+    expand: () => undefined,
+    reject: (reason, path) => {
+      throw new Error(
+        reason === 'escape'
+          ? `historical declaration escapes candidate: ${requestedPath}`
+          : `historical declaration path is not a directory: ${path}`,
+      );
+    },
+  });
+  const entry = resolved.node?.entry;
   if (entry === undefined) throw new Error(`historical declaration absent: ${requestedPath}`);
   if (entry.mode !== '100644' && entry.mode !== '100755')
     throw new Error(`historical declaration mode unsupported: ${requestedPath}`);
-  return candidate.readBlob(entry.blob, path);
+  return candidate.readBlob(entry.blob, resolved.path);
 }
 
 /** Derives the complete sorted declaration census; the proof owner must still capture and validate every selector. */

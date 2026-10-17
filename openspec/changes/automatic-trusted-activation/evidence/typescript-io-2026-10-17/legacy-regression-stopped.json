@@ -1,0 +1,16 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/relationships.test.ts",
+    "-t",
+    "publishes exact TypeScript",
+    "--timeout=60000"
+  ],
+  "status": "unavailable-watchdog-stopped",
+  "sampledTreeRssBytes": 818991104,
+  "rssStopThresholdBytes": 817889280,
+  "maximumTaskTreeRssBytes": 943718400,
+  "seconds": 2.275,
+  "retried": false
+}

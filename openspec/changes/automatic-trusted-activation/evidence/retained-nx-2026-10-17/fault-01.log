@@ -1,0 +1,129 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+1016 |   const legacy = extractDeclaredRelationships(fixture.input.sourceRepository, fixture.input.sourceRepository, fixture.candidate.snapshot, fixture.selected, legacyNx.relationships);
+1017 |   rmSync(fixture.input.sourceRepository, {recursive: true});
+1018 |   rmSync(fixture.input.storeBase, {recursive: true});
+1019 |   const restore = refuseAmbientReads();
+1020 |   try {
+1021 |     expect(extractRetainedNxRelationships(fixture.candidate, nxLimits)).toEqual(legacyNx);
+                                                                               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "extractor": {
+      "blob": "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+      "extractorId": "nx.project-json",
+      "version": "v1",
+    },
+    "relationships": {
+      "dependencies": [],
+-     "projects": [
+-       {
+-         "extractor": {
+-           "blob": "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+-           "extractorId": "nx.project-json",
+-           "version": "v1",
+-         },
+-         "identity": "19f32a06258124b9674e87fdb32abe09c532bc263fa46caceb26da66c289d30e",
+-         "name": "app",
+-         "root": "app",
+-         "tags": [],
+-       },
+-     ],
+-     "targets": [
+-       {
+-         "configuration": {
+-           "cache": true,
+-           "configurations": {},
+-           "options": {
+-             "command": "bun test",
+-           },
+-           "parallelism": true,
+-         },
+-         "extractor": {
+-           "blob": "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+-           "extractorId": "nx.project-json",
+-           "version": "v1",
+-         },
+-         "identity": "f7e68da1cd037fbcf22bb1f4f0e92627104636d84a30d8d4f368ce56c0e0c35b",
+-         "project": "app",
+-         "target": "check",
+-       },
+-     ],
++     "projects": [],
++     "targets": [],
+    },
+  }
+
+- Expected  - 33
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1021:73)
+(fail) retained sha1 Nx derives target facts after source and store removal [216.34ms]
+1016 |   const legacy = extractDeclaredRelationships(fixture.input.sourceRepository, fixture.input.sourceRepository, fixture.candidate.snapshot, fixture.selected, legacyNx.relationships);
+1017 |   rmSync(fixture.input.sourceRepository, {recursive: true});
+1018 |   rmSync(fixture.input.storeBase, {recursive: true});
+1019 |   const restore = refuseAmbientReads();
+1020 |   try {
+1021 |     expect(extractRetainedNxRelationships(fixture.candidate, nxLimits)).toEqual(legacyNx);
+                                                                               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "extractor": {
+      "blob": "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+      "extractorId": "nx.project-json",
+      "version": "v1",
+    },
+    "relationships": {
+      "dependencies": [],
+-     "projects": [
+-       {
+-         "extractor": {
+-           "blob": "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+-           "extractorId": "nx.project-json",
+-           "version": "v1",
+-         },
+-         "identity": "19f32a06258124b9674e87fdb32abe09c532bc263fa46caceb26da66c289d30e",
+-         "name": "app",
+-         "root": "app",
+-         "tags": [],
+-       },
+-     ],
+-     "targets": [
+-       {
+-         "configuration": {
+-           "cache": true,
+-           "configurations": {},
+-           "options": {
+-             "command": "bun test",
+-           },
+-           "parallelism": true,
+-         },
+-         "extractor": {
+-           "blob": "488dbda8571b820b6082f23a724861ca17372050f1667b2cd3862c90d7ae3d52",
+-           "extractorId": "nx.project-json",
+-           "version": "v1",
+-         },
+-         "identity": "f7e68da1cd037fbcf22bb1f4f0e92627104636d84a30d8d4f368ce56c0e0c35b",
+-         "project": "app",
+-         "target": "check",
+-       },
+-     ],
++     "projects": [],
++     "targets": [],
+    },
+  }
+
+- Expected  - 33
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1021:73)
+(fail) retained sha256 Nx derives target facts after source and store removal [211.93ms]
+
+ 0 pass
+ 76 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1475.00ms]

@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+223 |       const source = workspacePath(workspace, sourceFile.fileName) ?? sourceFile.fileName;
+224 |       // Proof: inventing an external target for the missing lib lost this exact boundary to the
+225 |       // later "Cannot find lib definition" diagnostic in the production refusal test.
+226 |       throw new Error(
+227 |         `TypeScript lib reference ${site.specifier} from ${source} resolved ${String(libraries.length)} default libraries; expected exactly one`,
+228 |       );
+            ^
+error: TypeScript lib reference es2022 from src/index.ts resolved 0 default libraries; expected exactly one
+      at resolveDependency (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-imports.ts:228:7)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:128:28)
+      at forbidAmbient (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:48:12)
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:297:3)
+(fail) compiler reads explicitly supplied default library bytes [17.71ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+Ran 1 test across 1 file. [563.00ms]

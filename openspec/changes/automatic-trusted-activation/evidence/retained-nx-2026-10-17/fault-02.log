@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+63 |     return record(JSON.parse(source) as unknown, displayPath);
+64 |   } catch (cause) {
+65 |     if (cause instanceof Error && cause.message.startsWith('Nx project configuration malformed:'))
+66 |       throw cause;
+67 |     const detail = cause instanceof Error ? cause.message : String(cause);
+68 |     throw new Error(`Nx project configuration malformed: ${displayPath}: ${detail}`, { cause });
+                                                                                                   ^
+error: Nx project configuration malformed: nx.json: retained review tuple differs: nx.json
+      at parseJson (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts:68:95)
+      at extractNxRelationshipsFromSource (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts:129:14)
+      at extractRetainedNxRelationships (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts:38:21)
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1021:12)
+(fail) retained sha1 Nx derives target facts after source and store removal [222.84ms]
+63 |     return record(JSON.parse(source) as unknown, displayPath);
+64 |   } catch (cause) {
+65 |     if (cause instanceof Error && cause.message.startsWith('Nx project configuration malformed:'))
+66 |       throw cause;
+67 |     const detail = cause instanceof Error ? cause.message : String(cause);
+68 |     throw new Error(`Nx project configuration malformed: ${displayPath}: ${detail}`, { cause });
+                                                                                                   ^
+error: Nx project configuration malformed: nx.json: retained review tuple differs: nx.json
+      at parseJson (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts:68:95)
+      at extractNxRelationshipsFromSource (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts:129:14)
+      at extractRetainedNxRelationships (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts:38:21)
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:1021:12)
+(fail) retained sha256 Nx derives target facts after source and store removal [196.18ms]
+
+ 0 pass
+ 76 filtered out
+ 2 fail
+Ran 2 tests across 1 file. [1456.00ms]

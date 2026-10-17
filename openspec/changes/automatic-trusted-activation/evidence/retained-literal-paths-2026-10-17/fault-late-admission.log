@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 353525760, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+159 |     const createHost = compiler.createCompilerHost;
+160 |     let hostCreations = 0;
+161 |     const host = spyOn(compiler, 'createCompilerHost').mockImplementation((...args: Parameters<typeof compiler.createCompilerHost>) => { hostCreations++; return createHost(...args); });
+162 |     try {
+163 |       expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow(/outside|escape/);
+164 |       expect(hostCreations).toBe(0);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:164:29)
+(fail) retained literal paths refuses absolute outside before host and owner [174.09ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1113.00ms]

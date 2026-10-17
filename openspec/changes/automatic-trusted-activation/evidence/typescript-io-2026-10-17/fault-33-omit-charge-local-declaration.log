@@ -1,0 +1,90 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+412 |   const selectorBytes = [...extraction.relationships.imports, ...extraction.relationships.reverseEdges, ...extraction.relationships.publicDeclarations].reduce((total, { identity: _identity, ...selector }) => total + Buffer.byteLength(JSON.stringify(selector)), 0);
+413 |   const declarations = extraction.relationships.publicDeclarations[0]?.declarations;
+414 |   if (declarations === undefined) throw new Error('fixture public declaration absent');
+415 |   const observed = selectorBytes + Buffer.byteLength(globals) + declarations.reduce((total, declaration) => total + Buffer.byteLength(declaration.text), 0);
+416 |   expect(extractTypeScriptRelationshipsFromSource(workspace, request, source, { ...limits, maximumObservedOutputBytes: observed })).toEqual(extraction);
+417 |   expect(() => extractTypeScriptRelationshipsFromSource(workspace, request, source, { ...limits, maximumObservedOutputBytes: observed - 1 })).toThrow('TypeScript observed output byte limit exceeded');
+                                                                                                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript observed output byte limit exceeded"
+
+Received function did not throw
+Received value: {
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+  },
+  relationships: {
+    imports: [
+      {
+        source: "src/index.ts",
+        specifier: "./value",
+        target: "src/value.ts",
+        importKind: "type",
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+        },
+        identity: "919db98b6eb55ee86f004dc850dfdf4d41698abf077beaf47b968dd3ba52cc08",
+      }
+    ],
+    reverseEdges: [
+      {
+        provider: "src/value.ts",
+        importers: [
+          {
+            source: "src/index.ts",
+            specifier: "./value",
+            importKind: "type",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+        },
+        identity: "97885da202018e71322a84b795ad1c93bffc8b0a66293fbabddfda4249fe991e",
+      }
+    ],
+    publicDeclarations: [
+      {
+        configPath: "tsconfig.json",
+        entrypoint: "src/index.ts",
+        configurationIdentity: "4fed7305d69eb0ce076391dc7260f4ed79d926b48db682b1b5bd45c007fd420d",
+        declarations: [
+          {
+            sourcePath: "src/index.ts",
+            emittedPath: "src/index.d.ts",
+            text: "import type { Value } from './value';\nexport declare const value: Value;\n",
+          },
+          {
+            sourcePath: "src/value.ts",
+            emittedPath: "src/value.d.ts",
+            text: "export interface Value {\n    label: string;\n}\n",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+        },
+        identity: "abfa647b21c045fe7b3527accb42d2a68fdcffee64306491a9b436631e66001c",
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:417:143)
+(fail) observation budget charges every emitted declaration and selector before accumulation [86.37ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [643.00ms]

@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+155 |   );
+156 |   const diagnostics = projects.flatMap((project) => ts.getPreEmitDiagnostics(project.program));
+157 |   if (diagnostics.length > 0) {
+158 |     // Proof: removing this refusal made the `MissingType` fixture emit declarations and exit 0;
+159 |     // the production compiler-failure oracle expected exit 1.
+160 |     throw new Error(`TypeScript compiler failed: ${diagnostics.map(formatDiagnostic).join('; ')}`);
+                                                                                                       ^
+error: TypeScript compiler failed: Cannot find global type 'Array'.; Cannot find global type 'Boolean'.; Cannot find global type 'CallableFunction'.; Cannot find global type 'Function'.; Cannot find global type 'IArguments'.; Cannot find global type 'NewableFunction'.; Cannot find global type 'Number'.; Cannot find global type 'Object'.; Cannot find global type 'RegExp'.; Cannot find global type 'String'.; File '/tmp/namespace-aAKdVw/source/node_modules/@typescript/old/lib/lib.es2025.full.d.ts' not found.
+  The file is in the program because:
+    Default library for target 'es2025'; Cannot find name 'ReadonlyArray'.; Property 'map' does not exist on type '{}'.; Parameter 'name' implicitly has an 'any' type.; Cannot find name 'Date'.; Cannot find name 'Date'.; Cannot find name 'Document'.; Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:160:98)
+      at <anonymous> (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:159:22)
+(fail) retained compiler implicit sha1 matches legacy after all capture roots disappear [282.91ms]
+
+ 0 pass
+ 31 filtered out
+ 1 fail
+ 43 expect() calls
+Ran 1 test across 1 file. [1228.00ms]

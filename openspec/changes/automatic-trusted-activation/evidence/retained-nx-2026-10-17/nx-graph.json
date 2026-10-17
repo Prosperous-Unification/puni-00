@@ -1,0 +1,8 @@
+{
+  "command": ["bunx", "nx", "show", "project", "twilight-dash", "--json"],
+  "exitCode": 0,
+  "peakTreeRssBytes": 262909952,
+  "seconds": 0.914,
+  "rssCeilingBytes": 943718400,
+  "deadlineSeconds": 60
+}
