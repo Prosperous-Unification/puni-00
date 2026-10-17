@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { parseOrThrow } from '@shared/validation';
+import * as judge from '@twilight-burokrat/judge';
 import {
   ClassificationPolicy,
   hashBytes,
@@ -637,5 +638,34 @@ test('does not consult environment', () => {
     expect(() => createRetainedNamespace(f.candidate, f.runtime, limits)).not.toThrow();
   } finally {
     Object.defineProperty(process, 'env', descriptor);
+  }
+});
+
+test('binds emitted namespace pin to the exact canonical V1 recipe', () => {
+  const f = fixture();
+  const expectedBytes =
+    '{"candidateForbiddenComponents":[".git","node_modules"],"candidateModes":["100644","100755","120000"],"candidatePrefix":"/__puni_review__/candidate","caseSensitive":true,"conflicts":"reject-duplicate-mount-and-nondirectory-ancestor","directories":"valid-prefixes-including-root","kind":"retained-review-namespace-policy","libraryDirectory":"/__puni_review__/candidate/node_modules/typescript/lib","order":"utf8-byte-ascending","pathGrammar":"well-formed-unicode-posix-relative-no-empty-dot-traversal-nul-backslash","runtimeDependencyPrefix":"node_modules/","runtimeForbiddenComponents":[".git"],"runtimeMountPrefix":"/__puni_review__/candidate","schemaVersion":1,"symlinks":"opaque","workingDirectory":"/__puni_review__/candidate"}\n';
+  const expectedIdentity = '6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec';
+  const hash = judge.hashCanonical;
+  let capturedBytes: string | undefined;
+  let calls = 0;
+  const trap = spyOn(judge, 'hashCanonical').mockImplementation((policy: unknown) => {
+    calls += 1;
+    capturedBytes = serializeCanonical(policy);
+    expect(Object.isFrozen(policy)).toBe(true);
+    if (policy !== null && typeof policy === 'object')
+      for (const field of Object.values(policy))
+        if (Array.isArray(field)) expect(Object.isFrozen(field)).toBe(true);
+    return hash(policy);
+  });
+  try {
+    const namespace = createRetainedNamespace(f.candidate, f.runtime, limits);
+    expect(capturedBytes).toBe(expectedBytes);
+    expect(calls).toBe(1);
+    expect(readRetainedNamespaceProvenance(namespace).namespacePolicyIdentity).toBe(
+      expectedIdentity,
+    );
+  } finally {
+    trap.mockRestore();
   }
 });

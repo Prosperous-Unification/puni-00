@@ -316,7 +316,8 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks.
 - [ ] 2.1d.1.3e1 Build the immutable retained namespace index and exact-owner provenance before
       mounting TypeScript. Use fixed candidate/runtime dependency mappings, opaque symlink tuples,
-      byte-sorted metadata nodes and an independent canonical namespace recipe identity. Count all
+      byte-sorted metadata nodes and an independent canonical namespace recipe identity, proven by
+      literal canonical bytes, an externally computed digest and causal recipe/pin omissions. Count all
       input entries before runtime filtering; bound nodes, each source/virtual path before allocation,
       and all retained node/source path fields. Refuse copied/false-empty owners, invalid grammar,
       forbidden components/modes, duplicates and non-directory ancestors. Prove source/store/runtime

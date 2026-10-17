@@ -4803,3 +4803,53 @@ logs were normalized for those presentation bytes only; commands, diagnostics an
 content are preserved. Original logs are retained externally in
 `/tmp/retained-namespace-original-logs.tar.gz`. The final amendment uses normal hooks again;
 its exact SHA/tree and receipt are reported to the coordinator after completion.
+
+### Exact namespace recipe identity proof correction, 2026-10-17
+
+Astra's exact review of `c1f9a48d1ac354bf86f25aa18f2a7ec3c862e4b6` found one P2 evidence
+gap: the original namespace pin assertions admitted an unrelated constant digest. The original
+38 ownership/grammar/bounds/freeze/IO omission receipts remain causal for that reviewed source;
+they did not prove the recipe-to-pin binding. This successor adds that independent oracle.
+
+Evidence: [`evidence/retained-namespace-review-2026-10-17`](evidence/retained-namespace-review-2026-10-17).
+The hand-authored `namespace-policy.canonical.txt` contains exact byte-sorted V1 JSON keys and
+one terminal LF. The independent command `sha256sum .../namespace-policy.canonical.txt` emitted
+`6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec`; the complete command-path
+receipt is `namespace-policy.sha256`, and `sha256sum -c` reported OK, exit 0. The test embeds
+both bytes and expected digest as literals. It does not compute the expected pin using any
+production hashing helper or read its expected vector from production state.
+
+A narrow spy intercepts the actual production `hashCanonical` operand, runs production
+`serializeCanonical` over that captured operand and compares the bytes against the literal
+vector, then asserts that the emitted provenance pin equals the independently computed literal
+SHA-256. It also verifies one production hash call per constructor and a frozen recipe/object
+and nested arrays. Hashing moved from module load into the constructor after owner and limit
+validation; recipe values and emitted identity are unchanged. The recipe and its arrays remain
+private and frozen. No public test API was added. The spy is restored in `finally`.
+
+| Command / causal fault                                                                                           | Observed receipt                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Focused new oracle before constructor-time hashing                                                               | `oracle-red.log`: named assertion RED, captured bytes undefined; exit 1, peak 357304 KiB                            |
+| Focused new oracle after constructor-time hashing                                                                | `oracle-green.log`: pass; exit 0, peak 345740 KiB                                                                   |
+| `recipe-pin`: replace published pin with unrelated 64-zero digest                                                | Independent emitted-pin assertion RED: expected literal `6181...68ec`, received 64 zeros; exit 1, peak 349136 KiB   |
+| `recipe-field`: omit only policy `workingDirectory`                                                              | Independent literal canonical-byte assertion RED; exit 1, peak 341528 KiB                                           |
+| `freeze-policy`, `freeze-policy-candidate-components`, `freeze-policy-runtime-components`, `freeze-policy-modes` | Each independently loses its explicit frozen recipe/object or array assertion; each exit 1, peak at most 351104 KiB |
+| Restored full namespace suite                                                                                    | `restored-focused.log`: 44 pass, 0 fail, 181 assertions; exit 0, peak 557500 KiB                                    |
+| Scoped namespace source/test ESLint                                                                              | `lint.log`: exit 0, peak 788036 KiB; Nx module-boundary rule skipped for missing cached ProjectGraph                |
+
+The new `faults.py`/`faults.json` preserve all six exact needles/replacements, commands, named
+assertion failures, exits and sampled process-tree receipts. Sources are restored between
+trials and in `finally`. These add six causal trials to the reviewed historical 38; the original
+ledger is unchanged. Checks use the same serial 900 MiB RSS guard and 768 MiB Node heap setting;
+no typecheck retry, full Nx gate, build or broader suite ran. The interrupted typecheck and
+missing Nx graph remain unavailable, and e1 and parent `.3` remain unchecked.
+
+Strict OpenSpec validation and actual normal commit hooks are recorded after their observed
+runs; the reviewed commit is preserved and this correction will be a successor commit.
+
+Strict pinned OpenSpec validation passed **1/1, zero issues**, exit **0**, sampled peak
+**111912 KiB** (`openspec.log`). `sha256sum -c` again reported OK (`sha256sum-check.log`),
+and `git diff --check` exited 0 before staging. Actual normal commit hooks run under the same
+serial config/900 MiB guard after this ledger is staged; their external receipt will be
+`/tmp/retained-namespace-recipe-commit.log{,.json}` and the coordinator receives the exact
+successor SHA/tree after observed completion. No hook bypass or reviewed-commit amendment runs.

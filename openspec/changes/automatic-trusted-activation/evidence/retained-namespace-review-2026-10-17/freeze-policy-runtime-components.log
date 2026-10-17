@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+653 |     calls += 1;
+654 |     capturedBytes = serializeCanonical(policy);
+655 |     expect(Object.isFrozen(policy)).toBe(true);
+656 |     if (policy !== null && typeof policy === 'object')
+657 |       for (const field of Object.values(policy))
+658 |         if (Array.isArray(field)) expect(Object.isFrozen(field)).toBe(true);
+                                                                       ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:658:66)
+      at createRetainedNamespace (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.ts:101:35)
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:662:23)
+(fail) binds emitted namespace pin to the exact canonical V1 recipe [96.91ms]
+
+ 0 pass
+ 43 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1073.00ms]

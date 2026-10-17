@@ -1268,3 +1268,11 @@ closure `resolutionPolicyIdentity`, and `runtimeTrust: 'unverified'`.
 - **THEN** construction refuses before corresponding accumulation, path concatenation or UTF-8
   buffer allocation; each limit is captured once with no defaults
 - **AND** this index supplies no compiler mount or claim of runtime completeness or authentication
+
+#### Scenario: Namespace recipe identity is independently bound to exact V1 bytes
+
+- **WHEN** an owned namespace is constructed under the fixed V1 recipe
+- **THEN** its namespace policy identity equals the independently computed SHA-256 of the exact
+  canonical recipe bytes, including key order and terminal LF
+- **AND** the constructor hashes the private frozen recipe once after ownership and limit
+  validation; replacing the published pin or omitting a recipe field fails the independent oracle

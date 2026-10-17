@@ -39,7 +39,9 @@ export interface RetainedNamespaceProvenance {
 const Owners = new WeakMap<RetainedNamespace, Readonly<RetainedNamespaceProvenance>>();
 const CandidateRoot = '/__puni_review__/candidate';
 const LibraryDirectory = '/__puni_review__/candidate/node_modules/typescript/lib';
-const NamespacePolicyIdentity = hashCanonical({
+// Proof: recipe-field omission changes the literal canonical vector in the V1 recipe oracle.
+// Proof: freeze-policy omission loses the V1 recipe oracle's frozen object assertion.
+const NamespacePolicy = Object.freeze({
   schemaVersion: 1,
   kind: 'retained-review-namespace-policy',
   candidatePrefix: CandidateRoot,
@@ -49,9 +51,12 @@ const NamespacePolicyIdentity = hashCanonical({
   libraryDirectory: LibraryDirectory,
   caseSensitive: true,
   pathGrammar: 'well-formed-unicode-posix-relative-no-empty-dot-traversal-nul-backslash',
-  candidateForbiddenComponents: ['.git', 'node_modules'],
-  runtimeForbiddenComponents: ['.git'],
-  candidateModes: ['100644', '100755', '120000'],
+  // Proof: freeze-policy-candidate-components loses the V1 recipe oracle's frozen array assertion.
+  candidateForbiddenComponents: Object.freeze(['.git', 'node_modules']),
+  // Proof: freeze-policy-runtime-components loses the V1 recipe oracle's frozen array assertion.
+  runtimeForbiddenComponents: Object.freeze(['.git']),
+  // Proof: freeze-policy-modes loses the V1 recipe oracle's frozen array assertion.
+  candidateModes: Object.freeze(['100644', '100755', '120000']),
   symlinks: 'opaque',
   conflicts: 'reject-duplicate-mount-and-nondirectory-ancestor',
   directories: 'valid-prefixes-including-root',
@@ -74,6 +79,7 @@ export function readRetainedNamespaceProvenance(
  * node_modules/ mount beside candidate files. Symlink tuples remain opaque. No content,
  * filesystem, compiler, environment, history or symlink-resolution authority is exercised.
  * Limits are captured once; path bounds precede concatenation and UTF-8 allocation.
+ * The fixed private policy is hashed once after owner and limit admission.
  * @throws Error for foreign owners, malformed or conflicting paths/modes, or exceeded bounds.
  */
 export function createRetainedNamespace(
@@ -95,6 +101,7 @@ export function createRetainedNamespace(
   for (const ceiling of Object.values(limits))
     if (!Number.isSafeInteger(ceiling) || ceiling < 1)
       throw new Error('namespace limit must be a positive safe integer');
+  const namespacePolicyIdentity = hashCanonical(NamespacePolicy);
   const entries = candidate.snapshot.entries;
   const files = runtime.closure.files;
   // Proof: entry-cap omission admits five input entries under ceiling four, including hidden dependencies.
@@ -227,7 +234,8 @@ export function createRetainedNamespace(
     Object.freeze({
       ...candidateProof,
       ...runtimeProof,
-      namespacePolicyIdentity: NamespacePolicyIdentity,
+      // Proof: recipe-pin substitution loses the independent literal SHA-256 oracle assertion.
+      namespacePolicyIdentity,
     }),
   );
   return namespace;

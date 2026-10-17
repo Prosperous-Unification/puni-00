@@ -1073,7 +1073,11 @@ remain outside compiler visibility. The working directory is `/__puni_review__/c
 the configured library directory is `/__puni_review__/candidate/node_modules/typescript/lib`,
 without a claim that it exists. Paths are case-sensitive POSIX. The immutable canonical recipe
 in `review-namespace.ts` is hashed as `namespacePolicyIdentity`; it is independent of and never
-joined to the closure's opaque resolution-policy identity.
+joined to the closure's opaque resolution-policy identity. The recipe and its arrays remain
+private and frozen; hashing occurs once per constructor after ownership and limit validation,
+rather than at module load. An independent literal canonical UTF-8 vector (with terminal LF)
+and externally computed SHA-256 assert the exact hash operand and emitted pin. See
+[the recipe vector](evidence/retained-namespace-review-2026-10-17/namespace-policy.canonical.txt).
 
 Nodes contain only directory paths or copied exact candidate path/mode/blob and runtime
 path/role/identity/byteLength tuples. Directory prefixes, including root and the fixed working
