@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 82100224, "exitCode": 1}
+
+libs/wbs/application/core/src/service/saved-plan-input.test.ts:
+503 |
+504 | it('preserves sparse explicit parallel policy through the authored capture fold', () => {
+505 |   const fact = { workItemId: 'w1', stepId: 's1', maxParallel: 1 };
+506 |   const captured = { ...reads, stepParallels: [fact] };
+507 |   const folded = planInputRowsOf(captured);
+508 |   expect(folded.stepParallels).toEqual([fact]);
+                                     ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "maxParallel": 1,
+-     "stepId": "s1",
+-     "workItemId": "w1",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/application/core/src/service/saved-plan-input.test.ts:508:32)
+(fail) preserves sparse explicit parallel policy through the authored capture fold [0.81ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [150.00ms]

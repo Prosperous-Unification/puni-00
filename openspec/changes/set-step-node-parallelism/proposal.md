@@ -10,6 +10,7 @@ node policy. A row-wide edit cannot express Dev at four and QA at one.
   Absence inherits; an explicit value equal to the row default remains an authored fact.
 - Eventually expose authorized set/clear commands, history and step-cell editing, resolve the
   override before person/team clamps, and preserve it across lifecycle, transfer and snapshots.
+- Add a bounded saved-plan prerequisite: schema8 captures sparse facts, schema7 upgrades empty, and comparisons report capacity differences.
 - Ship additive persistence first. This bounded foundation introduces only the type, internal
   port, source inventory, memory/SQLite stores and guarded migration with parity and proofs.
 

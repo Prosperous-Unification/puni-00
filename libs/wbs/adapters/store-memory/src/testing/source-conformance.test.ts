@@ -1072,6 +1072,7 @@ function emptyMissingCapture(): PlanInputReads {
     actuals: [],
     progress: [],
     stepBlockages: [],
+    stepParallels: [],
     measures: [],
     dependencies: [],
     typedDependencies: [],

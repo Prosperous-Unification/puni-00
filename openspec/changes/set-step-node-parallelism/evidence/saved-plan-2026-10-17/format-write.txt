@@ -1,0 +1,28 @@
+libs/wbs/adapters/store-memory/src/memory-source.test.ts 212ms
+libs/wbs/adapters/store-memory/src/source.ts 89ms (unchanged)
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts 533ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts 40ms
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts 14ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts 451ms (unchanged)
+libs/wbs/application/conformance/src/stores/saved-plan-capture.ts 40ms (unchanged)
+libs/wbs/application/core/src/module/saved-plans/module.test.ts 25ms (unchanged)
+libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts 7ms (unchanged)
+libs/wbs/application/core/src/ports/store-boundaries.test.ts 7ms
+libs/wbs/application/core/src/service/saved-plan-input.test.ts 27ms
+libs/wbs/application/core/src/service/shared-people.test.ts 22ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan-capture-values.ts 4ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan-input.ts 14ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan/README.md 18ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts 15ms
+libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts 23ms
+libs/wbs/domain/domain/src/saved-plan/diff-plans.ts 14ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts 14ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.ts 9ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan/plan-fixture.ts 11ms
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts 8ms (unchanged)
+openspec/changes/set-step-node-parallelism/design.md 15ms (unchanged)
+openspec/changes/set-step-node-parallelism/proposal.md 7ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 21ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 14ms (unchanged)
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts 10ms
+{"ceilingBytes": 805306368, "sampledPeakBytes": 421122048, "exitCode": 0}

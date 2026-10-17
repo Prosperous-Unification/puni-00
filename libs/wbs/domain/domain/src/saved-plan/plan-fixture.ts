@@ -95,6 +95,7 @@ export const planFixtureRows: PlanInputRows = {
     },
   ],
   stepBlockages: [],
+  stepParallels: [],
   stepValues: [
     {
       workItemId: 'w2',
@@ -212,6 +213,7 @@ export function reversed(values: PlanInputRows): PlanInputRows {
     steps: [...values.steps].reverse(),
     stepValues: [...values.stepValues].reverse(),
     stepBlockages: [...values.stepBlockages].reverse(),
+    stepParallels: [...values.stepParallels].reverse(),
     measures: [...values.measures].reverse(),
     dependencies: [...values.dependencies].reverse(),
     typedDependencies: [...values.typedDependencies].reverse(),

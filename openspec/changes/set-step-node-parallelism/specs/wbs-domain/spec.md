@@ -135,3 +135,26 @@ slice SHALL leave resource projections, scheduler consumers, writers and steples
 - **GIVEN** an override maximum getter that returns 2 first and 1001 subsequently
 - **WHEN** the pure resolver reads the override
 - **THEN** it reads the getter exactly once and returns explicit maximum 2
+
+### Requirement: Saved plans preserve sparse authored parallelism
+
+Saved-plan input schema 8 SHALL require a `stepParallels` collection of exact leaf/step pairs
+and authored integer maxima from 1 through 1000. Capture and current stored reads SHALL refuse
+missing or malformed collections, invalid maxima, duplicate pairs, unknown owners or steps,
+and parent owners. Captures SHALL read this collection from the same source snapshot as the
+project and remain detached from subsequent writes. Canonical ordering SHALL use owner and
+step identity, and comparisons SHALL report additions, removals and maximum changes as capacity
+changes at the structured pair. Presence SHALL remain explicit even when equal to the row default.
+Schema 7 SHALL upgrade to an empty collection in memory without changing historical bytes.
+
+#### Scenario: Capture preserves equality and absence
+
+- **GIVEN** row maximum 1, an explicit Dev maximum 1 and no QA override
+- **WHEN** a saved plan is captured and live overrides are cleared
+- **THEN** the captured Dev fact remains 1 and no QA fact is invented
+
+#### Scenario: Legacy history has no authored overrides
+
+- **GIVEN** a stored schema 7 input body
+- **WHEN** the current reader normalizes it
+- **THEN** its in-memory schema 8 input has an empty override collection and stored bytes remain unchanged

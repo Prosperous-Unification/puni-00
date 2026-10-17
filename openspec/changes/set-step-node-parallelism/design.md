@@ -60,3 +60,13 @@ returned; this also prevents a changing accessor from bypassing validation. The 
 an already resolved value. Stores retain existence, leaf and project checks. Resource-rule
 composition is tested directly without admitting this prerequisite into any live consumer.
 The unavailable later sparse transport head is not reconstructed by this slice.
+
+## Saved-plan preservation prerequisite (2026-10-17)
+
+The bounded successor captures `stepParallels` independently of derived node resources.
+Canonical input schema 8 requires this sparse collection; schema 7 upgrades explicitly to an
+empty collection in memory without editing historical bytes. Capture and stored-read boundaries
+reject malformed collections, invalid maxima, duplicates, absent references and parent ownership.
+Canonical ordering and pair-keyed capacity differences preserve explicit equality and sibling
+absence. Both source captures read facts from their existing consistent snapshot and detach them.
+This slice does not enable public writing, live resolution, scheduling or document version 10.

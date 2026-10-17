@@ -1,0 +1,19 @@
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts
+{"ceilingBytes": 943718400, "sampledPeakBytes": 769597440, "exitCode": 1}
+
+<--- Last few GCs --->
+
+[154:0x12b30000]     5793 ms: Mark-Compact 508.2 (515.5) -> 506.1 (514.5) MB, pooled: 2 MB, 125.67 / 0.00 ms  (average mu = 0.160, current mu = 0.152) allocation failure; scavenge might not succeed
+
+FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory
+----- Native stack trace -----
+
+ 1: 0x757658 node::OOMErrorHandler(char const*, v8::OOMDetails const&) [node]
+ 2: 0xc60e30  [node]
+ 3: 0xc60f1f  [node]
+ 4: 0xf047f5  [node]
+ 5: 0xf04822  [node]
+ 6: 0xf04b1a  [node]
+ 7: 0xf1581a  [node]
+ 8: 0xf19bc0  [node]
+ 9: 0x19b78a1  [node]

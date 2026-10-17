@@ -184,3 +184,151 @@ Serial checks through the existing 768 MiB RSS guard:
 This is a successor commit to the reviewed prerequisite, with no amended reviewed
 commit. Existing unrun full-gate/build/all-OpenSpec limitations and the inactive
 Tool Wiki boundary remain as recorded above. No live consumers or writers changed.
+
+## Saved-plan preservation prerequisite — 2026-10-17
+
+Unpublished working candidate based exactly on reviewed
+`1872c02f2e5621865011db16d73c50682e8c0366`, isolated in
+`/tmp/puni-step-parallel-saved-plan-20261017`. Scope is saved-plan input schema 8,
+source capture, authored fold and pair-keyed capacity comparisons only. Document v10,
+public writes, live resource resolution, scheduling, lifecycle, deployment and WBS
+status changes are outside this candidate. The missing `1b4b9e3` integration was
+not recovered. Existing `node_modules` is linked from the reviewed clone; no fresh
+frozen install is claimed. External Tool Wiki activation is inactive and is not
+claimed as certification.
+
+Evidence is under `evidence/saved-plan-2026-10-17/`. Every test/static command uses
+its retained `rss-guard.py`; it samples process-tree RSS every 20 ms and kills the
+process group above its configured ceiling. It is a sampled watchdog, not a kernel
+memory limit. Initial commands use 768 MiB. The coordinator explicitly authorized
+one final native typecheck and per-file lint at the global 900 MiB ceiling after
+bounded failures; those transcripts state the changed ceiling.
+
+TDD `tdd-red.txt` records 36 real missing-behavior failures before production edits;
+`first-green.txt` records 36 passing tests/56 assertions. `regression-first.txt`
+exposed the missing schema8 reader admission, a stale current-version assertion and
+the inherited memory store-inventory omission. The inventory now includes the real
+sparse store and tests its detached values. `regression-green.txt` records 230 tests,
+885 assertions and zero failures before the tuple review correction.
+
+Independent review found a P2: the existing generic colon-joined row key could merge
+`('a', 'b:c')` with `('a:b', 'c')` and hide an override difference. `tuple-red.txt`
+records that real capture-to-diff failure, and `tuple-green.txt` its corrected run.
+Only the new sparse family escapes percent and colon characters; ordinary ID paths
+remain readable. The regression also covers a literal `%3A` identifier.
+
+Native typecheck is **unavailable within the authorized memory ceiling**, not passing:
+`bunx tsc --build --force libs/wbs/adapters/store-memory/tsconfig.json
+libs/wbs/adapters/store-sqlite/tsconfig.json` was watchdog-killed before diagnostics.
+`typecheck-first.txt` sampled 810352640 B; `typecheck-bounded.txt` with V8 heap384
+sampled 820764672 B. Inspection then identified `tsc` as `@typescript/native`, so V8
+settings do not constrain its Go child. The authorized native-GC retry with
+`GOMEMLIMIT=512MiB GOGC=20` sampled 814514176 B and was killed. The final authorized
+`RUNTIME_CLOSURE_RSS_MIB=900 GOMEMLIMIT=640MiB GOGC=20` attempt sampled 945491968 B
+and was killed (`typecheck-900.txt`). No further typecheck attempts were made.
+
+The initial all-files lint exceeded the 768 MiB ceiling and lacked an Nx graph
+(`lint-first.txt`); it is not accepted as verification. A fresh
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx show projects --json` generated
+the graph successfully at 275693568 B (`nx-graph.txt`). Subsequent graph-backed
+changed-file lint is split by project/file. Domain and conformance pass at 768 MiB;
+core's heap384 and heap416 attempts exhausted V8 heap and are retained as failed
+experiments. Per-file core checks at heap512 and 900 MiB passed, with maximum
+sampled RSS 776278016 B. Final adapter/static receipts and restored regression
+checks are recorded below.
+
+No full repository gate, host gate, browser test, full source suite, hosted CI,
+publication, merge, deployment or live acceptance was run. Normal hooks were installed successfully (`hooks-install.txt`). A local ignored
+`lefthook-local.yml` makes pre-commit sequential and invokes the same ESLint rules
+once per staged TypeScript file; no required command is removed. The first manual
+normal pre-commit at heap576 failed on required lint's V8 heap exhaustion, peak
+935485440 B under its 900 MiB watchdog (`pre-commit-first.txt`). Format, plaintext
+secrets, private nesting and the Tool Wiki check passed; migration/doc-cap checks
+correctly had no applicable changed files. Tool Wiki explicitly reported inactive
+and uncertified. The coordinator authorized one final heap640 attempt through the
+normal git commit hook with the same 900 MiB watchdog; its outcome is recorded
+below. No commit success is inferred.
+
+Final restored evidence:
+
+- `regression-final.txt`: the 14-file saved-plan/domain/core/memory/SQLite suite
+  passed **231 tests, 888 assertions**, zero failures; sampled peak 589398016 B.
+  Command: `bun test libs/wbs/domain/domain/src/saved-plan
+libs/wbs/adapters/store-memory/src/memory-source.test.ts
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts
+libs/wbs/application/core/src/service/saved-plan-input.test.ts
+libs/wbs/application/core/src/module/saved-plans/module.test.ts
+libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.test.ts
+libs/wbs/application/core/src/service/shared-people.test.ts
+libs/wbs/application/core/src/ports/store-boundaries.test.ts --timeout=30000`.
+- `source-capture-final-corrected.txt`: both source conformance files with
+  `--test-name-pattern 'Task 6.3|Task 6.4' --timeout=30000` passed **18 tests,
+  2310 assertions**, 132 filtered, zero failures; peak 575705088 B. An earlier
+  `savedPlanCapture` filter matched zero tests and exited 1; its failed transcript
+  is retained in `source-capture-final.txt` and is not counted as verification.
+- `mutate.py` reran **20 independent restored production faults** against the final
+  expanded three-pair collision regression. Every trial exited 1 with its named
+  negative failing; `receipts.json` and matching transcripts record each. This
+  includes separate old-colon-key and missing-percent-escape faults, capture/read
+  validation, collection/reference/fact shape, owner/leaf/step/pair/range checks,
+  historical empty upgrade, both source snapshot reads, authored fold and scalar
+  accessor reread. `tuple-red.txt` and `tuple-green.txt` retain the earlier one-
+  assertion review regression; final tuple fault transcripts and restored suite
+  use the expanded three-assertion regression. All edited production files were
+  restored in `finally` before the final passing suite.
+- Graph-backed changed-file lint passed for the domain (`lint-domain.txt` plus
+  final tuple source/test check `lint-domain-final.txt`), conformance
+  (`lint-conformance.txt`), all five core files (`lint-core-file-0.txt` through
+  `lint-core-file-4.txt`), and all three memory files
+  (`lint-adapter-file-0.txt` through `lint-adapter-file-2.txt`). The SQLite capture
+  test passed with heap576 and a 900 MiB watchdog, peak 856260608 B
+  (`lint-sqlite-file-0.txt`); production capture passed after import ordering was
+  fixed, peak 768864256 B (`lint-sqlite-source-final.txt`). These final lint runs
+  used the generated Nx graph and emitted no skipped-boundary-rule warning.
+- **SQLite source-conformance fixture lint remains unverified**: its independent
+  heap576 run exhausted V8 heap before diagnostics, peak 861331456 B
+  (`lint-sqlite-conformance-final.txt`). Only its required empty capture field
+  changed; no lint success is inferred from that small diff or from tests.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+wbs-core:build:portable --skip-nx-cache` passed, **571 modules**, cache skipped;
+  peak 272502784 B (`portable-build.txt`).
+- Pinned OpenSpec 1.12.0 `validate set-step-node-parallelism --strict --json`
+  passed **1/1**, zero failures; peak 71749632 B (`openspec-strict.txt`).
+
+Tasks 3.3.1 and 3.3.2 describe only this saved-plan prerequisite and are checked.
+The broader lifecycle/transport tasks remain unchecked. Typecheck and the one
+SQLite fixture lint are unresolved resource limits, and the host gate/release
+checks remain outstanding. Changed-file Prettier formatting passed (`format-final.txt`), and the staged
+base-to-candidate `git diff --cached --check 1872c02f2e5621865011db16d73c50682e8c0366`
+passed before the final normal commit attempt. Documentation formatting and the
+staged whitespace check are repeated after this verification appendix is updated. Evidence
+transcripts are normalized to LF with trailing output whitespace removed before
+staging; command output and failures are otherwise preserved.
+
+## Normal commit blocked by the RAM ceiling
+
+The final normal `git commit -m "feat(wbs): preserve sparse parallelism in saved
+plans"` attempt ran with `NODE_OPTIONS=--max-old-space-size=640`,
+`RUNTIME_CLOSURE_RSS_MIB=900` and the installed native `LEFTHOOK_BIN`. The local
+ignored serial configuration retained every required check and each ESLint rule.
+The watchdog stopped the process group with exit **137**, sampled peak
+**945192960 B**, above its **943718400 B** ceiling (`commit-blocked.txt`). Format
+passed before required lint exhausted the remaining process budget. No hook was
+bypassed, and no further heavy check or heap increase was attempted.
+
+HEAD remains exactly `1872c02f2e5621865011db16d73c50682e8c0366`; no commit was
+created and no Git index lock remains. The final attempted staged tree was
+`d1444b14a8a73357d2fc9012882d1305b4f04786`. After adding this failure receipt, the
+final staged tree and a complete mode0600 staged patch are reported to the
+coordinator outside the tree to avoid a self-referential tree hash. The final
+status appendix was followed only by lightweight staged whitespace/status checks;
+formatting, lint and typecheck were not rerun after the required stop. WBS remains
+in progress and no push, publication, merge or deployment occurred.
+
+The coordinator subsequently confirmed that 900 MiB was a conservative worker
+budget rather than a user hard limit, observed 20.4 GiB available host memory,
+and explicitly authorized exactly one normal commit retry at 1100 MiB after the
+other worker stopped. This retry retains heap640, the same installed native
+lefthook and every required serial check. Its receipt and resulting commit, if
+any, are reported separately; the prior blocked state is preserved in the
+mode0600 staged patch reported to the coordinator. No typecheck retry is included.
