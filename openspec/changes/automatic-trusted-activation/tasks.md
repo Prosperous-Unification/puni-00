@@ -663,3 +663,14 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       review and `bin/h2puni-gate.sh <sha>` before completion. Record printed running SHA,
       format/test/lint/typecheck/build and OpenSpec outputs, CI-only checks, every accepted
       R5 mutation, restored GREEN and any disqualified trial. Missing tools block the check.
+
+- [x] 2.1d.1.3e6e1 Build a separate deterministic pinned TypeScript 6.0.3 derivative emitting
+      synchronous compiler-options paths substitution attempts before candidate IO. Thread origin
+      through all three shared-helper callers; keep typesVersions and ordinary ancestor probes
+      distinct. Pin input/output bytes, exact transformations and manifest; carry license/notice.
+      TDD real resolveModuleName refusal before fallback/extension fast path, normalized candidates,
+      order/success termination and callback return isolation. Watch independent R5 negatives for
+      input/output/manifest/count guards and observation removal, including builder-path post-input
+      missing/duplicate sections and altered output. Verify all four artifact members together
+      and refuse each missing/altered member. Cover both typesVersions caller routes. Keep extraction unchanged;
+      wildcard admission, complete manifest and runtimeTrust remain unverified and open.

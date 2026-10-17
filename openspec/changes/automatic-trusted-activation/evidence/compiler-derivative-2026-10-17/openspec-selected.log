@@ -1,0 +1,31 @@
+{
+  "items": [
+    {
+      "id": "automatic-trusted-activation",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 13
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/puni-compiler-derivative-sol-20261017",
+    "source": "nearest"
+  }
+}
+{"ceilingBytes": 943718400, "sampledPeakBytes": 76718080, "exitCode": 0}

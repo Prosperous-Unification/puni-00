@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+(pass) first escaping wildcard attempt throws before candidate IO or safe fallback [401.83ms]
+(pass) explicit extension fast path observes normalized attempt before tryFile [310.17ms]
+(pass) missing attempts preserve order and success stops later substitutions [282.44ms]
+(pass) ordinary ancestor package probes produce no paths attempt [285.90ms]
+(pass) package typesVersions substitutions do not claim compiler options origin [284.49ms]
+(pass) build refuses altered upstream executable [20.41ms]
+(pass) exact replacement refuses absent matches [0.09ms]
+(pass) exact replacement refuses needle needle matches
+(pass) manifest verifier refuses output tampering and digest rebinding [65.44ms]
+(pass) explicit extension refusal prevents every file and directory probe [260.27ms]
+(pass) bare package types entry uses typesVersions without compiler options event [265.32ms]
+(pass) explicit artifact carries compiler manifest upstream license and modification notice [284.21ms]
+(pass) artifact reader refuses absent compiler.cjs [60.36ms]
+(pass) artifact reader refuses absent manifest.json [86.46ms]
+(pass) artifact reader refuses absent LICENSE.txt [66.32ms]
+(pass) artifact reader refuses absent NOTICE [51.80ms]
+(pass) artifact reader refuses altered compiler.cjs [67.77ms]
+(pass) artifact reader refuses altered manifest.json [48.12ms]
+(pass) artifact reader refuses altered LICENSE.txt [63.03ms]
+(pass) artifact reader refuses altered NOTICE [55.56ms]
+(pass) builder refuses missing section after pinned input verification [70.27ms]
+(pass) builder refuses duplicate section after pinned input verification [56.48ms]
+(pass) builder refuses altered output after pinned input verification [65.64ms]
+(pass) artifact reader refuses unreadable compiler.cjs [67.25ms]
+(pass) artifact reader refuses unreadable manifest.json [43.37ms]
+(pass) artifact reader refuses unreadable LICENSE.txt [55.18ms]
+(pass) artifact reader refuses unreadable NOTICE [61.97ms]
+(pass) manifest refuses malformed closed shape $supplied [39.57ms]
+(pass) manifest refuses malformed closed shape [] [37.08ms]
+(pass) manifest refuses malformed closed shape {} [47.85ms]
+(pass) manifest refuses malformed closed shape {
+  unexpected: true,
+} [33.14ms]
+(pass) returned manifest cannot rebind later verifier identities [40.67ms]
+(pass) writer refuses absent upstream license before artifact creation [25.35ms]
+(pass) writer refuses altered upstream license before artifact creation [10.74ms]
+(pass) writer refuses absent upstream notice before artifact creation [10.71ms]
+(pass) writer refuses altered upstream notice before artifact creation [21.22ms]
+
+ 36 pass
+ 0 fail
+ 61 expect() calls
+Ran 36 tests across 1 file. [3.67s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 543006720, "exitCode": 0}

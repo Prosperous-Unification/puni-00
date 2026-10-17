@@ -1654,3 +1654,29 @@ strings, required origin or pinned helper shape SHALL refuse before host constru
 - **AND** SHA-1 and SHA-256 extraction replays after physical capture roots disappear
 - **AND** repeated targets consume shared compiler probes, source probes and traversal steps at
   exact-fit and one-less limits
+
+### Requirement: Pinned compiler paths attempt observation prerequisite
+
+An explicitly built instrumented TypeScript 6.0.3 derivative SHALL synchronously emit a closed compiler-options paths substitution event containing kind, specifier, effective baseDirectory, matched pattern, original substitution and compiler-normalized candidate immediately after candidate formation and before candidate IO. A callback exception SHALL propagate and prevent fallback; a callback return SHALL NOT affect resolution. Events SHALL follow compiler attempt order and stop when the compiler succeeds. Ordinary ancestor probes and package typesVersions substitutions SHALL NOT produce compiler-options events.
+
+The build SHALL verify the pinned upstream executable SHA-256, require every transformation section exactly once and verify a pinned output SHA-256. Its separate artifact SHALL carry a checked input/output manifest, upstream license and modification notice. It SHALL NOT mutate the installed compiler or perform transformation during extraction. This prerequisite SHALL remain unused by retained extraction and SHALL NOT establish runtimeTrust or complete resolution evidence.
+
+#### Scenario: Escaping attempt precedes safe fallback
+
+- **WHEN** a wildcard mapping first attempts an outside candidate followed by a valid inside candidate and the observer refuses the outside candidate
+- **THEN** resolution throws before candidate file or directory IO and before fallback
+
+#### Scenario: Extension fast path and compiler order
+
+- **WHEN** an explicit extension substitution succeeds or an earlier missing substitution precedes success
+- **THEN** observation precedes the fast file probe and preserves normalized candidate order without emitting later substitutions
+
+#### Scenario: Shared typesVersions helper
+
+- **WHEN** package typesVersions resolution uses the shared substitution implementation
+- **THEN** the package resolves without a compiler-options event
+
+#### Scenario: Compiler artifact integrity differs
+
+- **WHEN** upstream bytes, transformation occurrence counts, output bytes or manifest identities differ
+- **THEN** the derivative build or verification refuses the artifact

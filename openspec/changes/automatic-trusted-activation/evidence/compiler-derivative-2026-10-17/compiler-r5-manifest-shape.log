@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+375 | test.each([null, [], {}, { unexpected: true }].map((supplied) => ({ supplied })))(
+376 |   'manifest refuses malformed closed shape $supplied',
+377 |   async ({ supplied }) => {
+378 |     const upstream = await readFile(require.resolve('@typescript/old/lib/typescript.js'), 'utf8');
+379 |     const artifact = buildCompilerDerivative(upstream);
+380 |     expect(() => { verifyCompilerDerivative(artifact.source, supplied); }).toThrow('manifest');
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "manifest"
+Received message: "Object.entries requires that input parameter not be null or undefined"
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:380:76)
+(fail) manifest refuses malformed closed shape $supplied [58.10ms]
+(pass) manifest refuses malformed closed shape [] [52.92ms]
+(pass) manifest refuses malformed closed shape {} [39.13ms]
+(pass) manifest refuses malformed closed shape {
+  unexpected: true,
+} [29.26ms]
+
+ 3 pass
+ 32 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 4 tests across 1 file. [215.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 179851264, "exitCode": 1}

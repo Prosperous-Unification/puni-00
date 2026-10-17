@@ -1,0 +1,91 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+(pass) first escaping wildcard attempt throws before candidate IO or safe fallback [389.35ms]
+(pass) explicit extension fast path observes normalized attempt before tryFile [257.46ms]
+(pass) missing attempts preserve order and success stops later substitutions [274.01ms]
+(pass) ordinary ancestor package probes produce no paths attempt [260.78ms]
+(pass) package typesVersions substitutions do not claim compiler options origin [249.33ms]
+(pass) build refuses altered upstream executable [13.43ms]
+(pass) exact replacement refuses absent matches [0.13ms]
+(pass) exact replacement refuses needle needle matches [0.02ms]
+(pass) manifest verifier refuses output tampering and digest rebinding [63.51ms]
+(pass) explicit extension refusal prevents every file and directory probe [241.73ms]
+(pass) bare package types entry uses typesVersions without compiler options event [257.18ms]
+210 |   expect(await readFile(join(directory, 'LICENSE.txt'), 'utf8')).toBe(
+211 |     await readFile(require.resolve('@typescript/old/LICENSE.txt'), 'utf8'),
+212 |   );
+213 |   expect((await readFile(join(directory, 'NOTICE'), 'utf8')).startsWith(
+214 |     await readFile(require.resolve('@typescript/old/ThirdPartyNoticeText.txt'), 'utf8'),
+215 |   )).toBe(true);
+           ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:215:6)
+(fail) explicit artifact carries compiler manifest upstream license and modification notice [248.98ms]
+(pass) artifact reader refuses absent compiler.cjs [49.92ms]
+(pass) artifact reader refuses absent manifest.json [50.40ms]
+(pass) artifact reader refuses absent LICENSE.txt [60.76ms]
+(pass) artifact reader refuses absent NOTICE [46.79ms]
+(pass) artifact reader refuses altered compiler.cjs [68.67ms]
+(pass) artifact reader refuses altered manifest.json [59.75ms]
+(pass) artifact reader refuses altered LICENSE.txt [47.06ms]
+(pass) artifact reader refuses altered NOTICE [45.24ms]
+(pass) builder refuses missing section after pinned input verification [56.69ms]
+(pass) builder refuses duplicate section after pinned input verification [61.75ms]
+(pass) builder refuses altered output after pinned input verification [85.62ms]
+(pass) artifact reader refuses unreadable compiler.cjs [60.92ms]
+(pass) artifact reader refuses unreadable manifest.json [36.76ms]
+(pass) artifact reader refuses unreadable LICENSE.txt [52.68ms]
+(pass) artifact reader refuses unreadable NOTICE [55.31ms]
+(pass) manifest refuses malformed closed shape $supplied [36.77ms]
+(pass) manifest refuses malformed closed shape [] [40.32ms]
+(pass) manifest refuses malformed closed shape {} [38.14ms]
+(pass) manifest refuses malformed closed shape {
+  unexpected: true,
+} [38.33ms]
+(pass) returned manifest cannot rebind later verifier identities [31.53ms]
+(pass) writer refuses absent upstream license before artifact creation [7.34ms]
+(pass) writer refuses altered upstream license before artifact creation [6.10ms]
+322 |   await writeFile(join(upstreamDirectory, 'LICENSE.txt'),
+323 |     await readFile(require.resolve('@typescript/old/LICENSE.txt')));
+324 |   if (fault === 'altered') await writeFile(join(upstreamDirectory, 'ThirdPartyNoticeText.txt'), 'wrong notice');
+325 |   const copied = await import(modulePath) as typeof import('./compiler-derivative');
+326 |   const directory = join(root, 'artifact');
+327 |   await expect(copied.writeCompilerDerivative(directory)).rejects.toThrow(
+                                                                        ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:327:67)
+(fail) writer refuses absent upstream notice before artifact creation [50.00ms]
+322 |   await writeFile(join(upstreamDirectory, 'LICENSE.txt'),
+323 |     await readFile(require.resolve('@typescript/old/LICENSE.txt')));
+324 |   if (fault === 'altered') await writeFile(join(upstreamDirectory, 'ThirdPartyNoticeText.txt'), 'wrong notice');
+325 |   const copied = await import(modulePath) as typeof import('./compiler-derivative');
+326 |   const directory = join(root, 'artifact');
+327 |   await expect(copied.writeCompilerDerivative(directory)).rejects.toThrow(
+                                                                        ^
+error: expect(received).rejects.toThrow(expected)
+
+Expected promise that rejects
+Received promise that resolved: Promise { <resolved> }
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:327:67)
+(fail) writer refuses altered upstream notice before artifact creation [48.47ms]
+
+3 tests failed:
+(fail) explicit artifact carries compiler manifest upstream license and modification notice [248.98ms]
+(fail) writer refuses absent upstream notice before artifact creation [50.00ms]
+(fail) writer refuses altered upstream notice before artifact creation [48.47ms]
+
+ 33 pass
+ 3 fail
+ 57 expect() calls
+Ran 36 tests across 1 file. [3.42s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 536829952, "exitCode": 1}
