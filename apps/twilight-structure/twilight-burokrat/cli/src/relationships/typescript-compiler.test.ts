@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import { fixture, limits, workspace } from './typescript.test.fixture';
-import { boundSource, createCompilerHost } from './typescript-compiler';
+import { boundSource, createCompilerHost, parseProject } from './typescript-compiler';
 
 test('compiler source counts repeated probes at exact boundary', () => {
   const { source } = fixture();
@@ -91,4 +91,54 @@ test('compiler source preserves basename directory entries from installed sys co
   const { source } = fixture();
   const system = boundSource(workspace, source, { kind: 'bounded', limits });
   expect(system.getDirectories('/candidate')).toEqual(['src', 'node_modules']);
+});
+
+test('explicit type root admission delegates outside paths and charges repeated probes', () => {
+  const { source } = fixture();
+  const paths: string[] = [];
+  source.pathKind = (path) => {
+    paths.push(path);
+    return 'absent';
+  };
+  const system = boundSource(workspace, source, {
+    kind: 'bounded',
+    limits: { ...limits, maximumProbes: 2 },
+  });
+  system.admitTypeRoot('/outside/types');
+  system.admitTypeRoot('/outside/types');
+  expect(paths).toEqual(['/outside/types', '/outside/types']);
+  expect(() => {
+    system.admitTypeRoot('/outside/types');
+  }).toThrow('TypeScript probe limit exceeded');
+  expect(paths).toHaveLength(2);
+});
+
+test('retained admission observes only parser effective roots at the declaring config base', () => {
+  for (const [options, inherited, expected] of [
+    [{}, ['./types'], ['/candidate/configs/types']],
+    [{ typeRoots: ['./types'] }, ['../../outside'], ['/candidate/types']],
+    [{ typeRoots: ['./types', 'types'] }, undefined, ['/candidate/types', '/candidate/types']],
+  ] as const) {
+    const { source } = fixture({
+      'tsconfig.json': JSON.stringify({
+        extends: './configs/base.json',
+        compilerOptions: options,
+        files: ['globals.d.ts', 'src/index.ts'],
+      }),
+      'configs/base.json': JSON.stringify({
+        compilerOptions: {
+          noLib: true,
+          types: [],
+          ...(inherited === undefined ? {} : { typeRoots: inherited }),
+        },
+      }),
+    });
+    const system = boundSource(workspace, source, { kind: 'bounded', limits });
+    const roots: string[] = [];
+    system.admitTypeRoot = (path) => {
+      roots.push(path);
+    };
+    parseProject(workspace, 'tsconfig.json', system, 'retained-type-roots');
+    expect(roots).toEqual([...expected]);
+  }
 });

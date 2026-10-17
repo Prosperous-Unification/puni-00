@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+(pass) retained effective typeRoots charges repeated source admission at exact fit [3853.40ms]
+
+ 1 pass
+ 16 filtered out
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [4.79s]

@@ -112,7 +112,8 @@ function captureLimits<K extends string>(
  * bound synchronous compiler CPU or heap. Successful extraction seals its raw byte census.
  * Only successful, fully frozen envelopes receive a private exact-object request binding.
  * No full compiler read manifest, protected freeze integration, installed runtime
- * authentication or general config-generated escape policy is supplied.
+ * authentication or general config-generated escape policy is supplied. Effective root-project
+ * typeRoots are admitted through the retained source after parsing and before program creation.
  * @throws Error for invalid requests, foreign owners, config/compiler failures or exceeded bounds.
  */
 export function extractRetainedTypeScriptRelationships(
@@ -242,6 +243,8 @@ export function extractRetainedTypeScriptRelationships(
     capturedRequest,
     source,
     capturedCompilerLimits,
+    // Proof: selecting compatible mode admitted the root in `refuses absolute outside`.
+    'retained-type-roots',
   );
   // Proof: provenance-envelope substitution loses the full owned provenance equality in `sha1 matches legacy`.
   // Proof: mount-before-success loses `byte census seals only after successful extraction`; mount-census omission loses its returned tuple assertions.

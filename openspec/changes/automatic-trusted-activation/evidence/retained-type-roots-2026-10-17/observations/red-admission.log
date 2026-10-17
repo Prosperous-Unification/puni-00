@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+ 96 | test('explicit type root admission delegates outside paths and charges repeated probes', () => {
+ 97 |   const { source } = fixture();
+ 98 |   const paths: string[] = [];
+ 99 |   source.pathKind = (path) => { paths.push(path); return 'absent'; };
+100 |   const system = boundSource(workspace, source, { kind: 'bounded', limits: { ...limits, maximumProbes: 2 } });
+101 |   system.admitTypeRoot('/outside/types');
+               ^
+TypeError: system.admitTypeRoot is not a function. (In 'system.admitTypeRoot("/outside/types")', 'system.admitTypeRoot' is undefined)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:101:10)
+(fail) explicit type root admission delegates outside paths and charges repeated probes [0.39ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+Ran 1 test across 1 file. [541.00ms]

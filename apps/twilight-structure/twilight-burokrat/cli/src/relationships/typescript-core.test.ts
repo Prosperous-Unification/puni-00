@@ -513,3 +513,75 @@ for (const operation of ['read', 'write'] as const) {
     }
   });
 }
+
+test('compiler configuration mode rejects unknown before source callbacks', () => {
+  const { source } = fixture();
+  Object.defineProperty(source, 'compilerLibraryDirectory', {
+    get() {
+      throw new Error('mode reached source');
+    },
+  });
+  source.readFile = () => {
+    throw new Error('mode reached source');
+  };
+  expect(() =>
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      limits,
+      // @ts-expect-error Unknown mode models an untyped caller at the public boundary.
+      'unknown',
+    ),
+  ).toThrow('TypeScript configuration mode invalid');
+});
+
+test('compatible source mode preserves explicit outside root probes as absent', () => {
+  const { source } = fixture({
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { noLib: true, types: [], typeRoots: ['/outside/types'] },
+      files: ['globals.d.ts', 'src/index.ts'],
+    }),
+  });
+  const original = source.pathKind;
+  source.pathKind = (path) => {
+    if (path.startsWith('/outside')) throw new Error('outside admission');
+    return original(path);
+  };
+  expect(
+    extractTypeScriptRelationshipsFromSource(workspace, request, source, limits).relationships
+      .publicDeclarations,
+  ).toHaveLength(1);
+  expect(() =>
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      request,
+      source,
+      limits,
+      'retained-type-roots',
+    ),
+  ).toThrow('outside admission');
+});
+
+test('retained configuration mode reaches every requested root project', () => {
+  const { source } = fixture({
+    'second.json': JSON.stringify({
+      compilerOptions: { noLib: true, types: [], typeRoots: ['/outside/types'] },
+      files: ['globals.d.ts', 'src/index.ts'],
+    }),
+  });
+  const original = source.pathKind;
+  source.pathKind = (path) => {
+    if (path.startsWith('/outside')) throw new Error('second root admission');
+    return original(path);
+  };
+  expect(() =>
+    extractTypeScriptRelationshipsFromSource(
+      workspace,
+      { ...request, configPaths: ['tsconfig.json', 'second.json'] },
+      source,
+      limits,
+      'retained-type-roots',
+    ),
+  ).toThrow('second root admission');
+});

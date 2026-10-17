@@ -1,0 +1,282 @@
+[
+  {
+    "fault": "omit-loop",
+    "selection": "refuses absolute outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absolute outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 356064,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "masked-path-kind",
+    "selection": "refuses absolute outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absolute outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 353084,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "wrong-declaring-base",
+    "selection": "observes only parser effective roots",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "--test-name-pattern",
+      "observes only parser effective roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 176748,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "raw-only",
+    "selection": "refuses inherited outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses inherited outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 355932,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "discarded-inherited",
+    "selection": "admits override discarded outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "admits override discarded outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 353080,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "auto-discovery-condition",
+    "selection": "refuses absolute outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absolute outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 354188,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "requires-existence",
+    "selection": "admits missing",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "admits missing"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 351184,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "lexical-only",
+    "selection": "refuses absent escape descendant",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absent escape descendant"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 358668,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "generic-outside-throw",
+    "selection": "omitted typeRoots wildcard types discover",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "omitted typeRoots wildcard types discover"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 354052,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "global-retained-mode",
+    "selection": "compatible source mode",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "--test-name-pattern",
+      "compatible source mode"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 179284,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omit-compiler-charge",
+    "selection": "explicit type root admission",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "--test-name-pattern",
+      "explicit type root admission"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 178920,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omit-source-delegation",
+    "selection": "explicit type root admission",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "--test-name-pattern",
+      "explicit type root admission"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 177116,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omit-mode-validation",
+    "selection": "configuration mode rejects unknown",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+      "--test-name-pattern",
+      "configuration mode rejects unknown"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 178332,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "omit-long-preencoding",
+    "selection": "bounds long roots",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "bounds long roots"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 352852,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "physical-root-lookup",
+    "selection": "sha1 replays",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "sha1 replays"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 357880,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "program-before-admission",
+    "selection": "refuses absolute outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absolute outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350308,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "premature-owner-publication",
+    "selection": "refuses absolute outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absolute outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348676,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "runtime-trust-substitution",
+    "selection": "admits existing",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "admits existing"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 351740,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "census-substitution",
+    "selection": "admits existing",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "admits existing"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 353900,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "retained-mount-compatible",
+    "selection": "refuses absolute outside",
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts",
+      "--test-name-pattern",
+      "refuses absolute outside"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 355576,
+    "ceilingKiB": 921600
+  }
+]

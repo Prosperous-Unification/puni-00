@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts",
+    "--test-name-pattern",
+    "exact extraction owner rejects impostors|registers only after"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 351212,
+  "ceilingKiB": 921600
+}

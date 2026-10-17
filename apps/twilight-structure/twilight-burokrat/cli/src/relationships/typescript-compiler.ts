@@ -48,7 +48,12 @@ export interface TypeScriptSystem extends ts.ParseConfigHost {
   realpath(path: string): string;
   getCurrentDirectory(): string;
   chargeOutput(text: string): void;
+  /** Charges a probe and asks the source to admit an effective explicit configuration root. */
+  admitTypeRoot(path: string): void;
 }
+
+/** Compatible callers retain TypeScript namespace misses; retained roots require source admission. */
+export type TypeScriptConfigurationMode = 'compatible' | 'retained-type-roots';
 
 export type TypeScriptPolicy =
   { readonly kind: 'bounded'; readonly limits: TypeScriptLimits } | { readonly kind: 'legacy' };
@@ -89,6 +94,13 @@ export function boundSource(
     compilerLibraryDirectory: source.compilerLibraryDirectory,
     useCaseSensitiveFileNames: source.useCaseSensitiveFileNames,
     pathKind,
+    // Proof: compiler-charge omission lost the repeated-probe refusal; source-delegation
+    // omission lost the path list in `explicit type root admission delegates outside paths
+    // and charges repeated probes`. Masking this route admitted the absolute outside root.
+    admitTypeRoot: (path) => {
+      probe();
+      source.pathKind(path);
+    },
     fileExists: (path) => pathKind(path) === 'file',
     directoryExists: (path) => pathKind(path) === 'directory',
     readFile: (path) => {
@@ -175,10 +187,16 @@ function normalizedCompilerValue(value: unknown, workspace: string): unknown {
   return normalized;
 }
 
+/**
+ * Parses one root project with compiler inheritance semantics. Retained mode admits every
+ * effective explicit typeRoots before constructing the program; absent admitted roots are valid.
+ * @throws Error for config failures, refused source admission or escaped declarations.
+ */
 export function parseProject(
   workspace: string,
   configPath: string,
   system: TypeScriptSystem,
+  mode: TypeScriptConfigurationMode = 'compatible',
 ): ParsedProject {
   const absoluteConfig = resolve(workspace, configPath);
   // Proof: removing this boundary made the production CLI report the absent
@@ -209,6 +227,14 @@ export function parseProject(
     throw new Error(
       `TypeScript config malformed: ${configPath}: ${parsed.errors.map(formatDiagnostic).join('; ')}`,
     );
+  }
+  // Proof: loop/masked-route/auto-discovery gating omissions admitted the outside root with
+  // types:[]; raw-only inspection admitted the inherited outside root. Wrong-base substitution
+  // lost `retained admission observes only parser effective roots at the declaring config base`.
+  // Validating discarded inherited roots lost `admits override discarded outside`; moving this
+  // loop after program creation lost the zero-host assertion in `refuses absolute outside`.
+  if (mode === 'retained-type-roots') {
+    for (const path of parsed.options.typeRoots ?? []) system.admitTypeRoot(path);
   }
   const options: ts.CompilerOptions = {
     ...parsed.options,

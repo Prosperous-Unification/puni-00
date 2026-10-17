@@ -5591,3 +5591,95 @@ Evidence normalization strips only trailing spaces/tabs/CR per line and preserve
 for nonempty logs. Exact raw files remain under `/tmp/retained-review-provenance-raw-20261017`;
 `normalized-log-receipts.json` binds original and normalized SHA-256 values. Runtime failures
 and tool diagnostics remain in the committed evidence rather than being removed.
+
+## Effective retained typeRoots admission prerequisite — 2026-10-17 (candidate)
+
+Scope: task 2.1d.1.3e6a, based on exact parent
+`9f24cb210eb921ea504d0f2533b2c2fb28412252`. The shared core admits only effective
+parser-normalized root-project typeRoots when retained activation selects the closed mode.
+Generic source calls and the filesystem wrapper default to compatible probes. No nested
+reference-config policy, general config admission, full read manifest, authenticated runtime
+or parent .3 completion is claimed.
+
+Initial focused RED: explicit absolute outside typeRoots with types:[] returned a successful
+unverified envelope instead of throwing (347944 KiB process-tree RSS); explicit admission
+unit failed because admitTypeRoot did not exist (174752 KiB). The first pre-program spy targeted
+a TypeScript accessor unsupported by Bun spyOn; it failed during setup and is not RED evidence.
+The corrected oracle spies the normal compiler-host construction function and checks no census
+sealing on admission refusal. All commands use the existing 900 MiB process-tree RSS guard.
+
+At the initial RED checkpoint, implementation, focused GREEN, independent fault proofs, scope
+checks, independent review, normal commit hooks and required gate were pending. Task .3e6a and parent .3 remain unchecked.
+
+The strengthened retained root matrix passes its original seventeen selected tests, each in a
+fresh guarded process, including exact source/compiler probe and step fits plus one-less
+refusals, repeated equivalent roots, long-path pre-encoding, inherited declaring-base roots,
+discarded overrides, missing inside roots and ancestor-link escapes through absent descendants.
+Both SHA-1 and SHA-256 replays now include a valid candidate link; the oracle asserts its raw
+`alias -> types` census identity/length and canonical equality after all physical roots disappear.
+Outside refusals observe zero compiler-host constructions, zero census sealing and zero private
+request/provenance WeakMap registrations. The restored matrix maximum is 363032 KiB; the
+initial step-budget trial peaked at 658256 KiB. Neither exceeded the 921600 KiB ceiling.
+
+Independent review exposed a mistaken ambient-discovery assumption. The pinned executing
+TypeScript 6.0.3 `usesWildcardTypes` tests for literal '*', and
+`getAutomaticTypeDirectiveNames` returns `options.types ?? []` otherwise. The trial that omitted
+both options but referenced an ambient marker failed with Missing AmbientMarker (353784 KiB);
+it is retained as a disqualified assumption. Two corrected controls pass: omitted-both preserves
+no automatic discovery, while omitted typeRoots plus `types:['*']` resolves a visible declared
+@types/ambient package and preserves outside ancestor probes as absent (2 tests, 355520 KiB).
+
+All twenty independent faults fail their named focused assertions and restore production in
+`finally`. The ledger records loop omission, masked admission, wrong declaring base, raw-only
+inspection, discarded inherited validation, automatic-discovery gating, required existence,
+lexical-only admission, generic outside-probe throws, global retained mode, missing compiler
+charge, missing source delegation, missing mode validation, long-root pre-encoding omission,
+physical lookup, program-before-admission ordering, premature owner publication, substituted
+runtime trust, substituted census and compatible retained mount. Peak fault RSS is 358668 KiB.
+The physical dependency fault reaches the invoked ambient sentinel after deleted-root setup;
+the ordering fault observes one compiler host, and premature publication observes one private
+registration. Proof comments identify the observed tests beside admission, mode and mount code.
+
+Final compiler/core controls pass 6 tests (180864/188796 KiB). Existing legacy parity passes
+noLib and implicit-library SHA-1/SHA-256 as four separately selected fresh processes;
+implicit SHA-256 is largest at 866440 KiB. Exact-owner and registration regressions pass 2 tests
+(351212 KiB), and the separately selected, correctly filed census-sealing regression passes
+1 test (358608 KiB). The focused type check exits 0 at 435084 KiB; daemon-disabled Nx project
+graph exits 0 at 271652 KiB. Initial scoped lint found a test void-expression, fixed with braces;
+judge-facade, compiler tests, compiler implementation and core tests then pass (maximum
+741340 KiB). Core lint rejects a closed-union redundant comparison, so runtime mode admission
+uses a closed list membership check; its restored check and renewed omission proof are pending.
+
+The initial direct TypeScript accessor spy, lexically outside link fixture and repeated-owner
+budget trial failed during test setup/fixture policy and are preserved as excluded evidence.
+The link fixture now uses a lexically contained chain that escapes only after component-wise
+link expansion; each budget attempt captures a fresh owner to avoid consuming unrelated
+acquisition lifetime budgets. `run-focused.py` now rejects selections without passing tests and
+routes the census test to review-typescript.test.ts, separately from owner regression selections.
+
+Remaining: restored final lint/type/format/OpenSpec checks, independent final review, normal
+commit hooks and the required h2puni gate. No full repository format/test/lint/typecheck/build,
+CI secrets/migration checks, push, WBS write, publication or deployment is claimed. Scoped task
+.3e6a and parent .3 remain unchecked. Runtime trust stays unverified; no full manifest,
+authentication, protected freeze or general config admission is supplied.
+
+The final mode-membership omission again reaches the forbidden getter (178416 KiB), and
+restored core controls pass 3 tests (185300 KiB). Final scoped tsc exits 0 at 438184 KiB.
+Every changed TypeScript file passes per-file lint; new roots tests needed bound Buffer forwarding
+for the encoding sentinel, then pass at 747292 KiB. Final core and activation lint peaks are
+662564 and 665736 KiB. Pinned OpenSpec 1.12.0 strict scoped validation exits 0 at 110720 KiB.
+Both corrected TS6 controls also pass separately in fresh processes (357264/357376 KiB), and
+the restored long-path oracle passes at 343376 KiB.
+
+The focused evidence runner requires exact passing test counts (three compiler/core controls,
+two owner controls, one for each other selection). A watched partial owner regex runs one test
+and Bun exits 0, but the runner refuses because two are required. An earlier zero-match trial
+exits 1 from Bun itself, so it is excluded as proof of the runner's own count check. All driver
+substitutions restore in finally. Normalized observations preserve raw SHA-256 bindings under
+`/tmp/type-roots-raw-20261017`; log whitespace normalization strips trailing spaces/tabs/CR and
+keeps one final LF, while JSON receipts receive scoped Prettier formatting.
+
+Independent precommit review found no P0–P2 and verified all counts and receipt hashes.
+Current remaining work is final commit review, normal commit hooks and required gate;
+scoped final formatting receipts are recorded beside the other checks. No broader gate or CI
+claim is made, and task .3e6a and parent .3 remain unchecked.

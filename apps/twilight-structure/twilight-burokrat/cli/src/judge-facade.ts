@@ -119,7 +119,10 @@ export {
   type NxSource,
 } from './relationships/nx-core';
 export { type ExtractorIdentity } from './relationships/typescript';
-export type { TypeScriptSource } from './relationships/typescript-compiler';
+export type {
+  TypeScriptConfigurationMode,
+  TypeScriptSource,
+} from './relationships/typescript-compiler';
 export {
   extractTypeScriptRelationshipsFromSource,
   type TypeScriptLimits,

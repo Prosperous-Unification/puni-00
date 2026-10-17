@@ -10,13 +10,18 @@ import {
   compareText,
   formatDiagnostic,
   parseProject,
+  type TypeScriptConfigurationMode,
   type TypeScriptLimits,
   type TypeScriptPolicy,
   type TypeScriptSource,
   type TypeScriptSystem,
   workspacePath,
 } from './typescript-compiler';
-export type { TypeScriptLimits, TypeScriptSource } from './typescript-compiler';
+export type {
+  TypeScriptConfigurationMode,
+  TypeScriptLimits,
+  TypeScriptSource,
+} from './typescript-compiler';
 import {
   emitDeclarations,
   publicDeclaration,
@@ -108,11 +113,16 @@ export function extractTypeScriptRelationshipsWithPolicy(
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
   policy: TypeScriptPolicy,
+  mode: TypeScriptConfigurationMode = 'compatible',
 ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
+  // Proof: validation omission reached the source getter in
+  // `compiler configuration mode rejects unknown before source callbacks`.
+  if (!['compatible', 'retained-type-roots'].includes(mode))
+    throw new Error('TypeScript configuration mode invalid');
   const system = boundSource(workspace, source, policy);
   const extractor = readCompilerIdentity(workspace, system);
   const projects = request.configPaths.map((configPath) =>
-    parseProject(workspace, configPath, system),
+    parseProject(workspace, configPath, system, mode),
   );
   const importsByIdentity = new Map<string, TypeScriptImportSelector>();
   for (const project of projects) {
@@ -203,7 +213,8 @@ export function extractTypeScriptRelationshipsWithPolicy(
 /**
  * Extracts through explicit compiler IO. Limits count every probe, returned read byte,
  * enumerated path and declaration/selector observation, including repeated work. Namespace
- * misses never reach the source. Source implementations must bound their own return allocation;
+ * misses never reach the source except effective explicit typeRoots admission in retained mode.
+ * Source implementations must bound their own return allocation;
  * this seam bounds compiler accumulation and does not authenticate the running compiler.
  */
 export function extractTypeScriptRelationshipsFromSource(
@@ -211,6 +222,7 @@ export function extractTypeScriptRelationshipsFromSource(
   request: RelationshipRequest['typescript'],
   source: TypeScriptSource,
   limits: TypeScriptLimits,
+  mode: TypeScriptConfigurationMode = 'compatible',
 ): ReturnType<typeof extractTypeScriptRelationshipsWithPolicy> {
   const names: readonly (keyof TypeScriptLimits)[] = [
     'maximumProbes',
@@ -235,8 +247,11 @@ export function extractTypeScriptRelationshipsFromSource(
     if (!Number.isSafeInteger(ceiling) || ceiling < 0)
       throw new Error(`TypeScript ${name} must be a nonnegative safe integer`);
   }
-  return extractTypeScriptRelationshipsWithPolicy(workspace, request, source, {
-    kind: 'bounded',
-    limits: snapshot,
-  });
+  return extractTypeScriptRelationshipsWithPolicy(
+    workspace,
+    request,
+    source,
+    { kind: 'bounded', limits: snapshot },
+    mode,
+  );
 }

@@ -1,0 +1,5 @@
+
+/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts
+  120:32  error  Unnecessary conditional, comparison is always false, since `"retained-type-roots" !== "retained-type-roots"` is false  @typescript-eslint/no-unnecessary-condition
+
+✖ 1 problem (1 error, 0 warnings)

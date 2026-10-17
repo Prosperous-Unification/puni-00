@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+159 |   );
+160 |   const diagnostics = projects.flatMap((project) => ts.getPreEmitDiagnostics(project.program));
+161 |   if (diagnostics.length > 0) {
+162 |     // Proof: removing this refusal made the `MissingType` fixture emit declarations and exit 0;
+163 |     // the production compiler-failure oracle expected exit 1.
+164 |     throw new Error(`TypeScript compiler failed: ${diagnostics.map(formatDiagnostic).join('; ')}`);
+                                                                                                       ^
+error: TypeScript compiler failed: Cannot find name 'AmbientMarker'.
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:164:98)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:171:21)
+(fail) retained omitted typeRoots and types discover visible ambient declarations [222.41ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1389.00ms]

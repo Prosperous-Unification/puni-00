@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+124 |       throw new Error('long root encoding reached');
+125 |     }
+126 |     return original(text, ...args);
+127 |   });
+128 |   try {
+129 |     expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow('source path ceiling exceeded');
+                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source path ceiling exceeded"
+Received message: "long root encoding reached"
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:129:68)
+(fail) retained effective typeRoots bounds long roots before source UTF8 encoding [150.76ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1107.00ms]

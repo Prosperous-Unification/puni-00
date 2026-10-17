@@ -2396,3 +2396,31 @@ return the same frozen three-scalar record without IO, hashing or parser-budget 
 This prerequisite preserves existing graph provenance, candidate shape, namespace V1 and
 TypeScript envelope bytes. It supplies no CompilerReadManifestV1, protected freeze integration,
 runtime authentication or parent .3 completion.
+
+### Effective retained typeRoots admission prerequisite (2.1d.1.3e6a)
+
+`TypeScriptConfigurationMode` selects compatible behavior by default. Retained activation
+internally selects `retained-type-roots`; callers do not control that choice. The shared runner
+validates the closed mode before source callbacks and passes it to every requested root project.
+After `parseJsonConfigFileContent` succeeds and before creating its compiler host or program,
+`parseProject` admits every effective normalized `options.typeRoots` entry. An omitted option
+means no explicit admission. Parser inheritance and override semantics determine the roots;
+there is no second interpretation of raw config spelling or discarded inherited values.
+
+`TypeScriptSystem.admitTypeRoot` charges the existing compiler probe budget then calls
+`TypeScriptSource.pathKind` directly. It deliberately bypasses the generic outside-probe mask,
+so the retained source owns candidate containment, ancestor symlink traversal and its existing
+path/probe/step bounds. An admitted absent path is valid: admission does not require existence.
+Repeated equivalent roots remain repeated work. Ordinary compiler default-root, module,
+package-metadata and ancestor probes still use the existing absent namespace behavior.
+
+The scope is effective root-project typeRoots only, including `types:[]`. Nested project-reference
+configs, general imports/extends/references admission and original spelling provenance remain
+open. No TypeScriptPolicy, legacy limits/bytes, namespace V1, runtime trust or extraction owner
+publication semantics change. Successful envelopes continue to report unverified runtime trust.
+
+Pinned TypeScript 6.0.3 does not automatically discover visible @types when `types` is omitted:
+`getAutomaticTypeDirectiveNames` returns `options.types ?? []` unless `usesWildcardTypes`
+finds a literal '*'. Compatibility therefore has two distinct controls: both options omitted
+preserve no discovery, while omitted typeRoots with `types:['*']` exercises visible packages and
+ordinary default-root ancestor probes. This is observed compiler behavior, not a changed default.

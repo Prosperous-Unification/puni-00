@@ -394,6 +394,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       legacy-promotion, late caller reread, omitted registration and early-registration faults.
       Candidate implementation and focused proofs are recorded in verify.md; acceptance stays
       open pending independent review and required gate. No full manifest/authentication claim.
+- [ ] 2.1d.1.3e6a Admit effective root-project TypeScript typeRoots through the retained source
+      after config parsing and before program construction, including inherited options and
+      types:[]; discarded overridden roots and omitted default roots remain untouched. Charge
+      each explicit root to compiler and source traversal budgets, preserve compatible generic
+      and legacy probes, and prove outside/link escape refusal, inside/missing/link success,
+      inheritance base, exact repeated bounds and removed-root SHA-1/SHA-256 replay. Record
+      watched independent omissions and maintain unverified trust and canonical census identities.
+      This supplies no general config admission, reference-config policy, full manifest or runtime
+      authentication; acceptance and parent .3 remain open pending review and required gate.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

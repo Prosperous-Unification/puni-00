@@ -1430,6 +1430,48 @@ config-generated escape policy or synchronous compiler CPU/heap bound. The noLib
 makes no implicit default-library breadth claim: legacy uses @typescript/old/lib while namespace V1 uses
 typescript/lib, and installed wrapper metadata can differ from the executing compiler.
 
+### Requirement: Effective retained TypeScript typeRoots admission
+
+Retained extraction SHALL admit each effective parser-normalized root-project `typeRoots`
+through its retained source after successful configuration parsing and before compiler program
+construction. Every explicit root SHALL consume the compiler probe budget and existing source
+path, probe and traversal budgets even when `types` is empty or roots repeat. Admission SHALL
+allow absent paths inside the retained namespace and SHALL refuse lexical or symlink escapes,
+including escapes through existing ancestors of absent descendants.
+
+#### Scenario: Effective roots follow parser inheritance and override semantics
+
+- **WHEN** a root project inherits `typeRoots` from another configuration
+- **THEN** admission uses the paths resolved relative to the declaring configuration
+- **AND** an explicit root override replaces discarded inherited roots before admission
+- **AND** effective outside roots refuse before program construction even with `types:[]`
+
+#### Scenario: Compatible ordinary compiler probes remain absent outside the namespace
+
+- **WHEN** typeRoots is omitted or the compiler probes default roots, package metadata,
+  modules or ancestor directories outside its namespace
+- **THEN** ordinary probes preserve their existing absent behavior
+- **AND** generic source and legacy wrapper calls default to compatible configuration behavior
+- **AND** unknown configuration modes refuse before source callbacks
+
+#### Scenario: Pinned TypeScript default type discovery remains compatible
+
+- **WHEN** both typeRoots and types are omitted under the pinned TypeScript 6 compiler
+- **THEN** extraction preserves its existing absence of automatic ambient type discovery
+- **WHEN** typeRoots is omitted and types contains the wildcard '*'
+- **THEN** visible declared @types packages are discovered through default type-root searches
+- **AND** ancestor searches outside the namespace remain absent probes
+
+#### Scenario: Retained root admission uses owned bytes after capture roots disappear
+
+- **WHEN** a SHA-1 or SHA-256 retained candidate uses existing, absent or valid linked roots
+  after its original physical capture roots have been removed
+- **THEN** extraction succeeds from retained bytes with the same canonical identities and census
+- **AND** runtime trust remains unverified and failed admission publishes no successful envelope
+
+This prerequisite does not admit nested project-reference configs, raw discarded spellings,
+general configuration paths, a full compiler manifest or authenticated runtime authority.
+
 ### Requirement: Retained source byte-read census
 
 The retained TypeScript source SHALL record every successful raw acquisition through its owned

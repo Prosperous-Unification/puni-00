@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+ 99 |   source.pathKind = (path) => { paths.push(path); return 'absent'; };
+100 |   const system = boundSource(workspace, source, { kind: 'bounded', limits: { ...limits, maximumProbes: 2 } });
+101 |   system.admitTypeRoot('/outside/types');
+102 |   system.admitTypeRoot('/outside/types');
+103 |   expect(paths).toEqual(['/outside/types', '/outside/types']);
+104 |   expect(() => system.admitTypeRoot('/outside/types')).toThrow('TypeScript probe limit exceeded');
+                                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript probe limit exceeded"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:104:56)
+(fail) explicit type root admission delegates outside paths and charges repeated probes [0.43ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [519.00ms]
