@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+397 | });
+398 | test('caps source and virtual paths before UTF8 or concatenation allocation', () => {
+399 |   const f = fixture();
+400 |   expect(() =>
+401 |     createRetainedNamespace(f.candidate, f.runtime, { ...limits, maximumPathBytes: 53 }),
+402 |   ).toThrow('namespace path ceiling');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "namespace path ceiling"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a.ts",
+        mode: "100644",
+        blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+      },
+      path: "/__puni_review__/candidate/a.ts",
+    }, {
+      kind: "candidate-symlink",
+      source: {
+        path: "link",
+        mode: "120000",
+        blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+      },
+      path: "/__puni_review__/candidate/link",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:402:5)
+(fail) caps source and virtual paths before UTF8 or concatenation allocation [93.72ms]
+
+ 0 pass
+ 41 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1060.00ms]

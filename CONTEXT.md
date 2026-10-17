@@ -1470,6 +1470,11 @@ _Avoid_: stale input, idle optimization, missing project
 
 ### Architecture
 
+**Retained namespace**:
+An immutable metadata index of candidate entries and declared runtime dependencies under the
+reviewer's fixed virtual paths, with provenance tied to its exact owner.
+_Avoid_: compiler host, materialized checkout, authenticated runtime
+
 **Activation controller**:
 The authority that coordinates independent review, certification and publication of a toolkit
 activation for an exact candidate and its admission context.

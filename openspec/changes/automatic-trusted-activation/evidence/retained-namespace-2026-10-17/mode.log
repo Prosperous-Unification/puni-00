@@ -1,0 +1,174 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+331 | for (const mode of ['160000', '040000', '100664'])
+332 |   test(`rejects unsupported candidate mode ${mode}`, () => {
+333 |     const f = fixture();
+334 |     const injected = injectEntries(f, [{ path: 'a', mode, blob: 'a'.repeat(40) }]);
+335 |     try {
+336 |       expect(() => createRetainedNamespace(injected.candidate, f.runtime, limits)).toThrow(
+                                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "namespace candidate mode"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a",
+        mode: "160000",
+        blob: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      path: "/__puni_review__/candidate/a",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:336:84)
+(fail) rejects unsupported candidate mode 160000 [102.82ms]
+331 | for (const mode of ['160000', '040000', '100664'])
+332 |   test(`rejects unsupported candidate mode ${mode}`, () => {
+333 |     const f = fixture();
+334 |     const injected = injectEntries(f, [{ path: 'a', mode, blob: 'a'.repeat(40) }]);
+335 |     try {
+336 |       expect(() => createRetainedNamespace(injected.candidate, f.runtime, limits)).toThrow(
+                                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "namespace candidate mode"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a",
+        mode: "040000",
+        blob: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      path: "/__puni_review__/candidate/a",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:336:84)
+(fail) rejects unsupported candidate mode 040000 [99.59ms]
+331 | for (const mode of ['160000', '040000', '100664'])
+332 |   test(`rejects unsupported candidate mode ${mode}`, () => {
+333 |     const f = fixture();
+334 |     const injected = injectEntries(f, [{ path: 'a', mode, blob: 'a'.repeat(40) }]);
+335 |     try {
+336 |       expect(() => createRetainedNamespace(injected.candidate, f.runtime, limits)).toThrow(
+                                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "namespace candidate mode"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a",
+        mode: "100664",
+        blob: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      path: "/__puni_review__/candidate/a",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:336:84)
+(fail) rejects unsupported candidate mode 100664 [106.06ms]
+
+ 0 pass
+ 39 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [1275.00ms]

@@ -1,0 +1,70 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+240 |     ...f.candidate,
+241 |     get snapshot() {
+242 |       throw new Error('candidate census accessed');
+243 |     },
+244 |   };
+245 |   expect(() => createRetainedNamespace(fakeCandidate, f.runtime, limits)).toThrow(
+                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained candidate"
+Received message: "candidate census accessed"
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:245:75)
+(fail) rejects copied candidate before accessing either census [97.32ms]
+265 |     createRetainedNamespace(
+266 |       { ...f.candidate, snapshot: { ...f.candidate.snapshot, entries: [] } },
+267 |       f.runtime,
+268 |       limits,
+269 |     ),
+270 |   ).toThrow('owned retained candidate');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained candidate"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:270:5)
+(fail) rejects false-empty candidate census [89.97ms]
+
+ 0 pass
+ 40 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1196.00ms]

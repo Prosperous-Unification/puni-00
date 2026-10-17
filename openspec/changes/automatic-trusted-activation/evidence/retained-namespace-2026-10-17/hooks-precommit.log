@@ -1,0 +1,36 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+sync hooks: ✔️(prepare-commit-msg, commit-msg, pre-commit)
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 6.82 seconds)
+✓ format (2.15 seconds)
+✓ lint (4.60 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.04 seconds)
+✓ tool-wiki (0.00 seconds)

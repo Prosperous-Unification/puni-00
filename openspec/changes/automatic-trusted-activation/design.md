@@ -1060,6 +1060,40 @@ to verify this complete closure; candidate parsers receive its owned bytes, neve
 symlink substitution or candidate overlap. Candidate code, package scripts and Nx plugins do not
 execute. A package version string is not a dependency-closure pin.
 
+**Retained namespace prerequisite (2.1d.1.3e1).** `createRetainedNamespace` consumes only
+an exact owned `RetainedCandidate` and `ReviewRuntime`. The candidate provenance lookup and
+new `readReviewRuntimeProvenance` WeakMap lookup both precede census inspection. Runtime
+provenance retains its admitted closure identity, the opaque closure `resolutionPolicyIdentity`
+and `runtimeTrust: 'unverified'`. `readRetainedNamespaceProvenance` requires the exact frozen
+published index. Spread copies, copied methods and false-empty metadata confer no authority.
+
+V1 maps candidate `p` to `/__puni_review__/candidate/p`. Only runtime role `dependency` paths
+beginning `node_modules/` map to that same prefix; programs and other declared runtime files
+remain outside compiler visibility. The working directory is `/__puni_review__/candidate`;
+the configured library directory is `/__puni_review__/candidate/node_modules/typescript/lib`,
+without a claim that it exists. Paths are case-sensitive POSIX. The immutable canonical recipe
+in `review-namespace.ts` is hashed as `namespacePolicyIdentity`; it is independent of and never
+joined to the closure's opaque resolution-policy identity.
+
+Nodes contain only directory paths or copied exact candidate path/mode/blob and runtime
+path/role/identity/byteLength tuples. Directory prefixes, including root and the fixed working
+directory ancestors, are derived without content reads. UTF-8 byte sorting is deterministic;
+symlinks remain opaque nodes and cannot be ancestors. Reject malformed Unicode, NUL,
+backslash, empty/dot/traversal/noncanonical paths, candidate `.git`/`node_modules` components,
+unsupported modes/Gitlinks, visible runtime `.git` components, duplicate mounts and
+file/symlink ancestors, including nonadjacent prefixes. No Unicode normalization creates aliases.
+
+Capture all four positive safe-integer limits once with no defaults. `maximumEntries` counts
+candidate plus every declared runtime entry before filtering; `maximumNodes` counts every
+emitted node including root. `maximumPathBytes` checks each source and virtual path before
+concatenation or UTF-8 buffer allocation, first bounding source code units then UTF-8 bytes.
+`maximumTotalPathBytes` charges every retained node path and every source tuple path using
+subtraction checks before accumulation. Hidden runtime source paths still undergo grammar and
+individual path bounds. Nodes, tuples, arrays, index and provenance are frozen; no mutable map
+is exposed. The constructor has no content, compiler, parsing, symlink-resolution, glob,
+history, read-manifest, physical-root, environment or caller-mount API. Compiler mounting and
+runtime trust/completeness require subsequent specified work.
+
 **Declared runtime admission prerequisite (2.1d.1.3d).** Dash's `readReviewRuntime`
 accepts raw canonical closure bytes (the existing canonical serializer includes a terminal LF)
 and an independently installed exact SHA-256 pin. It validates the closed schema, requires a

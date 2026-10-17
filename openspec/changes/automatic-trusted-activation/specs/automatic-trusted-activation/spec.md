@@ -1224,3 +1224,47 @@ and lifetime content allocations before their corresponding work or allocation.
   that aliases a replacement-character directory
 - **THEN** admission rejects before realpath/open/read, independently of path-library normalization,
   and checks physical root byte ceilings before round-trip allocation
+
+### Requirement: Bounded retained namespace metadata
+
+The system SHALL build a deeply frozen metadata-only virtual namespace from exact owned
+retained candidate and declared runtime capabilities. Both provenance lookups SHALL precede
+inspection of either census. Exact-owner namespace provenance SHALL bind candidate and runtime
+identities, independently hashed canonical `namespacePolicyIdentity`, the opaque unjoined
+closure `resolutionPolicyIdentity`, and `runtimeTrust: 'unverified'`.
+
+#### Scenario: Owned metadata is indexed after acquisition roots disappear
+
+- **WHEN** exact owned candidate and runtime capabilities survive removal of their source,
+  retained store and runtime roots
+- **THEN** namespace creation uses metadata exclusively, emits byte-sorted directories and
+  exact candidate regular/symlink and runtime file tuples, and performs no content, filesystem,
+  Git, compiler, parsing, environment, history, glob or symlink-resolution access
+- **AND** all published metadata is immutable and has no content-read API
+
+#### Scenario: V1 virtual paths select compiler-visible metadata
+
+- **WHEN** a candidate path `p` or runtime dependency path beginning `node_modules/` is indexed
+- **THEN** its virtual path is `/__puni_review__/candidate/p`; runtime programs and other runtime
+  entries are not compiler-visible
+- **AND** the namespace is case-sensitive, its working directory is `/__puni_review__/candidate`,
+  and its configured library directory is `/__puni_review__/candidate/node_modules/typescript/lib`
+  without asserting directory existence
+
+#### Scenario: Copied owners or invalid trusted metadata request a namespace
+
+- **WHEN** either capability is copied or supplies a false-empty census, or metadata contains
+  malformed Unicode, NUL, backslash, empty/dot/traversal/noncanonical path components,
+  candidate `.git`/`node_modules`, unsupported modes/Gitlinks, visible runtime `.git`, duplicate
+  mounts, or file/symlink ancestors
+- **THEN** construction refuses before publishing a namespace; symlinks never resolve
+
+#### Scenario: Namespace bounds exceed their installed ceilings
+
+- **WHEN** any installed limit is not a positive safe integer, candidate plus all declared
+  runtime entries exceed `maximumEntries` before filtering, emitted nodes including root exceed
+  `maximumNodes`, any source/virtual path exceeds `maximumPathBytes`, or retained node and source
+  tuple path fields exceed `maximumTotalPathBytes`
+- **THEN** construction refuses before corresponding accumulation, path concatenation or UTF-8
+  buffer allocation; each limit is captured once with no defaults
+- **AND** this index supplies no compiler mount or claim of runtime completeness or authentication

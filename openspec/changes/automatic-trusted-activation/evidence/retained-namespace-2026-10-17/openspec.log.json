@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "@fission-ai/openspec@1.12.0",
+    "validate",
+    "automatic-trusted-activation",
+    "--strict",
+    "--json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 112276,
+  "ceilingKiB": 921600
+}

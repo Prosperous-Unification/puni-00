@@ -49,6 +49,23 @@ export interface ReviewRuntime {
 
 const Owners = new WeakMap<ReviewRuntime, ReadonlyMap<string, Uint8Array>>();
 
+export interface ReviewRuntimeProvenance {
+  readonly runtimeClosureIdentity: string;
+  readonly resolutionPolicyIdentity: string;
+  readonly runtimeTrust: 'unverified';
+}
+const Provenance = new WeakMap<ReviewRuntime, Readonly<ReviewRuntimeProvenance>>();
+
+/** Requires the exact admitted owner without reading caller metadata or content. */
+export function readReviewRuntimeProvenance(
+  runtime: ReviewRuntime,
+): Readonly<ReviewRuntimeProvenance> {
+  const provenance = Provenance.get(runtime);
+  // Proof: runtime-owner omission admits copied and false-empty runtime census (namespace ownership test).
+  if (provenance === undefined) throw new Error('owned review runtime required');
+  return provenance;
+}
+
 // Proof: root-grammar admitted a lexical ../ root alias.
 function assertRoot(path: string): void {
   // Proof: root-unicode admitted an OS replacement-character alias under lexically preserving resolve.
@@ -320,5 +337,14 @@ export function readReviewRuntime(input: ReviewRuntimeInput): ReviewRuntime {
     },
   });
   Owners.set(capability, owned);
+  // Proof: freeze-runtime-provenance omission loses the namespace test's frozen runtime provenance assertion.
+  Provenance.set(
+    capability,
+    Object.freeze({
+      runtimeClosureIdentity,
+      resolutionPolicyIdentity: closure.resolutionPolicyIdentity,
+      runtimeTrust: 'unverified',
+    }),
+  );
   return capability;
 }

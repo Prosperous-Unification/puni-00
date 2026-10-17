@@ -1,0 +1,59 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+(pass) retains sha1 exact tuples after source/store/runtime removal without content IO [90.46ms]
+(pass) retains sha256 exact tuples after source/store/runtime removal without content IO [86.50ms]
+(pass) rejects copied and false-empty owners before accessing either census [103.12ms]
+(pass) rejects candidate path "" [99.22ms]
+(pass) rejects candidate path "/a" [99.47ms]
+(pass) rejects candidate path "a/" [89.70ms]
+(pass) rejects candidate path "a//b" [92.40ms]
+(pass) rejects candidate path "." [91.28ms]
+(pass) rejects candidate path ".." [88.89ms]
+(pass) rejects candidate path "a/./b" [99.30ms]
+(pass) rejects candidate path "a/../b" [92.53ms]
+(pass) rejects candidate path "a\\b" [100.28ms]
+(pass) rejects candidate path "a\u0000b" [118.87ms]
+(pass) rejects candidate path "a\ud800b" [87.04ms]
+(pass) rejects candidate path ".git/config" [78.72ms]
+(pass) rejects candidate path "a/.git/x" [100.99ms]
+(pass) rejects candidate path "node_modules/a" [105.40ms]
+(pass) rejects candidate path "a/node_modules/x" [99.37ms]
+(pass) rejects unsupported candidate mode 160000 [102.90ms]
+(pass) rejects unsupported candidate mode 040000 [99.09ms]
+(pass) rejects unsupported candidate mode 100664 [89.45ms]
+(pass) rejects duplicate mounts and file or opaque symlink ancestors [90.83ms]
+(pass) rejects visible runtime .git paths but excludes programs and other dependencies [79.14ms]
+(pass) validates maximumEntries positive safe integer [91.67ms]
+(pass) validates maximumNodes positive safe integer [96.87ms]
+(pass) validates maximumPathBytes positive safe integer [98.11ms]
+(pass) validates maximumTotalPathBytes positive safe integer [100.70ms]
+(pass) counts all runtime entries before visibility filtering [92.11ms]
+(pass) counts root and every derived directory in node ceiling [98.36ms]
+ 97 | for(const bound of Object.keys(limits) as (keyof typeof limits)[]) test(`validates ${bound} positive safe integer`,()=>{
+ 98 |   const f=fixture(); for(const value of [undefined,0,-1,NaN,Infinity,1.5,Number.MAX_SAFE_INTEGER+1]) expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,[bound]:value} as typeof limits)).toThrow('positive safe integer');
+ 99 | });
+100 | test('counts all runtime entries before visibility filtering',()=>{const f=fixture();expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumEntries:4})).toThrow('namespace entry ceiling');expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumEntries:5})).not.toThrow();});
+101 | test('counts root and every derived directory in node ceiling',()=>{const f=fixture();expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumNodes:7})).toThrow('namespace node ceiling');expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumNodes:8})).not.toThrow();});
+102 | test('caps source and virtual paths before UTF8 or concatenation allocation',()=>{const f=fixture();expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumPathBytes:51})).toThrow('namespace path ceiling');expect(()=>createRetainedNamespace(f.candidate,f.runtime,{...limits,maximumPathBytes:52})).not.toThrow();const injected=injectEntries(f,[{path:'x'.repeat(2000),mode:'100644',blob:'a'.repeat(40)}]);try{expect(()=>createRetainedNamespace(injected.candidate,f.runtime,limits)).toThrow('namespace path ceiling');}finally{injected.restore();}});
+
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "namespace path ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:102:321)
+(fail) caps source and virtual paths before UTF8 or concatenation allocation [114.17ms]
+(pass) caps aggregate retained node and source path fields exactly [65.12ms]
+(pass) snapshots each installed limit once [91.39ms]
+(pass) bounds code units before UTF8 measurement and bytes before grammar allocation [95.27ms]
+(pass) keeps programs outside compiler visibility even under node_modules [101.94ms]
+(pass) sorts by UTF8 bytes, preserves case and copies exact tuples [92.51ms]
+
+1 tests failed:
+(fail) caps source and virtual paths before UTF8 or concatenation allocation [114.17ms]
+
+ 34 pass
+ 1 fail
+ 139 expect() calls
+Ran 35 tests across 1 file. [4.29s]

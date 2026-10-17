@@ -314,6 +314,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       files confer no capability authority. This prerequisite leaves transitive completeness,
       protected installation ownership, running-code identity, retained TypeScript host and
       parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks.
+- [ ] 2.1d.1.3e1 Build the immutable retained namespace index and exact-owner provenance before
+      mounting TypeScript. Use fixed candidate/runtime dependency mappings, opaque symlink tuples,
+      byte-sorted metadata nodes and an independent canonical namespace recipe identity. Count all
+      input entries before runtime filtering; bound nodes, each source/virtual path before allocation,
+      and all retained node/source path fields. Refuse copied/false-empty owners, invalid grammar,
+      forbidden components/modes, duplicates and non-directory ancestors. Prove source/store/runtime
+      removal, intercepted content/filesystem/Git traps, mutation isolation and independent omissions.
+      This bounded prerequisite leaves compiler mounting, runtime completeness/authentication and
+      parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks and exact review.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

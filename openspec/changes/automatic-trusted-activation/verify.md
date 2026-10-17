@@ -4714,3 +4714,92 @@ two TypeScript files and three touched OpenSpec Markdown files exited 0, sampled
 @fission-ai/openspec@1.12.0 validate automatic-trusted-activation --strict --json` reported **1/1
 valid, zero issues**, exit 0 (`openspec-final.json`). `git diff --check` exited 0. The successor
 normal-hook log is reported with the committed SHA after its run; typecheck was not retried.
+
+### Retained namespace metadata prerequisite, 2026-10-17
+
+Scope: proposed **2.1d.1.3e1**, isolated clone `/tmp/puni-retained-namespace-sol-oct17`,
+branch `retained-namespace-sol-oct17`, exact reviewed base
+`9467df1a11304cdafb7e9d55a057fff92ea3abe3`. This implements metadata indexing and exact-owner
+provenance only. Both e1 and parent `.3` remain unchecked. No compiler mounting, transitive
+runtime completeness, installation authentication, executing-code identity, read manifest,
+all-eleven-document acceptance, protected authority, publication or WBS closure is claimed.
+
+Evidence: [`evidence/retained-namespace-2026-10-17`](evidence/retained-namespace-2026-10-17).
+`rss-guard.py` launches checks serially with `NODE_OPTIONS=--max-old-space-size=768`, samples
+aggregate descendant RSS every 50 ms and kills at a sampled 900 MiB ceiling. Samples do not
+prove an unsampled peak. `--smol` on final Bun controls reduces retained test-runner memory.
+The fresh scoped typecheck was killed at **932388 KiB**, exceeding the **921600 KiB** threshold
+between samples, exit **-9**, with no diagnostics before stop. No retry occurred. Typecheck
+remains unavailable; this is neither a source diagnosis nor a pass.
+
+The test-first missing-module run (`red.log`: 0 pass, 1 fail, 1 error) proves only the missing
+import boundary, not semantic behavior. Subsequent `green-first.log` and `green.log` expose an
+incorrect hand-counted path bound in the test fixture; the literal was corrected to the actual
+54 UTF-8 bytes. These are historical failures, not successful proof receipts. The final independent
+production omissions supply the semantic negative evidence below.
+
+| Check                                                                                               | Fresh observation                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bun --smol test apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts` | `restored-final.log`: 43 pass, 0 fail, 174 assertions, exit 0; sampled peak 542284 KiB                                                                                       |
+| `bun --smol test apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts`   | `runtime-regression.log`: 27 pass, 0 fail, 130 assertions, exit 0; sampled peak 656324 KiB                                                                                   |
+| `python .../retained-namespace-2026-10-17/faults.py`                                                | 38 independent production mutants, each exit 1 with named assertion failure; sources restored in `finally`; sampled maximum 784976 KiB                                       |
+| `bunx --no-install eslint` over namespace source/tests and runtime source                           | `lint-first.log`: ten concrete diagnostics, fixed; `lint-second.log`: exit 0, peak 811384 KiB; Nx module boundaries explicitly skipped because cached ProjectGraph is absent |
+| `bunx --no-install tsc --build --force apps/twilight-structure/twilight-dash/cli/tsconfig.json`     | `typecheck.log.json`: killed at sampled 932388 KiB, exit -9; no diagnostics, no retry, unverified                                                                            |
+
+Every fault's exact source needle/replacement and focused production test are in `faults.py`;
+`faults.json` records commands, named failures, exits and process-tree observations, with a
+separate log and receipt for each trial. One harness needle initially matched both `path.length`
+and `length`; it was tightened before the byte-bound trial ran. No escaped or noncausal mutant
+is counted. Production predicates were restored between trials and after the sweep.
+
+| Failure proof family                       | Watched faults and observed production negatives                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exact owners and false-empty censuses      | `candidate-owner`, `runtime-owner` lose separate copied-before-census and false-empty named refusals; `namespace-owner` loses copied-index refusal                                                                                                                                                                                                           |
+| Positive safe limits captured once         | `limit-snapshot` rereads changing getters; `limit-grammar` loses undefined/zero/NaN/unsafe negatives                                                                                                                                                                                                                                                         |
+| Entry/node/path/aggregate bounds           | `entry-cap` admits hidden runtime entries beyond the census bound; `node-cap` emits root plus seven nodes at ceiling seven; `path-codeunit-cap` reaches forbidden UTF-8 measurement; `path-byte-cap` reaches forbidden grammar allocation; `virtual-cap` admits a 54-byte virtual path at 53; `total-cap` admits retained paths one byte above the exact sum |
+| Path grammar                               | Independent `path-unicode`, `path-nul`, `path-backslash`, `path-component-empty`, `path-component-dot`, `path-component-traversal` lose named malformed-path refusals                                                                                                                                                                                        |
+| Forbidden components/modes and collisions  | `candidate-git`, `candidate-dependencies`, `mode`, `runtime-git`, `ancestor-conflict`, `duplicate-conflict` lose named refusals; ancestors include nonadjacent `a`, `a-b`, `a/child` for regular files and opaque symlinks                                                                                                                                   |
+| Fixed runtime visibility                   | `runtime-role` exposes program metadata under node_modules; `runtime-prefix` exposes the outside dependency                                                                                                                                                                                                                                                  |
+| Immutable published ownership              | Independent `freeze-node`, `freeze-candidate-tuple`, `freeze-runtime-tuple`, `freeze-array`, `freeze-index`, `freeze-provenance`, `freeze-runtime-provenance` lose explicit frozen/mutation assertions                                                                                                                                                       |
+| No ambient fallback or content consumption | `ambient-fs` uses an ES namespace import and reaches the verified `forbidden fs` sentinel; `ambient-git` reaches `forbidden Git`; `candidate-content` and `runtime-content` reach `forbidden retained content`; `ambient-metadata` reaches `forbidden filesystem metadata`; `ambient-environment` reaches `forbidden environment`                            |
+
+Positive SHA-1/SHA-256 tests acquire real owned candidates and independently pinned declared
+runtime files, then delete source repository, retained store and runtime roots before namespace
+creation. Filesystem/open/Git traps are invoked directly to prove interception before construction.
+They compare literal virtual nodes and exact producer tuples. A separate content-reader trial
+injects throwing reader methods after the provenance boundary and proves both interception and
+constructor non-use. Malformed tuples that Git cannot produce are **synthetic post-ownership
+trusted-state corruption**: tests return authentic owner's provenance through a narrow accessor
+spy and pass frozen altered metadata through the real constructor. They prove the namespace's
+predicate, not an end-to-end Git exploit or an ownership bypass. Unmocked exact-owner and
+false-empty tests remain separate. Every spy is restored in `finally`.
+
+Final scoped lint, formatting, strict OpenSpec validation, normal hooks and the commit are
+recorded after their observed runs. Full hosted h2puni gate/CI, complete-suite tests, build,
+repository-corpus fit, Nx module-boundary enforcement and the interrupted typecheck are
+unverified. No raw full Nx gate, push, merge, deployment, external messaging or WBS update ran.
+
+Final observed checks: strict pinned OpenSpec 1.12.0 validation reported **1/1 valid, zero
+issues**, exit 0, peak **112276 KiB** (`openspec.log`). The restored namespace control reports
+**43 pass, 0 fail, 174 assertions**, exit 0, peak **542284 KiB**. The final **38/38** fault ledger
+adds explicit environment and filesystem metadata sentinel interceptions to the original sweep.
+
+`LEFTHOOK_CONFIG=.git/lefthook.serial.yml bunx --no-install lefthook run pre-commit` ran normal
+installed hooks, exit **0**, sampled peak **889656 KiB** (`hooks-precommit.log`). The original
+and serial merged JSON dumps preserve all commands, globs and message hooks; only
+`pre-commit.parallel` changes to false (the normalized dump omits false). Format, lint,
+plaintext-secrets and private-nesting passed. Tool Wiki reported `status: inactive,
+certified: false` because its external activation root is unprovisioned; this is no certification.
+Migration, website migration and doc-cap jobs had no matching staged files. Lint again skipped
+Nx module-boundary enforcement for absent cached ProjectGraph; all other applicable source
+rules passed. The actual normal-hook `git commit` is performed under the same RSS guard after
+this ledger is staged; its external receipt and exact successor SHA are reported to the coordinator.
+No commit bypass is authorized or used. e1 and `.3` remain unchecked.
+
+The first actual normal-hook `git commit` passed, exit **0**, sampled peak **844148 KiB**;
+its external receipt is `/tmp/retained-namespace-commit.log{,.json}`. A subsequent diff check
+identified only trailing whitespace and terminal blank lines emitted by lint/Lefthook. Evidence
+logs were normalized for those presentation bytes only; commands, diagnostics and assertion
+content are preserved. Original logs are retained externally in
+`/tmp/retained-namespace-original-logs.tar.gz`. The final amendment uses normal hooks again;
+its exact SHA/tree and receipt are reported to the coordinator after completion.

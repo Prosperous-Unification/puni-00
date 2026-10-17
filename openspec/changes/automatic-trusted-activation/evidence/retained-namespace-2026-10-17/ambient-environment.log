@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+632 |       throw new Error('forbidden environment');
+633 |     },
+634 |   });
+635 |   try {
+636 |     expect(() => process.env).toThrow('forbidden environment');
+637 |     expect(() => createRetainedNamespace(f.candidate, f.runtime, limits)).not.toThrow();
+                                                                                    ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "forbidden environment"
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:637:79)
+(fail) does not consult environment [107.29ms]
+
+ 0 pass
+ 42 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1096.00ms]
