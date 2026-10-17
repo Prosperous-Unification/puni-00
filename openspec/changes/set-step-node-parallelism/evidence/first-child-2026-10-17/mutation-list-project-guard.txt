@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+88 |             await sparse.set({ workItemId: 'parent', stepId: first.id, maxParallel: 1 }, stamp);
+89 |             expect(await sparse.listByProject(projectId)).toHaveLength(steps.length);
+90 |             expect(await working.stores.workItems.listByProject(projectId)).toEqual(
+91 |               await scope.stores.workItems.listByProject(projectId),
+92 |             );
+93 |             expect(() => sparse.listByProject('foreign')).toThrow('cannot read project');
+                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cannot read project"
+
+Received function did not throw
+Received value: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:93:59)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [508.20ms]
+88 |             await sparse.set({ workItemId: 'parent', stepId: first.id, maxParallel: 1 }, stamp);
+89 |             expect(await sparse.listByProject(projectId)).toHaveLength(steps.length);
+90 |             expect(await working.stores.workItems.listByProject(projectId)).toEqual(
+91 |               await scope.stores.workItems.listByProject(projectId),
+92 |             );
+93 |             expect(() => sparse.listByProject('foreign')).toThrow('cannot read project');
+                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cannot read project"
+
+Received function did not throw
+Received value: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:93:59)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [411.31ms]
+
+ 0 pass
+ 2 fail
+ 16 expect() calls
+Ran 2 tests across 1 file. [2.90s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 640663552, "exitCode": 1}

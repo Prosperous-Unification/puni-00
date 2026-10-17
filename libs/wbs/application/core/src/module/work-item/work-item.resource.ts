@@ -71,6 +71,7 @@ import {
   spanOfAttempts,
   type StepAllowances,
   type StepNodeCycle,
+  type StepNodeRef,
   type StepPolicy,
   type StepState,
   treeOrder,
@@ -126,6 +127,7 @@ import type {
   StepNodeAttemptStore,
   StoredAttempt,
 } from '../../ports/step-node-attempt-store';
+import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -958,6 +960,8 @@ export interface MoveWorkItem {
 export interface WorkItemServiceOptions {
   livePlans?: LivePlanStore;
   workItems: WorkItemStore;
+  /** Required scope-bound evidence; create refuses retained facts before any writes. */
+  stepParallels: Pick<StepParallelStore, 'listByWorkItems'>;
   projects: ProjectStore;
   estimates: EstimateStore;
   /**
@@ -2309,6 +2313,10 @@ export class WorkItemService {
    * and assignments to that child and returns the node mapping in project step order.
    * Blockage keeps its original time through create, undo and redo; conditional
    * replacements refuse newer facts inside the structural command transaction.
+   * Retained step parallel facts refuse a nonnull parent before stamping or
+   * mutation until hand-down and history ownership exist (ADR 0031). The reader
+   * validates selected existing-parent facts too; corrupt trusted state throws.
+   * Command scopes own rollback; standalone calls gain no cross-call isolation.
    * The mapping is internal to the application; command responses still return
    * the created work item ID alone.
    */
@@ -2316,7 +2324,12 @@ export class WorkItemService {
     projectId: string,
     actorId: string,
     input: CreateWorkItem,
-  ): Promise<WorkItemOutcome<WorkItem> & { stepNodeMapping?: { from: string; to: string }[] }> {
+  ): Promise<
+    (
+      | WorkItemOutcome<WorkItem>
+      | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    ) & { stepNodeMapping?: { from: string; to: string }[] }
+  > {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
@@ -2329,6 +2342,23 @@ export class WorkItemService {
     // project throws instead of rendering.
     if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
       return { ok: false, reason: 'not_found' };
+    }
+    if (input.parentId !== null) {
+      // Proof: omitting this read/refusal let both retained-pair negatives create
+      // a child and clear parent statements; observed 2026-10-17.
+      // Moving this below the first apply changed parent readiness/hold in the
+      // snapshot (mutation-late-guard.txt); unconditional refusal blocked empty policy.
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [input.parentId]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          // Proof: aliasing the supplied facts failed exact detached-node assertions
+          // (mutation-aliased-nodes.txt); wrong parent/project and project-wide reads
+          // separately failed selected-policy tests, 2026-10-17.
+          nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
+      }
     }
     const placed = placeAfter(this.groupUnder(rows, input.parentId), input.afterId);
     // Read here, per create, against **this** project's ladder — not hoisted to

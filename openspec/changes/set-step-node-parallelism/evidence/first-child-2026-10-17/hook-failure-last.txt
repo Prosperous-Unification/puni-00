@@ -1,0 +1,11 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+┃  lint ❯
+Injected lint command failure at libs/wbs/domain/contracts/src/http/work-item-shapes.ts
+
+exit status 7
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.87 seconds)
+✗ lint (0.83 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 83398656, "exitCode": 1}

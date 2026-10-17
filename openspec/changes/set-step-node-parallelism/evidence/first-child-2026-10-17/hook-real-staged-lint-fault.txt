@@ -1,0 +1,16 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+┃  lint ❯
+
+/tmp/step-first-child-20261017/libs/wbs/domain/contracts/src/http/refusal.ts
+  513:7  error  'firstChildUnusedProof' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (1 error, 0 warnings)
+
+
+exit status 1
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 2.64 seconds)
+✗ lint (2.59 seconds)
+{"ceilingBytes": 1342177280, "sampledPeakBytes": 716513280, "exitCode": 1}

@@ -7,6 +7,7 @@ import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs
 import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
+import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -308,6 +309,7 @@ describe('a priority ladder moves no date', () => {
       progress,
       attempts: inMemoryAttempts(workItems),
       blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
+      stepParallels: inMemoryStepParallels(workItems, inMemorySteps()),
       dependencies,
       typedDependencies: inMemoryTypedDependencies(),
       directory,
@@ -767,6 +769,7 @@ describe('a priority ladder moves no date', () => {
       progress,
       attempts: inMemoryAttempts(workItems),
       blockages: inMemoryStepBlockages(workItems, inMemorySteps()),
+      stepParallels: inMemoryStepParallels(workItems, inMemorySteps()),
       dependencies,
       typedDependencies: inMemoryTypedDependencies(),
       directory,

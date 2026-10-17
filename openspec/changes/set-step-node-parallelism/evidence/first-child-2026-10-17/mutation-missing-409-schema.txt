@@ -1,0 +1,81 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+{"level":"error","time":1792207903233,"service":"be-01","err":{"occurrence_id":"AE_D5CCV73AC7GD51HE0164DCSZAB","fingerprint":"fp1_744b8a353b8995630af5a59cb5f15f08","stack":["Error: Endpoint postApiProjectsByIdCommands returned an undeclared refusal","    at renderReply (/tmp/step-first-child-20261017/apps/wbs/be-01/src/http/elysia/mount.ts:440:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+26 |         const child = { parentId: 'parent', afterId: null, name: 'Child' };
+27 |         const answer = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, endpoint === 'batch' ? { commands: [
+28 |           { kind: 'patchWorkItem', workItemId: 'parent', patch: { name: 'Must roll back' } },
+29 |           { kind: 'createWorkItem', ...child },
+30 |         ] } : { commands: [{ kind: 'createWorkItem', ...child }] });
+31 |         expect(answer).toEqual({ status: 409, body: {
+                            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": {
+-     "at": 0,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "createWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "dc139690-a07d-4435-8ef2-8f4917fbfda9",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "38ef96d5-f691-47a1-86aa-78037ff45f36",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 16
++ Received  + 2
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:31:24)
+(fail) first-child sparse preservation through single > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [324.14ms]
+{"level":"error","time":1792207903467,"service":"be-01","err":{"occurrence_id":"AE_GVH97AAK791DAMDQ9MFEWJ0C40","fingerprint":"fp1_744b8a353b8995630af5a59cb5f15f08","stack":["Error: Endpoint postApiProjectsByIdCommands returned an undeclared refusal","    at renderReply (/tmp/step-first-child-20261017/apps/wbs/be-01/src/http/elysia/mount.ts:440:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+26 |         const child = { parentId: 'parent', afterId: null, name: 'Child' };
+27 |         const answer = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, endpoint === 'batch' ? { commands: [
+28 |           { kind: 'patchWorkItem', workItemId: 'parent', patch: { name: 'Must roll back' } },
+29 |           { kind: 'createWorkItem', ...child },
+30 |         ] } : { commands: [{ kind: 'createWorkItem', ...child }] });
+31 |         expect(answer).toEqual({ status: 409, body: {
+                            ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "body": {
+-     "at": 1,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "createWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "4c27aecb-3fb8-4340-b168-a12ec1ff5b69",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "c1df4e0d-a711-474e-9821-e13779deac5a",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 16
++ Received  + 2
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:31:24)
+(fail) first-child sparse preservation through batch > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [233.58ms]
+
+ 0 pass
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [2.50s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 644526080, "exitCode": 1}

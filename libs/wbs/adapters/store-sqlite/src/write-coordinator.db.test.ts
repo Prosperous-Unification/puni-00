@@ -154,6 +154,7 @@ beforeEach(async () => {
     typedDependencies: new TypedDependencyRepository(db, OPEN),
     subtrees: new SubtreeRepository(db, OPEN),
     journal: new CommandJournalRepository(db, OPEN),
+    stepParallels: buildStores(db, OPEN).stepParallels,
     broadcast,
   };
   // The batch's own stores, over an open gate: `sqliteUnitOfWork` holds the

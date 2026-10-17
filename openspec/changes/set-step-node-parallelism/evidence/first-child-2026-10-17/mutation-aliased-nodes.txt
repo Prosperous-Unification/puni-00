@@ -1,0 +1,101 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:
+58 |       }
+59 |       await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+60 |       await stores.stepParallels.set({ workItemId: 'sibling', stepId: 'qa', maxParallel: 2 }, stamp);
+61 |       const before = await fixture.snapshot();
+62 |       const { workItems } = installWorkItem(requirements);
+63 |       expect(await workItems.create('p', 'owner', create)).toEqual({
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
++       "maxParallel": 1,
+        "stepId": "dev",
+        "workItemId": "parent",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:63:60)
+(fail) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [14.85ms]
+58 |       }
+59 |       await stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+60 |       await stores.stepParallels.set({ workItemId: 'sibling', stepId: 'qa', maxParallel: 2 }, stamp);
+61 |       const before = await fixture.snapshot();
+62 |       const { workItems } = installWorkItem(requirements);
+63 |       expect(await workItems.create('p', 'owner', create)).toEqual({
+                                                                ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
++       "maxParallel": 1,
+        "stepId": "dev",
+        "workItemId": "parent",
+      },
+      {
++       "maxParallel": 1,
+        "stepId": "qa",
+        "workItemId": "parent",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:63:60)
+(fail) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [1.56ms]
+(pass) first-child sparse step parallel preservation > checks authorization and parent membership before a poisoned reader [1.18ms]
+(pass) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [13.98ms]
+(pass) reads the admitted sparse store and rolls a preceding patch back with its journal/events [10.52ms]
+(pass) confines borrowed sparse reads to their project and open working-plan scope [0.47ms]
+(pass) throws on trusted maximum corruption without creating or clearing statements [1.26ms]
+(pass) throws on trusted step corruption without creating or clearing statements [0.92ms]
+(pass) throws on trusted project corruption without creating or clearing statements [0.77ms]
+(pass) throws on trusted parent corruption without creating or clearing statements [1.07ms]
+(pass) throws on trusted duplicate corruption without creating or clearing statements [0.85ms]
+170 |   const fixture = await seeded();
+171 |   const fact = { workItemId: 'parent', stepId: 'dev', maxParallel: 1 };
+172 |   const retained = [fact];
+173 |   const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: { listByWorkItems: () => Promise.resolve(retained) } });
+174 |   const refused = await workItems.create('p', 'owner', create);
+175 |   expect(refused).toEqual({ ok: false, reason: 'referenced_by_step_parallel', nodes: [{ workItemId: 'parent', stepId: 'dev' }] });
+                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
++       "maxParallel": 1,
+        "stepId": "dev",
+        "workItemId": "parent",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:175:19)
+(fail) copies exact node references and allows create after clearing the final fact [0.72ms]
+
+ 9 pass
+ 3 fail
+ 33 expect() calls
+Ran 12 tests across 1 file. [1.85s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 508231680, "exitCode": 1}

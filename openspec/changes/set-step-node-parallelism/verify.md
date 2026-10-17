@@ -612,3 +612,122 @@ counting-unit-of-work failures because unchanged `createWorkingPlan` eagerly rea
 sparse catalog port. Those preexisting runtime failures remain unresolved in this bounded slice;
 no passing suite result is claimed from the comparison. Export-fence-specific focused service,
 mounted/snapshot and byte-oracle checks remain the passing scoped acceptance evidence.
+
+## First-child create preservation prerequisite — 2026-10-17
+
+Scope: `3.1.2` / `3.2.2` only. Required `listByWorkItems` evidence comes from the
+current admitted command scope after project/admission/parent validation and before
+stamp, ID allocation or writes. Retained equal-default facts refuse with detached
+structured nodes. No public sparse writer, hand-down/remap, schema/version, scheduler
+or UI change is admitted. The atomicity claim is the existing command UoW's terminal
+rollback; standalone cross-call isolation is not claimed. Public HTTP coverage is
+single-command and multi-command `POST /api/projects/:id/commands`; no separate HTTP
+create alias exists in this source contract. Direct `installWorkItem(...).create`
+is covered independently.
+
+Evidence directory: `evidence/first-child-2026-10-17/`.
+
+- RED: `bun test libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts`
+  observed one/two equal-default policies accepting create and the authorized poisoned
+  reader being skipped: 1 pass / 3 fail, peak 502,980,608 bytes (`tdd-red.txt`).
+- Focused controls: the same service file plus
+  `apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts` and
+  `libs/wbs/domain/contracts/src/http/refusal.test.ts`; final counts are recorded below
+  after scoped checks. Fixtures cover no-write snapshots, statement/estimate/blockage
+  preservation, one/two node details, missing/foreign parents, authorization before a
+  poisoned reader, missing/read-failing sparse capability, real invalid maxima/missing
+  steps/cross-project/parent/duplicate facts, empty selected policies, clearing the last
+  fact, and first-child undo/redo. The admitted memory UoW inserts a fact while the
+  outside source remains empty and rolls back a preceding patch/journal/events.
+- Prototype RED: real `StepParallelRepository` borrowed through `createWorkingPlan`
+  failed with `sparse.listByProject is not a function` (0 pass / 2 fail,
+  `prototype-red.txt`). Full explicit forwarding preserves adapter receivers and
+  validates read project/lifetime and write owner/lifetime; warm retained row reads
+  compare revision changes to the authoritative SQLite store after set and remove.
+- `mutation-receipts.json` records 12 watched failures with substitutions and outputs
+  in `mutation-*.txt`: omitted guard; wrong parent; wrong project; project-wide read;
+  unconditional refusal; aliased node objects; guard moved after statement apply;
+  empty command node detail; missing HTTP node detail; removed HTTP 409 schema arm;
+  stale empty working-scope evidence; omitted targeted-read project/lifetime guard.
+  Each failed its production assertion; none hit the resource cap.
+- The forwarding/registry fault transcript and exact substitutions are kept beside
+  these receipts. Every new guard's adjacent `Proof:` comment names its observed fault.
+- Every Bun/type/lint process is serial and process-tree RSS monitored. The default
+  cap is 900 MiB. Scoped module typecheck first hit that cap at 944,939,008 bytes
+  (`type-work-item.txt`, exit137); the one-shot approved 1,280 MiB retry passed at
+  959,074,304 bytes (`type-work-item-authorized.txt`). The first changed-path ESLint
+  attempt likewise hit 900 MiB (`lint-00.txt`); approved retries use 1,280 MiB per path.
+- Fresh global h2puni gate, broad Nx suites, build, migration lint and deployment are
+  not run in this laptop slice; final integration must gate the exact commit on h2puni.
+
+Forwarding proof completion: `first-child-forwarding-mutations.py` independently
+removed the list-by-project project predicate, its lifetime predicate, set owner
+check, remove owner check, set row refresh, remove row refresh, closed command code,
+and required command nodes. All eight failed (`forwarding-mutation-receipts.json`).
+The first set-refresh attempt was disqualified: `findById` reads the source directly
+and let the mutant survive. `disqualified-set-refresh-fresh-findById.txt` preserves
+that exit0; revised controls warm and compare the cached `listByProject`, after which
+each refresh omission failed independently. The script restores each production file
+in `finally`; each successful control/fault is RSS monitored under 900 MiB.
+
+Nx graph: `NX_DAEMON=false bunx nx show project wbs-core --json` exited0 at
+422,240,256 bytes and wrote this checkout's `.nx/workspace-data/project-graph.json`.
+The unavailable socket path was reported and Nx used its supported in-process
+fallback. Earlier direct ESLint receipts explicitly skipped the module-boundary rule
+without that graph; they are not claimed as complete lint. A fresh graph-boundary
+negative and grouped changed-path lint follow below.
+
+Final graph-aware ESLint: `lint-final-receipts.json` records exact argv and coverage
+for all 36 changed TypeScript paths. Twenty-five successful invocations cover each
+path, without a skipped module-boundary warning; maximum passing RSS is 1,058,594,816
+bytes. One 20-file app group hit the approved 1,280 MiB limit at 1,342,271,488 bytes
+(exit137), then immediately split into 20 passing per-file invocations. The other
+five groups passed. The production import of `@wbs/store-sqlite` into the application
+resource was independently rejected by `@nx/enforce-module-boundaries` (exit1,
+882,782,208 bytes, `mutation-nx-boundary.txt`); source was restored. These receipts
+supersede the earlier lint runs that lacked a graph.
+
+Pinned hook installation: `bun run tools/tool-git-hooks/src/install.ts` succeeded
+(`hooks-install.txt`). The ignored local override changes only pre-commit concurrency
+and lint process granularity; all eight original groups, globs and trailer hooks
+remain. Actual Lefthook selected 36 staged lint paths exactly once, compared as a
+multiset to the original staged lint glob (`hook-selected-lint-paths.json`). Split
+per-file argv are intentional, not byte-identical to aggregate argv. Mocked first,
+middle and last failures stop after 1, 19 and 36 calls. Removing `set -e` incorrectly
+exits0; removing the empty-argv guard incorrectly exits0 instead of64. All are
+watched via `hooks/proof.py` and `hook-proof-receipts.json`. The real staged unused
+variable was rejected through Lefthook with `@typescript-eslint/no-unused-vars`,
+loaded graph and no skipped-rule warning (exit1, 716,513,280 bytes). Restoring and
+restaging the source preserves its exact SHA256 (`hook-real-restoration.json`). The
+final full hooked commit is recorded separately after final checks and review.
+
+Final scoped controls (`final-check-receipts.json`): focused service/mounted/refusal
+compiler tests **17 pass / 0 fail, 97 assertions**, peak 710,926,336 bytes; work-item
+module typecheck **exit0**, 946,946,048 bytes; plan-commands module typecheck **exit0**,
+957,476,864 bytes. Changed-path Prettier write **exit0**, 556,683,264 bytes. Selected
+change strict OpenSpec **valid**, 74,477,568 bytes. Required `validate --all --json`
+**212 passed / 0 failed**, 129,335,296 bytes. All run serially with the documented caps.
+
+Additional `validate --all --strict --json` **exits1**, 206 passed / 6 failed:
+`dev-deploy`, `live-plan-snapshot`, `plan-command-registry`, `plan-import`,
+`saved-plans`, `scheduler-optimization` retain placeholder Purpose warnings. This is
+inherited: rerunning the identical pinned strict command in the clean exact parent
+`79c0bcfc3ac1169fb080627a497030053a5e5197` exits1 with identical issue objects; all six
+main-spec blobs match byte-for-byte (`strict-parent-comparison.json`,
+`openspec-parent-all-strict.txt`, peak 133,853,184 bytes). No unrelated main specs
+were changed. All 194 change artifacts pass even in that global strict run.
+
+Tasks `3.1.2` and `3.2.2` are complete for this bounded preservation prerequisite;
+parents `3.1` and `3.2` remain open for the broader lifecycle/history implementation.
+Normal hooked commit and exact-SHA h2puni integration gate remain separately recorded
+steps; no full-feature completion, deployment or release claim is made here.
+
+Hook provenance: `hook-real-restoration.json` proves immediate restoration of the
+real lint fault at **06:48:12 local** (SHA256 `0aaca935…`). The later final Prettier
+pass (**06:49:43 local**, `format-final.txt`) moved only the conditional-type `:`
+before its adjacent Proof comment and indented `C extends 'referenced_by_step_parallel'`.
+The final source SHA256 is `ec47725e…`; type tokens and runtime behavior are unchanged.
+The exact earlier source is preserved in `hook-proof-refusal-before-prettier.ts.txt`,
+recovered from local Git blob `dc15a9d1d0e3d169fbc3c0d2f4d3286be7078f18`;
+`hook-proof-final-format-comparison.json` records both full hashes and the exact diff.
+The restoration receipt does not claim the later formatted file has the earlier hash.

@@ -213,3 +213,36 @@ or event. No public sparse writer is enabled by this fence.
 - **GIVEN** a shared export observation captures an authored sparse fact
 - **WHEN** another connection clears that fact before the export response is serialized
 - **THEN** the export still refuses from its detached captured evidence
+
+### Requirement: Create preserves retained sparse facts before a leaf becomes a parent
+
+Create SHALL consult a required sparse reader from its admitted command scope after
+project, actor and parent validation, before allocating a stamp or ID or mutating
+any state. A nonnull valid parent with valid retained facts SHALL refuse with
+`referenced_by_step_parallel` and detached structured nodes in store order.
+Malformed trusted facts and read failures SHALL throw before mutation.
+
+#### Scenario: Explicit equality blocks first-child create atomically
+
+- **GIVEN** a leaf retains one or more explicit step maxima, including its row default
+- **WHEN** a command batch patches a row then creates that leaf's first child
+- **THEN** the batch refuses with the create command index/kind and exact node pairs
+- **AND** earlier writes, journal entries and events roll back
+- **AND** parent statements and all step facts remain unchanged
+
+#### Scenario: Empty selected policy permits existing create behavior
+
+- **GIVEN** unrelated siblings or foreign projects retain sparse facts
+- **WHEN** creating a root or a child under a parent with no selected facts
+- **THEN** create and its existing undo/redo semantics continue unchanged
+
+#### Scenario: Invalid parent and forbidden actor do not consult sparse evidence
+
+- **WHEN** a project or parent is absent or foreign, or an actor lacks admission
+- **THEN** existing not-found or forbidden refusal precedes sparse access
+
+#### Scenario: Corrupt existing-parent facts cannot bypass create validation
+
+- **GIVEN** a selected parent already has children and corrupt sparse facts
+- **WHEN** another child is requested
+- **THEN** the trusted-state failure throws before any writes

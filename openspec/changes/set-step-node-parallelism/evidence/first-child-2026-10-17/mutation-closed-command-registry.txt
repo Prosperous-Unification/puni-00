@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/refusal.test.ts:
+183 |     ],
+184 |     cwd: new URL('../../../../../../', import.meta.url).pathname,
+185 |     stdout: 'pipe',
+186 |     stderr: 'pipe',
+187 |   });
+188 |   expect(new TextDecoder().decode(checked.stdout) + new TextDecoder().decode(checked.stderr)).toBe(
+                                                                                                    ^
+error: expect(received).toBe(expected)
+
+- ""
++ "libs/wbs/domain/contracts/src/http/refusal.test.ts(16,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(32,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(37,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(45,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(48,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(56,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(82,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(85,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(87,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(102,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(133,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(135,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(150,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(152,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(204,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(211,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(219,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(221,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(231,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(234,5): error TS2322: Type '"referenced_by_step_parallel"' is not assignable to type '"ancestor" | "attempt_ends_before_start" | "attempt_in_future" | "attempt_running" | "calendar_range" | "cannot_hold_done" | "cycle" | "deadline_before_project_start" | ... 41 more ... | "work_item_takes_one_type"'.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(239,3): error TS2578: Unused '@ts-expect-error' directive.
++ libs/wbs/domain/contracts/src/http/refusal.test.ts(241,5): error TS2322: Type '"referenced_by_step_parallel"' is not assignable to type '"ancestor" | "attempt_ends_before_start" | "attempt_in_future" | "attempt_running" | "calendar_range" | "cannot_hold_done" | "cycle" | "deadline_before_project_start" | ... 41 more ... | "work_item_takes_one_type"'.
++ libs/wbs/domain/contracts/src/http/refusal.ts(409,30): error TS2339: Property 'referenced_by_step_parallel' does not exist on type 'CommandRefusalDetail'.
++ "
+
+- Expected  - 1
++ Received  + 24
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/domain/contracts/src/http/refusal.test.ts:188:95)
+(fail) the compiler enforces closed refusal codes, detail variants and command context [283.94ms]
+
+ 0 pass
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [299.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 213651456, "exitCode": 1}

@@ -259,6 +259,8 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // Proof: omitting node detail failed both mounted 409 assertions, 2026-10-17.
+    case 'referenced_by_step_parallel':
     case 'descendant_step_on_leaf':
     case 'node_on_parent':
       return {

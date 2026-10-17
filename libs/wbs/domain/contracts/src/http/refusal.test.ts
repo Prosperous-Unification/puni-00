@@ -221,3 +221,35 @@ export function markerOptionalFieldTypes(field?: 'markerId') {
   // @ts-expect-error Optional marker detail still cannot mix with command context.
   expectTypeOf<Refusal>({ error: 'taken', field: 'markerId', at: 0, kind: 'createTeam' });
 }
+
+/** Command sparse-reference refusals require structured nodes and finite context. */
+export function sparseCommandRefusalTypes() {
+  expectTypeOf<Refusal>({
+    error: 'referenced_by_step_parallel',
+    nodes: [{ workItemId: 'parent', stepId: 'dev' }],
+  });
+  // @ts-expect-error Bare step-removal envelopes cannot admit partial command context.
+  expectTypeOf<Refusal>({ error: 'referenced_by_step_parallel', at: 0, nodes: [] });
+  expectTypeOf<CommandRefusal>({
+    error: 'referenced_by_step_parallel',
+    at: 1,
+    kind: 'createWorkItem',
+    nodes: [{ workItemId: 'parent', stepId: 'dev' }],
+  });
+  // @ts-expect-error Sparse preservation refusal requires the exact node list.
+  expectTypeOf<CommandRefusal>({
+    error: 'referenced_by_step_parallel',
+    at: 1,
+    kind: 'createWorkItem',
+  });
+  // @ts-expect-error Sparse preservation refusal requires command context.
+  expectTypeOf<CommandRefusal>({ error: 'referenced_by_step_parallel', nodes: [] });
+  const printableNodes = {
+    error: 'referenced_by_step_parallel' as const,
+    at: 1,
+    kind: 'createWorkItem' as const,
+    nodes: ['parent.dev'],
+  };
+  // @ts-expect-error A printable node identifier does not replace a concrete pair.
+  expectTypeOf<CommandRefusal>(printableNodes);
+}

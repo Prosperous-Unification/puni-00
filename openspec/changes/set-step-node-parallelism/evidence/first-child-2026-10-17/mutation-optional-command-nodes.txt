@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/refusal.test.ts:
+183 |     ],
+184 |     cwd: new URL('../../../../../../', import.meta.url).pathname,
+185 |     stdout: 'pipe',
+186 |     stderr: 'pipe',
+187 |   });
+188 |   expect(new TextDecoder().decode(checked.stdout) + new TextDecoder().decode(checked.stderr)).toBe(
+                                                                                                    ^
+error: expect(received).toBe(expected)
+
+- ""
++ "libs/wbs/domain/contracts/src/http/refusal.test.ts(239,3): error TS2578: Unused '@ts-expect-error' directive.
++ "
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/domain/contracts/src/http/refusal.test.ts:188:95)
+(fail) the compiler enforces closed refusal codes, detail variants and command context [350.51ms]
+
+ 0 pass
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [371.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 221958144, "exitCode": 1}

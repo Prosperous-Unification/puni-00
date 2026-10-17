@@ -156,6 +156,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,
       workItems: stores.workItems,
+      stepParallels: stores.stepParallels,
       projects: stores.projects,
       estimates: stores.estimates,
       actuals: stores.actuals,

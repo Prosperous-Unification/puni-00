@@ -18,8 +18,10 @@
 
 - [ ] 3.1 Write first-child hand-down, child removal, deletion/step-usage and project lifecycle RED.
 - [x] 3.1.1 Write step-removal sparse-reference refusal, authorization, corruption and atomicity RED.
+- [x] 3.1.2 Write first-child sparse-preservation refusal, admitted-scope rollback, corruption and shared HTTP RED.
 - [x] 3.2.1 Implement authoritative memory/SQLite refusal and shared HTTP 409; prove guard omissions.
 - [ ] 3.2 Implement atomic remap/refusal and snapshot/history ownership of sparse facts.
+- [x] 3.2.2 Implement required admitted-scope sparse create guard before writes; preserve typed node details through the shared 409 and prove each boundary.
 - [ ] 3.3 Write copy/import/export/saved-plan version and ID remapping RED; allocate current schema versions.
 - [x] 3.3.1 Write saved-plan schema/capture/diff RED and explicit schema7 upgrade; allocate schema8 only.
 - [x] 3.3.2 Implement detached source captures, canonical policy preservation and current/legacy readers; prove each safety boundary with watched faults.

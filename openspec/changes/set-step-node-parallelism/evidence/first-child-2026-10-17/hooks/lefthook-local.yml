@@ -1,0 +1,5 @@
+pre-commit:
+  parallel: false
+  commands:
+    lint:
+      run: /tmp/step-first-child-20261017/.git/first-child-lint-staged.sh {staged_files}

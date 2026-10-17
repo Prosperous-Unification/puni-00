@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+13 |     await promise;
+14 |   } catch (cause) {
+15 |     if (cause instanceof Error) return cause.message;
+16 |     throw cause;
+17 |   }
+18 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:18:13)
+      at async <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:98:26)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [511.20ms]
+13 |     await promise;
+14 |   } catch (cause) {
+15 |     if (cause instanceof Error) return cause.message;
+16 |     throw cause;
+17 |   }
+18 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:18:13)
+      at async <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:98:26)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [415.40ms]
+
+ 0 pass
+ 2 fail
+ 18 expect() calls
+Ran 2 tests across 1 file. [2.90s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 641306624, "exitCode": 1}

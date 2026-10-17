@@ -608,6 +608,12 @@ const batchRefusals = [
     status: 409,
     schema: responseSchema(
       type.or(
+        // Proof: removing this arm made mounted create/batch refusals return 500, 2026-10-17.
+        type({
+          ...context,
+          error: "'referenced_by_step_parallel'",
+          nodes: type({ workItemId: 'string', stepId: 'string' }).array(),
+        }),
         type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
         type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
       ),

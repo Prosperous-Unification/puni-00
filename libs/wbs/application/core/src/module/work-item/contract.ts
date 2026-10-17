@@ -3,8 +3,8 @@ import type { WorkItemService, WorkItemServiceOptions } from './work-item.resour
 /**
  * What a host must supply to install {@link workItemModule}.
  *
- * Exactly {@link WorkItemServiceOptions}: the thirteen
- * stores of the one scope being installed over, the broadcaster, the
+ * Exactly {@link WorkItemServiceOptions}: stores and the required sparse reader
+ * of the one scope being installed over, the broadcaster, the
  * edit admission, the scheduler and the clock. `servicesOver` supplies the stores of each admitted
  * scope, so one installation never outlives the scope it was built over.
  *

@@ -99,3 +99,19 @@ captures and copies that collection inside its existing read transaction, before
 owned connection. It never rereads through the isolated port after capture. Existing modeled
 uncoded-step precedence applies to valid evidence; unreadable or corrupt shared evidence
 throws while being captured under R5. Markdown remains a human schedule projection.
+
+## First-child create preservation prerequisite (2026-10-17)
+
+Until sparse hand-down/remapping and history ownership ship, create refuses a valid
+nonnull parent with retained sparse facts, including explicit equality with its row
+default. A required narrow reader belongs to each WorkItemService graph. The command
+graph reads the current admitted source scope, with working-plan project and lifetime
+checks, after project/admission/parent validation and before stamping, ID allocation
+or any writes. Selected existing-parent facts are also read so corruption throws.
+
+Valid facts yield `referenced_by_step_parallel` with copied structured node references
+in authoritative store order. Command index/kind and exact node details reach the
+shared HTTP 409 schema for single-command and multi-command `/commands` requests. Empty policy retains existing
+create/undo/redo behavior. Atomicity claims cover the command unit of work; direct
+standalone calls do not gain cross-call isolation. No public writer, remap, history
+schema, migration, document version, scheduler or UI changes ship in this slice.

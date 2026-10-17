@@ -188,6 +188,7 @@ beforeEach(async () => {
       progress: progressStore,
       attempts: new StepNodeAttemptRepository(db, OPEN),
       blockages: new StepBlockageRepository(db, OPEN),
+      stepParallels: new StepParallelRepository(db, OPEN),
       dependencies: new DependencyRepository(db, OPEN),
       typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory,

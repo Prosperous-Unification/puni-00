@@ -132,6 +132,13 @@ export class CommandContext {
         detail: { dependencyIds: outcome.dependencyIds },
       });
     }
+    if (outcome.reason === 'referenced_by_step_parallel') {
+      // Proof: replacing nodes with [] failed the mounted exact 409 assertion, 2026-10-17.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { nodes: outcome.nodes.map(({ workItemId, stepId }) => ({ workItemId, stepId })) },
+      });
+    }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
