@@ -5264,3 +5264,56 @@ Task **2.1l** is complete. Task 2.1 and WBS080.39 remain open. Reports are opera
 noncertifying; no trusted execution receipt, scenario citation coverage, remaining-project
 adoption, release acceptance or full gate is established by this slice. The coordinator owns
 independent review, exact-head CI, the canonical host gate, publication and integration.
+
+## WBS080.39 — shared-test-levels isolated Unit target (2.1m, 2026-10-17)
+
+Isolated worktree `.worktrees/shared-test-levels-unit-oct17`, branch
+`feat/shared-test-levels-unit-oct17`, starts at reviewed predecessor
+`bec08dedb78c69d268b5d84fc7b4583b265113ae`. This bounded slice adds the
+`shared-test-levels:test:unit:level` target; the original five tests and legacy
+`test`/`test:unit` commands remain unchanged. The allocator appended
+`TEST-AXES-155` and `TEST-AXES-156`, preserving all prior journal events.
+
+Commands ran serially under a sampled 900 MiB process-tree guard; hook commands use
+the existing 1280 MiB guard. Formatting briefly overlapped the first focused run;
+its peak was 260116 KiB and that run's peak was 339840 KiB. No guard terminated
+either process. All other verification commands below ran serially.
+
+| Check                                                  | Observed output                                                                         | Peak process-tree KiB |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------- | --------------------- |
+| Missing-registration RED                               | Expected exit 1; canonical lookup: not a declared level target                          | 71820                 |
+| Focused GREEN                                          | 10 pass, 0 fail, 31 assertions                                                          | 160056                |
+| First full focused regression                          | 133 pass, 1 fail; expected sorted list placed shared-test-levels before shared-failures | 339840                |
+| Corrected full focused regression                      | 134 pass, 0 fail, 479 assertions                                                        | 339436                |
+| Scoped TypeScript                                      | Exit 0                                                                                  | 146260                |
+| Changed source ESLint                                  | Exit 0                                                                                  | 827560                |
+| Shared library Nx typecheck and build, serial uncached | Exit 0; both targets succeeded                                                          | 365280                |
+| Pinned strict OpenSpec                                 | Exit 0; test-axes valid                                                                 | 65056                 |
+
+### Independent failure proofs
+
+Each fault was applied separately to production source or the actual manifest
+command. Every named assertion failed, then the original production bytes were
+restored; before/after SHA-256 values match.
+
+| Fault                                   | Observed failed assertion                          |
+| --------------------------------------- | -------------------------------------------------- |
+| Remove level registration               | Canonical Unit lookup refuses missing declaration  |
+| Remove required-target guard            | Missing target inventory refusal no longer occurs  |
+| Remove literal `./` selector prefix     | Nested matching throwing decoy executes            |
+| Bypass empty selection guard            | Named no-cases refusal is absent                   |
+| Remove stale report deletion            | Old XML survives empty selection                   |
+| Replace selector short circuit with `;` | Partial failed-find output executes and exits zero |
+| Remove complete-source guard            | New Unit file omitted by selector is accepted      |
+| Remove level-isolation guard            | Database test is admitted to Unit                  |
+| Remove report-identity guard            | Same-clear/write wrong report path is accepted     |
+
+Focused tests also check unknown targets, TSX exclusion, and the exact five real
+JUnit testcase names, outcomes and file identities replacing stale XML.
+Raw command logs, sampled process receipts, allocator prefix proof, mutation
+script and restoration proof live in `evidence/shared-test-levels-unit-2026-10-17/`.
+Committed target execution and noncertifying report reconciliation follow in the
+evidence commit. Task 2.1 and WBS080.39 remain open. Full h2puni gate, hosted CI,
+release acceptance, push and merge have not run; the coordinator owns integration
+and independent exact-commit review. No trusted execution, scenario citation,
+coverage, admission or certification claim follows from these checks.

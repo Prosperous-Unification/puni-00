@@ -164,3 +164,7 @@ Problem: the committed diagnostic pipeline accepts Browser reports but has no so
 ## 2.1l intent
 
 Problem: shared-failures has only unreported legacy Unit runners, so its execution cannot supply isolated Unit/JUnit observations. Outcome: add `shared-failures:test:unit:level` with complete source collection and a fresh report of its twenty cases, audited through the existing production verifier. Constraints: preserve legacy commands, literal operands, timeout, report clearing and empty/failed-selector refusal; allocate scenario identities and prove each safety boundary independently. Non-goals: new classification rules, trusted execution receipts, scenario citation credit, coverage, admission, certification and completing parent WBS080.39.
+
+## 2.1m intent
+
+Problem: shared-test-levels has only unreported legacy Unit runners, so its execution cannot supply isolated Unit/JUnit observations. Outcome: add `shared-test-levels:test:unit:level` with complete source collection and a fresh report of its five cases, audited through the existing production verifier. Constraints: preserve legacy commands, literal operands, timeout, report clearing and empty/failed-selector refusal; allocate scenario identities and prove each safety boundary independently. Non-goals: new classification rules, trusted execution receipts, scenario citation credit, coverage, admission, certification and completing parent WBS080.39.

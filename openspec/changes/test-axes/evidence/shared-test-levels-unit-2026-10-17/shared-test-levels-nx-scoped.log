@@ -1,0 +1,20 @@
+
+ NX   Running targets typecheck, build for project shared-test-levels:
+
+- shared-test-levels
+
+
+✔  nx run shared-test-levels:typecheck
+✔  nx run shared-test-levels:build
+
+
+
+ NX   Successfully ran targets typecheck, build for project shared-test-levels
+
+
+Output of 2 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      267ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     132ms (1 task)
+  Recoverable time:  126ms (47% of the run)
