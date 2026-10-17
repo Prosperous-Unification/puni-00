@@ -1,0 +1,30 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts
+   38:7   error  Unnecessary conditional, the types have no overlap  @typescript-eslint/no-unnecessary-condition
+  172:51  error  Unsafe member access .marker on an `any` value      @typescript-eslint/no-unsafe-member-access
+
+/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts
+   97:5   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+   97:11  error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  144:5   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  144:11  error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+
+/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+✖ 7 problems (7 errors, 0 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+
+{"ceilingBytes": 1468006400, "sampledPeakBytes": 1460346880, "exitCode": 1}

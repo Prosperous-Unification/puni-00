@@ -1,0 +1,21 @@
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts(61,73): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ marker: string; unmappedRoots: never[]; catalogNameDrift: never[]; ownershipConflicts: never[]; }' is not assignable to parameter of type 'OwnershipPreflight'.
+      Types of property 'marker' are incompatible.
+        Type 'string' is not assignable to type 'OrganizationActivation'.
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts(62,73): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ marker: string; unmappedRoots: never[]; catalogNameDrift: never[]; ownershipConflicts: never[]; }' is not assignable to parameter of type 'OwnershipPreflight'.
+      Types of property 'marker' are incompatible.
+        Type 'string' is not assignable to type 'OrganizationActivation'.
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts(129,73): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ marker: string; unmappedRoots: never[]; catalogNameDrift: never[]; ownershipConflicts: never[]; }' is not assignable to parameter of type 'OwnershipPreflight'.
+      Types of property 'marker' are incompatible.
+        Type 'string' is not assignable to type 'OrganizationActivation'.
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts(149,73): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ marker: string; unmappedRoots: never[]; catalogNameDrift: never[]; ownershipConflicts: never[]; }' is not assignable to parameter of type 'OwnershipPreflight'.
+      Types of property 'marker' are incompatible.
+        Type 'string' is not assignable to type 'OrganizationActivation'.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 240422912, "exitCode": 1}

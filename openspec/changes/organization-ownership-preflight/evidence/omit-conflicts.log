@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+72 |     "INSERT INTO tag (id, name) VALUES ('drift', 'Original')",
+73 |     'DROP TRIGGER tag_organization_name_bridge',
+74 |     "UPDATE tag SET name = 'Changed' WHERE id = 'drift'",
+75 |     "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)",
+76 |   );
+77 |   expect(await inspect()).toEqual({
+                               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [
+      {
+        "id": "drift",
+        "kind": "tag",
+      },
+    ],
+    "marker": "pre_activation",
+-   "ownershipConflicts": [
+-     {
+-       "id": "project:gone",
+-       "kind": "event_stream",
+-     },
+-   ],
++   "ownershipConflicts": [],
+    "unmappedRoots": [
+      {
+        "id": "unmapped",
+        "kind": "tag",
+      },
+    ],
+  }
+
+- Expected  - 6
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:77:27)
+(fail) reports all three findings together without dropping any probe [109.19ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [270.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 108023808, "exitCode": 1}

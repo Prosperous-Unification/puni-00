@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+162 |   `);
+163 |   const invocation = run([], path, preload);
+164 |   expect(invocation.stderr.toString()).toBe('');
+165 |   expect(invocation.exitCode).toBe(0);
+166 |   expect(JSON.parse(invocation.stdout.toString()).marker).toBe('pre_activation');
+167 |   expect(readFileSync(proof, 'utf8')).toBe('readonly refusal observed');
+               ^
+error: ENOENT: no such file or directory, open '/tmp/ownership-preflight-cli-Waxu5b/write-refused.txt'
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:167:10)
+(fail) the actual connection opened by the CLI refuses an injected write [266.38ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [301.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 142905344, "exitCode": 1}

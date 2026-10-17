@@ -1,0 +1,14 @@
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts 96ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts 25ms
+apps/wbs/be-01/src/organization-ownership-preflight-cli.ts 5ms (unchanged)
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts 16ms (unchanged)
+docs/runbook-organization-ownership-preflight.md 29ms (unchanged)
+openspec/changes/organization-ownership-preflight/.openspec.yaml 7ms (unchanged)
+openspec/changes/organization-ownership-preflight/design.md 5ms (unchanged)
+openspec/changes/organization-ownership-preflight/evidence/mutations.json 6ms (unchanged)
+openspec/changes/organization-ownership-preflight/evidence/typecheck.json 1ms (unchanged)
+openspec/changes/organization-ownership-preflight/proposal.md 5ms (unchanged)
+openspec/changes/organization-ownership-preflight/specs/organization-ownership-preflight/spec.md 12ms (unchanged)
+openspec/changes/organization-ownership-preflight/tasks.md 4ms (unchanged)
+openspec/changes/organization-ownership-preflight/verify.md 20ms
+{"ceilingBytes": 943718400, "sampledPeakBytes": 190582784, "exitCode": 0}

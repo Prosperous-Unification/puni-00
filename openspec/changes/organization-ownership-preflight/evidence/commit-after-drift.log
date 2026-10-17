@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+122 |         );
+123 |       }
+124 |     },
+125 |   });
+126 |   try {
+127 |     expect(await preflightOrganizationOwnership(connection.db)).toEqual(emptyReport);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [],
+    "marker": "pre_activation",
+-   "ownershipConflicts": [],
++   "ownershipConflicts": [
++     {
++       "id": "project:gone",
++       "kind": "event_stream",
++     },
++   ],
+    "unmappedRoots": [],
+  }
+
+- Expected  - 1
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:127:65)
+(fail) pins marker and every finding across a competing commit and all probes [117.13ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [282.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 108154880, "exitCode": 1}

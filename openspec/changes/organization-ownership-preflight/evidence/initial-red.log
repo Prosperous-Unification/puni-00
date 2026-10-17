@@ -1,0 +1,139 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+48 |   } finally {
+49 |     database.close();
+50 |   }
+51 |   const before = readFileSync(path);
+52 |   const invocation = run();
+53 |   expect(invocation.exitCode).toBe(0);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:53:31)
+(fail) prints complete JSON with findings and preserves database bytes [94.41ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "usage:"
+Received: "error: Module not found \"/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts\"\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:65:3)
+(fail) refuses unexpected arguments before opening the database [80.65ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "DB_PATH must be set"
+Received: "error: Module not found \"/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts\"\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:77:3)
+(fail) refuses absent and empty DB_PATH from a clean cwd [75.37ms]
+(pass) refuses a missing database without creating it [80.38ms]
+(pass) refuses a permission-unreadable database without stdout [75.35ms]
+(pass) refuses invalid SQLite separately from file permission failure [76.19ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "marker is absent"
+Received: "error: Module not found \"/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts\"\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:115:5)
+(fail) refuses absent marker with no stdout [78.83ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "marker is unreadable"
+Received: "error: Module not found \"/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts\"\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:115:5)
+(fail) refuses unreadable marker with no stdout [86.71ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "marker is malformed"
+Received: "error: Module not found \"/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts\"\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:115:5)
+(fail) refuses malformed marker with no stdout [74.92ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "tag_organization"
+Received: "error: Module not found \"/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts\"\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:126:3)
+(fail) refuses unavailable ownership query state despite a valid marker [78.62ms]
+150 |       writeFileSync(${JSON.stringify(proof)}, 'readonly refusal observed');
+151 |       return connection;
+152 |     });
+153 |   `);
+154 |   const invocation = run([], path, preload);
+155 |   expect(invocation.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:155:31)
+(fail) the actual connection opened by the CLI refuses an injected write [71.94ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+
+# Unhandled error between tests
+-------------------------------
+error: Cannot find module './organization-ownership-preflight' from '/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts'
+-------------------------------
+
+
+ 3 pass
+ 9 fail
+ 1 error
+ 36 expect() calls
+Ran 12 tests across 2 files. [917.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 82173952, "exitCode": 1}
