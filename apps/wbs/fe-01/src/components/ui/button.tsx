@@ -38,12 +38,12 @@ const PRESSED =
  * dependency added for a component nothing renders is one nobody maintains.
  * `size="square"` is what those icon buttons take.
  *
- * **`border-0 bg-transparent` in the base is the one addition**, and it is here
- * rather than in `styles.css`'s reset on purpose. The registry assumes preflight
- * has already stripped every `<button>` in the document; this app's reset
- * deliberately has not, because a global `button { background: none; border: 0 }`
- * would flatten every chrome button no swap has reached yet into bare text. So
- * the neutralising happens per component. Watched: without it the `link`
+ * **`border-0 bg-transparent` in the base is the one addition.** The registry
+ * assumes preflight has already stripped every `<button>` in the document; this
+ * app's reset did not for a long time, so the neutralising happened per
+ * component. `styles.css`'s reset now clears a bare `<button>`'s fill and frame
+ * as well (UI review F-153), and this stays because `buttonVariants` also
+ * dresses an `<a>`, which no button reset reaches. Watched: without it the `link`
  * variant's "Have an account? Register" rendered inside the platform's grey
  * button box, on the signed-out page, 2026-08-09. `tailwind-merge` is what lets
  * the `outline` variant put its 1px border straight back — which is why every

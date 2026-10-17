@@ -135,15 +135,16 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
   /*
-   * The edge of an `outline` button: the slate of `--muted-foreground` a few
-   * steps lighter, so the boundary that is the control's only cue clears 3:1
-   * on the page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
-   * `--accent`; WCAG 1.4.11). `--input` stays the hairline a text box draws:
-   * as a button's edge it measured 1.22:1 light and 1.28:1 dark against the
-   * sign-in card (UI review F-124).
+   * The edge of every control box — an `outline` button, a text box, a select,
+   * a disclosure's summary: the slate of `--muted-foreground` a few steps
+   * lighter, so the boundary that is the control's only cue clears 3:1 on the
+   * page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
+   * `--accent`; WCAG 1.4.11). It replaced `--input`, the 1.2:1 hairline text
+   * boxes and summaries kept after buttons moved off it, so one toolbar row
+   * drew two edge weights (UI review F-124, then F-152 and F-137). A surface's
+   * edge — a card, a popover, a divider — is `--border`.
    *
    * Proof: with the `outline` variant back on `border-input`,
    * `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed on
@@ -228,7 +229,6 @@
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.551 0.027 264.364);
   /* 4.17:1 on the card, 4.71:1 on the page, 3.43:1 on the hover fill. */
   --control-edge: oklch(0.58 0.03 257);
@@ -418,7 +418,6 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
-  --color-input: var(--input);
   --color-control-edge: var(--control-edge);
   --color-ring: var(--ring);
 
@@ -440,12 +439,12 @@
  * heading and paragraph margins because the chrome now spaces itself with
  * `gap-*` and a user-agent `0.67em` on an `h1` fights it.
  *
- * What is deliberately NOT in it: preflight's `border-width: 0` on everything.
- * Tailwind v4 emits `border-style` and `border-width` together in the `border`
- * utility, so the preflight line that makes `border` work is redundant here —
- * and it is the line most likely to erase a border somebody drew with a `style`
- * prop. Author styles outrank the user agent's whatever the layer, so a
- * vendored `<Button>` needs it least of all.
+ * What is deliberately NOT in it: preflight's `border-width: 0` on
+ * *everything*. Tailwind v4 emits `border-style` and `border-width` together in
+ * the `border` utility, so the preflight line that makes `border` work is
+ * redundant here. Only the two elements the platform frames and the chrome
+ * uses bare — `button` and `fieldset` — are zeroed, and every border's default
+ * colour is a token rather than `currentColor` (UI review F-153, F-154).
  *
  * **Preflight's `background-color: transparent` on buttons IS in it now, and
  * was not.** The reason it was left out — that it would strip every chrome
@@ -563,6 +562,56 @@
    */
   button:not([data-grid], [data-grid] *) {
     background-color: transparent;
+  }
+
+  /*
+   * The colour a border takes when its utility names none. Without preflight
+   * it started at `currentColor`, so a bare `border` drew a card, a popover, a
+   * dialog or a divider in the text's own ink — near white on the dark page —
+   * beside the cards that asked for `border-border` (UI review F-154). The
+   * default is the surface edge, `--border`; a control box names
+   * `border-control-edge` (F-152), and a colour utility wins, the utilities
+   * layer being last.
+   *
+   * Proof: this rule deleted, `draws no platform bevel and no ink-coloured
+   * frame` in `e2e/chrome-frames.spec.ts` failed on the home card,
+   * `section[data-no-project-open] · Top edge in its ink`, in both palettes.
+   */
+  *:not([data-grid], [data-grid] *),
+  :not([data-grid], [data-grid] *)::before,
+  :not([data-grid], [data-grid] *)::after {
+    border-color: var(--border);
+  }
+
+  /*
+   * The frames the platform draws on a bare element, which `font`, `color` and
+   * `background` above never reached: a 2px outset bevel on every `<button>`
+   * with no `border` utility (the Gantt's row labels, a modal's ✕, the settings
+   * tabs of F-117) and a 2px groove with its indent round a `<fieldset>` (UI
+   * review F-153). Zero here, so an element draws only the border it asks for;
+   * the `border` utility still puts 1px back, in the colour above. Not text
+   * boxes or selects: zeroed, a bare one would vanish; the sweep in
+   * `chrome-frames.spec.ts` refuses a bare one's `inset` frame instead, so every
+   * field names its own `border border-control-edge`.
+   *
+   * Proof: this rule deleted, `draws no platform bevel and no ink-coloured
+   * frame` failed on `button[data-gantt-label] · 2px outset`, the settings ✕
+   * and `fieldset · 2px groove` (Steps, Estimating, Optimization).
+   */
+  button:not([data-grid], [data-grid] *),
+  fieldset:not([data-grid], [data-grid] *) {
+    border-width: 0;
+    border-style: solid;
+  }
+
+  fieldset:not([data-grid], [data-grid] *) {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  legend:not([data-grid], [data-grid] *) {
+    padding: 0;
   }
 
   /*
@@ -1749,7 +1798,7 @@
    */
   input[role='combobox']:not([data-grid] *) {
     background-color: var(--background);
-    border: 1px solid var(--input);
+    border: 1px solid var(--control-edge);
     border-radius: var(--radius-md);
     padding-inline: 8px;
   }
@@ -2066,6 +2115,34 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
   text-align: left;
+}
+
+/*
+ * A glyph column on every row, empty where the control has no glyph, so every
+ * label starts at one x: `Gantt` and `Columns` started 22px left of `Collapse
+ * all` and `↶ Undo` (UI review F-161). The column is the icons' own `1em` and
+ * the row's 8px gap; a row that leads with a glyph spends it on the glyph.
+ *
+ * Proof: these rules deleted, `starts every Plan actions label at one x, glyph
+ * or not (F-161)` in `e2e/mobile.spec.ts` failed on `Collapse all starts
+ * elsewhere · Expected: <= 1 · Received: 22`.
+ */
+[data-sheet-rows] > button,
+[data-sheet-rows] > span > button,
+[data-sheet-rows] > details > summary {
+  padding-inline-start: calc(12px + 1em + 8px);
+}
+
+[data-sheet-rows] > button:has(> :is(svg, [data-glyph]):first-child),
+[data-sheet-rows] > span > button:has(> :is(svg, [data-glyph]):first-child) {
+  padding-inline-start: 12px;
+}
+
+[data-sheet-rows] > button > :is(svg, [data-glyph]):first-child,
+[data-sheet-rows] > span > button > :is(svg, [data-glyph]):first-child {
+  flex: 0 0 1em;
+  width: 1em;
+  text-align: center;
 }
 
 [data-sheet-rows] > input {

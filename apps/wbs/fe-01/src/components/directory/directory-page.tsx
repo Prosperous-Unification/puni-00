@@ -476,7 +476,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                           into every plan, exactly as their teams do.
                         */}
                         <select
-                          className="border-input bg-background h-11 shrink-0 rounded-md border px-2 text-sm"
+                          className="border-control-edge bg-background h-11 shrink-0 rounded-md border px-2 text-sm"
                           aria-label={`Kind of ${person.name}`}
                           value={person.kind}
                           disabled={busy}
@@ -518,7 +518,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                               else chipNodes.current.set(key, node);
                             }}
                             aria-label={`Remove ${team.name} from ${person.name}`}
-                            className="border-input bg-background hover:bg-accent inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border px-3 text-sm"
+                            className="border-control-edge bg-background hover:bg-accent inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border px-3 text-sm"
                             disabled={busy}
                             onClick={() => {
                               removeMembership(person, team.id);
@@ -677,7 +677,7 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                             key={service.id}
                             type="button"
                             aria-label={`${team.name} no longer owns ${service.name}`}
-                            className="border-input bg-background hover:bg-accent inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border px-3 text-sm"
+                            className="border-control-edge bg-background hover:bg-accent inline-flex min-h-11 min-w-11 shrink-0 items-center gap-1 rounded-full border px-3 text-sm"
                             disabled={busy}
                             onClick={() => {
                               setOwnedServices(

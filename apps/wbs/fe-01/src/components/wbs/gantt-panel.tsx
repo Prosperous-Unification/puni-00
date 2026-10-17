@@ -24,7 +24,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type {
   CalendarMarkerView,
@@ -598,10 +598,9 @@ const chartChip = (extra?: string): string =>
     // `py-0` is load-bearing. `tailwind-merge` resolves a conflict, and
     // `size: 'default'`'s `py-2` conflicts with nothing here — so it survived,
     // put 8px above and below a 10px word, and the chips measured 18px against
-    // the scale `<select>`'s 16px. `border-border` for the same reason in the
-    // other direction: `variant: 'outline'` brings `border-input`, and this
-    // bar's border is `border-border`.
-    'h-4 rounded border-border px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
+    // the scale `<select>`'s 16px. The edge is the `outline` variant's own
+    // `--control-edge`, as every control box's is (UI review F-152).
+    'h-4 rounded px-1.5 py-0 text-[10px] leading-none font-semibold tracking-wide normal-case',
     'focus-visible:ring-1 focus-visible:ring-offset-1',
     extra,
   );
@@ -6867,7 +6866,7 @@ export function GanttRenderer({
                     // reason: a test reading only the text is reading the
                     // formatter as much as the arithmetic.
                     data-marker-hidden={hidden}
-                    className="border-border bg-background text-muted-foreground focus-visible:ring-ring pointer-events-auto absolute bottom-0 z-10 block rounded-sm border px-0.5 text-[9px] leading-3 focus-visible:ring-2 focus-visible:outline-none"
+                    className="border-control-edge bg-background text-muted-foreground focus-visible:ring-ring pointer-events-auto absolute bottom-0 z-10 block rounded-sm border px-0.5 text-[9px] leading-3 focus-visible:ring-2 focus-visible:outline-none"
                     style={{ left: offset * dayPx + dayPx, transform: 'translateX(-100%)' }}
                     aria-haspopup="dialog"
                     aria-expanded={openMarkers?.offset === offset}
@@ -7121,14 +7120,16 @@ export function GanttRenderer({
         {collision !== null && (
           <HoverCard label="Choose a mark" anchor={collision.anchor} takesPointer>
             <div ref={chooserRef} data-gantt-collision-list>
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 type="button"
                 onClick={() => {
                   setCollision(null);
                 }}
               >
                 Close mark list
-              </button>
+              </Button>
               {collision.markIds.map((markId) => {
                 const attempt = projection.marks.find(
                   (mark) => identifyAttemptMark(mark) === markId,
@@ -7324,7 +7325,7 @@ export function GanttRenderer({
                 onChange={(edit) => {
                   setComposerName(edit.target.value);
                 }}
-                className="border-border w-48 rounded border px-2 py-1 text-xs"
+                className="border-control-edge w-48 rounded border px-2 py-1 text-xs"
               />
               {/*
                 The reader's own fill, and the third call site
@@ -7350,7 +7351,7 @@ export function GanttRenderer({
                   setComposerColor(edit.target.value);
                   setComposerRefusal(null);
                 }}
-                className="border-border h-6 w-8 shrink-0 rounded border"
+                className="border-control-edge h-6 w-8 shrink-0 rounded border"
               />
             </div>
             {/*
@@ -7460,9 +7461,12 @@ export function GanttRenderer({
                         onChange={(event) => {
                           setDraftName(event.target.value);
                         }}
-                        className="border-border grow rounded border px-1 py-0.5 text-xs"
+                        className="border-control-edge grow rounded border px-1 py-0.5 text-xs"
                       />
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="square"
+                        className="size-6 text-xs"
                         type="button"
                         aria-label={`Save the new name for ${marker.name}`}
                         // The write is a **report**, and the list this row is
@@ -7476,12 +7480,15 @@ export function GanttRenderer({
                         }}
                       >
                         ✓
-                      </button>
+                      </Button>
                     </>
                   ) : (
                     <>
                       <span className="grow truncate">{marker.name}</span>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="square"
+                        className="size-6 text-xs"
                         type="button"
                         aria-label={`Rename ${marker.name}`}
                         // Seeded with the name it is replacing: renaming is
@@ -7494,10 +7501,13 @@ export function GanttRenderer({
                         }}
                       >
                         ✎
-                      </button>
+                      </Button>
                     </>
                   )}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="square"
+                    className="size-6 text-xs"
                     type="button"
                     aria-label={`Recolour ${marker.name}`}
                     aria-expanded={recoloringId === marker.id}
@@ -7506,8 +7516,11 @@ export function GanttRenderer({
                     }}
                   >
                     ◑
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="square"
+                    className="size-6 text-xs"
                     type="button"
                     aria-label={`Delete ${marker.name}`}
                     onClick={() => {
@@ -7515,7 +7528,7 @@ export function GanttRenderer({
                     }}
                   >
                     ✕
-                  </button>
+                  </Button>
                   {recoloringId === marker.id && (
                     <ul
                       data-marker-palette={marker.id}
@@ -7530,7 +7543,7 @@ export function GanttRenderer({
                             // reader announces identically — the same rule the
                             // three actions above follow.
                             aria-label={`${entry.name} for ${marker.name}`}
-                            className="border-border size-4 rounded-sm border"
+                            className="border-control-edge size-4 rounded-sm border"
                             style={{ backgroundColor: entry.fill }}
                             onClick={() => {
                               onRecolorMarker(marker.id, entry.fill);
@@ -7730,7 +7743,7 @@ export function GanttRenderer({
           // chevron this corner has no room to redraw. So the four classes the
           // bar is made of are stated here instead, and the height is the same
           // `h-4` the chips take.
-          className="border-border hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
+          className="border-control-edge hover:bg-accent focus-visible:ring-ring focus-visible:ring-offset-background h-4 rounded border bg-transparent px-1 text-[10px] leading-none font-semibold tracking-wide normal-case transition-colors focus-visible:ring-1 focus-visible:ring-offset-1 focus-visible:outline-none"
           value={dayPx}
           onChange={(pick) => {
             const asked = Number(pick.currentTarget.value);

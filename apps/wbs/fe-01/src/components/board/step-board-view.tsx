@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
+import { Button } from '@/components/ui/button';
 import type { ProjectRuntime } from '@/modules/project/contract';
 
 import { refusalSentence } from '../wbs/plan-refusal';
@@ -62,9 +63,9 @@ export function StepBoardView({
           a failed read and shows disconnection` (retained Build lacked an explicit stale warning). */}
           {tree !== null && 'Showing the last delivered board; it may be out of date. '}
           {failureText}{' '}
-          <button type="button" onClick={retry}>
+          <Button variant="outline" size="sm" type="button" onClick={retry}>
             Retry
-          </button>
+          </Button>
         </p>
       )}
       {/* Proof: suppressing this warning failed `keeps last delivered cards visibly stale
@@ -102,9 +103,9 @@ export function StepBoardView({
           ))}
         </div>
       )}
-      <button type="button" onClick={onReturnToPlan}>
+      <Button variant="outline" size="sm" type="button" onClick={onReturnToPlan}>
         Return to Plan
-      </button>
+      </Button>
     </section>
   );
 }

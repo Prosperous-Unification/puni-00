@@ -90,6 +90,10 @@ function ProjectViews({
     movesFocus.current = next !== view;
     onSelect(project, next);
   };
+  // On a phone the pair shares a row with `Plan actions`, a default-size
+  // button, so it takes that button's 14px words rather than `sm`'s 12px: one
+  // row, one type size (ui-review F-160).
+  const phoneSelector = isDesktop ? undefined : 'min-h-11 text-sm';
   const viewControls = (
     // `outline` so the view that is not shown is plain and the shown one wears the
     // button's pressed fill (ui-review F-116): two filled buttons said nothing.
@@ -100,7 +104,7 @@ function ProjectViews({
         }}
         variant="outline"
         size="sm"
-        className={isDesktop ? undefined : 'min-h-11'}
+        className={phoneSelector}
         type="button"
         data-project-view-selector
         aria-pressed={view === 'plan'}
@@ -119,7 +123,7 @@ function ProjectViews({
         }}
         variant="outline"
         size="sm"
-        className={isDesktop ? undefined : 'min-h-11'}
+        className={phoneSelector}
         type="button"
         data-project-view-selector
         aria-pressed={view === 'board'}
@@ -567,8 +571,8 @@ function SavedPlanShelf({
       <summary
         className={
           inSheet
-            ? 'border-input flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm select-none'
-            : 'border-input h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none'
+            ? 'border-control-edge flex min-h-11 cursor-pointer items-center rounded-md border px-3 text-sm select-none'
+            : 'border-control-edge h-8 cursor-pointer rounded-md border px-2 py-1 text-xs select-none'
         }
         data-hint="The plans saved for this project, and what changed since one of them"
       >

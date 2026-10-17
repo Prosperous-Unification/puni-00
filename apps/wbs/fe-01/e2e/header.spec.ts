@@ -335,6 +335,46 @@ function ratioOf(one: [number, number, number], two: [number, number, number]): 
   return (brighter + 0.05) / (dimmer + 0.05);
 }
 
+/**
+ * The strongest contrast a control's foot — its bottom 3 px at its middle —
+ * paints against the ground 2 px below it: where a tab's current-page bar is
+ * drawn. Pixels through a canvas, `control-edge.ts`' method, because the bar is
+ * a box shadow no computed colour reports.
+ */
+async function paintedFoot(page: Page, control: Locator): Promise<number> {
+  const box = await control.boundingBox();
+  if (box === null) throw new Error('the control has no box to measure');
+  const clip = {
+    x: Math.round(box.x + box.width / 2),
+    y: Math.round(box.y + box.height) - 3,
+    width: 1,
+    height: 6,
+  };
+  const shot = await page.screenshot({ clip, scale: 'css' });
+  const rows = await page.evaluate(async (png) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${png}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (context === null) throw new Error('no 2d canvas in this browser');
+    context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, image.width, image.height);
+    const out: [number, number, number][] = [];
+    for (let y = 0; y < image.height; y += 1)
+      out.push([
+        data[y * image.width * 4],
+        data[y * image.width * 4 + 1],
+        data[y * image.width * 4 + 2],
+      ]);
+    return out;
+  }, shot.toString('base64'));
+  const ground = rows[rows.length - 1];
+  return Math.max(...rows.slice(0, 3).map((row) => ratioOf(row, ground)));
+}
+
 /** How far the pressed control's face stands off its unpressed neighbour's. */
 async function fillContrast(pressed: Locator, plain: Locator): Promise<number> {
   return ratioOf(await paintedFill(pressed), await paintedFill(plain));
@@ -608,6 +648,48 @@ test.describe('the header bar, read by eye and measured', () => {
     // 101` — a second row holding only the account menu.
     expect(height, 'the Directory header kept a second row').toBeLessThanOrEqual(56);
   });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`marks the page that is showing and underlines no page link, in ${scheme} (F-155)`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      const nav = page.getByRole('navigation', { name: 'Pages' });
+      for (const [path, current, other] of [
+        ['/', 'Plan', 'Directory'],
+        ['/directory', 'Directory', 'Plan'],
+        ['/spaces', 'Spaces', 'Directory'],
+      ] as const) {
+        await page.goto(path);
+        const marked = nav.getByRole('link', { name: current, exact: true });
+        await expect(marked).toHaveAttribute('aria-current', 'page');
+        await page.mouse.move(2, 400);
+        // Polled: the palette flip interpolates its colours (`dark-mode.spec.ts`' settle).
+        // Proof: before this change, `Plan is not marked · Expected: >= 3 · Received: 1`
+        // on every page in both palettes — `bg-transparent` in `buttonVariants`
+        // outranked the `activeProps` accent, and the accent itself is 1.07:1 on
+        // white (watched 2026-10-17).
+        await expect
+          .poll(() => paintedFoot(page, marked), { message: `${current} is not marked` })
+          .toBeGreaterThanOrEqual(3);
+        expect(
+          await paintedFoot(page, nav.getByRole('link', { name: other, exact: true })),
+          `${other} is marked too`,
+        ).toBeLessThan(1.5);
+        const underlined = await nav
+          .getByRole('link')
+          .evaluateAll((links) =>
+            links
+              .filter((link) => getComputedStyle(link).textDecorationLine !== 'none')
+              .map((link) => link.textContent),
+          );
+        // Proof: with `no-underline` taken off the links, `page links keep the link
+        // underline` failed on `Received: ["Plan", "Directory", "Spaces"]` in both
+        // palettes (watched 2026-10-17).
+        expect(underlined, 'page links keep the link underline').toEqual([]);
+      }
+    });
+  }
 
   test('draws the account menu in one control style (F-017)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });

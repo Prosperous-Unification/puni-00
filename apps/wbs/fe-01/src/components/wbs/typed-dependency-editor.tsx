@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
+import { SELECT_CLASS } from '@/components/ui/control';
 import type {
   PlanRead,
   StepView,
@@ -266,20 +268,23 @@ export function TypedDependencyEditor({
       aria-label="Customize dependency"
       className="typed-dependency-editor"
     >
-      <button
+      <Button
+        variant="outline"
+        size="sm"
         ref={backButton}
         type="button"
         onClick={onCancel}
         aria-label="Back to dependency picker"
       >
         ← Dependencies
-      </button>
+      </Button>
       <p>
         {predecessor.number} · {predecessor.name} → {successor.number} · {successor.name}
       </p>
       <label>
         Predecessor
         <select
+          className={`${SELECT_CLASS} w-full`}
           value={predecessorKey}
           onChange={(event) => {
             setPredecessorKey(event.target.value);
@@ -301,6 +306,7 @@ export function TypedDependencyEditor({
       <label>
         This work item
         <select
+          className={`${SELECT_CLASS} w-full`}
           value={successorKey}
           onChange={(event) => {
             setSuccessorKey(event.target.value);
@@ -316,6 +322,7 @@ export function TypedDependencyEditor({
       <label>
         Relationship
         <select
+          className={`${SELECT_CLASS} w-full`}
           value={relationshipType}
           onChange={(event) => {
             setRelationshipType(dependencyTypeOf(event.target.value));
@@ -335,7 +342,9 @@ export function TypedDependencyEditor({
       {message !== '' && <p role="alert">{message}</p>}
       <div className="typed-dependency-actions">
         {dependency !== undefined && onRemove !== undefined && (
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             disabled={busy}
             onClick={() => {
@@ -349,18 +358,19 @@ export function TypedDependencyEditor({
             }}
           >
             Remove
-          </button>
+          </Button>
         )}
-        <button type="button" onClick={onCancel}>
+        <Button variant="outline" size="sm" type="button" onClick={onCancel}>
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
+          size="sm"
           type="button"
           disabled={busy || chosenPredecessor === undefined || chosenSuccessor === undefined}
           onClick={() => void save()}
         >
           {dependency === undefined ? 'Add' : 'Save'}
-        </button>
+        </Button>
       </div>
     </div>
   );

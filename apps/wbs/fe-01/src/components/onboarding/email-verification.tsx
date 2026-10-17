@@ -1,6 +1,7 @@
 import { type ClientReply, confirmEmailChallenge, createEmailChallenge } from '@wbs/contracts';
 import { useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 import { Auth0Link } from './auth0-link';
@@ -106,7 +107,7 @@ export function EmailVerification({
           <label htmlFor="verification-address">Email address</label>
           <input
             id="verification-address"
-            className="border p-2"
+            className="border-control-edge bg-background rounded-md border p-2"
             type="email"
             value={address}
             onChange={(event) => {
@@ -115,9 +116,9 @@ export function EmailVerification({
             required
             maxLength={254}
           />
-          <button type="submit" disabled={sending}>
+          <Button size="sm" type="submit" disabled={sending}>
             Send code
-          </button>
+          </Button>
         </form>
       ) : (
         <form onSubmit={(event) => void confirmCode(event, step.email)}>
@@ -134,7 +135,7 @@ export function EmailVerification({
           <label htmlFor="verification-code">Code from the email</label>
           <input
             id="verification-code"
-            className="border p-2"
+            className="border-control-edge bg-background rounded-md border p-2"
             value={code}
             onChange={(event) => {
               setCode(event.target.value);
@@ -142,10 +143,12 @@ export function EmailVerification({
             required
             autoComplete="one-time-code"
           />
-          <button type="submit" disabled={sending}>
+          <Button size="sm" type="submit" disabled={sending}>
             Verify email
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             disabled={sending}
             onClick={() => {
@@ -154,7 +157,7 @@ export function EmailVerification({
             }}
           >
             Use a different address
-          </button>
+          </Button>
         </form>
       )}
       {message !== '' && <p role="alert">{message}</p>}
