@@ -1,0 +1,45 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+73 | 		logger.logQuery(sql, params);
+74 | 		if (resultKind === "sync") try {
+75 | 			return executors.run(params);
+76 | 		} catch (e) {
+77 | 			throw new DrizzleQueryError(sql, params, e);
+              ^
+DrizzleQueryError: Failed query: BEGIN DEFERRED
+params:
+  query: "BEGIN DEFERRED",
+ params: [],
+
+      at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:10)
+      at begin (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/db.ts:297:10)
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:31:12)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:146:18)
+
+70 | 		const { query, logger, executors, fastPath, resultKind } = this;
+71 | 		const sql = query._sql ? query._sql.join(" ") : query.sql;
+72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+73 | 		logger.logQuery(sql, params);
+74 | 		if (resultKind === "sync") try {
+75 | 			return executors.run(params);
+                         ^
+SQLiteError: cannot start a transaction within a transaction
+      errno: 1,
+ byteOffset: -1,
+       code: "SQLITE_ERROR"
+
+      at #runNoArgs (bun:sqlite:140:25)
+      at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)
+      at begin (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/db.ts:297:10)
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:31:12)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:146:18)
+(fail) throws on unavailable query state and rolls back before reuse [118.64ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [285.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 108273664, "exitCode": 1}

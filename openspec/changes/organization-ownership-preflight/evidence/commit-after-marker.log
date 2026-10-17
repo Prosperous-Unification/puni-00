@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+122 |         );
+123 |       }
+124 |     },
+125 |   });
+126 |   try {
+127 |     expect(await preflightOrganizationOwnership(connection.db)).toEqual(emptyReport);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "catalogNameDrift": [],
++   "catalogNameDrift": [
++     {
++       "id": "drift",
++       "kind": "tag",
++     },
++   ],
+    "marker": "pre_activation",
+-   "ownershipConflicts": [],
+-   "unmappedRoots": [],
++   "ownershipConflicts": [
++     {
++       "id": "project:gone",
++       "kind": "event_stream",
++     },
++   ],
++   "unmappedRoots": [
++     {
++       "id": "later",
++       "kind": "tag",
++     },
++   ],
+  }
+
+- Expected  - 3
++ Received  + 18
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:127:65)
+(fail) pins marker and every finding across a competing commit and all probes [112.41ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [273.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 107184128, "exitCode": 1}

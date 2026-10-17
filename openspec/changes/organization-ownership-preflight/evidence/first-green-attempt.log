@@ -1,0 +1,311 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+50 |   }
+51 |   const before = readFileSync(path);
+52 |   const invocation = run();
+53 |   expect(invocation.exitCode).toBe(0);
+54 |   expect(invocation.stderr.toString()).toBe('');
+55 |   expect(JSON.parse(invocation.stdout.toString())).toEqual({
+                                                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [],
+    "marker": "pre_activation",
+    "ownershipConflicts": [],
+    "unmappedRoots": [
+      {
+        "id": "unmapped",
+        "kind": "tag",
+      },
++     {
++       "id": "sys-confluence-page",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-pr",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-jira-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-slack-message",
++       "kind": "external_system",
++     },
+    ],
+  }
+
+- Expected  - 0
++ Received  + 20
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:55:52)
+(fail) prints complete JSON with findings and preserves database bytes [272.89ms]
+(pass) refuses unexpected arguments before opening the database [245.62ms]
+(pass) refuses absent and empty DB_PATH from a clean cwd [405.72ms]
+(pass) refuses a missing database without creating it [245.76ms]
+(pass) refuses a permission-unreadable database without stdout [251.35ms]
+(pass) refuses invalid SQLite separately from file permission failure [250.01ms]
+(pass) refuses absent marker with no stdout [248.05ms]
+(pass) refuses unreadable marker with no stdout [266.91ms]
+(pass) refuses malformed marker with no stdout [247.45ms]
+(pass) refuses unavailable ownership query state despite a valid marker [259.62ms]
+150 |       writeFileSync(${JSON.stringify(proof)}, 'readonly refusal observed');
+151 |       return connection;
+152 |     });
+153 |   `);
+154 |   const invocation = run([], path, preload);
+155 |   expect(invocation.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:155:31)
+(fail) the actual connection opened by the CLI refuses an injected write [253.95ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+49 | };
+50 |
+51 | test('reports only marker and three empty finding arrays and permits connection reuse', async () => {
+52 |   const connection = openReadOnlyConnection(path);
+53 |   try {
+54 |     expect(await preflightOrganizationOwnership(connection.db)).toEqual(emptyReport);
+                                                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [],
+    "marker": "pre_activation",
+    "ownershipConflicts": [],
+-   "unmappedRoots": [],
++   "unmappedRoots": [
++     {
++       "id": "sys-confluence-page",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-pr",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-jira-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-slack-message",
++       "kind": "external_system",
++     },
++   ],
+  }
+
+- Expected  - 1
++ Received  + 22
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:54:65)
+(fail) reports only marker and three empty finding arrays and permits connection reuse [88.03ms]
+65 |     "INSERT INTO tag (id, name) VALUES ('drift', 'Original')",
+66 |     'DROP TRIGGER tag_organization_name_bridge',
+67 |     "UPDATE tag SET name = 'Changed' WHERE id = 'drift'",
+68 |     "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)",
+69 |   );
+70 |   expect(await inspect()).toEqual({
+                               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [
+      {
+        "id": "drift",
+        "kind": "tag",
+      },
+    ],
+    "marker": "pre_activation",
+    "ownershipConflicts": [
+      {
+        "id": "project:gone",
+        "kind": "event_stream",
+      },
+    ],
+    "unmappedRoots": [
+      {
+        "id": "unmapped",
+        "kind": "tag",
+      },
++     {
++       "id": "sys-confluence-page",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-pr",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-jira-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-slack-message",
++       "kind": "external_system",
++     },
+    ],
+  }
+
+- Expected  - 0
++ Received  + 20
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:70:27)
+(fail) reports all three findings together without dropping any probe [75.29ms]
+75 |   });
+76 | });
+77 |
+78 | test('reports activated state explicitly without a readiness verdict', async () => {
+79 |   write("UPDATE organization_activation SET state = 'activated', activated_at = 5");
+80 |   expect(await inspect()).toEqual({ ...emptyReport, marker: 'activated' });
+                               ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [],
+    "marker": "activated",
+    "ownershipConflicts": [],
+-   "unmappedRoots": [],
++   "unmappedRoots": [
++     {
++       "id": "sys-confluence-page",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-pr",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-jira-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-slack-message",
++       "kind": "external_system",
++     },
++   ],
+  }
+
+- Expected  - 1
++ Received  + 22
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:80:27)
+(fail) reports activated state explicitly without a readiness verdict [71.86ms]
+(pass) refuses absent marker rather than returning findings [72.40ms]
+(pass) refuses unreadable marker rather than returning findings [78.01ms]
+(pass) refuses malformed marker rather than returning findings [71.46ms]
+115 |         );
+116 |       }
+117 |     },
+118 |   });
+119 |   try {
+120 |     expect(await preflightOrganizationOwnership(connection.db)).toEqual(emptyReport);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [],
+    "marker": "pre_activation",
+    "ownershipConflicts": [],
+-   "unmappedRoots": [],
++   "unmappedRoots": [
++     {
++       "id": "sys-confluence-page",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-pr",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-jira-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-slack-message",
++       "kind": "external_system",
++     },
++   ],
+  }
+
+- Expected  - 1
++ Received  + 22
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:120:65)
+(fail) pins marker and every finding across a competing commit and all probes [72.18ms]
+134 |   const connection = openReadOnlyConnection(path);
+135 |   write('ALTER TABLE tag_organization RENAME TO hidden_tag_organization');
+136 |   try {
+137 |     await expect(preflightOrganizationOwnership(connection.db)).rejects.toThrow();
+138 |     write('ALTER TABLE hidden_tag_organization RENAME TO tag_organization');
+139 |     expect(await preflightOrganizationOwnership(connection.db)).toEqual(emptyReport);
+                                                                      ^
+error: expect(received).toEqual(expected)
+
+  {
+    "catalogNameDrift": [],
+    "marker": "pre_activation",
+    "ownershipConflicts": [],
+-   "unmappedRoots": [],
++   "unmappedRoots": [
++     {
++       "id": "sys-confluence-page",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-github-pr",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-jira-issue",
++       "kind": "external_system",
++     },
++     {
++       "id": "sys-slack-message",
++       "kind": "external_system",
++     },
++   ],
+  }
+
+- Expected  - 1
++ Received  + 22
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:139:65)
+(fail) throws on unavailable query state and rolls back before reuse [90.33ms]
+
+ 12 pass
+ 7 fail
+ 51 expect() calls
+Ran 19 tests across 2 files. [3.74s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 158855168, "exitCode": 1}

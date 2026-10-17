@@ -1,0 +1,11 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": { "noEmit": true },
+  "files": [
+    "../../../../libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts",
+    "../../../../libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+    "../../../../apps/wbs/be-01/src/organization-ownership-preflight-cli.ts",
+    "../../../../apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts"
+  ],
+  "include": []
+}

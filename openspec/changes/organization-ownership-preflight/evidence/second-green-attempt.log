@@ -1,0 +1,80 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+(pass) prints complete JSON with findings and preserves database bytes [269.61ms]
+(pass) refuses unexpected arguments before opening the database [255.67ms]
+(pass) refuses absent and empty DB_PATH from a clean cwd [392.98ms]
+(pass) refuses a missing database without creating it [249.17ms]
+(pass) refuses a permission-unreadable database without stdout [245.82ms]
+(pass) refuses invalid SQLite separately from file permission failure [251.11ms]
+(pass) refuses absent marker with no stdout [253.53ms]
+(pass) refuses unreadable marker with no stdout [263.48ms]
+(pass) refuses malformed marker with no stdout [253.93ms]
+(pass) refuses unavailable ownership query state despite a valid marker [267.52ms]
+157 |       writeFileSync(${JSON.stringify(proof)}, 'readonly refusal observed');
+158 |       return connection;
+159 |     });
+160 |   `);
+161 |   const invocation = run([], path, preload);
+162 |   expect(invocation.stderr.toString()).toBe('');
+                                             ^
+error: expect(received).toBe(expected)
+
+- ""
++ "72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
++ 73 | 		logger.logQuery(sql, params);
++ 74 | 		if (resultKind === "sync") try {
++ 75 | 			return executors.run(params);
++ 76 | 		} catch (e) {
++ 77 | 			throw new DrizzleQueryError(sql, params, e);
++               ^
++ DrizzleQueryError: Failed query: UPDATE organization_activation SET state = state
++ params:
++   query: "UPDATE organization_activation SET state = state",
++  params: [],
++
++       at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:77:10)
++       at <anonymous> (/tmp/ownership-preflight-cli-V37WpW/check-readonly.ts:10:23)
++       at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:10:20
++
++ 70 | 		const { query, logger, executors, fastPath, resultKind } = this;
++ 71 | 		const sql = query._sql ? query._sql.join(" ") : query.sql;
++ 72 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
++ 73 | 		logger.logQuery(sql, params);
++ 74 | 		if (resultKind === "sync") try {
++ 75 | 			return executors.run(params);
++                          ^
++ SQLiteError: attempt to write a readonly database
++       errno: 8,
++  byteOffset: -1,
++        code: "SQLITE_READONLY"
++
++       at #runNoArgs (bun:sqlite:140:25)
++       at run (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:75:21)
++       at <anonymous> (/tmp/ownership-preflight-cli-V37WpW/check-readonly.ts:10:23)
++       at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:10:20
++
++ Bun v1.4.2 (Linux x64)
++ "
+
+- Expected  - 1
++ Received  + 35
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:162:40)
+(fail) the actual connection opened by the CLI refuses an injected write [252.17ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+(pass) reports only marker and three empty finding arrays and permits connection reuse [95.18ms]
+(pass) reports all three findings together without dropping any probe [89.30ms]
+(pass) reports activated state explicitly without a readiness verdict [75.76ms]
+(pass) refuses absent marker rather than returning findings [79.47ms]
+(pass) refuses unreadable marker rather than returning findings [84.88ms]
+(pass) refuses malformed marker rather than returning findings [75.76ms]
+(pass) pins marker and every finding across a competing commit and all probes [84.86ms]
+(pass) throws on unavailable query state and rolls back before reuse [92.50ms]
+
+ 18 pass
+ 1 fail
+ 56 expect() calls
+Ran 19 tests across 2 files. [3.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 161591296, "exitCode": 1}

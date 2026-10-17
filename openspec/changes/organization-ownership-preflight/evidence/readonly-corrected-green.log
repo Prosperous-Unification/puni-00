@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+(pass) the actual connection opened by the CLI refuses an injected write [252.67ms]
+
+ 1 pass
+ 10 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [286.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 142110720, "exitCode": 0}

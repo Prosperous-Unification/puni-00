@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+(pass) prints complete JSON with findings and preserves database bytes [262.47ms]
+(pass) refuses unexpected arguments before opening the database [265.15ms]
+(pass) refuses absent and empty DB_PATH from a clean cwd [401.44ms]
+(pass) refuses a missing database without creating it [255.05ms]
+(pass) refuses a permission-unreadable database without stdout [243.85ms]
+(pass) refuses invalid SQLite separately from file permission failure [239.42ms]
+(pass) refuses absent marker with no stdout [256.18ms]
+(pass) refuses unreadable marker with no stdout [251.42ms]
+(pass) refuses malformed marker with no stdout [253.10ms]
+(pass) refuses unavailable ownership query state despite a valid marker [257.51ms]
+(pass) the actual connection opened by the CLI refuses an injected write [260.17ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+(pass) reports only marker and three empty finding arrays and permits connection reuse [94.97ms]
+(pass) reports all three findings together without dropping any probe [82.82ms]
+(pass) reports activated state explicitly without a readiness verdict [78.50ms]
+(pass) refuses absent marker rather than returning findings [75.17ms]
+(pass) refuses unreadable marker rather than returning findings [82.65ms]
+(pass) refuses malformed marker rather than returning findings [77.40ms]
+(pass) pins marker and every finding across a competing commit and all probes [84.84ms]
+(pass) throws on unavailable query state and rolls back before reuse [88.17ms]
+
+ 19 pass
+ 0 fail
+ 59 expect() calls
+Ran 19 tests across 2 files. [3.78s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 162369536, "exitCode": 0}
