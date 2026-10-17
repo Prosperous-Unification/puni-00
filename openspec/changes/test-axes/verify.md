@@ -5232,3 +5232,35 @@ Committed-revision report inspection and final restored checks follow below. Par
 and WBS080.39 remain open; trusted execution receipts, scenario citation adoption, remaining
 projects/levels, coverage and admission are outside this bounded target slice. No full host gate,
 hosted CI, release acceptance, push or merge has run here; the coordinator owns those checks.
+
+### Committed execution and report inspection
+
+Normal implementation commit is `4b318f48125b99ce13fd6e10c60ece66b49487dd`. The first normal commit attempt
+was killed by the 900 MiB guard at 956812 KiB; it created no commit. Normal unchanged parallel
+hooks then passed at **952188 KiB** under the approved 1280 MiB cap. No hook was bypassed.
+Lint, format, secrets, private nesting and tool-wiki ran; migration/doc-cap hooks had no matching
+files. Tool-wiki reported inactive and certified false because external activation is absent.
+Before the final evidence-only hooks, `/proc/meminfo` reported MemAvailable 13877420 KiB.
+
+The exact committed revision's target ran uncached again: **20 pass, 0 fail, 57 assertions**,
+exit 0, sampled peak 262352 KiB. Its fresh external report SHA-256 is
+`8938e13480430117dfcff37acfc13ee42ed7180ffc2cd0230db9df193f4e84ba`; selected manifest SHA-256 is
+`7df8eb0f7e07fd405a1a921e8323e19242a062313ff59841d17d345a44dec09d`. The authority binds candidate
+`0aa4824c805e2ad0314c7d79910a2f39e308c11f58a75c880226cfcb810f19ae` and the exact target name.
+
+Production `inspect-bun-test-reports` exited 0 at **698004 KiB**, preserving all twenty
+passed outcomes, exact selected Git source tuples and complete case identities. Every case
+retains unresolved level/isolation; authentication is absent and certification false.
+Complete observation digest: `91fdd924db042f439e8aa1bfccb0c4775f18b8bdfd75ed8200dcaaa8ec5400ba`.
+
+Independent Python XML/Git/SHA-256 verification compared all twenty raw report cases, every
+selected source's mode/blob/content digest, the selected manifest bytes, outcome-independent
+case IDs and the complete canonical payload with terminal newline. Corrected verifier exited 0
+at 21672 KiB. The first parity harness incorrectly hashed a keyed object for case identity;
+the production contract hashes an array. That harness-only error is retained as a failed receipt;
+the corrected independent verifier agrees with the production output.
+
+Task **2.1l** is complete. Task 2.1 and WBS080.39 remain open. Reports are operational and
+noncertifying; no trusted execution receipt, scenario citation coverage, remaining-project
+adoption, release acceptance or full gate is established by this slice. The coordinator owns
+independent review, exact-head CI, the canonical host gate, publication and integration.

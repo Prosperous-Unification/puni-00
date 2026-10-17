@@ -2,9 +2,24 @@
   "baseRevision": "796e279014ee94627627cb769fef20a5aac855e5",
   "artifacts": [
     {
+      "path": "authority.json",
+      "sha256": "147c5a2996067563dd7b461b785d7a5b77c112c150d3b1cfd3dcdbc0d6d3abc9",
+      "bytes": 572
+    },
+    {
+      "path": "process-tree-guard-1280.py",
+      "sha256": "8a60a2dfcb95975968cb64522879b8cd8a9caa718a2bd67e685c8569dab5f4bd",
+      "bytes": 1793
+    },
+    {
       "path": "process-tree-guard.py",
       "sha256": "49d74cc9b514322fc488fe21f1479ec119d78272f29ac6037b2bfe652ebefcfe",
       "bytes": 1791
+    },
+    {
+      "path": "report.xml",
+      "sha256": "8938e13480430117dfcff37acfc13ee42ed7180ffc2cd0230db9df193f4e84ba",
+      "bytes": 3820
     },
     {
       "path": "shared-failures-allocate-oct17.log",
@@ -27,6 +42,66 @@
       "bytes": 625
     },
     {
+      "path": "shared-failures-authority.log",
+      "sha256": "fd8ba7115cd647664325b1285a35f8ac58942233f7b42ef3dac24b9aa0fb035b",
+      "bytes": 513
+    },
+    {
+      "path": "shared-failures-authority.log.json",
+      "sha256": "a6c0f0ddfeecef6dd514ba7057f293f63185669af1df3a0389864a0c1cb41d35",
+      "bytes": 217
+    },
+    {
+      "path": "shared-failures-commit-retry.log",
+      "sha256": "2ae17ec8100553ad95ed2f047bea1d3b4e4050a5653eac34d22046ea3a4d7f6b",
+      "bytes": 8878
+    },
+    {
+      "path": "shared-failures-commit-retry.log.json",
+      "sha256": "51de779c0af97c97e5ec9ec91c8ac17f34b9db6ee31a7b5e63d7d6ff5f3673a5",
+      "bytes": 12718
+    },
+    {
+      "path": "shared-failures-commit.log",
+      "sha256": "38a6cbd9f0ef75f56485367091885455e7fde1eaed91f8858010466cfb2c43b5",
+      "bytes": 647
+    },
+    {
+      "path": "shared-failures-commit.log.json",
+      "sha256": "678b979c5148313458cd18f90cae3ee89193a783840addcf474751a7945d50aa",
+      "bytes": 36529
+    },
+    {
+      "path": "shared-failures-committed-unit.log",
+      "sha256": "b8e34806f4f86e8b8292cd0df16718dcacabe40eac5bfa24475887453df54d6e",
+      "bytes": 3237
+    },
+    {
+      "path": "shared-failures-committed-unit.log.json",
+      "sha256": "b813bc311eb6ae220165a317b80f37cb1395f5daa6828cdb3256d88e495b9d81",
+      "bytes": 1120
+    },
+    {
+      "path": "shared-failures-final-doc-format.log",
+      "sha256": "8ccd4a1c37be7b4cab055c077b8d39b2b7b1582016f2bdcd6dd1ecbf35e0d9f4",
+      "bytes": 109
+    },
+    {
+      "path": "shared-failures-final-doc-format.log.json",
+      "sha256": "9e8a81023716e6d41a04c7ba561009b8b49e392935749f5458b5bc8a8c1ed5af",
+      "bytes": 650
+    },
+    {
+      "path": "shared-failures-final-openspec.log",
+      "sha256": "59448693566b390d5aeada56b70f8a8c793466986f4baeb2fe8615694684a3af",
+      "bytes": 28
+    },
+    {
+      "path": "shared-failures-final-openspec.log.json",
+      "sha256": "d1fb9a4062aafa6113d122ea370e3e4c4f63e0ab995078a70398b5fa08db01ac",
+      "bytes": 468
+    },
+    {
       "path": "shared-failures-focused.log",
       "sha256": "ac9d19c79dc779018012fe0151644dbfa90a56dd0dfcef90ae6972b9f8f96068",
       "bytes": 12615
@@ -35,6 +110,26 @@
       "path": "shared-failures-focused.log.json",
       "sha256": "8195d74008b30dcd8872e10911f1fd1be8a2ac78dc6837b6f531e8c3f930a118",
       "bytes": 48191
+    },
+    {
+      "path": "shared-failures-format-artifacts.log",
+      "sha256": "11204c9a5696b80a53fb937c8fe83911f236fdbf5c45cf64578a04e2b900981e",
+      "bytes": 3226
+    },
+    {
+      "path": "shared-failures-format-artifacts.log.json",
+      "sha256": "b72d3fa43da6655dc2461d55373284d9439d25948b36df61adbe73c99607f633",
+      "bytes": 631
+    },
+    {
+      "path": "shared-failures-format-evidence.log",
+      "sha256": "6c995b7b89e207a92968638d092a5c0676d65d29427005182d3c67d992679360",
+      "bytes": 99
+    },
+    {
+      "path": "shared-failures-format-evidence.log.json",
+      "sha256": "35db3896f45af4f3ef9410d8f108d42f72b06f0ef2b9d71dbffcc76e332a25d4",
+      "bytes": 659
     },
     {
       "path": "shared-failures-format-final.log",
@@ -77,6 +172,16 @@
       "bytes": 2465
     },
     {
+      "path": "shared-failures-inspector.log",
+      "sha256": "e121ee1b756a3e214b49ca9830155771fa69d8ba2fd707cf367fa702006e7122",
+      "bytes": 11244
+    },
+    {
+      "path": "shared-failures-inspector.log.json",
+      "sha256": "6cab7353327cd6e6a861452fb5aa47994eb6cd1afc9f6cb4d64ae259d060ee67",
+      "bytes": 954
+    },
+    {
       "path": "shared-failures-lint.log",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "bytes": 0
@@ -105,6 +210,36 @@
       "path": "shared-failures-openspec.log.json",
       "sha256": "f2447e0fa6bbf8cc7fe89013a41f546296200d026f733ccbb0b73610e6c96cb9",
       "bytes": 460
+    },
+    {
+      "path": "shared-failures-parity-corrected.log",
+      "sha256": "c1a4a026ed75599f150856decc7a8ca90bee5d101c11abda96e67225008ca053",
+      "bytes": 318
+    },
+    {
+      "path": "shared-failures-parity-corrected.log.json",
+      "sha256": "1ef676253ea35234a518275fbbb7fe5fbbaa7c5e76b40bc0aa3809573d999178",
+      "bytes": 522
+    },
+    {
+      "path": "shared-failures-parity.log",
+      "sha256": "296e61c38cb925989f8654f036ef0aecd0f317821a178fe6d0dc98142af85f19",
+      "bytes": 372
+    },
+    {
+      "path": "shared-failures-parity.log.json",
+      "sha256": "9d248d28ca78e61e3f9f17f9203dc6b6729bb41d8d4c1961b0112c472a96be0e",
+      "bytes": 354
+    },
+    {
+      "path": "shared-failures-parity.py",
+      "sha256": "2754116f764f007d4d673a8e46b6063cf3678ab47fc6f6dfec1ff362bcfb6061",
+      "bytes": 2216
+    },
+    {
+      "path": "shared-failures-prepare-authority.ts.txt",
+      "sha256": "3c63069e4938bd5002ceaa036297b6e2f5c234e6210df9052062736d6ba04fcc",
+      "bytes": 1618
     },
     {
       "path": "shared-failures-provenance-oct17.log",
@@ -256,5 +391,6 @@
       "sha256": "ac3b7c4cdc9a4dda14737317c3c7d1306acb8efa1b4aaf25dc3482eff1358d93",
       "bytes": 311
     }
-  ]
+  ],
+  "inspectedRevision": "4b318f48125b99ce13fd6e10c60ece66b49487dd"
 }
