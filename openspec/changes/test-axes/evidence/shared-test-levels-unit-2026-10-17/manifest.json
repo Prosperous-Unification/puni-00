@@ -1,6 +1,12 @@
 {
   "baseRevision": "bec08dedb78c69d268b5d84fc7b4583b265113ae",
+  "implementationRevision": "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9",
   "artifacts": [
+    {
+      "path": "authority.json",
+      "sha256": "0862b30a9511742d748da2bcd371684dc4d42aefac1cc1adb37c00c3d806e9ec",
+      "bytes": 581
+    },
     {
       "path": "process-tree-guard-1280.py",
       "sha256": "921ec8021987ec4c51673bb544a4e9a3b6c18806287b3a94b5fea443fbed2b61",
@@ -10,6 +16,11 @@
       "path": "process-tree-guard.py",
       "sha256": "49d74cc9b514322fc488fe21f1479ec119d78272f29ac6037b2bfe652ebefcfe",
       "bytes": 1791
+    },
+    {
+      "path": "report.xml",
+      "sha256": "13941642ed132942af89c55da1945e60fbe089b9ad47467640b662697369a7fc",
+      "bytes": 1414
     },
     {
       "path": "shared-test-levels-allocate-oct17.log",
@@ -37,6 +48,46 @@
       "bytes": 48208
     },
     {
+      "path": "shared-test-levels-commit.log",
+      "sha256": "83df0b85a7dfb2accead75c3bbbc6f4ba3352f750e9991043b776f3fd4d6b20f",
+      "bytes": 8947
+    },
+    {
+      "path": "shared-test-levels-commit.log.json",
+      "sha256": "9ad3a915818a3b0271e17a5f7f27684e1c8e61db1b07ed9d66020cc99a688ebb",
+      "bytes": 12928
+    },
+    {
+      "path": "shared-test-levels-committed-unit.log",
+      "sha256": "26f48ee027d0d0f9c6f055d2e074a8f4f3860a2ee3b1399ac12bac0ce15b11d4",
+      "bytes": 1561
+    },
+    {
+      "path": "shared-test-levels-committed-unit.log.json",
+      "sha256": "fc3fde727eb93cb90259df2b12008ce083d2f533f9ae404c7337dc6a34da75f3",
+      "bytes": 549
+    },
+    {
+      "path": "shared-test-levels-final-format.log",
+      "sha256": "8fd28965ed4ce965c8e5f01c262ee238ab64bdef7571ed13e1bf9745a763f5e3",
+      "bytes": 805
+    },
+    {
+      "path": "shared-test-levels-final-format.log.json",
+      "sha256": "1dcb5a8d58c0e71d587aa93a06a85298ef9cc57473eaa2ac07f3f1e1b4eda13c",
+      "bytes": 2737
+    },
+    {
+      "path": "shared-test-levels-final-openspec.log",
+      "sha256": "59448693566b390d5aeada56b70f8a8c793466986f4baeb2fe8615694684a3af",
+      "bytes": 28
+    },
+    {
+      "path": "shared-test-levels-final-openspec.log.json",
+      "sha256": "7d843a2ff2bc8f5940f13cc8ed77939a51a3c47108d61de72a32f54f191ade73",
+      "bytes": 460
+    },
+    {
       "path": "shared-test-levels-focused-corrected.log",
       "sha256": "db17aca4efb13bd90a9a9e7db3488bcfa0235bb20d82a92858fa9b3d5d0343cd",
       "bytes": 14026
@@ -57,6 +108,16 @@
       "bytes": 50656
     },
     {
+      "path": "shared-test-levels-format-evidence.log",
+      "sha256": "effaec61221663b7264525b8236ef62a71b23bbb0f6b397977049400a7f40dea",
+      "bytes": 3229
+    },
+    {
+      "path": "shared-test-levels-format-evidence.log.json",
+      "sha256": "fe235eefccc7623a2f62020bf2728702b96c6d8b824d56b1260c799ddcdd1782",
+      "bytes": 9697
+    },
+    {
       "path": "shared-test-levels-format.log",
       "sha256": "0575da2475f9e7cbe27aebd8a0b176ed0e6ccb918d8a90708ef8a8e2824f5c5e",
       "bytes": 458
@@ -75,6 +136,16 @@
       "path": "shared-test-levels-green.log.json",
       "sha256": "2e0182f100f01e6a6a522d17a2c5f0a9fe3fdff270530fc92d9d8c45e68124c2",
       "bytes": 2467
+    },
+    {
+      "path": "shared-test-levels-inspector.log",
+      "sha256": "694509274ea5cfc3b70c44ed8a13aa94d09b2b3cb5f1adf018bdbdea659cdd81",
+      "bytes": 3596
+    },
+    {
+      "path": "shared-test-levels-inspector.log.json",
+      "sha256": "3c48052a13ad692a9a80b0120c58ad195b1b78845f06baf7c17680b280a9008b",
+      "bytes": 984
     },
     {
       "path": "shared-test-levels-lint.log",
@@ -105,6 +176,21 @@
       "path": "shared-test-levels-openspec.log.json",
       "sha256": "03a7d2a8a4368f145cfcd1e5569ce419b69679223a25017fbf4f31f211e71e72",
       "bytes": 460
+    },
+    {
+      "path": "shared-test-levels-parity.log",
+      "sha256": "6e935452be46c4c697411a88fd71a460d95fb7c9653d3b184d90df8985cd5b8b",
+      "bytes": 317
+    },
+    {
+      "path": "shared-test-levels-parity.log.json",
+      "sha256": "d0a5d46dafd2f2b24b20bbebd21f7326c9b49a359b09562aa30a0c966d269024",
+      "bytes": 386
+    },
+    {
+      "path": "shared-test-levels-parity.py",
+      "sha256": "04756c4c7b25bc7512a52849527f71a4801466c9f689a1142f4a3d6d0eae073f",
+      "bytes": 2567
     },
     {
       "path": "shared-test-levels-provenance-oct17.log",

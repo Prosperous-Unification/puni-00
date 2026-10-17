@@ -1,0 +1,10 @@
+{
+  "revision": "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9",
+  "caseCount": 5,
+  "allPassed": true,
+  "allSourcePinsMatchGit": true,
+  "allCaseIdsMatch": true,
+  "completeObservationDigestMatches": true,
+  "observationDigest": "0a8decd8c42302cb7fada052ab6f1f9adbaa40cb140f54052a6a1353be77aa62",
+  "certifies": false
+}
