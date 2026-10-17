@@ -1338,3 +1338,18 @@ compiler mounting. Dot components in direct query roots continue through the com
 
 Drive-rooted patterns are outside the fixed POSIX namespace and SHALL refuse during pattern
 syntax admission, before any literal-prefix read or matcher invocation.
+
+#### Scenario: Expanded paths fit individually but exceed their combined byte ceiling
+
+- **WHEN** a candidate link expansion has individually fitting target, resolved components
+  and remaining components but their sum including one separator per component exceeds the limit
+- **THEN** the source refuses the expansion before continuing its component walk
+- **AND** an expansion equal to the byte limit remains admitted
+
+#### Scenario: Caller pattern getters change their arrays during capture
+
+- **WHEN** a supplied pattern or extension array getter appends or removes entries
+- **THEN** the source captures its length once, reserves that count before copying, and reads
+  exactly those indexed entries; appended entries do not enter the matcher and missing entries refuse
+- **AND** missing-only includes remain no-match even if the caller truncates its original array
+- **AND** malformed pattern syntax and invalid supplied enumeration depth refuse before link reads

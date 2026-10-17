@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "captured includes remain missing-only"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 347336,
+  "ceilingKiB": 921600
+}

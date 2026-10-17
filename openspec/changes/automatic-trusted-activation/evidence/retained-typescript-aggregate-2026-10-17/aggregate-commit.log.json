@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "fix(activation): bound captured patterns and aggregate link expansion"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 792592,
+  "ceilingKiB": 921600
+}

@@ -4966,3 +4966,72 @@ terminal blank lines; original log bytes remain in `/tmp/retained-ts-original-lo
 `source-files.sha256` binds the final ten code files; `sha256sum -c` and staged diff whitespace
 checks are required before the actual commit. Final commit hook receipt is retained outside
 the tree as `/tmp/retained-ts-commit.log{,.json}` and reported with the exact SHA/tree.
+
+## Retained TypeScript source review successor — 2026-10-17
+
+Isolated clone `/tmp/puni-retained-ts-aggregate-sol-oct17`, exact parent
+`355ba1ebd6276986dc8e7fa2917fc020e1b466f0`; original review clone untouched.
+Evidence: `evidence/retained-typescript-aggregate-2026-10-17/`.
+
+The original `expand-cap` fault replaced only `measure(target, ...)` with
+`Buffer.byteLength(target)`. Its target exceeded the cap by itself; it did not
+prove the aggregate guard. This successor keeps that target-only proof and replaces
+both overlapping aggregate checks with one subtraction fence reserving each
+component plus its separator. Three vectors separately exercise resolved-only,
+remaining-only, and both sides: totals 8/8/18 fit exactly, and caps 7/7/17 refuse
+although each individual part fits. `aggregate-separator-fence.log` watches all
+three overflow assertions fail when only the aggregate fence is omitted.
+
+Array capture now reads length once, reserves count, copies exactly those indices,
+and refuses missing indices. Missing-only includes use only the captured array.
+The two caller getter regressions observed RED against the parent implementation:
+truncating includes widened to unrestricted enumeration; appending extensions
+selected an unreserved extension. The extension fixture initially also included a
+legitimate runtime declaration; it was narrowed to `/src` to isolate the getter.
+
+Ten independent omissions produced named RED in `faults.json`: aggregate fence,
+NUL/backslash/surrogate syntax arms, integer/lower/upper supplied-depth arms,
+fixed capture count, original include-length reread, and missing captured index.
+Syntax and supplied-depth witnesses poison link copying, proving admission order.
+The trial runner restores source in `finally`; two ambiguous textual selectors
+were narrowed before their trials, without treating selector refusal as RED.
+
+Fresh restored source: **82 pass, 0 fail, 273 assertions**, process-tree peak
+639292 KiB (`aggregate-final-source.log`). A preliminary restored run failed
+71/10 because a local textual edit incorrectly replaced the internal
+`resolvePatterns` iteration and referenced an undefined count; the internal loop
+was restored. Its failed receipt is retained as `aggregate-green.log`, not a pass.
+The subsequent 81-test restored run passed before the missing-index test was added.
+
+Scoped library typecheck on final source passed exit 0, peak 524980 KiB:
+`bunx --no-install tsc --noEmit --project apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json --incremental false`.
+All guarded checks use 512 MiB heap and a sampled 921600 KiB process-tree ceiling.
+Strict pinned OpenSpec validation passed 1/1, zero issues (`openspec.log`).
+
+Normal commit hooks use clone-local `.git/lefthook.serial.yml` and
+`.git/lint-staged-serial.sh`. The original/per-file dump comparison proves only
+serial scheduling and per-file lint scheduling differ; every original command,
+glob and other hook remains. The wrapper uses identical `bunx eslint <path>`
+arguments, fails on any nonzero, preserves paths with spaces, and refuses an empty
+list. Fresh injected exit 23 stops before the third path
+(`hook-wrapper-proof.json`). Original parent grouped lint OOM remains recorded
+under its original evidence; no grouped pass is claimed here. Actual commit
+coverage and receipt are reported with the successor SHA after hooks finish.
+
+No shared resolver change, compiler invocation, full declaration retry, corpus fit,
+full gate/build or CI run in this successor. Earlier explicit limitations remain;
+e2 and parent .3 remain unchecked. Nx boundary lint remains unavailable without a
+cached ProjectGraph; named per-file ESLint proves only its active rules.
+
+The first successor normal commit was refused by ESLint `no-unnecessary-condition`
+for the captured missing-index check, peak 792592 KiB (`aggregate-commit.log`).
+The boundary array view now explicitly permits missing entries; no cast or lint
+suppression was added. Fresh selected controls passed on that final view (15 tests,
+27 assertions; `aggregate-indexed-controls.log`). This receipt is a failed hook,
+not a successful commit. The final retry receipt is external to its own commit.
+
+After the explicit indexed boundary type, the full source suite again passed
+82/82, 273 assertions, peak 641216 KiB (`aggregate-final-source-2.log`).
+Scoped final library typecheck passed exit 0, peak 524644 KiB
+(`aggregate-typecheck-final.log`). All ten omissions were rerun against this
+final source view; `faults.json` records the fresh watched failures.

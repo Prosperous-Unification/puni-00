@@ -662,3 +662,91 @@ test('drive-rooted matcher patterns refuse before literal link reads', () => {
     trap.mockRestore();
   }
 });
+
+test.each([
+  [{ 'dir/a.ts': 'x' }, { 'dir/link': 'a.ts' }, '/dir/link', 8],
+  [{ 'dir/a.ts': 'x' }, { link: 'dir' }, '/link/a.ts', 8],
+  [{ 'parent/target/a.ts': 'x' }, { 'parent/link': 'target' }, '/parent/link/a.ts', 18],
+] as const)(
+  'expanded aggregate includes resolved target remaining and separators %j',
+  (files, links, path, bytes) => {
+    const over = fromPaths(files, links, { maximumExpandedPathBytes: bytes - 1 });
+    expect(() => over.source.pathKind(root + path)).toThrow('source expanded path ceiling');
+    const exact = fromPaths(files, links, { maximumExpandedPathBytes: bytes });
+    expect(exact.source.pathKind(root + path)).toBe('file');
+  },
+);
+
+test.each(['nul\0pattern', '\\pattern', '\uD800'])(
+  'pattern syntax admission precedes link copies %j',
+  (pattern) => {
+    const f = setup();
+    const trap = spyOn(Uint8Array, 'from').mockImplementation(() => {
+      throw new Error('copy forbidden');
+    });
+    try {
+      expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link', pattern])).toThrow(
+        'source pattern malformed',
+      );
+      expect(trap).not.toHaveBeenCalled();
+    } finally {
+      trap.mockRestore();
+    }
+  },
+);
+
+test.each([0, -1, 1.5, NaN, Infinity, 31])(
+  'supplied enumeration depth refuses before link copies %j',
+  (depth) => {
+    const f = setup();
+    const trap = spyOn(Uint8Array, 'from').mockImplementation(() => {
+      throw new Error('copy forbidden');
+    });
+    try {
+      expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link'], depth)).toThrow(
+        'source enumeration depth invalid',
+      );
+      expect(trap).not.toHaveBeenCalled();
+    } finally {
+      trap.mockRestore();
+    }
+  },
+);
+
+test('captured includes remain missing-only when caller getter truncates array', () => {
+  const f = fromPaths({ 'exists.ts': 'x' });
+  const include = ['missing/**/*.ts'];
+  Object.defineProperty(include, 0, {
+    get() {
+      include.length = 0;
+      return 'missing/**/*.ts';
+    },
+  });
+  expect(f.source.readDirectory(root, ['.ts'], undefined, include)).toEqual([]);
+});
+
+test('captured extensions ignore caller getter growth beyond admitted count', () => {
+  const f = fromPaths({ 'src/exists.ts': 'x', 'src/exists.js': 'x' }, {}, { maximumPatterns: 1 });
+  const extensions = ['.ts'];
+  Object.defineProperty(extensions, 0, {
+    get() {
+      extensions.push('.js');
+      return '.ts';
+    },
+  });
+  expect(f.source.readDirectory(root + '/src', extensions)).toEqual([root + '/src/exists.ts']);
+});
+
+test('captured patterns refuse a missing indexed entry after caller getter truncation', () => {
+  const f = setup();
+  const include = ['missing/**/*.ts', 'other/**/*.ts'];
+  Object.defineProperty(include, 0, {
+    get() {
+      include.length = 1;
+      return 'missing/**/*.ts';
+    },
+  });
+  expect(() => f.source.readDirectory(root, undefined, undefined, include)).toThrow(
+    'source pattern missing',
+  );
+});

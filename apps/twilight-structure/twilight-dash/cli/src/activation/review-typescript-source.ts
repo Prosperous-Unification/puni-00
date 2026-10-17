@@ -79,6 +79,7 @@ export function readRetainedTypeScriptSourceProvenance(
  * Every operation shares lifetime probe/step/read/pattern/enumeration/path-output budgets;
  * link expansions and directory depth additionally bound each component walk.
  * Enumeration reserves all visited child paths before the pinned pure matcher filters them.
+ * Pattern arrays capture their length once before indexed reads; missing entries throw.
  * Include/exclude patterns admit no '.'/'..' components; all syntax is checked before
  * literal-prefix link reads. This does not claim full tsconfig pattern compatibility.
  * This is direct source admission only: no compiler, config parser or read manifest runs,
@@ -265,18 +266,16 @@ export function createRetainedTypeScriptSource(
         return target;
       },
       expand: (resolved, target, remaining) => {
-        // Proof: expand-cap omission loses `lifetime probes` (named RED in final fault ledger).
+        // Proof: target-only expand-cap omission loses `lifetime probes` (named RED in final fault ledger).
         const targetBytes = measure(target, limits.maximumExpandedPathBytes, 'expanded path');
         let bytes = targetBytes;
         for (const parts of [resolved, remaining])
           for (const part of parts) {
             const length = measure(part, limits.maximumExpandedPathBytes, 'expanded path');
-            if (length > limits.maximumExpandedPathBytes - bytes)
+            // Proof: aggregate-fence omission loses `expanded aggregate includes` with individually fitting parts.
+            if (length >= limits.maximumExpandedPathBytes - bytes)
               throw new Error('source expanded path ceiling exceeded');
-            bytes += length;
-            if (bytes >= limits.maximumExpandedPathBytes)
-              throw new Error('source expanded path ceiling exceeded');
-            bytes += 1;
+            bytes += length + 1;
           }
       },
       reject: (reason) => {
@@ -355,17 +354,24 @@ export function createRetainedTypeScriptSource(
     isExtension: boolean,
   ): readonly string[] | undefined {
     if (values === undefined) return undefined;
+    const indexedValues: readonly (string | undefined)[] = values;
+    const count = indexedValues.length;
     // Proof: pattern-count omission loses `enumeration patterns` (named RED in final fault ledger).
-    if (values.length > limits.maximumPatterns - patterns)
+    if (count > limits.maximumPatterns - patterns)
       throw new Error('source pattern count ceiling exceeded');
-    patterns += values.length;
+    patterns += count;
     const captured: string[] = [];
-    for (const value of values) {
+    // Proof: snapshot-count omission loses `captured extensions ignore` under an appending getter.
+    for (let index = 0; index < count; index++) {
+      const value = indexedValues[index];
+      // Proof: missing-index omission loses `captured patterns refuse a missing indexed entry`.
+      if (value === undefined) throw new Error('source pattern missing');
       const length = measure(value, limits.maximumPatternBytes, 'pattern byte');
       // Proof: pattern-byte omission loses `pattern byte budget counts` (named RED in final fault ledger).
       if (length > limits.maximumPatternBytes - patternBytes)
         throw new Error('source pattern byte ceiling exceeded');
       patternBytes += length;
+      // Proof: pattern-syntax omission loses `pattern syntax admission precedes link copies` independently for NUL, backslash and surrogate.
       if (
         value.includes('\0') ||
         value.includes('\\') ||
@@ -442,6 +448,7 @@ export function createRetainedTypeScriptSource(
       depth?: number,
     ) => {
       assertQuery(path);
+      // Proof: supplied-depth omission loses `supplied enumeration depth refuses before link copies`.
       if (
         depth !== undefined &&
         (!Number.isSafeInteger(depth) || depth < 1 || depth > limits.maximumDirectoryDepth)
@@ -465,7 +472,13 @@ export function createRetainedTypeScriptSource(
       const selectedExclude = resolvePatterns(capturedExclude, enumerationPath, context);
       const selectedInclude = resolvePatterns(capturedInclude, enumerationPath, context);
       // Proof: all-missing-includes omission loses `missing includes preserve` (named RED in final fault ledger).
-      if (include !== undefined && include.length > 0 && selectedInclude?.length === 0) return [];
+      // Proof: caller-include-reread loses `captured includes remain missing-only` under a truncating getter.
+      if (
+        capturedInclude !== undefined &&
+        capturedInclude.length > 0 &&
+        selectedInclude?.length === 0
+      )
+        return [];
       return matchFiles(
         enumerationPath,
         selectedExtensions,

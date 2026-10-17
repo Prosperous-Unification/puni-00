@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "expanded aggregate includes"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 345668,
+  "ceilingKiB": 921600
+}
