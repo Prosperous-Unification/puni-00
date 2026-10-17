@@ -19,6 +19,53 @@ idempotency, enrollment validation, memory checks, reboot checks or backups; tho
 unverified by this inventory. Subsequent provider snapshots and whole-host restore point status
 are also unverified.
 
+### h4claw reconciliation on 2026-10-17 (WBS 50.10)
+
+Lane C reconciled the live server against the recorded procedure before making any host change.
+No enrollment apply was needed: h4claw was already the reproducibly managed k3s server created by
+the authorized 2026-09-27 run. The current read-only evidence was:
+
+```text
+$ ssh h4claw 'systemctl is-active k3s; k3s --version | head -1'
+active
+k3s version v1.36.4+k3s1 (4dedb15b)
+
+$ ssh h4claw 'sudo k3s kubectl get nodes -o wide'
+NAME     STATUS   ROLES                AGE   VERSION        INTERNAL-IP
+h3mon    Ready    <none>               10d   v1.36.4+k3s1   10.1.0.2
+h4claw   Ready    control-plane,etcd   19d   v1.36.4+k3s1   10.1.0.4
+
+$ ssh h4claw 'curl --fail --output /dev/null --write-out "%{http_code}\n" http://127.0.0.1:3000/'
+200
+$ ssh h4claw 'sudo docker ps --format "{{.Names}}|{{.Status}}|{{.Ports}}"'
+openhands-app|Up 3 weeks|127.0.0.1:3000->3000/tcp
+```
+
+The OpenHands check returned 200 both before and after this reconciliation; no container was
+stopped or changed. `enp7s0` still owns `10.1.0.4/32`, Docker and
+`puni-k3s-firewall.service` are active, the `inet puni_k3s` table exists, and the node has the
+`control-plane`, `etcd`, `product`, and `ingress` labels with no enrollment taint. The host is
+8 CPUs, 15,602 MiB RAM, and 132 GiB free on `/`; the older evolution plan's 4 CPU / 8 GB row is
+stale.
+
+The procedure's h4claw steps reconcile as follows:
+
+| Step                      | Verdict                                                          | Evidence and limit                                                                                                                                                                                                  |
+| ------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1, controller             | Recorded, not rerun                                              | The reviewed Ansible source remains on `main`; the controller checkout and secret inputs were not inspected.                                                                                                        |
+| 2, preflight              | Satisfied by the 2026-09-27 record; current invariants rechecked | The recorded passes were `ok=27 changed=0`, then `ok=28 changed=0`; current address, preserved listener/container, OS, capacity, and machine placement still match.                                                 |
+| 3, backup                 | Partial                                                          | `/root/pre-k3s-etc.tgz` exists with timestamp `2026-09-27T18:46:59Z`; the recorded Docker inventory exists in the execution record. No Hetzner snapshot was taken, and no later provider snapshot was verified.     |
+| 4, bootstrap              | Satisfied                                                        | The recorded apply was `ok=47 changed=29`, its second run was `ok=38 changed=0`, and after-enrollment preflight was `ok=26 changed=0`. Current k3s and node output above prove the resulting server is still Ready. |
+| 5, join/validation        | Live result satisfied; intervening run evidence incomplete       | h3mon is now Ready and both nodes have no enrollment taint, but this reconciliation did not recover the later Ansible join/validation summaries.                                                                    |
+| 6, h3mon memory           | Not part of WBS 50.10 and not rerun                              | No conclusion from this h4claw-only reconciliation.                                                                                                                                                                 |
+| 7, Flux                   | Partially satisfied                                              | The same-day inventory found `target`, `controllers`, `storage`, `policy`, and `secrets` Ready; `platform` remained blocked on registry Secrets.                                                                    |
+| 8, reboot/data comparison | Not verified                                                     | The current node is healthy, but that does not prove the prescribed one-at-a-time reboot and before/after Victoria/Grafana comparison.                                                                              |
+
+The off-host negative control used h1claw's public route to h4claw. TCP/22 on the same public
+address succeeded, while TCP/6443 timed out (`nc -zvw5`, exit 1). The local API control on
+h4claw (`127.0.0.1:6443`) succeeded. Thus the API was not reachable from that public-internet
+vantage; this is a reachability observation, not a claim about every possible source address.
+
 Placement is `infra/fleet/desired.yaml`; host variables are
 `infra/ansible/inventory/production-existing-hosts.yml`.
 
@@ -37,9 +84,10 @@ From the read-only probe of 2026-09-27:
   not build or run workloads.
 - The workers cluster has no host yet; it stays `bootstrap: required` with no nodes.
 
-A machine ID written `operator-input:<host> /etc/machine-id` in `desired.yaml` (and `unread` in
-the inventory) has not been read yet; every `tool-fleet` operation on that node refuses, and the
-base role refuses `unread`.
+An unresolved machine ID written `operator-input:<host> /etc/machine-id` in `desired.yaml` (and
+`unread` in the inventory) means the host has not been read yet; every `tool-fleet` operation on
+that node refuses, and the base role refuses `unread`. Both production-existing-host entries now
+contain the machine IDs captured by the 2026-09-27 preflight.
 
 ## What changes on each host
 

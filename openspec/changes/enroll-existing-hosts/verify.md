@@ -100,7 +100,46 @@ was running a host gate. Ansible reached `10.1.0.4` and `10.1.0.2` as root throu
 - No Hetzner snapshots: no hcloud CLI or token on the controller. Backups taken: `/etc` tarballs of
   both hosts, a VictoriaMetrics snapshot and the Docker container/volume lists.
 
-## Not run
+## Real-host reconciliation, 2026-10-17 (TASK-564)
+
+This was a read-only reconciliation of h4claw before any proposed enrollment action. It found
+the server already enrolled and therefore made no host change. Exact observed results:
+
+```text
+systemctl is-active k3s                         active
+k3s --version                                   v1.36.4+k3s1 (4dedb15b)
+k3s kubectl get node h4claw                     Ready; control-plane,etcd; 10.1.0.4
+k3s kubectl get node h4claw --show-labels       control-plane, etcd, product, ingress
+k3s kubectl get node h4claw -o jsonpath=taints  empty
+ip -4 -o addr show                              enp7s0 10.1.0.4/32
+systemctl is-active docker                      active
+systemctl is-active puni-k3s-firewall.service   active
+nft list tables                                 table inet puni_k3s present
+curl http://127.0.0.1:3000/                     200 before and after reconciliation
+docker ps                                       openhands-app Up 3 weeks; 127.0.0.1:3000->3000/tcp
+find /root -name pre-k3s-etc.tgz                 2026-09-27T18:46:59Z
+```
+
+The host reported 8 CPUs, 15,602 MiB RAM, and 132 GiB free on `/`, correcting the old 4 CPU /
+8 GB planning row. The historical bootstrap evidence above remains the idempotency proof:
+first pass `ok=47 changed=29`, second pass `ok=38 changed=0`, followed by after-enrollment
+preflight `ok=26 changed=0`. This run did not replay an authorized apply merely to regenerate
+that evidence.
+
+From h1claw, the target came from `ssh -G h4claw` and `nc -zvw5 "$H4_PUBLIC" 22`
+succeeded (negative-control vantage could reach the host); the same probe to 6443 timed out with
+exit 1. On h4claw,
+`nc -zvw3 127.0.0.1 6443` succeeded and `kubectl` returned both Ready nodes. This proves the API
+was closed from that public-internet vantage while the local API was live. A private probe from
+h2puni to `10.1.0.4:6443` was also refused, consistent with the enrolled-address-only firewall;
+it is not used as the public negative proof.
+
+The current live result advances beyond the September record: h3mon is Ready, has no enrollment
+taint, and was created on 2026-10-06. The exact later join/validation Ansible summaries remain
+unrecovered, so live state is not presented as proof that those commands or the reboot/data
+comparison ran. Provider snapshots remain unverified.
+
+## Not run in the 2026-09-27 session
 
 Real hosts: the h4claw join-token transfer, `join.yml` on h3mon, `validate-enrollment.yml`, the
 after-enrollment preflight on h3mon and steps 6–8; `tool-fleet:discover` against production (the SSH transport arrived later in
