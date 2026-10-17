@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "-t",
+    "charges shared steps"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 643432448,
+  "exitCode": 0
+}

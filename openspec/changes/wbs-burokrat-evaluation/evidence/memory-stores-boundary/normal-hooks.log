@@ -1,0 +1,48 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+  ────────────────────────────────────
+summary: (done in 3.01 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.02 seconds)
+✓ format (0.45 seconds)
+✓ lint (2.97 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  prepare-commit-msg │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+  ────────────────────────────────────
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  commit-msg │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+  ────────────────────────────────────
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)

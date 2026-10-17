@@ -1,0 +1,83 @@
+from pathlib import Path
+import hashlib,json,subprocess,sys,os
+root=Path('/tmp/puni-literal-paths-sol-20261017')
+evidence=root/'openspec/changes/automatic-trusted-activation/evidence/retained-literal-paths-2026-10-17'
+compiler=root/'apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts'
+source=root/'apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts'
+activation='apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts'
+compiler_test='apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts'
+initial={path:path.read_text() for path in [compiler,source]}
+line='    admitLiteralPaths(parsed.options, system);'
+admission='''    admitConfigurationRoot: (path) => {
+      probe();
+      source.pathKind(path);
+    },'''
+origin="const base: unknown = options.baseUrl !== undefined ? options.baseUrl : options['pathsBasePath'];"
+call='      system.admitConfigurationRoot(resolveLiteralPath(base, substitution));'
+def fault(name,old,new,pattern,test=activation,path=compiler):
+ if old not in initial[path]: raise RuntimeError('missing mutation target '+name)
+ return name,path,initial[path].replace(old,new),test,pattern
+faults=[
+ fault('omit-literals',line,'','refuses absolute outside'),
+ fault('omit-configdir',line,'','admission preserves consumer configDir expansion',compiler_test),
+ fault('usage-gate',line,"    if (Object.hasOwn(parsed.options.paths ?? {}, 'used')) admitLiteralPaths(parsed.options, system);",'refuses absolute outside'),
+ fault('types-gate',line,"    if (parsed.options.types?.length !== 0) admitLiteralPaths(parsed.options, system);",'refuses absolute outside'),
+ fault('masked-admission',admission,admission.replace('source.pathKind(path);','pathKind(path);'),'refuses absolute outside'),
+ fault('bypass-source',admission,admission.replace('      source.pathKind(path);',''),'refuses absolute outside'),
+ fault('wrong-origin',origin,"const base: unknown = options.baseUrl !== undefined ? options.baseUrl : system.getCurrentDirectory();",'admission preserves declaring origin',compiler_test),
+ fault('ignore-base-override',origin,"const base: unknown = options['pathsBasePath'];",'admission preserves baseUrl override',compiler_test),
+ fault('node-normalization',call,'      system.admitConfigurationRoot(resolve(base, substitution));','admission preserves normalized separators',compiler_test),
+ fault('require-existence',call,call+"\n      if (system.pathKind(resolveLiteralPath(base, substitution)) === 'absent') throw new Error('literal target absent');",'admits inside missing'),
+ fault('lexical-only',admission,admission.replace('source.pathKind(path);',"if (!admits(path)) throw new Error('outside lexical root');"),'refuses ancestor escape'),
+ fault('filter-wildcard-keys','  const mappings: unknown[] = Object.values(paths);',"  const mappings: unknown[] = Object.entries(paths).filter(([key]) => !key.includes('*')).map(([, substitutions]) => substitutions);",'refuses wildcard key fixed outside'),
+ fault('admit-wildcards',"      if (substitution.includes('*')) continue;",'','admits wildcard substitution untouched'),
+ fault('reverse-mappings','Object.values(paths);','Object.values(paths).reverse();','admission preserves prior roots then key order',compiler_test),
+ fault('deduplicate','for (const substitution of entries)', 'for (const substitution of new Set(entries))','admission preserves declaring origin',compiler_test),
+ fault('remove-options','    ...parsed.options,','    ...parsed.options,\n    paths: undefined,','resolves exact fallback'),
+ fault('reverse-fallback','    ...parsed.options,',"    ...parsed.options,\n    paths: Object.fromEntries(Object.entries(parsed.options.paths ?? {}).map(([key, substitutions]) => [key, [...substitutions].reverse()])),",'resolves exact fallback'),
+ fault('omit-compiler-charge',admission,admission.replace('      probe();\n',''),'charges shared compiler'),
+ fault('reset-compiler-charge',admission,admission.replace('      probe();','      probes = 0;\n      probe();'),'charges shared compiler'),
+ fault('omit-source-charge','    const relative = assertQuery(path);\n    probe();','    const relative = assertQuery(path);','charges shared source',path=source),
+ fault('reset-source-charge','    const relative = assertQuery(path);\n    probe();','    const relative = assertQuery(path);\n    probes = 0;\n    probe();','charges shared source',path=source),
+ fault('omit-step-charge','        steps += 1;','', 'charges shared steps',path=source),
+ fault('physical-lookup',call,call+'\n      ts.sys.directoryExists(resolveLiteralPath(base, substitution));','sha1 replays'),
+ fault('omit-link-census','    if (fresh) {',"    if (fresh && node.kind !== 'candidate-symlink') {",'admits inside linked',path=source),
+ fault('path-fence',"    measure(path, limits.maximumPathBytes, 'path');",'','bounds long roots',path=source),
+ fault('mapping-guard',"  if (paths === null || typeof paths !== 'object' || Array.isArray(paths))\n    throw new Error('TypeScript effective paths must be a mapping');",'', 'boundary nonobject',compiler_test),
+ fault('array-mapping-guard'," || Array.isArray(paths)",'','boundary array-map',compiler_test),
+ fault('substitutions-guard',"    if (!Array.isArray(substitutions))\n      throw new Error('TypeScript effective paths substitutions must be arrays');",'', 'boundary nonarray',compiler_test),
+ fault('string-guard',"      if (typeof substitution !== 'string')\n        throw new Error('TypeScript effective paths substitution must be a string');",'', 'boundary nonstring runs',compiler_test),
+ fault('origin-guard',"      if (typeof base !== 'string')\n        throw new Error('TypeScript effective paths requires a string baseUrl or pathsBasePath');",'', 'boundary missing-origin',compiler_test),
+ fault('default-origin',origin,"const base: unknown = options.baseUrl !== undefined ? options.baseUrl : (options['pathsBasePath'] ?? system.getCurrentDirectory());",'boundary missing-origin',compiler_test),
+ fault('helper-callable',"    !('resolvePath' in runtime) ||\n    typeof runtime.resolvePath !== 'function' ||\n    runtime.resolvePath.length !== 1",'    false','boundary helper-absent',compiler_test),
+ fault('helper-version',"    runtime.version !== '6.0.3' ||\n",'','boundary helper-version',compiler_test),
+ fault('helper-signature'," ||\n    runtime.resolvePath.length !== 1",'','boundary helper-signature',compiler_test),
+ fault('helper-return',"  if (typeof path !== 'string') throw new Error('installed TypeScript resolvePath returned nonstring');",'','boundary helper-return',compiler_test),
+]
+faults.append(('global-admission',compiler,initial[compiler].replace(line,'').replace('  const options: ts.CompilerOptions = {',line+'\n  const options: ts.CompilerOptions = {'),compiler_test,'previous modes preserve literal paths'))
+faults.append(('late-admission',compiler,initial[compiler].replace(line,'').replace('  const host = createCompilerHost(options, system);','  const host = createCompilerHost(options, system);\n'+line),activation,'refuses absolute outside'))
+# A discarded parent mapping must not be reintroduced after the parser replaces it.
+parent="""    const rawParent = ts.readConfigFile(resolve(workspace, 'configs/base.json'), (path) => system.readFile(path));
+    const parentMappings = rawParent.config.compilerOptions?.paths;
+    if (parentMappings !== undefined) admitLiteralPaths({ ...parsed.options, paths: { ...parentMappings, ...parsed.options.paths } }, system);
+"""
+faults.append(('merge-discarded',compiler,initial[compiler].replace(line,parent+line),activation,'admits discarded outside'))
+ledger_path=evidence/'fault-ledger.json'
+ledger=json.loads(ledger_path.read_text()) if ledger_path.exists() else []
+try:
+ for name,path,mutated,test,pattern in faults:
+  if sys.argv[1:] and name not in sys.argv[1:]: continue
+  if mutated==initial[path]: raise RuntimeError('unchanged mutation '+name)
+  path.write_text(mutated)
+  invocation=subprocess.run(['python3','/tmp/runtime-rss-guard.py','bun','test',test,'-t',pattern],cwd=root,capture_output=True,text=True,env=dict(os.environ,RUNTIME_CLOSURE_RSS_MIB='900'))
+  transcript=invocation.stdout+invocation.stderr
+  (evidence/('fault-'+name+'.log')).write_text(transcript)
+  path.write_text(initial[path])
+  if invocation.returncode!=1 or '(fail)' not in transcript or 'error:' not in transcript or 'SyntaxError' in transcript:
+   raise RuntimeError('fault did not reach expected assertion '+name+'\n'+transcript)
+  receipt=json.loads(next(line for line in transcript.splitlines() if line.startswith('{"ceilingBytes"')))
+  ledger.append({'fault':name,'path':str(path.relative_to(root)),'sourceIdentity':hashlib.sha256(initial[path].encode()).hexdigest(),'injectedIdentity':hashlib.sha256(mutated.encode()).hexdigest(),'test':test,'pattern':pattern,**receipt,'observedFailure':[line for line in transcript.splitlines() if '(fail)' in line]})
+  ledger_path.write_text(json.dumps(ledger,indent=2)+'\n')
+  print(name,json.dumps(receipt),flush=True)
+finally:
+ for path,text in initial.items(): path.write_text(text)

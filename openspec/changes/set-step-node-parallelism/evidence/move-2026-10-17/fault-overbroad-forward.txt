@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+356 |     await fixture.stores.workItems.insert(workItemRow({ id, projectId: 'p', parentId }), [], stamp);
+357 |     await fixture.stores.stepParallels.set({workItemId:id,stepId:'dev',maxParallel:2},stamp);
+358 |   }
+359 |   const before = await fixture.stores.stepParallels.listByProject('p');
+360 |   const { workItems } = installWorkItem(fixture.requirements);
+361 |   expect((await workItems.move('moving', 'owner', move)).ok).toBe(true);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:361:62)
+(fail) retains moving subtree and sibling policy while moving under an empty destination [10.35ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.85s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 496574464, "exitCode": 1}

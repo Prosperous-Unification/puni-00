@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "-t",
+    "retained configuration admission preserves normalized"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 178408,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+      "-t",
+      "retained configuration admission preserves normalized"
+    ]
+  ]
+}

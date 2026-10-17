@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+141 |       requestIdentity: request.requestIdentity,
+142 |       snapshotIdentity: prepared.snapshotIdentity,
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+    "historyManifestIdentity": "99762c077ec344e9fb8107fa76b56886ec4fbb1300d508fe6a09c05b5eff2b8e",
+    "requestIdentity": "3652821fdcdc850f8cc10548253d8cf78f2f5f744f67c67ca141e35695605af4",
+-   "snapshotIdentity": "b898abdb703d6132a95c68b0c0a017c8885196cf701c28c9e9e07c2cdb45829d",
++   "snapshotIdentity": "0000000000000000000000000000000000000000000000000000000000000000",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:146:21)
+(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [92.95ms]
+141 |       requestIdentity: request.requestIdentity,
+142 |       snapshotIdentity: prepared.snapshotIdentity,
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+    "historyManifestIdentity": "d63e3c43f317884d19ddc8eb7953273378ac92162a542e93e8210d35de6c56fa",
+    "requestIdentity": "75be5c0e8260296fcd6a7f353945730f41883f2c022b1985d3601ef7c2d6b4f2",
+-   "snapshotIdentity": "38f8e231d879777ba5a2212b9a334d4eec551fb4d34f695235a082287eea435d",
++   "snapshotIdentity": "0000000000000000000000000000000000000000000000000000000000000000",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:146:21)
+(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [77.28ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [86.54ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [97.21ms]
+(pass) request binding is detached before an owner callback mutates the caller request [94.48ms]
+(pass) failed wrong-raw history publishes no review binding [89.97ms]
+(pass) failed repinned-canonical history publishes no review binding [94.59ms]
+(pass) failed repinned-noncanonical history publishes no review binding [82.99ms]
+(pass) failed malformed history publishes no review binding [90.33ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [89.29ms]
+(pass) phase-one retained views never acquire public review bindings [83.16ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [95.65ms]
+(pass) one legacy snapshot opens distinct candidate request bindings [95.00ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [97.19ms]
+(pass) declared protected-revision subject remains coherent in the owned request snapshot [105.86ms]
+(pass) declared merge-group subject remains coherent in the owned request snapshot [74.45ms]
+
+ 14 pass
+ 2 fail
+ 46 expect() calls
+Ran 16 tests across 1 file. [2.41s]

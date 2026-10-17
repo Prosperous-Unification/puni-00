@@ -1,0 +1,278 @@
+[
+  {
+    "fault": "refusal",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 642756608,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "legacy-read-empty",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence.*isolated",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 624455680,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "legacy-wrong-project",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence.*isolated",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 573087744,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "capture-empty",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence.*shared",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 590565376,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "capture-missing",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence.*shared",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 578785280,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "capture-alias",
+    "exitCode": 1,
+    "test": "libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts",
+    "pattern": "copies sparse adapter",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 531320832,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "post-snapshot-reread",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export uses",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 642744320,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "required-reader",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses construction",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 515805184,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "collection",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 506667008,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "row",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 503627776,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "ids",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 500510720,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "maximum",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 507523072,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "owner-existence",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 507740160,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "owner-project",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses sparse ownership",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 505946112,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "step-existence",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 509435904,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "step-project",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses sparse ownership",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 506372096,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "leaf",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses sparse ownership",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 511717376,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "duplicate",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses corrupt captured",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 510316544,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "shared-mapping",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence.*shared",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 588959744,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "isolated-mapping",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence.*isolated",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 578560000,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "response-schema",
+    "exitCode": 1,
+    "test": "apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts",
+    "pattern": "v9 sparse export fence",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 573190144,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "registry",
+    "exitCode": 1,
+    "test": "libs/wbs/domain/contracts/src/http/refusal.test.ts",
+    "pattern": "compiler enforces closed",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 227819520,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  },
+  {
+    "fault": "required-reader-final",
+    "exitCode": 1,
+    "test": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts",
+    "pattern": "v9 refuses construction",
+    "guard": {
+      "ceilingBytes": 943718400,
+      "sampledPeakBytes": 511705088,
+      "exitCode": 1
+    },
+    "assertionFailed": true
+  }
+]

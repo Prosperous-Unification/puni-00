@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+186 |       expect(() =>
+187 |         extractTypeScriptRelationshipsFromSource(workspace, request, source, {
+188 |           ...limits,
+189 |           [name]: value,
+190 |         } as TypeScriptLimits),
+191 |       ).toThrow(`TypeScript ${name} must be a nonnegative safe integer`);
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript maximumProbes must be a nonnegative safe integer"
+Received message: "trusted TypeScript compiler identity is unreadable"
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:191:9)
+(fail) compiler source rejects nonfinite, negative and fractional limits before IO [0.98ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [550.00ms]

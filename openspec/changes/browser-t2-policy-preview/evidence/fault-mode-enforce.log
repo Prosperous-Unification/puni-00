@@ -1,0 +1,65 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+309 |   ['ratchet', ['apps/example', 'apps/example/src', 'future/path'], 'refusal'],
+310 | ] as const)
+311 |   test(`[BROWSER-T2-POLICY-PREVIEW-006] same citation produces ${effect} under ${mode} ${prefixes.join(',')}`, async () => {
+312 |     const setup = fixture(mode, [...prefixes]);
+313 |     const call = await invokeCli(setup.argv);
+314 |     expect(call.exitCode, call.stderr).toBe(effect === 'refusal' ? 1 : 0);
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:314:40)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under enforce  [1413.87ms]
+309 |   ['ratchet', ['apps/example', 'apps/example/src', 'future/path'], 'refusal'],
+310 | ] as const)
+311 |   test(`[BROWSER-T2-POLICY-PREVIEW-006] same citation produces ${effect} under ${mode} ${prefixes.join(',')}`, async () => {
+312 |     const setup = fixture(mode, [...prefixes]);
+313 |     const call = await invokeCli(setup.argv);
+314 |     expect(call.exitCode, call.stderr).toBe(effect === 'refusal' ? 1 : 0);
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:314:40)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example/src [1336.97ms]
+309 |   ['ratchet', ['apps/example', 'apps/example/src', 'future/path'], 'refusal'],
+310 | ] as const)
+311 |   test(`[BROWSER-T2-POLICY-PREVIEW-006] same citation produces ${effect} under ${mode} ${prefixes.join(',')}`, async () => {
+312 |     const setup = fixture(mode, [...prefixes]);
+313 |     const call = await invokeCli(setup.argv);
+314 |     expect(call.exitCode, call.stderr).toBe(effect === 'refusal' ? 1 : 0);
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:314:40)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example/src/browser.test.ts [1282.66ms]
+309 |   ['ratchet', ['apps/example', 'apps/example/src', 'future/path'], 'refusal'],
+310 | ] as const)
+311 |   test(`[BROWSER-T2-POLICY-PREVIEW-006] same citation produces ${effect} under ${mode} ${prefixes.join(',')}`, async () => {
+312 |     const setup = fixture(mode, [...prefixes]);
+313 |     const call = await invokeCli(setup.argv);
+314 |     expect(call.exitCode, call.stderr).toBe(effect === 'refusal' ? 1 : 0);
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:314:40)
+(fail) [BROWSER-T2-POLICY-PREVIEW-006] same citation produces refusal under ratchet apps/example,apps/example/src,future/path [1246.98ms]
+
+ 0 pass
+ 83 filtered out
+ 4 fail
+ 4 expect() calls
+Ran 4 tests across 1 file. [6.28s]

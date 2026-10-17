@@ -1,0 +1,392 @@
+[
+  {
+    "fault": "record",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 372388,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "path",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 370780,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "identity",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 368872,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "dedup",
+    "testPattern": "exact ceilings",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "exact ceilings"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347728,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "sort",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 379564,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "utf16-sort",
+    "testPattern": "UTF8 order",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "UTF8 order"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344220,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "entry-cap",
+    "testPattern": "exact ceilings",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "exact ceilings"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350072,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "ledger-cap",
+    "testPattern": "exact ceilings|runtime ledger",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "exact ceilings|runtime ledger"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 343232,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "wrapper-cap",
+    "testPattern": "empty wrapper",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "empty wrapper"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346456,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "owner",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 376532,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "seal",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 372416,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "query-seal",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 374352,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "probe-seal",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 372704,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "freeze-envelope",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 379248,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "freeze-entries",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 382120,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "freeze-entry",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 374052,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "cache",
+    "testPattern": "raw candidate",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "raw candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 376628,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "successful-only",
+    "testPattern": "failed owner",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "failed owner"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350468,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "safe-limits",
+    "testPattern": "empty wrapper",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "empty wrapper"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 355720,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "positive-limits",
+    "testPattern": "empty wrapper",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "empty wrapper"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350132,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "exact-contribution",
+    "testPattern": "exact ceilings",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "exact ceilings"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346036,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "comma",
+    "testPattern": "two entry",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "--test-name-pattern",
+      "two entry"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 342200,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "mount-census",
+    "testPattern": "byte census seals",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "byte census seals"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 354080,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "mount-before-success",
+    "testPattern": "byte census seals",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "byte census seals"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 351468,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "unused-runtime",
+    "testPattern": "byte census seals",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "byte census seals"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 354080,
+    "ceilingKiB": 921600
+  },
+  {
+    "fault": "mount-output",
+    "testPattern": "one byte below exact",
+    "watchedFailure": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "one byte below exact"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 359172,
+    "ceilingKiB": 921600
+  }
+]

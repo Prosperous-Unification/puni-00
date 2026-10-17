@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step-marker-organization.controller.db.test.ts:
+(pass) keeps sparse removal references private from viewers and foreign organizations (cascade=false) [586.85ms]
+(pass) keeps sparse removal references private from viewers and foreign organizations (cascade=true) [518.31ms]
+
+ 2 pass
+ 17 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [3.10s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 641257472, "exitCode": 0}

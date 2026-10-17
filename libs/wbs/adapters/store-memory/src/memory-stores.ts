@@ -1,0 +1,376 @@
+import type { TransactionalStores } from '@wbs/core';
+
+import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
+import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
+import { inMemoryUsers, type MemoryUserTable, memoryUserTable } from './auth-fixture';
+import {
+  inMemoryCalendarMarkers,
+  type MemoryCalendarMarkerTable,
+  memoryCalendarMarkerTable,
+} from './calendar-marker-fixture';
+import {
+  inMemoryCapacity,
+  type MemoryCapacityTable,
+  memoryCapacityTable,
+} from './capacity-fixture';
+import {
+  inMemoryCommandJournal,
+  type MemoryCommandJournalTables,
+  memoryCommandJournalTables,
+} from './command-journal-fixture';
+import {
+  inMemoryDependencies,
+  type MemoryDependencyTable,
+  memoryDependencyTable,
+} from './dependency-fixture';
+import {
+  inMemoryDirectory,
+  type MemoryDirectoryTables,
+  memoryDirectoryTables,
+} from './directory-fixture';
+import {
+  inMemoryEstimates,
+  type MemoryEstimateTable,
+  memoryEstimateTable,
+} from './estimate-fixture';
+import { inMemoryPlanEvents } from './history-fixture';
+import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
+import { inMemoryMeasures, type MemoryMeasureTable, memoryMeasureTable } from './measure-fixture';
+import {
+  inMemoryWorkItems,
+  type MemoryWorkItemTables,
+  memoryWorkItemTables,
+} from './memory-work-item-fixture';
+import {
+  inMemoryPriorityBands,
+  type MemoryPriorityBandTable,
+  memoryPriorityBandTable,
+} from './priority-band-fixture';
+import {
+  inMemoryProgress,
+  type MemoryProgressTable,
+  memoryProgressTable,
+} from './progress-fixture';
+import { inMemoryProjects, type MemoryProjectTables, memoryProjectTables } from './project-fixture';
+import {
+  inMemoryEventLog,
+  type MemoryEventLogTables,
+  memoryEventLogTables,
+} from './replay-fixture';
+import {
+  inMemoryStepBlockages,
+  type MemoryStepBlockageTable,
+  memoryStepBlockageTable,
+} from './step-blockage-fixture';
+import { inMemorySteps, type MemoryStepTable, memoryStepTable } from './step-fixture';
+import {
+  inMemoryStepParallels,
+  type MemoryStepParallelTable,
+  memoryStepParallelTable,
+} from './step-parallel-fixture';
+import { inMemorySubtrees } from './subtree-fixture';
+import {
+  inMemoryTypedDependencies,
+  type MemoryTypedDependencyTable,
+  memoryTypedDependencyTable,
+} from './typed-dependency-fixture';
+
+interface MemoryTables {
+  readonly users: MemoryUserTable;
+  readonly projects: MemoryProjectTables;
+  readonly directory: MemoryDirectoryTables;
+  readonly steps: MemoryStepTable;
+  readonly dependencies: MemoryDependencyTable;
+  readonly typedDependencies: MemoryTypedDependencyTable;
+  readonly workItems: MemoryWorkItemTables;
+  readonly estimates: MemoryEstimateTable;
+  readonly actuals: MemoryActualTable;
+  readonly measures: MemoryMeasureTable;
+  readonly progress: MemoryProgressTable;
+  readonly attempts: MemoryAttemptTable;
+  readonly blockages: MemoryStepBlockageTable;
+  readonly stepParallels: MemoryStepParallelTable;
+  readonly capacity: MemoryCapacityTable;
+  readonly priorityBands: MemoryPriorityBandTable;
+  readonly calendarMarkers: MemoryCalendarMarkerTable;
+  readonly eventLog: MemoryEventLogTables;
+  readonly journal: MemoryCommandJournalTables;
+}
+
+function emptyTables(): MemoryTables {
+  return {
+    users: memoryUserTable(),
+    projects: memoryProjectTables(),
+    directory: memoryDirectoryTables(),
+    steps: memoryStepTable(),
+    dependencies: memoryDependencyTable(),
+    typedDependencies: memoryTypedDependencyTable(),
+    workItems: memoryWorkItemTables(),
+    estimates: memoryEstimateTable(),
+    actuals: memoryActualTable(),
+    measures: memoryMeasureTable(),
+    progress: memoryProgressTable(),
+    attempts: memoryAttemptTable(),
+    blockages: memoryStepBlockageTable(),
+    stepParallels: memoryStepParallelTable(),
+    capacity: memoryCapacityTable(),
+    priorityBands: memoryPriorityBandTable(),
+    calendarMarkers: memoryCalendarMarkerTable(),
+    eventLog: memoryEventLogTables(),
+    journal: memoryCommandJournalTables(),
+  };
+}
+
+export function replaceMap<K, V>(target: Map<K, V>, source: Map<K, V>): void {
+  target.clear();
+  for (const [key, value] of source) target.set(key, structuredClone(value));
+}
+
+function replaceArray<T>(target: T[], source: T[]): void {
+  target.splice(0, target.length, ...structuredClone(source));
+}
+
+/** Prevents a source reader from retaining a reference to its stored value. */
+function detachedStore<T extends object>(store: T): T {
+  return new Proxy(store, {
+    get(target, key, receiver) {
+      const member: unknown = Reflect.get(target, key, receiver);
+      if (typeof member !== 'function') return structuredClone(member);
+      return (...args: unknown[]): unknown => {
+        const returned: unknown = Reflect.apply(member, target, args);
+        if (returned instanceof Promise) {
+          return returned.then((value: unknown) => structuredClone(value));
+        }
+        return structuredClone(returned);
+      };
+    },
+  });
+}
+
+/** Applies the one detached-read boundary to every store in the catalog. */
+function detachedStores(stores: TransactionalStores): TransactionalStores {
+  const wrapped = new Map<PropertyKey, object>();
+  return new Proxy(stores, {
+    get(target, key, receiver) {
+      const store: unknown = Reflect.get(target, key, receiver);
+      if (store === null || typeof store !== 'object') return store;
+      const existing = wrapped.get(key);
+      if (existing !== undefined) return existing;
+      const detached = detachedStore(store);
+      wrapped.set(key, detached);
+      return detached;
+    },
+  });
+}
+
+/** Cloneable transactional table values owned by one memory source. */
+export class MemoryState {
+  readonly tables: MemoryTables;
+
+  constructor(tables: MemoryTables = emptyTables()) {
+    this.tables = tables;
+  }
+
+  // Proof: aliasing tables here failed `discards refused state and gives the next
+  // batch a fresh scope` at the refused-state read (2026-10-16).
+  clone(): MemoryState {
+    return new MemoryState(structuredClone(this.tables));
+  }
+
+  replaceWith(next: MemoryState): void {
+    replaceMap(this.tables.users.byId, next.tables.users.byId);
+    replaceMap(this.tables.projects.projects, next.tables.projects.projects);
+    replaceMap(this.tables.projects.steps, next.tables.projects.steps);
+    replaceMap(this.tables.projects.opened, next.tables.projects.opened);
+    // Proof: with this line removed, `undoes an allowance edit committed in an
+    // earlier unit of work` failed: the undo answered ok: false (2026-09-27).
+    replaceMap(this.tables.projects.allowanceRevisions, next.tables.projects.allowanceRevisions);
+    replaceMap(this.tables.projects.timezones, next.tables.projects.timezones);
+    replaceMap(this.tables.directory.teams, next.tables.directory.teams);
+    replaceMap(this.tables.directory.tags, next.tables.directory.tags);
+    replaceMap(this.tables.directory.services, next.tables.directory.services);
+    replaceMap(this.tables.directory.workItemTypes, next.tables.directory.workItemTypes);
+    replaceMap(this.tables.directory.externalSystems, next.tables.directory.externalSystems);
+    replaceMap(this.tables.directory.people, next.tables.directory.people);
+    replaceMap(this.tables.directory.memberships, next.tables.directory.memberships);
+    replaceMap(this.tables.directory.owned, next.tables.directory.owned);
+    replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
+    replaceArray(this.tables.steps.rows, next.tables.steps.rows);
+    replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
+    // Proof: omitting this copy left `commits all mixed-store writes together`
+    // with no committed typed row; watched failing 2026-09-27.
+    replaceArray(this.tables.typedDependencies.rows, next.tables.typedDependencies.rows);
+    replaceMap(this.tables.workItems.byId, next.tables.workItems.byId);
+    replaceMap(this.tables.workItems.teamsOf, next.tables.workItems.teamsOf);
+    replaceMap(this.tables.workItems.tagsOf, next.tables.workItems.tagsOf);
+    replaceMap(this.tables.workItems.servicesOf, next.tables.workItems.servicesOf);
+    replaceMap(this.tables.workItems.typesOf, next.tables.workItems.typesOf);
+    replaceMap(this.tables.workItems.refsOf, next.tables.workItems.refsOf);
+    replaceArray(this.tables.estimates.rows, next.tables.estimates.rows);
+    replaceArray(this.tables.actuals.rows, next.tables.actuals.rows);
+    replaceArray(this.tables.measures.rows, next.tables.measures.rows);
+    replaceArray(this.tables.progress.rows, next.tables.progress.rows);
+    replaceArray(this.tables.attempts.rows, next.tables.attempts.rows);
+    // Proof: removing this copy failed the project-seeded fact transaction test
+    // after commit left the old fact in place; watched 2026-10-13.
+    replaceArray(this.tables.blockages.rows, next.tables.blockages.rows);
+    // Proof: copy removed; source commit assertion lost the real authored fact (memory-commit.txt), 2026-10-15.
+    replaceArray(this.tables.stepParallels.rows, next.tables.stepParallels.rows);
+    replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
+    replaceMap(this.tables.capacity.held, next.tables.capacity.held);
+    replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
+    replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
+    replaceMap(this.tables.eventLog.rows, next.tables.eventLog.rows);
+    replaceMap(this.tables.eventLog.nextSeq, next.tables.eventLog.nextSeq);
+    replaceArray(this.tables.journal.entries, next.tables.journal.entries);
+    replaceArray(this.tables.journal.events, next.tables.journal.events);
+  }
+}
+
+export function bindStores(
+  state: MemoryState,
+  lateWrite: MemoryLateWriteSeam = inertMemoryLateWriteSeam,
+): TransactionalStores {
+  const users = inMemoryUsers(state.tables.users);
+  let workItems: TransactionalStores['workItems'] | null = null;
+  const fixtureDirectory = inMemoryDirectory((projectId) => {
+    if (workItems === null) throw new Error('work-item table was read before it was bound');
+    return workItems.listByProject(projectId);
+  }, state.tables.directory);
+  const directory: TransactionalStores['directory'] = {
+    ...fixtureDirectory,
+    async renameTag(tagId, name, stamp) {
+      const written = await fixtureDirectory.renameTag(tagId, name, stamp);
+      if (!written.ok) return written;
+      // Proof: the coherent capture RED received projectIds: [] after the real
+      // attached tag rename; source-owned relations must supply its touched project.
+      const projectIds = [
+        ...new Set(
+          [...state.tables.workItems.byId.values()]
+            .filter((row) => state.tables.workItems.tagsOf.get(row.id)?.includes(tagId) === true)
+            .map((row) => row.projectId),
+        ),
+      ].sort();
+      return { ...written, projectIds };
+    },
+  };
+  workItems = inMemoryWorkItems(directory, state.tables.workItems);
+  const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
+  const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
+  // Proof: a separate parallel table let source removal erase the step; mixed rollback tests failed, 2026-10-17.
+  const steps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
+    table: state.tables.stepParallels,
+    workItems,
+  });
+  const projects = inMemoryProjects(users, state.tables.projects);
+  const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
+  const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
+  const measures = inMemoryMeasures(workItems, state.tables.measures, steps);
+  const progress = inMemoryProgress(workItems, state.tables.progress, steps);
+  const attempts = inMemoryAttempts(workItems, state.tables.attempts, steps, progress);
+  const blockages = inMemoryStepBlockages(
+    workItems,
+    {
+      async findById(stepId) {
+        const step = await steps.findById(stepId);
+        if (step !== null) return step;
+        for (const project of await projects.list()) {
+          const seeded = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (seeded !== undefined) return seeded;
+        }
+        return null;
+      },
+    },
+    state.tables.blockages,
+  );
+  const stepParallels = inMemoryStepParallels(
+    workItems,
+    {
+      async findById(stepId) {
+        const step = await steps.findById(stepId);
+        if (step !== null) return step;
+        for (const project of await projects.list()) {
+          const seeded = (await projects.stepsOf(project.id)).find(
+            (candidate) => candidate.id === stepId,
+          );
+          if (seeded !== undefined) return seeded;
+        }
+        return null;
+      },
+    },
+    state.tables.stepParallels,
+  );
+  const rowsOnlyWorkItems = workItems;
+  workItems = {
+    ...rowsOnlyWorkItems,
+    async remove(ids, promoted, stamp) {
+      await rowsOnlyWorkItems.remove(ids, promoted, stamp);
+      const removed = new Set(ids);
+      const removeSatelliteRows = (rows: { readonly workItemId: string }[]) => {
+        const kept = rows.filter(({ workItemId }) => !removed.has(workItemId));
+        rows.splice(0, rows.length, ...kept);
+      };
+      // SQLite explicitly deletes estimates before its work-item delete, while
+      // work-item foreign keys cascade actuals, progress, and measures; the
+      // memory source must expose the same post-write boundary for all four.
+      // Proof: omitting this cascade made the runner's delete-last-child hand-up
+      // reject at the next targeted estimate read with an orphaned work-item reference.
+      removeSatelliteRows(state.tables.estimates.rows);
+      removeSatelliteRows(state.tables.actuals.rows);
+      removeSatelliteRows(state.tables.progress.rows);
+      removeSatelliteRows(state.tables.measures.rows);
+      removeSatelliteRows(state.tables.attempts.rows);
+      // Proof: removing this cascade failed the same test when a deleted owner
+      // left an unreadable blockage fact; watched 2026-10-13.
+      removeSatelliteRows(state.tables.blockages.rows);
+      removeSatelliteRows(state.tables.attempts.issued);
+    },
+  };
+  const stores: TransactionalStores = {
+    users,
+    projects,
+    directory,
+    steps,
+    workItems,
+    estimates,
+    actuals,
+    measures,
+    progress,
+    attempts,
+    blockages,
+    stepParallels,
+    dependencies,
+    typedDependencies,
+    capacity: inMemoryCapacity({}, state.tables.capacity),
+    priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
+    calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
+    planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
+    eventLog: inMemoryEventLog(state.tables.eventLog),
+    journal: inMemoryCommandJournal(state.tables.journal, (journalEventIds) => {
+      // Proof: omitting this forwarding failed `runs every Task 5.1 journal case`
+      // when the expected late rollback case did not pass (2026-10-16).
+      lateWrite.reach('journal-history-insert', { journalEventIds });
+    }),
+    subtrees: inMemorySubtrees(
+      {
+        workItems,
+        estimates,
+        actuals,
+        progress,
+        measures,
+        dependencies,
+        directory,
+      },
+      (satelliteKeys) => {
+        // Proof: omitting this forwarding failed `runs every subtree case` at
+        // the expected late rollback outcome (2026-10-16).
+        lateWrite.reach('subtree-final-satellite', { satelliteKeys });
+      },
+    ),
+  };
+  // Proof: returning stores directly failed both public and admitted detached
+  // storage-shape reads after caller mutation (2026-10-16).
+  return detachedStores(stores);
+}

@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+58 |   expect(identity).toEqual({ rawIdentity: hashBytes('export {};'), byteLength: 10 });
+59 |   expect(Object.isFrozen(identity)).toBe(true);
+60 |   expect(() => readRetainedFileIdentity({ ...f.candidate }, tuple.path, tuple.blob)).toThrow(
+61 |     'owned retained candidate',
+62 |   );
+63 |   expect(() => readRetainedFileIdentity(f.candidate, tuple.path, '0'.repeat(40))).toThrow('tuple');
+                                                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "tuple"
+
+Received function did not throw
+Received value: {
+  rawIdentity: "2e29cd9a98755c46896f7a2d56524db2d6d96b248e36db46de14c30bf47c8d05",
+  byteLength: 10,
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:63:83)
+(fail) owned file identity authenticates tuple without consuming candidate reads [126.29ms]
+
+ 0 pass
+ 65 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1096.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+613 |         },
+614 |         stamp,
+615 |       );
+616 |       return { commit: false, value: undefined };
+617 |     });
+618 |     expect((await source.stores.projects.findById('p1'))?.name).toBe('Before');
+                                                                      ^
+error: expect(received).toBe(expected)
+
+Expected: "Before"
+Received: "Refused"
+
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/memory-source.test.ts:618:65)
+(fail) the staged memory source > discards refused state and gives the next batch a fresh scope [7.02ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.60s]

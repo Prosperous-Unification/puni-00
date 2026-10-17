@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+(pass) source removal retains sparse facts across mixed rollback (cascade=false) [8.97ms]
+(pass) source removal retains sparse facts across mixed rollback (cascade=true) [0.47ms]
+
+ 2 pass
+ 17 filtered out
+ 0 fail
+ 10 expect() calls
+Ran 2 tests across 1 file. [1.80s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 495222784, "exitCode": 0}

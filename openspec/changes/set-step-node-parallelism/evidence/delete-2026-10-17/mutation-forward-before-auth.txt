@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+146 |   it('keeps missing, authorization and required strategy precedence before failed evidence', async () => {
+147 |     const fixture = await seeded();
+148 |     await fixture.stores.blockages.remove('parent', 'dev', stamp);
+149 |     await fixture.stores.workItems.insert(workItemRow({ id: 'child', parentId: 'parent', projectId: 'p' }), [], stamp);
+150 |     const { workItems } = installWorkItem({ ...fixture.requirements, stepParallels: {
+151 |       listByWorkItems: () => { throw new Error('delete sparse reader unavailable'); },
+                                               ^
+error: delete sparse reader unavailable
+      at listByWorkItems (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:151:42)
+      at remove (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:3524:35)
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:154:28)
+(fail) delete sparse owner preservation > keeps missing, authorization and required strategy precedence before failed evidence [13.05ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 508022784, "exitCode": 1}

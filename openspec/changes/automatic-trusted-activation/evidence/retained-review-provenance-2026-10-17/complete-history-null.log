@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+141 |       requestIdentity: request.requestIdentity,
+142 |       snapshotIdentity: prepared.snapshotIdentity,
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "historyManifestIdentity": "2bbaf1fb87401da221f88696815c48ecca8c2e05c94eab69d2bcc9c938f86a52",
++   "historyManifestIdentity": null,
+    "requestIdentity": "1e22dd02661028935c08c75da12e16be449467e427d269292440c396a33caed8",
+    "snapshotIdentity": "bdc9c28a3b3ff3d620837e1344eb08fea2e67fb655d5836b2719386f71355937",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:146:21)
+(fail) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [89.35ms]
+141 |       requestIdentity: request.requestIdentity,
+142 |       snapshotIdentity: prepared.snapshotIdentity,
+143 |       historyManifestIdentity: prepared.historyIdentity,
+144 |     };
+145 |     const binding = readRetainedReviewProvenance(candidate);
+146 |     expect(binding).toEqual(expected);
+                          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "historyManifestIdentity": "c130472a2ae4013701237a9bb6b9028e5eafbcedd235037a458ab8ed493dff76",
++   "historyManifestIdentity": null,
+    "requestIdentity": "53b2355bfad66f1ea72dafb69fee0b1afb33023d8a6af498dcd019575a1a82f4",
+    "snapshotIdentity": "3298b63a54c6bbd64868aef6f8d49fadb8dcabef5952d88b6666066d1842174e",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:146:21)
+(fail) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [87.39ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [103.76ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [90.49ms]
+(pass) request binding is detached before an owner callback mutates the caller request [98.33ms]
+(pass) failed wrong-raw history publishes no review binding [106.89ms]
+(pass) failed repinned-canonical history publishes no review binding [90.23ms]
+(pass) failed repinned-noncanonical history publishes no review binding [96.67ms]
+(pass) failed malformed history publishes no review binding [99.11ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [97.85ms]
+(pass) phase-one retained views never acquire public review bindings [94.41ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [90.56ms]
+(pass) one legacy snapshot opens distinct candidate request bindings [97.93ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [111.82ms]
+(pass) declared protected-revision subject remains coherent in the owned request snapshot [92.14ms]
+(pass) declared merge-group subject remains coherent in the owned request snapshot [73.48ms]
+
+ 14 pass
+ 2 fail
+ 46 expect() calls
+Ran 16 tests across 1 file. [2.48s]

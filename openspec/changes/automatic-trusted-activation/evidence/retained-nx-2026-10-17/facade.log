@@ -1,0 +1,9 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts:
+(pass) exports exactly the judge surface and nothing that takes a store [949.57ms]
+
+ 1 pass
+ 0 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [972.00ms]

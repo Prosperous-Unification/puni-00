@@ -1,0 +1,178 @@
+{
+  "base": "fb7917adc0325519cf4fd816688285fae131a66d",
+  "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+  "guardArgv": ["python", "/tmp/runtime-rss-guard.py"],
+  "capEnvironment": "RUNTIME_CLOSURE_RSS_MIB",
+  "commands": [
+    {
+      "argv": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/migration-cli.db.test.ts",
+        "--test-name-pattern",
+        "restores an older newly introduced migration after a newer shared-people baseline",
+        "--timeout=60000"
+      ],
+      "capMiB": 900,
+      "receipts": ["integration-final-pair-migration.log"]
+    },
+    {
+      "argv": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts",
+        "--test-name-pattern",
+        "refuses a plan written by a newer node instead of crashing on it",
+        "--timeout=10000"
+      ],
+      "capMiB": 900,
+      "receipts": [
+        "integration-final-pair-saved-red.log",
+        "integration-final-pair-saved-green.log",
+        "integration-final-pair-supported-omission.log"
+      ]
+    },
+    {
+      "argv": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts",
+        "--timeout=10000"
+      ],
+      "capMiB": 900,
+      "receipts": ["integration-final-pair-saved-restored.log"]
+    },
+    {
+      "argv": ["bunx", "tsc", "--project", "/tmp/integration-domain-worker-tsconfig.json"],
+      "capMiB": [900, 1400, 1400],
+      "receipts": [
+        "integration-domain-worker-ts-red-900.log",
+        "integration-domain-worker-ts-red-1400.log",
+        "integration-domain-worker-ts-green.log"
+      ]
+    },
+    {
+      "argv": [
+        "bun",
+        "test",
+        "apps/wbs/be-01/src/runtime/domain-proof-worker.db.test.ts",
+        "--timeout=10000"
+      ],
+      "capMiB": 900,
+      "receipts": ["integration-domain-worker-runtime-green.log"]
+    },
+    {
+      "argv": [
+        "bun",
+        "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+        "validate",
+        "set-step-node-parallelism",
+        "--strict"
+      ],
+      "capMiB": 900,
+      "receipts": ["integration-final-fixtures-openspec.log"]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "integration-final-pair-migration.log.gz",
+      "rawBytes": 369,
+      "rawSha256": "d769be8d625223c1271718694896cb032ecd0f371b4a64d45c59e7b031fe2e6f",
+      "gzipBytes": 286,
+      "gzipSha256": "d2e3d158f20ba47f297374ca693b88da54a943d2ecaf42e94fadd15df5123ff3"
+    },
+    {
+      "path": "integration-final-pair-saved-red.log.gz",
+      "rawBytes": 1088,
+      "rawSha256": "21df4a50345bef392241b2f0953dd64a7c695f8398f9301323032a61890d6095",
+      "gzipBytes": 604,
+      "gzipSha256": "2fee87e4651a67d41ba1a5afa39d3599591f7376a9c005ea9a3800e3794e22ef"
+    },
+    {
+      "path": "integration-final-pair-saved-green.log.gz",
+      "rawBytes": 360,
+      "rawSha256": "32667fe6251d5875d243daabba220716fc361f76415400ce868e5e2e0afed820",
+      "gzipBytes": 277,
+      "gzipSha256": "39963e9f7f61f382e35efcdf5194ecf2916a0d72209b5eccc23d292503bddb75"
+    },
+    {
+      "path": "integration-final-pair-supported-omission.log.gz",
+      "rawBytes": 1088,
+      "rawSha256": "9311e61d0913bff6d07d7005dce5afdbe799153906f3b28e77129e8c1a4be00c",
+      "gzipBytes": 604,
+      "gzipSha256": "89cd3a224ae872ca6faedefb474722a1fec73e8244d7a8e15a54193dffb7d424"
+    },
+    {
+      "path": "integration-final-pair-proof.json.gz",
+      "rawBytes": 184,
+      "rawSha256": "62f17b4f8c080baa4a20dff40a057621f6a8fd539df0ad26fad35c9ae8c41d18",
+      "gzipBytes": 171,
+      "gzipSha256": "40f0fffcd18d9cf228fe443164ba465967daa869d1543300d949880535a9effb"
+    },
+    {
+      "path": "integration-final-pair-saved-restored.log.gz",
+      "rawBytes": 10486,
+      "rawSha256": "a06778fb7c73f2a7112bc490c4e41879206ef8742afcd4a9a637043a7dcfd363",
+      "gzipBytes": 2401,
+      "gzipSha256": "61cd766533604a941c41ad42fefd8a9b73a1cb1d73599fe480e3fa4615ad0ff8"
+    },
+    {
+      "path": "integration-domain-worker-tsconfig.json.gz",
+      "rawBytes": 482,
+      "rawSha256": "2d0e790f40f73c85098abd86e3622d3a3e58b333acb02719bd86e56d8de73170",
+      "gzipBytes": 247,
+      "gzipSha256": "5ffd05a1d54e5cffa33b5e63232bca7cbed45cb97b24c9b79c7ab404cd4b218f"
+    },
+    {
+      "path": "integration-domain-worker-ts-red-900.log.gz",
+      "rawBytes": 75,
+      "rawSha256": "d47661a4427df0f568810a443b6344bda96883e6af4c546ea35ea521a47e8622",
+      "gzipBytes": 83,
+      "gzipSha256": "b36c837b769482f2be6e1346f608307af6856cd6f9f0089e8a032b361244ef09"
+    },
+    {
+      "path": "integration-domain-worker-ts-red-1400.log.gz",
+      "rawBytes": 265,
+      "rawSha256": "98d2a44961ce9eb56721515167aeb9a8dc5a327e0f020114277f988f6c1c85d3",
+      "gzipBytes": 206,
+      "gzipSha256": "9a37ff7b1d863ced3d932b937ea5fdd52f4d65f22695dcf1ddd8fb7df60e3923"
+    },
+    {
+      "path": "integration-domain-worker-ts-green.log.gz",
+      "rawBytes": 76,
+      "rawSha256": "1dcfe506de7c9a469d54919e10db0d34945a2ce4584828b0f2059228edbac892",
+      "gzipBytes": 86,
+      "gzipSha256": "9597fc909cffc5219475deeb51680ccc3f99a8734baa160af976c01ae3a1aed9"
+    },
+    {
+      "path": "integration-domain-worker-runtime-green.log.gz",
+      "rawBytes": 1937,
+      "rawSha256": "d9cd502334f93d17b92dcd51ffabc86e8f085be3851c79c2202a8de3f827c587",
+      "gzipBytes": 618,
+      "gzipSha256": "5c8b2e5daadf46bfb59838d0627514c7d2c90de8f2fecb639b88b8ccc31a96b7"
+    },
+    {
+      "path": "integration-final-fixtures-openspec.log.gz",
+      "rawBytes": 117,
+      "rawSha256": "7aa113157a7229575c62765b067c794523ca8ce16ae2d2463875ca18fd836125",
+      "gzipBytes": 127,
+      "gzipSha256": "e8957c47c8e865f2ce7120b0be30941fd1470b0dd993beeae79d6602a1a4cfc7"
+    }
+  ],
+  "changedFileHashes": {
+    "apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts": "763dd8c8c67e0d9267d2d6b58f40537dbfa040c42369fae02d0961ae417422d9",
+    "apps/wbs/be-01/src/runtime/domain-proof-worker.db.test.ts": "526e7551625d558b3b7d86c90c611a6a5a3001b06455837fd0f44722dd3856df",
+    "openspec/changes/set-step-node-parallelism/verify.md": "35ecff74aa868775901e6d49322346c4e4c9a3fdc958750983b35fbd40bbb784"
+  },
+  "proof": {
+    "fault": "Production versionRefusal filters schema8 from supported payload",
+    "diagnostic": "Exact501 payload equality missing8",
+    "restoration": "Production route restored byte-for-byte; hash in integration-final-pair-proof.json"
+  },
+  "limits": [
+    "900MiB TS run resource-killed before compiler diagnostic; disqualified.",
+    "One-file spec-derived TS project only; not full backend typecheck.",
+    "No full backend/host gate/deployment completion claimed.",
+    "Normal hooks and containing-commit receipts external."
+  ]
+}

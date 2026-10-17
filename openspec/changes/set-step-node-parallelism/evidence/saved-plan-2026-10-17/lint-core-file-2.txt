@@ -1,0 +1,2 @@
+libs/wbs/application/core/src/ports/store-boundaries.test.ts
+{"ceilingBytes": 943718400, "sampledPeakBytes": 771555328, "exitCode": 0}

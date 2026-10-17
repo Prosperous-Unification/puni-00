@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+1260 |     throw new AggregateError(failures, 'review acquisition and cleanup failed', {
+1261 |       cause: failures[0],
+1262 |     });
+1263 |   if (failures.length === 1) {
+1264 |     const failure = failures[0];
+1265 |     if (failure instanceof Error) throw failure;
+                                               ^
+error: symlink escape escapes the repository: ../outside
+      at prepareRetainedLocalReviewCandidate (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts:1265:41)
+      at fixture (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts:137:26)
+      at setup (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:26:20)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:56:20)
+(fail) retained effective typeRoots refuses ancestor escape before program with types empty [140.81ms]
+
+ 0 pass
+ 16 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1096.00ms]

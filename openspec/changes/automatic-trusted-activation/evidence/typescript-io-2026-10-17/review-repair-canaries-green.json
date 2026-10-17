@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+    "-t",
+    "CommonJS filesystem"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 185597952,
+  "seconds": 0.504,
+  "rssCeilingBytes": 817889280,
+  "deadlineSeconds": 300
+}

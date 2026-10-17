@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+411 | test('source query counts UTF8 bytes and repeated output bytes', () => {
+412 |   const f = setup({ maximumPathBytes: root.length + 3 });
+413 |   expect(() => f.source.pathKind(root + '/éé')).toThrow('source path ceiling');
+414 |   const output = setup({ maximumReturnedPathBytes: root.length });
+415 |   expect(output.source.realpath(root)).toBe(root);
+416 |   expect(() => output.source.realpath(root)).toThrow('source returned path ceiling');
+                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source returned path ceiling"
+
+Received function did not throw
+Received value: "/__puni_review__/candidate"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:416:46)
+(fail) source query counts UTF8 bytes and repeated output bytes [193.23ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1149.00ms]

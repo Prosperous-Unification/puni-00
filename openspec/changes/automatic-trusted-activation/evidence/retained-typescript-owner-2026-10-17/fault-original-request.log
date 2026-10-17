@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [186.18ms]
+156 |   );
+157 |   try {
+158 |     const owned = extraction.extractRetainedTypeScriptRelationships(f);
+159 |     const binding = extraction.readRetainedTypeScriptExtractionProvenance(owned);
+160 |     expect(callbacks).toBe(1);
+161 |     expect(binding.request).toEqual({
+                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+    "configPaths": [
+-     "tsconfig.json",
++     "missing.json",
+    ],
+    "publicEntrypoints": [
+      "index.ts",
++     "missing.ts",
+    ],
+  }
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:161:29)
+(fail) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [132.51ms]
+(pass) exact extraction deeply freezes envelope without changing enumerable canonical bytes [129.44ms]
+(pass) exact extraction registers only after compiler cap and freeze succeed [142.76ms]
+
+ 3 pass
+ 1 fail
+ 61 expect() calls
+Ran 4 tests across 1 file. [1.55s]

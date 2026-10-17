@@ -1,0 +1,27 @@
+{
+  "command": [
+    "bunx",
+    "lefthook",
+    "dump"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 70372,
+  "ceilingKiB": 1310720,
+  "observedArgv": [
+    [],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/lefthook-linux-x64/bin/lefthook",
+      "dump"
+    ],
+    [
+      "bunx",
+      "lefthook",
+      "dump"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/lefthook",
+      "dump"
+    ]
+  ]
+}

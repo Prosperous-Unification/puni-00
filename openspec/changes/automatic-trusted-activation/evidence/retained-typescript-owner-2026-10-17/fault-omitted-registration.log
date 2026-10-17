@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+62 |   extraction: unknown,
+63 | ): ExtractionProvenance {
+64 |   const binding =
+65 |     typeof extraction === 'object' && extraction !== null ? Extractions.get(extraction) : undefined;
+66 |   // Proof: owner-check omission admits impostors; `exact extraction owner rejects impostors` observes no throw.
+67 |   if (binding === undefined) throw new Error('owned retained TypeScript extraction required');
+                                                                                                 ^
+error: owned retained TypeScript extraction required
+      at readRetainedTypeScriptExtractionProvenance (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:67:93)
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:97:30)
+(fail) exact extraction owner rejects impostors without reading their properties [208.43ms]
+62 |   extraction: unknown,
+63 | ): ExtractionProvenance {
+64 |   const binding =
+65 |     typeof extraction === 'object' && extraction !== null ? Extractions.get(extraction) : undefined;
+66 |   // Proof: owner-check omission admits impostors; `exact extraction owner rejects impostors` observes no throw.
+67 |   if (binding === undefined) throw new Error('owned retained TypeScript extraction required');
+                                                                                                 ^
+error: owned retained TypeScript extraction required
+      at readRetainedTypeScriptExtractionProvenance (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:67:93)
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:159:32)
+(fail) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [119.24ms]
+(pass) exact extraction deeply freezes envelope without changing enumerable canonical bytes [119.94ms]
+(pass) exact extraction registers only after compiler cap and freeze succeed [128.92ms]
+
+ 2 pass
+ 2 fail
+ 46 expect() calls
+Ran 4 tests across 1 file. [1.51s]

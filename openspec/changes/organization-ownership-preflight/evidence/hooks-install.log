@@ -1,0 +1,4 @@
+[tool-git-hooks] installing lefthook in /tmp/puni-org-preflight-sol-oct17
+sync hooks: ✔️(prepare-commit-msg, pre-commit, commit-msg)
+[tool-git-hooks] hooks installed — pre-commit + commit-msg are active.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 81592320, "exitCode": 0}

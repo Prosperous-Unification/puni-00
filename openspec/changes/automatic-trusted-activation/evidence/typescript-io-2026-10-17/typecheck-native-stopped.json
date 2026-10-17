@@ -1,0 +1,17 @@
+{
+  "command": [
+    "bun",
+    "node_modules/.bin/tsc",
+    "--noEmit",
+    "--project",
+    "apps/twilight-structure/twilight-burokrat/cli/tsconfig.spec.json",
+    "--incremental",
+    "false"
+  ],
+  "status": "unavailable-watchdog-stopped",
+  "sampledTreeRssBytes": 834330624,
+  "rssStopThresholdBytes": 817889280,
+  "maximumTaskTreeRssBytes": 943718400,
+  "seconds": 1.328,
+  "reason": "native compiler exceeded sampled 780MiB stop; no pass claimed"
+}

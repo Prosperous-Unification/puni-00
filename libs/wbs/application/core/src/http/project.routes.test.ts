@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import {
   testCalendarMarkerService,
   testDirectoryService,
@@ -27,6 +28,7 @@ test('direct project bindings create, read, patch and record opening with admitt
     testDirectoryService(),
     testCalendarMarkerService(),
     { now: () => 0 },
+    testStepParallels(),
   );
   const made = await endpoints[0].handle({
     params: {},
@@ -73,6 +75,7 @@ test('direct project and export failures propagate without conversion to not_fou
     testDirectoryService(),
     testCalendarMarkerService(),
     { now: () => 0 },
+    testStepParallels(),
   );
   const failure = new Error('project store unavailable');
   const read = spyOn(projects, 'readWithin').mockRejectedValue(failure);

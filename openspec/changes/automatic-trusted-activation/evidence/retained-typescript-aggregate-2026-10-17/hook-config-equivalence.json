@@ -1,0 +1,8 @@
+{
+  "equivalentExcept": [
+    "pre-commit.parallel false",
+    "lint scheduling per file; identical bunx eslint arguments per file"
+  ],
+  "wrapper": ".git/lint-staged-serial.sh",
+  "config": ".git/lefthook.serial.yml"
+}

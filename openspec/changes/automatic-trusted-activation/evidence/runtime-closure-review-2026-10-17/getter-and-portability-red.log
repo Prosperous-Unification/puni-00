@@ -1,0 +1,101 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+498 | 
+499 | test('snapshots the closure byte reference before its manifest cap', () => {
+500 |   const { input } = fixture(); const bytes = input.closureBytes; let reads = 0;
+501 |   const probe = spyOn(fs, 'realpathSync');
+502 |   try {
+503 |     expect(() => readReviewRuntime({ ...input, limits: { ...input.limits, maximumManifestBytes: 1 }, get closureBytes() { reads += 1; return reads === 1 ? Uint8Array.of(0) : bytes; } })).toThrow();
+                                                                                                                                                                                                 ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [
+      {
+        byteLength: 6,
+        identity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+        path: "parser.js",
+        role: "program",
+      }, {
+        byteLength: 8,
+        identity: "e996bb0ea465fae70d3e3c66b3b6e02d33d2f1eb76d5958720578b6cf359cc2e",
+        path: "typescript.js",
+        role: "dependency",
+      }
+    ],
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "a7d7265d46270b8b68a03beebcf7a6d2446a445ed78caddf4abd618088a32156",
+  readFile: [Function: readFile],
+}
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:503:188)
+(fail) snapshots the closure byte reference before its manifest cap [2.63ms]
+505 |   } finally { probe.mockRestore(); }
+506 | });
+507 | test('publishes only the snapshotted independently expected pin', () => {
+508 |   const { input } = fixture(); const pin = input.runtimeClosureIdentity; let reads = 0;
+509 |   const runtime = readReviewRuntime({ ...input, get runtimeClosureIdentity() { reads += 1; return reads <= 2 ? pin : 'f'.repeat(64); } });
+510 |   expect(runtime.runtimeClosureIdentity).toBe(pin); expect(reads).toBe(1);
+                                               ^
+error: expect(received).toBe(expected)
+
+Expected: "a7d7265d46270b8b68a03beebcf7a6d2446a445ed78caddf4abd618088a32156"
+Received: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:510:42)
+(fail) publishes only the snapshotted independently expected pin [0.52ms]
+513 |   for (const field of ['runtimeRoot', 'candidateRoot'] as const) {
+514 |     const { input, root } = fixture(); const actual = join(root, 'root-\ufffd'); const alias = `${root}/root-\ud800`;
+515 |     if (field === 'runtimeRoot') { fs.renameSync(input.runtimeRoot, actual); input.runtimeRoot = alias; input.candidateRoot = actual; }
+516 |     else { mkdirSync(actual); input.candidateRoot = alias; }
+517 |     const probe = spyOn(fs, 'realpathSync');
+518 |     try { expect(() => readReviewRuntime(input)).toThrow('root malformed'); expect(probe).not.toHaveBeenCalled(); }
+                                                       ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "root malformed"
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [
+      {
+        byteLength: 6,
+        identity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+        path: "parser.js",
+        role: "program",
+      }, {
+        byteLength: 8,
+        identity: "e996bb0ea465fae70d3e3c66b3b6e02d33d2f1eb76d5958720578b6cf359cc2e",
+        path: "typescript.js",
+        role: "dependency",
+      }
+    ],
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "a7d7265d46270b8b68a03beebcf7a6d2446a445ed78caddf4abd618088a32156",
+  readFile: [Function: readFile],
+}
+
+      at assertUnicodeRoots (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:518:50)
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:528:9)
+(fail) rejects root Unicode with lexically preserving resolve [0.66ms]
+
+ 0 pass
+ 23 filtered out
+ 3 fail
+ 3 expect() calls
+Ran 3 tests across 1 file. [925.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 339386368, "exitCode": 1}

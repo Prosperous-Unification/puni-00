@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+63 |     ['step reference', 'a', 'absent'],
+64 |     ['project', 'a', 'foreign'],
+65 |     ['leaf', 'parent', 'dev'],
+66 |   ]) {
+67 |     it(`SQL rejects insert ${name}`, () => {
+68 |       expect(() => insert(owner, step)).toThrow();
+                                             ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:68:41)
+(fail) sparse parallelism SQL contract > SQL rejects insert project [175.68ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.01s]

@@ -1,0 +1,212 @@
+[
+  {
+    "name": "aggregate-separator-fence",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (length >= limits.maximumExpandedPathBytes - bytes)",
+    "new": "if (false)",
+    "test": "expanded aggregate includes",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "expanded aggregate includes"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345668,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) expanded aggregate includes resolved target remaining and separators {\"dir/a.ts\":\"x\"} [141.90ms]",
+      "(fail) expanded aggregate includes resolved target remaining and separators {\"dir/a.ts\":\"x\"} [120.30ms]",
+      "(fail) expanded aggregate includes resolved target remaining and separators {\"parent/target/a.ts\":\"x\"} [108.69ms]"
+    ]
+  },
+  {
+    "name": "pattern-nul",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "value.includes('\\0') ||",
+    "new": "false ||",
+    "test": "pattern syntax admission precedes link copies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "pattern syntax admission precedes link copies"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349744,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) pattern syntax admission precedes link copies \"nul\\u0000pattern\" [150.28ms]"
+    ]
+  },
+  {
+    "name": "pattern-backslash",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "value.includes('\\\\') ||",
+    "new": "false ||",
+    "test": "pattern syntax admission precedes link copies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "pattern syntax admission precedes link copies"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344248,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) pattern syntax admission precedes link copies \"\\\\pattern\" [101.81ms]"
+    ]
+  },
+  {
+    "name": "pattern-surrogate",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(value)",
+    "new": "false",
+    "test": "pattern syntax admission precedes link copies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "pattern syntax admission precedes link copies"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 352476,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) pattern syntax admission precedes link copies \"\\ud800\" [114.55ms]"]
+  },
+  {
+    "name": "supplied-depth-integer",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "!Number.isSafeInteger(depth)",
+    "new": "false",
+    "test": "supplied enumeration depth refuses before link copies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "supplied enumeration depth refuses before link copies"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346584,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) supplied enumeration depth refuses before link copies 1.5 [114.37ms]",
+      "(fail) supplied enumeration depth refuses before link copies null [130.59ms]"
+    ]
+  },
+  {
+    "name": "supplied-depth-lower",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "depth < 1",
+    "new": "false",
+    "test": "supplied enumeration depth refuses before link copies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "supplied enumeration depth refuses before link copies"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345200,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) supplied enumeration depth refuses before link copies 0 [142.76ms]",
+      "(fail) supplied enumeration depth refuses before link copies -1 [96.24ms]"
+    ]
+  },
+  {
+    "name": "supplied-depth-upper",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "depth < 1 || depth > limits.maximumDirectoryDepth",
+    "new": "depth < 1 || false",
+    "test": "supplied enumeration depth refuses before link copies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "supplied enumeration depth refuses before link copies"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348504,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) supplied enumeration depth refuses before link copies 31 [118.96ms]"]
+  },
+  {
+    "name": "snapshot-count",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "index < count",
+    "new": "index < values.length",
+    "test": "captured extensions ignore",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "captured extensions ignore"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347948,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) captured extensions ignore caller getter growth beyond admitted count [136.02ms]"
+    ]
+  },
+  {
+    "name": "caller-include-reread",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "capturedInclude.length > 0",
+    "new": "include.length > 0",
+    "test": "captured includes remain missing-only",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "captured includes remain missing-only"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347336,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) captured includes remain missing-only when caller getter truncates array [141.03ms]"
+    ]
+  },
+  {
+    "name": "missing-index",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (value === undefined) throw new Error('source pattern missing');",
+    "new": "",
+    "test": "captured patterns refuse a missing indexed entry",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "captured patterns refuse a missing indexed entry"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344104,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) captured patterns refuse a missing indexed entry after caller getter truncation [140.31ms]"
+    ]
+  }
+]

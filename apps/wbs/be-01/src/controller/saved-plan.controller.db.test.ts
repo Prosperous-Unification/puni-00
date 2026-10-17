@@ -7,6 +7,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { defaultSavedPlanName } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
@@ -158,6 +159,7 @@ describe('the saved-plan routes', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',
@@ -655,7 +657,8 @@ describe('the saved-plan routes', () => {
       version: 9999,
       // Named rather than matched loosely: the answer has to say what this
       // build *does* know, or an operator cannot tell how far behind it is.
-      supported: [1, 2, 3, 4, 5, 6, 7],
+      // Proof: omitting schema8 in the production501 payload failed this exact reply (2026-10-17).
+      supported: [1, 2, 3, 4, 5, 6, 7, 8],
     });
 
     const read = await as(tokens['ada'], `/api/saved-plans/${id}`);

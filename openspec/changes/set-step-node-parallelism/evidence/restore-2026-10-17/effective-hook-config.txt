@@ -1,0 +1,40 @@
+commit-msg:
+  commands:
+    agent-authored-by:
+      run: ops/agent-trailer/prepare-commit-msg {1}
+pre-commit:
+  commands:
+    doc-caps:
+      run: bun run tools/tool-git-hooks/src/hooks/doc-caps.ts
+      glob:
+        - LLM_README.md
+    format:
+      run: bunx prettier --check {staged_files}
+      glob:
+        - '*.{ts,tsx,js,json,md,yml,yaml,css}'
+      exclude:
+        - CLAUDE.md
+        - GEMINI.md
+    lint:
+      run: /tmp/puni-restore-destination-20261017/.git/restore-lint-staged.sh {staged_files}
+      glob:
+        - '*.{ts,tsx,js,mjs,cjs}'
+    migration-lint:
+      run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
+      glob:
+        - apps/wbs/{be-01,mcp-01}/drizzle/**/*.sql
+    plaintext-secrets:
+      run: bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts {staged_files}
+    private-nesting:
+      run: bun run tools/tool-git-hooks/src/hooks/private-nesting.ts {staged_files}
+    tool-wiki:
+      run: bash bin/tool-wiki-lint.sh staged . HEAD
+    website-migration-lint:
+      run: bun run tools/tool-git-hooks/src/hooks/migration-lint.ts {staged_files}
+      glob:
+        - libs/website/adapters/store-sqlite/src/**
+prepare-commit-msg:
+  commands:
+    agent-authored-by:
+      run: ops/agent-trailer/prepare-commit-msg {1} {2}
+{"ceilingBytes": 943718400, "sampledPeakBytes": 70971392, "exitCode": 0}

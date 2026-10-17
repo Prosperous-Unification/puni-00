@@ -1,0 +1,36 @@
+{
+  "parentSha": "79c0bcfc3ac1169fb080627a497030053a5e5197",
+  "identicalStrictIssues": true,
+  "mainSpecs": [
+    {
+      "path": "openspec/specs/dev-deploy/spec.md",
+      "parentBlob": "a61e3ae1514aa6a1b2c4859a7ba52be4d1a5242b",
+      "currentBlob": "a61e3ae1514aa6a1b2c4859a7ba52be4d1a5242b"
+    },
+    {
+      "path": "openspec/specs/live-plan-snapshot/spec.md",
+      "parentBlob": "7a1fcb0ee6a83dcc27a30db9f4a13b1a8a2658a6",
+      "currentBlob": "7a1fcb0ee6a83dcc27a30db9f4a13b1a8a2658a6"
+    },
+    {
+      "path": "openspec/specs/plan-command-registry/spec.md",
+      "parentBlob": "741cc80376284250bdf1e7ca53e53c9c63e63c11",
+      "currentBlob": "741cc80376284250bdf1e7ca53e53c9c63e63c11"
+    },
+    {
+      "path": "openspec/specs/plan-import/spec.md",
+      "parentBlob": "ac0c5f130510bf27d5e98fbccef1869591d0d826",
+      "currentBlob": "ac0c5f130510bf27d5e98fbccef1869591d0d826"
+    },
+    {
+      "path": "openspec/specs/saved-plans/spec.md",
+      "parentBlob": "07a1575a159510e636d156cc78c0c6591376b2e3",
+      "currentBlob": "07a1575a159510e636d156cc78c0c6591376b2e3"
+    },
+    {
+      "path": "openspec/specs/scheduler-optimization/spec.md",
+      "parentBlob": "47295b22bc5b8f2c538a06928c38fbb10b95c2ce",
+      "currentBlob": "47295b22bc5b8f2c538a06928c38fbb10b95c2ce"
+    }
+  ]
+}

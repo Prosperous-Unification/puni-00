@@ -1,0 +1,212 @@
+[
+  {
+    "phase": "budget-census-entries",
+    "testPattern": "implicit compiler bounds exact census-entries library observations",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler bounds exact census-entries library observations"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 653552,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "budget-census-bytes",
+    "testPattern": "implicit compiler bounds exact census-bytes library observations",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler bounds exact census-bytes library observations"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 664368,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "budget-envelope",
+    "testPattern": "implicit compiler bounds exact envelope library observations",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler bounds exact envelope library observations"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 833848,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "absent-root",
+    "testPattern": "implicit compiler refuses absent lib.es2025.full.d.ts",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler refuses absent lib.es2025.full.d.ts"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 377388,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "absent-dom",
+    "testPattern": "implicit compiler refuses absent lib.dom.d.ts",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler refuses absent lib.dom.d.ts"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 450084,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "absent-transitive",
+    "testPattern": "implicit compiler refuses absent lib.es2015.promise.d.ts",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler refuses absent lib.es2015.promise.d.ts"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 680948,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "physical-mutation",
+    "testPattern": "implicit compiler ignores physical library mutation",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler ignores physical library mutation"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 671928,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "changed-indirect",
+    "testPattern": "implicit compiler observes changed indirect library identity",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "implicit compiler observes changed indirect library identity"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 667484,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "restored-sha1",
+    "testPattern": "compiler implicit sha1.*capture roots",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha1.*capture roots"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 852320,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "restored-sha256",
+    "testPattern": "compiler implicit sha256.*capture roots",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler implicit sha256.*capture roots"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 868652,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "control-nolib-sha1",
+    "testPattern": "compiler noLib sha1.*capture roots",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler noLib sha1.*capture roots"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 365184,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "control-nolib-sha256",
+    "testPattern": "compiler noLib sha256.*capture roots",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler noLib sha256.*capture roots"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 363436,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "control-es5-sha1",
+    "testPattern": "compiler ES5 sha1.*capture roots",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler ES5 sha1.*capture roots"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 421188,
+    "ceilingKiB": 921600
+  },
+  {
+    "phase": "control-es5-sha256",
+    "testPattern": "compiler ES5 sha256.*capture roots",
+    "oneSelectedTestPassed": true,
+    "command": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+      "--test-name-pattern",
+      "compiler ES5 sha256.*capture roots"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 420268,
+    "ceilingKiB": 921600
+  }
+]

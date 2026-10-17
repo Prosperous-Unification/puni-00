@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+168 |     spyOn(connections, 'openExistingConnection').mockImplementation((path) =>
+169 |       inspectConnection(writableOpen(path)));
+170 |   `,
+171 |   );
+172 |   const invocation = run([], path, preload);
+173 |   expect(invocation.stderr.toString()).toBe('');
+                                             ^
+error: expect(received).toBe(expected)
+
+- ""
++ "14 |             error.cause.code !== 'SQLITE_READONLY') throw error;
++ 15 |         refused = true;
++ 16 |       }
++ 17 |       if (!refused) {
++ 18 |         connection.close();
++ 19 |         throw new Error('actual CLI connection accepted injected write');
++                        ^
++ error: actual CLI connection accepted injected write
++       at inspectConnection (/tmp/ownership-preflight-cli-XoBswV/check-readonly.ts:19:19)
++       at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:16:20
++
++ Bun v1.4.2 (Linux x64)
++ "
+
+- Expected  - 1
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:173:40)
+(fail) the actual connection opened by the CLI refuses an injected write [252.70ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [287.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 140439552, "exitCode": 1}

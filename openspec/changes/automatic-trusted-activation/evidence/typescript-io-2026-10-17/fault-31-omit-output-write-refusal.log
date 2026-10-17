@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+79 |
+80 | test('compiler ambient output callback refuses unexpected compiler writes', () => {
+81 |   const { source } = fixture();
+82 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });
+83 |   const host = createCompilerHost({}, system);
+84 |   expect(() => host.writeFile('/candidate/unexpected.d.ts', 'unexpected output', false)).toThrow('TypeScript compiler attempted an ambient output write');
+                                                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript compiler attempted an ambient output write"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:84:90)
+(fail) compiler ambient output callback refuses unexpected compiler writes [0.59ms]
+
+ 0 pass
+ 5 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [552.00ms]

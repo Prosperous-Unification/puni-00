@@ -1,0 +1,43 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "admits missing"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 348944,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/bin/sh",
+      "-c",
+      "git-upload-pack '/tmp/namespace-2PAbo5/source'",
+      "git-upload-pack '/tmp/namespace-2PAbo5/source'"
+    ],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-2PAbo5/store/.pending-rL3WOP/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-2PAbo5/source",
+      "f666057bc0117293bb8e1b8ed29074be2fbf3c76",
+      "f666057bc0117293bb8e1b8ed29074be2fbf3c76"
+    ],
+    ["/usr/bin/git", "-C", "/tmp/namespace-2PAbo5/source", "init", "-q", "--object-format=sha1"],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "admits missing"
+    ],
+    ["git-upload-pack", "/tmp/namespace-2PAbo5/source"]
+  ]
+}

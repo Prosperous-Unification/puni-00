@@ -1,0 +1,11 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 737431552,
+  "exitCode": 0
+}

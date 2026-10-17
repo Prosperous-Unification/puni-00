@@ -111,6 +111,7 @@ test('the release closure includes the reviewed supported declaration roots and 
     'arktype',
     'elysia',
     'drizzle-orm',
+    'yaml',
     'bun-types',
     '@types/react',
     '@types/react-dom',

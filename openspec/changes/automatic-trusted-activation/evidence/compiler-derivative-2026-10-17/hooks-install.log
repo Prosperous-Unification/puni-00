@@ -1,0 +1,4 @@
+[tool-git-hooks] installing lefthook in /tmp/puni-compiler-derivative-sol-20261017
+sync hooks: ✔️(commit-msg, pre-commit, prepare-commit-msg)
+[tool-git-hooks] hooks installed — pre-commit + commit-msg are active.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 103186432, "exitCode": 0}

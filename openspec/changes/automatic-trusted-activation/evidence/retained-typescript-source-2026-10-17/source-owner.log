@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+81 |   ).toThrow('owned review runtime');
+82 |   const foreign = fixture('sha1', undefined, { 'different.ts': 'foreign' }, {});
+83 |   expect(() =>
+84 |     createRetainedTypeScriptSource(f.namespace, foreign.candidate, f.runtime, limits),
+85 |   ).toThrow('identity differs');
+86 |   expect(() => readRetainedTypeScriptSourceProvenance({ ...f.source })).toThrow(
+                                                                             ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained TypeScript"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:86:73)
+(fail) source owners precede census and provenance joins candidate and runtime [220.37ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [1176.00ms]

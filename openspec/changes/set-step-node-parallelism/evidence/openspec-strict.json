@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "id": "set-step-node-parallelism",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 46
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/puni-step-parallel-foundation-sol-20261015",
+    "source": "nearest"
+  }
+}

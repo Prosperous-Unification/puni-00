@@ -1,0 +1,37 @@
+[
+  {
+    "trackedPath": "openspec/changes/automatic-trusted-activation/evidence/retained-es5-parity-2026-10-17/lint-test.log",
+    "rawPath": "/tmp/puni-es5-raw-evidence-20261017/lint-test.log",
+    "rawSha256": "6f12d1bb1d4a79955dc6968dfd29fc431e5082b4c2fd8a649a07ba9bc644b521",
+    "normalizedSha256": "4c082c71e34212fa8e146abe5a7f11a6d4ca49481c4c3181778bd2e317879fa7",
+    "transformation": "strip trailing whitespace per line and excess trailing blank lines; preserve one final LF"
+  },
+  {
+    "trackedPath": "openspec/changes/automatic-trusted-activation/evidence/retained-es5-parity-2026-10-17/typecheck-restored.log",
+    "rawPath": "/tmp/puni-es5-raw-evidence-20261017/typecheck-restored.log",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalizedSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "transformation": "strip trailing whitespace per line and excess trailing blank lines; preserve one final LF"
+  },
+  {
+    "trackedPath": "openspec/changes/automatic-trusted-activation/evidence/retained-es5-parity-2026-10-17/project-graph.log",
+    "rawPath": "/tmp/puni-es5-raw-evidence-20261017/project-graph.log",
+    "rawSha256": "a4aaa188a11bf8f39a4088e2ee51df137756c7e2072a339bd95f3cae33893c5b",
+    "normalizedSha256": "9656c18728488326302aba3e8eec007ea93b9a6193e5e58e75eca4ad7a424e56",
+    "transformation": "strip trailing whitespace per line and excess trailing blank lines; preserve one final LF"
+  },
+  {
+    "trackedPath": "openspec/changes/automatic-trusted-activation/evidence/retained-es5-parity-2026-10-17/normal-hook-refusal.log",
+    "rawPath": "/tmp/puni-es5-raw-evidence-20261017/normal-hook-refusal.log",
+    "rawSha256": "68c3fbb64c1dd00f944d7e7811dd8af225b4bc27ab11790a1e51151a738bd889",
+    "normalizedSha256": "82e5f84eb5b246b1ca7073d0624c21dda344348b98ac5b9595ea92a06e3c5f11",
+    "transformation": "strip trailing whitespace per line and excess trailing blank lines; preserve one final LF"
+  },
+  {
+    "trackedPath": "openspec/changes/automatic-trusted-activation/evidence/retained-es5-parity-2026-10-17/final-typecheck.log",
+    "rawPath": "/tmp/puni-es5-raw-evidence-20261017/final-typecheck.log",
+    "rawSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "normalizedSha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "transformation": "strip trailing whitespace per line and excess trailing blank lines; preserve one final LF"
+  }
+]

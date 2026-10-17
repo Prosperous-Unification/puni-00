@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "/tmp/puni-duplicate-owner-20261017/node_modules/.bin/lefthook",
+    "run",
+    "pre-commit",
+    "--command",
+    "lint"
+  ],
+  "exitCode": 1,
+  "namedUnusedFaultObserved": true,
+  "activeGraph": true
+}

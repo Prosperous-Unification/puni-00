@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+327 |       const bytes = owned.get(expected.path);
+328 |       if (bytes === undefined) throw new Error('runtime owned bytes absent');
+329 |       chargeRead();
+330 |       // Proof: copy-read-bytes admitted the second copy beyond its lifetime returned-byte cap.
+331 |       if (bytes.byteLength > limits.maximumReadBytes - readBytes)
+332 |         throw new Error('runtime read byte ceiling exceeded');
+                                                                  ^
+error: runtime read byte ceiling exceeded
+      at readFile (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts:332:61)
+      at readNode (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:219:19)
+      at readFile (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:519:60)
+      at readFile (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:96:42)
+      at getSourceFile (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:308:27)
+      at findSourceFileWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129221:23)
+      at findSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129138:20)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129089:22)
+      at getSourceFileFromReferenceWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129060:26)
+      at processSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129087:5)
+      at processRootFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128919:5)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129452:9)
+      at forEach (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:2309:22)
+      at processLibReferenceDirectives (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129449:5)
+      at findSourceFileWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129283:9)
+      at findSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129138:20)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129089:22)
+      at getSourceFileFromReferenceWorker (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129060:26)
+      at processSourceFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:129087:5)
+      at processRootFile (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:128919:5)
+      at createProgram (/home/df/wd/puni/puni-00/node_modules/@typescript/old/lib/typescript.js:127731:9)
+      at parseProject (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:221:22)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:114:40)
+      at extractRetainedTypeScriptRelationships (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:184:21)
+      at <anonymous> (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:1087:17)
+(fail) retained implicit compiler ignores physical library mutation after capture [1300.05ms]
+
+ 0 pass
+ 41 filtered out
+ 1 fail
+ 86 expect() calls
+Ran 1 test across 1 file. [2.24s]

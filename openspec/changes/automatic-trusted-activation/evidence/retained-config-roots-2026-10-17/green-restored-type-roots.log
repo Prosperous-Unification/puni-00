@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+(pass) retained effective typeRoots refuses absolute outside before program with types empty [136.57ms]
+(pass) retained effective typeRoots refuses relative outside before program with types empty [117.06ms]
+(pass) retained effective typeRoots refuses inherited outside before program with types empty [101.98ms]
+(pass) retained effective typeRoots refuses ancestor escape before program with types empty [108.05ms]
+(pass) retained effective typeRoots refuses absent escape descendant before program with types empty [102.43ms]
+(pass) retained effective typeRoots admits existing [159.60ms]
+(pass) retained effective typeRoots admits missing [102.94ms]
+(pass) retained effective typeRoots admits inherited [137.89ms]
+(pass) retained effective typeRoots admits override discarded outside [98.99ms]
+(pass) retained effective typeRoots admits valid candidate link [101.79ms]
+(pass) retained effective typeRoots admits omitted ordinary probes [103.80ms]
+(pass) retained effective typeRoots sha1 replays after physical roots disappear [141.33ms]
+(pass) retained effective typeRoots sha256 replays after physical roots disappear [118.56ms]
+(pass) retained effective typeRoots bounds long roots before source UTF8 encoding [138.13ms]
+(pass) retained effective typeRoots charges repeated compiler admission at exact fit [4148.85ms]
+(pass) retained effective typeRoots charges repeated source admission at exact fit [4008.01ms]
+(pass) retained effective typeRoots charges repeated steps admission at exact fit [3957.98ms]
+(pass) retained omitted typeRoots wildcard types discover visible ambient declarations [148.64ms]
+(pass) retained omitted typeRoots and types preserve pinned no auto discovery [133.71ms]
+
+ 19 pass
+ 0 fail
+ 70 expect() calls
+Ran 19 tests across 1 file. [15.03s]

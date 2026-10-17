@@ -1,0 +1,75 @@
+[
+  {
+    "check": "format",
+    "argv": [
+      "bunx",
+      "prettier",
+      "--write",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+      "openspec/changes/set-step-node-parallelism/design.md",
+      "openspec/changes/set-step-node-parallelism/tasks.md",
+      "openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md",
+      "openspec/changes/set-step-node-parallelism/verify.md"
+    ],
+    "capMiB": 900,
+    "exitCode": 0
+  },
+  {
+    "check": "type-work-item",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/work-item/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "capMiB": 1280,
+    "exitCode": 0
+  },
+  {
+    "check": "type-plan-commands",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/plan-commands/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "capMiB": 1280,
+    "exitCode": 0
+  },
+  {
+    "check": "lint-service",
+    "argv": [
+      "bunx",
+      "eslint",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+    ],
+    "capMiB": 900,
+    "exitCode": 0
+  },
+  {
+    "check": "lint-memory",
+    "argv": [
+      "bunx",
+      "eslint",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts"
+    ],
+    "capMiB": 900,
+    "exitCode": 0
+  },
+  {
+    "check": "lint-mounted",
+    "argv": [
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"
+    ],
+    "capMiB": 900,
+    "exitCode": 137
+  }
+]

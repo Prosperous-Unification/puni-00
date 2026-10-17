@@ -1,0 +1,60 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+206 |   const altered = `${artifact.source}\n`;
+207 |   expect(() => { verifyCompilerDerivative(altered, {
+208 |       ...artifact.manifest,
+209 |       outputSha256: createHash('sha256').update(altered).digest('hex'),
+210 |     }); },
+211 |   ).toThrow('manifest');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "manifest"
+Received message: "compiler output digest differs"
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:211:5)
+(fail) manifest verifier refuses output tampering and digest rebinding [125.80ms]
+(pass) manifest refuses malformed closed shape $supplied [46.90ms]
+(pass) manifest refuses malformed closed shape [] [46.85ms]
+375 | test.each([null, [], {}, { unexpected: true }].map((supplied) => ({ supplied })))(
+376 |   'manifest refuses malformed closed shape $supplied',
+377 |   async ({ supplied }) => {
+378 |     const upstream = await readFile(require.resolve('@typescript/old/lib/typescript.js'), 'utf8');
+379 |     const artifact = buildCompilerDerivative(upstream);
+380 |     expect(() => { verifyCompilerDerivative(artifact.source, supplied); }).toThrow('manifest');
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "manifest"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:380:76)
+(fail) manifest refuses malformed closed shape {} [53.11ms]
+375 | test.each([null, [], {}, { unexpected: true }].map((supplied) => ({ supplied })))(
+376 |   'manifest refuses malformed closed shape $supplied',
+377 |   async ({ supplied }) => {
+378 |     const upstream = await readFile(require.resolve('@typescript/old/lib/typescript.js'), 'utf8');
+379 |     const artifact = buildCompilerDerivative(upstream);
+380 |     expect(() => { verifyCompilerDerivative(artifact.source, supplied); }).toThrow('manifest');
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "manifest"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:380:76)
+(fail) manifest refuses malformed closed shape {
+  unexpected: true,
+} [56.60ms]
+
+ 2 pass
+ 31 filtered out
+ 3 fail
+ 6 expect() calls
+Ran 5 tests across 1 file. [375.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 179453952, "exitCode": 1}

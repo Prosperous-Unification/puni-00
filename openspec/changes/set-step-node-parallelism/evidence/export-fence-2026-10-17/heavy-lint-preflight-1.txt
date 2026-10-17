@@ -1,0 +1,2 @@
+Command: NODE_OPTIONS=--max-old-space-size=1536 RUNTIME_CLOSURE_RSS_MIB=2200 python3 <guard> bunx eslint apps/wbs/be-01/src/app.ts
+{"ceilingBytes": 2306867200, "sampledPeakBytes": 1354125312, "exitCode": 0}

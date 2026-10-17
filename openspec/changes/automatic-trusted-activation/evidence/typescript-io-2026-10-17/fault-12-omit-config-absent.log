@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+112 |       workspace,
+113 |       { ...request, configPaths: ['missing.json'] },
+114 |       source,
+115 |       limits,
+116 |     ),
+117 |   ).toThrow('TypeScript config absent: missing.json');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript config absent: missing.json"
+Received message: "TypeScript config unreadable: missing.json: Cannot read file '/candidate/missing.json'."
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:117:5)
+(fail) root config absent, directory and malformed stay distinct [1.67ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [536.00ms]

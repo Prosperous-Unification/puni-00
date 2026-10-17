@@ -1,0 +1,25 @@
+{
+  "command": [
+    "bunx",
+    "nx",
+    "graph",
+    "--file=tmp/shared-validation-graph.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 185756,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "nx",
+      "graph",
+      "--file=tmp/shared-validation-graph.json"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/nx",
+      "graph",
+      "--file=tmp/shared-validation-graph.json"
+    ]
+  ]
+}

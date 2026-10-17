@@ -1,0 +1,4 @@
+openspec/changes/set-step-node-parallelism/verify.md 168ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 13ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/strict-parent-comparison.json 10ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 143015936, "exitCode": 0}

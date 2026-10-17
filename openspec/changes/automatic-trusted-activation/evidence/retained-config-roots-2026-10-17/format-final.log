@@ -1,0 +1,56 @@
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts 127ms (unchanged)
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts 61ms (unchanged)
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts 25ms (unchanged)
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts 37ms (unchanged)
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts 21ms (unchanged)
+openspec/changes/automatic-trusted-activation/design.md 351ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-deduplicate-rootdirs.log.json 9ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-discarded-inherited.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-global-rootdirs.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-host-before-admission.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-ledger.json 5ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-masked-source-route.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-mount-old-mode.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-omit-compiler-charge.log.json 3ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-omit-mode-validation.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-omit-new-type-roots.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-omit-rootdirs.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-raw-only.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-requires-existence.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-reverse-order.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-types-empty-gating.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/fault-wrong-base.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/focused-tests.tsconfig.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/format-write.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/green-initial-activation.log.json 8ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/green-initial-compiler.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/green-restored-compiler.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/green-restored-config-roots.log.json 7ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/green-restored-core.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/green-restored-type-roots.log.json 6ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-0.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-1.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-2.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-3.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-4.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-boundary-fault.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-boundary-proof.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-boundary-restored.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-graph-0.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-graph-1.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-graph-2.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-graph-3.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/lint-graph-4.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/normalized-log-provenance.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/nx-graph.log.json 1ms
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/openspec-apply.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/openspec-status.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/openspec-validate.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/red-admission.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/red-order.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/red-second.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/type-dash-lib.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/evidence/retained-config-roots-2026-10-17/type-focused.log.json 1ms (unchanged)
+openspec/changes/automatic-trusted-activation/specs/automatic-trusted-activation/spec.md 200ms (unchanged)
+openspec/changes/automatic-trusted-activation/tasks.md 90ms (unchanged)
+openspec/changes/automatic-trusted-activation/verify.md 650ms

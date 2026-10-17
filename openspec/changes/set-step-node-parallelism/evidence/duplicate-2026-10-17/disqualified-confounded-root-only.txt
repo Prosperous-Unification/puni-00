@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [593.61ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [491.44ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [5.48ms]
+36 |   for (const row of rows) {
+37 |     if (!leafIds.has(row.id)) {
+38 |       // Proof: this check removed made `refuses a readiness or hold stored on
+39 |       // a parent` fail on `Received function did not throw`; watched 2026-09-29.
+40 |       if (row.readiness !== null || row.hold !== null) {
+41 |         throw new Error(`parent ${row.id} holds a readiness or a hold`);
+                       ^
+error: parent parent holds a readiness or a hold
+      at workItemStatusesOf (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/service/work-item-statuses.ts:41:19)
+      at projectTree (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:7371:24)
+(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [3.47ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [59.89ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.44ms]
+(pass) throws on selected trusted step corruption before duplication [0.91ms]
+(pass) throws on selected trusted project corruption before duplication [0.89ms]
+(pass) throws on selected trusted parent corruption before duplication [0.91ms]
+(pass) throws on selected trusted duplicate corruption before duplication [0.84ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [1.90ms]
+(pass) throws when the required duplication sparse reader is absent before writes [0.91ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [2.86ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [1.82ms]
+
+ 13 pass
+ 1 fail
+ 61 expect() calls
+Ran 14 tests across 2 files. [3.16s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 583254016, "exitCode": 1}

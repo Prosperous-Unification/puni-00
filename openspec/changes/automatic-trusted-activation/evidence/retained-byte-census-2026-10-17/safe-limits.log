@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+933 |       expect(() =>
+934 |         createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, {
+935 |           ...limits,
+936 |           [field]: ceiling,
+937 |         }),
+938 |       ).toThrow('positive safe integer');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:938:9)
+(fail) byte census empty wrapper and safe explicit limits reject before copies [122.70ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [1081.00ms]

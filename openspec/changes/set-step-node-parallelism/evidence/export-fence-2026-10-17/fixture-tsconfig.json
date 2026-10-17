@@ -1,0 +1,15 @@
+{
+  "extends": "/tmp/step-export-fence-20261017/apps/wbs/be-01/tsconfig.spec.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "typeRoots": [
+      "/tmp/step-export-fence-20261017/node_modules/@types",
+      "/tmp/step-export-fence-20261017/node_modules"
+    ]
+  },
+  "include": [
+    "/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/project.controller.test.ts",
+    "/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/work-item.controller.test.ts"
+  ],
+  "references": []
+}

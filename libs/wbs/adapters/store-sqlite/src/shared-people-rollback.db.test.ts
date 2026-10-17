@@ -217,9 +217,11 @@ describe('combined shared people recovery', () => {
     expect(removeSharedPeople(connection.db, saved, 101)).toEqual({ organizations: 2, ranks: 2 });
     expect(save().organizations.every((each) => each.mode === 'isolated')).toBe(true);
     expect(ranks()).toEqual([]);
+    // Proof: omitting sparse parallelism from production rollback selection failed this exact ordered list (2026-10-17).
     expect(
       rollbackTo(path, MIGRATIONS_FOLDER, '20261001010000_add_browser_credential_revocations'),
     ).toEqual([
+      '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
       '20261014130000_add_shared_people_restore_receipts',

@@ -1,0 +1,231 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:
+48 |   } finally {
+49 |     database.close();
+50 |   }
+51 |   const before = readFileSync(path);
+52 |   const invocation = run();
+53 |   expect(invocation.exitCode).toBe(0);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:53:31)
+(fail) prints complete JSON with findings and preserves database bytes [103.12ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "usage:"
+Received: "1 | throw new Error('ownership preflight CLI is not implemented');\n              ^\nerror: ownership preflight CLI is not implemented\n      at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:1:11\n\nBun v1.4.2 (Linux x64)\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:65:3)
+(fail) refuses unexpected arguments before opening the database [79.37ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "DB_PATH must be set"
+Received: "1 | throw new Error('ownership preflight CLI is not implemented');\n              ^\nerror: ownership preflight CLI is not implemented\n      at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:1:11\n\nBun v1.4.2 (Linux x64)\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:77:3)
+(fail) refuses absent and empty DB_PATH from a clean cwd [82.92ms]
+(pass) refuses a missing database without creating it [78.22ms]
+(pass) refuses a permission-unreadable database without stdout [82.93ms]
+(pass) refuses invalid SQLite separately from file permission failure [78.36ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "marker is absent"
+Received: "1 | throw new Error('ownership preflight CLI is not implemented');\n              ^\nerror: ownership preflight CLI is not implemented\n      at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:1:11\n\nBun v1.4.2 (Linux x64)\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:115:5)
+(fail) refuses absent marker with no stdout [80.26ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "marker is unreadable"
+Received: "1 | throw new Error('ownership preflight CLI is not implemented');\n              ^\nerror: ownership preflight CLI is not implemented\n      at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:1:11\n\nBun v1.4.2 (Linux x64)\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:115:5)
+(fail) refuses unreadable marker with no stdout [85.08ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "marker is malformed"
+Received: "1 | throw new Error('ownership preflight CLI is not implemented');\n              ^\nerror: ownership preflight CLI is not implemented\n      at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:1:11\n\nBun v1.4.2 (Linux x64)\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:115:5)
+(fail) refuses malformed marker with no stdout [76.34ms]
+35 |
+36 | function expectRefusal(invocation: ReturnType<typeof run>, message?: string): void {
+37 |   expect(invocation.exitCode).not.toBe(0);
+38 |   expect(invocation.stdout.toString()).toBe('');
+39 |   expect(invocation.stderr.toString().length).toBeGreaterThan(0);
+40 |   if (message !== undefined) expect(invocation.stderr.toString()).toContain(message);
+                                                                       ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "tag_organization"
+Received: "1 | throw new Error('ownership preflight CLI is not implemented');\n              ^\nerror: ownership preflight CLI is not implemented\n      at /tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.ts:1:11\n\nBun v1.4.2 (Linux x64)\n"
+
+      at expectRefusal (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:40:67)
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:126:3)
+(fail) refuses unavailable ownership query state despite a valid marker [80.95ms]
+150 |       writeFileSync(${JSON.stringify(proof)}, 'readonly refusal observed');
+151 |       return connection;
+152 |     });
+153 |   `);
+154 |   const invocation = run([], path, preload);
+155 |   expect(invocation.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts:155:31)
+(fail) the actual connection opened by the CLI refuses an injected write [88.74ms]
+
+libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:
+1 | import type { Drizzle } from './db';
+2 |
+3 | /** Reads ownership findings from a dedicated connection. */
+4 | export async function preflightOrganizationOwnership(db: Drizzle): Promise<unknown> {
+5 |   await Promise.resolve(db);
+6 |   throw new Error('ownership preflight is not implemented');
+                ^
+error: ownership preflight is not implemented
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:6:13)
+      at async <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:54:18)
+(fail) reports only marker and three empty finding arrays and permits connection reuse [70.64ms]
+1 | import type { Drizzle } from './db';
+2 |
+3 | /** Reads ownership findings from a dedicated connection. */
+4 | export async function preflightOrganizationOwnership(db: Drizzle): Promise<unknown> {
+5 |   await Promise.resolve(db);
+6 |   throw new Error('ownership preflight is not implemented');
+                ^
+error: ownership preflight is not implemented
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:6:13)
+      at async inspect (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:38:18)
+      at async <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:70:16)
+(fail) reports all three findings together without dropping any probe [73.58ms]
+1 | import type { Drizzle } from './db';
+2 |
+3 | /** Reads ownership findings from a dedicated connection. */
+4 | export async function preflightOrganizationOwnership(db: Drizzle): Promise<unknown> {
+5 |   await Promise.resolve(db);
+6 |   throw new Error('ownership preflight is not implemented');
+                ^
+error: ownership preflight is not implemented
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:6:13)
+      at async inspect (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:38:18)
+      at async <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:80:16)
+(fail) reports activated state explicitly without a readiness verdict [63.48ms]
+85 |   ['unreadable', 'ALTER TABLE organization_activation RENAME COLUMN state TO lost_state'],
+86 |   ['malformed', 'DELETE FROM organization_activation'],
+87 | ]) {
+88 |   test(`refuses ${state} marker rather than returning findings`, async () => {
+89 |     write('DROP TRIGGER organization_activation_no_delete', statement);
+90 |     await expect(inspect()).rejects.toThrow(`marker is ${state}`);
+                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "marker is absent"
+Received message: "ownership preflight is not implemented"
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:90:37)
+(fail) refuses absent marker rather than returning findings [66.84ms]
+85 |   ['unreadable', 'ALTER TABLE organization_activation RENAME COLUMN state TO lost_state'],
+86 |   ['malformed', 'DELETE FROM organization_activation'],
+87 | ]) {
+88 |   test(`refuses ${state} marker rather than returning findings`, async () => {
+89 |     write('DROP TRIGGER organization_activation_no_delete', statement);
+90 |     await expect(inspect()).rejects.toThrow(`marker is ${state}`);
+                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "marker is unreadable"
+Received message: "ownership preflight is not implemented"
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:90:37)
+(fail) refuses unreadable marker rather than returning findings [77.98ms]
+85 |   ['unreadable', 'ALTER TABLE organization_activation RENAME COLUMN state TO lost_state'],
+86 |   ['malformed', 'DELETE FROM organization_activation'],
+87 | ]) {
+88 |   test(`refuses ${state} marker rather than returning findings`, async () => {
+89 |     write('DROP TRIGGER organization_activation_no_delete', statement);
+90 |     await expect(inspect()).rejects.toThrow(`marker is ${state}`);
+                                         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "marker is malformed"
+Received message: "ownership preflight is not implemented"
+
+      at <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:90:37)
+(fail) refuses malformed marker rather than returning findings [75.75ms]
+1 | import type { Drizzle } from './db';
+2 |
+3 | /** Reads ownership findings from a dedicated connection. */
+4 | export async function preflightOrganizationOwnership(db: Drizzle): Promise<unknown> {
+5 |   await Promise.resolve(db);
+6 |   throw new Error('ownership preflight is not implemented');
+                ^
+error: ownership preflight is not implemented
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:6:13)
+      at async <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:120:18)
+(fail) pins marker and every finding across a competing commit and all probes [75.84ms]
+1 | import type { Drizzle } from './db';
+2 |
+3 | /** Reads ownership findings from a dedicated connection. */
+4 | export async function preflightOrganizationOwnership(db: Drizzle): Promise<unknown> {
+5 |   await Promise.resolve(db);
+6 |   throw new Error('ownership preflight is not implemented');
+                ^
+error: ownership preflight is not implemented
+      at preflightOrganizationOwnership (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.ts:6:13)
+      at async <anonymous> (/tmp/puni-org-preflight-sol-oct17/libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts:139:18)
+(fail) throws on unavailable query state and rolls back before reuse [92.72ms]
+
+ 3 pass
+ 16 fail
+ 40 expect() calls
+Ran 19 tests across 2 files. [1.55s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 81772544, "exitCode": 1}

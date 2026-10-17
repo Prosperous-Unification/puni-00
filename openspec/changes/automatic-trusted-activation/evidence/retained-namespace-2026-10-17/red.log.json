@@ -1,0 +1,10 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 668,
+  "ceilingKiB": 921600
+}

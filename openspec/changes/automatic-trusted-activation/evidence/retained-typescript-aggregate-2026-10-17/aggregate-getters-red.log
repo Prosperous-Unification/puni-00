@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+698 |
+699 | test('captured includes remain missing-only when caller getter truncates array', () => {
+700 |   const f = fromPaths({ 'exists.ts': 'x' });
+701 |   const include = ['missing/**/*.ts'];
+702 |   Object.defineProperty(include, 0, { get() { include.length = 0; return 'missing/**/*.ts'; } });
+703 |   expect(f.source.readDirectory(root, ['.ts'], undefined, include)).toEqual([]);
+                                                                          ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "/__puni_review__/candidate/exists.ts",
++   "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
++ ]
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:703:69)
+(fail) captured includes remain missing-only when caller getter truncates array [121.51ms]
+705 |
+706 | test('captured extensions ignore caller getter growth beyond admitted count', () => {
+707 |   const f = fromPaths({ 'exists.ts': 'x', 'exists.js': 'x' }, {}, { maximumPatterns: 1 });
+708 |   const extensions = ['.ts'];
+709 |   Object.defineProperty(extensions, 0, { get() { extensions.push('.js'); return '.ts'; } });
+710 |   expect(f.source.readDirectory(root, extensions)).toEqual([root + '/exists.ts']);
+                                                         ^
+error: expect(received).toEqual(expected)
+
+  [
++   "/__puni_review__/candidate/exists.js",
+    "/__puni_review__/candidate/exists.ts",
++   "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+  ]
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:710:52)
+(fail) captured extensions ignore caller getter growth beyond admitted count [93.78ms]
+
+ 0 pass
+ 79 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1178.00ms]

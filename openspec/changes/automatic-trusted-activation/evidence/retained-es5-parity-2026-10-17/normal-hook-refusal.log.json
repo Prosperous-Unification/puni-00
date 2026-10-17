@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "test(twilight-dash): prove retained explicit ES5 library parity"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 796332,
+  "ceilingKiB": 921600
+}

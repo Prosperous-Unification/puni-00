@@ -567,3 +567,33 @@ describe('after activation', () => {
     }
   });
 });
+
+for (const cascade of [false, true])
+  it(`keeps sparse removal references private from viewers and foreign organizations (cascade=${String(cascade)})`, async () => {
+    const step = await firstStep('ada', own);
+    h.sqlite.run(
+      "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('sparse-leaf',?,'Leaf',1,0)",
+      [own],
+    );
+    h.sqlite.run('INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES (?,?,1)', [
+      'sparse-leaf',
+      step,
+    ]);
+    const path = `/api/projects/${own}/steps/${step}?cascade=${String(cascade)}`;
+    expect(await h.call('vic', 'DELETE', path)).toMatchObject({
+      status: 403,
+      body: { error: 'forbidden' },
+    });
+    expect(await h.call('grace', 'DELETE', path)).toMatchObject({
+      status: 404,
+      body: { error: 'not_found' },
+    });
+    expect(await h.call('ada', 'DELETE', path)).toMatchObject({
+      status: 409,
+      body: {
+        error: 'referenced_by_step_parallel',
+        nodes: [{ workItemId: 'sparse-leaf', stepId: step }],
+      },
+    });
+    expect(h.sqlite.query('SELECT * FROM step_parallel').all()).toHaveLength(1);
+  });

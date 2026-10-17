@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "--test-name-pattern",
+    "explicit type root admission|observes only parser effective roots|namespace misses"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 180864,
+  "ceilingKiB": 921600
+}

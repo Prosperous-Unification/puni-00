@@ -1,0 +1,6 @@
+
+ NX   JSON output created in /tmp
+
+/tmp/export-fence-nx-graph.json
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 280334336, "exitCode": 0}

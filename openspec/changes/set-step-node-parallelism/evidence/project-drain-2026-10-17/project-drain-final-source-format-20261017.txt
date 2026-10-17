@@ -1,0 +1,7 @@
+libs/wbs/adapters/store-sqlite/src/optimization-drain.ts 222ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts 41ms (unchanged)
+apps/wbs/be-01/src/services.db.test.ts 727ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 231ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/project-drain-2026-10-17/mutation-receipts.json 9ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/project-drain-2026-10-17/restored-source-hashes.json 1ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 335069184, "exitCode": 0}

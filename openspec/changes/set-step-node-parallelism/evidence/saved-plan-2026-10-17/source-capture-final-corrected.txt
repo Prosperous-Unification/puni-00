@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts:
+(pass) SQLite existing source conformance > Task 6.3 observes each saved-plan capture boundary fault and reversals [2219.61ms]
+(pass) SQLite existing source conformance > Task 6.3 capture enrichment failures preserve setup and cleanup causes [95.14ms]
+(pass) SQLite existing source conformance > Task 6.3 rejects non-null real missing captures before fault reach [134.94ms]
+(pass) SQLite existing source conformance > Task 6.3 proves the detached second-read prerequisite and ordinal [129.86ms]
+(pass) SQLite existing source conformance > Task 6.3 requires the second real detached read before fault reach [142.50ms]
+(pass) SQLite existing source conformance > Task 6.3 rejects an omitted capture-only directory before fault reach [107.02ms]
+(pass) SQLite existing source conformance > Task 6.4 observes outside-epoch directory tearing and its reversals [759.50ms]
+(pass) SQLite existing source conformance > Task 6.4 capture rollback cannot revoke an independent committed SQLite writer [119.41ms]
+(pass) SQLite existing source conformance > Task 6.4 rejects capture on the shared SQLite writer connection [119.95ms]
+
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:
+(pass) memory existing source conformance > Task 6.3 observes each saved-plan capture boundary fault and reversals [51.87ms]
+(pass) memory existing source conformance > Task 6.3 capture enrichment failures remain cleanup-owned [0.86ms]
+(pass) memory existing source conformance > Task 6.3 rejects non-null real missing captures before fault reach [2.98ms]
+(pass) memory existing source conformance > Task 6.3 proves the detached second-read prerequisite and ordinal [3.60ms]
+(pass) memory existing source conformance > Task 6.3 requires the second real detached read before fault reach [3.68ms]
+(pass) memory existing source conformance > Task 6.3 rejects an omitted capture-only directory before fault reach [1.84ms]
+(pass) memory existing source conformance > Task 6.4 observes outside-epoch directory tearing and its reversals [21.20ms]
+(pass) memory existing source conformance > Task 6.4 capture failure cannot revoke an independent committed memory writer [2.24ms]
+(pass) memory existing source conformance > Task 6.4 rejects capture and writer work in one staged memory owner [2.04ms]
+
+ 18 pass
+ 132 filtered out
+ 0 fail
+ 2310 expect() calls
+Ran 18 tests across 2 files. [5.88s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 575705088, "exitCode": 0}

@@ -603,7 +603,7 @@ describe('readMigrationFolders', () => {
 
   it('pairs every migration on disk with a down script', () => {
     const folders = readMigrationFolders(FOLDER);
-    // Proof: omitting restore approvals in the production folder reader failed this frozen migration inventory.
+    // Proof: omitting restore approvals or the sparse parallelism folder in the production reader failed this frozen inventory (2026-10-17).
     expect(folders.map((f) => f.name)).toEqual([
       INIT,
       USERS,
@@ -679,6 +679,7 @@ describe('readMigrationFolders', () => {
       '20261014130000_add_shared_people_restore_receipts',
       '20261014140000_add_step_blockage_activation',
       '20261015100000_add_step_blockage_activation_receipt',
+      '20261015110000_add_step_node_parallelism',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -754,7 +755,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261015100000_add_step_blockage_activation_receipt');
+      expect(originalNames.at(-1)).toBe('20261015110000_add_step_node_parallelism');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -861,11 +862,13 @@ describe('rollbackTo, against a real database', () => {
         '20261014130000_add_shared_people_restore_receipts',
         '20261014140000_add_step_blockage_activation',
         '20261015100000_add_step_blockage_activation_receipt',
+        '20261015110000_add_step_node_parallelism',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
@@ -1036,6 +1039,7 @@ describe('rollbackTo, against a real database', () => {
         '20261014130000_add_shared_people_restore_receipts',
         '20261014140000_add_step_blockage_activation',
         '20261015100000_add_step_blockage_activation_receipt',
+        '20261015110000_add_step_node_parallelism',
       ]);
     } finally {
       db.cleanup();
@@ -1107,6 +1111,7 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
@@ -1226,6 +1231,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',
@@ -1330,6 +1336,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
         '20261014130000_add_shared_people_restore_receipts',

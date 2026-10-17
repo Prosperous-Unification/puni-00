@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+421 |           .all();
+422 |         for (const parallel of parallels) {
+423 |           if (parallel.ownerProject === null)
+424 |             throw new Error('step parallelism has an invalid work-item reference');
+425 |           if (parallel.ownerProject !== projectId)
+426 |             throw new Error('step parallelism project mismatch');
+                            ^
+error: step parallelism project mismatch
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:426:23)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at async remove (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:402:28)
+      at async <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:831:28)
+(fail) refuses retained sparse parallelism atomically (cascade=false) [154.66ms]
+421 |           .all();
+422 |         for (const parallel of parallels) {
+423 |           if (parallel.ownerProject === null)
+424 |             throw new Error('step parallelism has an invalid work-item reference');
+425 |           if (parallel.ownerProject !== projectId)
+426 |             throw new Error('step parallelism project mismatch');
+                            ^
+error: step parallelism project mismatch
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:426:23)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at async remove (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:402:28)
+      at async <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:831:28)
+(fail) refuses retained sparse parallelism atomically (cascade=true) [124.55ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 8 expect() calls
+Ran 2 tests across 1 file. [2.23s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 534765568, "exitCode": 1}

@@ -1,0 +1,30 @@
+{
+  "parentCommit": "b08f61f22c70ce2a8d8dda0757cba3ebbe425ada",
+  "sourceSha256": {
+    "relay.c": "ae449ece8cc082f0ec7153173f38a8c83839fc9cf2aeffda0b8168618f05d167",
+    "cri_fixture.py": "a9f66d1072e2ddadc8ab95e41e0bb58e799cd4b1670cc28d28f2a571bff6c08d",
+    "cri.probe.ts": "a17db5709e4567de44201a7dcf7feed6ca65c598d6affc60838e12219a607a64"
+  },
+  "validation": {
+    "totals": {
+      "items": 238,
+      "passed": 238,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 220,
+        "passed": 220,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "nativeSourceUnchanged": true,
+  "proofMutants": "Temporary native mutants change CHILD output or final List failure diagnostics; none are retained in production source. Fixture endpoint omission was restored before green runs.",
+  "greenSourceNote": "The final receipt-count proof comment was expanded after the green run; executable code is identical."
+}

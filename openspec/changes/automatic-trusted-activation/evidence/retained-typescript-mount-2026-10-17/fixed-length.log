@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+182 | ): ParsedProject {
+183 |   const absoluteConfig = resolve(workspace, configPath);
+184 |   // Proof: removing this boundary made the production CLI report the absent
+185 |   // `missing-tsconfig.json` as unreadable; the exact absent assertion failed.
+186 |   if (system.pathKind(absoluteConfig) === 'absent')
+187 |     throw new Error(`TypeScript config absent: ${configPath}`);
+                                                                   ^
+error: TypeScript config absent: missing.json
+      at parseProject (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:187:62)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:114:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:180:21)
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:262:5)
+(fail) retained compiler bounds and captures fixed request lengths before indexed getters [165.06ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1279.00ms]

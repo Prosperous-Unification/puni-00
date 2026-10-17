@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+109 |   operation: Promise<unknown>,
+110 |   message?: string | RegExp,
+111 | ): Promise<void> {
+112 |   await operation.then(
+113 |     () => {
+114 |       throw new Error('step parallelism operation unexpectedly resolved');
+                      ^
+error: step parallelism operation unexpectedly resolved
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/application/conformance/src/step-parallel-conformance.ts:114:17)
+(fail) removal throws on corrupt retained SQLite project [118.95ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1.98s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 532582400, "exitCode": 1}

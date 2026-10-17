@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+357 |       },
+358 |       stdout: 'pipe',
+359 |       stderr: 'pipe',
+360 |     },
+361 |   );
+362 |   expect(child.exitCode).not.toBe(0);
+                                   ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:362:30)
+(fail) builder refuses altered output after pinned input verification [76.21ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [114.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 101437440, "exitCode": 1}

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-levels.test.ts:
+(pass) [TEST-AXES-120] complete real Browser collection is isolated and preserves every upstream observation [864.88ms]
+(pass) [TEST-AXES-123] Conformance Architecture Performance first-match precedence produces wrong-level findings [1152.04ms]
+(pass) [TEST-AXES-123] multiple reported files preserve complete sorted bindings and source union [756.24ms]
+(pass) [TEST-AXES-121] exact upstream reports collection scope pins and source identities cannot substitute [20457.38ms]
+(pass) [TEST-AXES-122] complete explicit review refuses unknown Manual and promoted unknown rows [4699.74ms]
+(pass) [TEST-AXES-122] every external authority remains required and unreadability differs from absence [1267.22ms]
+(pass) [TEST-AXES-122] publication identity collection and digest drift after the last adapter refuse [5090.62ms]
+(pass) [TEST-AXES-121] complete membership intersections and pinned manifest tuples cannot be substituted [5158.51ms]
+(pass) [TEST-AXES-121] exact candidate selection and nonempty complete report are required [2382.39ms]
+(pass) [TEST-AXES-123] only an admitted complete collection member may fall through to Browser [1357.71ms]
+(pass) [TEST-AXES-124] outcomes enumeration authority bytes and full envelope digest remain bound [1249.61ms]
+(pass) [TEST-AXES-124] valid review object field order does not change review meaning [652.62ms]
+(pass) [TEST-AXES-124] bounded CLI refuses wrong arity mode and inherited publication failures [222.96ms]
+(pass) [TEST-AXES-124] built installed executable preserves complete isolated and wrong-level observations [8953.42ms]
+(pass) [TEST-AXES-125] real composer accepts explicit empty Performance without fabricating results [684.88ms]
+
+ 15 pass
+ 0 fail
+ 254 expect() calls
+Ran 15 tests across 1 file. [55.71s]

@@ -1,0 +1,4 @@
+[tool-git-hooks] installing lefthook in /tmp/step-first-child-20261017
+sync hooks: ✔️(commit-msg, pre-commit, prepare-commit-msg)
+[tool-git-hooks] hooks installed — pre-commit + commit-msg are active.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 84447232, "exitCode": 0}

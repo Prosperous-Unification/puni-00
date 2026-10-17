@@ -70,6 +70,10 @@ const DATED_MENTIONS: readonly (readonly [path: string, occurrences: number])[] 
   ['openspec/changes/twilight-burokrat-package/proposal.md', 2],
   ['openspec/changes/wiki-release/proposal.md', 2],
   ['openspec/changes/wiki-release/tasks.md', 4],
+  // Proof: removing or duplicating the recorded mention failed `every excuse …` with
+  // `excuses 1, holds 0` or `excuses 1, holds 2`; omitting this entry failed the current
+  // reference scan at checks.json:260 (2026-10-17).
+  ['openspec/changes/wbs-burokrat-evaluation/evidence/org-f7-composition/checks.json', 1],
   ['tools/tool-devsync/src/repo-namespacing-handoff.test.ts', 4],
   ['tools/tool-devsync/src/workspace-inventory.test.ts', 2],
   [SELF, 3],

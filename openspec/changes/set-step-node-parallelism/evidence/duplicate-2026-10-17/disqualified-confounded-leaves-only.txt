@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [605.35ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [486.27ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [5.83ms]
+(pass) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [2.07ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [60.36ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.39ms]
+(pass) throws on selected trusted step corruption before duplication [0.91ms]
+(pass) throws on selected trusted project corruption before duplication [0.83ms]
+185 |       step: 'invalid step reference',
+186 |       project: 'project mismatch',
+187 |       parent: 'owner is not a leaf',
+188 |       duplicate: 'duplicate step parallelism',
+189 |     };
+190 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+                                                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner is not a leaf"
+Received: "parent parent holds a readiness or a hold"
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:190:75)
+(fail) throws on selected trusted parent corruption before duplication [3.13ms]
+(pass) throws on selected trusted duplicate corruption before duplication [1.06ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [1.83ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.30ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.14ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.00ms]
+
+ 13 pass
+ 1 fail
+ 63 expect() calls
+Ran 14 tests across 2 files. [3.12s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 580665344, "exitCode": 1}

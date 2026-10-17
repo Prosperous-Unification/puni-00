@@ -1,0 +1,28 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "refuses absolute outside"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 357740,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-w7HwwR/store/.pending-2iaDDc/git",
+      "cat-file",
+      "blob",
+      "57a89ab667eee1c1ce3543b2317f21fb4fabc597"
+    ],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "refuses absolute outside"
+    ]
+  ]
+}

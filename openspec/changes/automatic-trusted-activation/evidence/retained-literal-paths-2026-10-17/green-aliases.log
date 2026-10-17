@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 369582080, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+(pass) retained literal paths resolves exact fallback with exact declarations and census [216.07ms]
+(pass) retained literal paths resolves fixed wildcard target with exact declarations and census [171.66ms]
+(pass) retained literal paths resolves declaring origin with exact declarations and census [172.79ms]
+(pass) retained literal paths resolves baseUrl replaces origin with exact declarations and census [170.65ms]
+
+ 4 pass
+ 18 filtered out
+ 0 fail
+ 20 expect() calls
+Ran 4 tests across 1 file. [1.74s]

@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+1143 |       new PlanDocumentService({
+1144 |         directory: directory(),
+1145 |         markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
+1146 |         clock: { now: () => 0 },
+1147 |       } as never),
+1148 |   ).toThrow(/step parallelism reader/);
+           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /step parallelism reader/
+
+Received function did not throw
+Received value: PlanDocumentService {
+  options: {
+    directory: {
+      listTeams: [Function: listTeams],
+      listPeople: [Function: listPeople],
+      listTags: [Function: listTags],
+      listServices: [Function: listServices],
+      listWorkItemTypes: [Function: listWorkItemTypes],
+      listExternalSystems: [Function: listExternalSystems],
+      listInOrganization: [Function: listInOrganization],
+    },
+    markers: {
+      list: [Function: list],
+    },
+    clock: {
+      now: [Function: now],
+    },
+  },
+  export: [AsyncFunction: export],
+  exportCaptured: [Function: exportCaptured],
+  readDocumentReads: [AsyncFunction: readDocumentReads],
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1148:5)
+(fail) v9 refuses construction without its sparse read capability [3.05ms]
+
+ 0 pass
+ 72 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.83s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 511705088, "exitCode": 1}

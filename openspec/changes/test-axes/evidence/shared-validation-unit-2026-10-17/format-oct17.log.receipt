@@ -1,0 +1,49 @@
+{
+  "command": [
+    "bunx",
+    "prettier",
+    "--write",
+    "libs/shared/domain/validation/README.md",
+    "libs/shared/domain/validation/project.json",
+    "openspec/changes/test-axes/specs/test-axes/spec.md",
+    "openspec/changes/test-axes/tasks.md",
+    "openspec/changes/test-axes/verify.md",
+    "openspec/scenario-allocations.json",
+    "tools/tool-devsync/src/test-levels.ts",
+    "tools/tool-devsync/src/test-levels.test.ts",
+    "tools/tool-devsync/src/shared-validation-level.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 370376,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "prettier",
+      "--write",
+      "libs/shared/domain/validation/README.md",
+      "libs/shared/domain/validation/project.json",
+      "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/scenario-allocations.json",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-validation-level.test.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/prettier",
+      "--write",
+      "libs/shared/domain/validation/README.md",
+      "libs/shared/domain/validation/project.json",
+      "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/scenario-allocations.json",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-validation-level.test.ts"
+    ]
+  ]
+}

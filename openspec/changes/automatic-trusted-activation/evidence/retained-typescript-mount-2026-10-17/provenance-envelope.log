@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+198 |         expect(invoke).toThrow('forbidden ambient route');
+199 |       for (const trap of traps) trap.mockClear();
+200 |       const extracted = extractRetainedTypeScriptRelationships(f);
+201 |       expect(extracted.runtimeTrust).toBe('unverified');
+202 |       expect(extracted.provenance.runtimeTrust).toBe('unverified');
+203 |       expect(extracted.provenance).toEqual(readRetainedNamespaceProvenance(f.namespace));
+                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+    "classificationPolicyIdentity": "5bc96ba018d0731cd46432bbd6128aa7de640be4ac6494fbe58baebc282b8eea",
+    "namespacePolicyIdentity": "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+    "resolutionPolicyIdentity": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "runtimeClosureIdentity": "f193d166a80394ce95276a37b2c3fea7e7a5dfb56b9b3030ada6dda055631d04",
+    "runtimeTrust": "unverified",
+-   "snapshotIdentity": "a483c8c6c3f702ba5d6a87d4f3d2f50b91a7394399809badfb1b8e1217a28a60",
++   "snapshotIdentity": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:203:36)
+(fail) retained compiler sha1 matches legacy after all capture roots disappear [235.85ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 20 expect() calls
+Ran 1 test across 1 file. [1198.00ms]

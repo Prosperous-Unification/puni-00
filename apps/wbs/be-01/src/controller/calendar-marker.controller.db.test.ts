@@ -7,6 +7,7 @@ import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { automaticColor, MARKER_NAME_MAX } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -205,6 +206,7 @@ describe('the calendar-marker routes', () => {
       // than a stamp: every marker this file creates ties on `(date,
       // createdAt)`, which is the only state in which the third key decides
       // anything at all.
+      stepParallels: testStepParallels(),
       calendarMarkers: new CalendarMarkerService({
         projects,
         markers: new CalendarMarkerRepository(db, OPEN),

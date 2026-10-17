@@ -1,0 +1,686 @@
+{
+  "fault-admit-wildcards.log": {
+    "rawArchive": "fault-admit-wildcards.log.raw.gz",
+    "rawSha256": "799bc5702c6ac18df6dd37098e241456017ea66eec654142bce6a69dcbae6ee5",
+    "rawBytes": 2334,
+    "archiveSha256": "bce394b8509bb48382fb54e82967853e63b5f18d5583949b1e85fa692b10ee76",
+    "displaySha256": "799bc5702c6ac18df6dd37098e241456017ea66eec654142bce6a69dcbae6ee5",
+    "displayBytes": 2334,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-array-mapping-guard.log": {
+    "rawArchive": "fault-array-mapping-guard.log.raw.gz",
+    "rawSha256": "1e88363dc60b2bc11ccfa4d614d27dd5fe70c9bdf9cc83560dcdb527758208db",
+    "rawBytes": 8825,
+    "archiveSha256": "566198e6482997ab7cf9ca3d5bf3ab1166a519822ee2372c9ae09353624babfe",
+    "displaySha256": "cb26f05c28962904a4e5bf768f47ca1dfce6432e7a4ccfc13e45714fb2713131",
+    "displayBytes": 8824,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-bypass-source.log": {
+    "rawArchive": "fault-bypass-source.log.raw.gz",
+    "rawSha256": "e395e90d0e7380c711e99f37833d9c5261be24b3c40ed2482e5af6582092a8b9",
+    "rawBytes": 4776,
+    "archiveSha256": "77dfed0c1d5106dabff832a3ac24a53d22e3b5a15a2fb5601b08d28739c3cf0f",
+    "displaySha256": "e395e90d0e7380c711e99f37833d9c5261be24b3c40ed2482e5af6582092a8b9",
+    "displayBytes": 4776,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-deduplicate.log": {
+    "rawArchive": "fault-deduplicate.log.raw.gz",
+    "rawSha256": "c8b301176687a203c4204c0ace45202dda0ae28ab5b456bfa35cb31519868f88",
+    "rawBytes": 1115,
+    "archiveSha256": "99f1573acba6c5172e94c18517eb2ea76e7a99c92a4837f7247fb0022f292cb0",
+    "displaySha256": "c8b301176687a203c4204c0ace45202dda0ae28ab5b456bfa35cb31519868f88",
+    "displayBytes": 1115,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-default-origin.log": {
+    "rawArchive": "fault-default-origin.log.raw.gz",
+    "rawSha256": "d0ede4a92c2dd87f3ff14b29ced824aaac9d18468c7f77917ce48f475a641878",
+    "rawBytes": 8863,
+    "archiveSha256": "660d77e4b1f8fe95bbcae1fbe43398c4b79c9dab2d268a41e59a693a660732d4",
+    "displaySha256": "32cbaab716e1cc098c75d092a189b9d04fb0e91bd185e67ad5890f6cac6e98a8",
+    "displayBytes": 8862,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-filter-wildcard-keys.log": {
+    "rawArchive": "fault-filter-wildcard-keys.log.raw.gz",
+    "rawSha256": "b170a4fdf5448230eebb6547131189f1d5e74f1f4350609d436cc0a48005da5d",
+    "rawBytes": 4786,
+    "archiveSha256": "d4aa4c7f7389cb6f1271dfdbd40a732a3b9bdc544ec1edf46605306bc14e75a3",
+    "displaySha256": "b170a4fdf5448230eebb6547131189f1d5e74f1f4350609d436cc0a48005da5d",
+    "displayBytes": 4786,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-global-admission.log": {
+    "rawArchive": "fault-global-admission.log.raw.gz",
+    "rawSha256": "262a9cc5d3f2155c27ba41c4f0134fc5adf524c6b3f74ba3c35cacdb60620d3a",
+    "rawBytes": 1605,
+    "archiveSha256": "5e5eaf99ab0763ed48c58fbb1691ed79b29fb87290119615d65487638226851a",
+    "displaySha256": "262a9cc5d3f2155c27ba41c4f0134fc5adf524c6b3f74ba3c35cacdb60620d3a",
+    "displayBytes": 1605,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-helper-callable.log": {
+    "rawArchive": "fault-helper-callable.log.raw.gz",
+    "rawSha256": "41a7324f735174003cc7060bf31d4fb66b89ccf501541dd3a74d03fe4edc09bb",
+    "rawBytes": 2593,
+    "archiveSha256": "c43852b47003e41e4067ea7eeebf3068db79ff27fb7c88fa8581a7b972988f8b",
+    "displaySha256": "2d3c26874186596c8f9142e124119538b2b61aba080e9d9cc3480af44a122caa",
+    "displayBytes": 2592,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-helper-return.log": {
+    "rawArchive": "fault-helper-return.log.raw.gz",
+    "rawSha256": "bbfef7109c4ce39a0e9487b83d6844af31749d84d07c382200d114892eaaefe7",
+    "rawBytes": 8867,
+    "archiveSha256": "53fe9c1bb9cb97aaf1fe8c919a40eaa3af816cb572738488f3c23eb49088a606",
+    "displaySha256": "1bb2717ebf7f3d32fe63133d59ca9ac5b599981a17423af1959a10a699429100",
+    "displayBytes": 8866,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-helper-signature.log": {
+    "rawArchive": "fault-helper-signature.log.raw.gz",
+    "rawSha256": "92b4f5dfaf2b4f04153a880b5dfed9b9223471f8694da9012623da4b57767816",
+    "rawBytes": 8870,
+    "archiveSha256": "7cf74516608de1ba61a46a80b44148ca0d4385e50f4e207966ac4175326569d2",
+    "displaySha256": "dd63c9c78f01b74bab44bafe037f438641126532972ab51e110fa48227c302b1",
+    "displayBytes": 8869,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-helper-version.log": {
+    "rawArchive": "fault-helper-version.log.raw.gz",
+    "rawSha256": "cab0c99e3397e3c45cb1b84ff4ed709a388b5f7cda23bd731c6115b01a6ce903",
+    "rawBytes": 8868,
+    "archiveSha256": "80349efe92c50d8888922f024d7a48f598a3c6b1c2cd1104a3f5f4e7c24a8256",
+    "displaySha256": "a2473251797fa20d9d5679abf3c555b546a77dc2dfb8792305517aa66a731f3c",
+    "displayBytes": 8867,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-ignore-base-override.log": {
+    "rawArchive": "fault-ignore-base-override.log.raw.gz",
+    "rawSha256": "7ae1ac16137961ea2d57e95795331038857dd38361989fb344ca9d18225f1a28",
+    "rawBytes": 1076,
+    "archiveSha256": "997843f1ce579c80c540e7fc6a203ee9fef4b30f0258ae4995eaf87187a4de13",
+    "displaySha256": "7ae1ac16137961ea2d57e95795331038857dd38361989fb344ca9d18225f1a28",
+    "displayBytes": 1076,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-late-admission.log": {
+    "rawArchive": "fault-late-admission.log.raw.gz",
+    "rawSha256": "425fe57075181efdcd9f876cf315982f67d635c036ceb584aab88b35e9ecab18",
+    "rawBytes": 1088,
+    "archiveSha256": "6da4df0145955dbe34f2cdfe2f02eda7408d1bffc77bc2369e42f4ea97b68204",
+    "displaySha256": "425fe57075181efdcd9f876cf315982f67d635c036ceb584aab88b35e9ecab18",
+    "displayBytes": 1088,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-lexical-only.log": {
+    "rawArchive": "fault-lexical-only.log.raw.gz",
+    "rawSha256": "96e3d157f6ea1570bd1409ac9e8d18d926449af1ec827d0f5b4b7e4fd94747e6",
+    "rawBytes": 4775,
+    "archiveSha256": "4bde169e7c05ee65ac296236f2ced471946bd5eadc5529968cd5cb501967a6a4",
+    "displaySha256": "96e3d157f6ea1570bd1409ac9e8d18d926449af1ec827d0f5b4b7e4fd94747e6",
+    "displayBytes": 4775,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-mapping-guard.log": {
+    "rawArchive": "fault-mapping-guard.log.raw.gz",
+    "rawSha256": "8afde05df9d614ddaf733f1969505e538d2d8417535d34038d620e4955389e8b",
+    "rawBytes": 2560,
+    "archiveSha256": "c052b9f67c794afcd29b243c9d15a2886f43473b1e1ffda3935b9b2bdec52fef",
+    "displaySha256": "4c006019a8bf26557e6602f11425507d3265fc5fef182367b8e7b4345718e285",
+    "displayBytes": 2559,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-masked-admission.log": {
+    "rawArchive": "fault-masked-admission.log.raw.gz",
+    "rawSha256": "42eef430088274188c84a1e612912534dda213065b53021d7c9aa9979efa2225",
+    "rawBytes": 4776,
+    "archiveSha256": "dd1d562be8ef32361f503006a0160820c470edead7ed618c6ac605d7236c3f51",
+    "displaySha256": "42eef430088274188c84a1e612912534dda213065b53021d7c9aa9979efa2225",
+    "displayBytes": 4776,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-merge-discarded.log": {
+    "rawArchive": "fault-merge-discarded.log.raw.gz",
+    "rawSha256": "ae2e82d4a2a751e4345fba3722a7bcd420310f4135b3c7b055424f852059ab13",
+    "rawBytes": 2321,
+    "archiveSha256": "5039065f515c27c6619597841058f22897a345449a3eabf90c5c4ec36d5f3ba1",
+    "displaySha256": "ae2e82d4a2a751e4345fba3722a7bcd420310f4135b3c7b055424f852059ab13",
+    "displayBytes": 2321,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-node-normalization.log": {
+    "rawArchive": "fault-node-normalization.log.raw.gz",
+    "rawSha256": "88577b5a0e68e369036f7525945d2508856ca7d35045e7eca9c86cb1b7432452",
+    "rawBytes": 1124,
+    "archiveSha256": "8eced51bd8bf7e05710edbeb82cf8205d89b82565debe0ee74f56a94fdc647d4",
+    "displaySha256": "88577b5a0e68e369036f7525945d2508856ca7d35045e7eca9c86cb1b7432452",
+    "displayBytes": 1124,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-omit-compiler-charge.log": {
+    "rawArchive": "fault-omit-compiler-charge.log.raw.gz",
+    "rawSha256": "17211984a4a7cef44b26566b72eaa1819e4ee69e2f36381f220697fa692ad9a1",
+    "rawBytes": 915,
+    "archiveSha256": "7a3f3daeed7bfa5ef2592d83a93c1d051c0b100f491569c5c67db261271d966a",
+    "displaySha256": "17211984a4a7cef44b26566b72eaa1819e4ee69e2f36381f220697fa692ad9a1",
+    "displayBytes": 915,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-omit-configdir.log": {
+    "rawArchive": "fault-omit-configdir.log.raw.gz",
+    "rawSha256": "2eeba826352ad3484ea54df71e04d12d589f3b6ca01d72d60b9d565d98f81b78",
+    "rawBytes": 1035,
+    "archiveSha256": "b03b7f72b3de225bf0f086f6ff8ffc3ae41dba3a3009d596c4f70add0b6efd14",
+    "displaySha256": "2eeba826352ad3484ea54df71e04d12d589f3b6ca01d72d60b9d565d98f81b78",
+    "displayBytes": 1035,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-omit-link-census.log": {
+    "rawArchive": "fault-omit-link-census.log.raw.gz",
+    "rawSha256": "d3db252ea3aaeac39f62d8fd3352d118036630c26cfc35880ab6ad37b53478be",
+    "rawBytes": 1549,
+    "archiveSha256": "f0a99f15d25ffcc5e1228c2408a713a94fd4ca6b609852080b861f11392e53a9",
+    "displaySha256": "d3db252ea3aaeac39f62d8fd3352d118036630c26cfc35880ab6ad37b53478be",
+    "displayBytes": 1549,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-omit-literals.log": {
+    "rawArchive": "fault-omit-literals.log.raw.gz",
+    "rawSha256": "5d103f80ba5c5e2298fb6e154b8dc446a21c466225ec1441796259cf67a337b1",
+    "rawBytes": 4776,
+    "archiveSha256": "7d24bebe96f5c6f17946626e80514f7c0cc0730b7a7d31c7fe55d1e4c4c36713",
+    "displaySha256": "5d103f80ba5c5e2298fb6e154b8dc446a21c466225ec1441796259cf67a337b1",
+    "displayBytes": 4776,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-omit-source-charge.log": {
+    "rawArchive": "fault-omit-source-charge.log.raw.gz",
+    "rawSha256": "8606e20bd6e627582bcb7c85717b1d35b2bf8c094a1858c5aa1247f6afc4b19e",
+    "rawBytes": 1119,
+    "archiveSha256": "5d081c02215633e05ee9016b938bb5d381f7647a614ceb4b46899bbd68aab5e3",
+    "displaySha256": "8606e20bd6e627582bcb7c85717b1d35b2bf8c094a1858c5aa1247f6afc4b19e",
+    "displayBytes": 1119,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-omit-step-charge.log": {
+    "rawArchive": "fault-omit-step-charge.log.raw.gz",
+    "rawSha256": "71de0a19727caaaaad634f7979b4651531aa225f95bca779145704e9b0c1ccf1",
+    "rawBytes": 1117,
+    "archiveSha256": "655ac8170dfa01fbe6ab8428d53709dfa3f221274086eb69edfee5bd1d200313",
+    "displaySha256": "71de0a19727caaaaad634f7979b4651531aa225f95bca779145704e9b0c1ccf1",
+    "displayBytes": 1117,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-origin-guard.log": {
+    "rawArchive": "fault-origin-guard.log.raw.gz",
+    "rawSha256": "7eb0330b672aa0b92ea07194561c90a5f5f9a89ccc904c176b322f769712715c",
+    "rawBytes": 8863,
+    "archiveSha256": "7b44ce43afe64c956f086c47cbc930982f921f12f971440f99f9ae2eb039c381",
+    "displaySha256": "dad539eecd948c5d7cae5ff51de816ecf2a9a9e5958222b2f024f4b83e80ab44",
+    "displayBytes": 8862,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-path-fence.log": {
+    "rawArchive": "fault-path-fence.log.raw.gz",
+    "rawSha256": "53c288a9f1f926ffbb11a1933d5bd92589d60828e80192b6a6a1e342acd21127",
+    "rawBytes": 4540,
+    "archiveSha256": "ead3d7bdf86b50d8b6b59d720083eea3618081a0c68bfca40f59232e51c6106f",
+    "displaySha256": "53c288a9f1f926ffbb11a1933d5bd92589d60828e80192b6a6a1e342acd21127",
+    "displayBytes": 4540,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-physical-lookup.log": {
+    "rawArchive": "fault-physical-lookup.log.raw.gz",
+    "rawSha256": "74da9ba41877a2f282d514d646ab13e66e61b6c726d5c363b9197d05a969b270",
+    "rawBytes": 1738,
+    "archiveSha256": "dad04c3a2f8a4e7fd867d78ac2bc38bf5a99baf34f6725e2bf6353c18f0e3786",
+    "displaySha256": "74da9ba41877a2f282d514d646ab13e66e61b6c726d5c363b9197d05a969b270",
+    "displayBytes": 1738,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-remove-options.log": {
+    "rawArchive": "fault-remove-options.log.raw.gz",
+    "rawSha256": "f6307e00615b94a54c1b8179329f59fd8be659f46c1ac46afebfed68f308be9e",
+    "rawBytes": 1636,
+    "archiveSha256": "197683c334bcadccd1f19a59b61e4e2384452072478c16acef046a20f224af7f",
+    "displaySha256": "f6307e00615b94a54c1b8179329f59fd8be659f46c1ac46afebfed68f308be9e",
+    "displayBytes": 1636,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-require-existence.log": {
+    "rawArchive": "fault-require-existence.log.raw.gz",
+    "rawSha256": "9031fff5f5df5e9737d6710eac8ae2299f926f52dc855e59441c997f124fa1bc",
+    "rawBytes": 1972,
+    "archiveSha256": "afacccc08b6c7e34f150b1ccd0f4c08cc5ba9b1994cc7fef2757bb54f3893174",
+    "displaySha256": "9031fff5f5df5e9737d6710eac8ae2299f926f52dc855e59441c997f124fa1bc",
+    "displayBytes": 1972,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-reset-compiler-charge.log": {
+    "rawArchive": "fault-reset-compiler-charge.log.raw.gz",
+    "rawSha256": "d95e59f062f12476484fc52ea8a3fb9bf63f46abbe912fb3b6d2e55d44b9b7cf",
+    "rawBytes": 915,
+    "archiveSha256": "beaa53f5b6050b5500f712b106443e106348f3a5e8d3fc140fd84dc02fe7fa39",
+    "displaySha256": "d95e59f062f12476484fc52ea8a3fb9bf63f46abbe912fb3b6d2e55d44b9b7cf",
+    "displayBytes": 915,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-reset-source-charge.log": {
+    "rawArchive": "fault-reset-source-charge.log.raw.gz",
+    "rawSha256": "c6cfb1913f8406097d557cd2c414878f04f8a40fee013268713826f6536ed2e1",
+    "rawBytes": 913,
+    "archiveSha256": "4f38393babfe7dc848e7223a4754e8b22ed6a1214f5a53ad43723dcd881cb579",
+    "displaySha256": "c6cfb1913f8406097d557cd2c414878f04f8a40fee013268713826f6536ed2e1",
+    "displayBytes": 913,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-reverse-fallback.log": {
+    "rawArchive": "fault-reverse-fallback.log.raw.gz",
+    "rawSha256": "bd6d7c8ffd1c4390189d87adaf45c979f5228ffccbd1150aaa905f150abce50b",
+    "rawBytes": 1505,
+    "archiveSha256": "7c05f7f2f014900270c23555678ca032a6381f5347ad160528313f9e63b30e24",
+    "displaySha256": "bd6d7c8ffd1c4390189d87adaf45c979f5228ffccbd1150aaa905f150abce50b",
+    "displayBytes": 1505,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-reverse-mappings.log": {
+    "rawArchive": "fault-reverse-mappings.log.raw.gz",
+    "rawSha256": "9daa0f0fc1eba7d1240b3215d8a3926db1d3fb5b7977d96a7ba497c9c3fe3211",
+    "rawBytes": 1160,
+    "archiveSha256": "0ae9f646549e9a0ef71cddceb1490cbe551f7fa20f217928cb5b68445f8e0342",
+    "displaySha256": "9daa0f0fc1eba7d1240b3215d8a3926db1d3fb5b7977d96a7ba497c9c3fe3211",
+    "displayBytes": 1160,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-string-guard.log": {
+    "rawArchive": "fault-string-guard.log.raw.gz",
+    "rawSha256": "d7f03695fed3c834e513d8ef4d76f82ef8f8e2c8dae43a4bbb96cb2828148d6f",
+    "rawBytes": 2550,
+    "archiveSha256": "36680dcfcd6c47dce89724d29c22d468b96a2b14f99e13af8b1704109268d9fc",
+    "displaySha256": "08b060cf44a6beb3635c855297e5246a9bba6e8117bf74915d1f1ca794bbc9a7",
+    "displayBytes": 2549,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-substitutions-guard.log": {
+    "rawArchive": "fault-substitutions-guard.log.raw.gz",
+    "rawSha256": "9de4d4731c68cdf70f905e7f3aad897b52781156d2e9a4e97703a8a13083d665",
+    "rawBytes": 8858,
+    "archiveSha256": "cdfeeeed0ace10612b45ef7049821df3ce6bfa7f7a1c3a7df564bf7743864eaf",
+    "displaySha256": "11f9e45a237d985051f6abf5bc533f0168bf64a686cfd215f37897f493a5ed9d",
+    "displayBytes": 8857,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-types-gate.log": {
+    "rawArchive": "fault-types-gate.log.raw.gz",
+    "rawSha256": "6d6558fa97f70634128ff29af7295b312e990fe4acb446a416e5dfaa3ad531b6",
+    "rawBytes": 4776,
+    "archiveSha256": "03b2d49211b6426ae563f27c6a91c72005a02bc0939d4e779fc2696c04bb2de5",
+    "displaySha256": "6d6558fa97f70634128ff29af7295b312e990fe4acb446a416e5dfaa3ad531b6",
+    "displayBytes": 4776,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-usage-gate.log": {
+    "rawArchive": "fault-usage-gate.log.raw.gz",
+    "rawSha256": "c9f57d25ca3a2059abd111c5f26c9de321300ab034e3a0290e7ea7bfbded7416",
+    "rawBytes": 4776,
+    "archiveSha256": "a5f3085d2ae4f136724cbe0666d8e8283027274e43e4f4112d683309aebbe651",
+    "displaySha256": "c9f57d25ca3a2059abd111c5f26c9de321300ab034e3a0290e7ea7bfbded7416",
+    "displayBytes": 4776,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "fault-wrong-origin.log": {
+    "rawArchive": "fault-wrong-origin.log.raw.gz",
+    "rawSha256": "a1778c68afecfbcbed79c7d198bdbf77d530172aa7a4aae102c47bdfcf588765",
+    "rawBytes": 1202,
+    "archiveSha256": "04d56c404ce44159018d8b5dd0b724f40ff412582b658a4de7f126579a3f5bb9",
+    "displaySha256": "a1778c68afecfbcbed79c7d198bdbf77d530172aa7a4aae102c47bdfcf588765",
+    "displayBytes": 1202,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "format.log": {
+    "rawArchive": "format.log.raw.gz",
+    "rawSha256": "b6f6f9e4089b662461b34bd7346ecc12f96da0f4c18e9261cff072c55880b959",
+    "rawBytes": 6555,
+    "archiveSha256": "3d811cb8d76d93ff96d24279a35948520848fdda6273b4244d529cd014292d28",
+    "displaySha256": "b6f6f9e4089b662461b34bd7346ecc12f96da0f4c18e9261cff072c55880b959",
+    "displayBytes": 6555,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-aliases.log": {
+    "rawArchive": "green-aliases.log.raw.gz",
+    "rawSha256": "4685a8cdc9f8f91157ff5ec9a46babf6cfffdc8ea7a8852492b711eea6756b4d",
+    "rawBytes": 707,
+    "archiveSha256": "8d65cc729559801bbbeff9e86d9cdbc1a66b6abda7b45b2982336a0d04a985e0",
+    "displaySha256": "4685a8cdc9f8f91157ff5ec9a46babf6cfffdc8ea7a8852492b711eea6756b4d",
+    "displayBytes": 707,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-compiler-budget.log": {
+    "rawArchive": "green-compiler-budget.log.raw.gz",
+    "rawSha256": "e3f028a630a149b959c512565242489d2d5c669f04ba6f406f1166f15fd361bb",
+    "rawBytes": 376,
+    "archiveSha256": "d2eda50e38cb7e9bdaa4d9a8f4cb38aaeae15a1f8de1753071b683a59a35ba2a",
+    "displaySha256": "e3f028a630a149b959c512565242489d2d5c669f04ba6f406f1166f15fd361bb",
+    "displayBytes": 376,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-compiler.log": {
+    "rawArchive": "green-compiler.log.raw.gz",
+    "rawSha256": "8013668b2cbda8e330524cf03128a03282e63288b9b140bc65b751e60751aa7d",
+    "rawBytes": 3739,
+    "archiveSha256": "c90f275ad8829b762b17356cc58d8876545f716a9073dcd3a9293e1e1a75e18d",
+    "displaySha256": "8013668b2cbda8e330524cf03128a03282e63288b9b140bc65b751e60751aa7d",
+    "displayBytes": 3739,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-cutoff.log": {
+    "rawArchive": "green-cutoff.log.raw.gz",
+    "rawSha256": "2dd187015a5c0d0c665900a0cb842f4ce79114eeceb94307df4e395fce73d1cd",
+    "rawBytes": 394,
+    "archiveSha256": "a096cc33a7eb6c22e2612e471aac12327799e476e09edeef5dcdb92bcaab2522",
+    "displaySha256": "2dd187015a5c0d0c665900a0cb842f4ce79114eeceb94307df4e395fce73d1cd",
+    "displayBytes": 394,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-final-baseurl.log": {
+    "rawArchive": "green-final-baseurl.log.raw.gz",
+    "rawSha256": "0f642c3d5d39936dd4c4ee1a533c4c0ea6f2828dd9321c9750df7eade0ace6c8",
+    "rawBytes": 2306,
+    "archiveSha256": "f45673debacb4b401e2bb147857e09bff5811f11fe354147489b6aa9911fc2d2",
+    "displaySha256": "0f642c3d5d39936dd4c4ee1a533c4c0ea6f2828dd9321c9750df7eade0ace6c8",
+    "displayBytes": 2306,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-final-core.log": {
+    "rawArchive": "green-final-core.log.raw.gz",
+    "rawSha256": "373feea53eae69640a87fccfb2d492940483a88fb953671ad97f622c06d1b364",
+    "rawBytes": 2845,
+    "archiveSha256": "29a784348a325683052fdbaea84e4145ce1afb7248fe479f106efc3152323a60",
+    "displaySha256": "373feea53eae69640a87fccfb2d492940483a88fb953671ad97f622c06d1b364",
+    "displayBytes": 2845,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-final-literal.log": {
+    "rawArchive": "green-final-literal.log.raw.gz",
+    "rawSha256": "63e654bf6395bcd107770c6cdfc29e8b2e4496cb8f467b7cc62830cf64a955bc",
+    "rawBytes": 2200,
+    "archiveSha256": "af85c6a2d0b8bb538239dfbc02417ed7545c7b58f74a698388b6b9a62be55e04",
+    "displaySha256": "63e654bf6395bcd107770c6cdfc29e8b2e4496cb8f467b7cc62830cf64a955bc",
+    "displayBytes": 2200,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-final-rootdirs.log": {
+    "rawArchive": "green-final-rootdirs.log.raw.gz",
+    "rawSha256": "d0c6313afff3721ab55000a3743e56bfdd68d725eec25cdab00c9192abdae76a",
+    "rawBytes": 2050,
+    "archiveSha256": "154ea23b20b6b7faf6340ffd452b51f47502178d45b4e1cea9044a42e196c4ba",
+    "displaySha256": "d0c6313afff3721ab55000a3743e56bfdd68d725eec25cdab00c9192abdae76a",
+    "displayBytes": 2050,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-final-typeroots.log": {
+    "rawArchive": "green-final-typeroots.log.raw.gz",
+    "rawSha256": "7c2ec877a0a15517495f07579606e1263100aefa3d553d8d057155286784c752",
+    "rawBytes": 1968,
+    "archiveSha256": "98ddcf776c0291ebdb68f58f7d6b35368d8f122cd15804110a1f587f6c5ff9a8",
+    "displaySha256": "7c2ec877a0a15517495f07579606e1263100aefa3d553d8d057155286784c752",
+    "displayBytes": 1968,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-inside.log": {
+    "rawArchive": "green-inside.log.raw.gz",
+    "rawSha256": "97d4cb6585a92fa73e4eb1c12b3c8b3999a2eb9030cfdaf3c5de512f674efc05",
+    "rawBytes": 626,
+    "archiveSha256": "f5bc6aa12c749b4c48e058b0b7e0f04a60b688777090f83eb958683bfa5fa721",
+    "displaySha256": "97d4cb6585a92fa73e4eb1c12b3c8b3999a2eb9030cfdaf3c5de512f674efc05",
+    "displayBytes": 626,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-long.log": {
+    "rawArchive": "green-long.log.raw.gz",
+    "rawSha256": "5130525a1bf11fecf82039d2e084c8494d023a9c78923faa313816b1e7fd23aa",
+    "rawBytes": 378,
+    "archiveSha256": "08aca7dddd3916ac8026d3bd0ccdaddc1e906e01c8e6753ac6d383ab2533013a",
+    "displaySha256": "5130525a1bf11fecf82039d2e084c8494d023a9c78923faa313816b1e7fd23aa",
+    "displayBytes": 378,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-outside.log": {
+    "rawArchive": "green-outside.log.raw.gz",
+    "rawSha256": "b54f1021bbf4386c42175eb85c1e38ffebd7f46e7962d13c6a24a6b74dd10f64",
+    "rawBytes": 835,
+    "archiveSha256": "0f6622f2516416bd6243e00169b448a102addcfbe052f0e60583130ed0b0a1e9",
+    "displaySha256": "b54f1021bbf4386c42175eb85c1e38ffebd7f46e7962d13c6a24a6b74dd10f64",
+    "displayBytes": 835,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-replay.log": {
+    "rawArchive": "green-replay.log.raw.gz",
+    "rawSha256": "189fc30551da04224f1e4f9a280ce5cc0d3ae2e477853d9e4f876acbe9f51499",
+    "rawBytes": 465,
+    "archiveSha256": "31312401e0332fd7d3c439959aa87ec6a127969d81767f78939b5a90c2ccd9e1",
+    "displaySha256": "189fc30551da04224f1e4f9a280ce5cc0d3ae2e477853d9e4f876acbe9f51499",
+    "displayBytes": 465,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-source-budget.log": {
+    "rawArchive": "green-source-budget.log.raw.gz",
+    "rawSha256": "82381b27a4a72be6ced9cf1aafadb11e60054183e6e97a6fa39b2d312a8b83f2",
+    "rawBytes": 374,
+    "archiveSha256": "84ad4975f99944229880f0f4529d2af5cf04635d28ba9a6ef2ed53039c39dd9c",
+    "displaySha256": "82381b27a4a72be6ced9cf1aafadb11e60054183e6e97a6fa39b2d312a8b83f2",
+    "displayBytes": 374,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "green-step-budget.log": {
+    "rawArchive": "green-step-budget.log.raw.gz",
+    "rawSha256": "6ab75cc11029128b7cc2b9d86e4a770479ec0a0f9110bca94edefd1ae6bc7145",
+    "rawBytes": 373,
+    "archiveSha256": "93c7fe1c4822cdd82caa4e7f3a1054cd6b171a2c6f11c340c1dffe5308b03eff",
+    "displaySha256": "6ab75cc11029128b7cc2b9d86e4a770479ec0a0f9110bca94edefd1ae6bc7145",
+    "displayBytes": 373,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "hook-effective-config.log": {
+    "rawArchive": "hook-effective-config.log.raw.gz",
+    "rawSha256": "68149726ace250ba384750cfafd5e3b5d9b71f7274496550b7027e3cfaa93392",
+    "rawBytes": 1326,
+    "archiveSha256": "44ab8b9e7fe8d18069c2b43beb48c1244c897502d0bcce9b897f9a5c53a5fdb8",
+    "displaySha256": "68149726ace250ba384750cfafd5e3b5d9b71f7274496550b7027e3cfaa93392",
+    "displayBytes": 1326,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "hook-install.log": {
+    "rawArchive": "hook-install.log.raw.gz",
+    "rawSha256": "5a1898c44dd8cc77f5c05cd8a72d3df3b238d05227308027f980505b1142bfcc",
+    "rawBytes": 136,
+    "archiveSha256": "7db876bf529af1e56b06774ab9119c52c4026d3f785cd62449499b099889cf8b",
+    "displaySha256": "5a1898c44dd8cc77f5c05cd8a72d3df3b238d05227308027f980505b1142bfcc",
+    "displayBytes": 136,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "hook-negative.log": {
+    "rawArchive": "hook-negative.log.raw.gz",
+    "rawSha256": "6b565f423b89cb84658fa88ee66cd520466c2b13faba7b31eeefd76c0bd434b3",
+    "rawBytes": 1668,
+    "archiveSha256": "2b2e3e7d6113c934901568e8f0a8079b610b67ee0b1fe58a04aa1f9218eeeee4",
+    "displaySha256": "4c6334e3b79d8655f3c4ae54a70eec9b4236251f4549e513764068a9fc012b97",
+    "displayBytes": 1663,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "hook-restored-cap900.log": {
+    "rawArchive": "hook-restored-cap900.log.raw.gz",
+    "rawSha256": "36be4a8dd90108c3848281984296449a1556a081f62b57243ed22b07384a15a1",
+    "rawBytes": 806,
+    "archiveSha256": "62528f5a4e6f4f14d1ccc9f66d3cc277482597c274600548397fbe925b138c16",
+    "displaySha256": "9fecf0f2610f8277510b1e8cafc70b259bf6afb643f1167ba4822ba309d38844",
+    "displayBytes": 801,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "hook-restored.log": {
+    "rawArchive": "hook-restored.log.raw.gz",
+    "rawSha256": "8323c9380b817064a6746629662380f5a111eabb822be1fd6994e5a165826eef",
+    "rawBytes": 1135,
+    "archiveSha256": "3538c2d95e4b80b26f504310259ec621566552f3ba6328dd8f234816bbed171c",
+    "displaySha256": "838a3653dd54d4511f9bd589f38b110bf46fc02d456a9ae3bee1328479a5ade0",
+    "displayBytes": 1130,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-0.log": {
+    "rawArchive": "lint-0.log.raw.gz",
+    "rawSha256": "c85d4ebae815cce1da97cf25c4e26c01fd6f2f2d0811ecccf9cfaba38a3b8337",
+    "rawBytes": 74,
+    "archiveSha256": "e973fc1ba403e8b2291dc7423e265099e6b4634ea340df2eb51fe5721f7a4638",
+    "displaySha256": "c85d4ebae815cce1da97cf25c4e26c01fd6f2f2d0811ecccf9cfaba38a3b8337",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-1.log": {
+    "rawArchive": "lint-1.log.raw.gz",
+    "rawSha256": "432c5c1b98c7099d6f8f200828d777add1ad5055b0cd0acf96ab3291e805f358",
+    "rawBytes": 74,
+    "archiveSha256": "1fb01b6295b8d831cf13629e3b5a891246f39187eaf019cf2b7aece783f0074f",
+    "displaySha256": "432c5c1b98c7099d6f8f200828d777add1ad5055b0cd0acf96ab3291e805f358",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-2.log": {
+    "rawArchive": "lint-2.log.raw.gz",
+    "rawSha256": "c390c42a8c6a9133d98f860c1b58cfe5a1927f7380b98ea7e58a82c4a20385ed",
+    "rawBytes": 74,
+    "archiveSha256": "79b5ea22cd775bfa892ff4fbb9a6beaa4ba6692a401add47af04df4510c88d00",
+    "displaySha256": "c390c42a8c6a9133d98f860c1b58cfe5a1927f7380b98ea7e58a82c4a20385ed",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-3.log": {
+    "rawArchive": "lint-3.log.raw.gz",
+    "rawSha256": "593cc0c0cc17e1ae2fc20fd8cbefa604c37fb7549a9e92ebe85e7906028a8702",
+    "rawBytes": 74,
+    "archiveSha256": "164225b0896579ee5e3bf602c975d7c13d47dfdf96570477149599387c9a3bff",
+    "displaySha256": "593cc0c0cc17e1ae2fc20fd8cbefa604c37fb7549a9e92ebe85e7906028a8702",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-boundary-fault.log": {
+    "rawArchive": "lint-boundary-fault.log.raw.gz",
+    "rawSha256": "a296eecffc12a4d5ae9924c3a2f75561e32866b77948e2214924400c4660a7e3",
+    "rawBytes": 580,
+    "archiveSha256": "b5b66169f366bc33dd11e14d29bd5affd2b0733ee00a77d1da0b2b045d83a27d",
+    "displaySha256": "a296eecffc12a4d5ae9924c3a2f75561e32866b77948e2214924400c4660a7e3",
+    "displayBytes": 580,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-boundary-restored.log": {
+    "rawArchive": "lint-boundary-restored.log.raw.gz",
+    "rawSha256": "481ad716320beee270b28743a60ae0fdabb6db2bc4fb7ab13a441a18bac8a447",
+    "rawBytes": 74,
+    "archiveSha256": "fdccb5ab80bf25a2476a13e2cc7e8855f1748567cced7885aaf5c334bebb58fb",
+    "displaySha256": "481ad716320beee270b28743a60ae0fdabb6db2bc4fb7ab13a441a18bac8a447",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "lint-initial.log": {
+    "rawArchive": "lint-initial.log.raw.gz",
+    "rawSha256": "61f5096483bd6d379a6cb0c91628f81cb04cddd3989f85cf0e56f40f2452c992",
+    "rawBytes": 1163,
+    "archiveSha256": "b269b171d16d28b996651f9d86d6b728478f713f4eec232d7035d9a59e675575",
+    "displaySha256": "61f5096483bd6d379a6cb0c91628f81cb04cddd3989f85cf0e56f40f2452c992",
+    "displayBytes": 1163,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "nx-graph.log": {
+    "rawArchive": "nx-graph.log.raw.gz",
+    "rawSha256": "66815390d9f8b85134b46497f53ec1b2c6f46fb57939f3982cd718c8c887e26e",
+    "rawBytes": 149,
+    "archiveSha256": "7b554eb2d43d6ddbbeb11bdd78bd803e3320104119c84bcfacca0226b9e9917a",
+    "displaySha256": "66815390d9f8b85134b46497f53ec1b2c6f46fb57939f3982cd718c8c887e26e",
+    "displayBytes": 149,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "openspec-apply.log": {
+    "rawArchive": "openspec-apply.log.raw.gz",
+    "rawSha256": "1578b910ec43805ba4841556b04af28cef9592a485a0eca6aa638f89319c68c6",
+    "rawBytes": 13946,
+    "archiveSha256": "7983d3c9403afa3c5059835f8f5b8bd1e69c4161844a1ab48704dc969a1d7d23",
+    "displaySha256": "1578b910ec43805ba4841556b04af28cef9592a485a0eca6aa638f89319c68c6",
+    "displayBytes": 13946,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "openspec-status.log": {
+    "rawArchive": "openspec-status.log.raw.gz",
+    "rawSha256": "76a7cb00960966cf4e99cb796b93263d436587134e28ba7e36993a983e685a41",
+    "rawBytes": 3642,
+    "archiveSha256": "927167306d7f6d38befaadc277b62abd2db848e5b9d14c38baac77139b052cc4",
+    "displaySha256": "76a7cb00960966cf4e99cb796b93263d436587134e28ba7e36993a983e685a41",
+    "displayBytes": 3642,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "openspec-validate.log": {
+    "rawArchive": "openspec-validate.log.raw.gz",
+    "rawSha256": "a3eb5148ebdeb99cdf85a04fc60f83d18ad969e3ec70a6810dfa80278b03521b",
+    "rawBytes": 559,
+    "archiveSha256": "28e8ff11f227ee3d8d329f9de687116a07eeb727256ce7028d6dfd297953ffc0",
+    "displaySha256": "a3eb5148ebdeb99cdf85a04fc60f83d18ad969e3ec70a6810dfa80278b03521b",
+    "displayBytes": 559,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "red-compiler.log": {
+    "rawArchive": "red-compiler.log.raw.gz",
+    "rawSha256": "affbfd2cee8151d3f9831ce5ad112da0d01735cee9c47290859b09b69622016b",
+    "rawBytes": 9418,
+    "archiveSha256": "cf4dceabd502c671bb27d10222b908be28fee6d14b271368f5fe33be9e3ab997",
+    "displaySha256": "affbfd2cee8151d3f9831ce5ad112da0d01735cee9c47290859b09b69622016b",
+    "displayBytes": 9418,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "red-corrected-compiler.log": {
+    "rawArchive": "red-corrected-compiler.log.raw.gz",
+    "rawSha256": "8f09f5383fe279903109918cbe197dec819314bd88a360d4e8428053636e39c2",
+    "rawBytes": 86412,
+    "archiveSha256": "9ed7bdf807d4601b894412003ec356e5eedfe5de92456fcd3b59efc4b7d21c38",
+    "displaySha256": "5c1cad0d0d9f47f4a0755ee1b5934b5461633c660730cf1b8f5b6cde31a84b87",
+    "displayBytes": 86402,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "red-corrected-outside.log": {
+    "rawArchive": "red-corrected-outside.log.raw.gz",
+    "rawSha256": "78dffa8a1eb733120ba74af393f055ad65b108125fe2c4cc8b2e5c5bf7ab53cc",
+    "rawBytes": 27216,
+    "archiveSha256": "e0b0b4a7c98346a1a52c7f86774aa2b2d4c7eca0f82daeae586047c77fcdc070",
+    "displaySha256": "78dffa8a1eb733120ba74af393f055ad65b108125fe2c4cc8b2e5c5bf7ab53cc",
+    "displayBytes": 27216,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "red-outside.log": {
+    "rawArchive": "red-outside.log.raw.gz",
+    "rawSha256": "b22c7880b462ce527b30277dacc034f01b8a2ea065ccf54e89830a2a047471b6",
+    "rawBytes": 20286,
+    "archiveSha256": "92d15d8251f57b1b1b05009d8375050b7a5c5055b79ec3add4356a3ff3fa0634",
+    "displaySha256": "b22c7880b462ce527b30277dacc034f01b8a2ea065ccf54e89830a2a047471b6",
+    "displayBytes": 20286,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "type-dash-lib.log": {
+    "rawArchive": "type-dash-lib.log.raw.gz",
+    "rawSha256": "773f32639f77e0c90db7c20ac7778ef0fcf7d78a876895af6dbb3c8732c48f9a",
+    "rawBytes": 74,
+    "archiveSha256": "400ddaf1424ed96b7ffe7ba23cc91e39f571dbad477ee4f50dc5ae7974659c72",
+    "displaySha256": "773f32639f77e0c90db7c20ac7778ef0fcf7d78a876895af6dbb3c8732c48f9a",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  },
+  "type-focused.log": {
+    "rawArchive": "type-focused.log.raw.gz",
+    "rawSha256": "7d5e13fcfbe38200231c4be127b4e3b8f42531c34343e06b66138bca0d219550",
+    "rawBytes": 74,
+    "archiveSha256": "87e8a6aac8770276a6d2a88ec4bcf1201d9c67c5cdf7b7a0d66845f415349361",
+    "displaySha256": "7d5e13fcfbe38200231c4be127b4e3b8f42531c34343e06b66138bca0d219550",
+    "displayBytes": 74,
+    "normalization": "UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes"
+  }
+}

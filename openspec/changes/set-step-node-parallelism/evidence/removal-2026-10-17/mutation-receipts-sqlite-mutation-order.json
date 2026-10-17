@@ -1,0 +1,12 @@
+[
+  {
+    "fault": "sqlite-mutation-order",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "memory-recheck-notfound",
+    "failedTests": 1,
+    "exitCode": 1
+  }
+]

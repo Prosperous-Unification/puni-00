@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+377 |     if (path === '/candidate/tsconfig.json') throw new Error('injected unreadable config');
+378 |     return read(path);
+379 |   };
+380 |   expect(() =>
+381 |     extractTypeScriptRelationshipsFromSource(workspace, request, source, limits),
+382 |   ).toThrow('TypeScript config unreadable: tsconfig.json');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript config unreadable: tsconfig.json"
+Received message: "TypeScript config malformed: tsconfig.json: Cannot read file '/candidate/tsconfig.json': injected unreadable config."
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:382:5)
+(fail) unreadable config remains unreadable with source context [2.68ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [560.00ms]

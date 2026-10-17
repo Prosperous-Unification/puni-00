@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+100 | for (const format of ['sha1', 'sha256'] as const) test(`retained effective typeRoots ${format} replays after physical roots disappear`, () => {
+101 |   const captured = setup(['types', 'missing/types', './types', 'alias'], { format, links: { alias: 'types' } });
+102 |   const expected = extractRetainedTypeScriptRelationships(captured);
+103 |   expect(expected.byteReads.entries.find((entry) => entry.namespace === 'candidate' && entry.path === 'alias')).toEqual({ namespace: 'candidate', path: 'alias', revision: null, identity: hashBytes(Buffer.from('types')), byteLength: 5 });
+104 |   fs.rmSync(captured.root, { recursive: true });
+105 |   const forbidden = (): never => { throw new Error('ambient typeRoots lookup'); };
+                                                                                   ^
+error: ambient typeRoots lookup
+      at forbidden (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:105:78)
+      at admitTypeRoot (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:99:14)
+      at parseProject (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:230:63)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:118:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:113:31)
+(fail) retained effective typeRoots sha1 replays after physical roots disappear [250.94ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1200.00ms]

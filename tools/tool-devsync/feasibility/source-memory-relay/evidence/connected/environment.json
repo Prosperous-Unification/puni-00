@@ -1,0 +1,22 @@
+{
+  "baseCommit": "e06677f51ccdc905cb2479e1bab9f4655ec13613",
+  "sourceSha256": {
+    "relay.c": "ae449ece8cc082f0ec7153173f38a8c83839fc9cf2aeffda0b8168618f05d167",
+    "fixture.py": "c4ff262858781e4381eed4d63996d21d466c5047a30836cee8a8e9c94b184b54",
+    "relay.probe.ts": "eb6641cefa238e5936f66221a41c7463014a85a9ab17b8244474e4111c1efc44",
+    "cri_fixture.py": "a9f66d1072e2ddadc8ab95e41e0bb58e799cd4b1670cc28d28f2a571bff6c08d",
+    "cri.probe.ts": "a17db5709e4567de44201a7dcf7feed6ca65c598d6affc60838e12219a607a64",
+    "connected_fixture.py": "23b77cf60cc614634c1aa48c0b9178e6335954ce3b858e87858a66f3440f740c",
+    "connected_http2.ts": "9d551e6e1254e9c2cfbeba16dd0d830a3c4a188f1efa63e403a034c3599071d3",
+    "connected.probe.ts": "0258835458ea46e22d4931f0b9d787f09c626751310d90ca085935e07d5033ab"
+  },
+  "bun": "1.4.2",
+  "python": "3.14.7",
+  "kernel": "7.0.11-76070011-generic",
+  "goAvailable": false,
+  "pythonGrpcAvailable": false,
+  "pythonH2Available": false,
+  "openspecAvailable": false,
+  "criAcceptance": false,
+  "mutants": 8
+}

@@ -1,0 +1,11 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts",
+    "--timeout=60000"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 438828,
+  "ceilingKiB": 921600
+}

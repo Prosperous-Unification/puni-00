@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+ 97 | test('reserves raw candidate and runtime bytes before any copy', () => {
+ 98 |   const f = setup({ maximumReadBytes: 9 });
+ 99 |   expect(() => f.source.readFile(root + '/a.ts')).toThrow('source read byte ceiling');
+100 |   const exact = setup({ maximumReadBytes: 10, maximumReads: 1 });
+101 |   expect(exact.source.readFile(root + '/a.ts')).toBe('export {};');
+102 |   expect(() => exact.source.readFile(root + '/a.ts')).toThrow('source read ceiling');
+                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source read ceiling"
+Received message: "source read byte ceiling exceeded"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:102:55)
+(fail) reserves raw candidate and runtime bytes before any copy [205.89ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1170.00ms]

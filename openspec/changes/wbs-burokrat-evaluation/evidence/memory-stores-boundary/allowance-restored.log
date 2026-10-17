@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-commands/module.test.ts:
+(pass) a step allowance edit over the memory source > undoes an allowance edit committed in an earlier unit of work [21.44ms]
+
+ 1 pass
+ 7 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1.58s]

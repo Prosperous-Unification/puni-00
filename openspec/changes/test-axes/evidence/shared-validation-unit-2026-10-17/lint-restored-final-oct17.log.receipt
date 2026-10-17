@@ -1,0 +1,29 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "tools/tool-devsync/src/test-levels.ts",
+    "tools/tool-devsync/src/test-levels.test.ts",
+    "tools/tool-devsync/src/shared-validation-level.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 805428,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bunx",
+      "eslint",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-validation-level.test.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/eslint",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-validation-level.test.ts"
+    ]
+  ]
+}

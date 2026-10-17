@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+1009 |   const f = fixture('sha1', undefined, { '\uE000.ts': 'same', '\u{10000}.ts': 'same' }, {});
+1010 |   const namespace = createRetainedNamespace(f.candidate, f.runtime, namespaceLimits);
+1011 |   const source = createRetainedTypeScriptSource(namespace, f.candidate, f.runtime, limits);
+1012 |   source.readFile(`${root}/\u{10000}.ts`);
+1013 |   source.readFile(`${root}/\uE000.ts`);
+1014 |   expect(sealRetainedTypeScriptReads(source).entries.map((entry) => entry.path)).toEqual([
+                                                                                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   ".ts",
+    "𐀀.ts",
++   ".ts",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:1014:82)
+(fail) byte census UTF8 order differs from UTF16 and acquisition order [123.85ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1087.00ms]

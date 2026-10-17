@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+116 |         ok: false,
+117 |         reason: 'referenced_by_step_parallel',
+118 |         nodes: ['dev', 'qa'].slice(0, count).map((stepId) => ({ workItemId: 'parent', stepId })),
+119 |       });
+120 |       expect(await fixture.snapshot()).toEqual(before);
+121 |       expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:121:32)
+(fail) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [15.16ms]
+116 |         ok: false,
+117 |         reason: 'referenced_by_step_parallel',
+118 |         nodes: ['dev', 'qa'].slice(0, count).map((stepId) => ({ workItemId: 'parent', stepId })),
+119 |       });
+120 |       expect(await fixture.snapshot()).toEqual(before);
+121 |       expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:121:32)
+(fail) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [8.13ms]
+
+ 0 pass
+ 14 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [1.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 510001152, "exitCode": 1}

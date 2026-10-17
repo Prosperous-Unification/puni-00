@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "--fix",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 703208,
+  "ceilingKiB": 921600
+}

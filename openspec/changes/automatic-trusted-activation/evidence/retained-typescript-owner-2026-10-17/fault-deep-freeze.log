@@ -1,0 +1,125 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [187.25ms]
+137 |   const candidateFrozen = Object.isFrozen(f.candidate);
+138 |   const runtimeFrozen = Object.isFrozen(f.runtime);
+139 |   const compile = judge.extractTypeScriptRelationshipsFromSource;
+140 |   const compiler = spyOn(judge, 'extractTypeScriptRelationshipsFromSource').mockImplementation(
+141 |     (...args) => {
+142 |       expect(Object.isFrozen(args[1])).toBe(true);
+                                             ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:142:40)
+      at extractRetainedTypeScriptRelationships (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:238:21)
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:158:30)
+(fail) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [121.81ms]
+190 |   ]);
+191 |   const pending: unknown[] = [owned];
+192 |   while (pending.length > 0) {
+193 |     const value = pending.pop();
+194 |     if (typeof value !== 'object' || value === null) continue;
+195 |     expect(Object.isFrozen(value)).toBe(true);
+                                         ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:195:36)
+(fail) exact extraction deeply freezes envelope without changing enumerable canonical bytes [123.25ms]
+252 |       )
+253 |         throw new Error('injected envelope freeze failure');
+254 |       return freeze(value);
+255 |     });
+256 |     try {
+257 |       expect(() => extraction.extractRetainedTypeScriptRelationships(f)).toThrow(
+                                                                               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "injected envelope freeze failure"
+
+Received function did not throw
+Received value: {
+  runtimeTrust: "unverified",
+  provenance: {
+    snapshotIdentity: "b6d975fd09a9bceff90f8ce3346a2de1746d79dd224d172ce4944ee603f5e115",
+    classificationPolicyIdentity: "ea77d3a232de029273e3ca761024c4528b64f56b76e29689ce9edb106f65f339",
+    runtimeClosureIdentity: "c678436fb3bbcfd52db094e5fbc1aefe35a52198bfdf43aab54d0dae0ee3465d",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    runtimeTrust: "unverified",
+    namespacePolicyIdentity: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+  },
+  byteReads: {
+    schemaVersion: 1,
+    kind: "retained-typescript-byte-reads",
+    entries: [
+      {
+        namespace: "candidate",
+        path: "globals.d.ts",
+        revision: null,
+        identity: "68d37cdd97178fb38226c3c96f5cadeb7fb57eb4d366a55f5d27cbed42bcf3e7",
+        byteLength: 227,
+      }, {
+        namespace: "candidate",
+        path: "index.ts",
+        revision: null,
+        identity: "f23e03df30f78c48356ce6e340638bfcb4e830cbfa5bad43ff5b401407ee3854",
+        byteLength: 31,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/typescript/package.json",
+        revision: null,
+        identity: "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+        byteLength: 841,
+      }, {
+        namespace: "candidate",
+        path: "tsconfig.json",
+        revision: null,
+        identity: "c41bf40db441afd47f5859b735c9454d86e02af8c7287627ea3bf8b2da2bc9e8",
+        byteLength: 95,
+      }
+    ],
+  },
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+  },
+  relationships: {
+    imports: [],
+    reverseEdges: [],
+    publicDeclarations: [
+      {
+        configPath: "tsconfig.json",
+        entrypoint: "index.ts",
+        configurationIdentity: "b2799ddb2d9264fa2fa45346fb46c3b99c64db8708f9505ec85f7e0e37c85e31",
+        declarations: [
+          {
+            sourcePath: "index.ts",
+            emittedPath: "index.d.ts",
+            text: "export declare const value: number;\n",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "aa7cfc24f4ae62f242f1de0a350bce2eb6018f0259a2a1c8d8b1757cf9a231eb",
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:257:74)
+(fail) exact extraction registers only after compiler cap and freeze succeed [143.90ms]
+
+ 1 pass
+ 3 fail
+ 21 expect() calls
+Ran 4 tests across 1 file. [1.54s]

@@ -1,0 +1,60 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+(pass) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [90.80ms]
+(pass) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [80.61ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [73.94ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [89.84ms]
+(pass) request binding is detached before an owner callback mutates the caller request [98.50ms]
+(pass) failed wrong-raw history publishes no review binding [95.90ms]
+(pass) failed repinned-canonical history publishes no review binding [82.72ms]
+(pass) failed repinned-noncanonical history publishes no review binding [95.85ms]
+(pass) failed malformed history publishes no review binding [104.99ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [80.99ms]
+(pass) phase-one retained views never acquire public review bindings [67.41ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [110.95ms]
+(pass) one legacy snapshot opens distinct candidate request bindings [103.18ms]
+364 |       if (calls === 1) request.requestIdentity = 'd'.repeat(64);
+365 |       return validated;
+366 |     },
+367 |   );
+368 |   try {
+369 |     expect(() => owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity)).toThrow(
+                                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "activation request identity differs"
+
+Received function did not throw
+Received value: {
+  [Symbol(owned retained review candidate)]: true,
+  snapshot: {
+    selection: {
+      kind: "committed",
+      revision: "bf4f05a11b5afd48da684de3327c096bb7b718d1",
+      tree: "e7bb958a57e9549e3d4946c0adad9a2dab0d1f12",
+    },
+    entries: [
+      {
+        path: "src.ts",
+        mode: "100644",
+        blob: "4d23d9d7f3eb73ec11b2cdb698795a4bcd27a10e",
+      }
+    ],
+    untracked: [],
+  },
+  history: null,
+  readHistorical: [Function: readHistorical],
+  read: [Function: read],
+  readBlob: [Function: readBlob],
+}
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:369:92)
+(fail) owned request snapshot is revalidated after caller mutation during capture [100.52ms]
+(pass) declared protected-revision subject remains coherent in the owned request snapshot [89.49ms]
+(pass) declared merge-group subject remains coherent in the owned request snapshot [107.90ms]
+
+ 15 pass
+ 1 fail
+ 69 expect() calls
+Ran 16 tests across 1 file. [2.43s]

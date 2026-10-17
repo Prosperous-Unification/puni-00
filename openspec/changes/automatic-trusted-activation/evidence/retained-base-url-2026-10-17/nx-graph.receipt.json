@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "nx", "graph", "--file=/tmp/base-url-project-graph.json"],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 276766720,
+  "exitCode": 0
+}

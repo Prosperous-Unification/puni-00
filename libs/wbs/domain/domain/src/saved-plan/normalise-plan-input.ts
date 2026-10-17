@@ -2,6 +2,7 @@ import {
   assertStepBlockages,
   CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
   type CanonicalPlanInput,
+  readStepParallels,
 } from './canonical-plan-input';
 
 /**
@@ -63,6 +64,8 @@ export const PLAN_INPUT_UPGRADES: ReadonlyMap<number, PlanInputUpgrade> = new Ma
   [5, withWorkdayUnits],
   // Proof: empty collection omitted; schema6 upgrade regression failed (step-blockages.test.ts), 2026-10-14.
   [6, (body) => ({ ...body, schemaVersion: 7, stepBlockages: [] })],
+  // Proof: empty collection omitted; historical schema7 upgrade negative failed (legacy-upgrade.txt), 2026-10-17.
+  [7, (body) => ({ ...body, schemaVersion: 8, stepParallels: [] })],
 ]);
 
 /** Version 5 knew only workdays; validate the trusted step list before upgrading it. */
@@ -206,6 +209,8 @@ export function normalisePlanInputForward(
     current = step(current as Record<string, unknown>);
   }
   // Proof: read validation call removed; duplicate stored-read negative failed (step-blockages.test.ts), 2026-10-14.
+  // Proof: stored validation removed; duplicate current stored-read negative failed (stored-validation.txt).
+  if (readerVersion >= 8) readStepParallels(current);
   if (readerVersion >= 7) assertStepBlockages(current);
   return current as CanonicalPlanInput;
 }

@@ -87,6 +87,8 @@ export const trustedDeclarationRoots = [
   'typescript',
   'vite',
   'vitest',
+  // Proof: removing yaml failed the supported release closure regression (closure-red.log).
+  'yaml',
   'zod',
 ] as const;
 

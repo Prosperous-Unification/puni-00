@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+388 |     Reflect.set(artifact.manifest, 'inputSha256', '0'.repeat(64));
+389 |     verifyCompilerDerivative(artifact.source, {
+390 |       ...artifact.manifest,
+391 |       inputSha256: '0'.repeat(64),
+392 |     });
+393 |   }).toThrow('manifest');
+           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "manifest"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:393:6)
+(fail) returned manifest cannot rebind later verifier identities [59.81ms]
+
+ 0 pass
+ 35 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [86.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 96096256, "exitCode": 1}

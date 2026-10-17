@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+86 |   expect(Buffer.from(runtime.readFile(entry)).toString()).toBe('parser');
+87 |   expect(Object.isFrozen(runtime)).toBe(true);
+88 |   expect(Object.isFrozen(runtime.closure)).toBe(true);
+89 |   expect(Object.isFrozen(runtime.closure.files)).toBe(true);
+90 |   expect(Object.isFrozen(runtime.closure.files[0])).toBe(true);
+91 |   expect(() => runtime.readFile({ ...entry, role: 'dependency' })).toThrow('tuple');
+                                                                        ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "tuple"
+
+Received function did not throw
+Received value: Uint8Array(6) [ 112, 97, 114, 115, 101, 114 ]
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:91:68)
+(fail) owns complete exact bytes despite caller and ambient mutation [3.15ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [926.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 338894848, "exitCode": 1}

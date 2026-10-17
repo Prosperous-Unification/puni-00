@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+(pass) shared compiler source resolves imports and declaration closure without ambient hosts [74.03ms]
+(pass) project reference wildcard enumeration uses the supplied source [18.63ms]
+(pass) root config absent, directory and malformed stay distinct [1.85ms]
+(pass) compiler refuses maximumProbes before returning extraction [0.14ms]
+(pass) compiler refuses maximumReadBytes before returning extraction [0.02ms]
+(pass) compiler refuses maximumDirectoryEntries before returning extraction [0.54ms]
+(pass) compiler refuses maximumOutputBytes before returning extraction [2.61ms]
+101 |   const kinds = source.pathKind;
+102 |   source.pathKind = (path) => {
+103 |     if (!path.startsWith('/candidate/') && path !== '/candidate') throw new Error(`outside port reached: ${path}`);
+104 |     return kinds(path);
+105 |   };
+106 |   expect(() => extractTypeScriptRelationshipsFromSource(workspace, request, source, limits)).toThrow('TypeScript import unresolved: src/index.ts');
+                                                                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript import unresolved: src/index.ts"
+Received message: "outside port reached: /"
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:106:94)
+(fail) compiler source refuses escaping imports before invoking outside ports [1.76ms]
+108 |
+109 | test('compiler source rejects nonfinite, negative and fractional limits before IO', () => {
+110 |   for (const value of [Infinity, -1, 0.5, NaN]) {
+111 |     const { source } = fixture();
+112 |     source.readFile = () => { throw new Error('IO before validation'); };
+113 |     expect(() => extractTypeScriptRelationshipsFromSource(workspace, request, source, { ...limits, maximumProbes: value })).toThrow('TypeScript maximumProbes must be a nonnegative safe integer');
+                                                                                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript maximumProbes must be a nonnegative safe integer"
+Received message: "trusted TypeScript compiler identity is unreadable"
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:113:125)
+(fail) compiler source rejects nonfinite, negative and fractional limits before IO [0.25ms]
+
+ 7 pass
+ 2 fail
+ 13 expect() calls
+Ran 9 tests across 1 file. [670.00ms]

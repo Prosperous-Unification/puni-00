@@ -1,0 +1,30 @@
+{
+  "scope": "five changed production source files only",
+  "ceiling": 800,
+  "measured": {
+    "ok": true,
+    "report": []
+  },
+  "lines": [
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+      "lines": 313
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts",
+      "lines": 242
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-declarations.ts",
+      "lines": 360
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-imports.ts",
+      "lines": 263
+    },
+    {
+      "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.ts",
+      "lines": 39
+    }
+  ]
+}

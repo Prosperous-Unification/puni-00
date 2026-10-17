@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+ 8 |  readonly maximumTargetBytes: number; readonly maximumExpandedPathBytes: number; readonly maximumLinkExpansions: number;
+ 9 |  readonly maximumDirectoryDepth: number; readonly maximumPatterns: number; readonly maximumPatternBytes: number;
+10 |  readonly maximumEnumeratedEntries: number; readonly maximumReturnedPathBytes: number;
+11 | }
+12 | export function readRetainedTypeScriptSourceProvenance(source: TypeScriptSource): Readonly<RetainedNamespaceProvenance> { throw new Error('source not implemented'); }
+13 | export function createRetainedTypeScriptSource(namespace: RetainedNamespace, candidate: RetainedCandidate, runtime: ReviewRuntime, limits: RetainedTypeScriptSourceLimits): TypeScriptSource { throw new Error('source not implemented'); }
+                                                                                                                                                                                                                                            ^
+error: source not implemented
+      at createRetainedTypeScriptSource (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:13:232)
+      at setup (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:14:36)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:18:12)
+(fail) owned file identity authenticates tuple without consuming candidate reads [112.42ms]
+ 8 |  readonly maximumTargetBytes: number; readonly maximumExpandedPathBytes: number; readonly maximumLinkExpansions: number;
+ 9 |  readonly maximumDirectoryDepth: number; readonly maximumPatterns: number; readonly maximumPatternBytes: number;
+10 |  readonly maximumEnumeratedEntries: number; readonly maximumReturnedPathBytes: number;
+11 | }
+12 | export function readRetainedTypeScriptSourceProvenance(source: TypeScriptSource): Readonly<RetainedNamespaceProvenance> { throw new Error('source not implemented'); }
+13 | export function createRetainedTypeScriptSource(namespace: RetainedNamespace, candidate: RetainedCandidate, runtime: ReviewRuntime, limits: RetainedTypeScriptSourceLimits): TypeScriptSource { throw new Error('source not implemented'); }
+                                                                                                                                                                                                                                            ^
+error: source not implemented
+      at createRetainedTypeScriptSource (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:13:232)
+      at setup (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:14:36)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:30:12)
+(fail) source owners precede census and provenance joins candidate and runtime [100.79ms]
+ 8 |  readonly maximumTargetBytes: number; readonly maximumExpandedPathBytes: number; readonly maximumLinkExpansions: number;
+ 9 |  readonly maximumDirectoryDepth: number; readonly maximumPatterns: number; readonly maximumPatternBytes: number;
+10 |  readonly maximumEnumeratedEntries: number; readonly maximumReturnedPathBytes: number;
+11 | }
+12 | export function readRetainedTypeScriptSourceProvenance(source: TypeScriptSource): Readonly<RetainedNamespaceProvenance> { throw new Error('source not implemented'); }
+13 | export function createRetainedTypeScriptSource(namespace: RetainedNamespace, candidate: RetainedCandidate, runtime: ReviewRuntime, limits: RetainedTypeScriptSourceLimits): TypeScriptSource { throw new Error('source not implemented'); }
+                                                                                                                                                                                                                                            ^
+error: source not implemented
+      at createRetainedTypeScriptSource (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:13:232)
+      at setup (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:14:36)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:47:12)
+(fail) reserves raw candidate and runtime bytes before any copy [92.11ms]
+
+ 0 pass
+ 3 fail
+Ran 3 tests across 1 file. [1274.00ms]

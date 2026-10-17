@@ -1,0 +1,237 @@
+[
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "registers the canonical Unit"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 1288,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "registers the canonical Unit"
+      ]
+    ],
+    "fault": "registration",
+    "expectedTest": "registers the canonical Unit",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses unknown and missing target declarations"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 668,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "refuses unknown and missing target declarations"
+      ]
+    ],
+    "fault": "required-target",
+    "expectedTest": "refuses unknown and missing target declarations",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "executes literal operands"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 652,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "executes literal operands"
+      ]
+    ],
+    "fault": "literal-operands",
+    "expectedTest": "executes literal operands",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports before refusing an empty selection"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 676,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "removes stale reports before refusing an empty selection"
+      ]
+    ],
+    "fault": "empty-selection",
+    "expectedTest": "removes stale reports before refusing an empty selection",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports before refusing an empty selection"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 664,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "removes stale reports before refusing an empty selection"
+      ]
+    ],
+    "fault": "stale-report",
+    "expectedTest": "removes stale reports before refusing an empty selection",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports and refuses a failing selector"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 680,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "removes stale reports and refuses a failing selector"
+      ]
+    ],
+    "fault": "selector-failure",
+    "expectedTest": "removes stale reports and refuses a failing selector",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "audits the full Unit source inventory"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 32632,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "audits the full Unit source inventory"
+      ]
+    ],
+    "fault": "complete-collection",
+    "expectedTest": "audits the full Unit source inventory",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses api files in the Unit collection"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 32208,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [],
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "refuses api files in the Unit collection"
+      ]
+    ],
+    "fault": "wrong-level",
+    "expectedTest": "refuses api files in the Unit collection",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses a different report identity"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 596,
+    "ceilingKiB": 921600,
+    "observedArgv": [
+      [
+        "bun",
+        "test",
+        "tools/tool-devsync/src/shared-validation-level.test.ts",
+        "--timeout=30000",
+        "-t",
+        "refuses a different report identity"
+      ]
+    ],
+    "fault": "report-identity",
+    "expectedTest": "refuses a different report identity",
+    "observedNamedFailure": true
+  }
+]

@@ -1,0 +1,8 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts:
+
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts:
+
+error: regex "savedPlanCapture" matched 0 tests. Searched 2 files (skipping 150 tests) [1.92s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 537919488, "exitCode": 1}

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+    "--test-name-pattern",
+    "retained compiler noLib sha1 matches legacy"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 359596,
+  "ceilingKiB": 921600
+}

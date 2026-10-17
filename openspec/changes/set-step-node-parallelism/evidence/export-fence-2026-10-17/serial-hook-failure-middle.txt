@@ -1,0 +1,11 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+┃  lint ❯
+Injected lint command failure at apps/wbs/be-01/src/controller/undo.controller.db.test.ts
+
+exit status 7
+  ────────────────────────────────────
+summary: (done in 0.61 seconds)
+✗ lint (0.58 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 84193280, "exitCode": 1}

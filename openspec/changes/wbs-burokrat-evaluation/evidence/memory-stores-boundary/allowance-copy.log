@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-commands/module.test.ts:
+270 |     const edited = await commands.run(PROJECT, OWNER, [
+271 |       { kind: 'setStepAllowance', stepId: 'qa', allowancePercent: 30 },
+272 |     ]);
+273 |     expect(edited.ok).toBe(true);
+274 | 
+275 |     expect((await commands.undo(PROJECT, OWNER)).ok).toBe(true);
+                                                           ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/wbs-memory-stores-sol/libs/wbs/application/core/src/module/plan-commands/module.test.ts:275:54)
+(fail) a step allowance edit over the memory source > undoes an allowance edit committed in an earlier unit of work [24.71ms]
+
+ 0 pass
+ 7 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.59s]

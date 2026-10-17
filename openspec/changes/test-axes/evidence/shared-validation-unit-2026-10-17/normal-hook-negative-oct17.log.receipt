@@ -1,0 +1,74 @@
+{
+  "command": [
+    ".git/hooks/pre-commit"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 844592,
+  "ceilingKiB": 1310720,
+  "observedArgv": [
+    [],
+    [
+      "/bin/sh",
+      ".git/hooks/pre-commit"
+    ],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "pre-commit"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/test-levels.ts"
+    ],
+    [
+      "bunx",
+      "prettier",
+      "--check",
+      "libs/shared/domain/validation/README.md",
+      "libs/shared/domain/validation/project.json",
+      "openspec/changes/test-axes/evidence/shared-validation-unit-2026-10-17/manifest.json",
+      "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/scenario-allocations.json",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/test-levels.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/eslint",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/test-levels.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/prettier",
+      "--check",
+      "libs/shared/domain/validation/README.md",
+      "libs/shared/domain/validation/project.json",
+      "openspec/changes/test-axes/evidence/shared-validation-unit-2026-10-17/manifest.json",
+      "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/scenario-allocations.json",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/test-levels.ts"
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx eslint tools/tool-devsync/src/shared-validation-level.test.ts tools/tool-devsync/src/test-levels.test.ts tools/tool-devsync/src/test-levels.ts "
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx prettier --check libs/shared/domain/validation/README.md libs/shared/domain/validation/project.json openspec/changes/test-axes/evidence/shared-validation-unit-2026-10-17/manifest.json openspec/changes/test-axes/specs/test-axes/spec.md openspec/changes/test-axes/tasks.md openspec/changes/test-axes/verify.md openspec/scenario-allocations.json tools/tool-devsync/src/shared-validation-level.test.ts tools/tool-devsync/src/test-levels.test.ts tools/tool-devsync/src/test-levels.ts "
+    ]
+  ]
+}

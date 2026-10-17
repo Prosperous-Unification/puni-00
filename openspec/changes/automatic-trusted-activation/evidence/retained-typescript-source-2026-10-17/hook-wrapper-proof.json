@@ -1,0 +1,24 @@
+[
+  {
+    "trial": "all-paths",
+    "exitCode": 0,
+    "invocations": [
+      ["eslint", "first.ts"],
+      ["eslint", "second file.ts"],
+      ["eslint", "third.ts"]
+    ]
+  },
+  {
+    "trial": "failure",
+    "exitCode": 23,
+    "invocations": [
+      ["eslint", "first.ts"],
+      ["eslint", "second file.ts"]
+    ]
+  },
+  {
+    "trial": "missing-paths",
+    "exitCode": 64,
+    "stderr": "lint wrapper requires hook-expanded paths\n"
+  }
+]

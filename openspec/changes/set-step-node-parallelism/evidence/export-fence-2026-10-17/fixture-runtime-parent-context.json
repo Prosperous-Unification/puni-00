@@ -1,0 +1,8 @@
+{
+  "parent": "bcfebf26e48ddfd77cd54cc55db45d6f6db3e93c",
+  "parentTree": "03e20792edb64bc98c0fec784b3f6d5fb7facf48",
+  "parentStatus": "",
+  "candidateDependencies": "/home/df/wd/puni/puni-00/node_modules",
+  "parentDependencies": "/home/df/wd/puni/puni-00/node_modules",
+  "command": "RUNTIME_CLOSURE_RSS_MIB=900 python3 openspec/changes/set-step-node-parallelism/evidence/saved-plan-2026-10-17/rss-guard.py bun test apps/wbs/be-01/src/controller/project.controller.test.ts apps/wbs/be-01/src/controller/work-item.controller.test.ts"
+}

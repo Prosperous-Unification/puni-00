@@ -188,6 +188,16 @@ export const removeStep = defineEndpointShape({
         type({ error: "'referenced_by_dependency'", dependencyIds: 'string[]' }),
       ),
     },
+    {
+      status: 409,
+      schema: responseSchema(
+        type({
+          // Proof: undeclared sparse refusal produced HTTP 500 in both mounted cases, 2026-10-17.
+          error: "'referenced_by_step_parallel'",
+          nodes: type({ workItemId: 'string', stepId: 'string' }).array(),
+        }),
+      ),
+    },
     // Removing the step would move a legacy anchor into a step-node cycle.
     { status: 409, schema: responseSchema(type({ error: "'dependency_cycle'" })) },
   ],

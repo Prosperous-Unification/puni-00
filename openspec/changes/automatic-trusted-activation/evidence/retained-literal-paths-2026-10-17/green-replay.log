@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 364752896, "exitCode": 0}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+(pass) retained literal paths sha1 replays after physical roots disappear [274.17ms]
+(pass) retained literal paths sha256 replays after physical roots disappear [182.11ms]
+
+ 2 pass
+ 20 filtered out
+ 0 fail
+ 10 expect() calls
+Ran 2 tests across 1 file. [1402.00ms]

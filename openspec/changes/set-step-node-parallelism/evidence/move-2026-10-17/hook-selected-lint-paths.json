@@ -1,0 +1,5 @@
+[
+  "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+  "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+  "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+]

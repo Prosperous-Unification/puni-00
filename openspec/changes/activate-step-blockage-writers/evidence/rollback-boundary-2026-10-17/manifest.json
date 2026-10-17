@@ -1,0 +1,141 @@
+{
+  "base": "796e279014ee94627627cb769fef20a5aac855e5",
+  "cwd": "/tmp/puni-rollback-atomicity-sol-oct17",
+  "guardArgv": ["python", "/tmp/runtime-rss-guard.py"],
+  "capEnvironment": "RUNTIME_CLOSURE_RSS_MIB",
+  "commands": [
+    {
+      "argv": [
+        "bun",
+        "test",
+        "libs/wbs/adapters/store-sqlite/src/step-blockage-receipt.db.test.ts",
+        "--test-name-pattern",
+        "refuses receipt down over",
+        "--timeout=10000"
+      ],
+      "capMiB": 900,
+      "receipts": [
+        "rollback-atomicity-receipt-red.log",
+        "rollback-boundary-receipt-green.log",
+        "rollback-boundary-ledger-delete-omitted.log",
+        "rollback-boundary-table-drop-omitted.log"
+      ]
+    },
+    {
+      "argv": [
+        "bun",
+        "test",
+        "libs/wbs/adapters/store-sqlite/src/step-blockage-receipt.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/step-blockage-activation.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/migrate-down.db.test.ts",
+        "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+        "--timeout=10000"
+      ],
+      "capMiB": 900,
+      "receipts": ["rollback-boundary-adjacent-green.log"]
+    },
+    {
+      "argv": ["bunx", "tsc", "--project", "/tmp/rollback-boundary-tsconfig.json"],
+      "capMiB": [900, 1400],
+      "receipts": ["rollback-boundary-types-900.log", "rollback-boundary-types-green.log"]
+    },
+    {
+      "argv": [
+        "bun",
+        "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+        "validate",
+        "activate-step-blockage-writers",
+        "--strict"
+      ],
+      "capMiB": 900,
+      "receipts": ["rollback-boundary-openspec.log"]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "rollback-atomicity-receipt-red.log.gz",
+      "rawBytes": 6361,
+      "rawSha256": "fdd5758e702a827b7d2a8ad36b0ed733bcc8504e0803520f8b08681e404f6b2c",
+      "gzipBytes": 914,
+      "gzipSha256": "b986e188469859143744e99a1ac064282cfb0e9e3725c6a9313b3f978fb8cd54"
+    },
+    {
+      "path": "rollback-boundary-receipt-green.log.gz",
+      "rawBytes": 793,
+      "rawSha256": "da16f25c1bae960a1e335226c15c8f19bba15f5c3ae88eeed513e5bf958851b6",
+      "gzipBytes": 351,
+      "gzipSha256": "61cf5de8e4928483409d93359acc06e994fedc856056ff5bee05131fcfd17615"
+    },
+    {
+      "path": "rollback-boundary-ledger-delete-omitted.log.gz",
+      "rawBytes": 6643,
+      "rawSha256": "4eff0588dd432ac7864b8998fb44c79b57ac541380612d2e8aa41b8968700422",
+      "gzipBytes": 971,
+      "gzipSha256": "29c0da03e12670e3cdef17471d1cc49e832281bee814d51278655b11535233cc"
+    },
+    {
+      "path": "rollback-boundary-table-drop-omitted.log.gz",
+      "rawBytes": 3872,
+      "rawSha256": "9bfc48c6f4f52626dd43e42c1a52da3d86ae559b2ed723952c21776e03d0629d",
+      "gzipBytes": 653,
+      "gzipSha256": "fadd7d5adb418ef82c81dc9f37a453d59ba40e874025d707b4bbc3ec6a8235b7"
+    },
+    {
+      "path": "rollback-boundary-proof.json.gz",
+      "rawBytes": 158,
+      "rawSha256": "93c70d64f78b8167f6e4144f223540dbaa3e5bd19945c4700c2e0e40a96781ad",
+      "gzipBytes": 104,
+      "gzipSha256": "2987b480dbcd61c0dc2a2964d54d056e17a871d9ad0b162f429ff8d8796509e4"
+    },
+    {
+      "path": "rollback-boundary-adjacent-green.log.gz",
+      "rawBytes": 14518,
+      "rawSha256": "d87a58e183d8ed18ed99893611cb17ab6c2e32ac43e648cc644bb5511d3e21ed",
+      "gzipBytes": 2948,
+      "gzipSha256": "7ffd4527adbe8c91810bb2646cb36a030d0d0cd07f91045494f06f0eb6ad7923"
+    },
+    {
+      "path": "rollback-boundary-tsconfig.json.gz",
+      "rawBytes": 500,
+      "rawSha256": "b35ae462a4d174b3bf85c5dafa2817484c2b7464a14a43fe3b25dbe439e7c901",
+      "gzipBytes": 251,
+      "gzipSha256": "b8cb4cb6e6872633992f7faec5dbd70a8fe09562162f0fcf224e34e5b4c4f8cc"
+    },
+    {
+      "path": "rollback-boundary-types-900.log.gz",
+      "rawBytes": 75,
+      "rawSha256": "18bdeaa974c117affb67768851adef6c05351785dbfe0b8410512ef12f0c2e36",
+      "gzipBytes": 83,
+      "gzipSha256": "d9107a81ccc254b56b7098436aaff3b86d74c1b14116e0ade9310ab438715211"
+    },
+    {
+      "path": "rollback-boundary-types-green.log.gz",
+      "rawBytes": 75,
+      "rawSha256": "2cef502a316f0fc5111b6baa8dbdfe3e9a0b9601c7c889716bf5d3c1f8341b21",
+      "gzipBytes": 86,
+      "gzipSha256": "c3bd2c676246d82d4c877c0482be8b010d2883f18f5d6830595d5f2014aa7a8c"
+    },
+    {
+      "path": "rollback-boundary-openspec.log.gz",
+      "rawBytes": 122,
+      "rawSha256": "4e03e0e93bd7b7634c087fa88662b17e1dc74260bb78f49ba5918dfa583a066f",
+      "gzipBytes": 130,
+      "gzipSha256": "5dd9424ae919da31ec4e14dd239b976ce7634ef8b3e73b84816b4fe4f8d83ccc"
+    }
+  ],
+  "changedFileHashes": {
+    "libs/wbs/adapters/store-sqlite/src/step-blockage-receipt.db.test.ts": "21e161c6664279aad8945a2ac601c546784d5ac621ff7b4e23df142c8e2fa2c3",
+    "openspec/changes/activate-step-blockage-writers/verify.md": "0239f2718629f577bed698d7844c794a4f97144b489b5887cded1bd6c7adedb0"
+  },
+  "productionRestoredHashes": {
+    "libs/wbs/adapters/store-sqlite/src/migrate-down.ts": "98764641d9d355735cc163d0e42e6e5d841ece5af2e8adf028760497b1e08a86",
+    "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/down.sql": "d3737017138ad902f4085c6a9431d277e6f22bbc74756952f5bd950306759c2e"
+  },
+  "limits": [
+    "Test correction to existing per-migration recovery contract; no production or SQL change.",
+    "900MiB TS killed before diagnostics;1400retry green.",
+    "Single-file TS only; not full project typecheck.",
+    "No full host gate run here.",
+    "Normal hooks and containing-commit receipts external."
+  ]
+}

@@ -1,0 +1,100 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts:
+4 | /** Sparse overrides must have identical observable transaction semantics in both sources. */
+5 | export function stepParallelConformance(open: () => { source: Source<TransactionalStores>; stamp: WriteStamp }): void {
+6 |   it('stores explicit equal-default facts, replaces one pair and removes only that pair', async () => {
+7 |     const { source, stamp } = open();
+8 |     const store = source.stores.stepParallels;
+9 |     expect(store).toBeDefined();
+                      ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:9:19)
+(fail) store-sqlite sparse step parallelism > stores explicit equal-default facts, replaces one pair and removes only that pair [182.88ms]
+21 |     expect(await store.listByProject('foreign')).toEqual([]);
+22 |   });
+23 |   it('rejects each invalid value without storing a fact', async () => {
+24 |     const { source, stamp } = open();
+25 |     for (const maxParallel of [0, 1001, 1.5, NaN, Infinity])
+26 |       await expect(source.stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel }, stamp)).rejects.toThrow();
+                                      ^
+TypeError: undefined is not an object (evaluating 'source.stores.stepParallels.set')
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:26:34)
+(fail) store-sqlite sparse step parallelism > rejects each invalid value without storing a fact [146.76ms]
+27 |     expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+28 |   });
+29 |   it('rejects parent ownership, foreign steps, absent steps and absent owners independently', async () => {
+30 |     const { source, stamp } = open();
+31 |     for (const [workItemId, stepId] of [['parent', 'dev'], ['a', 'foreign'], ['a', 'absent'], ['absent', 'dev']])
+32 |       await expect(source.stores.stepParallels.set({ workItemId, stepId, maxParallel: 2 }, stamp)).rejects.toThrow();
+                                      ^
+TypeError: undefined is not an object (evaluating 'source.stores.stepParallels.set')
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:32:34)
+(fail) store-sqlite sparse step parallelism > rejects parent ownership, foreign steps, absent steps and absent owners independently [141.62ms]
+33 |     expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+34 |   });
+35 |   it('commits sparse facts and rolls back replacements and removals with the surrounding batch', async () => {
+36 |     const { source, stamp } = open();
+37 |     await source.uow.run(async ({ stores }) => {
+38 |       await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 2 }, stamp);
+                        ^
+TypeError: undefined is not an object (evaluating 'stores.stepParallels.set')
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:38:20)
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) store-sqlite sparse step parallelism > commits sparse facts and rolls back replacements and removals with the surrounding batch [145.49ms]
+
+libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts:
+4 | /** Sparse overrides must have identical observable transaction semantics in both sources. */
+5 | export function stepParallelConformance(open: () => { source: Source<TransactionalStores>; stamp: WriteStamp }): void {
+6 |   it('stores explicit equal-default facts, replaces one pair and removes only that pair', async () => {
+7 |     const { source, stamp } = open();
+8 |     const store = source.stores.stepParallels;
+9 |     expect(store).toBeDefined();
+                      ^
+error: expect(received).toBeDefined()
+
+Received: undefined
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:9:19)
+(fail) store-memory sparse step parallelism > stores explicit equal-default facts, replaces one pair and removes only that pair [3.69ms]
+21 |     expect(await store.listByProject('foreign')).toEqual([]);
+22 |   });
+23 |   it('rejects each invalid value without storing a fact', async () => {
+24 |     const { source, stamp } = open();
+25 |     for (const maxParallel of [0, 1001, 1.5, NaN, Infinity])
+26 |       await expect(source.stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel }, stamp)).rejects.toThrow();
+                                      ^
+TypeError: undefined is not an object (evaluating 'source.stores.stepParallels.set')
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:26:34)
+(fail) store-memory sparse step parallelism > rejects each invalid value without storing a fact [0.46ms]
+27 |     expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+28 |   });
+29 |   it('rejects parent ownership, foreign steps, absent steps and absent owners independently', async () => {
+30 |     const { source, stamp } = open();
+31 |     for (const [workItemId, stepId] of [['parent', 'dev'], ['a', 'foreign'], ['a', 'absent'], ['absent', 'dev']])
+32 |       await expect(source.stores.stepParallels.set({ workItemId, stepId, maxParallel: 2 }, stamp)).rejects.toThrow();
+                                      ^
+TypeError: undefined is not an object (evaluating 'source.stores.stepParallels.set')
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:32:34)
+(fail) store-memory sparse step parallelism > rejects parent ownership, foreign steps, absent steps and absent owners independently [0.41ms]
+33 |     expect(await source.stores.stepParallels.listByProject('p')).toEqual([]);
+34 |   });
+35 |   it('commits sparse facts and rolls back replacements and removals with the surrounding batch', async () => {
+36 |     const { source, stamp } = open();
+37 |     await source.uow.run(async ({ stores }) => {
+38 |       await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 2 }, stamp);
+                        ^
+TypeError: undefined is not an object (evaluating 'stores.stepParallels.set')
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:38:20)
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/adapters/store-memory/src/source.ts:781:36)
+      at run (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/adapters/store-memory/src/source.ts:364:20)
+      at async <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:37:22)
+(fail) store-memory sparse step parallelism > commits sparse facts and rolls back replacements and removals with the surrounding batch [0.77ms]
+
+ 0 pass
+ 8 fail
+ 2 expect() calls
+Ran 8 tests across 2 files. [3.67s]

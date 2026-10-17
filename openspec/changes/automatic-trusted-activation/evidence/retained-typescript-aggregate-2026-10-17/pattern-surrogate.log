@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) pattern syntax admission precedes link copies "nul\u0000pattern" [129.12ms]
+(pass) pattern syntax admission precedes link copies "\\pattern" [124.04ms]
+683 |     const f = setup();
+684 |     const trap = spyOn(Uint8Array, 'from').mockImplementation(() => {
+685 |       throw new Error('copy forbidden');
+686 |     });
+687 |     try {
+688 |       expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link', pattern])).toThrow(
+                                                                                              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source pattern malformed"
+Received message: "copy forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:688:89)
+(fail) pattern syntax admission precedes link copies "\ud800" [114.55ms]
+
+ 2 pass
+ 79 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [1326.00ms]

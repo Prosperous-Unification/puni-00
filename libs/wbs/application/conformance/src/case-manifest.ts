@@ -20,6 +20,7 @@ export const PORT_NAMES = [
   'progress',
   'attempts',
   'blockages',
+  'stepParallels',
   'dependencies',
   'typedDependencies',
   'subtrees',
@@ -113,6 +114,8 @@ export const CASE_MANIFEST = {
     'attempts.moveAll:issued',
   ],
   blockages: ['blockages.set:read-remove'],
+  // Proof: family removed; complete-source inventory assertion failed (source-inventory.txt), 2026-10-15.
+  stepParallels: ['stepParallels.set:sparse-replace-remove'],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',

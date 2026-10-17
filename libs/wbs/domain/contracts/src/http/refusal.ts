@@ -79,6 +79,8 @@ export type ParserRefusalCode =
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
+  // Proof: omission failed the closed command compiler fixture (mutation-closed-command-registry.txt).
+  | 'referenced_by_step_parallel'
   | 'too_many_commands'
   | 'project_required'
   | 'unknown_ref'
@@ -246,16 +248,21 @@ export type CommandRefusalDetail = {
     // Proof: making projectDayZero optional caused TS2578 in the deadline refusal type fixture.
     (C extends 'deadline_before_project_start'
       ? { workItemId: string; projectDayZero: string }
-      : C extends 'node_on_parent' | 'descendant_step_on_leaf'
-        ? { dependencyIds: string[] }
-        : C extends 'in_use'
-          ? { usage: DirectoryUsage }
-          : C extends 'taken'
-            ? { name?: string }
-            : Record<never, never>);
+      : // Proof: optional nodes made the missing-detail compiler negative unused (mutation-optional-command-nodes.txt).
+        C extends 'referenced_by_step_parallel'
+        ? { nodes: { workItemId: string; stepId: string }[] }
+        : C extends 'node_on_parent' | 'descendant_step_on_leaf'
+          ? { dependencyIds: string[] }
+          : C extends 'in_use'
+            ? { usage: DirectoryUsage }
+            : C extends 'taken'
+              ? { name?: string }
+              : Record<never, never>);
 };
 
 type BareRefusalCode =
+  // Proof: omission failed the closed-registry compiler case with TS2345 (mutation-registry.txt, 2026-10-17).
+  | 'unsupported_step_parallelism'
   | 'step_blockage_inactive'
   | 'unauthenticated'
   | 'insufficient_scope'
@@ -365,7 +372,13 @@ type BareRefusalCode =
   | 'token_limit';
 
 type SharedCommandCode =
-  'not_found' | 'forbidden' | 'name_required' | 'taken' | 'in_use' | 'calendar_range';
+  | 'not_found'
+  | 'forbidden'
+  | 'name_required'
+  | 'taken'
+  | 'in_use'
+  | 'calendar_range'
+  | 'referenced_by_step_parallel';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -393,6 +406,10 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
+    // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.
+    referenced_by_step_parallel:
+      | { nodes: { workItemId: string; stepId: string }[] }
+      | CommandRefusalDetail['referenced_by_step_parallel'];
     estimates_present: { count: number };
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };

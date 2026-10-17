@@ -37,6 +37,17 @@
       },
       "outputs": ["{projectRoot}/coverage"]
     },
+    "test:unit:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-validation.unit.xml && files=$(find ./src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: shared-validation:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-validation.unit.xml --timeout=10000",
+        "cwd": "libs/shared/domain/validation",
+        "env": { "CLAUDECODE": "0", "AGENT": "0" },
+        "forwardAllArgs": false
+      }
+    },
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {

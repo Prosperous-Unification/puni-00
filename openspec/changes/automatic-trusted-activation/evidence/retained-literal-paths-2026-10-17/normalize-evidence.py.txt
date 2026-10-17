@@ -1,0 +1,24 @@
+from pathlib import Path
+import gzip,hashlib,json
+root=Path('/tmp/puni-literal-paths-sol-20261017')
+evidence=root/'openspec/changes/automatic-trusted-activation/evidence/retained-literal-paths-2026-10-17'
+manifest=evidence/'normalized-log-provenance.json'
+prior=json.loads(manifest.read_text()) if manifest.exists() else {}
+records={}
+for path in sorted(evidence.glob('*.log')):
+ raw=path.read_bytes()
+ sha=lambda value:hashlib.sha256(value).hexdigest()
+ previous=prior.get(path.name)
+ if previous is not None and sha(raw)==previous['displaySha256']:
+  archive=evidence/previous['rawArchive']
+  packed=archive.read_bytes()
+  if sha(packed)!=previous['archiveSha256'] or sha(gzip.decompress(packed))!=previous['rawSha256']: raise RuntimeError('raw archive identity differs '+path.name)
+  raw=gzip.decompress(packed)
+ display=('\n'.join(line.rstrip(' \t\r\n') for line in raw.decode('utf8').splitlines()).rstrip('\n')+'\n').encode()
+ archive=path.with_name(path.name+'.raw.gz')
+ packed=gzip.compress(raw,mtime=0)
+ archive.write_bytes(packed)
+ path.write_bytes(display)
+ records[path.name]={'rawArchive':archive.name,'rawSha256':sha(raw),'rawBytes':len(raw),'archiveSha256':sha(packed),'displaySha256':sha(display),'displayBytes':len(display),'normalization':'UTF8 display strips trailing whitespace/final blank lines and ensures one final newline; deterministic gzip retains exact original bytes'}
+manifest.write_text(json.dumps(records,indent=2)+'\n')
+print('authenticated raw/display logs',len(records))

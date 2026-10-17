@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+209 |     // Proof: entry-cap omission reaches the copy sentinel in `exact ceilings`.
+210 |     if (fresh && ledger.size >= limits.maximumReadEntries)
+211 |       throw new Error('source read entry ceiling exceeded');
+212 |     // Proof: ledger-cap omission reaches candidate/runtime copy sentinels in `exact ceilings` and `runtime ledger`.
+213 |     if (fresh && contribution > limits.maximumReadLedgerBytes - ledgerBytes)
+214 |       throw new Error('source read ledger byte ceiling exceeded');
+                                                                      ^
+error: source read ledger byte ceiling exceeded
+      at readNode (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:214:65)
+      at readFile (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:517:60)
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:890:9)
+(fail) byte census exact ceilings precede owner copies and repeated tuples do not grow [153.12ms]
+
+ 0 pass
+ 92 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1141.00ms]

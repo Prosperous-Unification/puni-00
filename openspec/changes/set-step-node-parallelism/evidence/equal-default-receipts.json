@@ -1,0 +1,34 @@
+[
+  {
+    "fault": "equal-default-memory-drop",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "retains an explicit equal-default",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "equal-default-sqlite-drop",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts",
+    "pattern": "retains an explicit equal-default",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "equal-default-memory-read-default",
+    "path": "libs/wbs/adapters/store-memory/src/step-parallel-fixture.ts",
+    "test": "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+    "pattern": "retains an explicit equal-default",
+    "exit": 1,
+    "observed": true
+  },
+  {
+    "fault": "equal-default-sqlite-read-default",
+    "path": "libs/wbs/adapters/store-sqlite/src/step-parallel.ts",
+    "test": "libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts",
+    "pattern": "retains an explicit equal-default",
+    "exit": 1,
+    "observed": true
+  }
+]

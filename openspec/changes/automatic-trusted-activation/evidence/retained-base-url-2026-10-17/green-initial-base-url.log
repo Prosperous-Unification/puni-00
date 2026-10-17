@@ -1,0 +1,62 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:
+(pass) retained effective baseUrl refuses absolute outside before program with types empty [172.68ms]
+(pass) retained effective baseUrl refuses relative outside before program with types empty [138.83ms]
+(pass) retained effective baseUrl refuses inherited outside before program with types empty [123.79ms]
+(pass) retained effective baseUrl refuses ancestor escape before program with types empty [138.00ms]
+(pass) retained effective baseUrl refuses absent escape descendant before program with types empty [137.65ms]
+(pass) retained effective baseUrl admits existing [196.11ms]
+(pass) retained effective baseUrl admits normalized [144.62ms]
+(pass) retained effective baseUrl admits missing [129.30ms]
+(pass) retained effective baseUrl admits inherited [128.14ms]
+(pass) retained effective baseUrl admits override discarded outside [157.73ms]
+(pass) retained effective baseUrl admits valid candidate link [135.16ms]
+(pass) retained effective baseUrl admits omitted ordinary probes [153.08ms]
+(pass) retained effective baseUrl sha1 replays after physical roots disappear [164.97ms]
+(pass) retained effective baseUrl sha256 replays after physical roots disappear [121.54ms]
+(pass) retained effective baseUrl bounds long roots before source UTF8 encoding [132.06ms]
+325 |       return lower;
+326 |     }
+327 |     const once = minimum();
+328 |     const repeated = minimum('types');
+329 |     if (dimension === 'steps') expect(repeated).toBeGreaterThan(once);
+330 |     else expect(repeated - once).toBe(1);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 28
+
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:330:34)
+(fail) retained effective baseUrl charges shared compiler admission at exact fit [4276.22ms]
+325 |       return lower;
+326 |     }
+327 |     const once = minimum();
+328 |     const repeated = minimum('types');
+329 |     if (dimension === 'steps') expect(repeated).toBeGreaterThan(once);
+330 |     else expect(repeated - once).toBe(1);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 28
+
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:330:34)
+(fail) retained effective baseUrl charges shared source admission at exact fit [4363.77ms]
+(pass) retained effective baseUrl charges shared steps admission at exact fit [4376.56ms]
+(pass) retained effective baseUrl resolves direct bare provider with exact declaration and census [138.71ms]
+(pass) retained effective baseUrl resolves inherited bare provider with exact declaration and census [134.76ms]
+(pass) retained effective baseUrl refuses second project before its host and owner publication [139.55ms]
+(pass) retained effective baseUrl preserves wildcard paths with src base [125.12ms]
+(pass) retained effective baseUrl preserves wildcard paths with omitted base [130.72ms]
+
+2 tests failed:
+(fail) retained effective baseUrl charges shared compiler admission at exact fit [4276.22ms]
+(fail) retained effective baseUrl charges shared source admission at exact fit [4363.77ms]
+
+ 21 pass
+ 2 fail
+ 87 expect() calls
+Ran 23 tests across 1 file. [16.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 688594944, "exitCode": 1}

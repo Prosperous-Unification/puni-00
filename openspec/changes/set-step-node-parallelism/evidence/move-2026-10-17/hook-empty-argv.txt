@@ -1,0 +1,2 @@
+move lint requires selected paths
+{"ceilingBytes": 943718400, "sampledPeakBytes": 200704, "exitCode": 64}

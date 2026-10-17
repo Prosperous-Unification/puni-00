@@ -1,0 +1,2 @@
+bunx tsc --project libs/wbs/adapters/store-sqlite/tsconfig.lib.json --noEmit --incremental false
+max_rss_kib=1975300 elapsed_seconds=5.03

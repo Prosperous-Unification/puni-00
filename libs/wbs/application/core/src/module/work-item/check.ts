@@ -23,6 +23,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       workItemStore: DiBag.createProvider(() => requirements.workItems, {
         factoryReturnKind: 'sync-value',
       }),
+      stepParallelStore: DiBag.createProvider(() => requirements.stepParallels, {
+        factoryReturnKind: 'sync-value',
+      }),
       projectStore: DiBag.createProvider(() => requirements.projects, {
         factoryReturnKind: 'sync-value',
       }),

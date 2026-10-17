@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "feat(activation): mount retained TypeScript compiler extraction"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 717548,
+  "ceilingKiB": 921600
+}

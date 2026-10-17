@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="3" assertions="5" failures="0" skipped="0" time="0.150308215">
+  <testsuite name="src/core.test.ts" file="src/core.test.ts" tests="3" assertions="5" failures="0" skipped="0" time="0.141207549" hostname="pop-os">
+    <testsuite name="@shared/validation core" file="src/core.test.ts" line="5" tests="3" assertions="5" failures="0" skipped="0" time="0.003" hostname="pop-os">
+      <testcase name="re-exports ArkType type function that validates objects" classname="@shared/validation core" time="0.003393" file="src/core.test.ts" line="6" assertions="1" />
+      <testcase name="parseOrThrow returns parsed value on success" classname="@shared/validation core" time="0.000166" file="src/core.test.ts" line="12" assertions="1" />
+      <testcase name="parseOrThrow throws ValidationError on failure, embedding the offending value" classname="@shared/validation core" time="0.000951" file="src/core.test.ts" line="17" assertions="3" />
+    </testsuite>
+  </testsuite>
+</testsuites>

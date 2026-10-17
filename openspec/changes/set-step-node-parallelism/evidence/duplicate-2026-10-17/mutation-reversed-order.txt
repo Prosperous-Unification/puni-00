@@ -1,0 +1,153 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+122 |                   { kind: 'duplicateWorkItem', ...duplication },
+123 |                 ],
+124 |               }
+125 |             : { commands: [{ kind: 'duplicateWorkItem', ...duplication }] },
+126 |         );
+127 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 0,
+      "error": "referenced_by_step_parallel",
+      "kind": "duplicateWorkItem",
+      "nodes": [
+        {
+-         "stepId": "079944ac-f3dc-4bd3-a981-568df581260b",
++         "stepId": "235b5e51-c29e-4cd8-b742-5fa2f83521b9",
+          "workItemId": "parent",
+        },
+        {
+-         "stepId": "235b5e51-c29e-4cd8-b742-5fa2f83521b9",
++         "stepId": "079944ac-f3dc-4bd3-a981-568df581260b",
+          "workItemId": "parent",
+        },
+      ],
+    },
+    "status": 409,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:127:24)
+(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [500.85ms]
+122 |                   { kind: 'duplicateWorkItem', ...duplication },
+123 |                 ],
+124 |               }
+125 |             : { commands: [{ kind: 'duplicateWorkItem', ...duplication }] },
+126 |         );
+127 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 1,
+      "error": "referenced_by_step_parallel",
+      "kind": "duplicateWorkItem",
+      "nodes": [
+        {
+-         "stepId": "0a9e832b-6c19-4d67-9a80-8540fd3f3a91",
++         "stepId": "f3317afc-e47d-4ee4-95a9-04361e00e4be",
+          "workItemId": "parent",
+        },
+        {
+-         "stepId": "f3317afc-e47d-4ee4-95a9-04361e00e4be",
++         "stepId": "0a9e832b-6c19-4d67-9a80-8540fd3f3a91",
+          "workItemId": "parent",
+        },
+      ],
+    },
+    "status": 409,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:127:24)
+(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [433.76ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+128 |         { workItemId: 'moving', stepId: 'dev', maxParallel: 2 },
+129 |         stamp,
+130 |       );
+131 |       const before = await fixture.snapshot();
+132 |       const { workItems } = installWorkItem(fixture.requirements);
+133 |       expect(await workItems.duplicate('parent', 'owner')).toEqual({
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+-       "stepId": "dev",
++       "stepId": "qa",
+        "workItemId": "parent",
+      },
+      {
+-       "stepId": "qa",
++       "stepId": "dev",
+        "workItemId": "parent",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:133:60)
+(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [4.46ms]
+128 |         { workItemId: 'moving', stepId: 'dev', maxParallel: 2 },
+129 |         stamp,
+130 |       );
+131 |       const before = await fixture.snapshot();
+132 |       const { workItems } = installWorkItem(fixture.requirements);
+133 |       expect(await workItems.duplicate('parent', 'owner')).toEqual({
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+-       "stepId": "dev",
++       "stepId": "qa",
+        "workItemId": "leaf",
+      },
+      {
+-       "stepId": "qa",
++       "stepId": "dev",
+        "workItemId": "leaf",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:133:60)
+(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [1.78ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [55.35ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.85ms]
+(pass) throws on selected trusted step corruption before duplication [1.49ms]
+(pass) throws on selected trusted project corruption before duplication [1.54ms]
+(pass) throws on selected trusted parent corruption before duplication [7.46ms]
+(pass) throws on selected trusted duplicate corruption before duplication [1.00ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [2.16ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.23ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.32ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.75ms]
+
+ 10 pass
+ 4 fail
+ 50 expect() calls
+Ran 14 tests across 2 files. [3.01s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 582819840, "exitCode": 1}

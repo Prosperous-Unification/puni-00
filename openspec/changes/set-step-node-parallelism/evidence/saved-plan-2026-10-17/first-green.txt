@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts:
+(pass) capturing a project’s plan input > captures sparse parallel facts on the SQLite snapshot before concurrent clear [168.85ms]
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+(pass) captures sparse parallel facts detached from later memory writes [5.16ms]
+(pass) captures sparse parallel facts from the memory epoch before concurrent clear [0.90ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [0.73ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.11ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.18ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.74ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.05ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.14ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.04ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+libs/wbs/application/core/src/service/saved-plan-input.test.ts:
+(pass) preserves sparse explicit parallel policy through the authored capture fold [0.31ms]
+
+ 36 pass
+ 59 filtered out
+ 0 fail
+ 56 expect() calls
+Ran 36 tests across 4 files. [2.04s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 530980864, "exitCode": 0}

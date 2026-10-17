@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+197 | });
+198 |
+199 | test('lifetime probes steps path targets expansions and depth are bounded', () => {
+200 |   const probe = setup({ maximumProbes: 1 });
+201 |   probe.source.pathKind(root);
+202 |   expect(() => probe.source.pathKind(root)).toThrow('source probe ceiling');
+                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source probe ceiling"
+
+Received function did not throw
+Received value: "directory"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:202:45)
+(fail) lifetime probes steps path targets expansions and depth are bounded [149.54ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1148.00ms]

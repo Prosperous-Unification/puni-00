@@ -1,0 +1,8 @@
+libs/wbs/application/core/src/module/work-item/work-item.resource.ts 1426ms
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts 38ms
+apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts 29ms
+openspec/changes/set-step-node-parallelism/design.md 41ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 14ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 49ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 106ms
+{"ceilingBytes": 943718400, "sampledPeakBytes": 340963328, "exitCode": 0}

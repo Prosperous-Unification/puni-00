@@ -2,11 +2,22 @@
 
 The ordered operator commands that make h4claw the platform k3s server and join h3mon as its
 observability agent (Twilight Dash WBS 070.1, 070.2, 070.4, 070.5). On 2026-09-27 step 2 ran, step 3
-ran without the provider snapshots (so no whole-host restore point exists), and step 4 bootstrapped
-h4claw but stopped before copying the join tokens; step 5 onward has not run. Each step needs
-Dany's authorization of this exact procedure; the real-host record, the QEMU rehearsal and its
-limits are in
+ran without the provider snapshots (no whole-host restore point was recorded then), and step 4 bootstrapped
+h4claw but stopped before copying the join tokens. At that point step 5 onward had not run; that
+execution record and its limits remain in
 [the enroll-existing-hosts verification](../../openspec/changes/enroll-existing-hosts/verify.md).
+Each step needs Dany's authorization of this exact procedure.
+
+A read-only inventory on 2026-10-17 (`ssh h4 k3s kubectl get nodes -o wide`,
+`get node h3mon` with JSONPath output, and `get kustomizations -n flux-system`) observed h4claw and h3mon
+Ready on v1.36.4+k3s1. h3mon's Node was created on 2026-10-06, carries the observability
+capability label and has no enrollment taint. Flux is installed: `target`, `controllers`,
+`storage`, `policy` and `secrets` are Ready; `platform` is blocked by missing registry Secrets,
+and later platform stages are not Ready. These observations establish that the live state
+advanced beyond the September record. They do not verify the intervening Ansible runs,
+idempotency, enrollment validation, memory checks, reboot checks or backups; those remain
+unverified by this inventory. Subsequent provider snapshots and whole-host restore point status
+are also unverified.
 
 Placement is `infra/fleet/desired.yaml`; host variables are
 `infra/ansible/inventory/production-existing-hosts.yml`.

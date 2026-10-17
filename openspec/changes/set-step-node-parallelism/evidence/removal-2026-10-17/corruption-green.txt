@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+(pass) sparse parallelism SQL contract > SQL rejects range/type 0 [121.45ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type 1001 [82.08ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type 1.5 [79.95ms]
+(pass) sparse parallelism SQL contract > SQL rejects range/type NULL [79.34ms]
+(pass) sparse parallelism SQL contract > SQL rejects duplicate pairs [70.79ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert owner reference [69.34ms]
+(pass) sparse parallelism SQL contract > SQL rejects update owner reference [75.62ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert step reference [74.45ms]
+(pass) sparse parallelism SQL contract > SQL rejects update step reference [79.60ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert project [74.16ms]
+(pass) sparse parallelism SQL contract > SQL rejects update project [74.25ms]
+(pass) sparse parallelism SQL contract > SQL rejects insert leaf [72.82ms]
+(pass) sparse parallelism SQL contract > SQL rejects update leaf [72.03ms]
+(pass) sparse parallelism SQL contract > retains original creation audit and updates revisions atomically [97.21ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt owner without hiding the retained row [95.85ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt step without hiding the retained row [81.95ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt project without hiding the retained row [90.28ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt leaf without hiding the retained row [81.81ms]
+(pass) sparse parallelism SQL contract > read refuses corrupt range without hiding the retained row [83.16ms]
+(pass) sparse parallelism SQL contract > down refuses retained facts and preserves table and applied ledger [90.86ms]
+(pass) sparse parallelism SQL contract > empty down and forward preserve existing work items [105.52ms]
+(pass) removal throws on corrupt retained SQLite owner [88.73ms]
+(pass) removal throws on corrupt retained SQLite project [88.63ms]
+(pass) removal throws on corrupt retained SQLite leaf [88.15ms]
+(pass) removal throws on corrupt retained SQLite range [97.77ms]
+(pass) retains all SQLite state on sparse refusal and mixed rollback (cascade=false) [82.09ms]
+(pass) retains all SQLite state on sparse refusal and mixed rollback (cascade=true) [87.00ms]
+
+ 27 pass
+ 0 fail
+ 61 expect() calls
+Ran 27 tests across 1 file. [4.14s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 587821056, "exitCode": 0}

@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:
+358 |       stdout: 'pipe',
+359 |       stderr: 'pipe',
+360 |     },
+361 |   );
+362 |   expect(child.exitCode).not.toBe(0);
+363 |   expect(child.stderr.toString()).toContain(message);
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "exactly once"
+Received: "83 |   if (hash(upstream) !== inputSha256) throw new Error('compiler input digest differs');\n84 |   let instrumented = upstream.replace(\"function tryLoadModuleUsingPaths(\", \"function missingPaths(\");\n85 |   for (const [needle, replacement] of sections)\n86 |     instrumented = replaceCompilerSection(instrumented, needle, replacement);\n87 |   // Proof: removing this guard let the builder altered-output child exit successfully.\n88 |   if (hash(instrumented) !== outputSha256) throw new Error('compiler output digest differs');\n                                                          ^\nerror: compiler output digest differs\n      at buildCompilerDerivative (/tmp/compiler-builder-fault-bZIpk5/compiler-derivative.ts:88:54)\n      at /tmp/puni-compiler-derivative-sol-20261017/[eval]:4:5\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:363:35)
+(fail) builder refuses missing section after pinned input verification [93.80ms]
+358 |       stdout: 'pipe',
+359 |       stderr: 'pipe',
+360 |     },
+361 |   );
+362 |   expect(child.exitCode).not.toBe(0);
+363 |   expect(child.stderr.toString()).toContain(message);
+                                        ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "exactly once"
+Received: "83 |   if (hash(upstream) !== inputSha256) throw new Error('compiler input digest differs');\n84 |   let instrumented = upstream + \"\\nfunction tryLoadModuleUsingPaths(extensions, moduleName, baseDirectory, paths, pathPatterns, loader, onlyRecordFailures, state) {\";\n85 |   for (const [needle, replacement] of sections)\n86 |     instrumented = replaceCompilerSection(instrumented, needle, replacement);\n87 |   // Proof: removing this guard let the builder altered-output child exit successfully.\n88 |   if (hash(instrumented) !== outputSha256) throw new Error('compiler output digest differs');\n                                                          ^\nerror: compiler output digest differs\n      at buildCompilerDerivative (/tmp/compiler-builder-fault-VwRJzH/compiler-derivative.ts:88:54)\n      at /tmp/puni-compiler-derivative-sol-20261017/[eval]:4:5\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-compiler-derivative-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts:363:35)
+(fail) builder refuses duplicate section after pinned input verification [80.98ms]
+
+ 0 pass
+ 34 filtered out
+ 2 fail
+ 6 expect() calls
+Ran 2 tests across 1 file. [223.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 125267968, "exitCode": 1}

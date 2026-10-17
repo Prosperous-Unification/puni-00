@@ -1,0 +1,48 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 376426496, "exitCode": 0}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+(pass) compiler source counts repeated probes at exact boundary [0.47ms]
+(pass) compiler source counts repeated UTF8 read bytes at exact boundary [0.10ms]
+(pass) compiler source counts both directory enumeration routes at exact boundary [0.14ms]
+(pass) compiler observations count UTF8 bytes at exact boundary [0.06ms]
+(pass) compiler namespace misses never delegate outside paths to any source port [0.10ms]
+(pass) compiler ambient output callback refuses unexpected compiler writes [0.10ms]
+(pass) compiler source preserves basename directory entries from installed sys contract [0.16ms]
+(pass) explicit type root admission delegates outside paths and charges repeated probes [0.10ms]
+(pass) retained admission observes only parser effective roots at the declaring config base [21.09ms]
+(pass) retained configuration admission preserves normalized typeRoots then rootDirs without deduplication [1.49ms]
+(pass) previous retained type roots mode preserves rootDirs as ordinary namespace probes [1.64ms]
+(pass) retained baseUrl admission preserves effective normalization {} ./types [1.49ms]
+(pass) retained baseUrl admission preserves effective normalization {"baseUrl":"./types"} ../../outside [1.05ms]
+(pass) retained baseUrl admission preserves effective normalization {"baseUrl":""} undefined [0.99ms]
+(pass) retained baseUrl admission preserves effective normalization {} undefined [0.89ms]
+(pass) previous modes preserve outside baseUrl as ordinary namespace probes [1.82ms]
+(pass) retained literal paths admission preserves declaring origin [1.86ms]
+(pass) retained literal paths admission preserves prior roots then key order [1.41ms]
+(pass) retained literal paths admission preserves baseUrl override [1.18ms]
+(pass) retained literal paths admission preserves child replacement [1.16ms]
+(pass) retained literal paths admission preserves empty child replacement [1.31ms]
+(pass) retained literal paths admission preserves wildcard key fixed substitution [1.20ms]
+(pass) retained literal paths admission preserves normalized separators [1.56ms]
+(pass) retained literal paths admission preserves consumer configDir expansion [1.24ms]
+(pass) previous modes preserve literal paths as ordinary namespace probes [1.80ms]
+(pass) retained literal paths boundary nonobject runs in isolated registry [542.36ms]
+(pass) retained literal paths boundary array-map runs in isolated registry [557.99ms]
+(pass) retained literal paths boundary primitive-map runs in isolated registry [542.95ms]
+(pass) retained literal paths boundary nonarray runs in isolated registry [552.98ms]
+(pass) retained literal paths boundary nonstring runs in isolated registry [539.21ms]
+(pass) retained literal paths boundary missing-origin runs in isolated registry [528.06ms]
+(pass) retained literal paths boundary nonstring-origin runs in isolated registry [538.69ms]
+(pass) retained literal paths boundary nonstring-base runs in isolated registry [546.98ms]
+(pass) retained literal paths boundary helper-absent runs in isolated registry [539.48ms]
+(pass) retained literal paths boundary helper-signature runs in isolated registry [541.53ms]
+(pass) retained literal paths boundary helper-version runs in isolated registry [540.39ms]
+(pass) retained literal paths boundary helper-return runs in isolated registry [541.19ms]
+(pass) retained literal paths boundary wildcard-only runs in isolated registry [561.81ms]
+(pass) retained literal paths boundary empty-map runs in isolated registry [553.90ms]
+
+ 39 pass
+ 0 fail
+ 81 expect() calls
+Ran 39 tests across 1 file. [8.21s]

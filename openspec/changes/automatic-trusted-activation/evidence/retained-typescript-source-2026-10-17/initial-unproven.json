@@ -1,0 +1,21 @@
+[
+  {
+    "name": "target-runtime-component",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "component === 'node_modules' || component === '.git'",
+    "new": "false",
+    "test": "component walk resolves",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "-t",
+      "component walk resolves"
+    ],
+    "exitCode": 0,
+    "peakProcessTreeKiB": 353484,
+    "ceilingKiB": 921600,
+    "namedFailures": []
+  }
+]

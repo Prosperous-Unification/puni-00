@@ -1,0 +1,36 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "@fission-ai/openspec@1.12.0",
+    "instructions",
+    "apply",
+    "--change",
+    "automatic-trusted-activation",
+    "--json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 112460,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "@fission-ai/openspec@1.12.0",
+      "instructions",
+      "apply",
+      "--change",
+      "automatic-trusted-activation",
+      "--json"
+    ],
+    [
+      "node",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/.bin/openspec",
+      "instructions",
+      "apply",
+      "--change",
+      "automatic-trusted-activation",
+      "--json"
+    ]
+  ]
+}

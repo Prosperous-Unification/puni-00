@@ -1,0 +1,14 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 665736,
+  "ceilingKiB": 921600
+}

@@ -1,0 +1,261 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+373 |       expect(() =>
+374 |         createRetainedNamespace(f.candidate, f.runtime, {
+375 |           ...limits,
+376 |           [bound]: value,
+377 |         }),
+378 |       ).toThrow('positive safe integer');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a.ts",
+        mode: "100644",
+        blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+      },
+      path: "/__puni_review__/candidate/a.ts",
+    }, {
+      kind: "candidate-symlink",
+      source: {
+        path: "link",
+        mode: "120000",
+        blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+      },
+      path: "/__puni_review__/candidate/link",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:378:9)
+(fail) validates maximumEntries positive safe integer [106.30ms]
+373 |       expect(() =>
+374 |         createRetainedNamespace(f.candidate, f.runtime, {
+375 |           ...limits,
+376 |           [bound]: value,
+377 |         }),
+378 |       ).toThrow('positive safe integer');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a.ts",
+        mode: "100644",
+        blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+      },
+      path: "/__puni_review__/candidate/a.ts",
+    }, {
+      kind: "candidate-symlink",
+      source: {
+        path: "link",
+        mode: "120000",
+        blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+      },
+      path: "/__puni_review__/candidate/link",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:378:9)
+(fail) validates maximumNodes positive safe integer [95.82ms]
+373 |       expect(() =>
+374 |         createRetainedNamespace(f.candidate, f.runtime, {
+375 |           ...limits,
+376 |           [bound]: value,
+377 |         }),
+378 |       ).toThrow('positive safe integer');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a.ts",
+        mode: "100644",
+        blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+      },
+      path: "/__puni_review__/candidate/a.ts",
+    }, {
+      kind: "candidate-symlink",
+      source: {
+        path: "link",
+        mode: "120000",
+        blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+      },
+      path: "/__puni_review__/candidate/link",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:378:9)
+(fail) validates maximumPathBytes positive safe integer [99.99ms]
+373 |       expect(() =>
+374 |         createRetainedNamespace(f.candidate, f.runtime, {
+375 |           ...limits,
+376 |           [bound]: value,
+377 |         }),
+378 |       ).toThrow('positive safe integer');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  workingDirectory: "/__puni_review__/candidate",
+  libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  caseSensitive: true,
+  nodes: [
+    {
+      kind: "directory",
+      path: "/",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate",
+    }, {
+      kind: "candidate-file",
+      source: {
+        path: "a.ts",
+        mode: "100644",
+        blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+      },
+      path: "/__puni_review__/candidate/a.ts",
+    }, {
+      kind: "candidate-symlink",
+      source: {
+        path: "link",
+        mode: "120000",
+        blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+      },
+      path: "/__puni_review__/candidate/link",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules",
+    }, {
+      kind: "directory",
+      path: "/__puni_review__/candidate/node_modules/pkg",
+    }, {
+      kind: "runtime-file",
+      source: {
+        path: "node_modules/pkg/index.d.ts",
+        role: "dependency",
+        identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+        byteLength: 1,
+      },
+      path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+    }
+  ],
+}
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:378:9)
+(fail) validates maximumTotalPathBytes positive safe integer [104.21ms]
+
+ 0 pass
+ 38 filtered out
+ 4 fail
+ 4 expect() calls
+Ran 4 tests across 1 file. [1367.00ms]

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "direct malformed or outside"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 352564,
+  "ceilingKiB": 921600
+}

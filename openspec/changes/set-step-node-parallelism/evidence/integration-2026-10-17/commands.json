@@ -1,0 +1,265 @@
+[
+  {
+    "receipt": "integration-install-retry.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {
+      "BUN_TMPDIR": "/tmp/integration-bun-tmp",
+      "BUN_INSTALL_CACHE_DIR": "/tmp/integration-bun-cache"
+    },
+    "argv": ["bun", "install", "--frozen-lockfile"]
+  },
+  {
+    "receipt": "integration-step-green.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts",
+      "libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts",
+      "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts",
+      "libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts",
+      "libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts",
+      "libs/wbs/application/core/src/module/plan-document",
+      "libs/wbs/application/core/src/module/saved-plans",
+      "libs/wbs/application/core/src/service/saved-plan-input.test.ts",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-installed-green.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts",
+      "libs/wbs/adapters/store-sqlite/src/organization-ownership-preflight.db.test.ts",
+      "apps/wbs/be-01/src/organization-ownership-preflight-cli.db.test.ts",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-compiler-green.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-inspector-green-1400.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 1400,
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/evidence/bun-test-reports.test.ts",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-shared-green.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "libs/shared/domain/test-evidence/src",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-composed-wbs-green.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "test",
+      "libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts",
+      "libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts",
+      "libs/wbs/application/core/src/module/plan-document",
+      "apps/wbs/be-01/src/services.db.test.ts",
+      "--test-name-pattern",
+      "sparse|parallel|Saved|capture|export|Task 5.1|installed project drain",
+      "--timeout=10000"
+    ]
+  },
+  {
+    "receipt": "integration-tooling-typecheck.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": ["bun", "node_modules/.bin/tsc", "--project", "/tmp/integration-tooling-tsconfig.json"]
+  },
+  {
+    "receipt": "integration-composition-typecheck.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "node_modules/.bin/tsc",
+      "--project",
+      "/tmp/integration-composition-tsconfig.json"
+    ]
+  },
+  {
+    "receipt": "integration-org-typecheck.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "node_modules/.bin/tsc",
+      "--project",
+      "openspec/changes/organization-ownership-preflight/evidence/typecheck.json"
+    ]
+  },
+  {
+    "receipt": "integration-migration-lint.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "run",
+      "tools/tool-git-hooks/src/hooks/migration-lint.ts",
+      "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/migration.sql",
+      "apps/wbs/be-01/drizzle/20261015110000_add_step_node_parallelism/down.sql"
+    ]
+  },
+  {
+    "receipt": "integration-openspec-final.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "--all",
+      "--json"
+    ]
+  },
+  {
+    "receipt": "integration-compiler-build.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false"
+    },
+    "argv": [
+      "bun",
+      "node_modules/.bin/nx",
+      "run",
+      "twilight-burokrat:build:compiler-derivative",
+      "--skip-nx-cache"
+    ]
+  },
+  {
+    "receipt": "integration-graph.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false"
+    },
+    "argv": ["bun", "node_modules/.bin/nx", "graph", "--file=/tmp/integration-project-graph.json"]
+  },
+  {
+    "receipt": "integration-compiler-artifact-read.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {},
+    "argv": [
+      "bun",
+      "-e",
+      "import {readCompilerDerivative} from \"./apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts\"; const artifact=await readCompilerDerivative(\"apps/twilight-structure/twilight-burokrat/cli/dist/compiler-derivative\"); console.log(JSON.stringify({verified:true,manifest:artifact.manifest}));"
+    ]
+  },
+  {
+    "receipt": "integration-step-normal-commit-1400.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 1400,
+    "env": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false",
+      "NODE_OPTIONS": "unset"
+    },
+    "argv": [
+      "git",
+      "commit",
+      "-m",
+      "merge: compose Step parallelism with extracted aggregate owners"
+    ]
+  },
+  {
+    "receipt": "integration-compiler-normal-commit-900.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 900,
+    "env": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false",
+      "NODE_OPTIONS": "unset"
+    },
+    "argv": [
+      "git",
+      "commit",
+      "-m",
+      "merge: integrate reviewed retained compiler derivative history"
+    ]
+  },
+  {
+    "receipt": "integration-remaining-lint-1400.log",
+    "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+    "guard": ["python3", "/tmp/runtime-rss-guard.py"],
+    "rssMiB": 1400,
+    "env": {
+      "NX_DAEMON": "false",
+      "NX_ISOLATE_PLUGINS": "false",
+      "NODE_OPTIONS": "unset"
+    },
+    "argv": [
+      "python3",
+      "-c",
+      "import json,subprocess; from pathlib import Path; paths=json.loads(Path(\"/tmp/integration-remaining-lint-paths.json\").read_text()); completed=subprocess.run([\"python3\",\".git/integration-lint-staged.py\",*paths],check=False); raise SystemExit(completed.returncode)"
+    ]
+  }
+]

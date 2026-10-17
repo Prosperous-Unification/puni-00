@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+(pass) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [121.20ms]
+(pass) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [91.64ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [86.70ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [85.28ms]
+(pass) request binding is detached before an owner callback mutates the caller request [70.95ms]
+(pass) failed wrong-raw history publishes no review binding [78.92ms]
+(pass) failed repinned-canonical history publishes no review binding [86.77ms]
+(pass) failed repinned-noncanonical history publishes no review binding [70.97ms]
+(pass) failed malformed history publishes no review binding [65.65ms]
+295 |   try {
+296 |     expect(() => owner.open(request, prepared.snapshotIdentity, prepared.historyIdentity)).toThrow(
+297 |       'final owner fence',
+298 |     );
+299 |     for (const candidate of captured)
+300 |       expect(() => readRetainedReviewProvenance(candidate)).toThrow(ownershipError);
+                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained review candidate required"
+
+Received function did not throw
+Received value: {
+  requestIdentity: "bd371887e484d4883420449bb4224fffa8b21d9bcf1a5d013c6f7c7dc1362152",
+  snapshotIdentity: "d5ba281ad8754e2ea6a15ee321d913e1353d42a91eedcaaa32b5b83642f7101a",
+  historyManifestIdentity: "4fee686c797656cf0b3f97f38df7068bfecda2324352253c64ac57ca0dc3c7d9",
+}
+
+      at <anonymous> (/tmp/puni-review-provenance-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:300:61)
+(fail) final held-owner failure publishes no binding even for an internally captured candidate [85.01ms]
+(pass) phase-one retained views never acquire public review bindings [82.57ms]
+(pass) closed request refusal precedes copying an undeclared getter or buffer [58.53ms]
+(pass) one legacy snapshot opens distinct candidate request bindings [76.37ms]
+(pass) owned request snapshot is revalidated after caller mutation during capture [78.21ms]
+(pass) declared protected-revision subject remains coherent in the owned request snapshot [99.22ms]
+(pass) declared merge-group subject remains coherent in the owned request snapshot [109.37ms]
+
+ 15 pass
+ 1 fail
+ 70 expect() calls
+Ran 16 tests across 1 file. [2.30s]

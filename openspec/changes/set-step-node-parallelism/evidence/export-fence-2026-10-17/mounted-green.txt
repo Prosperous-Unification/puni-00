@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts:
+(pass) v9 sparse export uses its shared observation across concurrent change (true) [465.21ms]
+(pass) v9 sparse export uses its shared observation across concurrent change (false) [413.89ms]
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+(pass) v9 sparse export fence refuses authored equality without mutation (isolated) [625.95ms]
+(pass) v9 sparse export fence refuses authored equality without mutation (shared) [588.38ms]
+{"level":"error","time":1792205501598,"service":"be-01","err":{"occurrence_id":"AE_D0ZDS2B95RNT2RHEVSWCM7ZNPM","fingerprint":"fp1_36a726805eef14b6e7eb6f7ea5c99dae","stack":["Error: sparse authority must not be read","    at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:1008:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 sparse export authorizes before reading sparse facts (isolated) [541.63ms]
+{"level":"error","time":1792205502148,"service":"be-01","err":{"occurrence_id":"AE_5G1NZ41SARA026V2XVAR5KCRTH","fingerprint":"fp1_36a726805eef14b6e7eb6f7ea5c99dae","stack":["Error: sparse authority must not be read","    at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:1008:30)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 sparse export authorizes before reading sparse facts (shared) [549.65ms]
+
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:
+(pass) detached live snapshot guards > copies sparse adapter rows into private export evidence [166.44ms]
+(pass) detached live snapshot guards > detaches sparse export evidence before closing its owned snapshot [174.67ms]
+
+ 8 pass
+ 131 filtered out
+ 0 fail
+ 34 expect() calls
+Ran 8 tests across 3 files. [5.51s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 586412032, "exitCode": 0}

@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:
+(pass) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [11.43ms]
+(pass) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [2.62ms]
+(pass) first-child sparse step parallel preservation > checks authorization and parent membership before a poisoned reader [1.09ms]
+(pass) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [12.62ms]
+(pass) reads the admitted sparse store and rolls a preceding patch back with its journal/events [9.89ms]
+132 | it('confines borrowed sparse reads to their project and open working-plan scope', async () => {
+133 |   const fixture = await seeded();
+134 |   await fixture.source.uow.run(async (scope) => {
+135 |     const working = createWorkingPlan(scope, 'p');
+136 |     const read = working.stores.stepParallels.listByWorkItems;
+137 |     expect(() => read('foreign', ['parent'])).toThrow('cannot read project');
+                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cannot read project"
+
+Received function did not throw
+Received value: Promise { <resolved> }
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:137:47)
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-memory/src/source.ts:813:36)
+      at run (/tmp/step-first-child-20261017/libs/wbs/adapters/store-memory/src/source.ts:395:20)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:134:28)
+(fail) confines borrowed sparse reads to their project and open working-plan scope [0.82ms]
+(pass) throws on trusted maximum corruption without creating or clearing statements [1.66ms]
+(pass) throws on trusted step corruption without creating or clearing statements [1.20ms]
+(pass) throws on trusted project corruption without creating or clearing statements [0.94ms]
+(pass) throws on trusted parent corruption without creating or clearing statements [1.20ms]
+(pass) throws on trusted duplicate corruption without creating or clearing statements [1.25ms]
+(pass) copies exact node references and allows create after clearing the final fact [2.53ms]
+
+ 11 pass
+ 1 fail
+ 39 expect() calls
+Ran 12 tests across 1 file. [1.84s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 499105792, "exitCode": 1}

@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+886 |         removals++;
+887 |         return stepStore.remove(...args);
+888 |       },
+889 |     }),
+890 |   });
+891 |   expect(await service.remove(projectId, devId, strangerId, true)).toEqual({
+                                                                         ^
+error: expect(received).toEqual(expected)
+
+  {
++   "nodes": [
++     {
++       "stepId": "5b51b5ca-08ac-4a6e-82ca-5a75ec20f272",
++       "workItemId": "strip",
++     },
++   ],
+    "ok": false,
+-   "reason": "forbidden",
++   "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 1
++ Received  + 7
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:891:68)
+(fail) authorizes before consulting sparse step references [129.10ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.96s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 533942272, "exitCode": 1}

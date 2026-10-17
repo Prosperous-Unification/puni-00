@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "@fission-ai/openspec@1.12.0",
+    "status",
+    "--change",
+    "automatic-trusted-activation",
+    "--json"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 111280128,
+  "exitCode": 0
+}

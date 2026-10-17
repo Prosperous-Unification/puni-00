@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+    "-t",
+    "keeps programs"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 351104,
+  "ceilingKiB": 921600
+}

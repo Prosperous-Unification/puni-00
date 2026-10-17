@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 181116928, "exitCode": 1}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+259 | test('previous modes preserve literal paths as ordinary namespace probes', () => {
+260 |   const { source } = fixture({
+261 |     'tsconfig.json': JSON.stringify({ compilerOptions: { noLib: true, types: [], paths: { unused: ['/outside'] } }, files: ['globals.d.ts', 'src/index.ts'] }),
+262 |   });
+263 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });
+264 |   system.admitConfigurationRoot = () => { throw new Error('unexpected explicit admission'); };
+                                                                                               ^
+error: unexpected explicit admission
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:264:90)
+      at admitLiteralPaths (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:240:14)
+      at parseProject (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:316:5)
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:266:12)
+(fail) previous modes preserve literal paths as ordinary namespace probes [5.90ms]
+
+ 0 pass
+ 38 filtered out
+ 1 fail
+Ran 1 test across 1 file. [540.00ms]

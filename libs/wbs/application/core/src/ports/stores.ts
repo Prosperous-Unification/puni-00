@@ -17,6 +17,7 @@ import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
 import type { StepBlockageStore } from './step-blockage-store';
 import type { StepNodeAttemptStore } from './step-node-attempt-store';
+import type { StepParallelStore } from './step-parallel-store';
 import type { StepStore } from './step-store';
 import type { SubtreeStore } from './subtree-store';
 import type { TypedDependencyStore } from './typed-dependency-store';
@@ -47,6 +48,8 @@ export interface PlanTransactionalStores {
   progress: StepProgressStore;
   /** Sparse direct blockage facts used by live node readings. */
   blockages: StepBlockageStore;
+  /** Dormant sparse node parallelism facts, independent of live resource resolution. */
+  stepParallels: StepParallelStore;
   /** The attempts at step nodes; moved with the other step facts at the hand-down. */
   attempts: StepNodeAttemptStore;
   dependencies: DependencyStore;

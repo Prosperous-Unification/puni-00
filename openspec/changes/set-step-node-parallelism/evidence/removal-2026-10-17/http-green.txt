@@ -1,0 +1,13 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step.controller.db.test.ts:
+(pass) returns 409 for retained sparse step parallelism (cascade=false) [313.21ms]
+(pass) returns 409 for retained sparse step parallelism (cascade=true) [221.82ms]
+(pass) does not disclose sparse references to outsiders or a foreign project [332.40ms]
+
+ 3 pass
+ 51 filtered out
+ 0 fail
+ 10 expect() calls
+Ran 3 tests across 1 file. [2.87s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 640868352, "exitCode": 0}

@@ -1,0 +1,128 @@
+[
+  {
+    "check": "final-focused",
+    "capMiB": 900,
+    "argv": [
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+      "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+      "libs/wbs/domain/contracts/src/http/refusal.test.ts"
+    ],
+    "exitCode": 0
+  },
+  {
+    "check": "type-final-work-item",
+    "capMiB": 1280,
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/work-item/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "exitCode": 0
+  },
+  {
+    "check": "type-final-plan-commands",
+    "capMiB": 1280,
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/plan-commands/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "exitCode": 0
+  },
+  {
+    "check": "format-final",
+    "capMiB": 900,
+    "argv": [
+      "bunx",
+      "prettier",
+      "--write",
+      "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts",
+      "apps/wbs/be-01/src/controller/capacity-body.db.test.ts",
+      "apps/wbs/be-01/src/controller/directory.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/step.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts",
+      "apps/wbs/be-01/src/controller/undo.controller.db.test.ts",
+      "apps/wbs/be-01/src/service/capacity-migration-identity.db.test.ts",
+      "apps/wbs/be-01/src/service/plan-commands.db.test.ts",
+      "apps/wbs/be-01/src/service/priority-band-identity.db.test.ts",
+      "apps/wbs/be-01/src/service/revision.db.test.ts",
+      "apps/wbs/be-01/src/service/saved-plan-deadlines.db.test.ts",
+      "apps/wbs/be-01/src/service/service-empty-diff.db.test.ts",
+      "apps/wbs/be-01/src/service/step.service.db.test.ts",
+      "apps/wbs/be-01/src/service/tag-empty-diff.db.test.ts",
+      "apps/wbs/be-01/src/service/undo.db.test.ts",
+      "apps/wbs/be-01/src/testing/organization-harness.ts",
+      "libs/wbs/adapters/store-sqlite/src/write-coordinator.db.test.ts",
+      "libs/wbs/application/core/src/compose.ts",
+      "libs/wbs/application/core/src/http/work-item.routes.ts",
+      "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+      "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts",
+      "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+      "libs/wbs/application/core/src/module/work-item/README.md",
+      "libs/wbs/application/core/src/module/work-item/check.ts",
+      "libs/wbs/application/core/src/module/work-item/contract.ts",
+      "libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.test.ts",
+      "libs/wbs/application/core/src/module/work-item/module.ts",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "libs/wbs/application/core/src/testing/harness.ts",
+      "libs/wbs/domain/contracts/src/http/refusal.test.ts",
+      "libs/wbs/domain/contracts/src/http/refusal.ts",
+      "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+      "openspec/changes/set-step-node-parallelism/design.md",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/final-check-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/forwarding-mutation-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/hook-proof-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/hook-real-proof-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/hook-real-restoration.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/hook-selected-lint-paths.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/hooks/lefthook-local.yml",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-authorized-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-final-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/mutation-receipts.json",
+      "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/nx-boundary-receipt.json",
+      "openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md",
+      "openspec/changes/set-step-node-parallelism/tasks.md",
+      "openspec/changes/set-step-node-parallelism/verify.md"
+    ],
+    "exitCode": 0
+  },
+  {
+    "check": "openspec-strict-final",
+    "capMiB": 900,
+    "argv": [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "set-step-node-parallelism",
+      "--strict",
+      "--json"
+    ],
+    "exitCode": 0
+  },
+  {
+    "check": "openspec-all-final",
+    "capMiB": 900,
+    "argv": [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "--all",
+      "--json"
+    ],
+    "exitCode": 0
+  }
+]

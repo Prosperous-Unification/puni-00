@@ -12,6 +12,9 @@ import type {
 
 /** Compiled by the test below; these are type-boundary checks, not production wire proofs. */
 export function refusalTypeCases() {
+  expectTypeOf<Refusal>({ error: 'unsupported_step_parallelism' });
+  // @ts-expect-error The version 9 preservation fence carries no invented detail.
+  expectTypeOf<Refusal>({ error: 'unsupported_step_parallelism', nodes: [] });
   expectTypeOf<RefusalCode>('parentId_must_be_id_or_null');
   expectTypeOf<RefusalCode>('typeRefs_must_be_at_most_10');
   expectTypeOf<RefusalStatus>(405);
@@ -217,4 +220,36 @@ export function markerOptionalFieldTypes(field?: 'markerId') {
   expectTypeOf<Refusal>({ error: 'not_found', field: 'markerId', savedPlanId: 's' });
   // @ts-expect-error Optional marker detail still cannot mix with command context.
   expectTypeOf<Refusal>({ error: 'taken', field: 'markerId', at: 0, kind: 'createTeam' });
+}
+
+/** Command sparse-reference refusals require structured nodes and finite context. */
+export function sparseCommandRefusalTypes() {
+  expectTypeOf<Refusal>({
+    error: 'referenced_by_step_parallel',
+    nodes: [{ workItemId: 'parent', stepId: 'dev' }],
+  });
+  // @ts-expect-error Bare step-removal envelopes cannot admit partial command context.
+  expectTypeOf<Refusal>({ error: 'referenced_by_step_parallel', at: 0, nodes: [] });
+  expectTypeOf<CommandRefusal>({
+    error: 'referenced_by_step_parallel',
+    at: 1,
+    kind: 'createWorkItem',
+    nodes: [{ workItemId: 'parent', stepId: 'dev' }],
+  });
+  // @ts-expect-error Sparse preservation refusal requires the exact node list.
+  expectTypeOf<CommandRefusal>({
+    error: 'referenced_by_step_parallel',
+    at: 1,
+    kind: 'createWorkItem',
+  });
+  // @ts-expect-error Sparse preservation refusal requires command context.
+  expectTypeOf<CommandRefusal>({ error: 'referenced_by_step_parallel', nodes: [] });
+  const printableNodes = {
+    error: 'referenced_by_step_parallel' as const,
+    at: 1,
+    kind: 'createWorkItem' as const,
+    nodes: ['parent.dev'],
+  };
+  // @ts-expect-error A printable node identifier does not replace a concrete pair.
+  expectTypeOf<CommandRefusal>(printableNodes);
 }

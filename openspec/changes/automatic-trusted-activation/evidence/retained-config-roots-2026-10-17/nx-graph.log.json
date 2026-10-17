@@ -1,0 +1,36 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "--no-install",
+    "nx",
+    "graph",
+    "--file=/tmp/config-roots-project-graph.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 274288,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    ["bunx", "--no-install", "nx", "graph", "--file=/tmp/config-roots-project-graph.json"],
+    [
+      "env",
+      "NX_DAEMON=false",
+      "NX_ISOLATE_PLUGINS=false",
+      "bunx",
+      "--no-install",
+      "nx",
+      "graph",
+      "--file=/tmp/config-roots-project-graph.json"
+    ],
+    ["git", "rev-list", "--max-parents=0", "HEAD"],
+    [
+      "node",
+      "/tmp/retained-config-roots-sol-oct17/node_modules/.bin/nx",
+      "graph",
+      "--file=/tmp/config-roots-project-graph.json"
+    ]
+  ]
+}

@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 188706816, "exitCode": 1}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+250 |     });
+251 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+252 |     const roots: string[] = [];
+253 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+254 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+255 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+    "/candidate/types",
+    "/candidate/generated",
+    "/candidate/src",
+-   "/candidate/src/last",
+    "/candidate/src/first",
++   "/candidate/src/last",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:255:19)
+(fail) retained literal paths admission preserves prior roots then key order [22.29ms]
+
+ 0 pass
+ 38 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [551.00ms]

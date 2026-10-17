@@ -1,0 +1,66 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+206 |         if (policy === 'unrelated') {
+207 |           expect(answer.status).toBe(200);
+208 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+209 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+210 |         } else if (policy === 'throw' || policy === 'corrupt') {
+211 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:211:33)
+(fail) undo preserves history on throw sparse read [361.41ms]
+206 |         if (policy === 'unrelated') {
+207 |           expect(answer.status).toBe(200);
+208 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+209 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+210 |         } else if (policy === 'throw' || policy === 'corrupt') {
+211 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:211:33)
+(fail) undo preserves history on corrupt sparse read [282.44ms]
+206 |         if (policy === 'unrelated') {
+207 |           expect(answer.status).toBe(200);
+208 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+209 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+210 |         } else if (policy === 'throw' || policy === 'corrupt') {
+211 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:211:33)
+(fail) redo preserves history on throw sparse read [287.84ms]
+206 |         if (policy === 'unrelated') {
+207 |           expect(answer.status).toBe(200);
+208 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+209 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+210 |         } else if (policy === 'throw' || policy === 'corrupt') {
+211 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:211:33)
+(fail) redo preserves history on corrupt sparse read [281.40ms]
+
+ 0 pass
+ 8 filtered out
+ 4 fail
+ 26 expect() calls
+Ran 4 tests across 1 file. [3.15s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 588611584, "exitCode": 1}

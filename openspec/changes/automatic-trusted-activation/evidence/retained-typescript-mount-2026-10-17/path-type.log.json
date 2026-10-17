@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+    "--test-name-pattern",
+    "sparse entries"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 364640,
+  "ceilingKiB": 921600
+}

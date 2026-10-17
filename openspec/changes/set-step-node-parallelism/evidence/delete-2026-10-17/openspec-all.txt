@@ -1,0 +1,1735 @@
+{
+  "items": [
+    {
+      "id": "accept-padded-step-reference-aliases",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 14
+    },
+    {
+      "id": "activate-step-blockage-writers",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 18
+    },
+    {
+      "id": "add-button-toggles",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 21
+    },
+    {
+      "id": "add-child-and-quiet-expansion",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 17
+    },
+    {
+      "id": "add-project-step-estimate-allowances",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 47
+    },
+    {
+      "id": "add-spaces",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 27
+    },
+    {
+      "id": "add-start-and-finish-dependency-types",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 46
+    },
+    {
+      "id": "add-step-node-blocking",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "add-work-item-statuses",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 27
+    },
+    {
+      "id": "address-step-nodes",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 15
+    },
+    {
+      "id": "adopt-di-composition",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "adopt-failure-reporting",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "adopt-frontend-lifetimes",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 11
+    },
+    {
+      "id": "adopt-suite-directory-layout",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "affected-pr-gate",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "agent-calendar-instant-axis",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 28
+    },
+    {
+      "id": "agent-scalable-llm-wiki",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 29
+    },
+    {
+      "id": "align-mcp-resource-body-limit",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "align-website-app-visuals",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "arrange-by-schedule",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "assistant-ui-build",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "audit-columns",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "authentication",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 2
+    },
+    {
+      "id": "automatic-dev-solver-binding",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "automatic-trusted-activation",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "await-session-retirement-on-page-hide",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "backend-audit-busybox",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "backend-startup-ownership",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "bounded-replay-sweep",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "build-ai-chat-harness",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 28
+    },
+    {
+      "id": "calendar-horizon-guard",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "card-takeover-delay",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "cards-open-diagonally",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "checkrun-receipts",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "ci-gate-annotation-safety",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "ci-pr-merge-base",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "clear-estimate",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 13
+    },
+    {
+      "id": "close-observability-alert-gaps",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "column-widths-drag",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "combined-trio-entry",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "compact-columns",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 13
+    },
+    {
+      "id": "complete-check-performance-evidence",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "contextual-links-default",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "core-lib-extraction",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "requirements[1]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[2]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        }
+      ],
+      "durationMs": 1
+    },
+    {
+      "id": "cycle-aware-dep-picker",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "dash-activation-relocation",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "dash-authority-relocation",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "dash-local-plan-facade",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "declare-website-binary-assets",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 11
+    },
+    {
+      "id": "deep-indent",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "dep-add-button",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "dep-hover-highlights",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "deps-single-line",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "derive-devsync-pins",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "detail-keeps-unestimated",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "dev-deploy",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "overview",
+          "line": 5,
+          "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "di-bag-label-surface",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "directory-crud",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "directory-page",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "discovery-ssh-transport",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "drag-number-spacing",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "dual-optimized-scheduler",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "e2e-plan-seeding",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 11
+    },
+    {
+      "id": "editable-brief-proposal-acceptance",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "enable-public-mcp-client-auth",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 16
+    },
+    {
+      "id": "enroll-existing-hosts",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "estimate-cell-at-rest",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "estimate-trio-ellipsis",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "estimate-units",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 27
+    },
+    {
+      "id": "every-cell-card-clears-its-lane",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "every-column-answers-aside",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "exclusive-heavy-lock",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "fifo-heavy-lock",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "find-in-the-tree",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "fold-over-included-nodes",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "wbs-domain/spec.md",
+          "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: A leaf's status folds its progress, hold, readiness and predecessors\" - not found"
+        }
+      ],
+      "durationMs": 6
+    },
+    {
+      "id": "forge-environment-namespaces",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "frontend-label-agreement",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "gantt-attempt-marks",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "gantt-bar-hover",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "gantt-calendar-axis",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "gantt-calendar-markers",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "gantt-height-column-clamp",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "wbs-domain/spec.md",
+          "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: A dragged Gantt panel stays inside the column it lives in\" - not found"
+        }
+      ],
+      "durationMs": 14
+    },
+    {
+      "id": "gantt-legibility",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 15
+    },
+    {
+      "id": "gate-readable-checkout",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 11
+    },
+    {
+      "id": "gateway-request-deadlines",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "guard-settings-until-plan-read",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 11
+    },
+    {
+      "id": "guide-ai-project-imports",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 15
+    },
+    {
+      "id": "hint-press-cancels",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 13
+    },
+    {
+      "id": "host-gate-locked-install",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "http-endpoint-port",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "informative-cards-open-beside",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "isolate-relationship-runtime-closure",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "k3s-fleet",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "k3s-platform",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "k3s-wbs-delivery",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "keep-single-estimate-visible",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "wbs-estimate-cell/spec.md",
+          "message": "Archive would refuse this delta: wbs-estimate-cell: target spec does not exist; only ADDED requirements are allowed for new specs. MODIFIED and RENAMED operations require an existing spec."
+        }
+      ],
+      "durationMs": 5
+    },
+    {
+      "id": "limit-work-item-to-one-type",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 11
+    },
+    {
+      "id": "link-names-and-card",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "links-card-takes-the-pointer",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "list-search-and-paging",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "live-plan-snapshot",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "live-plan-snapshot",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "overview",
+          "line": 5,
+          "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "local-object-store-image",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "local-write-invalidation",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "log-failure-records",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "markdown-work-item-names",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "mcp-auth-failure-signout",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "mcp-oidc-store",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "mcp-refresh-failure-reporting",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "mcp-refresh-policy",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "mcp-token-refresh",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "measured-rendering",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "measures-vocabulary-and-size-templates",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 21
+    },
+    {
+      "id": "migrate-di-bag",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "migrate-report-libraries",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "name-column-drag",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "wbs-domain/spec.md",
+          "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: A column with a declared width can be dragged to another width\" - not found"
+        }
+      ],
+      "durationMs": 7
+    },
+    {
+      "id": "navigator-receipt-plan-consistency",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "notes-done-by-the-marker",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "wbs-domain/spec.md",
+          "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: The notes editor closes on Escape and on Done, and both save\" - not found"
+        }
+      ],
+      "durationMs": 6
+    },
+    {
+      "id": "notes-editor-done",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "notes-preview-clears-the-marker-lane",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "notes-preview-unify",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "organization-enterprise-sso",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 19
+    },
+    {
+      "id": "organization-ownership-and-access",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 29
+    },
+    {
+      "id": "otlp-mtls-canary",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "plan-command-registry",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 3
+    },
+    {
+      "id": "plan-command-registry",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "overview",
+          "line": 5,
+          "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[0]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "plan-import",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "overview",
+          "line": 5,
+          "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[0]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        }
+      ],
+      "durationMs": 1
+    },
+    {
+      "id": "plan-json-import",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "plan-refresh",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "pointed-row-one-ink",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "pointed-row-render-cost",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "polish-build-app-screens",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "private-checkout-and-website-platform",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 15
+    },
+    {
+      "id": "prod-deploy-readiness",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "project-assignment-reads",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "project-dropdown-details",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "promote-website-services-public",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "prove-the-gateway-reaches-be-01",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "provider-agnostic-oidc-auth",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "puni-website-funnel",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 40
+    },
+    {
+      "id": "qemu-lab-start-wait",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "read-current-plan-exports-in-navigator",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "read-only-step-board",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "read-step-node-resources",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "readable-name-cells",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "realtime",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "reference-cell-escape-and-hover",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "repo-namespacing",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    },
+    {
+      "id": "resolve-public-entrypoint-ownership",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "restore-applied-migration-set",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "retire-prospect-sign-in",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "retired-schema-cleanup",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "saved-plans",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "saved-plans",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "overview",
+          "line": 5,
+          "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[1]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "scaffold-tech-setup",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 47
+    },
+    {
+      "id": "scheduler-optimization",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "overview",
+          "line": 5,
+          "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[0]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        }
+      ],
+      "durationMs": 0
+    },
+    {
+      "id": "scheduler-runtime-port",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "serialize-release-lease-parking",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "service-taxonomy",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "session-features",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "set-step-node-parallelism",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 13
+    },
+    {
+      "id": "share-people-across-projects",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 25
+    },
+    {
+      "id": "share-the-plan",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 15
+    },
+    {
+      "id": "social-sign-in",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 17
+    },
+    {
+      "id": "sortable-step-references",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "source-conformance-completion",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "sqlite-verification-cronjob-lab",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 3
+    },
+    {
+      "id": "stable-public-dev",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "status-at-a-glance",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "wbs-domain/spec.md",
+          "message": "Archive would refuse this delta: wbs-domain MODIFIED failed for header \"### Requirement: The table shows Status, Fact start and Fact end, and strikes a done row\" - not found"
+        }
+      ],
+      "durationMs": 6
+    },
+    {
+      "id": "status-polish",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "step-node-attempts",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 24
+    },
+    {
+      "id": "step-node-readings",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "sticky-table-frame",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "store-port-and-unit-of-work",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "sub-day-gantt-axis",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "team-removal-revisions",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "temporarily-disable-trusted-wiki-ci",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "test-axes",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "toolchain-2026-09",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "trusted-activation-relocation",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "trusted-boundary-creation-revision",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "twilight-burokrat-consumer",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "twilight-burokrat-kind-inventory",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "twilight-burokrat-kind-rules",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "twilight-burokrat-package",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "twilight-burokrat-rule-model",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "twilight-burokrat-short-command",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "twilight-burokrat-templates",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "twilight-control-plane",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 16
+    },
+    {
+      "id": "twilight-navigator-plan-reference",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "twilight-review-hardening",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 3
+    },
+    {
+      "id": "twilight-sdlc-pilot",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "ui-review-header-toolbar",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 4
+    },
+    {
+      "id": "ui-review-table-chips",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "ui-review-toolbar-settings",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "unestimated-navigator",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "unestimated-steps-take-no-schedule-time",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "scheduler-optimization/spec.md",
+          "message": "Archive would refuse this delta: scheduler-optimization MODIFIED failed for header \"### Requirement: Every duration crossing the solver boundary is computed by the caller\" - not found"
+        }
+      ],
+      "durationMs": 13
+    },
+    {
+      "id": "unified-reference-cell-ux",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 9
+    },
+    {
+      "id": "validate-navigator-plan-tasks",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 7
+    },
+    {
+      "id": "validate-navigator-progress-receipts",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 8
+    },
+    {
+      "id": "wbs-burokrat-evaluation",
+      "type": "change",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "file",
+          "message": "skip_specs is set in .openspec.yaml: change declares no spec-level behavior changes, zero deltas accepted"
+        }
+      ],
+      "durationMs": 3
+    },
+    {
+      "id": "wbs-domain",
+      "type": "spec",
+      "valid": true,
+      "issues": [
+        {
+          "level": "INFO",
+          "path": "requirements[0]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[1]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[2]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[3]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[4]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[5]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[6]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[7]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[8]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[9]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[10]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[12]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[13]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[16]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[18]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[21]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[29]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[30]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[31]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        },
+        {
+          "level": "INFO",
+          "path": "requirements[32]",
+          "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+        }
+      ],
+      "durationMs": 2
+    },
+    {
+      "id": "wbs-scroll-smoothness",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "wbs-table-modules",
+      "type": "spec",
+      "valid": true,
+      "issues": [],
+      "durationMs": 0
+    },
+    {
+      "id": "website-abuse-guardrails",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 27
+    },
+    {
+      "id": "website-ai-operations-figures",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "website-anonymous-draft-retention",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 6
+    },
+    {
+      "id": "website-funnel-counts",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 5
+    },
+    {
+      "id": "website-request-retention-lifecycle",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 16
+    },
+    {
+      "id": "wiki-release",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    },
+    {
+      "id": "work-item-deadline",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 15
+    },
+    {
+      "id": "work-item-read-order",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 12
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 212,
+      "passed": 212,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 194,
+        "passed": 194,
+        "failed": 0
+      },
+      "spec": {
+        "items": 18,
+        "passed": 18,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/tmp/puni-delete-owner-20261017",
+    "source": "nearest"
+  }
+}
+{"ceilingBytes": 943718400, "sampledPeakBytes": 135729152, "exitCode": 0}

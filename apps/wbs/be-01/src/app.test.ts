@@ -2,6 +2,7 @@ import type { FailureReporting } from '@shared/failures';
 import type { LogFields, Logger, LogMethod } from '@wbs/contracts';
 import type { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger, type CreateLoggerOptions, LogRecord } from '@wbs/observability';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { parseOrThrow } from '@wbs/validation';
 import { describe, expect, it } from 'bun:test';
 
@@ -99,6 +100,7 @@ function optionsFor(auth: AuthService, internalAuthSecret = TEST_SECRET): AppOpt
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     auth,
     projects: testProjectService(),

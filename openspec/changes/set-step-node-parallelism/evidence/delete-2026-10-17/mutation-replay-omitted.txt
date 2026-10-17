@@ -1,0 +1,106 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+240 |           expect(snapshot()).toEqual(before);
+241 |           expect(h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId)).toEqual(journalBefore);
+242 |         } else {
+243 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:243:26)
+(fail) redo-leaf owned sparse policy preserves replay atomicity and history policy [399.84ms]
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+240 |           expect(snapshot()).toEqual(before);
+241 |           expect(h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId)).toEqual(journalBefore);
+242 |         } else {
+243 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:243:26)
+(fail) redo-cascade owned sparse policy preserves replay atomicity and history policy [277.07ms]
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+240 |           expect(snapshot()).toEqual(before);
+241 |           expect(h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId)).toEqual(journalBefore);
+242 |         } else {
+243 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:243:26)
+(fail) undo-create owned sparse policy preserves replay atomicity and history policy [276.51ms]
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+240 |           expect(snapshot()).toEqual(before);
+241 |           expect(h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId)).toEqual(journalBefore);
+242 |         } else {
+243 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:243:26)
+(fail) undo-duplicate owned sparse policy preserves replay atomicity and history policy [273.40ms]
+
+ 0 pass
+ 23 filtered out
+ 4 fail
+ 26 expect() calls
+Ran 4 tests across 1 file. [3.30s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 586203136, "exitCode": 1}

@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+(pass) compiler source counts repeated probes at exact boundary [0.41ms]
+(pass) compiler source counts repeated UTF8 read bytes at exact boundary [0.12ms]
+(pass) compiler source counts both directory enumeration routes at exact boundary [0.09ms]
+(pass) compiler observations count UTF8 bytes at exact boundary [0.05ms]
+(pass) compiler namespace misses never delegate outside paths to any source port [0.09ms]
+(pass) compiler ambient output callback refuses unexpected compiler writes [0.09ms]
+(pass) compiler source preserves basename directory entries from installed sys contract [0.11ms]
+(pass) explicit type root admission delegates outside paths and charges repeated probes [0.06ms]
+(pass) retained admission observes only parser effective roots at the declaring config base [18.80ms]
+(pass) retained configuration admission preserves normalized typeRoots then rootDirs without deduplication [1.57ms]
+(pass) previous retained type roots mode preserves rootDirs as ordinary namespace probes [2.41ms]
+
+ 11 pass
+ 0 fail
+ 25 expect() calls
+Ran 11 tests across 1 file. [563.00ms]

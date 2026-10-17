@@ -1,0 +1,18 @@
+openspec/changes/set-step-node-parallelism/verify.md 218ms
+openspec/changes/set-step-node-parallelism/tasks.md 12ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-final-memory-final-mounted-openspec-selected-openspec-all-hook-install.json 11ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-format-type-work-item-type-plan-commands.json 2ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-graph.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-green-memory-green-mounted-openspec-status-openspec-apply-openspec-selected.json 2ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-lint-service-lint-memory-lint-mounted.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-normal-hook.json 1ms
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-openspec-selected-openspec-all.json 2ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/checks-type-plan-commands-graph.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/hook-proof-receipts.json 4ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/hook-real-staged-lint-negative.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/hook-real-staged-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/hook-wrapper-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/lint-boundary-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/mutation-receipts-all.json 6ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/delete-2026-10-17/static-candidate.json 1ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 157851648, "exitCode": 0}

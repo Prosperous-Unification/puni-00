@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts:
+36 |   const owners = new Map<string, string>();
+37 |   for (const { workItemId } of rows) {
+38 |     if (owners.has(workItemId)) continue;
+39 |     const workItem = await workItems.findById(workItemId);
+40 |     if (workItem === null) {
+41 |       throw new Error(`targeted ${family} has an invalid work-item reference`);
+                     ^
+error: targeted estimate has an invalid work-item reference
+      at readTargetedSatelliteRows (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/targeted-satellite-rows.ts:41:17)
+      at async listByWorkItems (/tmp/wbs-memory-stores-sol/libs/wbs/adapters/store-memory/src/estimate-fixture.ts:27:30)
+(fail) working plan value mutations through runner commands > refreshes every delete-last-child hand-up before editing the parent [33.04ms]
+
+ 0 pass
+ 52 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.61s]

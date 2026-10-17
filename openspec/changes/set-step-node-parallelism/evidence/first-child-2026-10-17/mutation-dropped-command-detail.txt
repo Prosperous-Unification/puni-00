@@ -1,0 +1,77 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+26 |         const child = { parentId: 'parent', afterId: null, name: 'Child' };
+27 |         const answer = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, endpoint === 'batch' ? { commands: [
+28 |           { kind: 'patchWorkItem', workItemId: 'parent', patch: { name: 'Must roll back' } },
+29 |           { kind: 'createWorkItem', ...child },
+30 |         ] } : { commands: [{ kind: 'createWorkItem', ...child }] });
+31 |         expect(answer).toEqual({ status: 409, body: {
+                            ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 0,
+      "error": "referenced_by_step_parallel",
+      "kind": "createWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "0d0cdd99-fd15-43e9-8299-43dfb5511892",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "3a35d8be-0f34-401b-b0b9-1d126aa14391",
+-         "workItemId": "parent",
+-       },
+-     ],
++     "nodes": [],
+    },
+    "status": 409,
+  }
+
+- Expected  - 10
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:31:24)
+(fail) first-child sparse preservation through single > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [310.44ms]
+26 |         const child = { parentId: 'parent', afterId: null, name: 'Child' };
+27 |         const answer = await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, endpoint === 'batch' ? { commands: [
+28 |           { kind: 'patchWorkItem', workItemId: 'parent', patch: { name: 'Must roll back' } },
+29 |           { kind: 'createWorkItem', ...child },
+30 |         ] } : { commands: [{ kind: 'createWorkItem', ...child }] });
+31 |         expect(answer).toEqual({ status: 409, body: {
+                            ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 1,
+      "error": "referenced_by_step_parallel",
+      "kind": "createWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "f07aa979-755a-450c-b8fb-6d39bcc466ac",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "29fad42b-6497-4942-952b-1e9a94cf20df",
+-         "workItemId": "parent",
+-       },
+-     ],
++     "nodes": [],
+    },
+    "status": 409,
+  }
+
+- Expected  - 10
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:31:24)
+(fail) first-child sparse preservation through batch > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [239.19ms]
+
+ 0 pass
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [2.49s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 646504448, "exitCode": 1}

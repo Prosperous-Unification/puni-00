@@ -1,0 +1,16 @@
+{
+  "command": [
+    "bunx",
+    "tsc",
+    "--project",
+    "apps/twilight-structure/twilight-dash/cli/tsconfig.spec.json",
+    "--noEmit",
+    "--incremental",
+    "false"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 694140928,
+  "seconds": 1.35,
+  "rssCeilingBytes": 838860800,
+  "deadlineSeconds": 60
+}

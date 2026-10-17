@@ -1,0 +1,21 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-nx.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "--fix"
+  ],
+  "exitCode": 0,
+  "peakTreeRssBytes": 905785344,
+  "seconds": 8.624,
+  "rssCeilingBytes": 943718400,
+  "deadlineSeconds": 60
+}

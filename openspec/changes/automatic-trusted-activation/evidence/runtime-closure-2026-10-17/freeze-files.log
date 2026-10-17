@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+84 |   rmSync(input.runtimeRoot, { recursive: true });
+85 |   expect(() => runtime.readFile(entry)).not.toThrow();
+86 |   expect(Buffer.from(runtime.readFile(entry)).toString()).toBe('parser');
+87 |   expect(Object.isFrozen(runtime)).toBe(true);
+88 |   expect(Object.isFrozen(runtime.closure)).toBe(true);
+89 |   expect(Object.isFrozen(runtime.closure.files)).toBe(true);
+                                                      ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:89:50)
+(fail) owns complete exact bytes despite caller and ambient mutation [3.48ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [927.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 334409728, "exitCode": 1}

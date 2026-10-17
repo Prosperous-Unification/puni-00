@@ -1,0 +1,67 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 23396352, "exitCode": 1}
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [1.36ms]
+39 |       get maxParallel() {
+40 |         reads += 1;
+41 |         return reads === 1 ? 2 : 1001;
+42 |       },
+43 |     };
+44 |     expect(canonicalisePlanInput(rows([supplied])).stepParallels).toEqual([
+                                                                       ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+-     "maxParallel": 2,
++     "maxParallel": 1001,
+      "stepId": "s1",
+      "workItemId": "w2",
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:44:67)
+(fail) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.31ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.21ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.62ms]
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.10ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.07ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.14ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture [0.02ms]
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read [0.01ms]
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.03ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+1 tests failed:
+(fail) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.31ms]
+
+ 32 pass
+ 1 fail
+ 46 expect() calls
+Ran 33 tests across 1 file. [28.00ms]

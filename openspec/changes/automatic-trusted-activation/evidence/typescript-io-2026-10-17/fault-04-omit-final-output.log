@@ -1,0 +1,36 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+212 |   expect(() =>
+213 |     extractTypeScriptRelationshipsFromSource(workspace, selection, source, {
+214 |       ...limits,
+215 |       maximumOutputBytes: byteLength - 1,
+216 |     }),
+217 |   ).toThrow('TypeScript output byte limit exceeded');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "TypeScript output byte limit exceeded"
+
+Received function did not throw
+Received value: {
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "94ff7bb3cc8057b57093bcc4ccc491ff04eb720cbfc5d4e3feb8757083d00d91",
+  },
+  relationships: {
+    imports: [],
+    reverseEdges: [],
+    publicDeclarations: [],
+  },
+}
+
+      at <anonymous> (/tmp/puni-ts-io-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:217:5)
+(fail) exact final output bytes include identity and empty selector families [69.70ms]
+
+ 0 pass
+ 25 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [619.00ms]

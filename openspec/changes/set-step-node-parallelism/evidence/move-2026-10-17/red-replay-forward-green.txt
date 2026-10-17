@@ -1,0 +1,90 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+(pass) move sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [557.41ms]
+(pass) move sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [450.90ms]
+182 |         if (policy === 'unrelated') {
+183 |           expect(answer.status).toBe(200);
+184 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+185 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+186 |         } else {
+187 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "error": "step_blockage_inactive",
+    },
+    "status": 409,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:187:26)
+(fail) undo refuses newly retained destination [250.41ms]
+178 |         const tables = ['work_item', 'step_parallel', 'estimate', 'actual', 'step_progress', 'step_measure', 'step_blockage', 'assignment', 'event_log', 'event_sequencer', 'plan_event'];
+179 |         const snapshot = () => tables.map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+180 |         const before = snapshot();
+181 |         const answer = await h.call('owner','POST',`/api/projects/${projectId}/${replay}`);
+182 |         if (policy === 'unrelated') {
+183 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:183:33)
+(fail) undo preserves unrelated policy [251.48ms]
+(pass) undo refuses newly retained revision [256.10ms]
+165 |           ['unrelated', null, 3],
+166 |         ] as const) {
+167 |           h.sqlite.run('INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES (?,?,?,?,?,0)', [id,projectId,id,parentId,position]);
+168 |         }
+169 |         expect((await h.call('owner','POST',`/api/projects/${projectId}/commands`, { commands: [{ kind: 'moveWorkItem', workItemId: 'moving', parentId: 'new-parent', afterId: null }] })).status).toBe(200);
+170 |         if (replay === 'redo') expect((await h.call('owner','POST',`/api/projects/${projectId}/undo`)).status).toBe(200);
+                                                                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:170:112)
+(fail) redo refuses newly retained destination [251.40ms]
+165 |           ['unrelated', null, 3],
+166 |         ] as const) {
+167 |           h.sqlite.run('INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES (?,?,?,?,?,0)', [id,projectId,id,parentId,position]);
+168 |         }
+169 |         expect((await h.call('owner','POST',`/api/projects/${projectId}/commands`, { commands: [{ kind: 'moveWorkItem', workItemId: 'moving', parentId: 'new-parent', afterId: null }] })).status).toBe(200);
+170 |         if (replay === 'redo') expect((await h.call('owner','POST',`/api/projects/${projectId}/undo`)).status).toBe(200);
+                                                                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:170:112)
+(fail) redo preserves unrelated policy [242.43ms]
+165 |           ['unrelated', null, 3],
+166 |         ] as const) {
+167 |           h.sqlite.run('INSERT INTO work_item (id,project_id,name,parent_id,position,revision) VALUES (?,?,?,?,?,0)', [id,projectId,id,parentId,position]);
+168 |         }
+169 |         expect((await h.call('owner','POST',`/api/projects/${projectId}/commands`, { commands: [{ kind: 'moveWorkItem', workItemId: 'moving', parentId: 'new-parent', afterId: null }] })).status).toBe(200);
+170 |         if (replay === 'redo') expect((await h.call('owner','POST',`/api/projects/${projectId}/undo`)).status).toBe(200);
+                                                                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:170:112)
+(fail) redo refuses newly retained revision [263.74ms]
+
+ 3 pass
+ 5 fail
+ 39 expect() calls
+Ran 8 tests across 1 file. [4.51s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 581574656, "exitCode": 1}

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:
+660 |   });
+661 |   try {
+662 |     const namespace = createRetainedNamespace(f.candidate, f.runtime, limits);
+663 |     expect(capturedBytes).toBe(expectedBytes);
+664 |     expect(calls).toBe(1);
+665 |     expect(readRetainedNamespaceProvenance(namespace).namespacePolicyIdentity).toBe(
+                                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec"
+Received: "0000000000000000000000000000000000000000000000000000000000000000"
+
+      at <anonymous> (/tmp/puni-retained-namespace-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts:665:80)
+(fail) binds emitted namespace pin to the exact canonical V1 recipe [125.78ms]
+
+ 0 pass
+ 43 filtered out
+ 1 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [1067.00ms]

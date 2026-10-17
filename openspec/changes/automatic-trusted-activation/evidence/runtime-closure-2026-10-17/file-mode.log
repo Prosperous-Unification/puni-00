@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+(pass) rejects absent, unreadable, changed and wrong-length files [3.59ms]
+
+ 1 pass
+ 14 filtered out
+ 0 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [941.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 339021824, "exitCode": 0}

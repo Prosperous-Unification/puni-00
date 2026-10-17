@@ -23,6 +23,23 @@ git push && ./bin/dev-deploy.sh
 
 Everything below is what that command does, and what it cannot do.
 
+## Gate workspace safety
+
+Run `bin/h2puni-gate.sh <sha>` from a clean isolated h2 worktree, using the script
+inside that worktree. Never use `/home/puni1/wbs-dev/src` as the gate tree. The
+gate derives its repository root from its own script path, and its canonical
+heavy lock does not exclude the dev poller's checkout reset. Keep the worktree
+reserved for the gate; let the wrapper check out the requested SHA under its
+lock rather than checking it out beforehand.
+
+Observed 2026-10-17: a gate in the dev source checkout started on `b1ce4e74` at
+07:39:10 UTC; the poller reset that checkout at 07:40:02 UTC. Prettier then reported
+`ENOENT` while reading the changing tree. That interrupted attempt cannot prove
+the requested commit. The dev backend recovered after a container restart, and
+`/health` reported `e8894d0`; that health response proves the running dev revision,
+not the interrupted gate's result. Use an isolated worktree for the replacement
+exact-SHA gate.
+
 **Dev does not use any of the below.** Since 2026-08-04 dev runs from source, and since
 2026-08-19 it deploys itself from `origin/main` (ADR 0005):
 

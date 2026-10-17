@@ -1,0 +1,5 @@
+{"command": ["bun", "test", "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts", "--test-name-pattern", "exact extraction owner rejects impostors"], "exitCode": 0, "peakProcessTreeKiB": 349796, "ceilingKiB": 921600}
+Traceback (most recent call last):
+  File "/tmp/puni-type-roots-sol-20261017/openspec/changes/automatic-trusted-activation/evidence/retained-type-roots-2026-10-17/run-focused.py", line 40, in <module>
+    raise RuntimeError(f'focused selection did not execute exactly {expected} passing tests: {selection}')
+RuntimeError: focused selection did not execute exactly 2 passing tests: exact extraction owner rejects impostors

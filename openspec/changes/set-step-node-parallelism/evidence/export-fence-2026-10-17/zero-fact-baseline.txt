@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+1140 | });
+1141 |
+1142 |
+1143 | test('v9 zero-fact export retains canonical bytes', async () => {
+1144 |   const bytes = JSON.stringify(await exportDocument());
+1145 |   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe('BASELINE_HASH');
+                                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: "BASELINE_HASH"
+Received: "61243efaf10088375accb4ab8c3e449255c2fd3483558282dfc6f8e0e793f6a2"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1145:70)
+(fail) v9 zero-fact export retains canonical bytes [5.82ms]
+
+ 0 pass
+ 71 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.81s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 510668800, "exitCode": 1}

@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+50 |     `INSERT INTO step_parallel(work_item_id,step_id,max_parallel) VALUES ('${owner}','${step}',${value})`,
+51 |   );
+52 | describe('sparse parallelism SQL contract', () => {
+53 |   for (const value of ['0', '1001', '1.5', 'NULL'])
+54 |     it(`SQL rejects range/type ${value}`, () => {
+55 |       expect(() => insert('a', 'dev', value)).toThrow();
+                                                   ^
+error: expect(received).toThrow()
+
+Received function did not throw
+Received value: {
+  changes: 1,
+  lastInsertRowid: 1,
+}
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:55:47)
+(fail) sparse parallelism SQL contract > SQL rejects range/type 1.5 [182.41ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.06s]

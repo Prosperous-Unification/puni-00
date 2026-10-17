@@ -1,0 +1,16 @@
+{
+  "extends": "/tmp/puni-restore-destination-20261017/apps/wbs/be-01/tsconfig.spec.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["bun-types"],
+    "typeRoots": [
+      "/tmp/puni-restore-destination-20261017/node_modules/@types",
+      "/tmp/puni-restore-destination-20261017/node_modules"
+    ]
+  },
+  "files": [],
+  "include": [
+    "/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts"
+  ],
+  "references": []
+}

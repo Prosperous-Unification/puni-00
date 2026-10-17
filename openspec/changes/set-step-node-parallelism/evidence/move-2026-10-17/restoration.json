@@ -1,0 +1,17 @@
+[
+  {
+    "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+    "sha256": "6a60cf8f175c10b0dc95d65045844d7f70e843715cfdd916126f9638f2cdd677",
+    "restored": true
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts",
+    "sha256": "239085e8afabb1953330a0ff790bc8258ee2bd2eb6a6e193a6318f0079babc70",
+    "restored": true
+  },
+  {
+    "path": "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts",
+    "sha256": "b1876f812cdf9b2fd5b986014435acab857ed5ce83da3e9a0f590634b0e3351a",
+    "restored": true
+  }
+]

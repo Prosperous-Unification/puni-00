@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+446 | ] as const;
+447 | for (const [name, mutation, reseal, repin] of upstreamFaults)
+448 |   test(`[BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream ${name}`, () => {
+449 |     const setup = fixture();
+450 |     const call = inject(setup, mutation, reseal, repin);
+451 |     expect(call.exitCode, call.stderr.toString()).toBe(1);
+                                                        ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-browser-t2-policy-impl-sol-20261016/apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:451:51)
+(fail) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream authentication [2428.15ms]
+
+ 0 pass
+ 85 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.41s]

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+    "--test-name-pattern",
+    "implicit compiler refuses absent lib.es2025.full.d.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 377388,
+  "ceilingKiB": 921600
+}

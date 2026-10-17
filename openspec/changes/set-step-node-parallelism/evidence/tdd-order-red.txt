@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-conformance.test.ts:
+29 |     const { source, stamp } = open();
+30 |     for (const id of ['work-a', 'work-A']) {
+31 |       await source.stores.workItems.insert(workItemRow({ id, projectId: 'p' }), [], stamp);
+32 |       await source.stores.stepParallels.set({ workItemId: id, stepId: 'dev', maxParallel: 2 }, stamp);
+33 |     }
+34 |     expect((await source.stores.stepParallels.listByProject('p')).map(({ workItemId }) => workItemId)).toEqual(['work-A', 'work-a']);
+                                                                                                            ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "work-A",
+    "work-a",
++   "work-A",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:34:104)
+(fail) store-memory sparse step parallelism > orders mixed-case owner IDs identically to SQLite binary order [13.10ms]
+
+ 0 pass
+ 4 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.93s]

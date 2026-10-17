@@ -1,0 +1,244 @@
+{
+  "base": "b1ce4e74e9a5669510c2c7dbe0f2b41d1864d6d9",
+  "cwd": "/tmp/puni-reviewed-integration-sol-oct17",
+  "guard": "RUNTIME_CLOSURE_RSS_MIB=<cap> python /tmp/runtime-rss-guard.py <command>",
+  "commands": [
+    {
+      "capMiB": "900",
+      "command": "bun /tmp/integration-fleet-executables.ts",
+      "receipts": "integration-fleet-executables-{red,green}.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bun test tools/tool-fleet/src/check.test.ts --test-name-pattern 'executable ownership|tree inventory helpers'",
+      "receipts": "integration-fleet-focused-tests.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bun test libs/wbs/domain/contracts/src/http/step-shapes.test.ts",
+      "receipts": "integration-step-shapes-{red,green,missing-refusal,missing-node-work-item,restored}.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bun test src solver/src --timeout=10000",
+      "receipts": "integration-contracts-all-green.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17/libs/wbs/domain/contracts"
+    },
+    {
+      "capMiB": "900 then1400",
+      "command": "bunx tsc --project libs/wbs/adapters/store-memory/tsconfig.spec.json --noEmit --incremental false",
+      "receipts": "integration-memory-typecheck-{red,red-1400,green}.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bun test libs/wbs/adapters/store-memory/src/memory-source.test.ts --test-name-pattern 'source removal retains sparse facts'",
+      "receipts": "integration-memory-fixture-green.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bun test libs/wbs/application/conformance/src/stores/existing.test.ts",
+      "receipts": "integration-conformance-{red,missing-registration,missing-independent-inventory}.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bun test libs/wbs/application/conformance/src",
+      "receipts": "integration-conformance-{green,final-green,restored-green}.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    },
+    {
+      "capMiB": "900",
+      "command": "bunx tsc --project libs/wbs/application/conformance/tsconfig.spec.json --noEmit --incremental false",
+      "receipts": "integration-conformance-typecheck-{red,green}.log",
+      "cwd": "/tmp/puni-reviewed-integration-sol-oct17"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "integration-fleet-executables.ts.gz",
+      "rawBytes": 1779,
+      "rawSha256": "332f2ba18d37add50e2670ca9425128a6a4b9c5d7123f1adef9fda2d53f4055f",
+      "gzipBytes": 790,
+      "gzipSha256": "1fc5fe088357ee752e504d31592e154885e6b67d6c6f0666414405f9dbe39e0b"
+    },
+    {
+      "path": "integration-fleet-executables-red.log.gz",
+      "rawBytes": 422,
+      "rawSha256": "e0fcd8033f551486df33d9301437cb00210f07116da975eacedd9ee2e5694c33",
+      "gzipBytes": 247,
+      "gzipSha256": "a4692b2523364c92eef8567274bb9152ab7e196c393081fea486057aef4e2d20"
+    },
+    {
+      "path": "integration-fleet-executables-green.log.gz",
+      "rawBytes": 127,
+      "rawSha256": "09fc28743fc1d620153261ef5854c8c4971b5e7fd8d52ceaad2e29ade182a0a9",
+      "gzipBytes": 132,
+      "gzipSha256": "44833becbaf709af9cc5cc33c6f616c8b4a8989c80ff9f602cdba4508a85afc6"
+    },
+    {
+      "path": "integration-fleet-focused-tests.log.gz",
+      "rawBytes": 1009,
+      "rawSha256": "b9d0906b3e6f8b0e913cc9831e285eb036374020c6bc5dec5292bb7faae3f401",
+      "gzipBytes": 502,
+      "gzipSha256": "ea371440109fa3c25c157f864940aeddb3ab872fdcdbf3605888a5148dab4709"
+    },
+    {
+      "path": "integration-step-shapes-red.log.gz",
+      "rawBytes": 1717,
+      "rawSha256": "c61abd99540da39de7e6d3293bb98a6a964ae8e79c8ea530fcd3bc873b2c1a86",
+      "gzipBytes": 838,
+      "gzipSha256": "8cfb80a17511605b3dcddf6c2b1aa87445e395c70d1bb81e17ce218615e31dfb"
+    },
+    {
+      "path": "integration-step-shapes-green.log.gz",
+      "rawBytes": 780,
+      "rawSha256": "e9a5a4916e89cba19d4da39e88c057fbe054d89f768d9cbdcb65b4a73980a240",
+      "gzipBytes": 461,
+      "gzipSha256": "804b7b4e8f2bb4b3b0c2b914e7c2506584d1a91b865cc78d6002d04ed47d48ae"
+    },
+    {
+      "path": "integration-step-shapes-missing-refusal.log.gz",
+      "rawBytes": 1717,
+      "rawSha256": "b1a2bffec2608de28cabdea5652d59481b89f039fa882fa15e5a1299421a55ee",
+      "gzipBytes": 838,
+      "gzipSha256": "77125a2f37c6f342bf2cd2263b1834acafcc5f888a5377036eb4a76edefd701a"
+    },
+    {
+      "path": "integration-step-shapes-missing-node-work-item.log.gz",
+      "rawBytes": 1820,
+      "rawSha256": "97aae762da7c3181b69c422e756e98be39d0cba9c55b74b9a0555e90dd238f36",
+      "gzipBytes": 853,
+      "gzipSha256": "0be5a4263bb3a6803d06d34142c6434a86d854d84f75be3b66fe1c441d14947d"
+    },
+    {
+      "path": "integration-step-shapes-restored.log.gz",
+      "rawBytes": 780,
+      "rawSha256": "570e5b2d0edd2f61696f53c47107ac95a51b4a9283475d55ca02f827b26f2e9a",
+      "gzipBytes": 460,
+      "gzipSha256": "5891901dfc6d223eb862164b6600349cfa41baf6c4729eb3cc2b0a755e923b82"
+    },
+    {
+      "path": "integration-step-shapes-proofs.json.gz",
+      "rawBytes": 261,
+      "rawSha256": "aae1775ad2f2c6011e7b326cca725f1d5572b4c282a260077b8eb0fdefda386c",
+      "gzipBytes": 139,
+      "gzipSha256": "a46c718fdca4be8801e12c63d29710196a07173803a985bb3fbcba9192433b3d"
+    },
+    {
+      "path": "integration-step-shapes-409.json.gz",
+      "rawBytes": 7041,
+      "rawSha256": "bb12ababe80d959b1117925d9a47ca57f709cdfa85c1e72a02223eb87557942b",
+      "gzipBytes": 738,
+      "gzipSha256": "759280c27bf403fc89c92461bd752c28456af0e05be0615c0ae311d328d2d25d"
+    },
+    {
+      "path": "integration-contracts-all-green.log.gz",
+      "rawBytes": 54455,
+      "rawSha256": "c30902a9811c558e47b51d7fe61bc8b2e5b04e1daa33bbadec4899dbed61253c",
+      "gzipBytes": 13639,
+      "gzipSha256": "72eb1727a9034346201e9ddf73442fdea381046fcd499e282fefe422429bc48f"
+    },
+    {
+      "path": "integration-memory-typecheck-red.log.gz",
+      "rawBytes": 75,
+      "rawSha256": "65e3e29fe58b906d79e1cfed79c5cd6b4c4b2120bda4a8f759e7612cbf9303b9",
+      "gzipBytes": 82,
+      "gzipSha256": "f2bf8edbf869d613c8751664d5b75065668fbcddd373dd615ac1fec6608b031e"
+    },
+    {
+      "path": "integration-memory-typecheck-red-1400.log.gz",
+      "rawBytes": 1347,
+      "rawSha256": "644fed643b6e0b2f4b5f0868f97b33f1c9d0f479bc94df6ca3d58bdc529784e5",
+      "gzipBytes": 404,
+      "gzipSha256": "3e307e2e5df54456e68dae6a6e9ac224cb874bb3536f5e9551e674f1013b16b3"
+    },
+    {
+      "path": "integration-memory-typecheck-green.log.gz",
+      "rawBytes": 75,
+      "rawSha256": "40ba42aa9db69c1ff108a6b2d3b74d532cf3b1e758b4aa3907e27b09bb329479",
+      "gzipBytes": 86,
+      "gzipSha256": "9936bd264dacfee6a7eb67808690fb14abe87d75e23f130c418316adbd1827cb"
+    },
+    {
+      "path": "integration-memory-fixture-green.log.gz",
+      "rawBytes": 428,
+      "rawSha256": "4a25d54418b91e2a58a04f58b937d4618dae74ecc95b1fd2ce48e3aaf8cbab96",
+      "gzipBytes": 280,
+      "gzipSha256": "e21efa3b1b4c56639992a7b462b1343d751d6841b0bfbb1d75e83c5356624bd6"
+    },
+    {
+      "path": "integration-conformance-red.log.gz",
+      "rawBytes": 1566,
+      "rawSha256": "563164a4d6b34e78840e861b483146ac21984ea75cb73c376762cf40bfc5abaa",
+      "gzipBytes": 775,
+      "gzipSha256": "1636e71746b28ebb395fabf54cc6b0c03a4d61a377f626bc03ba929a5209ca5c"
+    },
+    {
+      "path": "integration-conformance-green.log.gz",
+      "rawBytes": 5087,
+      "rawSha256": "64001383748e710f7cb8032be61f4a5c71a62e057b4827f1c77a0428950931be",
+      "gzipBytes": 1745,
+      "gzipSha256": "0490354a07a108386830b22d55554f01838ff8d963f9941980be777b2afef8a2"
+    },
+    {
+      "path": "integration-conformance-final-green.log.gz",
+      "rawBytes": 3874,
+      "rawSha256": "82a07c764a6e3e5e1a39c412809e8bae0eb7cd49f046ef600e1c103282d5847b",
+      "gzipBytes": 1235,
+      "gzipSha256": "21682883c2aa00bc5656a998973920bc41977141cc181cf7fb260b1e0da388b6"
+    },
+    {
+      "path": "integration-conformance-missing-registration.log.gz",
+      "rawBytes": 1566,
+      "rawSha256": "0a36fcdd2b031612c4c712047252298e83feac4ab86c87cbf37bfb2d010c6520",
+      "gzipBytes": 775,
+      "gzipSha256": "84381437c4cccfd66e17c542a73d05d135efd807753b65346d5ebb3691e299b1"
+    },
+    {
+      "path": "integration-conformance-missing-independent-inventory.log.gz",
+      "rawBytes": 1430,
+      "rawSha256": "a802c639de2ad081180bb1c4e1fb39764cc1a59afe69c78d4ba824ad3f206505",
+      "gzipBytes": 777,
+      "gzipSha256": "13dd92654432af56d0294b932aae42d816492bda64ac35c6673bb26298d1fcdd"
+    },
+    {
+      "path": "integration-conformance-proofs.json.gz",
+      "rawBytes": 140,
+      "rawSha256": "fb93d51df2dbd5837c017c8162ad8d702d77f7d24567d11a80cb488ff36049a4",
+      "gzipBytes": 102,
+      "gzipSha256": "16aa1ac423f7982cff0603c6c743f064dd5c96932b44c31ba29edd039e0d6340"
+    },
+    {
+      "path": "integration-conformance-restored-green.log.gz",
+      "rawBytes": 3874,
+      "rawSha256": "616e13d27c754b75f48ac9b1d27f333f57f691d791adfd3b7bd94364ae866f00",
+      "gzipBytes": 1244,
+      "gzipSha256": "e9a3790d1034efd8b3e94cdc4673f081278de5d53aaa0b2b03c4ad46444b71ee"
+    },
+    {
+      "path": "integration-conformance-typecheck-red.log.gz",
+      "rawBytes": 880,
+      "rawSha256": "b3d3d7b6f56582e5ba6e98e561e23f399c47935abf88c7ff9b0315255c5a464c",
+      "gzipBytes": 306,
+      "gzipSha256": "59250ab35a3d0e3d468e4e069bd67a2c594584f7e376a65ccba874221b768f22"
+    },
+    {
+      "path": "integration-conformance-typecheck-green.log.gz",
+      "rawBytes": 74,
+      "rawSha256": "cf1e980d28f100d74cc36fa1a13fa4291d09652f03aa2219d7a243388adc8c20",
+      "gzipBytes": 84,
+      "gzipSha256": "2faac52f5f3f518f8ed147f99ae3f985d52172978423d0328843043ca0f761a0"
+    }
+  ],
+  "limits": [
+    "Memory900MiB red killed before diagnostic; disqualified.",
+    "Intermediate conformance-green log is red at second equality.",
+    "Focused fleet production judge plus8tests; full fleet tool provisioning/families not run.",
+    "Containing normal commit hooks and delivery receipts external."
+  ]
+}

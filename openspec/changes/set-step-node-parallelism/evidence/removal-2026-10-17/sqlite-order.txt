@@ -1,0 +1,72 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+814 |     const before = await projectStore.findById(projectId);
+815 |     const nodes = [
+816 |       { workItemId: 'sand', stepId: devId },
+817 |       { workItemId: 'strip', stepId: devId },
+818 |     ];
+819 |     expect(await stepStore.remove(projectId, devId, cascade, wrote())).toEqual({
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+        "stepId": "950dbb22-76f8-48e0-870d-daabe2b5b17a",
+-       "workItemId": "sand",
++       "workItemId": "strip",
+      },
+      {
+        "stepId": "950dbb22-76f8-48e0-870d-daabe2b5b17a",
+-       "workItemId": "strip",
++       "workItemId": "sand",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:819:72)
+(fail) refuses retained sparse parallelism atomically (cascade=false) [126.49ms]
+814 |     const before = await projectStore.findById(projectId);
+815 |     const nodes = [
+816 |       { workItemId: 'sand', stepId: devId },
+817 |       { workItemId: 'strip', stepId: devId },
+818 |     ];
+819 |     expect(await stepStore.remove(projectId, devId, cascade, wrote())).toEqual({
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+        "stepId": "ced83657-5c39-44a7-bf14-387762915034",
+-       "workItemId": "sand",
++       "workItemId": "strip",
+      },
+      {
+        "stepId": "ced83657-5c39-44a7-bf14-387762915034",
+-       "workItemId": "strip",
++       "workItemId": "sand",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:819:72)
+(fail) refuses retained sparse parallelism atomically (cascade=true) [88.02ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.09s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 529653760, "exitCode": 1}

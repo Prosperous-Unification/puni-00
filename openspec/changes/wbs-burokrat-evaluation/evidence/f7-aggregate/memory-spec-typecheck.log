@@ -1,0 +1,2 @@
+bunx tsc --project libs/wbs/adapters/store-memory/tsconfig.spec.json --noEmit --incremental false
+max_rss_kib=948732 elapsed_seconds=2.09

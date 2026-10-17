@@ -1,0 +1,83 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  doc-caps (skip) no matching staged files
+┃  private-nesting ❯ 
+
+┃  plaintext-secrets ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 4.99 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ private-nesting (0.02 seconds)
+✓ plaintext-secrets (0.05 seconds)
+✓ format (0.99 seconds)
+✓ lint (4.96 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+[compiler-derivative-sol-20261017 8a86a7a0c] Build pinned compiler paths observation derivative
+ 41 files changed, 4020 insertions(+)
+ create mode 100644 apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative-cli.ts
+ create mode 100644 apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.test.ts
+ create mode 100644 apps/twilight-structure/twilight-burokrat/cli/src/packaging/compiler-derivative.ts
+ create mode 100644 docs/adr/0055-observe-paths-attempts-inside-the-pinned-compiler.md
+ create mode 100644 openspec/changes/automatic-trusted-activation/compiler-derivative-verify.md
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-build-output.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-count.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-freeze.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-input.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-manifest-fields.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-manifest-shape.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-observation.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-reader-license.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-reader-notice.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-verify-output.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-writer-license-disqualified.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-writer-license.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/compiler-r5-writer-notice.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/focused-final.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/graph.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/green.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/hooks-install.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/lint-graph.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/lint.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/manifest-red.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/mutations-run.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/mutations.json
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/mutations.py
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/notice-red.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/openspec-all.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/openspec-selected.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/openspec.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/red.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/rss-guard.py
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/typecheck-bounded.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/typecheck-narrow.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/typecheck-project.log
+ create mode 100644 openspec/changes/automatic-trusted-activation/evidence/compiler-derivative-2026-10-17/typecheck.log
+{"ceilingBytes": 943718400, "sampledPeakBytes": 787017728, "exitCode": 0}

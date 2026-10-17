@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+473 | 
+474 | test('rejects invalid raw UTF-8 before any bootstrap filesystem probe', () => {
+475 |   const { input } = fixture(); const bytes = Buffer.from(input.closureBytes);
+476 |   const offset = bytes.indexOf('typescript.js'); expect(offset).toBeGreaterThan(0); bytes[offset] = 255;
+477 |   const probe = spyOn(fs, 'realpathSync');
+478 |   try { expect(() => readReviewRuntime({ ...input, closureBytes: bytes, runtimeClosureIdentity: hashBytes(bytes) })).toThrow(); expect(probe).not.toHaveBeenCalled(); }
+                                                                                                                                                        ^
+error: expect(received).not.toHaveBeenCalled()
+
+Expected number of calls: 0
+Received number of calls: 1
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:478:147)
+(fail) rejects invalid raw UTF-8 before any bootstrap filesystem probe [9.77ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [932.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 327491584, "exitCode": 1}

@@ -1,0 +1,7 @@
+[
+  {
+    "fault": "sqlite-late",
+    "failedTests": 1,
+    "exitCode": 1
+  }
+]

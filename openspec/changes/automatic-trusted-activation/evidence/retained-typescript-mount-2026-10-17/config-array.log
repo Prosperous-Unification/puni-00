@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+426 |       expect(() =>
+427 |         extractRetainedTypeScriptRelationships({
+428 |           ...f,
+429 |           request: { ...f.request, [key]: { length: 1.5, 0: 'tsconfig.json' } },
+430 |         }),
+431 |       ).toThrow('request arrays');
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request arrays"
+Received message: "retained TypeScript request count invalid"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:431:9)
+(fail) retained compiler refuses array impostors before source admission [161.76ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1139.00ms]

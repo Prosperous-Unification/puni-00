@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+465 |   let pathReads = 0;
+466 |   const tuple = {
+467 |     ...parser,
+468 |     get path() { pathReads += 1; return pathReads === 1 ? 'parser.js' : 'typescript.js'; },
+469 |   };
+470 |   expect(Buffer.from(runtime.readFile(tuple)).toString()).toBe('parser');
+                                                                ^
+error: expect(received).toBe(expected)
+
+Expected: "parser"
+Received: "compiler"
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:470:59)
+(fail) snapshots a caller tuple before joining owned content [2.81ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [927.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 337080320, "exitCode": 1}

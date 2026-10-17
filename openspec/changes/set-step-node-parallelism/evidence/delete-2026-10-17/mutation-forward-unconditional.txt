@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+134 |       ok: false, reason: 'referenced_by_step_parallel',
+135 |       nodes: [{ workItemId: 'leaf', stepId: 'qa' }, { workItemId: 'peer', stepId: 'dev' }],
+136 |     });
+137 |     expect(await fixture.snapshot()).toEqual(before);
+138 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+139 |     expect((await workItems.remove('parent', 'owner', 'promote')).ok).toBe(true);
+                                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:139:71)
+(fail) delete sparse owner preservation > refuses cascade descendant owners while promote keeps their exact sparse policy [15.41ms]
+194 |   expect(refused).toEqual(expected);
+195 |   fact.workItemId = 'mutated';
+196 |   fact.stepId = 'mutated-step';
+197 |   expect(refused).toEqual(expected);
+198 |   retained.length = 0;
+199 |   expect((await workItems.remove('parent', 'owner', null)).ok).toBe(true);
+                                                                     ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:199:64)
+(fail) copies detached exact refusal nodes and allows deletion when cleared [8.04ms]
+
+ 0 pass
+ 10 filtered out
+ 2 fail
+ 7 expect() calls
+Ran 2 tests across 1 file. [1.86s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 498044928, "exitCode": 1}

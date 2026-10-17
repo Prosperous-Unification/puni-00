@@ -1,0 +1,647 @@
+[
+  {
+    "fault": "candidate-owner",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects copied candidate|rejects false-empty candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 357064,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects copied candidate before accessing either census [97.32ms]",
+      "(fail) rejects false-empty candidate census [89.97ms]"
+    ]
+  },
+  {
+    "fault": "runtime-owner",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects copied runtime|rejects false-empty runtime"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 365556,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects copied runtime before accessing either census [92.46ms]",
+      "(fail) rejects false-empty runtime census [107.53ms]"
+    ]
+  },
+  {
+    "fault": "namespace-owner",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346156,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [125.19ms]"
+    ]
+  },
+  {
+    "fault": "limit-snapshot",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "snapshots each"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346760,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) snapshots each installed limit once [102.61ms]"]
+  },
+  {
+    "fault": "limit-grammar",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "validates maximum"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 388392,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) validates maximumEntries positive safe integer [106.30ms]",
+      "(fail) validates maximumNodes positive safe integer [95.82ms]",
+      "(fail) validates maximumPathBytes positive safe integer [99.99ms]",
+      "(fail) validates maximumTotalPathBytes positive safe integer [104.21ms]"
+    ]
+  },
+  {
+    "fault": "entry-cap",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "counts all runtime"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346056,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) counts all runtime entries before visibility filtering [88.78ms]"]
+  },
+  {
+    "fault": "node-cap",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "counts root"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349368,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) counts root and every derived directory in node ceiling [128.36ms]"]
+  },
+  {
+    "fault": "path-codeunit-cap",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "bounds code units"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 342592,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) bounds code units before UTF8 measurement and bytes before grammar allocation [92.32ms]"
+    ]
+  },
+  {
+    "fault": "path-byte-cap",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "bounds code units"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 340332,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) bounds code units before UTF8 measurement and bytes before grammar allocation [82.83ms]"
+    ]
+  },
+  {
+    "fault": "virtual-cap",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "caps source and virtual"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347720,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) caps source and virtual paths before UTF8 or concatenation allocation [93.72ms]"
+    ]
+  },
+  {
+    "fault": "total-cap",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "caps aggregate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 346584,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) caps aggregate retained node and source path fields exactly [115.01ms]"
+    ]
+  },
+  {
+    "fault": "path-unicode",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 784976,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects candidate path \"a\\ud800b\" [94.91ms]",
+      "(fail) rejects candidate path \"a\\udc00b\" [88.50ms]"
+    ]
+  },
+  {
+    "fault": "path-nul",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 441928,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) rejects candidate path \"a\\u0000b\" [106.27ms]"]
+  },
+  {
+    "fault": "path-backslash",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 431564,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) rejects candidate path \"a\\\\b\" [104.81ms]"]
+  },
+  {
+    "fault": "path-component-empty",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 424740,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects candidate path \"\" [103.45ms]",
+      "(fail) rejects candidate path \"/a\" [107.32ms]",
+      "(fail) rejects candidate path \"a/\" [104.57ms]",
+      "(fail) rejects candidate path \"a//b\" [96.93ms]"
+    ]
+  },
+  {
+    "fault": "path-component-dot",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 431436,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects candidate path \".\" [89.21ms]",
+      "(fail) rejects candidate path \"a/./b\" [67.96ms]"
+    ]
+  },
+  {
+    "fault": "path-component-traversal",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 443924,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects candidate path \"..\" [89.23ms]",
+      "(fail) rejects candidate path \"a/../b\" [86.37ms]"
+    ]
+  },
+  {
+    "fault": "candidate-git",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 726272,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects candidate path \".git/config\" [82.98ms]",
+      "(fail) rejects candidate path \"a/.git/x\" [89.18ms]"
+    ]
+  },
+  {
+    "fault": "candidate-dependencies",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects candidate path"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 448580,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects candidate path \"node_modules/a\" [97.68ms]",
+      "(fail) rejects candidate path \"a/node_modules/x\" [104.48ms]"
+    ]
+  },
+  {
+    "fault": "mode",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects unsupported"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 369488,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects unsupported candidate mode 160000 [102.82ms]",
+      "(fail) rejects unsupported candidate mode 040000 [99.59ms]",
+      "(fail) rejects unsupported candidate mode 100664 [106.06ms]"
+    ]
+  },
+  {
+    "fault": "ancestor-conflict",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects duplicate mounts"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348760,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects duplicate mounts and file or opaque symlink ancestors [95.14ms]"
+    ]
+  },
+  {
+    "fault": "duplicate-conflict",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects duplicate mounts"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 350364,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects duplicate mounts and file or opaque symlink ancestors [102.69ms]"
+    ]
+  },
+  {
+    "fault": "runtime-git",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "rejects visible runtime"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349792,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) rejects visible runtime .git paths but excludes programs and other dependencies [104.92ms]"
+    ]
+  },
+  {
+    "fault": "runtime-role",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "keeps programs"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 351104,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) keeps programs outside compiler visibility even under node_modules [93.48ms]"
+    ]
+  },
+  {
+    "fault": "runtime-prefix",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 349188,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [100.25ms]"
+    ]
+  },
+  {
+    "fault": "freeze-node",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348428,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [94.36ms]"
+    ]
+  },
+  {
+    "fault": "freeze-candidate-tuple",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347368,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [121.72ms]"
+    ]
+  },
+  {
+    "fault": "freeze-runtime-tuple",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345116,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [98.79ms]"
+    ]
+  },
+  {
+    "fault": "freeze-array",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 345280,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [91.85ms]"
+    ]
+  },
+  {
+    "fault": "freeze-index",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 347624,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [101.13ms]"
+    ]
+  },
+  {
+    "fault": "freeze-provenance",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 342996,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [122.02ms]"
+    ]
+  },
+  {
+    "fault": "freeze-runtime-provenance",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 354592,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [89.41ms]"
+    ]
+  },
+  {
+    "fault": "ambient-fs",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344804,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [107.37ms]"
+    ]
+  },
+  {
+    "fault": "ambient-git",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 343304,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [124.88ms]"
+    ]
+  },
+  {
+    "fault": "candidate-content",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "does not call candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 344312,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) does not call candidate or runtime content readers [112.25ms]"]
+  },
+  {
+    "fault": "runtime-content",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "does not call candidate"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 348172,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) does not call candidate or runtime content readers [118.25ms]"]
+  },
+  {
+    "fault": "ambient-environment",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "does not consult environment"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 333008,
+    "ceilingKiB": 921600,
+    "namedFailures": ["(fail) does not consult environment [107.29ms]"]
+  },
+  {
+    "fault": "ambient-metadata",
+    "command": [
+      "bun",
+      "--smol",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.test.ts",
+      "-t",
+      "retains sha1"
+    ],
+    "exitCode": 1,
+    "peakProcessTreeKiB": 342956,
+    "ceilingKiB": 921600,
+    "namedFailures": [
+      "(fail) retains sha1 exact tuples after source/store/runtime removal without content IO [102.06ms]"
+    ]
+  }
+]

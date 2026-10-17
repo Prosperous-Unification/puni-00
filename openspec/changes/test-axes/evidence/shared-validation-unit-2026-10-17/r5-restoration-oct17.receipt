@@ -1,0 +1,11 @@
+{
+  "before": {
+    "/tmp/puni-shared-validation-level-sol-oct17/tools/tool-devsync/src/test-levels.ts": "c8391dda71431d6bed2cbd0de130d0fb78463ac4b0dc64d3f8ddbf409d5022a8",
+    "/tmp/puni-shared-validation-level-sol-oct17/libs/shared/domain/validation/project.json": "d2c421e46f54a52e2458cc2e4ba41075e63e3e856d6885bebfeb3246ff7bef7c"
+  },
+  "after": {
+    "/tmp/puni-shared-validation-level-sol-oct17/tools/tool-devsync/src/test-levels.ts": "c8391dda71431d6bed2cbd0de130d0fb78463ac4b0dc64d3f8ddbf409d5022a8",
+    "/tmp/puni-shared-validation-level-sol-oct17/libs/shared/domain/validation/project.json": "d2c421e46f54a52e2458cc2e4ba41075e63e3e856d6885bebfeb3246ff7bef7c"
+  },
+  "equal": true
+}

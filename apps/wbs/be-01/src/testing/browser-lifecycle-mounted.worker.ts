@@ -7,6 +7,7 @@ import {
 } from '@wbs/auth';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { createLogger } from '@wbs/observability';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import {
   type BrowserAuthLifecycle,
   OrganizationRepository,
@@ -221,6 +222,7 @@ const app = buildApp(
     capacity: testCapacityService(),
     directory: testDirectoryService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(),

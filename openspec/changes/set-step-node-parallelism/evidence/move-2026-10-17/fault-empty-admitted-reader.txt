@@ -1,0 +1,52 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+219 |   expect(
+220 |     await runner.run('p', 'owner', [
+221 |       { kind: 'patchWorkItem', workItemId: 'parent', patch: { name: 'Must roll back' } },
+222 |       { kind: 'moveWorkItem', workItemId: 'moving', ...move },
+223 |     ]),
+224 |   ).toEqual({
+          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "at": 1,
+-   "detail": {
+-     "nodes": [
+-       {
+-         "stepId": "dev",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "kind": "moveWorkItem",
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "index": 1,
++       "kind": "moveWorkItem",
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 12
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:224:5)
+(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [34.30ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.85s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 516636672, "exitCode": 1}

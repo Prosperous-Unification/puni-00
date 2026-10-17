@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+601 |   );
+602 | });
+603 |
+604 | test('exclude coordinates cover lexical aliases and effective canonical prefixes', () => {
+605 |  const f = fromPaths({ 'src/public.ts':'p', 'src/secret.ts':'s' }, {alias:'src'});
+606 |  expect(f.source.readDirectory(root, ['.ts'], ['alias/./secret.ts'], ['alias/**/*'])).toEqual([root+'/alias/public.ts']);
+                                                                                            ^
+error: expect(received).toEqual(expected)
+
+  [
+    "/__puni_review__/candidate/alias/public.ts",
++   "/__puni_review__/candidate/alias/secret.ts",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:606:87)
+(fail) exclude coordinates cover lexical aliases and effective canonical prefixes [139.10ms]
+609 |
+610 | test('wildcard dot components and later outside patterns refuse before link reads', () => {
+611 |  const f = setup();
+612 |  const trap = spyOn(Uint8Array, 'from').mockImplementation(() => { throw new Error('copy forbidden'); });
+613 |  try {
+614 |   expect(() => f.source.readDirectory(root, ['.ts'], undefined, ['link','a*/../src/**/*'])).toThrow('source wildcard dot component');
+                                                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source wildcard dot component"
+Received message: "copy forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:614:93)
+(fail) wildcard dot components and later outside patterns refuse before link reads [111.15ms]
+
+ 0 pass
+ 62 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1219.00ms]

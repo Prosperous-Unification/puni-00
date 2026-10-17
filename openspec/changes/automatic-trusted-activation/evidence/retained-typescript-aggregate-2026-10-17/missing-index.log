@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+744 |     get() {
+745 |       include.length = 1;
+746 |       return 'missing/**/*.ts';
+747 |     },
+748 |   });
+749 |   expect(() => f.source.readDirectory(root, undefined, undefined, include)).toThrow(
+                                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source pattern missing"
+Received message: "undefined is not an object (evaluating 'text.length')"
+
+      at <anonymous> (/tmp/puni-retained-ts-aggregate-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:749:77)
+(fail) captured patterns refuse a missing indexed entry after caller getter truncation [140.31ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1099.00ms]

@@ -1,4 +1,5 @@
 import {
+  assertStepParallel,
   type EstimateUnit,
   STEP_POSITION_STEP,
   type StepHoldings,
@@ -19,7 +20,7 @@ import type {
   StepWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, count, eq, inArray } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
@@ -34,6 +35,7 @@ import {
   stepBlockage,
   stepMeasure,
   stepNodeAttempt,
+  stepParallel,
   stepProgress,
   workItem,
 } from './schema';
@@ -382,6 +384,10 @@ export class StepRepository implements StepStore {
    * `projectId` condition dropped, and `reports another project’s step as not
    * there, and leaves it alone` deletes theirs (2026-08-09).
    *
+   * Sparse parallelism refuses either cascade value with exact detached node
+   * references. Selected trusted facts are validated before any mutation, using
+   * a left join so a missing owner cannot disappear from the guard.
+   *
    * What no test here can observe is a writer landing **inside** this
    * transaction: `bun:sqlite` transactions are synchronous, so the interleave
    * the API actually faces — count, somebody else's write, confirm — is
@@ -400,6 +406,42 @@ export class StepRepository implements StepStore {
           .select({ id: step.id })
           .from(step)
           .where(and(eq(step.id, stepId), eq(step.projectId, projectId)));
+        // Proof: targetless/project-blind queries broke retained refusal scope tests; inner join hid the corrupt owner, 2026-10-17.
+        const parallels = tx
+          .select({
+            workItemId: stepParallel.workItemId,
+            stepId: stepParallel.stepId,
+            maxParallel: stepParallel.maxParallel,
+            ownerProject: workItem.projectId,
+            hasChildren: sql<number>`EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = ${stepParallel.workItemId})`,
+          })
+          .from(stepParallel)
+          .leftJoin(workItem, eq(workItem.id, stepParallel.workItemId))
+          .where(inArray(stepParallel.stepId, stepInProject))
+          // Proof: descending owner order broke the exact sorted-reference assertion, 2026-10-17.
+          .orderBy(stepParallel.workItemId, stepParallel.stepId)
+          .all();
+        for (const parallel of parallels) {
+          // Proof: owner guard omitted; corrupt retained SQLite owner test lost its trusted-reference error, 2026-10-17.
+          if (parallel.ownerProject === null)
+            throw new Error('step parallelism has an invalid work-item reference');
+          // Proof: project guard omitted; corrupt retained SQLite project test received a policy refusal, 2026-10-17.
+          if (parallel.ownerProject !== projectId)
+            throw new Error('step parallelism project mismatch');
+          // Proof: leaf guard omitted; corrupt retained SQLite leaf test received a policy refusal, 2026-10-17.
+          if (parallel.hasChildren !== 0) throw new Error('step parallelism owner is not a leaf');
+          // Proof: range validation omitted; corrupt retained SQLite range test received a policy refusal, 2026-10-17.
+          assertStepParallel(parallel.maxParallel);
+        }
+        // Proof: omitted guard and cascade-only guard hit the FK; late-insertion omission also failed, 2026-10-17.
+        // Proof: moving refusal after DELETE estimate lost that retained estimate in cascade-preservation test, 2026-10-17.
+        if (parallels.length > 0)
+          return {
+            ok: false,
+            reason: 'referenced_by_step_parallel',
+            // Proof: returning selected SQL rows exposed metadata in exact-reference assertions, 2026-10-17.
+            nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+          };
         const estimated = tx
           .select({ workItemId: estimate.workItemId })
           .from(estimate)

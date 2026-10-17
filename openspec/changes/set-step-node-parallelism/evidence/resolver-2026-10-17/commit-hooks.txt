@@ -1,0 +1,67 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  doc-caps (skip) no matching staged files
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 3.51 seconds)
+✓ tool-wiki (0.01 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.04 seconds)
+✓ format (0.51 seconds)
+✓ lint (3.49 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+[feature/step-parallel-resolver-20261017 002b55cc5] feat(wbs-domain): resolve concrete step parallel policy
+ 27 files changed, 1318 insertions(+)
+ create mode 100644 libs/wbs/domain/domain/src/step-parallel.test.ts
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/equality-collapse.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/focused-green.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/format-final.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/format.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/graph.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/hooks-install.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/lint-final.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/lint.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/mutable-boundary.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/mutation-receipts.json
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/mutations.py
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/openspec.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/override-ignored.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/override-validation.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/row-validation.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/rss-guard.py
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/step-guard.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/tdd-behavior-red.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/tdd-red.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/typecheck.txt
+ create mode 100644 openspec/changes/set-step-node-parallelism/evidence/resolver-2026-10-17/work-item-guard.txt
+{"ceilingBytes": 805306368, "sampledPeakBytes": 718348288, "exitCode": 0}

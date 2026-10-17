@@ -83,6 +83,9 @@ Five rules govern this repo:
   host-wide heavy lock, checks out that SHA under the lock, installs the locked dependencies
   frozen, then runs CI format, test, lint, typecheck and build. Do not run raw full Nx gates
   there or check out the SHA first.
+- Run the gate from a clean isolated h2 worktree. Never use
+  `/home/puni1/wbs-dev/src` as the gate tree: its poller can reset it independently
+  of the heavy lock. See [dev gate workspace safety](docs/runbook-dev-deploy.md#gate-workspace-safety).
 - Trust the printed `h2puni gate: running on <sha>`, not intent. Exit 65 means the shared
   gate tree is dirty; move or commit named files and rerun—never unattended `git clean`.
   Exit 66 names tracked paths closed to other users; rerun with `H2PUNI_GATE_REPAIR_MODES=1`.

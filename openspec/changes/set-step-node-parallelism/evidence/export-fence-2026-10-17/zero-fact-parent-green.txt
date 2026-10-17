@@ -1,0 +1,14 @@
+Parent: bcfebf26e48ddfd77cd54cc55db45d6f6db3e93c
+Parent blob: 7c6df4c1856903a452d9e7a70a8e28b6612a91c6
+Executed writer blob: 7c6df4c1856903a452d9e7a70a8e28b6612a91c6
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+(pass) v9 zero-fact export retains canonical bytes [4.26ms]
+
+ 1 pass
+ 72 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.77s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 512860160, "exitCode": 0}

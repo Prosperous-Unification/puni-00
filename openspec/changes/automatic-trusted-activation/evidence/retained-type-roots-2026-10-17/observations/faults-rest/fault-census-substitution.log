@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:
+88 | ] as const) test(`retained effective typeRoots admits ${label}`, () => {
+89 |   const captured = setup(roots === undefined ? undefined : [...roots], { inherited: inherited === undefined ? undefined : [...inherited], links: { ...links } });
+90 |   const extracted = extractRetainedTypeScriptRelationships(captured);
+91 |   expect(extracted.runtimeTrust).toBe('unverified');
+92 |   expect(extracted.relationships.publicDeclarations).toHaveLength(1);
+93 |   expect(extracted.byteReads.entries.map((entry) => `${entry.namespace}:${entry.path}`).sort()).toEqual([
+                                                                                                     ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "candidate:configs/base.json",
+-   "candidate:globals.d.ts",
+-   "candidate:index.ts",
+-   "candidate:tsconfig.json",
+-   "runtime:node_modules/pkg/index.d.ts",
+-   "runtime:node_modules/pkg/package.json",
+-   "runtime:node_modules/typescript/package.json",
+- ]
++ []
+
+- Expected  - 9
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-type-roots-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-roots.test.ts:93:97)
+(fail) retained effective typeRoots admits existing [239.80ms]
+
+ 0 pass
+ 18 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1198.00ms]

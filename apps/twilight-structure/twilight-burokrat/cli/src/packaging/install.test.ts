@@ -312,6 +312,8 @@ describe('packed Twilight Burokrat installation', () => {
       "import { type } from 'arktype';\n" +
         "import type { Elysia } from 'elysia';\n" +
         "import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';\n" +
+        "import { parseAllDocuments } from 'yaml';\n" +
+        'export function parseManifest(source: string): ReturnType<typeof parseAllDocuments> { return parseAllDocuments(source); }\n' +
         'export interface PublicModel { schema: ReturnType<typeof type>; app: Elysia; column: AnySQLiteColumn; file: Bun.BunFile }\n',
     );
     git(repository, ['add', '--all']);
@@ -344,7 +346,7 @@ describe('packed Twilight Burokrat installation', () => {
       };
     };
     const specifiers = report.typescript.imports.map((edge) => edge.specifier);
-    for (const specifier of ['arktype', 'elysia', 'drizzle-orm/sqlite-core']) {
+    for (const specifier of ['arktype', 'elysia', 'drizzle-orm/sqlite-core', 'yaml']) {
       expect(specifiers).toContain(specifier);
     }
     expect(report.typescript.publicDeclarations).toHaveLength(1);
@@ -354,27 +356,63 @@ describe('packed Twilight Burokrat installation', () => {
         .map((declaration) => declaration.text)
         .join('\n'),
     ).toContain('interface PublicModel');
+    expect(existsSync(join(repository, 'node_modules'))).toBe(false);
+    expect(
+      report.typescript.publicDeclarations[0].declarations
+        .map((declaration) => declaration.text)
+        .join('\n'),
+    ).toContain('ReturnType<typeof parseAllDocuments>');
     const closure = join(
       consumer,
       'node_modules/twilight-burokrat/dist/toolkit/trusted-node-modules',
     );
     expect(existsSync(join(closure, 'nx/package.json'))).toBe(false);
     expect(existsSync(join(closure, 'arktype/node_modules/@ark/schema/package.json'))).toBe(true);
-    const declaration = join(closure, 'arktype/out/index.d.ts');
+    const yaml = join(closure, 'yaml');
+    const savedYaml = join(consumer, 'yaml.saved');
+    expect(existsSync(join(yaml, 'package.json'))).toBe(true);
+    renameSync(yaml, savedYaml);
+    try {
+      const missing = invokeWithoutWorkspace(
+        executable,
+        ['extract-relationships', 'committed', repository, revision, request],
+        consumer,
+      );
+      expect(missing.exitCode).toBe(1);
+      expect(missing.stdout.toString()).toBe('');
+      expect(missing.stderr.toString()).toContain(
+        'toolkit runtime closure differs from toolkit.json',
+      );
+    } finally {
+      renameSync(savedYaml, yaml);
+    }
+    const declaration = join(yaml, 'dist/index.d.ts');
     const original = readFileSync(declaration);
-    writeFileSync(
-      declaration,
-      Buffer.concat([original, Buffer.from('\n// altered vendor declaration\n')]),
-    );
-    const corrupted = invokeWithoutWorkspace(
+    try {
+      writeFileSync(
+        declaration,
+        Buffer.concat([original, Buffer.from('\n// altered vendor declaration\n')]),
+      );
+      const corrupted = invokeWithoutWorkspace(
+        executable,
+        ['extract-relationships', 'committed', repository, revision, request],
+        consumer,
+      );
+      expect(corrupted.exitCode).toBe(1);
+      expect(corrupted.stdout.toString()).toBe('');
+      expect(corrupted.stderr.toString()).toContain(
+        'toolkit runtime closure differs from toolkit.json',
+      );
+    } finally {
+      writeFileSync(declaration, original);
+    }
+    const restored = invokeWithoutWorkspace(
       executable,
       ['extract-relationships', 'committed', repository, revision, request],
       consumer,
     );
-    expect(corrupted.exitCode).toBe(1);
-    expect(corrupted.stderr.toString()).toContain(
-      'toolkit runtime closure differs from toolkit.json',
-    );
+    expect(restored.exitCode, restored.stderr.toString()).toBe(0);
+    expect(JSON.parse(restored.stdout.toString())).toEqual(report);
   }, 120_000);
 
   test('prepares certified admission and the old activation refuses a newer commit', () => {

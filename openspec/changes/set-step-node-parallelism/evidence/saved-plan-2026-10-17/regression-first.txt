@@ -1,0 +1,383 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan-quota.test.ts:
+(pass) bodyBytesRefusal > admits a body exactly at the limit and refuses the next byte [0.10ms]
+(pass) bodyBytesRefusal > checks the schedule side too [0.02ms]
+(pass) bodyBytesRefusal > does not treat an absent schedule as a zero-byte one to check [0.02ms]
+(pass) bodyBytesRefusal > names the input when both sides are over [0.01ms]
+(pass) bodyBytesRefusal > does not add the two sides together
+(pass) holdingRefusal > admits the last plan the limit allows and refuses the one after it [0.04ms]
+(pass) holdingRefusal > counts the incoming bytes into the total before comparing [0.02ms]
+(pass) holdingRefusal > names the count when a project is at both bounds [0.01ms]
+(pass) holdingRefusal > admits an ordinary save on an empty project
+(pass) the shipped quota > is 8 MiB per body, 100 plans and 64 MiB per project
+(pass) the shipped quota > is what both checks use when none is passed [0.02ms]
+
+libs/wbs/domain/domain/src/saved-plan-default-name.test.ts:
+(pass) the default name a save falls back to > renders the epoch second it was given, in UTC, to the second [0.12ms]
+(pass) the default name a save falls back to > pads every field, so names sort in the order the plans were saved [0.02ms]
+(pass) the default name a save falls back to > is not the caller local time of whoever formats it [0.03ms]
+(pass) the default name a save falls back to > is never empty, so the default satisfies the same minLength the route asks of a caller [0.01ms]
+
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts:
+(pass) capturing a project’s plan input > captures sparse parallel facts on the SQLite snapshot before concurrent clear [148.07ms]
+(pass) capturing a project’s plan input > captures direct blockage on the same SQLite snapshot before a concurrent clear [100.45ms]
+(pass) capturing a project’s plan input > keeps captured node endpoints after step reorder and live relationship removal [96.80ms]
+(pass) capturing a project’s plan input > leaves the plan input hash byte-identical when markers are added [108.12ms]
+(pass) capturing a project’s plan input > reads everything inside one deferred transaction and closes its connection [82.83ms]
+(pass) capturing a project’s plan input > captures the team the capacity map names and the person nobody is assigned to [90.09ms]
+(pass) capturing a project’s plan input > answers null for a project it cannot find, and still closes the connection [87.46ms]
+(pass) capturing a project’s plan input > rolls back and closes the connection when a read throws [86.20ms]
+(pass) capturing a project’s plan input > does not enclose a stranger’s write, because the snapshot is on its own connection [86.95ms]
+(pass) capturing a project’s plan input > encloses that same write when the capture is run on the shared process handle [92.28ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 1 [103.84ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 2 [116.05ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 3 [98.46ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 4 [86.79ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 5 [96.84ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 6 [99.77ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 7 [102.25ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 8 [96.95ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 9 [94.74ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 10 [85.20ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 11 [101.13ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 12 [100.74ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 13 [99.62ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 14 [89.88ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 15 [104.89ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 16 [92.42ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 17 [90.16ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 18 [87.26ms]
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+(pass) refuses scoped saved-plan writes without a transactional membership source [2.11ms]
+(pass) commits and rolls back project-seeded blockage facts and cascades removed owners [15.76ms]
+(pass) the staged memory source > saves committed capture and independent history while a batch commits [6.57ms]
+(pass) the staged memory source > saves committed capture and independent history while a batch refuses [0.68ms]
+(pass) the staged memory source > serializes competing saved-plan quota checks independently of command batches [1.12ms]
+(pass) the staged memory source > commits all mixed-store writes together [0.89ms]
+(pass) the staged memory source > queues public writes behind a held batch [20.78ms]
+(pass) the staged memory source > discards refused state and gives the next batch a fresh scope [1.54ms]
+153 |   }
+154 |   return false;
+155 | }
+156 |
+157 | async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
+158 |   expect(Object.keys(stores).sort()).toEqual([...STORE_BINDINGS]);
+                                           ^
+error: expect(received).toEqual(expected)
+
+  [
+    "actuals",
+    "attempts",
+    "blockages",
+    "calendarMarkers",
+    "capacity",
+    "dependencies",
+    "directory",
+    "estimates",
+    "eventLog",
+    "journal",
+    "measures",
+    "planEvents",
+    "priorityBands",
+    "progress",
+    "projects",
++   "stepParallels",
+    "steps",
+    "subtrees",
+    "typedDependencies",
+    "users",
+    "workItems",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at expectDetachedReads (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:158:38)
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:638:40)
+(fail) the staged memory source > returns detached values from every public storage shape [1.61ms]
+153 |   }
+154 |   return false;
+155 | }
+156 |
+157 | async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
+158 |   expect(Object.keys(stores).sort()).toEqual([...STORE_BINDINGS]);
+                                           ^
+error: expect(received).toEqual(expected)
+
+  [
+    "actuals",
+    "attempts",
+    "blockages",
+    "calendarMarkers",
+    "capacity",
+    "dependencies",
+    "directory",
+    "estimates",
+    "eventLog",
+    "journal",
+    "measures",
+    "planEvents",
+    "priorityBands",
+    "progress",
+    "projects",
++   "stepParallels",
+    "steps",
+    "subtrees",
+    "typedDependencies",
+    "users",
+    "workItems",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at expectDetachedReads (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:158:38)
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:641:17)
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/source.ts:809:36)
+      at run (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/source.ts:391:20)
+      at async <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:640:26)
+(fail) the staged memory source > returns detached values from every admitted storage shape [0.67ms]
+(pass) the staged memory source > binds subtree writes and public dependency reads to one table [1.73ms]
+(pass) the staged memory source > refuses a missing independent-history route without deleting real history [1.11ms]
+(pass) the staged memory source > refuses saved-plan persistence mutations without their exact target state [0.83ms]
+(pass) refuses an attempt start at a node stated done [1.45ms]
+(pass) captures direct blockage detached from later memory writes [1.33ms]
+(pass) captures sparse parallel facts detached from later memory writes [1.61ms]
+(pass) captures sparse parallel facts from the memory epoch before concurrent clear [0.99ms]
+
+libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts:
+(pass) normalising a stored plan input forward — 7.4 > is the identity at the reader’s own version [0.19ms]
+(pass) normalising a stored plan input forward — 7.4 > leaves the stored bytes untouched, by hash [0.09ms]
+(pass) normalising a stored plan input forward — 7.4 > a normalised body still compares clean against the same plan [0.89ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses a body from the future rather than reading it [0.14ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses a version that is not a version [0.11ms]
+(pass) normalising a stored plan input forward — 7.4 > refuses an older body when no step is registered for it [0.04ms]
+(pass) normalising a stored plan input forward — 7.4 > runs the registered steps in order, once each [0.05ms]
+(pass) normalising a stored plan input forward — 7.4 > catches a step that mutates the body it was given [0.06ms]
+(pass) the version-1 to version-2 upgrade — step allowances > reads a version-1 body’s steps at 0% allowance [0.20ms]
+(pass) the version-1 to version-2 upgrade — step allowances > refuses a version-1 body whose steps are not a list [0.02ms]
+164 |       'a version-1 plan input body holds no steps list',
+165 |     );
+166 |   });
+167 |
+168 |   it('writes version 2 with each step’s allowance', () => {
+169 |     expect(CANONICAL_PLAN_INPUT_SCHEMA_VERSION).toBe(7);
+                                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 7
+Received: 8
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.test.ts:169:49)
+(fail) the version-1 to version-2 upgrade — step allowances > writes version 2 with each step’s allowance [0.08ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > rejects malformed version-2 steps instead of inventing captured identities [0.03ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > compares an upgraded version-2 body with the equivalent version-3 body without changing stored bytes [0.22ms]
+(pass) the version-2 to version-3 upgrade — typed dependencies > reads a version-2 body with no typed relationships [0.06ms]
+(pass) the version-3 to version-4 upgrade — readiness and holds > reads a version-3 body with nothing said about readiness or holds, and compares clean [0.15ms]
+(pass) the version-3 to version-4 upgrade — readiness and holds > refuses a version-3 body whose work items are not a list of objects [0.03ms]
+(pass) the version-4 to version-5 upgrade — the project timezone > reads a version-4 body as UTC and compares clean, leaving the stored bytes alone [0.13ms]
+(pass) the version-4 to version-5 upgrade — the project timezone > refuses a version-4 body that holds no project object [0.02ms]
+(pass) upgrades version-5 steps to historical workdays without changing the source body [0.12ms]
+
+libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.test.ts:
+(pass) canonicalisePlanInput > serializes identically whatever order the rows arrived in [0.25ms]
+(pass) canonicalisePlanInput > stamps the schema version the body carries [0.06ms]
+(pass) canonicalisePlanInput > captures typed endpoints by value in relationship id order [0.09ms]
+(pass) canonicalisePlanInput > captures coded and uncoded step identities [0.07ms]
+(pass) canonicalisePlanInput > keeps no key the closed field list does not name [0.17ms]
+(pass) canonicalisePlanInput > stores every work-item type a row states, not one of them [0.09ms]
+(pass) canonicalisePlanInput > orders external refs by system then url, and keeps the shown position [0.05ms]
+(pass) canonicalisePlanInput > keeps one measure per step, not one per item and metric [0.05ms]
+(pass) canonicalisePlanInput > keeps who does which step, not merely who is on the item [0.05ms]
+(pass) canonicalisePlanInput > the byte comparison is what catches a dropped sort [0.24ms]
+(pass) canonicalisePlanInput round trip > canonicalise, serialize, parse, canonicalise again — identical bytes [20.02ms]
+(pass) captures a minute unit in the canonical body rather than restating it as workdays [0.18ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [0.46ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.10ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.12ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.05ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.07ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.06ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.16ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read [0.02ms]
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture [0.01ms]
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.04ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts:
+(pass) diffPlans — 7.1, the two sides > reports nothing when a plan is re-serialized unchanged [0.39ms]
+(pass) diffPlans — 7.1, the two sides > reports nothing when the same plan arrives in the opposite row order [0.46ms]
+(pass) diffPlans — 7.1, the two sides > is one function in both directions: swapping the sides swaps left and right [0.70ms]
+(pass) diffPlans — 7.2, the presentation categories > reports an added and a removed work item as added and removed, not as changed [0.29ms]
+(pass) diffPlans — 7.2, the presentation categories > separates renamed, reparented and reordered [0.22ms]
+(pass) diffPlans — 7.2, the presentation categories > reports freeze, which the category list omitted until spec named it [0.42ms]
+(pass) diffPlans — 7.2, the presentation categories > reaches every category the spec names, one field at a time [2.97ms]
+(pass) diffPlans — 7.2, the presentation categories > names a timezone change under settings with both values [0.17ms]
+(pass) diffPlans — 7.2, the presentation categories > groups dependency and assignment changes as themselves [0.27ms]
+(pass) diffPlans — 7.2, the presentation categories > reports a typed endpoint edit under dependencies by relationship id [0.29ms]
+(pass) diffPlans — 7.2, the presentation categories > files a rewired relationship under its own heading on both sides [0.26ms]
+(pass) diffPlans — 7.2, the presentation categories > files a registry row that arrived or left under registry [0.35ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > names every field of the canonical plan input that can differ [18.75ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > covers the registry rows a label resolves through [0.55ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > reports a changed row identity as removed and re-added, not as a changed id [0.26ms]
+(pass) diffPlans — 7.2b, the diff-completeness property > catches a comparison that drops freeze, and one that drops a tag id [0.85ms]
+(pass) diffPlans — 7.2c, the schedule side > reports differing dates between byte-identical inputs [0.30ms]
+(pass) diffPlans — 7.2c, the schedule side > names every field of the stored schedule body that can differ [1.48ms]
+(pass) diffPlans — 7.2c, the schedule side > reports the algorithm identity, which is a header column and not a body key [0.14ms]
+(pass) diffPlans — 7.2c, the schedule side > reports absence and its reason per side [0.26ms]
+(pass) diffPlans — 7.2c, the schedule side > reports nothing on the schedule half when both sides are absent for the same reason [0.10ms]
+(pass) diffPlans — the catch-all > reports an unlisted field under other, naming it [0.16ms]
+(pass) diffPlans — the catch-all > reports a whole collection the field list gains later [0.19ms]
+(pass) reports a captured estimate unit change under steps [0.13ms]
+
+libs/wbs/domain/domain/src/saved-plan/step-blockages.test.ts:
+(pass) saved direct step blockage > captures sorted direct facts and changes saved bytes [5.15ms]
+(pass) saved direct step blockage > retains direct facts on done nodes without deriving proxy facts [0.14ms]
+(pass) saved direct step blockage > upgrades schema6 without mutating stored facts or bytes [0.12ms]
+(pass) saved direct step blockage > compares additions, removals and time changes by owner and step [0.69ms]
+(pass) saved direct step blockage > refuses missing current facts on capture [0.08ms]
+(pass) saved direct step blockage > refuses missing current facts on stored read [0.03ms]
+(pass) saved direct step blockage > refuses malformed current facts on capture
+(pass) saved direct step blockage > refuses malformed current facts on stored read
+(pass) saved direct step blockage > refuses null fact current facts on capture [0.13ms]
+(pass) saved direct step blockage > refuses null fact current facts on stored read [0.01ms]
+(pass) saved direct step blockage > refuses duplicate current facts on capture
+(pass) saved direct step blockage > refuses duplicate current facts on stored read
+(pass) saved direct step blockage > refuses unknown owner current facts on capture
+(pass) saved direct step blockage > refuses unknown owner current facts on stored read
+(pass) saved direct step blockage > refuses parent owner current facts on capture
+(pass) saved direct step blockage > refuses parent owner current facts on stored read
+(pass) saved direct step blockage > refuses unknown step current facts on capture
+(pass) saved direct step blockage > refuses unknown step current facts on stored read
+(pass) saved direct step blockage > refuses fractional time current facts on capture
+(pass) saved direct step blockage > refuses fractional time current facts on stored read
+(pass) saved direct step blockage > refuses unsafe time current facts on capture
+(pass) saved direct step blockage > refuses unsafe time current facts on stored read
+(pass) saved direct step blockage > refuses missing time current facts on capture
+(pass) saved direct step blockage > refuses missing time current facts on stored read [0.01ms]
+(pass) refuses malformed owner list while checking stored direct facts [0.04ms]
+(pass) refuses malformed step list while checking stored direct facts
+(pass) refuses malformed owner row while checking stored direct facts
+(pass) refuses malformed step row while checking stored direct facts
+
+libs/wbs/application/core/src/service/shared-people.test.ts:
+(pass) readSharedPeople > keeps the transitive Ana booking before B gives Ben to C [4.11ms]
+(pass) readSharedPeople > stops at an undated bridge and gives an undated target no bookings [0.45ms]
+(pass) readSharedPeople > keeps fractional bookings across different anchors and leaves touching time free [0.92ms]
+(pass) readSharedPeople > does not traverse from an earlier influencer down to unrelated later projects [0.77ms]
+(pass) readSharedPeople > records cyclic and calendar-range influencers without supplying bookings [1.09ms]
+(pass) readSharedPeople > rejects an unassigned out-of-range influencer item with some assigned slices [0.65ms]
+(pass) readSharedPeople > rejects an unassigned out-of-range influencer item with no assigned slices [0.24ms]
+(pass) readSharedPeople > rejects an out-of-range target with no assigned slices [0.24ms]
+(pass) readSharedPeople > refuses an optimized capability that returns no optimization state [0.28ms]
+(pass) readSharedPeople > throws when the trusted rank list contains a missing project [0.12ms]
+(pass) readSharedPeople > supplies no booking for an assigned slice holding no time [0.32ms]
+(pass) readSharedPeople > refuses a ready optimized variant whose schedule is missing [0.25ms]
+(pass) readSharedPeople > throws unexpected scheduling failures [0.19ms]
+(pass) readSharedPeople > refuses an unavailable required influencer by identity [0.09ms]
+(pass) readSharedPeople > labels each holder a target slice waits for from the influencer it read [0.54ms]
+(pass) readSharedPeople > throws when a target slice names a holder the chain read no label for [0.47ms]
+
+libs/wbs/application/core/src/service/saved-plan-input.test.ts:
+(pass) planInputRowsOf > schedules captured assignments around the detached elsewhere calendar [0.44ms]
+(pass) planInputRowsOf > schedules a captured node relationship into a later successor step [0.52ms]
+(pass) planInputRowsOf > schedules a saved plan without its on-hold work, and captures readiness and hold [0.52ms]
+(pass) planInputRowsOf > schedules a Kyiv capture exactly as the same capture in UTC: no engine reads the zone [0.50ms]
+(pass) planInputRowsOf > carries the project settings the dates come from, and its solution ref split in two [0.18ms]
+(pass) planInputRowsOf > emits a row for every pair any of the three reads mentions [0.08ms]
+(pass) planInputRowsOf > turns external ref rows into canonical links, ranked in the order they were read [0.06ms]
+(pass) planInputRowsOf > spreads a row's team and service sets into the two junction collections [0.05ms]
+(pass) planInputRowsOf > keeps the teams the plan names — through work items and through capacity [0.06ms]
+(pass) planInputRowsOf > keeps the assigned people plus every member of a captured team [0.04ms]
+(pass) planInputRowsOf > narrows person_team to the captured teams, not to every team a person is in [0.09ms]
+(pass) planInputRowsOf > keeps the services the items deliver and the ones a captured team does [0.06ms]
+(pass) planInputRowsOf > keeps only the registry rows the captured items reference [0.09ms]
+(pass) planInputRowsOf > hands over a value the canonicaliser makes order-independent [0.48ms]
+(pass) captures minute units and schedules captured 240-minute effort as half a workday [0.46ms]
+(pass) captures direct blockage while canonical schedule input and full Fast schedule stay identical [0.75ms]
+(pass) drops live node resources before canonical saved-plan persistence and hashing [0.43ms]
+(pass) preserves sparse explicit parallel policy through the authored capture fold [0.18ms]
+
+libs/wbs/application/core/src/ports/store-boundaries.test.ts:
+(pass) store ports > admits an event-log consumer without a SQLite transaction method [0.12ms]
+(pass) store ports > admits a saved-plan consumer without transaction-only helpers [0.08ms]
+(pass) store ports > admits a capture consumer without a repository class [0.09ms]
+
+libs/wbs/application/core/src/module/saved-plans/module.test.ts:
+210 |   body: SavedPlanBodyKind,
+211 |   version: number,
+212 |   supported: readonly number[],
+213 | ): void {
+214 |   if (supported.includes(version)) return;
+215 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+              ^
+UnknownSavedPlanBodyVersionError: saved plan id-4: input body is at schema version 8, which this reader does not know (knows 1, 2, 3, 4, 5, 6, 7)
+ savedPlanId: "id-4",
+       body: "input",
+    version: 8,
+  supported: [ 1, 2, 3, 4, 5, 6, 7 ],
+
+      at assertKnownBodyVersion (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:215:9)
+      at readOfStored (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/application/core/src/module/saved-plans/saved-plan.resource.ts:200:3)
+(fail) the Saved plans module > saves and reads back a plan over the graph installSavedPlans wires [8.72ms]
+(pass) the Saved plans module > refuses installed shared save and current before capture without admitted access [2.14ms]
+(pass) the Saved plans module > passes a supplied quota through to the installed feature [2.63ms]
+(pass) the Saved plans module > saves and announces through savePlan over the installed feature [2.03ms]
+(pass) the Saved plans module > exposes only the contract exports from its installer [1.25ms]
+(pass) the Saved plans module > keeps its private bindings out of a host graph [0.30ms]
+(pass) the Saved plans module > labels its private bindings with the module name [0.67ms]
+(pass) the Saved plans module > names itself when a host omits a requirement [0.51ms]
+210 |   body: SavedPlanBodyKind,
+211 |   version: number,
+212 |   supported: readonly number[],
+213 | ): void {
+214 |   if (supported.includes(version)) return;
+215 |   throw new UnknownSavedPlanBodyVersionError(savedPlanId, body, version, supported);
+              ^
+UnknownSavedPlanBodyVersionError: saved plan id-4: input body is at schema version 8, which this reader does not know (knows 1, 2, 3, 4, 5, 6, 7)
+ savedPlanId: "id-4",
+       body: "input",
+    version: 8,
+  supported: [ 1, 2, 3, 4, 5, 6, 7 ],
+
+      at assertKnownBodyVersion (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts:215:9)
+      at readOfStored (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/application/core/src/module/saved-plans/saved-plan.resource.ts:200:3)
+(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [1.89ms]
+
+5 tests failed:
+(fail) the staged memory source > returns detached values from every public storage shape [1.61ms]
+(fail) the staged memory source > returns detached values from every admitted storage shape [0.67ms]
+(fail) the version-1 to version-2 upgrade — step allowances > writes version 2 with each step’s allowance [0.08ms]
+(fail) the Saved plans module > saves and reads back a plan over the graph installSavedPlans wires [8.72ms]
+(fail) a saved plan and step allowances > keeps the allowance it was saved with when the live step changes later [1.89ms]
+
+ 216 pass
+ 5 fail
+ 711 expect() calls
+Ran 221 tests across 13 files. [4.79s]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 589185024, "exitCode": 1}

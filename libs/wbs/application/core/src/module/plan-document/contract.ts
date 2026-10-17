@@ -4,7 +4,7 @@ import type { PlanDocumentService, PlanDocumentServiceOptions } from './plan-doc
  * What a host must supply to install {@link planDocumentModule}.
  *
  * Exactly {@link PlanDocumentServiceOptions}, unchanged by the move: the six
- * directory list reads, the owner-neutral marker read and the clock.
+ * directory list reads, the owner-neutral marker read, required project sparse parallelism read and the clock.
  *
  * **No K3 debt; K2 debt disclosed.** Plan document is a resource, so the
  * direction rule that binds it is K4, not K3: it reads the `DirectoryStore`

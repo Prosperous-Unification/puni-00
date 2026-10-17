@@ -1,0 +1,9 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+┃  lint ❯
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.11 seconds)
+✓ lint (0.07 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 78987264, "exitCode": 0}

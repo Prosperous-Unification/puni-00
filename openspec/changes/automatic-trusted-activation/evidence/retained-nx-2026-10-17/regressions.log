@@ -1,0 +1,137 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts:
+143 |   // `./review/invoker` failed the surface equality with `+ "ProcessReviewInvoker"`; appending
+144 |   // `Date.now()` to review/invocation-journal.ts failed the scan with
+145 |   // `review/invocation-journal.ts reads a clock`; importing `bun:sqlite` into
+146 |   // review/invocation-journal.ts failed it with `imports bun:sqlite`, and opening
+147 |   // `new Database(path)` in relationships/declarations.ts failed it with `opens a SQLite file`.
+148 |   expect(Object.keys(await import('./judge-facade')).sort()).toEqual(RUNTIME_SURFACE);
+                                                                   ^
+error: expect(received).toEqual(expected)
+
+@@ -48,10 +48,12 @@
+    "decodeInvocationRegistration",
+    "decodeReviewEvidence",
+    "deriveReviewEvidence",
+    "extractDeclaredRelationships",
+    "extractDeclaredRelationshipsFromSource",
++   "extractNxRelationships",
++   "extractNxRelationshipsFromSource",
+    "extractRelationships",
+    "freezeExhaustivePlan",
+    "freezeExhaustivePlanFromSource",
+    "hashBytes",
+    "hashCanonical",
+
+- Expected  - 0
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-retained-nx-sol-oct17/apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.test.ts:148:62)
+(fail) exports exactly the judge surface and nothing that takes a store [975.03ms]
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-artifact-graph.test.ts:
+(pass) retained sha1 graph replays after checkout/store removal without ambient IO [112.09ms]
+(pass) retained sha256 graph replays after checkout/store removal without ambient IO [88.64ms]
+(pass) classification and record reads share maximumReads [98.23ms]
+(pass) classification and record reads share maximumReadBytes [110.75ms]
+(pass) classification and record reads share maximumEntries [117.18ms]
+(pass) snapshot provenance cannot be relabeled by graph caller [107.98ms]
+(pass) classification provenance refuses a different valid installed policy [110.80ms]
+(pass) copied capability cannot omit retained evidence census [102.18ms]
+(pass) install-time classification policy is owned independently of caller mutation [108.77ms]
+(pass) every installed graph limit rejects invalid grammar before retained reads [89.06ms]
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-declarations.test.ts:
+(pass) retained sha1 declarations equal legacy after source removal without ambient reads [223.30ms]
+(pass) retained sha256 declarations equal legacy after source removal without ambient reads [203.68ms]
+(pass) retained declarations refuse legacy null history before reading [189.96ms]
+(pass) retained declarations refuse changed extractor bytes [188.22ms]
+(pass) retained declarations refuse changed extractor id [185.60ms]
+(pass) retained declarations refuse changed extractor version [159.92ms]
+(pass) retained declarations refuse changed extractor blob [180.45ms]
+(pass) retained declarations refuse an invalid pinned Git format [160.35ms]
+(pass) retained declarations refuse changed history census [162.83ms]
+(pass) retained declarations refuse changed history provenance [160.90ms]
+(pass) retained declarations refuse changed history digest [164.29ms]
+(pass) retained declarations refuse changed history proofs [171.64ms]
+(pass) retained declarations refuse invalid maximumDeclarationPaths [170.51ms]
+(pass) retained declarations refuse invalid maximumDeclarationBytes [180.11ms]
+(pass) retained declarations refuse invalid maximumDeclarationFacts [164.15ms]
+(pass) retained declarations refuse invalid maximumHistoricalSelections [161.74ms]
+(pass) retained declarations refuse invalid maximumReads [191.94ms]
+(pass) retained declarations refuse invalid maximumReadBytes [165.54ms]
+(pass) retained declarations refuse invalid maximumOutputBytes [176.87ms]
+(pass) retained declarations enforce maximumDeclarationPaths [196.77ms]
+(pass) retained declarations enforce maximumDeclarationBytes [171.08ms]
+(pass) retained declarations enforce maximumDeclarationFacts [191.75ms]
+(pass) retained declarations enforce maximumReads [194.38ms]
+(pass) retained declarations enforce maximumReadBytes [191.51ms]
+(pass) retained declarations enforce maximumOutputBytes [192.93ms]
+(pass) retained declarations preserve BOM filenames through current symlinks [195.86ms]
+(pass) retained declarations refuse a current symlink escape without ambient reads [136.05ms]
+(pass) retained declarations refuse a current symlink cycle without ambient reads [133.24ms]
+(pass) retained declarations refuse a current symlink missing without ambient reads [118.40ms]
+(pass) retained declarations refuse a current symlink absolute without ambient reads [116.17ms]
+(pass) retained declarations refuse a current symlink malformed without ambient reads [120.02ms]
+(pass) retained sha1 preserves all declared selector families and provenance [268.61ms]
+(pass) retained sha256 preserves all declared selector families and provenance [182.61ms]
+(pass) retained declarations enforce the historical selection ceiling [118.91ms]
+(pass) retained declarations refuse a changed history proof revision [115.44ms]
+(pass) retained declarations refuse a changed history proof path [105.31ms]
+(pass) retained declarations preserve historical symlink raw-target semantics [155.37ms]
+(pass) retained declarations refuse a Git format differing from selected metadata [113.04ms]
+(pass) retained declarations refuse invalid current symlink target "" [115.60ms]
+(pass) retained declarations refuse invalid current symlink target "nul\u0000target" [103.56ms]
+(pass) retained declarations preserve the requested declaration symlink provenance [134.56ms]
+(pass) retained declarations accept a complete empty historical census [118.80ms]
+(pass) retained declarations refuse malformed selected declaration bytes [130.46ms]
+(pass) retained declarations refuse zero maximumDeclarationPaths [121.70ms]
+(pass) retained declarations refuse zero maximumDeclarationBytes [122.02ms]
+(pass) retained declarations refuse zero maximumDeclarationFacts [164.47ms]
+(pass) retained declarations refuse zero maximumHistoricalSelections [166.22ms]
+(pass) retained declarations refuse zero maximumReads [134.46ms]
+(pass) retained declarations refuse zero maximumReadBytes [126.29ms]
+(pass) retained declarations refuse zero maximumOutputBytes [141.20ms]
+(pass) retained sha1 refuses traversal through a regular file before parent normalization [137.81ms]
+(pass) retained sha256 refuses traversal through a regular file before parent normalization [165.57ms]
+(pass) retained sha1 refuses traversal through a missing directory before parent normalization [148.61ms]
+(pass) retained sha256 refuses traversal through a missing directory before parent normalization [170.23ms]
+(pass) retained sha1 refuses an unselected original fact path through a selected directory symlink [157.37ms]
+(pass) retained sha256 refuses an unselected original fact path through a selected directory symlink [140.21ms]
+(pass) retained declarations refuse a Gitlink at the original fact membership boundary [175.79ms]
+(pass) retained sha1 preserves declaration discovery through a directory alias [186.21ms]
+(pass) retained sha256 preserves declaration discovery through a directory alias [209.16ms]
+(pass) retained sha1 Nx derives target facts after source and store removal [190.12ms]
+(pass) retained sha256 Nx derives target facts after source and store removal [177.42ms]
+(pass) retained Nx preserves discovery sorting defaults dependencies and symlink exclusions [176.14ms]
+(pass) retained Nx refuses copied false-empty census before reads [168.37ms]
+(pass) retained Nx refuses absent nx [165.93ms]
+(pass) retained Nx refuses malformed nx [169.66ms]
+(pass) retained Nx refuses duplicate names [191.32ms]
+(pass) retained Nx refuses unknown dependency [192.42ms]
+(pass) retained Nx validates maximumEntries [215.95ms]
+(pass) retained Nx enforces maximumEntries [213.99ms]
+(pass) retained Nx validates maximumReads [220.94ms]
+(pass) retained Nx enforces maximumReads [217.31ms]
+(pass) retained Nx validates maximumReadBytes [209.14ms]
+(pass) retained Nx enforces maximumReadBytes [231.02ms]
+(pass) retained Nx validates maximumOutputBytes [194.48ms]
+(pass) retained Nx enforces maximumOutputBytes [206.26ms]
+(pass) retained Nx preserves nx.json symlink current-byte resolution [201.13ms]
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/nx-core.test.ts:
+(pass) Nx source retains named unreadable input context [2.05ms]
+(pass) Nx source refuses malformed UTF-8 before JSON interpretation [0.15ms]
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/committed-target-facts.test.ts:
+(pass) current nx-target facts in the committed relationship declarations > docs/wiki-policy/relationships.json matches what the static extractor reads [0.49ms]
+(pass) current nx-target facts in the committed relationship declarations > docs/wiki-policy/relationships.bootstrap.json matches what the static extractor reads [0.08ms]
+
+1 tests failed:
+(fail) exports exactly the judge surface and nothing that takes a store [975.03ms]
+
+ 90 pass
+ 1 fail
+ 189 expect() calls
+Ran 91 tests across 5 files. [14.95s]

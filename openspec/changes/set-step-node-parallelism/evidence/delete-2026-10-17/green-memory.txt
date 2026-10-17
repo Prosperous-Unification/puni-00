@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+(pass) delete sparse owner preservation > refuses leaf null with exact equal-default pairs before stamps or writes [15.40ms]
+(pass) delete sparse owner preservation > refuses leaf cascade with exact equal-default pairs before stamps or writes [2.01ms]
+(pass) delete sparse owner preservation > refuses cascade descendant owners while promote keeps their exact sparse policy [10.04ms]
+(pass) delete sparse owner preservation > keeps missing, authorization and required strategy precedence before failed evidence [1.80ms]
+(pass) throws on selected trusted maximum corruption before deletion [1.39ms]
+(pass) throws on selected trusted step corruption before deletion [1.23ms]
+(pass) throws on selected trusted project corruption before deletion [1.15ms]
+(pass) throws on selected trusted parent corruption before deletion [1.11ms]
+(pass) throws on selected trusted duplicate corruption before deletion [1.03ms]
+(pass) copies detached exact refusal nodes and allows deletion when cleared [3.44ms]
+(pass) throws when the required deletion sparse reader is absent before writes [1.45ms]
+(pass) reads admitted sparse deletion evidence and rolls a preceding patch and journal back [10.39ms]
+
+ 12 pass
+ 0 fail
+ 46 expect() calls
+Ran 12 tests across 1 file. [1.87s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 504459264, "exitCode": 0}

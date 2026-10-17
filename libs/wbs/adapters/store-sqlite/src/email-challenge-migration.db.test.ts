@@ -17,6 +17,7 @@ test('challenge migration rolls back empty before activation and refuses retaine
     const path = join(directory, 'test.db');
     runMigrations(path, folder);
     expect(rollbackTo(path, folder, prior)).toEqual([
+      '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
       '20261014130000_add_shared_people_restore_receipts',

@@ -1,0 +1,41 @@
+{"ceilingBytes": 943718400, "sampledPeakBytes": 923234304, "exitCode": 1}
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+[error] apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts: SyntaxError: Variable declaration expected. (364:7)
+[error]   362 | }
+[error]   363 |
+[error] > 364 | const = broken hook syntax;
+[error]       |       ^
+[error]   365 |
+Error occurred when checking code style in the above file.
+
+exit status 2
+┃  lint ❯
+
+/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts
+  364:6  error  Parsing error: Variable declaration expected
+
+✖ 1 problem (1 error, 0 warnings)
+
+
+exit status 1
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 6.79 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ tool-wiki (0.00 seconds)
+✗ format (1.96 seconds)
+✗ lint (4.72 seconds)

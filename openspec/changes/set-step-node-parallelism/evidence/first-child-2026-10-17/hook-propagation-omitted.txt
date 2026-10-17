@@ -1,0 +1,10 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+┃  lint ❯
+Injected lint command failure at apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.89 seconds)
+✓ lint (0.85 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 82857984, "exitCode": 0}

@@ -1,0 +1,29 @@
+from pathlib import Path
+import os,subprocess,json,hashlib
+root=Path('/tmp/puni-literal-paths-sol-20261017')
+evidence=root/'openspec/changes/automatic-trusted-activation/evidence/retained-literal-paths-2026-10-17'
+relative='apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts'
+path=root/relative
+original=path.read_bytes()
+injected=b"import '../../../../../wbs/be-01/src/config';\n"+original
+env=dict(os.environ,RUNTIME_CLOSURE_RSS_MIB='900',NX_DAEMON='false',NX_ISOLATE_PLUGINS='false',NODE_OPTIONS='--max-old-space-size=640')
+def lint(label):
+ command=['bunx','--no-install','eslint',relative]
+ invocation=subprocess.run(['python3','/tmp/runtime-rss-guard.py',*command],cwd=root,env=env,capture_output=True,text=True)
+ transcript=invocation.stdout+invocation.stderr
+ (evidence/(label+'.log')).write_text(transcript)
+ receipt=json.loads(next(line for line in transcript.splitlines() if line.startswith('{"ceilingBytes"')))
+ (evidence/(label+'.receipt.json')).write_text(json.dumps({'command':command,**receipt},indent=2)+'\n')
+ return invocation.returncode,transcript,receipt
+try:
+ path.write_bytes(injected)
+ status,transcript,receipt=lint('lint-boundary-fault')
+ if status!=1 or '@nx/enforce-module-boundaries' not in transcript or 'No cached ProjectGraph' in transcript or 'rule is skipped' in transcript:
+  raise RuntimeError('boundary negative did not reach named rule\n'+transcript)
+finally:
+ path.write_bytes(original)
+status,transcript,restored=lint('lint-boundary-restored')
+if status!=0 or 'warning' in transcript.lower() or 'skipped' in transcript.lower(): raise RuntimeError('restored lint failed\n'+transcript)
+receipt={'path':relative,'sourceIdentity':hashlib.sha256(original).hexdigest(),'injectedIdentity':hashlib.sha256(injected).hexdigest(),'restoredIdentity':hashlib.sha256(path.read_bytes()).hexdigest(),'injectedImport':'../../../../../wbs/be-01/src/config','expectedRule':'@nx/enforce-module-boundaries','faultExitCode':receipt['exitCode'],'restoredExitCode':restored['exitCode'],'projectGraphPresent':(root/'.nx/workspace-data/project-graph.json').exists()}
+(evidence/'lint-boundary-proof.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print(json.dumps(receipt))

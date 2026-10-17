@@ -82,6 +82,14 @@ _Avoid_: automatic enrollment, JIT membership
 An offer to a specific email address to join an organization with a specified role.
 _Avoid_: join request, signup link
 
+**Email submission**:
+The handoff of one purpose-specific message for one recipient to an explicitly configured mail relay.
+_Avoid_: inbox delivery, address verification
+
+**Relay acceptance**:
+The relay's final positive acknowledgement of a complete submitted message; it does not prove receipt in the recipient's inbox.
+_Avoid_: delivered email, verified recipient
+
 **Legacy organization**:
 The single organization that receives WBS content and users from before organization ownership was introduced.
 _Avoid_: default tenant, personal organization
@@ -273,6 +281,11 @@ _Avoid_: status, column
 The effective person, teams and parallel width of one leaf step. A person is explicit,
 assumed from the leaf's sole assignment, or unassigned. Teams are the nearest stated
 whole set, with each team's stated project capacity or no capacity statement.
+
+**Step maximum parallelism override**:
+An explicit integer ceiling from 1 through 1000 authored for one leaf work item's step.
+Absence inherits the row default; an explicit equal-default value remains a distinct fact.
+_Avoid_: node width, pool capacity, row concurrency
 
 **Step node ID**:
 A step node's stable identity: a versioned encoding of its work item's ID and its step's
@@ -1475,6 +1488,11 @@ influencer has no available engine or the target has a cycle or calendar-range f
 _Avoid_: stale input, idle optimization, missing project
 
 ### Architecture
+
+**Retained namespace**:
+An immutable metadata index of candidate entries and declared runtime dependencies under the
+reviewer's fixed virtual paths, with provenance tied to its exact owner.
+_Avoid_: compiler host, materialized checkout, authenticated runtime
 
 **Activation controller**:
 The authority that coordinates independent review, certification and publication of a toolkit

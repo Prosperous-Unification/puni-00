@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts",
+    "--test-name-pattern",
+    "compatible source mode"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 179284,
+  "ceilingKiB": 921600
+}

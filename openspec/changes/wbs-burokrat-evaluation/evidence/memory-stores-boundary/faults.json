@@ -1,0 +1,132 @@
+[
+  {
+    "fault": "clone-alias",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "--test-name-pattern",
+      "discards refused state",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "typed-copy",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "--test-name-pattern",
+      "commits all mixed-store",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "allowance-copy",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/application/core/src/module/plan-commands/module.test.ts",
+      "--test-name-pattern",
+      "undoes an allowance edit committed",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "blockage-copy",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "--test-name-pattern",
+      "commits and rolls back project-seeded",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "detached-wrapper",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "--test-name-pattern",
+      "returns detached values",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "tag-projects",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "--test-name-pattern",
+      "Task 6.4 observes outside-epoch",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "satellite-cascade",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/memory-source.test.ts",
+      "--test-name-pattern",
+      "commits and rolls back project-seeded",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "journal-forward",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "--test-name-pattern",
+      "runs every Task 5.1 journal",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "estimate-cascade",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/application/core/src/module/plan-commands/plan-commands.test.ts",
+      "--test-name-pattern",
+      "refreshes every delete-last-child hand-up",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  },
+  {
+    "fault": "subtree-forward",
+    "argv": [
+      "bun",
+      "test",
+      "./libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts",
+      "--test-name-pattern",
+      "runs every subtree case",
+      "--timeout=10000"
+    ],
+    "exitCode": 1,
+    "observedFailure": true
+  }
+]

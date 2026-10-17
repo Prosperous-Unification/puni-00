@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) byte census records raw candidate package BOM and probe symlink acquisitions only [136.20ms]
+189 |     };
+190 |     const encoding = serializeCanonical(entry);
+191 |     const fresh = !ledger.has(encoding);
+192 |     const contribution = Buffer.byteLength(encoding) + (ledger.size === 0 ? 0 : 1);
+193 |     if (fresh && ledger.size >= limits.maximumReadEntries) throw new Error('source read entry ceiling exceeded');
+194 |     if (fresh && contribution > limits.maximumReadLedgerBytes - ledgerBytes) throw new Error('source read ledger byte ceiling exceeded');
+                                                                                                                                             ^
+error: source read ledger byte ceiling exceeded
+      at readNode (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:194:136)
+      at readFile (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:495:60)
+      at <anonymous> (/tmp/puni-retained-byte-census-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:830:9)
+(fail) byte census exact ceilings precede owner copies and repeated tuples do not grow [108.82ms]
+
+ 1 pass
+ 85 filtered out
+ 1 fail
+ 23 expect() calls
+Ran 2 tests across 1 file. [1201.00ms]

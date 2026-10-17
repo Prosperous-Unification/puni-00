@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 185520128, "exitCode": 1}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+220 |       compilerOptions: { noLib: true, types: [], baseUrl: '/outside' },
+221 |       files: ['globals.d.ts', 'src/index.ts'],
+222 |     }),
+223 |   });
+224 |   const system = boundSource(workspace, source, { kind: 'bounded', limits });
+225 |   system.admitConfigurationRoot = () => { throw new Error('unexpected explicit admission'); };
+                                                                                               ^
+error: unexpected explicit admission
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:225:90)
+      at parseProject (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:254:54)
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:227:12)
+(fail) previous modes preserve outside baseUrl as ordinary namespace probes [5.57ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+Ran 1 test across 1 file. [532.00ms]

@@ -1,0 +1,14 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/browser-t2-policy.test.ts:
+(pass) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream cited scenario [2397.14ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream missing cited scenario [2312.43ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-009] refuses resealed upstream invalid cited scenario [2356.48ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-008] active foreign-capability citations and nested debt remain independent [1327.93ms]
+(pass) [BROWSER-T2-POLICY-PREVIEW-012] captured proposal bytes survive later path edits [2378.53ms]
+
+ 5 pass
+ 85 filtered out
+ 0 fail
+ 19 expect() calls
+Ran 5 tests across 1 file. [11.76s]

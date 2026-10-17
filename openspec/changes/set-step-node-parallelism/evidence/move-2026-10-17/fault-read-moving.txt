@@ -1,0 +1,68 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+110 |         { workItemId: 'sibling', stepId: 'qa', maxParallel: 2 },
+111 |         stamp,
+112 |       );
+113 |       const before = await fixture.snapshot();
+114 |       const { workItems } = installWorkItem(requirements);
+115 |       expect(await workItems.move('moving', 'owner', move)).toEqual({
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 8
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:115:61)
+(fail) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [26.88ms]
+110 |         { workItemId: 'sibling', stepId: 'qa', maxParallel: 2 },
+111 |         stamp,
+112 |       );
+113 |       const before = await fixture.snapshot();
+114 |       const { workItems } = installWorkItem(requirements);
+115 |       expect(await workItems.move('moving', 'owner', move)).toEqual({
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 12
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:115:61)
+(fail) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [3.14ms]
+
+ 0 pass
+ 14 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1.87s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 497889280, "exitCode": 1}

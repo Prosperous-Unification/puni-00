@@ -1,0 +1,17 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-provenance.test.ts:
+(pass) review binding caches frozen exact sha1 scalars without ambient reads or parser budget [106.89ms]
+(pass) review binding caches frozen exact sha256 scalars without ambient reads or parser budget [98.25ms]
+(pass) review binding refuses primitive, copied, inherited and poisoned owners without property reads [92.33ms]
+(pass) legacy review binding keeps null despite an irrelevant supplied history pin [79.52ms]
+(pass) request binding is detached before an owner callback mutates the caller request [88.48ms]
+(pass) failed wrong-raw history publishes no review binding [86.85ms]
+(pass) failed repinned-noncanonical history publishes no review binding [97.91ms]
+(pass) failed malformed history publishes no review binding [97.88ms]
+(pass) final held-owner failure publishes no binding even for an internally captured candidate [91.54ms]
+
+ 9 pass
+ 0 fail
+ 55 expect() calls
+Ran 9 tests across 1 file. [1.80s]

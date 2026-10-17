@@ -1,0 +1,48 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  doc-caps (skip) no matching staged files
+│  migration-lint (skip) no files for inspection
+│  website-migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 3.10 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ format (0.39 seconds)
+✓ lint (3.06 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+[refactor/domain-verification d49abda03] refactor(wbs): extract domain verification capture
+ 5 files changed, 171 insertions(+), 82 deletions(-)
+ create mode 100644 libs/wbs/adapters/store-sqlite/src/domain-verification.ts
+ create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/intent.md
+ create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/negative.log
+ create mode 100644 openspec/changes/wbs-burokrat-evaluation/evidence/domain-verification-boundary/verify.md

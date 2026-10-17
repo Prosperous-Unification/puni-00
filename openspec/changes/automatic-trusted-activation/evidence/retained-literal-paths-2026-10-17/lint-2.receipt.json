@@ -1,0 +1,11 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 661123072,
+  "exitCode": 0
+}

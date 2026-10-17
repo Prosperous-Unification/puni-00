@@ -4,6 +4,7 @@ export * from './certification';
 export * from './source-conformance';
 export * from './source-declaration';
 export * from './space-store-conformance';
+export * from './step-parallel-conformance';
 export * from './stores/history-batch';
 export * from './stores/saved-plan-capture';
 export * from './stores/subtrees';

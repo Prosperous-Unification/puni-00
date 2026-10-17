@@ -2,7 +2,10 @@ import { describe, expect, it } from 'bun:test';
 
 import type { CaseId } from '../case-manifest';
 import { SOURCE_CONFORMANCE_CASES } from '../certification';
-import { sourceConformanceRegistrations } from '../source-conformance';
+import {
+  type SourceConformanceOpeners,
+  sourceConformanceRegistrations,
+} from '../source-conformance';
 
 describe('the migrated existing store kits', () => {
   it('preserves the original IDs and adds each completed family inventory', () => {
@@ -21,6 +24,7 @@ describe('the migrated existing store kits', () => {
       progress: unopened,
       attempts: unopened,
       blockages: unopened,
+      stepParallels: unopened,
       dependencies: unopened,
       typedDependencies: unopened,
       directory: unopened,
@@ -31,7 +35,7 @@ describe('the migrated existing store kits', () => {
       savedPlans: unopened,
       savedPlanCapture: unopened,
       historyBatch: unopened,
-    };
+    } satisfies SourceConformanceOpeners;
     const memoryRegistrations = sourceConformanceRegistrations(
       { historyAdmission: 'independent-write' },
       openers,
@@ -50,6 +54,7 @@ describe('the migrated existing store kits', () => {
     // exactly those three IDs absent (`Expected - 3 / Received + 0`).
     // Proof: before savedPlanRegistrations joined the production catalog, this
     // failed with exactly the two Task 6.1 IDs absent (`Expected - 2 / Received + 0`).
+    // Proof: removing the production sparse registration failed this exact inventory (2026-10-17).
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'livePlans.read:legacy-and-absence',
       'projects.create:steps',
@@ -108,6 +113,7 @@ describe('the migrated existing store kits', () => {
       'attempts.moveAll:ownership',
       'attempts.moveAll:issued',
       'blockages.set:read-remove',
+      'stepParallels.set:sparse-replace-remove',
       'dependencies.listByWorkItems:incident-scope',
       'dependencies.add:idempotent-pair',
       'dependencies.remove:pair',
@@ -140,6 +146,7 @@ describe('the migrated existing store kits', () => {
     ]);
     // Proof: before the independent implemented inventory was repaired, this
     // complete equality failed with the five work-item and two directory IDs absent.
+    // Proof: removing the independent sparse ID failed this equality (2026-10-17).
     const implementedCaseIds: CaseId[] = [...SOURCE_CONFORMANCE_CASES];
     expect(implementedCaseIds).toEqual([
       ...sqliteRegistrations.map(({ caseId }) => caseId),

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "--test-name-pattern",
+    "exact ceilings|runtime ledger"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 343232,
+  "ceilingKiB": 921600
+}

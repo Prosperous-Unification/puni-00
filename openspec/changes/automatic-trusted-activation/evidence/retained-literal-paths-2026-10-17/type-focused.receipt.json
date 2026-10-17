@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--project",
+    "openspec/changes/automatic-trusted-activation/evidence/retained-literal-paths-2026-10-17/focused-tests.tsconfig.json",
+    "--noEmit",
+    "--incremental",
+    "false"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 450195456,
+  "exitCode": 0
+}

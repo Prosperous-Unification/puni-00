@@ -1,0 +1,68 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 23519232, "exitCode": 1}
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > captures ordered detached explicit facts including equality and sibling absence [1.57ms]
+(pass) saved sparse step parallelism > validates and captures the same maximum from a changing accessor [0.09ms]
+(pass) saved sparse step parallelism > upgrades schema7 to absent overrides without changing historical bytes [0.18ms]
+(pass) saved sparse step parallelism > compares additions removals and maximum changes by structured pair [1.49ms]
+101 |       expect(
+102 |         diffPlans(
+103 |           side(facts),
+104 |           side(facts.map((fact, index) => (index === at ? { ...fact, maxParallel: 4 } : fact))),
+105 |         ).input,
+106 |       ).toEqual([
+              ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "category": "capacity",
+-     "left": 1,
+-     "path": "stepParallels[a:b%3Ac].maxParallel",
+-     "right": 4,
+-   },
+- ]
++ []
+
+- Expected  - 8
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:106:9)
+(fail) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [0.53ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at capture [0.05ms]
+(pass) saved sparse step parallelism > refuses missing parallel facts at stored read [0.02ms]
+(pass) saved sparse step parallelism > refuses malformed parallel facts at capture
+(pass) saved sparse step parallelism > refuses malformed parallel facts at stored read
+(pass) saved sparse step parallelism > refuses null fact parallel facts at capture [0.10ms]
+(pass) saved sparse step parallelism > refuses null fact parallel facts at stored read
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at capture
+(pass) saved sparse step parallelism > refuses duplicate parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at capture
+(pass) saved sparse step parallelism > refuses parent owner parallel facts at stored read
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at capture
+(pass) saved sparse step parallelism > refuses unknown step parallel facts at stored read [0.03ms]
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses string maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses fractional maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses zero maximum parallel facts at stored read [0.01ms]
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses oversized maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at capture
+(pass) saved sparse step parallelism > refuses missing maximum parallel facts at stored read
+(pass) saved sparse step parallelism > refuses malformed owner list while validating stored parallel facts [0.06ms]
+(pass) saved sparse step parallelism > refuses malformed step list while validating stored parallel facts
+(pass) saved sparse step parallelism > refuses malformed owner row while validating stored parallel facts [0.01ms]
+(pass) saved sparse step parallelism > refuses malformed step row while validating stored parallel facts
+
+1 tests failed:
+(fail) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [0.53ms]
+
+ 32 pass
+ 1 fail
+ 45 expect() calls
+Ran 33 tests across 1 file. [26.00ms]

@@ -1,0 +1,12 @@
+[
+  {
+    "check": "lint-mounted",
+    "argv": [
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"
+    ],
+    "capMiB": 1280,
+    "exitCode": 1
+  }
+]

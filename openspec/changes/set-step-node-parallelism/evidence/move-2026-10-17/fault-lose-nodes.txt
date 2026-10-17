@@ -1,0 +1,78 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+116 |                   { kind: 'moveWorkItem', ...move },
+117 |                 ],
+118 |               }
+119 |             : { commands: [{ kind: 'moveWorkItem', ...move }] },
+120 |         );
+121 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 0,
+      "error": "referenced_by_step_parallel",
+      "kind": "moveWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "0c38a0d8-2a47-471d-a62f-2d3990a9ba3f",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "0d1f990b-4faf-483b-bcab-1652b66034f4",
+-         "workItemId": "parent",
+-       },
+-     ],
++     "nodes": [],
+    },
+    "status": 409,
+  }
+
+- Expected  - 10
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:121:24)
+(fail) move sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [579.79ms]
+116 |                   { kind: 'moveWorkItem', ...move },
+117 |                 ],
+118 |               }
+119 |             : { commands: [{ kind: 'moveWorkItem', ...move }] },
+120 |         );
+121 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 1,
+      "error": "referenced_by_step_parallel",
+      "kind": "moveWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "d1bc9b1e-8a30-48e2-824b-fc2a947c4b67",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "10d683be-e434-42f4-bb10-9291ad653372",
+-         "workItemId": "parent",
+-       },
+-     ],
++     "nodes": [],
+    },
+    "status": 409,
+  }
+
+- Expected  - 10
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:121:24)
+(fail) move sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [445.18ms]
+
+ 0 pass
+ 6 filtered out
+ 2 fail
+ 12 expect() calls
+Ran 2 tests across 1 file. [2.97s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 641351680, "exitCode": 1}

@@ -1,0 +1,49 @@
+apps/wbs/be-01/src/app.routes.test.ts 179ms (unchanged)
+apps/wbs/be-01/src/app.test.ts 26ms (unchanged)
+apps/wbs/be-01/src/app.ts 41ms (unchanged)
+apps/wbs/be-01/src/boot.ts 24ms (unchanged)
+apps/wbs/be-01/src/controller/auth.integration.test.ts 50ms (unchanged)
+apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts 28ms (unchanged)
+apps/wbs/be-01/src/controller/calendar-marker.controller.db.test.ts 63ms (unchanged)
+apps/wbs/be-01/src/controller/capacity-body.db.test.ts 28ms (unchanged)
+apps/wbs/be-01/src/controller/directory.controller.db.test.ts 58ms (unchanged)
+apps/wbs/be-01/src/controller/history.controller.test.ts 8ms (unchanged)
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts 72ms
+apps/wbs/be-01/src/controller/internal.integration.test.ts 12ms (unchanged)
+apps/wbs/be-01/src/controller/oidc-identity.controller.db.test.ts 154ms (unchanged)
+apps/wbs/be-01/src/controller/oidc.integration.test.ts 81ms (unchanged)
+apps/wbs/be-01/src/controller/priority-ladder-body.db.test.ts 16ms (unchanged)
+apps/wbs/be-01/src/controller/project.controller.test.ts 114ms (unchanged)
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts 77ms (unchanged)
+apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts 88ms
+apps/wbs/be-01/src/controller/step.controller.db.test.ts 97ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts 35ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-copy.controller.db.test.ts 19ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts 20ms (unchanged)
+apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts 27ms (unchanged)
+apps/wbs/be-01/src/controller/undo.controller.db.test.ts 20ms (unchanged)
+apps/wbs/be-01/src/controller/work-item.controller.test.ts 299ms (unchanged)
+apps/wbs/be-01/src/health.db.test.ts 10ms (unchanged)
+apps/wbs/be-01/src/migrate.test.ts 3ms (unchanged)
+apps/wbs/be-01/src/testing/app-fixture.ts 4ms (unchanged)
+apps/wbs/be-01/src/testing/browser-lifecycle-mounted.worker.ts 12ms (unchanged)
+apps/wbs/be-01/src/testing/organization-harness.ts 37ms (unchanged)
+libs/wbs/adapters/store-memory/src/testing/service-fixtures.ts 6ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts 54ms
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts 33ms
+libs/wbs/application/core/src/http/project.routes.test.ts 6ms (unchanged)
+libs/wbs/application/core/src/http/project.routes.ts 20ms
+libs/wbs/application/core/src/module/plan-document/README.md 24ms (unchanged)
+libs/wbs/application/core/src/module/plan-document/check.ts 4ms
+libs/wbs/application/core/src/module/plan-document/contract.ts 1ms (unchanged)
+libs/wbs/application/core/src/module/plan-document/module.test.ts 8ms
+libs/wbs/application/core/src/module/plan-document/module.ts 3ms (unchanged)
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts 55ms
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts 51ms
+libs/wbs/application/core/src/ports/shared-people-values.ts 4ms (unchanged)
+libs/wbs/application/core/src/testing/import-service-source-contract.ts 84ms (unchanged)
+libs/wbs/domain/contracts/src/http/project-shapes.ts 12ms
+libs/wbs/domain/contracts/src/http/refusal.ts 15ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 42ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 8ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 527413248, "exitCode": 0}

@@ -1125,3 +1125,39 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 
 - **WHEN** source and built executable dispatch inspect isolated or wrong-level observations
 - **THEN** both preserve complete canonical identity and absent authentication with false certification, and map only wrong-level isolation to exit one
+
+### Requirement: Shared validation isolated Unit runner
+
+`shared-validation:test:unit:level` SHALL collect exactly shared-validation's Unit test files under `src`, use literal `./` operands, preserve the 10000ms timeout and write `tmp/junit/shared-validation.unit.xml`. It SHALL remove that report before selection and refuse empty or failed selection before invoking Bun. The production collection verifier SHALL audit its registration, complete Unit collection, target inventory and report identity. Existing `test` and `test:unit` commands SHALL remain visible as unreported legacy runners without evidence credit.
+
+#### Scenario: [TEST-AXES-148] Shared validation executes its complete isolated Unit collection
+
+- **WHEN** the isolated target runs against the current shared-validation project
+- **THEN** collection names only `src/core.test.ts` and a fresh parseable JUnit report records exactly its three passing cases, while database and TSX tests gain no Unit admission and nested matching decoys do not execute
+
+#### Scenario: [TEST-AXES-149] Shared validation refuses collection drift and stale evidence
+
+- **WHEN** an isolated target is missing, unknown, omits a new Unit file, admits another level, writes a different report, or selects no files or fails selection
+- **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report, and unchanged legacy commands remain classified without report credit
+
+### Requirement: Bun report observations bind selected sources without claiming level authority
+
+`inspect-bun-test-reports` SHALL require exactly repository, full committed SHA and external report authority operands. Closed schema-1 authority SHALL bind exact revision/candidate, canonical project root, selected project-manifest path/raw digest, own target name and canonical external JUnit path/raw digest. It SHALL read selected regular manifest and case source blobs without executing candidate code or accepting supplied observations. It SHALL decode strict Bun JUnit, preserve every passed/failed/skipped case, refuse equal or conflicting duplicate case identities and bind canonical sorted case/source provenance with ordered nested describe-suite title ancestry (excluding the outer source-file suite). Case identity SHALL be outcome-independent. Level and isolation SHALL remain explicitly unresolved. Every output field SHALL participate in the canonical observation digest, with absent authentication and false certification. Valid failed/skipped observations SHALL exit zero; malformed inputs and disagreement SHALL refuse without JSON. Existing Browser schemas SHALL remain unchanged.
+
+#### Scenario: [TEST-AXES-150] Bun report observations preserve real outcomes and selected source identity
+
+- **GIVEN** real Bun JUnit containing passed failed and skipped cases and exact selected manifest/source pins
+- **WHEN** production inspects the external report
+- **THEN** every outcome and canonical committed source tuple remains visible with unresolved level and isolation and a complete noncertifying digest
+
+#### Scenario: [TEST-AXES-151] Bun report observation refuses input and committed identity disagreement
+
+- **GIVEN** absent unreadable malformed noncanonical symbolic mismatched escaping symlink or digest-inconsistent authority report manifest or source
+- **WHEN** production inspects the report even with working-tree repair
+- **THEN** it refuses by name without partial JSON
+
+#### Scenario: [TEST-AXES-152] Bun report observation refuses duplicate cases and preserves canonical identity
+
+- **GIVEN** reordered cases changed outcomes duplicate identities or parser dependency faults
+- **WHEN** source and installed production dispatch inspect the report
+- **THEN** ordering preserves identity outcome and provenance changes alter the observation digest and duplicate or lost-outcome observations are refused or detected by production assertions

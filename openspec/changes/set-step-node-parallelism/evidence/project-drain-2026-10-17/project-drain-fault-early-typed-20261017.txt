@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+185 |       if (state === 'dependency-refusal')
+186 |         sqlite.run("INSERT INTO dependency (id,project_id,predecessor_id,successor_id) VALUES ('cross','bystander','target','bystander')");
+187 |       if (state === 'typed-dependency-refusal')
+188 |         sqlite.run("INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('cross-typed','bystander','target','whole','bystander','whole','FS')");
+189 |       if (state === 'dependency-refusal' || state === 'typed-dependency-refusal') {
+190 |         expect(() => finishOptimizationDrain(db, 'target')).toThrow('cross-project');
+                                                                  ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "cross-project"
+Received message: "Failed query: select \"step_parallel\".\"work_item_id\", \"step_parallel\".\"step_id\", \"step_parallel\".\"max_parallel\", \"work_item\".\"project_id\", \"step\".\"project_id\", EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = \"step_parallel\".\"work_item_id\") from \"step_parallel\" left join \"work_item\" on \"work_item\".\"id\" = \"step_parallel\".\"work_item_id\" left join \"step\" on \"step\".\"id\" = \"step_parallel\".\"step_id\" where ((\"work_item\".\"project_id\" = ?) or (\"step\".\"project_id\" = ?))\nparams: target,target"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:190:61)
+(fail) typed-dependency-refusal keeps existing precedence before unreadable sparse evidence [161.83ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [384.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 107642880, "exitCode": 1}

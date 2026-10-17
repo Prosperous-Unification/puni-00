@@ -1,0 +1,13 @@
+{
+  "selected": [
+    "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts",
+    "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+    "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+  ],
+  "expected": [
+    "apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts",
+    "libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts",
+    "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+  ],
+  "exactOnce": true
+}

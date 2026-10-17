@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+(pass) authorizes before consulting sparse step references [130.51ms]
+
+ 1 pass
+ 29 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.99s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 538128384, "exitCode": 0}

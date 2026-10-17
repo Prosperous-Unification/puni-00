@@ -1,0 +1,49 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:
+166 |   ] as const) {
+167 |     const { input } = fixture();
+168 |     expect(() => readReviewRuntime({ ...input, limits: { ...input.limits, [key]: 1 } })).toThrow(
+169 |       'ceiling',
+170 |     );
+171 |     expect(() => readReviewRuntime({ ...input, limits: { ...input.limits, [key]: NaN } })).toThrow(
+                                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "positive safe integer"
+
+Received function did not throw
+Received value: {
+  closure: {
+    compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    files: [
+      {
+        byteLength: 6,
+        identity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+        path: "parser.js",
+        role: "program",
+      }, {
+        byteLength: 8,
+        identity: "e996bb0ea465fae70d3e3c66b3b6e02d33d2f1eb76d5958720578b6cf359cc2e",
+        path: "typescript.js",
+        role: "dependency",
+      }
+    ],
+    kind: "review-runtime-closure",
+    parserProgramIdentity: "b17d45121150928f2146af49e195eff1eef5d67325be273a733fb74acadaa342",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    schemaVersion: 1,
+  },
+  runtimeClosureIdentity: "a7d7265d46270b8b68a03beebcf7a6d2446a445ed78caddf4abd618088a32156",
+  readFile: [Function: readFile],
+}
+
+      at <anonymous> (/tmp/puni-runtime-closure-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.test.ts:171:92)
+(fail) bounds admission and subsequent copy allocations and reads [9.37ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [933.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 329871360, "exitCode": 1}

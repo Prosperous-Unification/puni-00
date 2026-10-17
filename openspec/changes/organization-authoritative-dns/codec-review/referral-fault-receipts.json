@@ -1,0 +1,23 @@
+[
+  {
+    "fault": "terminal-negative",
+    "command": ["bun", "test", "apps/wbs/be-01/src/runtime/authoritative-dns/referral.test.ts"],
+    "exit": 1,
+    "observed": "requires terminal negatives for recursive discovery NS: referral",
+    "mutation": "remove recursive negative SOA guard"
+  },
+  {
+    "fault": "answer-section",
+    "command": ["bun", "test", "apps/wbs/be-01/src/runtime/authoritative-dns/referral.test.ts"],
+    "exit": 1,
+    "observed": "requires terminal negatives for recursive discovery A: additional_positive",
+    "mutation": "function readRoutingRecords<T extends 'NS' | 'A' | 'AAAA'>(\n  reply: DnsPacket,\n  name: string,\n  type: T,\n): readonly (DnsStringAnswer & { readonly type: T })[] {\n  const routing = [...reply.answers, ...reply.authorities, ...reply.additionals];\n  const rcode = reply.flags & 15;\n  // Proof: bypassing routing rcode failed\n  // `tries the next configured recursive resolver only after modeled failure` (2026-10-16).\n  if (rcode !== 0 && rcode !== 3) throw new DnsUnavailableError('DNS routing response unavailable');\n  // Proof: bypassing routing alias failed\n  // `refuses invalid recursive authority evidence: alias` (2026-10-16).\n  if (\n    [...routing, ...reply.authorities, ...reply.additionals].some(\n      (record) =>\n        (record.type === 'CNAME' || record.type === 'DNAME') && encloses(record.name, name),\n    )\n  )\n    throw new DnsUnavailableError('DNS alias substitution refused');\n  // Proof: bypassing routing NXDOMAIN failed\n  // `refuses invalid recursive authority evidence: nxdomain_answer` (2026-10-16).\n  if (rcode === 3 && routing.length > 0)\n    throw new DnsUnavailableError('DNS contradictory routing negative refused');\n  // Proof: bypassing routing owner failed\n  // `refuses invalid recursive authority evidence: owner` (2026-10-16).\n  if (routing.some((record) => record.name.toLowerCase() !== name || record.type !== type))\n    throw new DnsUnavailableError('DNS routing owner or type refused');\n  if (routing.length === 0 &&\n      !reply.authorities.some((record) => record.type === 'SOA' && encloses(record.name, name)))\n    throw new DnsUnavailableError('DNS routing negative lacks enclosing SOA');\n  // Boundary: the checks above classify every answer as the requested IN\n  // routing type; the pinned codec decodes these checked RDATA spans to strings.\n  return routing as readonly (DnsStringAnswer & { readonly type: T })[];\n}\n\n"
+  },
+  {
+    "fault": "enclosing-soa",
+    "command": ["bun", "test", "apps/wbs/be-01/src/runtime/authoritative-dns/referral.test.ts"],
+    "exit": 1,
+    "observed": "requires terminal negatives for recursive discovery AAAA: non_enclosing_soa",
+    "mutation": "remove enclosing owner predicate from recursive SOA check"
+  }
+]

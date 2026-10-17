@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:
+(pass) exact extraction owner rejects impostors without reading their properties [182.12ms]
+(pass) exact extraction snapshots freeze before callbacks while caller inputs stay mutable [120.28ms]
+(pass) exact extraction deeply freezes envelope without changing enumerable canonical bytes [131.18ms]
+259 |       );
+260 |     } finally {
+261 |       freezing.mockRestore();
+262 |     }
+263 |     for (const attempted of registered)
+264 |       expect(() => extraction.readRetainedTypeScriptExtractionProvenance(attempted)).toThrow(
+                                                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained TypeScript extraction required"
+
+Received function did not throw
+Received value: {
+  request: {
+    configPaths: [ "tsconfig.json" ],
+    publicEntrypoints: [ "index.ts" ],
+  },
+  provenance: {
+    snapshotIdentity: "a8f003d0e4159a64c4579c7ed64b396f3ea4487b1d52296412eb5d510f47bfcf",
+    classificationPolicyIdentity: "ea77d3a232de029273e3ca761024c4528b64f56b76e29689ce9edb106f65f339",
+    runtimeClosureIdentity: "c678436fb3bbcfd52db094e5fbc1aefe35a52198bfdf43aab54d0dae0ee3465d",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    runtimeTrust: "unverified",
+    namespacePolicyIdentity: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+  },
+}
+
+      at <anonymous> (/tmp/retained-owner-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-owner.test.ts:264:86)
+(fail) exact extraction registers only after compiler cap and freeze succeed [143.92ms]
+
+ 3 pass
+ 1 fail
+ 70 expect() calls
+Ran 4 tests across 1 file. [1.54s]
