@@ -175,7 +175,7 @@ describe('bounded retained proof scheduling against SQLite', () => {
       let at = START + 7 * DAY;
       const counts: number[] = [];
       let waiting = Promise.withResolvers<undefined>();
-      let advance = () => {
+      let advance: () => void = () => {
         throw new Error('scheduler is not waiting');
       };
       const worker = startDomainProofWorker({

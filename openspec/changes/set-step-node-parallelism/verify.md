@@ -1467,3 +1467,29 @@ Receipts are retained in
 `evidence/integration-migration-gate-2026-10-17/manifest.json`, including the exact
 host reflog used by the safety runbook (UTC). Normal commit hooks and final
 containing-commit identity are external delivery receipts after review.
+
+## Final old-gate fixture corrections (2026-10-17)
+
+The old-SHA saved-plan newer-node case still expected only input schemas1–7,
+although schema8 and its supported-version registry were already implemented.
+Its focused RED showed only the additional actual8; the exact501 payload
+expectation now includes it. Independently filtering8 out of production
+`versionRefusal` failed that exact payload assertion. The production route was
+restored byte-for-byte before the full controller file passed44/44 cases.
+The other named migration CLI failure already passed at `fb7917` from the
+preceding newest-migration correction; no duplicate edit was made.
+
+The organization worker scheduling fixture initialized a callback with a throwing
+arrow, inferring `() => never`, then assigned its normal tick resolver returning
+void. The focused spec-derived one-file typecheck reproduced only TS2322 at the
+assignment. Declaring the callback `() => void` retains the initial throw and
+allows its actual scheduler lifecycle without a cast. The same typecheck then
+passed; all12 worker database cases passed. Neither correction changes production
+code, contracts, OpenSpec behavior or safety checks.
+
+Exact command scope, source hashes and raw/compressed receipt identities are in
+`evidence/integration-final-fixtures-2026-10-17/manifest.json`. The900MiB worker
+typecheck attempt was killed before diagnostics and is disqualified; authorized
+1400MiB RED and GREEN runs reached the compiler. Local full backend and host exact
+gate completion remain unclaimed. Normal commit hooks and final containing-commit
+identity are external receipts delivered after review.
