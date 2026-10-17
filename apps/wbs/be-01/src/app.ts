@@ -1,4 +1,5 @@
 import type { SessionFeatures } from '@wbs/contracts';
+import type { StepParallelStore } from '@wbs/core';
 import type {
   Broadcaster,
   CapacityModeSwitch,
@@ -192,6 +193,8 @@ export interface AppOptions {
   emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
+  /** Required sparse read capability for versioned JSON export preservation. */
+  stepParallels: Pick<StepParallelStore, 'listByProject'>;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
   optimizer?: Pick<OptimizationCoordinator, 'retry'>;
   /**
@@ -559,6 +562,7 @@ export function mountedEndpoints(
       opts.directory,
       opts.calendarMarkers,
       opts.clock,
+      opts.stepParallels,
       opts.optimizer,
     ),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),

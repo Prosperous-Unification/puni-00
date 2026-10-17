@@ -1,3 +1,4 @@
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
@@ -55,6 +56,7 @@ describe('migrate lifecycle', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
       projects: testProjectService(),

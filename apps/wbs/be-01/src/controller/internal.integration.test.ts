@@ -1,3 +1,4 @@
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -61,6 +62,7 @@ function buildHarness() {
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     // Local mode: the forwarded principal is the fixed local identity.
     auth: testLocalAuthService({ id: 'ada', username: 'ada', scopes: ['read', 'write'] }),

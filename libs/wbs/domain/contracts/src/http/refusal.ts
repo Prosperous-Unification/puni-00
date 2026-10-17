@@ -256,6 +256,8 @@ export type CommandRefusalDetail = {
 };
 
 type BareRefusalCode =
+  // Proof: omission failed the closed-registry compiler case with TS2345 (mutation-registry.txt, 2026-10-17).
+  | 'unsupported_step_parallelism'
   | 'step_blockage_inactive'
   | 'unauthenticated'
   | 'insufficient_scope'

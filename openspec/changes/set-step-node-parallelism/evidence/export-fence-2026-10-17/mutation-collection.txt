@@ -1,0 +1,64 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /without step parallelism/
+Received message: "undefined is not an object (evaluating 'fact of held')"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: missing collection [0.77ms]
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /without step parallelism/
+Received message: "null is not an object (evaluating 'fact of held')"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: null collection [3.92ms]
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /without step parallelism/
+Received message: "{} is not iterable"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: object collection [0.08ms]
+(pass) v9 refuses corrupt captured sparse evidence: array row [0.11ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing maximum [0.08ms]
+(pass) v9 refuses corrupt captured sparse evidence: string maximum
+(pass) v9 refuses corrupt captured sparse evidence: null row
+(pass) v9 refuses corrupt captured sparse evidence: numeric owner
+(pass) v9 refuses corrupt captured sparse evidence: numeric step
+(pass) v9 refuses corrupt captured sparse evidence: missing owner [0.04ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing step [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: fraction [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: zero
+(pass) v9 refuses corrupt captured sparse evidence: too large
+(pass) v9 refuses corrupt captured sparse evidence: duplicate [0.02ms]
+
+ 12 pass
+ 58 filtered out
+ 3 fail
+ 15 expect() calls
+Ran 15 tests across 1 file. [1.77s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 506667008, "exitCode": 1}

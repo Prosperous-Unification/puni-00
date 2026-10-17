@@ -52,6 +52,7 @@ import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 
 import { buildApp } from '../app';
@@ -369,6 +370,7 @@ export class OrganizationHarness {
     const projects = new ProjectRepository(db, OPEN);
     const directoryStore = new DirectoryRepository(db, OPEN);
     const writing = {
+      stepParallels: new StepParallelRepository(db, OPEN),
       directory: new DirectoryService({
         clock: testClock,
         directory: directoryStore,
@@ -649,6 +651,7 @@ export class OrganizationHarness {
       },
       steps: services.steps,
       calendarMarkers: services.calendarMarkers,
+      stepParallels: source.stores.stepParallels,
       workItems: services.workItems,
       optimizer: services.optimizer,
       savedPlans: services.savedPlans,

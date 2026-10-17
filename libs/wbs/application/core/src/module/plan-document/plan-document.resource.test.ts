@@ -226,6 +226,7 @@ function directory(): Pick<
 function service(directorySource = directory()) {
   return new PlanDocumentService({
     directory: directorySource,
+    stepParallels: { listByProject: () => Promise.resolve([]) },
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => Date.parse('2026-09-13T12:30:00.000Z') },
   });
@@ -940,6 +941,7 @@ test('v9 excludes derived blockage causes and captured exports retain the same f
       externalSystems: await directory().listExternalSystems(),
     },
     markers: MARKERS,
+    stepParallels: [],
   });
   expect(captured).toEqual({ ok: true, value: exported });
 });
@@ -1040,4 +1042,216 @@ test('plan document excludes derived node resources from isolated and captured e
   };
   const exported = await exportDocument(tree);
   expect(exported.workItems[0]).not.toHaveProperty('nodeResources');
+});
+
+test('v9 refuses authored sparse parallelism on direct and captured JSON exports', async () => {
+  const parallel = { workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 };
+  const writer = new PlanDocumentService({
+    directory: directory(),
+    markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
+    clock: { now: () => 0 },
+    stepParallels: {
+      listByProject: (projectId) => {
+        if (projectId !== PROJECT.id) throw new Error('wrong sparse project');
+        return Promise.resolve([parallel]);
+      },
+    },
+  });
+  expect(await writer.export(PROJECT, TREE, LEGACY_ACCESS)).toEqual({
+    ok: false,
+    error: 'unsupported_step_parallelism',
+  });
+  expect(
+    writer.exportCaptured(PROJECT, TREE, {
+      directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+      markers: [],
+      stepParallels: [parallel],
+    }),
+  ).toEqual({ ok: false, error: 'unsupported_step_parallelism' });
+});
+
+for (const [name, sparse, message] of [
+  ['missing collection', undefined, /without step parallelism/],
+  ['null collection', null, /without step parallelism/],
+  ['object collection', {}, /without step parallelism/],
+  ['array row', [[]], /malformed step parallelism/],
+  ['missing maximum', [{ workItemId: 'row-1', stepId: 'step-1' }], /malformed step parallelism/],
+  [
+    'string maximum',
+    [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: '2' }],
+    /malformed step parallelism/,
+  ],
+  ['null row', [null], /malformed step parallelism/],
+  [
+    'numeric owner',
+    [{ workItemId: 1, stepId: 'step-1', maxParallel: 2 }],
+    /malformed step parallelism/,
+  ],
+  [
+    'numeric step',
+    [{ workItemId: 'row-1', stepId: 1, maxParallel: 2 }],
+    /malformed step parallelism/,
+  ],
+  [
+    'missing owner',
+    [{ workItemId: 'missing', stepId: 'step-1', maxParallel: 2 }],
+    /unknown work item/,
+  ],
+  ['missing step', [{ workItemId: 'row-1', stepId: 'missing', maxParallel: 2 }], /unknown step/],
+  [
+    'fraction',
+    [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 1.5 }],
+    /integer from 1 to 1000/,
+  ],
+  ['zero', [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 0 }], /integer from 1 to 1000/],
+  [
+    'too large',
+    [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 1001 }],
+    /integer from 1 to 1000/,
+  ],
+  [
+    'duplicate',
+    Array(2).fill({ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }),
+    /duplicate step parallelism/,
+  ],
+] as const) {
+  test(`v9 refuses corrupt captured sparse evidence: ${name}`, () => {
+    const reads = {
+      directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+      markers: [],
+      stepParallels: sparse,
+    };
+    expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+  });
+}
+
+test('v9 direct export propagates unreadable sparse state', async () => {
+  const failure = new Error('sparse state unreadable');
+  const writer = new PlanDocumentService({
+    directory: directory(),
+    markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
+    clock: { now: () => 0 },
+    stepParallels: { listByProject: () => Promise.reject(failure) },
+  });
+  const caught = await writer.export(PROJECT, TREE, LEGACY_ACCESS).catch((cause: unknown) => cause);
+  expect(caught).toBe(failure);
+});
+
+test('v9 refuses construction without its sparse read capability', () => {
+  expect(
+    () =>
+      new PlanDocumentService({
+        directory: directory(),
+        markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
+        clock: { now: () => 0 },
+      } as never),
+  ).toThrow(/step parallelism reader/);
+});
+
+for (const [name, mutate, message] of [
+  [
+    'foreign owner',
+    (tree: WorkItemTree) => {
+      Reflect.set(tree.workItems[0] ?? {}, 'projectId', 'foreign');
+    },
+    /foreign work item/,
+  ],
+  [
+    'foreign step',
+    (tree: WorkItemTree) => {
+      Reflect.set(tree.steps[0] ?? {}, 'projectId', 'foreign');
+    },
+    /foreign step/,
+  ],
+  [
+    'parent owner',
+    (tree: WorkItemTree) => {
+      tree.workItems.push({ ...tree.workItems[0], id: 'child', parentId: 'row-1' });
+    },
+    /parent work item/,
+  ],
+] as const) {
+  test(`v9 refuses sparse ownership corruption: ${name}`, () => {
+    const tree = structuredClone(TREE);
+    mutate(tree);
+    expect(() =>
+      service().exportCaptured(PROJECT, tree, {
+        directory: {
+          teams: [],
+          people: [],
+          tags: [],
+          services: [],
+          types: [],
+          externalSystems: [],
+        },
+        markers: [],
+        stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+      }),
+    ).toThrow(message);
+  });
+}
+
+test('v9 sparse pair identities never alias at colons', () => {
+  const tree = structuredClone(TREE);
+  const row = tree.workItems.at(0);
+  const step = tree.steps.at(0);
+  if (row === undefined || step === undefined) throw new Error('missing pair fixture');
+  tree.workItems = [
+    { ...row, id: 'a' },
+    { ...row, id: 'a:b' },
+  ];
+  tree.steps = [
+    { ...step, id: 'b:c' },
+    { ...step, id: 'c' },
+  ];
+  expect(
+    service().exportCaptured(PROJECT, tree, {
+      directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+      markers: [],
+      stepParallels: [
+        { workItemId: 'a', stepId: 'b:c', maxParallel: 1 },
+        { workItemId: 'a:b', stepId: 'c', maxParallel: 1 },
+      ],
+    }),
+  ).toEqual({ ok: false, error: 'unsupported_step_parallelism' });
+});
+
+test('v9 zero-fact export retains canonical bytes', async () => {
+  const bytes = JSON.stringify(await exportDocument());
+  expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
+    '61243efaf10088375accb4ab8c3e449255c2fd3483558282dfc6f8e0e793f6a2',
+  );
+});
+
+test('uncoded steps retain precedence over unreadable sparse export evidence', async () => {
+  const tree = structuredClone(TREE);
+  const step = tree.steps.at(0);
+  if (step === undefined) throw new Error('missing uncoded fixture');
+  step.code = null;
+  const writer = new PlanDocumentService({
+    directory: directory(),
+    markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
+    clock: { now: () => 0 },
+    stepParallels: {
+      listByProject: () => Promise.reject(new Error('must not read before uncoded refusal')),
+    },
+  });
+  expect(await writer.export(PROJECT, tree, LEGACY_ACCESS)).toEqual({
+    ok: false,
+    error: 'uncoded_steps',
+    steps: [{ id: 'step-1', name: 'Build' }],
+    command: 'bun run src/backfill-step-codes-cli.ts',
+  });
+  expect(
+    writer.exportCaptured(PROJECT, tree, {
+      directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+      markers: [],
+      stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+    }),
+  ).toEqual({
+    ok: false,
+    error: 'uncoded_steps',
+    steps: [{ id: 'step-1', name: 'Build' }],
+    command: 'bun run src/backfill-step-codes-cli.ts',
+  });
 });

@@ -185,3 +185,31 @@ sibling and foreign facts. Mixed units of work SHALL roll back removal and earli
 - **GIVEN** service preflight observes no generic usage
 - **WHEN** another write retains a Dev parallelism fact before authoritative removal
 - **THEN** the transaction refuses removal with the current exact Dev references
+
+### Requirement: Version 9 JSON exports refuse unsupported authored parallelism
+
+The current version 9 JSON writer SHALL refuse a valid nonempty sparse parallelism collection
+with HTTP 409 and exactly `{ "error": "unsupported_step_parallelism" }`. Explicit equality
+with the row default SHALL count as authored policy. The private captured export evidence SHALL
+require sparse facts read from the same SQLite observation as the shared project and tree;
+isolated exports SHALL read their required project sparse store. Missing, unreadable or corrupt
+trusted evidence SHALL throw before document construction. Validation SHALL reject malformed
+collections and rows, invalid maxima, duplicate structured pairs, unknown or foreign owners or
+steps and parent ownership. Empty sparse evidence SHALL preserve version 9 canonical bytes.
+Uncoded-step refusal SHALL precede the modeled unsupported-policy refusal for valid sparse
+evidence. Shared trusted-state failures SHALL throw during capture even when steps are uncoded.
+Markdown projection, imports and the document version SHALL retain their existing contracts. Export refusal SHALL change no authored fact, revision, journal
+or event. No public sparse writer is enabled by this fence.
+
+#### Scenario: Retained equality cannot be silently dropped
+
+- **GIVEN** one leaf step has an explicit maximum equal to its row default
+- **WHEN** its project is exported as JSON in isolated or shared mode
+- **THEN** export refuses with the bare unsupported_step_parallelism 409 and no writes
+- **AND** clearing the final fact restores ordinary version 9 export
+
+#### Scenario: Shared evidence survives later writes
+
+- **GIVEN** a shared export observation captures an authored sparse fact
+- **WHEN** another connection clears that fact before the export response is serialized
+- **THEN** the export still refuses from its detached captured evidence

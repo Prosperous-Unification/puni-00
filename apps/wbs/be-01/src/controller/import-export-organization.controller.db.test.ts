@@ -1,6 +1,7 @@
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
 
@@ -971,5 +972,106 @@ describe('v9 direct blockage transfer', () => {
       expect(refused.body).toEqual({ error: 'invalid_body', path, detail: null });
       expect(sqliteState()).toEqual(before);
     });
+  }
+});
+
+for (const mode of ['isolated', 'shared'] as const) {
+  it(`v9 sparse export fence refuses authored equality without mutation (${mode})`, async () => {
+    const projectId = await assignedProject();
+    const stepId = await firstStep('ada', projectId);
+    const owner = h.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id = ?')
+      .get(projectId);
+    if (owner === null) throw new Error('missing export owner');
+    if (mode === 'shared') {
+      h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    }
+    const empty = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+    expect(empty.status).toBe(200);
+    h.sqlite.run(
+      'INSERT INTO step_parallel (work_item_id, step_id, max_parallel, created_at, updated_at) VALUES (?, ?, 1, 1, 1)',
+      [owner.id, stepId],
+    );
+    const before = sqliteState();
+    for (const actor of ['ada', 'vic']) {
+      const answer = await h.call(actor, 'GET', `/api/projects/${projectId}/export?format=json`);
+      expect(answer).toMatchObject({
+        status: 409,
+        body: { error: 'unsupported_step_parallelism' },
+      });
+      expect(answer.body).toEqual({ error: 'unsupported_step_parallelism' });
+    }
+    expect(
+      (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=markdown`)).status,
+    ).toBe(200);
+    expect(sqliteState()).toEqual(before);
+    h.sqlite.run('DELETE FROM step_parallel WHERE work_item_id = ? AND step_id = ?', [
+      owner.id,
+      stepId,
+    ]);
+    expect(
+      (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+    ).toBe(200);
+  });
+}
+
+for (const mode of ['isolated', 'shared'] as const) {
+  it(`v9 sparse export authorizes before reading sparse facts (${mode})`, async () => {
+    const projectId = await assignedProject();
+    if (mode === 'shared')
+      h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    const unavailable = spyOn(StepParallelRepository.prototype, 'listByProject').mockRejectedValue(
+      new Error('sparse authority must not be read'),
+    );
+    try {
+      expect(
+        (await h.call('grace', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+      ).toBe(404);
+      expect((await h.call('ada', 'GET', '/api/projects/missing/export?format=json')).status).toBe(
+        404,
+      );
+      expect(
+        (await h.call('nell', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+      ).toBe(403);
+      expect(
+        (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+      ).toBe(500);
+    } finally {
+      unavailable.mockRestore();
+    }
+  });
+}
+
+it('v9 sparse export retains uncoded refusal for valid shared evidence', async () => {
+  const projectId = await assignedProject();
+  const stepId = await firstStep('ada', projectId);
+  const owner = h.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE project_id = ?')
+    .get(projectId);
+  if (owner === null) throw new Error('missing export owner');
+  h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+  h.sqlite.run('INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES (?, ?, 1)', [
+    owner.id,
+    stepId,
+  ]);
+  h.sqlite.run('UPDATE step SET code = NULL WHERE id = ?', [stepId]);
+  const answer = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+  expect(answer).toMatchObject({
+    status: 409,
+    body: {
+      error: 'uncoded_steps',
+      steps: [{ id: stepId, name: 'Dev' }],
+      command: 'bun run src/backfill-step-codes-cli.ts',
+    },
+  });
+  const unreadable = spyOn(StepParallelRepository.prototype, 'listByProject').mockRejectedValue(
+    new Error('unreadable sparse evidence'),
+  );
+  try {
+    expect(
+      (await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`)).status,
+    ).toBe(500);
+  } finally {
+    unreadable.mockRestore();
   }
 });

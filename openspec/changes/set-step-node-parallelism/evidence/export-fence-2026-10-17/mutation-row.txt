@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+(pass) v9 refuses corrupt captured sparse evidence: missing collection [0.59ms]
+(pass) v9 refuses corrupt captured sparse evidence: null collection [0.03ms]
+(pass) v9 refuses corrupt captured sparse evidence: object collection
+(pass) v9 refuses corrupt captured sparse evidence: array row [0.17ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing maximum [0.03ms]
+(pass) v9 refuses corrupt captured sparse evidence: string maximum [0.01ms]
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /malformed step parallelism/
+Received message: "Reflect.get requires the first argument be an object"
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: null row [0.26ms]
+(pass) v9 refuses corrupt captured sparse evidence: numeric owner [0.03ms]
+(pass) v9 refuses corrupt captured sparse evidence: numeric step [0.01ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing owner [0.07ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing step [0.03ms]
+(pass) v9 refuses corrupt captured sparse evidence: fraction [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: zero
+(pass) v9 refuses corrupt captured sparse evidence: too large
+(pass) v9 refuses corrupt captured sparse evidence: duplicate [0.04ms]
+
+ 14 pass
+ 58 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 15 tests across 1 file. [1.76s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 503627776, "exitCode": 1}

@@ -4,6 +4,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -115,6 +116,7 @@ function buildHarness(
     directory: testDirectoryService(plan.stores.directory),
     capacity: testCapacityService(projectStore, plan.stores.capacity),
     priorityBands: testPriorityBandService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(projectStore),
     projects,
     workItems,

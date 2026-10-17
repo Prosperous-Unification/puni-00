@@ -1,0 +1,9 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+┃  lint ❯
+
+  ────────────────────────────────────
+summary: (done in 4.18 seconds)
+✓ lint (4.06 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 794906624, "exitCode": 0}

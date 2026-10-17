@@ -1,0 +1,102 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/http/refusal.test.ts:
+(pass) the compiler enforces closed refusal codes, detail variants and command context [356.71ms]
+
+libs/wbs/domain/contracts/src/http/project-shapes.test.ts:
+(pass) preserves seven operation ids and declares both export representations without undo flags [0.90ms]
+(pass) declares the Retry request and every established wire outcome [1.53ms]
+(pass) allows empty names and empty patches while rejecting unknown nested fields [0.95ms]
+(pass) keeps structural and semantic settings rules distinct [0.38ms]
+
+libs/wbs/application/core/src/http/project.routes.test.ts:
+(pass) direct project bindings create, read, patch and record opening with admitted actor [10.18ms]
+(pass) direct project and export failures propagate without conversion to not_found [0.94ms]
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+(pass) preserves the existing JSON export fields [1.51ms]
+(pass) JSON export is a versioned plan document and settings says what project says [10.60ms]
+(pass) capacity-only team is named and assigned agent keeps memberships and owned services [0.17ms]
+(pass) unreferenced tag is excluded [0.09ms]
+(pass) missing referenced entry throws [0.17ms]
+(pass) malformed priority names workItems[3].priority [6.07ms]
+(pass) unknown version precedes version-specific validation [0.61ms]
+(pass) refuses a version-4 document without its typed dependency list [3.40ms]
+(pass) version 5 classifies SS and FF while version 4 keeps its FS-only conversion [5.12ms]
+(pass) version 5 refuses a missing relationship type [0.99ms]
+(pass) the current export keeps SS and FF types from the trusted tree [0.29ms]
+(pass) archival validation projects derived fields away [0.79ms]
+(pass) exports each step’s allowance and reads it back from a current-format file [0.98ms]
+(pass) refuses a current-format file whose step has no allowance [1.18ms]
+(pass) reads a version-1 file through the legacy conversion, every step at 0% [1.18ms]
+(pass) refuses a version-1 file that names a step allowance [0.86ms]
+(pass) exports each step’s code and reads it back from a version-3 file [1.07ms]
+(pass) refuses to export a project holding an uncoded step, naming it [0.20ms]
+(pass) throws on a step read without a code key [0.24ms]
+(pass) throws when the trusted tree omits typed dependencies [0.28ms]
+(pass) throws when a trusted typed endpoint has no step [0.28ms]
+(pass) throws when a trusted typed relationship has an unknown type [0.19ms]
+(pass) refuses a version-3 file whose step has no string code [2.76ms]
+(pass) reads a version-2 file as before codes existed, leaving each code to suggestion [3.80ms]
+(pass) spells each leaf’s step nodes beside their IDs [1.06ms]
+(pass) version 6 carries each row’s readiness and hold, and earlier versions read as nothing said [2.31ms]
+(pass) refuses a version-6 hold or readiness outside its vocabulary or on a parent, and accepts a hold on done work [4.42ms]
+(pass) exports a Kyiv project’s zone and each leaf’s attempts by step code, executors by name [0.85ms]
+(pass) reads a version-7 file’s zone and attempts back, and a version-6 file as UTC with none [1.78ms]
+(pass) refuses a version-7 zone, outcome, order, running pair or running number it cannot hold [8.52ms]
+(pass) version 8 keeps minute step units and refuses missing or unknown written units [2.57ms]
+(pass) v9 exports detached direct blockage facts and excludes row aliases [0.35ms]
+(pass) v9 requires facts and legacy files refuse facts instead of losing them [4.93ms]
+(pass) v9 excludes derived blockage causes and captured exports retain the same facts [0.71ms]
+(pass) v9 trusted export refuses absent leaf map [0.41ms]
+(pass) v9 trusted export refuses unknown step [0.18ms]
+(pass) v9 trusted export refuses unsafe time [0.17ms]
+(pass) v9 trusted export refuses parent owner [0.15ms]
+(pass) v9 classifies malformed facts null [0.71ms]
+(pass) v9 classifies malformed facts {} [0.65ms]
+(pass) v9 classifies malformed facts "wrong" [0.60ms]
+(pass) v9 classifies malformed facts [null] [0.50ms]
+(pass) v9 classifies malformed facts [{"workItemId":1,"stepId":"step-1","blockedAt":1}] [0.50ms]
+(pass) v9 classifies malformed facts [{"workItemId":"row-1","stepId":1,"blockedAt":1}] [0.47ms]
+(pass) v9 classifies malformed facts [{"workItemId":"row-1","stepId":"step-1","blockedAt":1.5}] [0.51ms]
+(pass) v9 classifies malformed facts [{"workItemId":"row-1","stepId":"step-1","blockedAt":9007199254740992}] [0.54ms]
+(pass) legacy row blockage aliases are refused, while empty aliases normalize to no facts [6.63ms]
+(pass) v9 trusted export refuses a malformed leaf blockage map [0.25ms]
+(pass) plan document excludes derived node resources from isolated and captured exports [0.20ms]
+(pass) v9 refuses authored sparse parallelism on direct and captured JSON exports [0.20ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing collection [0.06ms]
+(pass) v9 refuses corrupt captured sparse evidence: null collection
+(pass) v9 refuses corrupt captured sparse evidence: object collection
+(pass) v9 refuses corrupt captured sparse evidence: array row [0.06ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing maximum
+(pass) v9 refuses corrupt captured sparse evidence: string maximum
+(pass) v9 refuses corrupt captured sparse evidence: null row
+(pass) v9 refuses corrupt captured sparse evidence: numeric owner
+(pass) v9 refuses corrupt captured sparse evidence: numeric step
+(pass) v9 refuses corrupt captured sparse evidence: missing owner [0.01ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing step
+(pass) v9 refuses corrupt captured sparse evidence: fraction [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: zero
+(pass) v9 refuses corrupt captured sparse evidence: too large
+(pass) v9 refuses corrupt captured sparse evidence: duplicate [0.01ms]
+(pass) v9 direct export propagates unreadable sparse state [0.12ms]
+(pass) v9 refuses construction without its sparse read capability [0.03ms]
+(pass) v9 refuses sparse ownership corruption: foreign owner [0.12ms]
+(pass) v9 refuses sparse ownership corruption: foreign step [0.06ms]
+(pass) v9 refuses sparse ownership corruption: parent owner [0.05ms]
+(pass) v9 sparse pair identities never alias at colons [0.10ms]
+(pass) v9 zero-fact export retains canonical bytes [0.17ms]
+(pass) uncoded steps retain precedence over unreadable sparse export evidence [0.19ms]
+
+libs/wbs/application/core/src/module/plan-document/module.test.ts:
+(pass) the Plan document module > exports a project with its markers over the graph installPlanDocument wires [8.88ms]
+(pass) the Plan document module > exposes only the contract exports from its installer [1.98ms]
+(pass) the Plan document module > keeps its private bindings out of a host graph [0.45ms]
+(pass) the Plan document module > labels its private bindings with the module name [0.65ms]
+(pass) the Plan document module > names itself when a host omits a requirement [0.60ms]
+
+ 85 pass
+ 0 fail
+ 220 expect() calls
+Ran 85 tests across 5 files. [2.24s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 551989248, "exitCode": 0}

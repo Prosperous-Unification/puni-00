@@ -23,6 +23,8 @@
 - [ ] 3.3 Write copy/import/export/saved-plan version and ID remapping RED; allocate current schema versions.
 - [x] 3.3.1 Write saved-plan schema/capture/diff RED and explicit schema7 upgrade; allocate schema8 only.
 - [x] 3.3.2 Implement detached source captures, canonical policy preservation and current/legacy readers; prove each safety boundary with watched faults.
+- [x] 3.3.3 Write v9 JSON export preservation fence RED for direct/captured evidence and isolated/shared routes.
+- [x] 3.4.1 Implement required same-snapshot sparse export evidence and typed unsupported_step_parallelism refusal; prove changed boundaries.
 - [ ] 3.4 Implement transports, duplication, captures, compatibility readers and recovery tooling.
 - [ ] 3.5 Prove no lifecycle/transfer path drops, invents, widens or silently defaults an override.
 

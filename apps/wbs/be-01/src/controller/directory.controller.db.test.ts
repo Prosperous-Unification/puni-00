@@ -8,6 +8,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
@@ -103,6 +104,7 @@ beforeEach(async () => {
     }),
     capacity: testCapacityService(),
     priorityBands: testPriorityBandService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     projects: new ProjectService({
       dependencyGraph: sqliteDependencyGraph(db, projects),

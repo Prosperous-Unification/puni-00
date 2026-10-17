@@ -1,0 +1,11 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+┃  lint ❯
+Injected lint command failure at apps/wbs/be-01/src/app.routes.test.ts
+
+exit status 7
+  ────────────────────────────────────
+summary: (done in 0.06 seconds)
+✗ lint (0.03 seconds)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 82702336, "exitCode": 1}

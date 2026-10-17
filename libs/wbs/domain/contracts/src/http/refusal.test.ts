@@ -12,6 +12,9 @@ import type {
 
 /** Compiled by the test below; these are type-boundary checks, not production wire proofs. */
 export function refusalTypeCases() {
+  expectTypeOf<Refusal>({ error: 'unsupported_step_parallelism' });
+  // @ts-expect-error The version 9 preservation fence carries no invented detail.
+  expectTypeOf<Refusal>({ error: 'unsupported_step_parallelism', nodes: [] });
   expectTypeOf<RefusalCode>('parentId_must_be_id_or_null');
   expectTypeOf<RefusalCode>('typeRefs_must_be_at_most_10');
   expectTypeOf<RefusalStatus>(405);

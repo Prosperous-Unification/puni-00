@@ -87,3 +87,15 @@ reuse a stale array index or delete a sibling. Service authorization
 runs before adapter reference lookup; resource, closed refusal registry and HTTP
 mappings preserve the typed 409.
 Generic non-cascade usage can retain its existing precedence. No public writer is enabled.
+
+## Version 9 export preservation prerequisite (2026-10-17)
+
+Sparse facts cannot be represented by the current archival writer. Both direct and captured
+JSON serialization validate the required private collection and refuse valid nonempty policy
+with bare `unsupported_step_parallelism`; version 9 and zero-fact canonical bytes remain stable.
+The isolated path receives a required narrow sparse reader through service options and DI,
+with the production application binding its actual same-database repository. The shared path
+captures and copies that collection inside its existing read transaction, before closing the
+owned connection. It never rereads through the isolated port after capture. Existing modeled
+uncoded-step precedence applies to valid evidence; unreadable or corrupt shared evidence
+throws while being captured under R5. Markdown remains a human schedule projection.

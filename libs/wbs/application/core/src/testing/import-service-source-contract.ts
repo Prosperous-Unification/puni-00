@@ -260,6 +260,7 @@ async function exportDocument(
   if (timezone === null) throw new Error(`imported project has no timezone: ${projectId}`);
   const exported = await new PlanDocumentService({
     directory: source.stores.directory,
+    stepParallels: source.stores.stepParallels,
     markers: graph.calendarMarkers,
     clock,
   }).export({ ...project, timezone }, tree, LEGACY_ACCESS);

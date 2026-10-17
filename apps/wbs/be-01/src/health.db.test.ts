@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from './app';
@@ -63,6 +64,7 @@ describe('GET /health', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
       projects: testProjectService(),
@@ -102,6 +104,7 @@ describe('GET /health', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
       projects: testProjectService(),
@@ -152,6 +155,7 @@ describe('/health tells the truth about the database', () => {
         capacity: testCapacityService(),
         priorityBands: testPriorityBandService(),
         history: testHistoryService(),
+        stepParallels: testStepParallels(),
         calendarMarkers: testCalendarMarkerService(),
         auth: testAuthService(),
         projects: testProjectService(),
@@ -205,6 +209,7 @@ describe('/health tells the truth about the database', () => {
         capacity: testCapacityService(),
         priorityBands: testPriorityBandService(),
         history: testHistoryService(),
+        stepParallels: testStepParallels(),
         calendarMarkers: testCalendarMarkerService(),
         auth: testAuthService(),
         projects: testProjectService(),
@@ -248,6 +253,7 @@ describe('/health tells the truth about the database', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       auth: testAuthService(),
       projects: testProjectService(),

@@ -4,7 +4,7 @@
 
 The first sealed resource module in the core, following the six feature modules' pattern:
 `module.ts` seals the graph, `check.ts` is the only place that builds a bag, and `contract.ts`
-states the directory reads, the owner-neutral marker read and the clock a host must supply.
+states the directory reads, the owner-neutral marker read, required project sparse parallelism read and the clock a host must supply.
 
 `plan-document.resource.ts` (the moved `service/plan-document.ts`) builds the versioned archival
 document around a project tree, naming every directory row the tree references, and classifies an

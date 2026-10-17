@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts:
+1901 |       },
+1902 |     );
+1903 |     try {
+1904 |       const answer = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=json`);
+1905 |       expect(changed).toBe(true);
+1906 |       expect(answer.status).toBe(initiallyPresent ? 409 : 200);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 200
+
+      at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts:1906:29)
+(fail) v9 sparse export uses its shared observation across concurrent change (true) [501.20ms]
+1901 |       },
+1902 |     );
+1903 |     try {
+1904 |       const answer = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=json`);
+1905 |       expect(changed).toBe(true);
+1906 |       expect(answer.status).toBe(initiallyPresent ? 409 : 200);
+                                   ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/schedule-organization.controller.db.test.ts:1906:29)
+(fail) v9 sparse export uses its shared observation across concurrent change (false) [383.72ms]
+
+ 0 pass
+ 69 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [2.90s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 642744320, "exitCode": 1}

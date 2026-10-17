@@ -1,3 +1,5 @@
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+
 import { type AppOptions, buildApp } from '../app';
 import { testAuthService } from './auth-fixture';
 import { testCalendarMarkerService } from './calendar-marker-fixture';
@@ -80,6 +82,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
     capacity,
     priorityBands,
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers,
     replay: testReplay().replay,
     probeDatabase: () => 'ok',

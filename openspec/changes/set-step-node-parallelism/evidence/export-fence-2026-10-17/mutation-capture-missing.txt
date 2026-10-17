@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+{"level":"error","time":1792205663299,"service":"be-01","err":{"occurrence_id":"AE_N10MBEGSQ1SREYGZPQE6PXEZ08","fingerprint":"fp1_3fe93120de6a899adc8803143b848adb","stack":["Error: export was read without step parallelism","    at validateStepParallels (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts:201:39)","    at exportCaptured (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts:159:5)","    at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/http/project.routes.ts:236:42)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+985 |     if (owner === null) throw new Error('missing export owner');
+986 |     if (mode === 'shared') {
+987 |       h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+988 |     }
+989 |     const empty = await h.call('ada', 'GET', `/api/projects/${projectId}/export?format=json`);
+990 |     expect(empty.status).toBe(200);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:990:26)
+(fail) v9 sparse export fence refuses authored equality without mutation (shared) [700.61ms]
+
+ 0 pass
+ 32 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.67s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 578785280, "exitCode": 1}

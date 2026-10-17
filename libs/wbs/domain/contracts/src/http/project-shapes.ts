@@ -4,7 +4,6 @@ import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planDocumentResponse } from './plan-document-shapes';
 import { project, projectWithSteps } from './project-response';
-import { engineUnavailableRefusal } from './scheduler-shapes';
 import { requestSchema, responseSchema } from './schema-shape';
 
 const params = requestSchema(type({ id: 'string' }));
@@ -128,20 +127,24 @@ export const recordProjectOpen = defineEndpointShape({
   document: { summary: 'Record this account opening a project.' },
 });
 
-/**
- * A JSON export of a project holding a step an older writer left uncoded mid-swap:
- * the plan document carries every step's code, and the export never invents one.
- * `steps` names each uncoded step; `command` is the be-01 backfill that codes
- * them, after which the export succeeds.
- */
-export const uncodedStepsRefusal = {
+/** The uncoded-step variant is also retained in the closed export 409 union. */
+const uncodedSteps = type({
+  error: "'uncoded_steps'",
+  steps: type({ id: 'string', name: 'string' }).array(),
+  command: 'string',
+});
+
+/** An older writer's uncoded steps, with the backfill command that makes them exportable. */
+export const uncodedStepsRefusal = { status: 409, schema: responseSchema(uncodedSteps) } as const;
+
+/** Closed 409 variants for structured export, including the version 9 preservation fence. */
+export const exportProject409 = {
   status: 409,
   schema: responseSchema(
-    type({
-      error: "'uncoded_steps'",
-      steps: type({ id: 'string', name: 'string' }).array(),
-      command: 'string',
-    }),
+    uncodedSteps
+      .or({ error: "'engine_unavailable'", engine: "'optimized'" })
+      // Proof: removing this variant made both mounted sparse exports500 (mutation-response-schema.txt, 2026-10-17).
+      .or({ error: "'unsupported_step_parallelism'" }),
   ),
 } as const;
 
@@ -168,10 +171,9 @@ export const exportProject = defineEndpointShape({
     notFound,
     organizationRefusal,
     organizationContextRefusal,
-    engineUnavailableRefusal,
     { status: 403, schema: responseSchema(type({ error: "'insufficient_scope'" })) },
     { status: 400, schema: responseSchema(type({ error: "'unsupported_format'" })) },
-    uncodedStepsRefusal,
+    exportProject409,
   ],
   document: { summary: 'Export the project WBS and schedule as JSON or Markdown.' },
 });
