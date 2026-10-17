@@ -69,6 +69,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'attempts.moveAll:ownership',
   'attempts.moveAll:issued',
   'blockages.set:read-remove',
+  'stepParallels.set:sparse-replace-remove',
   'dependencies.listByWorkItems:incident-scope',
   'dependencies.add:idempotent-pair',
   'dependencies.remove:pair',

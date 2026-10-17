@@ -43,6 +43,8 @@
 - [x] 3.6.1 Write browser plan-writer sparse refusal RED for step deletion, commands, busy release and completed-prefix refresh.
 - [x] 3.6.2 Add explicit decoder cases and readable preservation wording; prove independent case/wording omissions and rerun scoped frontend typecheck.
 
+- [x] 3.7 Repair integration validation: retain evidence bytes with non-executable modes, exhaustively assert sparse step 409, type the memory refusal fixture, and align both independent conformance inventories; prove omitted registration and inventory ID.
+
 ## 4. Resolution, scheduling and UI
 
 - [x] 4.0 Add the pure concrete-node resolver only: detached inherited/explicit provenance, exact pair and both maximum validations; prove equality, sibling isolation, mutation isolation and resource-rule composition independently. Keep all consumers unchanged.

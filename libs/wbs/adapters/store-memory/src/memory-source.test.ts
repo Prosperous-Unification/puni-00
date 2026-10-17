@@ -1,4 +1,4 @@
-import type { NewJournalEntry, PlanEvent, TransactionalStores } from '@wbs/core';
+import type { NewJournalEntry, PlanEvent, StepRemoved, TransactionalStores } from '@wbs/core';
 import { SavedPlanService } from '@wbs/core';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
@@ -945,7 +945,7 @@ for (const cascade of [false, true])
       ok: false,
       reason: 'referenced_by_step_parallel',
       nodes: [{ workItemId: 'a:b', stepId: 'st-1' }],
-    };
+    } satisfies StepRemoved;
     expect(await source.stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
     await source.uow.run(async ({ stores }) => {
       await stores.steps.rename('p1', 'st-1', 'Changed', stamp);

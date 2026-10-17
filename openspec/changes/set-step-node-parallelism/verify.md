@@ -1370,3 +1370,42 @@ Full current-main composition receipts, exact commands, resource-disqualified
 attempts and verification limits are in `integration-main-e8894d0-verify-2026-10-17.md`
 and its evidence packet. The full host gate and browser checks remain outside
 this bounded compatibility follow-up.
+
+## Integration gate corrections (2026-10-17)
+
+PR565 exposed four incomplete validation updates in the imported Step work:
+retained evidence scripts incorrectly carried executable bits; the exact step
+409 schema assertion omitted the sparse variant; a memory refusal fixture widened
+its literal types; and the source conformance opener plus both independently
+maintained inventories omitted the implemented sparse case.
+
+The two archived scripts now have mode0644 and identical Git blobs. Historical
+configs executed separate `/tmp` or `.git` wrappers; the retained copies have no
+current execution caller. No fleet baseline or shellcheck ownership was weakened.
+The focused production executable judge reproduced exactly two failures before
+the mode correction and zero afterward; eight inventory/ownership tests passed.
+This is a focused executable-family verdict, not the full fleet check.
+
+The step contract itself was already correct. Its test now retains exact ordered
+six-variant equality and asserts the sparse discriminator, required nodes and both
+required string IDs. Removing the production refusal and independently removing
+node workItemId each failed the intended assertion; source bytes were restored.
+The full contracts suite passed475/475 across49 files. The memory fixture now
+`satisfies StepRemoved` without a cast: the scoped spec-project typecheck changed
+from the two observed TS2769 failures to exit0; both mixed-rollback cases passed.
+
+Conformance now supplies the required sparse opener, asserts the exact registration
+ID, and independently enumerates it in `SOURCE_CONFORMANCE_CASES`. Removing the
+production registration and independently removing the implemented inventory ID
+each failed its intended exact equality. The restored suite passed35/35 across
+nine files and its scoped spec-project typecheck exited0. These repair the existing
+conformance contract; no scheduling, HTTP or persistence behavior changed.
+
+Receipts and exact command scope are retained in
+`evidence/integration-gate-corrections-2026-10-17/manifest.json`. The intermediate
+`integration-conformance-green.log` is RED at the second equality, despite its
+filename. The900MiB memory typecheck attempt was resource-killed at946094080 bytes
+and is disqualified; an authorized1400MiB retry captured the actual diagnostic and
+the corrected check passed at997/994MB respectively. No full h2 gate, browser check
+or deployment completion is claimed by these local scoped receipts. Normal commit
+hooks and containing-commit delivery receipts are recorded externally afterward.
