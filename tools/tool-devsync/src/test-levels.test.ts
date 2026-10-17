@@ -1294,6 +1294,7 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
     const guarded = LEVEL_TARGETS;
     expect(guarded.map(({ project, target }) => `${project}:${target}`).sort()).toEqual([
       'shared-failures:test:unit:level',
+      'shared-test-levels:test:unit:level',
       'shared-validation:test:unit:level',
       'wbs-core:test:unit',
       'wbs-store-memory:test:conformance:level',
