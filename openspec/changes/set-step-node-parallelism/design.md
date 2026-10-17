@@ -55,7 +55,8 @@ is added until its mutation caused the named negative to fail.
 `resolveStepParallel` accepts `StepNodeRef`, the row maximum and an optional
 `StoredStepParallel`; it returns `{ kind: 'inherited' | 'explicit', maxParallel: number }`.
 It validates both numeric inputs and the supplied fact's exact pair. Provenance is derived
-from presence alone. A copied numeric property prevents later fact mutation from changing
+from presence alone. The supplied numeric property is read once, and that captured number is both validated and
+returned; this also prevents a changing accessor from bypassing validation. The copied number prevents later fact mutation from changing
 an already resolved value. Stores retain existence, leaf and project checks. Resource-rule
 composition is tested directly without admitting this prerequisite into any live consumer.
 The unavailable later sparse transport head is not reconstructed by this slice.

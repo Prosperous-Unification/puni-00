@@ -22,7 +22,8 @@ export type StepParallel =
 /**
  * Resolves a concrete node's maximum before {@link resolveStepResources} applies
  * person and pool clamps. Absence inherits; a present fact remains explicit even
- * when equal to the row maximum. Returns a detached numeric value and provenance.
+ * when equal to the row maximum. Reads the supplied maximum once, validates that
+ * captured number and returns it with provenance.
  * Throws for invalid maxima or a fact naming a different work-item/step pair.
  * Existence, leaf status and project ownership belong to the supplying store.
  */
@@ -43,8 +44,11 @@ export function resolveStepParallel(
   // Proof: step-guard removed; foreign step test failed (step-guard.txt).
   if (override.stepId !== node.stepId) throw new Error('step parallelism belongs to another step');
   // Proof: override-validation removed; invalid-override tests failed (override-validation.txt).
-  assertStepParallel(override.maxParallel);
+  // Proof: returning a fresh getter read emitted 1001 after validating 2; the
+  // single-read regression failed (evidence/resolver-accessor-2026-10-17/reread.txt).
+  const maxParallel = override.maxParallel;
+  assertStepParallel(maxParallel);
   // Proof: getter retained supplied fact; mutation-after-resolution test failed
   // (evidence/resolver-2026-10-17/mutable-boundary.txt), 2026-10-17.
-  return { kind: 'explicit', maxParallel: override.maxParallel };
+  return { kind: 'explicit', maxParallel };
 }

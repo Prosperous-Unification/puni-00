@@ -113,7 +113,8 @@ stored override. It SHALL validate the row maximum even when an override is supp
 any supplied override maximum, and reject an override naming either a different work item or
 a different step. Absence SHALL return inherited provenance and the row maximum. Presence
 SHALL return explicit provenance and the override maximum, including equality with the row
-maximum. The returned maximum SHALL be detached from the supplied mutable fact. This resolver
+maximum. The resolver SHALL read the supplied maximum once and validate and return that same
+captured number. The returned maximum SHALL be detached from the supplied mutable fact. This resolver
 slice SHALL leave resource projections, scheduler consumers, writers and stepless boundaries unchanged.
 
 #### Scenario: Equal explicit value remains authored
@@ -128,3 +129,9 @@ slice SHALL leave resource projections, scheduler consumers, writers and steples
 - **WHEN** the pure resolver output is passed to the existing resource resolver
 - **THEN** unnamed Dev has width 3 and unnamed QA has width 2
 - **AND** a named QA has width 1 while an unsized-only Dev retains width 4
+
+#### Scenario: Supplied accessor changes between reads
+
+- **GIVEN** an override maximum getter that returns 2 first and 1001 subsequently
+- **WHEN** the pure resolver reads the override
+- **THEN** it reads the getter exactly once and returns explicit maximum 2

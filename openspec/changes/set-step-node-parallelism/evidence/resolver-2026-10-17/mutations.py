@@ -10,8 +10,8 @@ faults={
 'work-item-guard':("if (override.workItemId !== node.workItemId)","if (false)"),
 'step-guard':("if (override.stepId !== node.stepId)","if (false)"),
 'row-validation':("  assertStepParallel(rowMaximum);", ""),
-'override-validation':("  assertStepParallel(override.maxParallel);", ""),
-'mutable-boundary':("return { kind: 'explicit', maxParallel: override.maxParallel };", "return { kind: 'explicit', get maxParallel() { return override.maxParallel; } };"),
+'override-validation':("  assertStepParallel(maxParallel);", ""),
+'mutable-boundary':("return { kind: 'explicit', maxParallel };", "return { kind: 'explicit', get maxParallel() { return override.maxParallel; } };"),
 }
 receipts=[]
 try:

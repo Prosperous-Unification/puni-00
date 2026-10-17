@@ -56,6 +56,20 @@ describe('resolveStepParallel', () => {
     }
   });
 
+  it('reads an override getter once and returns exactly the validated maximum', () => {
+    let reads = 0;
+    const override = {
+      ...dev,
+      get maxParallel() {
+        reads += 1;
+        return reads === 1 ? 2 : 1001;
+      },
+    };
+    const resolved = resolveStepParallel(dev, 4, override);
+    expect(resolved).toEqual({ kind: 'explicit', maxParallel: 2 });
+    expect(reads).toBe(1);
+  });
+
   it('detaches the resolved maximum from the supplied mutable fact', () => {
     const override = { ...dev, maxParallel: 2 };
     const resolved = resolveStepParallel(dev, 4, override);

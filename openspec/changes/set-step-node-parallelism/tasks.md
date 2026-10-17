@@ -26,6 +26,7 @@
 
 - [x] 4.0 Add the pure concrete-node resolver only: detached inherited/explicit provenance, exact pair and both maximum validations; prove equality, sibling isolation, mutation isolation and resource-rule composition independently. Keep all consumers unchanged.
 
+- [x] 4.0.1 Capture the supplied numeric maximum once; prove a getter returning 2 then 1001 cannot escape validation through a second read.
 - [ ] 4.1 Write explicit-before-default live read, Fast and optimized request parity RED.
 - [ ] 4.2 Implement resolution, hashing/cache versions and independent optimized publication validation together.
 - [ ] 4.3 Prove person/pool clamps, zero-duration non-consumption and stale publication refusal.

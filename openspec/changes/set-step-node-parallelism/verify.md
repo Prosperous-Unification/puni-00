@@ -150,3 +150,37 @@ skipped because this slice stages no matching files. Tool Wiki returned visible
 `inactive`, `certified:false` because its external activation root is not provisioned;
 this is not a Tool Wiki certification claim. Adding this receipt uses the same
 normal hooks on amend.
+
+## Accessor review correction — 2026-10-17
+
+Astra's review of `b36b49123f7cec5037ec59df8540ab44146922c9` identified a
+second read of `override.maxParallel` after validation. A legitimate getter could
+return 2 for validation and 1001 for the returned maximum. The new regression
+reproduced that failure: **25 passed, 1 failed**, expected 2 and received 1001
+(`evidence/resolver-accessor-2026-10-17/tdd-red.txt`).
+
+The resolver now captures the maximum once and validates and returns the same
+number. The regression asserts both the returned value and exactly one getter
+read. Replacing the returned snapshot with a fresh property read independently
+failed that regression; the rerunnable injection and transcript are
+`resolver-accessor-2026-10-17/{mutation.py,reread.txt}`. The original mutation
+runner's source anchors were updated for the captured numeric local; its prior
+receipts remain historical evidence from the prerequisite commit.
+
+Serial checks through the existing 768 MiB RSS guard:
+
+- Focused resolver and node-resource tests: **33 passed, 0 failed**, 49 assertions
+  (`focused-green.txt`).
+- Scoped ESLint over the two changed TypeScript files: **exit 0**, no warnings,
+  peak 685768704 bytes (`lint.txt`).
+- Domain forced TypeScript build: **exit 0**, peak 327557120 bytes (`typecheck.txt`).
+- Pinned OpenSpec 1.12.0 strict validation for this change: **1 passed, 0 failed**,
+  no issues (`openspec.txt`).
+- Prettier write completed successfully (`format.txt`); normal pre-commit checks
+  also check staged formatting. Final commit-hook transcript is retained outside
+  the commit at `/tmp/step-parallel-accessor-commit.txt` to avoid a self-referential
+  receipt amendment.
+
+This is a successor commit to the reviewed prerequisite, with no amended reviewed
+commit. Existing unrun full-gate/build/all-OpenSpec limitations and the inactive
+Tool Wiki boundary remain as recorded above. No live consumers or writers changed.
