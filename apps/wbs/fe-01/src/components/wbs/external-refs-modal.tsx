@@ -77,7 +77,7 @@ function SystemChoice({
   return (
     <select
       aria-label={label}
-      className="border-input bg-background h-8 shrink-0 rounded-md border px-2 text-sm"
+      className="border-control-edge bg-background h-8 shrink-0 rounded-md border px-2 text-sm"
       value={value}
       onChange={(event) => {
         onChange(event.target.value);
@@ -195,7 +195,7 @@ export function ExternalRefsModal({
                 */}
                 <input
                   aria-label={`Name of link ${String(at + 1)}`}
-                  className="border-input bg-background h-8 min-w-0 rounded-md border px-2 text-sm font-medium"
+                  className="border-control-edge bg-background h-8 min-w-0 rounded-md border px-2 text-sm font-medium"
                   defaultValue={ref.name}
                   // The derived label as a **placeholder** here and as a real
                   // value on the add row, and the difference is deliberate: a
@@ -232,7 +232,7 @@ export function ExternalRefsModal({
                   />
                   <input
                     aria-label={`URL of link ${String(at + 1)}`}
-                    className="border-input bg-background h-8 min-w-0 flex-1 rounded-md border px-2 text-sm"
+                    className="border-control-edge bg-background h-8 min-w-0 flex-1 rounded-md border px-2 text-sm"
                     defaultValue={ref.url}
                     // On the blur and on Enter, never per keystroke: each write is
                     // a whole-list replacement and a patch per character would be
@@ -295,7 +295,7 @@ export function ExternalRefsModal({
           */}
           <input
             aria-label="Paste a URL"
-            className="border-input bg-background h-8 min-w-0 rounded-md border px-2 text-sm"
+            className="border-control-edge bg-background h-8 min-w-0 rounded-md border px-2 text-sm"
             placeholder="Paste a URL"
             value={typedUrl}
             onChange={(event) => {
@@ -305,7 +305,7 @@ export function ExternalRefsModal({
           <div className="flex items-center gap-2">
             <input
               aria-label="Name of the new link"
-              className="border-input bg-background h-8 min-w-0 flex-1 rounded-md border px-2 text-sm font-medium"
+              className="border-control-edge bg-background h-8 min-w-0 flex-1 rounded-md border px-2 text-sm font-medium"
               placeholder="Name this link"
               value={addingName}
               onChange={(event) => {

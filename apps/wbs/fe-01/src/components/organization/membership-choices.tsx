@@ -1,6 +1,7 @@
 import { type ClientReply, listOrganizationMemberships } from '@wbs/contracts';
 import { useEffect, useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +91,9 @@ function MembershipEntry({
         </span>
       </div>
       {!locked && onChoose !== undefined && (
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           type="button"
           disabled={disabled}
           onClick={() => {
@@ -98,7 +101,7 @@ function MembershipEntry({
           }}
         >
           Choose {membership.name}
-        </button>
+        </Button>
       )}
       {locked && (
         <p className="text-muted-foreground mt-1 text-sm">

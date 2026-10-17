@@ -32,8 +32,8 @@ The UI review's round 5b (puni-plan `ui-review/findings.md`, 2026-10-16, on 3e06
 
 ## Non-goals
 
-- `--input` (text boxes' hairline) is unchanged; whether text boxes need a 3:1 boundary is a separate
-  question.
+- `--input` (text boxes' hairline) was left unchanged here; `ui-review-chrome-edges` later retired it
+  and put text boxes on `--control-edge`.
 - No drop cue on the phone (no reorder handle there).
 
 ## Reverse path (D11)

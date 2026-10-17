@@ -157,12 +157,71 @@ for (const scheme of ['light', 'dark'] as const) {
         DISTINCT_STATES,
       );
     });
+
+    test('a locked radio is drawn as a live one is, only quieter (F-158)', async ({
+      page,
+    }, info) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const dialog = await openSettings(page, info.titlePath.join(' '), info.workerIndex);
+      await dialog.getByRole('tab', { name: 'Steps' }).click();
+      const locked = dialog.getByRole('radio', { name: 'Dev minutes' });
+      const live = dialog.getByRole('radio', { name: 'New step minutes' });
+      await expect(locked).toBeDisabled();
+      await expect(locked).not.toBeChecked();
+      await expect(live).toBeEnabled();
+      await expect(live).not.toBeChecked();
+      await page.mouse.move(1, 899);
+      const centres = ratioOf(await discCentre(page, live), await discCentre(page, locked));
+      // Proof: on e8894d014 (the engine's drawing for a live radio) this failed in dark
+      // on `Expected: < 1.1 Received: 1.799…`: a filled grey disc beside a hollow locked
+      // ring. In light the centres matched and the ring check below failed on `Expected:
+      // > 4.76… Received: 1`. Watched 2026-10-17.
+      expect(centres, 'the live unchecked centre against the locked one').toBeLessThan(1.1);
+      const rings = await Promise.all(
+        [live, locked].map((radio) =>
+          radio.evaluate((input) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1;
+            canvas.height = 1;
+            const context = canvas.getContext('2d', { willReadFrequently: true });
+            if (context === null) throw new Error('no 2d canvas in this browser');
+            const pixel = (colour: string): [number, number, number] => {
+              context.fillStyle = colour;
+              context.fillRect(0, 0, 1, 1);
+              const rgba = context.getImageData(0, 0, 1, 1).data;
+              return [rgba[0], rgba[1], rgba[2]];
+            };
+            const style = getComputedStyle(input);
+            return { ring: pixel(style.borderTopColor), ground: pixel(style.backgroundColor) };
+          }),
+        ),
+      );
+      const contrasts = rings.map(({ ring, ground }) => ratioOf(ring, ground));
+      const [liveRing, lockedRing] = [contrasts.at(0), contrasts.at(1)];
+      if (liveRing === undefined || lockedRing === undefined) throw new Error('no ring measured');
+      expect(lockedRing, 'the locked ring on its ground').toBeGreaterThanOrEqual(DISTINCT_STATES);
+      expect(liveRing, 'the live ring is louder than the locked one').toBeGreaterThan(lockedRing);
+
+      // A radio the palette draws still shows where the keyboard is.
+      await dialog.getByLabel('New step', { exact: true }).focus();
+      await page.keyboard.press('Tab');
+      const focused = dialog.getByRole('radio', { name: 'New step workdays' });
+      await expect(focused).toBeFocused();
+      const ring = await focused.evaluate((input) => {
+        const style = getComputedStyle(input);
+        return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth) };
+      });
+      // Proof: on 2026-10-17, with `outline: none` added to the radio rule in `styles.css`,
+      // this failed on `Expected: not "none"`.
+      expect(ring.style).not.toBe('none');
+      expect(ring.width).toBeGreaterThan(0);
+    });
   });
 }
 
 for (const viewport of [
   { width: 1440, height: 900 },
-  { width: 375, height: 812 },
+  { width: 1024, height: 768 },
 ]) {
   test(`the priority ladder heads its columns on screen at ${String(viewport.width)} (F-120)`, async ({
     page,
@@ -220,10 +279,85 @@ for (const viewport of [
   });
 }
 
-test('a scrolling section ends with the room the modal starts with, at 1024×768 (F-123)', async ({
+test('on a phone every band names its own numbers, beside them (F-148)', async ({ page }, info) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  const dialog = await openSettings(page, info.titlePath.join(' '), info.workerIndex);
+  await dialog.getByRole('tab', { name: 'Priorities' }).click();
+  await expect(dialog.getByLabel('Name of band 1')).toHaveValue('Critical');
+  const measured = await dialog.evaluate((surface) => {
+    const panel = surface.querySelector('[role="tabpanel"]:not([hidden])');
+    if (panel === null) throw new Error('no priorities panel');
+    const header = panel.querySelector('[data-priority-header]');
+    const headerShown =
+      header !== null && header.getBoundingClientRect().height > 0 && header.checkVisibility();
+    const edge = surface.getBoundingClientRect().right;
+    const rows = [...panel.querySelectorAll('li')].map((row) => {
+      const boxes = [...row.querySelectorAll('input')];
+      const [start, writes] = [boxes.at(1), boxes.at(2)];
+      if (start === undefined || writes === undefined) throw new Error('a band lacks a box');
+      // The word standing on the box's own line, just left of it.
+      const wordBefore = (box: Element): string | null => {
+        const at = box.getBoundingClientRect();
+        const word = [...row.querySelectorAll('span')].find((span) => {
+          const shape = span.getBoundingClientRect();
+          const middle = (shape.top + shape.bottom) / 2;
+          return (
+            span.checkVisibility() &&
+            shape.width > 0 &&
+            middle > at.top &&
+            middle < at.bottom &&
+            shape.right <= at.left &&
+            at.left - shape.right <= 12
+          );
+        });
+        return word?.textContent.trim() ?? null;
+      };
+      return {
+        start: wordBefore(start),
+        writes: wordBefore(writes),
+        pastEdge: writes.getBoundingClientRect().right > edge + 1,
+      };
+    });
+    return { headerShown, rows };
+  });
+  // Proof: on e8894d014 this failed on `Expected: false Received: true`: the header,
+  // wrapped over band 1's name box, was the only place the numbers were named. Watched
+  // 2026-10-17.
+  expect(measured.headerShown, 'the ladder header on a phone').toBe(false);
+  expect(measured.rows).toEqual(
+    Array.from({ length: 5 }, () => ({ start: 'Starts at', writes: 'Writes', pastEdge: false })),
+  );
+});
+
+test('on a phone every radio in Estimating and Steps is the floor’s 22px (F-157)', async ({
   page,
 }, info) => {
-  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.setViewportSize({ width: 375, height: 812 });
+  const dialog = await openSettings(page, info.titlePath.join(' '), info.workerIndex);
+  const sizes: string[] = [];
+  for (const section of ['Steps', 'Estimating']) {
+    await dialog.getByRole('tab', { name: section }).click();
+    const panel = dialog.getByRole('tabpanel', { name: section });
+    for (const radio of await panel.getByRole('radio').all()) {
+      const box = await radio.boundingBox();
+      if (box === null) throw new Error('a radio has no box');
+      sizes.push(`${String(Math.round(box.width))}x${String(Math.round(box.height))}`);
+    }
+  }
+  // Proof: on e8894d014 this failed listing `13x22` four times and `15x22` twice, the
+  // three reaches and the three roundings: flex items beside two-line labels, each
+  // shrunk by its own label. Watched 2026-10-17.
+  expect(sizes.length).toBeGreaterThan(6);
+  expect(sizes.filter((size) => size !== '22x22')).toEqual([]);
+});
+
+test('a scrolling section ends with the room the modal starts with, at 1024×700 (F-123)', async ({
+  page,
+}, info) => {
+  // 700 rather than the review's 768: since the base layer took the platform's
+  // groove and padding off a bare `<fieldset>` (UI review F-153), Estimating fits
+  // at 1024×768 and the precondition below failed on `Estimating fits`.
+  await page.setViewportSize({ width: 1024, height: 700 });
   const dialog = await openSettings(page, info.titlePath.join(' '), info.workerIndex);
   await dialog.getByRole('tab', { name: 'Estimating' }).click();
   const measured = await dialog.evaluate((surface) => {
@@ -239,7 +373,7 @@ test('a scrolling section ends with the room the modal starts with, at 1024×768
       top: Number.parseFloat(getComputedStyle(surface).paddingTop),
     };
   });
-  expect(measured.scrolls, 'Estimating fits at 1024×768, so this measures nothing').toBe(true);
+  expect(measured.scrolls, 'Estimating fits at 1024×700, so this measures nothing').toBe(true);
   // Proof: on 3e06eb5a4 this failed with `Expected: >= 23 Received: 0`: scrolled to its
   // end, the closing paragraph sat on the box's bottom edge.
   expect(measured.room).toBeGreaterThanOrEqual(measured.top - NEARLY);

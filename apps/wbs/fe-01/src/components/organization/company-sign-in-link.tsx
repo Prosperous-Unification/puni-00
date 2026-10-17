@@ -113,7 +113,7 @@ export function CompanySignInLink({
         value={choice}
         disabled={sending || disabled}
         required
-        className="border-input bg-background rounded-md border p-2"
+        className="border-control-edge bg-background rounded-md border p-2"
         onChange={(event) => {
           setChoice(event.target.value);
           // Proof: 2026-10-13, retaining the password failed `posts the
@@ -134,7 +134,7 @@ export function CompanySignInLink({
             type="password"
             autoComplete="current-password"
             required
-            className="border-input bg-background rounded-md border p-2"
+            className="border-control-edge bg-background rounded-md border p-2"
             value={password}
             disabled={sending || disabled}
             onChange={(event) => {

@@ -1,6 +1,7 @@
 import { type ClientReply, startAuth0Link } from '@wbs/contracts';
 import { useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 
 const links = browserClient([startAuth0Link]);
@@ -78,7 +79,7 @@ export function Auth0Link({
       <label htmlFor="link-password">Your WBS password</label>
       <input
         id="link-password"
-        className="border p-2"
+        className="border-control-edge bg-background rounded-md border p-2"
         type="password"
         autoComplete="current-password"
         value={password}
@@ -87,9 +88,9 @@ export function Auth0Link({
         }}
         required
       />
-      <button type="submit" disabled={sending}>
+      <Button size="sm" type="submit" disabled={sending}>
         Link Auth0 account
-      </button>
+      </Button>
       {message !== '' && <p role="alert">{message}</p>}
     </form>
   );
