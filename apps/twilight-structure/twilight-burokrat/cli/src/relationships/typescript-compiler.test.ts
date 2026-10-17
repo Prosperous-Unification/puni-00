@@ -104,11 +104,11 @@ test('explicit type root admission delegates outside paths and charges repeated 
     kind: 'bounded',
     limits: { ...limits, maximumProbes: 2 },
   });
-  system.admitTypeRoot('/outside/types');
-  system.admitTypeRoot('/outside/types');
+  system.admitConfigurationRoot('/outside/types');
+  system.admitConfigurationRoot('/outside/types');
   expect(paths).toEqual(['/outside/types', '/outside/types']);
   expect(() => {
-    system.admitTypeRoot('/outside/types');
+    system.admitConfigurationRoot('/outside/types');
   }).toThrow('TypeScript probe limit exceeded');
   expect(paths).toHaveLength(2);
 });
@@ -135,10 +135,52 @@ test('retained admission observes only parser effective roots at the declaring c
     });
     const system = boundSource(workspace, source, { kind: 'bounded', limits });
     const roots: string[] = [];
-    system.admitTypeRoot = (path) => {
+    system.admitConfigurationRoot = (path) => {
       roots.push(path);
     };
     parseProject(workspace, 'tsconfig.json', system, 'retained-type-roots');
     expect(roots).toEqual([...expected]);
+  }
+});
+
+test('retained configuration admission preserves normalized typeRoots then rootDirs without deduplication', () => {
+  const { source } = fixture({
+    'tsconfig.json': JSON.stringify({
+      extends: './configs/base.json',
+      compilerOptions: { typeRoots: ['types', './types'] },
+      files: ['globals.d.ts', 'src/index.ts'],
+    }),
+    'configs/base.json': JSON.stringify({
+      compilerOptions: { noLib: true, types: [], rootDirs: ['types', '../generated', 'types'] },
+    }),
+  });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  const roots: string[] = [];
+  system.admitConfigurationRoot = (path) => {
+    roots.push(path);
+  };
+  parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+  expect(roots).toEqual([
+    '/candidate/types',
+    '/candidate/types',
+    '/candidate/configs/types',
+    '/candidate/generated',
+    '/candidate/configs/types',
+  ]);
+});
+
+test('previous retained type roots mode preserves rootDirs as ordinary namespace probes', () => {
+  const { source } = fixture({
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { noLib: true, types: [], rootDirs: ['/outside/generated'] },
+      files: ['globals.d.ts', 'src/index.ts'],
+    }),
+  });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  system.admitConfigurationRoot = () => {
+    throw new Error('unexpected explicit admission');
+  };
+  for (const mode of ['compatible', 'retained-type-roots'] as const) {
+    expect(parseProject(workspace, 'tsconfig.json', system, mode).configPath).toBe('tsconfig.json');
   }
 });

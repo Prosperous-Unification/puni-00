@@ -5683,3 +5683,143 @@ Independent precommit review found no P0–P2 and verified all counts and receip
 Current remaining work is final commit review, normal commit hooks and required gate;
 scoped final formatting receipts are recorded beside the other checks. No broader gate or CI
 claim is made, and task .3e6a and parent .3 remain unchecked.
+
+## Effective retained rootDirs admission prerequisite — 2026-10-17 (candidate)
+
+Scope: 2.1d.1.3e6b, isolated `/tmp/retained-config-roots-sol-oct17` at exact predecessor
+`afbdc2ea83f1763a5e27155e26bf6a3ead40c2f1`. Evidence directory:
+`evidence/retained-config-roots-2026-10-17/`. Parent .3 and the full WBS/release/gate remain open.
+
+Initial RED used fresh serial Bun processes under a watched 921,600 KiB process-tree ceiling.
+The direct unused absolute outside rootDirs test returned a successful unverified envelope rather
+than throwing (358,344 KiB peak). The normalized typeRoots→rootDirs order test expected five
+sequential roots and observed none (178,408 KiB peak). The second-project outside-root test also
+failed to throw (356,032 KiB peak). Production implementation followed those observed failures.
+
+Focused GREEN, production fault proofs, formatting, scoped lint/typecheck, OpenSpec validation,
+independent review and normal hooks are pending. No completion or required-gate claim is made.
+
+Initial GREEN: the compiler file passed 11 tests/24 assertions (183,688 KiB peak); the new
+retained rootDirs file passed 20 tests/76 assertions (358,912 KiB peak). After that run the
+compiler observer was strengthened to distinguish `/candidate/configs/types` from a wrongly
+rebased `/candidate/types`, compatible-mode coverage was added, and unused ambient fixture
+content was removed. Restored GREEN for those final tests remains pending.
+
+Fifteen independent production substitutions then failed the intended named tests, all exit 1.
+The exact baseline/injected SHA-256 identities, failing test names, commands and RSS receipts
+are retained in `fault-ledger.json` and adjacent `fault-*.log{,.json}`. The highest peak was
+359,352 KiB, below the 921,600 KiB cap. Every production source was restored byte-for-byte to
+its recorded baseline after the batch: compiler `9bc782877f08a69a20ba80ae492c7500b8e6adee078727448cd528f851e72791`,
+core `988782269168521ac5749d35a8668df45f00de7597f20bab080be8b31de1f12a`, mount
+`7b41fed9a2d02bcfb6d36d18155d0971bc063b8694559eab092613dbd82afb58`. Adjacent Proof
+comments were added only after observing these failures.
+
+| Injected fault        | Observed failing behavior                      | Peak process-tree KiB |
+| --------------------- | ---------------------------------------------- | --------------------: |
+| omit-rootdirs         | `refuses absolute outside`                     |               353,764 |
+| raw-only              | `refuses inherited outside`                    |               356,024 |
+| wrong-base            | `preserves normalized typeRoots then rootDirs` |               178,096 |
+| discarded-inherited   | `admits override discarded outside`            |               350,840 |
+| host-before-admission | `refuses absolute outside`                     |               351,984 |
+| types-empty-gating    | `refuses absolute outside`                     |               355,124 |
+| requires-existence    | `admits missing`                               |               348,944 |
+| masked-source-route   | `refuses absolute outside`                     |               357,740 |
+| omit-compiler-charge  | `charges repeated compiler admission`          |               359,352 |
+| mount-old-mode        | `refuses absolute outside`                     |               358,148 |
+| omit-new-type-roots   | `refuses absolute outside`                     |               356,092 |
+| global-rootdirs       | `previous retained type roots mode`            |               176,192 |
+| omit-mode-validation  | `configuration mode rejects unknown`           |               178,972 |
+| deduplicate-rootdirs  | `charges repeated compiler admission`          |               359,268 |
+| reverse-order         | `preserves normalized typeRoots then rootDirs` |               177,756 |
+
+No required h2puni gate, full repository test/lint/typecheck/build, eleven-document generation,
+manifest or runtime-authentication proof has been run for this slice. Dependencies are linked to
+the existing workspace installation; a fresh frozen installation is deferred to the required gate.
+The local ignored Lefthook override changes only pre-commit parallelism; all commands and argv
+remain unchanged. Its effective-config review is complete, while normal hooks, staged-negative
+proof and independent exact-candidate review remain pending. Task .3e6b and parent .3 stay open.
+
+Restored scoped checks after the final Proof comments and formatting all returned exit 0:
+
+| Command scope                                    | Fresh outcome          | Peak process-tree KiB |
+| ------------------------------------------------ | ---------------------- | --------------------: |
+| changed TS/OpenSpec/evidence JSON Prettier write | exit 0                 |               339,968 |
+| compiler tests                                   | 11 pass, 25 assertions |               185,088 |
+| shared runner tests                              | 31 pass, 74 assertions |               219,628 |
+| existing typeRoots controls                      | 19 pass, 70 assertions |               365,948 |
+| new rootDirs controls                            | 20 pass, 76 assertions |               642,496 |
+| focused test tsconfig, noEmit                    | exit 0                 |               438,364 |
+| Dash library tsconfig, noEmit, incremental false | exit 0                 |               516,608 |
+
+All 81 restored tests and 245 assertions passed. Each command ran serially in a fresh watched
+process tree with a 921,600 KiB ceiling; there were no cap events. Exact commands and outcomes
+are in `green-restored-*.log{,.json}`, `type-*.log{,.json}` and `format-write.log{,.json}`.
+The formatter ran before these checks. No production behavior changed after the fault batch;
+only adjacent Proof comments and formatting changed. Static `git diff --check` also returned 0.
+Astra's read-only scoped review found no P0–P3 issue in the inspected candidate diff; final
+lint/OpenSpec/hook evidence and exact committed-candidate review remain pending.
+
+Initial changed-file ESLint checks each returned exit 0 in a fresh serial process with
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install eslint <file>`. Peaks in KiB:
+compiler 657,296; core 657,628; retained mount 664,920; compiler tests 733,676; new retained
+config-root tests 724,132. Exact argv and output are `lint-0` through `lint-4.log{,.json}`.
+These five initial outcomes were partial: each warned that no cached ProjectGraph existed and
+skipped `@nx/enforce-module-boundaries`; lint-4 also warned that its boundary suppression was
+unused. Those exit codes do not establish a passing boundary check and are not accepted as final
+lint evidence.
+Pinned OpenSpec 1.12.0 status, apply instructions and strict change validation returned exit 0
+at 110,240, 112,460 and 104,916 KiB respectively (`openspec-*.log{,.json}`). Strict validation
+reported one pass, zero failures and no issues. Apply reports schema sdd-lean, ready, 7/59 tasks
+complete; planning-complete metadata is not implementation acceptance. The local task and its
+parent remain unchecked. Staged hook negative, normal hook execution and final exact-candidate
+review remain pending; no commit, push, merge, deploy or required-gate claim is made.
+
+The lint gap was repaired with fresh `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx
+--no-install nx graph --file=/tmp/config-roots-project-graph.json`: exit 0, peak 274,288 KiB.
+Both the requested JSON and `.nx/workspace-data/project-graph.json` were observed. Five fresh
+changed-file ESLint runs then returned exit 0 with empty stdout and no skipped rule or warning:
+compiler 660,944; core 663,108; retained mount 669,484; compiler tests 726,152; new config-root
+tests 737,764 KiB (`lint-graph-0` through `lint-graph-4.log{,.json}`).
+
+A production-path boundary negative prepended a cross-app relative import of WBS be-01 config
+to the compiler module. Actual ESLint exited 1 at 752,840 KiB and named
+`@nx/enforce-module-boundaries` (also import sorting); it did not report a skipped rule. Source
+bytes were restored to their recorded SHA-256, and a fresh restored lint returned 0 with empty
+stdout at 664,256 KiB. `lint-boundary-proof.json` retains the import and exact before/after hashes;
+`lint-boundary-{fault,restored}.log{,.json}` retain command/output receipts. All ran serially under
+921,600 KiB, without cap events.
+
+Committed display logs remove tool-emitted trailing whitespace and terminal empty lines.
+`normalized-log-provenance.json` preserves the exact raw UTF-8 transcripts with raw and display
+SHA-256 identities, so the output normalization does not erase original observations. Independent
+staged review covers the new test and evidence; normal staged-negative and hook checks remain
+pending, with task .3e6b and parent .3 open.
+
+Normal hooks were installed with `bunx --no-install lefthook install` (exit 0) and effective
+configuration was dumped. The ignored local override contains only `pre-commit: {parallel:false}`;
+all eight pre-commit commands, argv/globs/exclusions and both trailer hooks remain intact.
+`hook-inputs.json`, `hook-effective-config.log{,.json}` and `hook-install.log{,.json}` retain the
+scope and installed-hook identities. No tracked hook configuration changed.
+
+The actual staged-negative hook first reached the named syntax refusal under the 921,600 KiB
+cap, then its unchanged combined ESLint command reached 939,336 KiB and the guard killed the
+hook process with -9. Wrapper exit 1 is not a hook-level refusal proof; that interrupted outcome
+is retained explicitly in `hook-negative-cap900*`. Fresh `free -m` showed 19,559 MiB available
+(31,688 total; 12,128 used; 5,097 free). The coordinator authorized a one-shot 1,310,720 KiB
+process-tree ceiling for the unchanged serial negative/positive hook batch, avoiding command or
+per-file lint changes.
+
+With that authorized ceiling, the real staged TypeScript syntax injection made actual Lefthook
+exit 1, reporting Prettier SyntaxError and ESLint Parsing error at 1,005,736 KiB. Worktree source,
+index bytes and staged tree were restored exactly to
+`239033ccf4650121fd97ec535f5af20e731708f4`; `hook-negative-proof.json` records all before/after
+hashes. A fresh normal pre-commit then returned actual exit 0 at 1,007,224 KiB. Both hook runs
+completed all five applicable command groups: format, lint, plaintext-secrets, private-nesting
+and tool-wiki. Doc caps and both migration groups were visibly inapplicable to the staged paths.
+No module-boundary rule was skipped and no lint warning appeared. Tool-wiki visibly reported
+inactive, certified:false because the external activation root is not provisioned; this is not
+certified admission. Exact argv/resource receipts and transcripts are `hook-{negative,positive}*`.
+
+Staged read-only review found no P0–P3 issues after the lint-evidence correction. Actual normal
+commit/trailer execution, final committed-candidate review and the required gate remain pending.
+Task .3e6b and parent .3 remain open. There has been no push, merge or deploy.

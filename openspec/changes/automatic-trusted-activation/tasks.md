@@ -403,6 +403,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       watched independent omissions and maintain unverified trust and canonical census identities.
       This supplies no general config admission, reference-config policy, full manifest or runtime
       authentication; acceptance and parent .3 remain open pending review and required gate.
+- [ ] 2.1d.1.3e6b Admit effective root-project TypeScript rootDirs alongside typeRoots through
+      the retained source after parsing and before each project host. Preserve compatible and
+      retained-type-roots modes; activation selects the closed retained-config-roots mode.
+      Prove unused direct/inherited outside roots, ancestor escapes, effective overrides,
+      normalization, absent/linked roots, generated fallback declarations and byte census,
+      second-project host cutoff, shared repeated budget exact fits, long paths and removed-root
+      SHA-1/SHA-256 replay. Watch independent production faults and record their restoration.
+      Parent .3, full WBS/release/gate, general configuration admission, project-reference policy,
+      complete manifest and runtime authentication stay open pending their own work and evidence.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

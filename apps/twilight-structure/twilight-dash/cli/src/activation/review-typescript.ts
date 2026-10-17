@@ -243,8 +243,9 @@ export function extractRetainedTypeScriptRelationships(
     capturedRequest,
     source,
     capturedCompilerLimits,
-    // Proof: selecting compatible mode admitted the root in `refuses absolute outside`.
-    'retained-type-roots',
+    // Proof: substituting retained-type-roots admitted the unused absolute outside rootDirs
+    // in `retained effective rootDirs refuses absolute outside before program with types empty`.
+    'retained-config-roots',
   );
   // Proof: provenance-envelope substitution loses the full owned provenance equality in `sha1 matches legacy`.
   // Proof: mount-before-success loses `byte census seals only after successful extraction`; mount-census omission loses its returned tuple assertions.

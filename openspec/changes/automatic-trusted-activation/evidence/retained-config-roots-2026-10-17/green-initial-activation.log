@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+(pass) retained effective rootDirs refuses absolute outside before program with types empty [181.98ms]
+(pass) retained effective rootDirs refuses relative outside before program with types empty [144.11ms]
+(pass) retained effective rootDirs refuses inherited outside before program with types empty [144.01ms]
+(pass) retained effective rootDirs refuses ancestor escape before program with types empty [171.43ms]
+(pass) retained effective rootDirs refuses absent escape descendant before program with types empty [154.21ms]
+(pass) retained effective rootDirs admits existing [203.50ms]
+(pass) retained effective rootDirs admits normalized [144.79ms]
+(pass) retained effective rootDirs admits missing [140.45ms]
+(pass) retained effective rootDirs admits inherited [143.61ms]
+(pass) retained effective rootDirs admits override discarded outside [136.03ms]
+(pass) retained effective rootDirs admits valid candidate link [154.74ms]
+(pass) retained effective rootDirs admits omitted ordinary probes [129.13ms]
+(pass) retained effective rootDirs sha1 replays after physical roots disappear [149.76ms]
+(pass) retained effective rootDirs sha256 replays after physical roots disappear [158.10ms]
+(pass) retained effective rootDirs bounds long roots before source UTF8 encoding [140.38ms]
+(pass) retained effective rootDirs charges repeated compiler admission at exact fit [4377.46ms]
+(pass) retained effective rootDirs charges repeated source admission at exact fit [4239.25ms]
+(pass) retained effective rootDirs charges repeated steps admission at exact fit [4192.48ms]
+(pass) retained effective rootDirs resolves generated fallback with exact declaration and census [114.12ms]
+(pass) retained effective rootDirs refuses second project before its host and owner publication [151.28ms]
+
+ 20 pass
+ 0 fail
+ 76 expect() calls
+Ran 20 tests across 1 file. [16.35s]

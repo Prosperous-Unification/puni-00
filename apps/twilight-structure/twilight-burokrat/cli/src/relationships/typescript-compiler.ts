@@ -49,11 +49,12 @@ export interface TypeScriptSystem extends ts.ParseConfigHost {
   getCurrentDirectory(): string;
   chargeOutput(text: string): void;
   /** Charges a probe and asks the source to admit an effective explicit configuration root. */
-  admitTypeRoot(path: string): void;
+  admitConfigurationRoot(path: string): void;
 }
 
 /** Compatible callers retain TypeScript namespace misses; retained roots require source admission. */
-export type TypeScriptConfigurationMode = 'compatible' | 'retained-type-roots';
+export type TypeScriptConfigurationMode =
+  'compatible' | 'retained-type-roots' | 'retained-config-roots';
 
 export type TypeScriptPolicy =
   { readonly kind: 'bounded'; readonly limits: TypeScriptLimits } | { readonly kind: 'legacy' };
@@ -97,7 +98,9 @@ export function boundSource(
     // Proof: compiler-charge omission lost the repeated-probe refusal; source-delegation
     // omission lost the path list in `explicit type root admission delegates outside paths
     // and charges repeated probes`. Masking this route admitted the absolute outside root.
-    admitTypeRoot: (path) => {
+    // Proof: masking source delegation admitted the outside rootDirs fixture; removing probe()
+    // lost `retained effective rootDirs charges repeated compiler admission at exact fit`.
+    admitConfigurationRoot: (path) => {
       probe();
       source.pathKind(path);
     },
@@ -188,8 +191,9 @@ function normalizedCompilerValue(value: unknown, workspace: string): unknown {
 }
 
 /**
- * Parses one root project with compiler inheritance semantics. Retained mode admits every
- * effective explicit typeRoots before constructing the program; absent admitted roots are valid.
+ * Parses one root project with compiler inheritance semantics. Retained modes admit effective
+ * typeRoots; retained-config-roots also admits effective rootDirs before constructing the host.
+ * Absent admitted roots are valid, and repeated roots consume repeated admission work.
  * @throws Error for config failures, refused source admission or escaped declarations.
  */
 export function parseProject(
@@ -233,8 +237,18 @@ export function parseProject(
   // lost `retained admission observes only parser effective roots at the declaring config base`.
   // Validating discarded inherited roots lost `admits override discarded outside`; moving this
   // loop after program creation lost the zero-host assertion in `refuses absolute outside`.
-  if (mode === 'retained-type-roots') {
-    for (const path of parsed.options.typeRoots ?? []) system.admitTypeRoot(path);
+  // Proof: excluding the new mode admitted the outside root in the retained typeRoots refusal.
+  if (mode === 'retained-type-roots' || mode === 'retained-config-roots') {
+    for (const path of parsed.options.typeRoots ?? []) system.admitConfigurationRoot(path);
+  }
+  // Proof: omitted/types-empty-gated admission let `rootDirs refuses absolute outside` succeed;
+  // moving it after host creation lost that test's zero-host assertion. Raw-only roots lost
+  // inherited-outside refusal; wrong-base/reversed order lost the normalized sequential-root
+  // oracle. Validating discarded inherited roots lost override success; requiring existence
+  // lost missing-root success. Global admission lost the previous-mode compatibility control;
+  // deduplication lost the repeated compiler admission exact-fit test.
+  if (mode === 'retained-config-roots') {
+    for (const path of parsed.options.rootDirs ?? []) system.admitConfigurationRoot(path);
   }
   const options: ts.CompilerOptions = {
     ...parsed.options,

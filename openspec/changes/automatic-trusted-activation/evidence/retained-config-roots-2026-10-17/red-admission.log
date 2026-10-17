@@ -1,0 +1,126 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+174 |         hostCreations++;
+175 |         return createHost(...args);
+176 |       },
+177 |     );
+178 |     try {
+179 |       expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow(/outside|escape/);
+                                                                           ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /outside|escape/
+
+Received function did not throw
+Received value: {
+  runtimeTrust: "unverified",
+  provenance: {
+    snapshotIdentity: "b95a69f0f3e942990ae055abec119f86d91f789e71d21cc752a3c1e54295853b",
+    classificationPolicyIdentity: "429b8b560c7c2e68a969124caa37244072b5dcf5f96e7b4ac97a989b5f460590",
+    runtimeClosureIdentity: "65e196f82be766c002b3d286859a78ce3f386a0929040c3105f41012b2237fac",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    runtimeTrust: "unverified",
+    namespacePolicyIdentity: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+  },
+  byteReads: {
+    schemaVersion: 1,
+    kind: "retained-typescript-byte-reads",
+    entries: [
+      {
+        namespace: "candidate",
+        path: "tsconfig.json",
+        revision: null,
+        identity: "e8c1068ec1ca7848f688e1292298908c04cc0e7cabf0aa45672ffe33c7e42a11",
+        byteLength: 119,
+      }, {
+        namespace: "candidate",
+        path: "globals.d.ts",
+        revision: null,
+        identity: "22a48226f2b3a5f2a31b4d9d4a89f35c564f349a4602e15e9edef42037acc85c",
+        byteLength: 227,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/pkg/index.d.ts",
+        revision: null,
+        identity: "3639ca9debfd961f62c875eee819f5d4e75ad7351495c2ed633021473f119814",
+        byteLength: 42,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/pkg/package.json",
+        revision: null,
+        identity: "2ca3a7cd91755858e6edf68ac32124bf98a43649fcc95608862dbd85ecc36fe5",
+        byteLength: 53,
+      }, {
+        namespace: "candidate",
+        path: "configs/base.json",
+        revision: null,
+        identity: "daa4e07b5869cb1838ea5b35b1e2f531972a4e12d22634abf70743d1dc2a58a6",
+        byteLength: 59,
+      }, {
+        namespace: "candidate",
+        path: "index.ts",
+        revision: null,
+        identity: "ba488e01a89418b34c000e7091c5901c6a12808602a5fa844edb96b946705ae6",
+        byteLength: 67,
+      }, {
+        namespace: "runtime",
+        path: "node_modules/typescript/package.json",
+        revision: null,
+        identity: "d9b8fb53c67c947fece83bcb73fa8512227ea6a12b110e096fdab8ecdc02b655",
+        byteLength: 841,
+      }
+    ],
+  },
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+  },
+  relationships: {
+    imports: [
+      {
+        source: "index.ts",
+        specifier: "pkg",
+        target: "external:pkg",
+        importKind: "type-re-export",
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "b27707db3f4407a8b8c4367b5d726a76844ef5eaf8b0d3dbd6bd8b27b9cc6a4c",
+      }
+    ],
+    reverseEdges: [],
+    publicDeclarations: [
+      {
+        configPath: "tsconfig.json",
+        entrypoint: "index.ts",
+        configurationIdentity: "012df9e9c97f1c1b3c167a7a5ca3d6f46f1577d0cf7ec4e163364daed0554567",
+        declarations: [
+          {
+            sourcePath: "index.ts",
+            emittedPath: "index.d.ts",
+            text: "export type { Package } from 'pkg';\nexport declare const value: number;\n",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "18e35f14e22750234bd9627a9a18d528cc81aed0ccdca6440068ff78efaf1b9a",
+      }
+    ],
+  },
+}
+
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:179:70)
+(fail) retained effective rootDirs refuses absolute outside before program with types empty [203.20ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1165.00ms]

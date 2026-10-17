@@ -1,0 +1,37 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "--no-install",
+    "eslint",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 664920,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "eslint",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"
+    ],
+    [
+      "env",
+      "NX_DAEMON=false",
+      "NX_ISOLATE_PLUGINS=false",
+      "bunx",
+      "--no-install",
+      "eslint",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"
+    ],
+    ["git", "rev-list", "--max-parents=0", "HEAD"],
+    [
+      "node",
+      "/tmp/retained-config-roots-sol-oct17/node_modules/.bin/eslint",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"
+    ]
+  ]
+}

@@ -1557,3 +1557,40 @@ The record SHALL bind the detached validated activation request and exact verifi
   without reading their properties
 - **AND** internal phase-one views, wrong raw pins, repinned malformed or noncanonical history,
   history/request binding mismatches and final held-owner failure publish no binding
+
+### Requirement: Effective retained TypeScript rootDirs admission
+
+Retained activation SHALL select the closed `retained-config-roots` configuration mode. After
+successful parsing and before constructing each requested root project's compiler host, that
+mode SHALL sequentially admit every effective parser-normalized typeRoots entry followed by
+every effective rootDirs entry through the retained source. Each entry SHALL charge the same
+existing compiler probe and source traversal budgets, with no deduplication within or across
+options. The existing compatible default and retained-type-roots mode SHALL preserve their
+prior behavior, and unknown modes SHALL refuse before source callbacks.
+
+#### Scenario: Unused outside rootDirs refuse before the rejected project's host
+
+- **WHEN** an effective rootDirs entry is outside the retained namespace, directly, by inherited
+  configuration or through symlink ancestors of existing or absent paths
+- **THEN** extraction refuses before constructing that project's compiler host
+- **AND** it publishes no successful extraction envelope or owner even with types empty
+- **AND** an earlier valid root project may already have constructed its own compiler host
+
+#### Scenario: Effective rootDirs preserve parser semantics and admissible absence
+
+- **WHEN** rootDirs values are inherited, overridden, repeated or normalized
+- **THEN** admission uses only effective parser paths at the declaring configuration base
+- **AND** inside existing, absent and valid linked roots are admitted
+- **AND** discarded inherited outside values are not admitted
+- **AND** long paths and exact-fit/one-less compiler, source and traversal budgets remain bounded
+
+#### Scenario: RootDirs fallback resolves from retained bytes after physical removal
+
+- **WHEN** src/index.ts imports a provider found through rootDirs in generated/provider.ts
+- **THEN** extraction emits the exact declaration closure and raw-byte census
+- **AND** SHA-1 and SHA-256 retained replay after physical capture roots disappear preserves the
+  canonical envelope and census, including acquired link bytes, without ambient filesystem IO
+- **AND** runtimeTrust remains unverified and generic outside compiler probes remain absent
+
+This prerequisite does not establish nested project-reference config policy, general configuration
+admission, a complete compiler manifest, runtime authentication or parent 2.1d.1.3 completion.

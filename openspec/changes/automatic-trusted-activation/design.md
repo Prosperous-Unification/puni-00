@@ -2424,3 +2424,34 @@ Pinned TypeScript 6.0.3 does not automatically discover visible @types when `typ
 finds a literal '*'. Compatibility therefore has two distinct controls: both options omitted
 preserve no discovery, while omitted typeRoots with `types:['*']` exercises visible packages and
 ordinary default-root ancestor probes. This is observed compiler behavior, not a changed default.
+
+### Effective retained rootDirs admission prerequisite (2.1d.1.3e6b)
+
+**Intent.** Unused explicit rootDirs can currently escape the retained candidate without source
+admission. Retained activation must refuse every effective outside root before constructing that
+project's compiler host, while preserving parser inheritance and overrides, valid absent roots,
+ordinary namespace misses, retained bytes and unverified runtime trust. This scope covers only
+root projects requested by the caller; nested reference configurations, raw spelling provenance,
+general configuration admission, a complete manifest and runtime authentication remain open.
+
+The internal admission operation is renamed `TypeScriptSystem.admitConfigurationRoot`, retaining
+one compiler probe followed by direct source `pathKind` admission. The closed configuration modes
+are `compatible`, `retained-type-roots` and `retained-config-roots`; generic callers retain the
+compatible default and retained activation selects the new mode. The shared runner validates the
+mode before accessing any source callback. Both retained modes admit effective typeRoots; only
+the new mode then admits effective rootDirs. Each sequential loop runs after successful parser
+normalization and before that project's compiler host. Neither loop deduplicates within or across
+options, so both consume the same existing compiler and source budgets. Admission ignores the
+path-kind outcome, preserving admissible absence.
+
+TypeScript alone determines inheritance bases, normalized path spelling and effective override
+values. Discarded inherited values never reach admission. Actual rootDirs fallback remains the
+compiler's resolution behavior; a `src/index.ts` import can resolve `generated/provider.ts` from
+retained bytes and contributes the exact declaration closure and raw-byte census. The deliberate
+cost is conservative refusal of an unused explicit outside rootDirs value even when the compiler
+would never probe it. Ordinary default-root/module/package/ancestor probes retain absent
+namespace behavior, and the old retained-type-roots mode does not acquire rootDirs admission.
+
+No TypeScriptPolicy, legacy limits, namespace schema, owner publication or envelope format changes.
+Failure on a later config can follow earlier host construction, but never constructs the rejected
+project's host or publishes a successful extraction owner. Parent 2.1d.1.3 remains open.

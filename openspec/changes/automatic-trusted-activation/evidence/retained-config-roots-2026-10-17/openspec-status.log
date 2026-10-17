@@ -1,0 +1,119 @@
+{
+  "changeName": "automatic-trusted-activation",
+  "schemaName": "sdd-lean",
+  "planningHome": {
+    "kind": "repo",
+    "root": "/tmp/retained-config-roots-sol-oct17",
+    "changesDir": "/tmp/retained-config-roots-sol-oct17/openspec/changes",
+    "defaultSchema": "spec-driven"
+  },
+  "changeRoot": "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation",
+  "artifactPaths": {
+    "intent": {
+      "outputPath": "proposal.md",
+      "resolvedOutputPath": "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/proposal.md",
+      "existingOutputPaths": [
+        "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/proposal.md"
+      ]
+    },
+    "specs": {
+      "outputPath": "specs/**/*.md",
+      "resolvedOutputPath": "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/specs/**/*.md",
+      "existingOutputPaths": [
+        "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/specs/automatic-trusted-activation/spec.md"
+      ]
+    },
+    "design": {
+      "outputPath": "design.md",
+      "resolvedOutputPath": "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/design.md",
+      "existingOutputPaths": [
+        "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/design.md"
+      ]
+    },
+    "tasks": {
+      "outputPath": "tasks.md",
+      "resolvedOutputPath": "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/tasks.md",
+      "existingOutputPaths": [
+        "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/tasks.md"
+      ]
+    },
+    "verify": {
+      "outputPath": "verify.md",
+      "resolvedOutputPath": "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/verify.md",
+      "existingOutputPaths": [
+        "/tmp/retained-config-roots-sol-oct17/openspec/changes/automatic-trusted-activation/verify.md"
+      ]
+    }
+  },
+  "isPlanningComplete": true,
+  "isComplete": true,
+  "applyRequires": [
+    "tasks"
+  ],
+  "nextSteps": [
+    "All planning artifacts are complete. Run openspec instructions apply --change \"automatic-trusted-activation\" --json to inspect implementation progress."
+  ],
+  "actionContext": {
+    "mode": "repo-local",
+    "sourceOfTruth": "repo",
+    "planningArtifacts": [
+      "intent",
+      "specs",
+      "design",
+      "tasks",
+      "verify"
+    ],
+    "linkedContext": [],
+    "allowedEditRoots": [
+      "/tmp/retained-config-roots-sol-oct17"
+    ],
+    "requiresAffectedAreaSelection": false,
+    "constraints": [
+      "Repo-local change artifacts and implementation edits are scoped to this project."
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "intent",
+      "outputPath": "proposal.md",
+      "status": "done",
+      "requires": []
+    },
+    {
+      "id": "specs",
+      "outputPath": "specs/**/*.md",
+      "status": "done",
+      "requires": [
+        "intent"
+      ]
+    },
+    {
+      "id": "design",
+      "outputPath": "design.md",
+      "status": "done",
+      "requires": [
+        "intent"
+      ]
+    },
+    {
+      "id": "tasks",
+      "outputPath": "tasks.md",
+      "status": "done",
+      "requires": [
+        "specs"
+      ]
+    },
+    {
+      "id": "verify",
+      "outputPath": "verify.md",
+      "status": "done",
+      "requires": [
+        "tasks"
+      ]
+    }
+  ],
+  "root": {
+    "path": "/tmp/retained-config-roots-sol-oct17",
+    "source": "nearest"
+  }
+}

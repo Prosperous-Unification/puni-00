@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "admits override discarded outside"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 350840,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "admits override discarded outside"
+    ]
+  ]
+}

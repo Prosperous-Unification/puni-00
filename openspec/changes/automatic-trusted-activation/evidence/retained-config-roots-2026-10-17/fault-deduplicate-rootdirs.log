@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+313 |       return lower;
+314 |     }
+315 |     const once = minimum(['types']);
+316 |     const repeated = minimum(['types', './types', 'types']);
+317 |     if (dimension === 'steps') expect(repeated).toBeGreaterThan(once);
+318 |     else expect(repeated - once).toBe(2);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 2
+Received: 0
+
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:318:34)
+(fail) retained effective rootDirs charges repeated compiler admission at exact fit [4184.84ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [5.06s]

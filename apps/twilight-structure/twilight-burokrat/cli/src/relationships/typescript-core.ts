@@ -117,7 +117,7 @@ export function extractTypeScriptRelationshipsWithPolicy(
 ): { extractor: ExtractorIdentity; relationships: TypeScriptRelationships } {
   // Proof: validation omission reached the source getter in
   // `compiler configuration mode rejects unknown before source callbacks`.
-  if (!['compatible', 'retained-type-roots'].includes(mode))
+  if (!['compatible', 'retained-type-roots', 'retained-config-roots'].includes(mode))
     throw new Error('TypeScript configuration mode invalid');
   const system = boundSource(workspace, source, policy);
   const extractor = readCompilerIdentity(workspace, system);

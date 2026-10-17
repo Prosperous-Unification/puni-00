@@ -1,0 +1,36 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+    "-t",
+    "retained effective rootDirs refuses absolute outside"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 358344,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/usr/bin/git",
+      "--git-dir=/tmp/namespace-oPQvqO/store/.pending-disAbZ/git",
+      "fetch",
+      "--no-auto-maintenance",
+      "--quiet",
+      "--no-tags",
+      "--no-recurse-submodules",
+      "--no-write-fetch-head",
+      "--",
+      "/tmp/namespace-oPQvqO/source",
+      "fa1b867bdbac736ba066f21af86a9fd57b1157c4",
+      "fa1b867bdbac736ba066f21af86a9fd57b1157c4"
+    ],
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts",
+      "-t",
+      "retained effective rootDirs refuses absolute outside"
+    ]
+  ]
+}

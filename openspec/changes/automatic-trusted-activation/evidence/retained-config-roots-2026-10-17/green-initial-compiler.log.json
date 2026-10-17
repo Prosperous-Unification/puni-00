@@ -1,0 +1,17 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 183688,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "test",
+      "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts"
+    ]
+  ]
+}

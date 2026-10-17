@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.test.ts:
+(pass) shared compiler source resolves imports and declaration closure without ambient hosts [73.78ms]
+(pass) project reference wildcard enumeration uses the supplied source [8.94ms]
+(pass) root config absent, directory and malformed stay distinct [1.01ms]
+(pass) compiler refuses maximumProbes before returning extraction [0.11ms]
+(pass) compiler refuses maximumReadBytes before returning extraction [0.02ms]
+(pass) compiler refuses maximumDirectoryEntries before returning extraction [0.29ms]
+(pass) compiler refuses maximumObservedOutputBytes before returning extraction [1.60ms]
+(pass) compiler refuses maximumOutputBytes before returning extraction [4.52ms]
+(pass) compiler source refuses escaping imports before invoking outside ports [2.22ms]
+(pass) compiler source rejects nonfinite, negative and fractional limits before IO [0.35ms]
+(pass) exact final output bytes include identity and empty selector families [6.51ms]
+(pass) case insensitive compiler preserves TypeScript Unicode canonical names [5.78ms]
+(pass) compiler declaration newline follows CRLF config [5.24ms]
+(pass) relative and scoped extends, paths aliases and package imports use source ports [8.92ms]
+(pass) compiler reads explicitly supplied default library bytes [3.78ms]
+(pass) source parsing does not execute candidate preload, package scripts or compiler plugins [3.47ms]
+(pass) compiler refuses absolute extends escape before outside ports [0.58ms]
+(pass) compiler refuses relative extends escape before outside ports [0.26ms]
+(pass) compiler refuses project reference escape before outside ports [2.61ms]
+(pass) compiler refuses type root escape before outside ports [3.75ms]
+(pass) compiler refuses canonical source symlink escape [1.12ms]
+(pass) unreadable config remains unreadable with source context [0.16ms]
+(pass) compiler snapshots finite limits before source callbacks mutate caller policy [3.63ms]
+(pass) automatic type root enumeration uses the source host [4.57ms]
+(pass) observation budget charges every emitted declaration and selector before accumulation [9.65ms]
+(pass) observation budget charges bundled declaration text before accumulation [8.44ms]
+(pass) ambient CommonJS filesystem read is intercepted before real canary IO [0.54ms]
+(pass) ambient CommonJS filesystem write is intercepted before real canary IO [0.19ms]
+(pass) compiler configuration mode rejects unknown before source callbacks [0.08ms]
+(pass) compatible source mode preserves explicit outside root probes as absent [3.49ms]
+(pass) retained configuration mode reaches every requested root project [1.01ms]
+
+ 31 pass
+ 0 fail
+ 74 expect() calls
+Ran 31 tests across 1 file. [694.00ms]

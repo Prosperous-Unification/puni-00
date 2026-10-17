@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:
+361 |     hostCreations++;
+362 |     return createHost(...args);
+363 |   });
+364 |   const seal = spyOn(sources, 'sealRetainedTypeScriptReads');
+365 |   try {
+366 |     expect(() => extractRetainedTypeScriptRelationships(captured)).toThrow(/outside/);
+                                                                         ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /outside/
+Received message: "TypeScript public entrypoint index.ts resolved by 2 emitting configs with 2 explicit root configs; expected exactly one: second.json, tsconfig.json"
+
+      at <anonymous> (/tmp/retained-config-roots-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-config-roots.test.ts:366:68)
+(fail) retained effective rootDirs refuses second project before its host and owner publication [281.74ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1297.00ms]

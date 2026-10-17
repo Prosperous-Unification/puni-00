@@ -1,0 +1,45 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "-p",
+    "apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json",
+    "--noEmit",
+    "--incremental",
+    "false"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 516608,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+      "-p",
+      "apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json",
+      "--noEmit",
+      "--incremental",
+      "false"
+    ],
+    [
+      "bunx",
+      "--no-install",
+      "tsc",
+      "-p",
+      "apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json",
+      "--noEmit",
+      "--incremental",
+      "false"
+    ],
+    [
+      "node",
+      "/tmp/retained-config-roots-sol-oct17/node_modules/.bin/tsc",
+      "-p",
+      "apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json",
+      "--noEmit",
+      "--incremental",
+      "false"
+    ]
+  ]
+}

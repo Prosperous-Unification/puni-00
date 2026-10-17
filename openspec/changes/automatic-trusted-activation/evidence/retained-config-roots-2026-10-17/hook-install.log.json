@@ -1,0 +1,11 @@
+{
+  "command": ["bunx", "--no-install", "lefthook", "install"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 60012,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    ["bunx", "--no-install", "lefthook", "install"],
+    ["node", "/tmp/retained-config-roots-sol-oct17/node_modules/.bin/lefthook", "install"]
+  ]
+}
