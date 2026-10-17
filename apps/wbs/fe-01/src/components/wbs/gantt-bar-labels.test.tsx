@@ -112,7 +112,7 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
     const stack = document.querySelector<HTMLElement>('[data-gantt-stack-label="sand-plan"]');
     expect(stack, 'sand stack label').not.toBeNull();
     if (stack === null) return;
-    expect(stack.textContent).toBe('sand · 2 steps · 1 no estimate');
+    expect(stack.textContent).toBe('sand · no estimate on 1 of 2');
     const plan = barBox('sand-plan');
     const dev = barBox('sand-dev');
     const box = labelBox(stack);
@@ -143,8 +143,8 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
     // lanes' words over each other were what read `01010.3.0606` (F-012).
     const sandLabels = labels.filter((label) => label.textContent.startsWith('sand'));
     expect(sandLabels.map((label) => label.textContent).sort()).toEqual([
-      'sand · 2 steps · 1 no estimate',
       'sand · no estimate',
+      'sand · no estimate on 1 of 2',
     ]);
   });
 
@@ -173,7 +173,7 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
     const stack = document.querySelector<HTMLElement>('[data-gantt-stack-label="sand-plan"]');
     if (own === null || stack === null) throw new Error('a label is missing');
     expect(own.textContent).toMatch(/^sand · .*Sanding$/);
-    expect(stack.textContent).toBe('sand · 2 steps · 1 no estimate');
+    expect(stack.textContent).toBe('sand · no estimate on 1 of 2');
     // The stack's label covers the placeholder; the bar's starts where the
     // placeholder's assumed span ends and runs to the bar's own end, over
     // the whole band.
@@ -194,16 +194,18 @@ describe('the words on the bars (ui-review F-012, F-037)', () => {
   it('says how many steps a stack holds and how many nobody estimated', () => {
     const room = (span: number) =>
       labelRoomFor('010.3.06', span, DAY_PX, { done: false, estimated: false });
+    // The fact a reader needs comes straight after the number, so the crop an
+    // assumed two-day stack always suffers at Days takes the count, not the
+    // fact (UI review F-139).
+    // Proof: on 43ead5a10 (`number · N steps · no estimate`) this failed on
+    // `expected '010.3.06 · 3 steps · 2 no estimate' to be …` (watched
+    // 2026-10-18); the crop drew `020 · 2 s…`.
     expect(stackText({ steps: 3, unestimated: 2 }, room(4))).toBe(
-      '010.3.06 · 3 steps · 2 no estimate',
+      '010.3.06 · no estimate on 2 of 3',
     );
-    expect(stackText({ steps: 2, unestimated: 2 }, room(4))).toBe(
-      '010.3.06 · 2 steps · no estimate',
-    );
+    expect(stackText({ steps: 2, unestimated: 2 }, room(4))).toBe('010.3.06 · no estimate ×2');
     // The number first and whole, as on every bar; the box crops the rest.
-    expect(stackText({ steps: 2, unestimated: 2 }, room(2))).toBe(
-      '010.3.06 · 2 steps · no estimate',
-    );
+    expect(stackText({ steps: 2, unestimated: 2 }, room(2))).toBe('010.3.06 · no estimate ×2');
     // 49px less the pads holds the eight-character number, not the crop mark.
     expect(stackText({ steps: 2, unestimated: 2 }, room(1.75))).toBe('010.3.06');
     expect(stackText({ steps: 2, unestimated: 2 }, room(1.5))).toBeNull();

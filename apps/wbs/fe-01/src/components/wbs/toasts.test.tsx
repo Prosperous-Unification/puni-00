@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Modal, ModalContent, ModalTitle } from '@/components/ui/modal';
+
 import { INFO_TOAST_MS, type Toast, ToastStack, type ToastStackApi, useToasts } from './toasts';
 
 // fe-01 tests require jsdom; only Vitest provides it. Skip under plain `bun test`.
@@ -201,5 +203,59 @@ describe('the toast stack', () => {
 
     const region = document.querySelector('[data-toasts]');
     expect(region?.getAttribute('aria-live')).toBe('polite');
+  });
+});
+
+describe('a toast over a modal surface (F-132)', () => {
+  /** A sheet open over the page, with the stack beside it as the plan page renders both. */
+  function SheetWithStack() {
+    const api = useToasts();
+    held.api = api;
+    return (
+      <>
+        <Modal defaultOpen>
+          <ModalContent>
+            <ModalTitle>Plan actions</ModalTitle>
+            <button type="button">Inside</button>
+          </ModalContent>
+        </Modal>
+        <ToastStack toasts={api.toasts} onDismiss={api.dismissToast} />
+      </>
+    );
+  }
+
+  itDom('takes the newest error off on Escape before the surface closes', () => {
+    render(<SheetWithStack />);
+    push({ kind: 'error', text: 'older refusal' });
+    push({ kind: 'info', text: 'a note' });
+    push({ kind: 'error', text: 'newest refusal' });
+    const inside = screen.getByRole('button', { name: 'Inside' });
+    inside.focus();
+
+    // The sheet's focus trap keeps Tab away from the ✕, so Escape is the
+    // keyboard's only way to an error drawn over the sheet.
+    // Proof: on 43ead5a10 this failed on `expected [ 'newest refusal', 'a note',
+    // …(1) ] to deeply equal [ 'a note', 'older refusal' ]`: Escape closed the
+    // sheet and left every toast.
+    fireEvent.keyDown(inside, { key: 'Escape' });
+    expect(shown()).toEqual(['a note', 'older refusal']);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    fireEvent.keyDown(inside, { key: 'Escape' });
+    expect(shown()).toEqual(['a note']);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    // With no error left, Escape is the surface's again; an info note leaves by itself.
+    fireEvent.keyDown(inside, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(shown()).toEqual(['a note']);
+  });
+
+  itDom('leaves Escape to the page while no modal surface is open', () => {
+    render(<Harness />);
+    push({ kind: 'error', text: 'a refusal on the page' });
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    // Escape on the page belongs to a cell, a list or a popover; the ✕ is in the tab order.
+    expect(shown()).toEqual(['a refusal on the page']);
   });
 });

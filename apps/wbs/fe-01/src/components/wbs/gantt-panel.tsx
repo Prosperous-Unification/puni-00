@@ -1240,11 +1240,17 @@ export function laneStacksOf(bars: readonly PlacedBar[]): LaneStack[] {
 }
 
 /**
- * What a lane stack writes: `number · 3 steps · 2 no estimate`, or
- * `number · 2 steps · no estimate` where nobody estimated any of them. The
- * number leads and yields to nothing, as in {@link barText}: the box crops the
- * words, a stack with room for the number alone says the number, and one
- * without room for it says nothing.
+ * What a lane stack writes: `number · no estimate on 2 of 3`, or
+ * `number · no estimate ×2` where nobody estimated any of them. The number
+ * leads and yields to nothing, as in {@link barText}: the box crops the words,
+ * a stack with room for the number alone says the number, and one without room
+ * for it says nothing.
+ *
+ * **The fact comes straight after the number, the count after it**, because the
+ * crop always falls on an all-unestimated stack at Days: it is the assumed span
+ * wide, 2 workdays, 47px of room, and `020 · 2 steps · no estimate` drew as
+ * `020 · 2 s…`, which says nothing a reader can use (UI review F-139). What
+ * survives the crop now begins `no e…`, the fact.
  */
 export function stackText(
   stack: Pick<LaneStack, 'steps' | 'unestimated'>,
@@ -1252,11 +1258,11 @@ export function stackText(
 ): string | null {
   const leadPx = room.number.length * LABEL_CHAR_PX;
   if (room.px >= leadPx + ELLIPSIS_PX) {
-    const unknown =
+    const words =
       stack.unestimated === stack.steps
-        ? PLACEHOLDER_WORDS
-        : `${String(stack.unestimated)} ${PLACEHOLDER_WORDS}`;
-    return [room.number, `${String(stack.steps)} steps`, unknown].join(LABEL_SEPARATOR);
+        ? `${PLACEHOLDER_WORDS} ×${String(stack.steps)}`
+        : `${PLACEHOLDER_WORDS} on ${String(stack.unestimated)} of ${String(stack.steps)}`;
+    return [room.number, words].join(LABEL_SEPARATOR);
   }
   return room.px >= leadPx ? room.number : null;
 }

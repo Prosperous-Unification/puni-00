@@ -820,6 +820,126 @@ test.describe('the quiet ink on a banded row (F-071)', () => {
   }
 });
 
+test.describe('one ink for an estimate and its placeholder (F-113, F-114)', () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`draws a resting trio and the o/r/p alike, at 4.5:1 on every row ground, ${scheme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await seedReviewPlan(page, `estimate-ink-${scheme}`, testInfo.workerIndex);
+      await page.mouse.move(2, 890);
+      const box = (rowName: string, step: 'Dev' | 'QA'): Locator =>
+        page
+          .locator('tr', { hasText: rowName })
+          .getByRole('combobox', { name: new RegExp(`^${step} estimate for `) });
+      // Plain and banded rows, each with a drawn trio (Dev 2/3/5 and 2/3/4; a flat
+      // trio is not drawn) and with an empty QA box (030, 040).
+      const cells = [
+        { row: 'Sign-up form', step: 'Dev', parity: 'odd', filled: true },
+        { row: 'Rate limiting', step: 'Dev', parity: 'even', filled: true },
+        { row: 'Fix: session cookie', step: 'QA', parity: 'odd', filled: false },
+        { row: 'Spike: evaluate', step: 'QA', parity: 'even', filled: false },
+      ] as const;
+      for (const cell of cells) {
+        await expect(page.locator('tr', { hasText: cell.row })).toHaveAttribute(
+          'data-row-parity',
+          cell.parity,
+        );
+        if (cell.filled) await expect(box(cell.row, cell.step)).not.toHaveValue('');
+        else await expect(box(cell.row, cell.step)).toHaveValue('');
+      }
+
+      const look = (box: Locator, pseudo: string | null) =>
+        box.evaluate((node, part) => {
+          const style = getComputedStyle(node, part);
+          return { color: style.color, size: style.fontSize, slant: style.fontStyle };
+        }, pseudo);
+      const trio = await look(box('Rate limiting', 'Dev'), null);
+      const placeholder = await look(box('Spike: evaluate', 'QA'), '::placeholder');
+      // Proof: on 43ead5a10 this failed in light on `the placeholder in the trio’s
+      // ink and size`, the placeholder `oklch(0.5 0.046 257.417)` against the
+      // trio's `oklch(0.554 0.046 257.417)`, and in dark (one token there) on `the
+      // placeholder told apart by its slant · Expected: "italic" · Received: "normal"`.
+      expect(
+        { color: placeholder.color, size: placeholder.size },
+        'the placeholder in the trio’s ink and size',
+      ).toEqual({ color: trio.color, size: trio.size });
+      expect(placeholder.slant, 'the placeholder told apart by its slant').toBe('italic');
+      expect(trio.slant, 'the trio upright').toBe('normal');
+
+      // At rest, then with the row lit by the pointer resting on its Name.
+      for (const lit of [false, true]) {
+        for (const cell of cells) {
+          if (lit)
+            await page
+              .getByLabel(`Name of ${await rowNumber(page, cell.row)}`, { exact: true })
+              .hover({ position: { x: 4, y: 4 } });
+          else await page.mouse.move(2, 890);
+          const extent = await textExtent(
+            box(cell.row, cell.step),
+            cell.filled ? 'value' : 'placeholder',
+          );
+          expect(extent.width).toBeGreaterThan(0);
+          // Proof: with the trio put back on `--muted-foreground` (watched
+          // 2026-10-18), this failed in light on `Rate limiting trio, at rest ·
+          // Expected: >= 4.5 · Received: 4.4775…`; dark draws both in one token.
+          expect(
+            await paintedContrast(page, extent),
+            `${cell.row} ${cell.filled ? 'trio' : 'o/r/p'}, ${lit ? 'lit' : 'at rest'}`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    });
+  }
+});
+
+/** A row's number, read off its Number cell. */
+async function rowNumber(page: Page, rowName: string): Promise<string> {
+  const text = await page
+    .locator('tr', { hasText: rowName })
+    .locator('[data-number]')
+    .first()
+    .textContent();
+  if (text === null || text.trim() === '') throw new Error(`${rowName} has no number`);
+  return text.trim();
+}
+
+/**
+ * Where a text box's own words are drawn: its value, or its placeholder when it
+ * has none, from where the words start, as wide as they are in the box's font.
+ */
+function textExtent(box: Locator, words: 'value' | 'placeholder') {
+  return box.evaluate((node, which) => {
+    if (!(node instanceof HTMLInputElement)) throw new Error('the estimate box is not an input');
+    const style = getComputedStyle(node, which === 'placeholder' ? '::placeholder' : null);
+    const context = document.createElement('canvas').getContext('2d');
+    if (context === null) throw new Error('no 2d canvas in this browser');
+    context.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const own = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    const text = which === 'value' ? node.value : node.placeholder;
+    const inner =
+      rect.width -
+      Number.parseFloat(own.borderLeftWidth) -
+      Number.parseFloat(own.borderRightWidth) -
+      Number.parseFloat(own.paddingLeft) -
+      Number.parseFloat(own.paddingRight);
+    const width = Math.min(inner, context.measureText(text).width);
+    const start =
+      rect.x + Number.parseFloat(own.borderLeftWidth) + Number.parseFloat(own.paddingLeft);
+    const offset =
+      own.textAlign === 'center'
+        ? (inner - width) / 2
+        : own.textAlign === 'right' || own.textAlign === 'end'
+          ? inner - width
+          : 0;
+    return { x: start + offset, y: rect.y, width, height: rect.height };
+  }, words);
+}
+
 /**
  * A text box's placeholder extent: from the content box's left edge (or, for a
  * centred box, from where the word starts), as wide as the word in the box's font.

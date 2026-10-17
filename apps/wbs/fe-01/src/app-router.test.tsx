@@ -272,7 +272,7 @@ describe('the signed-in region, routed', () => {
     await waitFor(() => {
       expect(projectShowing()).toBe(true);
     });
-    expect(screen.getByRole('link', { name: 'Plan' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('link', { name: 'Project' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getByRole('link', { name: 'Directory' }).getAttribute('aria-current')).toBeNull();
     project.unmount();
 
@@ -283,7 +283,7 @@ describe('the signed-in region, routed', () => {
     expect(screen.getByRole('link', { name: 'Directory' }).getAttribute('aria-current')).toBe(
       'page',
     );
-    expect(screen.getByRole('link', { name: 'Plan' }).getAttribute('aria-current')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Project' }).getAttribute('aria-current')).toBeNull();
   });
 
   /**

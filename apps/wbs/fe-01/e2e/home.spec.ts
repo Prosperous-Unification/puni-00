@@ -99,3 +99,50 @@ test('imports a plan from the card and opens it', async ({ page }) => {
   await expect(home).toBeHidden();
   await expect(page.getByRole('button', { name: 'Add work item' })).toBeVisible();
 });
+
+test('tells projects with one long prefix apart on a phone (F-156)', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'local-dev' })).toBeVisible();
+  const client = fixtureClient(page);
+  // The review's three `Review fixture (impo…` rows: one prefix wider than the card.
+  const names = ['first', 'second'].map(
+    (which) => `Review fixture (imported ${RUN_TOKEN}) ${which} copy`,
+  );
+  for (const name of names) {
+    const made = fixtureSuccess(
+      'postApiProjects',
+      await client.postApiProjects({ body: { name } }),
+    ).body;
+    const opened = await page.evaluate(
+      async (id) => (await fetch(`/api/projects/${id}/opened`, { method: 'POST' })).status,
+      made.project.id,
+    );
+    expect(opened, 'be-01 did not record the open').toBeLessThan(300);
+  }
+  await page.evaluate(() => {
+    localStorage.removeItem('wbs.project');
+  });
+  await page.reload();
+  const home = page.getByRole('region', { name: 'No project open' });
+  await expect(home).toBeVisible();
+  for (const name of names) {
+    const row = home
+      .getByRole('list', { name: 'Your projects' })
+      .getByRole('button', { name: new RegExp(name.replace(/[()]/g, '\\$&')) });
+    await expect(row).toBeVisible();
+    const words = await row
+      .locator('span')
+      .first()
+      .evaluate((node) => ({
+        text: node.textContent,
+        clipped: node.scrollWidth > node.clientWidth + 1,
+        rightInside: node.getBoundingClientRect().right <= window.innerWidth,
+      }));
+    // Proof: on 43ead5a10 this failed on `the name drawn whole · Expected: false ·
+    // Received: true`: both rows read `Review fixture (impo…`.
+    expect(words.clipped, `${name} drawn whole`).toBe(false);
+    expect(words.text).toBe(name);
+    expect(words.rightInside, `${name} inside the window`).toBe(true);
+  }
+});

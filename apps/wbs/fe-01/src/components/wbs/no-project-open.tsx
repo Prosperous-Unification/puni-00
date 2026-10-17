@@ -63,18 +63,29 @@ export function NoProjectOpen({
         <ul aria-label="Your projects" className="m-0 mt-4 flex list-none flex-col p-0">
           {recent.map((project) => (
             <li key={project.id}>
+              {/*
+                Below 768px the name wraps whole, with the last-opened words under
+                it as the project picker's cards put them: a phone opens no hint
+                card (decision D12), so an ellipsis there hid words nobody could
+                reach, and the review's three imports all read `Review fixture
+                (impo…` (UI review F-156). Proof: with `truncate` on every width,
+                `e2e/home.spec.ts` `tells projects with one long prefix apart on a
+                phone` failed on `drawn whole · Expected: false · Received: true`.
+              */}
               <Button
                 variant="ghost"
                 type="button"
+                title={project.name}
                 className={cn(
                   MENU_ITEM,
                   'h-auto min-h-9 justify-between gap-3 py-1.5 max-md:min-h-11',
+                  'max-md:flex-col max-md:items-start max-md:gap-0.5 max-md:whitespace-normal',
                 )}
                 onClick={() => {
                   onOpen(project.id);
                 }}
               >
-                <span className="truncate">{project.name}</span>
+                <span className="text-left max-md:break-words md:truncate">{project.name}</span>
                 <span className="text-muted-foreground shrink-0 text-xs">
                   {projectCardMeta(project, now).lastOpened}
                 </span>

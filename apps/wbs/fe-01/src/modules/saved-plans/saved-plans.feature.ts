@@ -101,7 +101,13 @@ const codeOf = (fault: unknown): string => (fault instanceof Error ? fault.messa
  * the *plan*, not to this. Naming only what is used keeps the fake in the cases
  * two lines long and keeps this file from acquiring an opinion about sequences.
  */
-export type ShelfWatchDeps = ShelfDeps & Pick<SavedPlanRoutes, 'subscribe'>;
+export type ShelfWatchDeps = ShelfDeps & {
+  /** {@link SavedPlanRoutes.subscribe}, with a resettle already folded into `onChange`. */
+  readonly subscribe: (
+    projectId: string,
+    onChange: (changed?: string | null) => void,
+  ) => { unsubscribe(): void };
+};
 
 /**
  * A project's shelf, read now and re-read whenever the project changes.
@@ -201,18 +207,31 @@ export function openSavedPlans({
   let current: SavedPlanListState = { kind: 'loading' };
   const revisions = createChannel<undefined>();
   let revision = 0;
+  let resettles = 0;
   const watched: ShelfWatchDeps = {
     ...routes,
     subscribe: (id, onChange) =>
-      routes.subscribe(id, (changed) => {
-        // Proof: on 2026-10-16, counting every broadcast here failed `does not count a shelf
-        // broadcast as a move of the live plan` on `expected 1 to be +0`.
-        if (changed !== SAVED_PLANS_CHANGED && isCurrent()) {
-          revision += 1;
-          revisions.publish(undefined);
-        }
-        onChange(changed);
-      }),
+      routes.subscribe(
+        id,
+        (changed) => {
+          // Proof: on 2026-10-16, counting every broadcast here failed `does not count a shelf
+          // broadcast as a move of the live plan` on `expected 1 to be +0`.
+          if (changed !== SAVED_PLANS_CHANGED && isCurrent()) {
+            revision += 1;
+            revisions.publish(undefined);
+          }
+          onChange(changed);
+        },
+        () => {
+          // A move of unknown kind for the plan and the list alike: both are read again.
+          if (isCurrent()) {
+            revision += 1;
+            resettles += 1;
+            revisions.publish(undefined);
+          }
+          onChange(null);
+        },
+      ),
   };
   const watch = watchShelf(watched, projectId, (next) => {
     // Proof: on 2026-09-27, publishing regardless here (s1) failed `changes nothing once its
@@ -232,6 +251,10 @@ export function openSavedPlans({
     livePlanRevision: {
       subscribe: (onChange) => revisions.subscribe(onChange),
       snapshot: () => revision,
+    },
+    livePlanResettles: {
+      subscribe: (onChange) => revisions.subscribe(onChange),
+      snapshot: () => resettles,
     },
     refresh: () => {
       // Proof: on 2026-09-27, refreshing regardless here (s4) failed `reads nothing when refreshed

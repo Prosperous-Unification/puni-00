@@ -137,6 +137,44 @@ export function useToasts(): ToastStackApi {
   return { toasts, pushToast, dismissToast };
 }
 
+/**
+ * While a modal surface is open and an error shows, Escape takes the newest
+ * error off before the surface hears it.
+ *
+ * A sheet or a dialog traps Tab, so the ✕ of an error drawn over it (the stack
+ * is above every modal, see {@link ToastStack}) is out of the keyboard's reach,
+ * and Escape closed the surface instead: the reader had to leave what they were
+ * doing to dismiss what happened (UI review F-132). So Escape is the error's
+ * first, one error per press, newest first, and the surface's once none is left.
+ *
+ * A capture listener on `window`, because Radix listens for Escape in the
+ * capture phase on the document, and the window's capture runs before it;
+ * `stopImmediatePropagation` keeps it from the document and from a second
+ * stack's listener, so one press takes one toast. Only while a surface is open
+ * (`[data-modal-surface]`, which `ModalContent` mounts while open): on the page
+ * Escape belongs to a cell, a list or a popover, and the ✕ is in the tab order.
+ *
+ * Proof: without this hook, `toasts.test.tsx` `takes the newest error off on
+ * Escape before the surface closes` failed on `expected [ 'newest refusal', 'a
+ * note', …(1) ] to deeply equal [ 'a note', 'older refusal' ]`. Watched 2026-10-18.
+ */
+function useEscapeTakesError(errorKey: string | null, onDismiss: (key: string) => void): void {
+  useEffect(() => {
+    if (errorKey === null) return undefined;
+    const escaped = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (document.querySelector('[data-modal-surface]') === null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onDismiss(errorKey);
+    };
+    window.addEventListener('keydown', escaped, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', escaped, { capture: true });
+    };
+  }, [errorKey, onDismiss]);
+}
+
 export interface ToastStackProps {
   /** Newest first — this renders them in that order, top to bottom. */
   toasts: readonly Toast[];
@@ -181,6 +219,8 @@ export interface ToastStackProps {
 export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
   const shown = toasts.slice(0, VISIBLE_TOASTS);
   const collapsed = toasts.length - shown.length;
+  const newestError = shown.find((toast) => toast.kind === 'error');
+  useEscapeTakesError(newestError === undefined ? null : toastKey(newestError), onDismiss);
   return createPortal(
     <div
       data-toasts

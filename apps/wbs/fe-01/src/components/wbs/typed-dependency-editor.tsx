@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { SELECT_CLASS } from '@/components/ui/control';
@@ -167,6 +167,80 @@ export function endpointChoices(
   ];
 }
 
+/**
+ * Where the editor is a bottom sheet instead of a popover: the card renderer's
+ * own boundary, which `styles.css` repeats for `.typed-dependency-editor`.
+ */
+const SHEET_QUERY = '(max-width: 767.98px), (max-height: 499.98px)';
+
+/** The clear air the floating editor keeps from the window's edges, in CSS px. */
+const WINDOW_MARGIN_PX = 8;
+
+/**
+ * Floats the editor over the table's scroll frame, in the window's coordinates,
+ * hung from the cell it opened in.
+ *
+ * Hung from the cell with `position: absolute`, it was inside the frame's
+ * `overflow: auto` box, and on a plan shorter than the editor (a 320px frame, a
+ * 421px editor) the frame cut it off: the Relationship select's foot, Cancel and
+ * Add sat below the frame's edge until the reader scrolled the table (UI review
+ * F-176). `position: fixed` escapes that clip; the editor opens under the cell
+ * where the window has room, over it where it does not, and else stands where
+ * the window holds it whole. Measured again on every scroll and resize, so it
+ * stays with its cell. Not on the phone's sheet, which `styles.css` pins to the
+ * window's foot.
+ *
+ * Proof: with this hook removed, `e2e/customize-editor.spec.ts` `draws the grid's
+ * Customize editor whole` failed on `Cancel is reachable · Expected: true ·
+ * Received: false` in both palettes. Watched 2026-10-18.
+ *
+ * @throws When the editor is not mounted inside a cell: it is always rendered in one.
+ */
+function useFloatOverFrame(dialog: RefObject<HTMLDivElement | null>): void {
+  useLayoutEffect(() => {
+    const element = dialog.current;
+    const cell = element?.parentElement;
+    if (element === null || cell === null || cell === undefined)
+      throw new Error('the dependency editor is not mounted inside a cell');
+    const sheet = window.matchMedia(SHEET_QUERY);
+    const place = (): void => {
+      if (sheet.matches) {
+        element.style.removeProperty('position');
+        element.style.removeProperty('top');
+        element.style.removeProperty('left');
+        return;
+      }
+      const anchor = cell.getBoundingClientRect();
+      const height = element.offsetHeight;
+      const width = element.offsetWidth;
+      const below = window.innerHeight - WINDOW_MARGIN_PX - anchor.bottom;
+      const above = anchor.top - WINDOW_MARGIN_PX;
+      const top =
+        height <= below
+          ? anchor.bottom
+          : height <= above
+            ? anchor.top - height
+            : Math.max(WINDOW_MARGIN_PX, window.innerHeight - WINDOW_MARGIN_PX - height);
+      const left = Math.max(
+        WINDOW_MARGIN_PX,
+        Math.min(anchor.left, window.innerWidth - WINDOW_MARGIN_PX - width),
+      );
+      element.style.position = 'fixed';
+      element.style.top = `${String(top)}px`;
+      element.style.left = `${String(left)}px`;
+    };
+    place();
+    window.addEventListener('scroll', place, { capture: true, passive: true });
+    window.addEventListener('resize', place);
+    sheet.addEventListener('change', place);
+    return () => {
+      window.removeEventListener('scroll', place, { capture: true });
+      window.removeEventListener('resize', place);
+      sheet.removeEventListener('change', place);
+    };
+  }, [dialog]);
+}
+
 export function TypedDependencyEditor({
   predecessor,
   successor,
@@ -211,6 +285,7 @@ export function TypedDependencyEditor({
   const [message, setMessage] = useState('');
   const backButton = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
+  useFloatOverFrame(dialog);
   useEffect(() => backButton.current?.focus(), []);
   useEffect(() => {
     const element = dialog.current;

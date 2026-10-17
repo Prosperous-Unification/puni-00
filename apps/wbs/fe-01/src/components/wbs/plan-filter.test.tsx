@@ -1359,6 +1359,19 @@ describe('saved views, per browser', () => {
     },
   );
 
+  itDom('says on Save that a name a view already has replaces that view (F-136)', async () => {
+    await aPlanWithATeam();
+    openFilters();
+    tick('Team Billing');
+    openViews();
+    // The toolbar's one overwrite, said where the reader decides on it.
+    // Proof: on 43ead5a10 this failed on `expected 'Save the Find box and the
+    // ticked filt…' to contain 'A name a view already has replaces th…'`.
+    expect(screen.getByRole('button', { name: 'Save' }).getAttribute('data-hint')).toContain(
+      'A name a view already has replaces that view.',
+    );
+  });
+
   itDom('saves a named view on Enter in its name field, as Saved plans does (F-104)', async () => {
     await aPlanWithATeam();
     openFilters();

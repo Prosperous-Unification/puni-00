@@ -126,6 +126,16 @@
   --popover-foreground: oklch(0.129 0.042 264.695);
   --primary: oklch(0.208 0.042 265.755);
   --primary-foreground: oklch(0.984 0.003 247.858);
+  /*
+   * A pressed toggle's face (`button.tsx`' `PRESSED`): a state, not an action,
+   * so not the primary's paint. The primary is also every default action's face,
+   * and a pressed Plan stood beside Create new project in the identical
+   * (15,23,43) / (226,232,240), two meanings in one paint (UI review F-147).
+   * A slate blue the primary's hue family: 6.08:1 off white, so a pressed and an
+   * unpressed toggle stay 3:1 apart (F-116), and 2.93:1 off the primary.
+   */
+  --pressed: oklch(0.5 0.12 262);
+  --pressed-foreground: oklch(1 0 0);
   --secondary: oklch(0.968 0.007 247.896);
   --secondary-foreground: oklch(0.208 0.042 265.755);
   --muted: oklch(0.968 0.007 247.896);
@@ -198,7 +208,8 @@
   --reading-skipped: oklch(0.49 0.09 257);
   /*
    * Quiet text that must still be read where it rests in the table: the
-   * hidden-chip count (`+N`) and the grid's placeholders (`search`). The muted
+   * hidden-chip count (`+N`), the grid's placeholders (`search`, `o/r/p`) and
+   * the Estimate cells' resting trio beside them (UI review F-113, F-114). The muted
    * slate one step darker, because `--muted-foreground` measures 4.48:1 on a
    * banded row (rgb(98,116,142) on rgb(247,248,248)) and the placeholders drew
    * it at 0.7 opacity, near 2.5:1 (UI review F-071). Its own token rather than a
@@ -220,6 +231,9 @@
   --popover-foreground: oklch(0.984 0.003 247.858);
   --primary: oklch(0.929 0.013 255.508);
   --primary-foreground: oklch(0.208 0.042 265.755);
+  /* 8.1:1 off the dark page and 2.02:1 off its near-white primary (F-147). */
+  --pressed: oklch(0.72 0.09 262);
+  --pressed-foreground: oklch(0.129 0.042 264.695);
   --secondary: oklch(0.279 0.041 260.031);
   --secondary-foreground: oklch(0.984 0.003 247.858);
   --muted: oklch(0.279 0.041 260.031);
@@ -408,6 +422,8 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-pressed: var(--pressed);
+  --color-pressed-foreground: var(--pressed-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -1309,6 +1325,11 @@
   [data-grid] ::placeholder {
     color: var(--quiet-ink);
     opacity: 1;
+    /* Told apart from a value by its slant, never by a paler tone: an Estimate
+       cell's resting trio is drawn in this same ink and size (UI review F-113).
+       Proof: dropped, `plan-table-review.spec.ts` `draws a resting trio and the
+       o/r/p alike` fails on `the placeholder told apart by its slant`. */
+    font-style: italic;
   }
 
   /*

@@ -346,6 +346,33 @@ test.describe('the toolbar popovers', () => {
   });
 });
 
+test('a choice in Export / Import gives the focus back without a hint card (F-159)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openPlan(page);
+  const summary = summaryOf(page, 'Export / Import');
+  await summary.click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download JSON' }).click();
+  await download;
+  await expect(page.locator('details[data-export]')).not.toHaveAttribute('open', '');
+  await expect(summary).toBeFocused();
+  // A keyboard arrival opens its card at once, so half a second is past any
+  // instant card and short of the pointer's two-second wait.
+  await page.waitForTimeout(500);
+  // Proof: on 43ead5a10 this failed on `a hint card after Download JSON ·
+  // Expected: 0 · Received: 1`: the menu's own focus return opened `Copy,
+  // download, or import the plan…` over the table's headers.
+  await expect(page.locator('#hint-card'), 'a hint card after Download JSON').toHaveCount(0);
+
+  // A reader who Tabs back onto the summary still gets its card.
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(summary).toBeFocused();
+  await expect(page.locator('#hint-card')).toContainText('Copy, download, or import the plan');
+});
+
 test.describe('the toolbar rows', () => {
   /*
     960×600 is the 1440×900 window at 150 % zoom, where UI review F-099 was
@@ -458,7 +485,10 @@ test.describe('the toolbar rows', () => {
     // Proof: on 3e06eb5a4 this failed on `getByRole('toolbar', { name: 'Plan' })`
     // `element(s) not found`: the F-005/F-056 grouping was visual only, a flat run
     // of buttons to a screen reader.
-    const toolbar = page.getByRole('toolbar', { name: 'Plan' });
+    // Named as the phone names the same controls, not `Plan`, which is also the
+    // Plan · Board button's name (F-115). Proof: on 43ead5a10 this failed on
+    // `getByRole('toolbar', { name: 'Plan actions', exact: true })` `element(s) not found`.
+    const toolbar = page.getByRole('toolbar', { name: 'Plan actions', exact: true });
     await expect(toolbar).toBeVisible();
     const end = toolbar.getByRole('group', { name: 'Whole plan' });
     for (const name of ['Undo', 'Redo', 'Keyboard shortcuts'])

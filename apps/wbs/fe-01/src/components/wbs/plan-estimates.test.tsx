@@ -972,7 +972,7 @@ describe('one cell for the whole trio', () => {
       expect(rowFor('010').querySelector('[data-final-total]')?.textContent).toBe('5');
     });
     expect(combinedCell('010').value).toBe('5');
-    expect(combinedCell('010').style.color).toBe('var(--muted-foreground)');
+    expect(combinedCell('010').style.color).toBe('var(--quiet-ink)');
     expect(foldedFinal('010')).toBeNull();
   });
 
@@ -1332,7 +1332,7 @@ describe('one cell for the whole trio', () => {
     const cell = combinedCell('010');
     expect(cell.style.fontSize).toBe(quiet);
     expect(cell.style.fontWeight).toBe('400');
-    expect(cell.style.color).toBe('var(--muted-foreground)');
+    expect(cell.style.color).toBe('var(--quiet-ink)');
   });
 
   itDom('gives the trio back its strength on focus and quiets it again on blur', async () => {
@@ -1404,7 +1404,7 @@ describe('one cell for the whole trio', () => {
 
     expect(rolledTrio('010')?.style.fontSize).toBe(quiet);
     expect(rolledTrio('010')?.style.fontWeight).toBe('400');
-    expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
+    expect(rolledTrio('010')?.style.color).toBe('var(--quiet-ink)');
   });
 
   itDom('shows a parent’s rolled-up trio once when it equals the result', async () => {
@@ -1424,7 +1424,7 @@ describe('one cell for the whole trio', () => {
       expect(rolledTrio('010')?.textContent).toBe('5');
     });
     expect(rolledTrio('010')?.textContent).toBe('5');
-    expect(rolledTrio('010')?.style.color).toBe('var(--muted-foreground)');
+    expect(rolledTrio('010')?.style.color).toBe('var(--quiet-ink)');
     expect(foldedFinal('010')).toBeNull();
   });
 

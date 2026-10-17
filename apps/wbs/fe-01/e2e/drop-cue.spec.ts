@@ -162,6 +162,86 @@ for (const scheme of ['light', 'dark'] as const) {
   });
 }
 
+/**
+ * `010.1` grows two levels under it, `010.1.1` and `010.1.1.1`: depth 3, one
+ * past the Number column's indent cap (`DEEPEST_INDENT` 2).
+ */
+async function seedDeep(page: Page, testName: string, worker: number): Promise<void> {
+  const seeded = await seedPlan(
+    page,
+    {
+      name: 'Drop past the cap',
+      rows: [
+        { ref: 'onboarding', name: 'Onboarding' },
+        { ref: 'billing', name: 'Billing' },
+      ],
+    },
+    { run: 'drop-cue', worker, test: `${testName}-${String(Date.now())}` },
+  );
+  const commands: PlanCommandWire[] = [
+    {
+      kind: 'createWorkItem',
+      ref: 'form',
+      name: 'Sign-up form',
+      parentId: seeded.rowIds['onboarding'],
+      afterId: null,
+    },
+    {
+      kind: 'createWorkItem',
+      ref: 'tour',
+      name: 'Welcome tour',
+      parentId: seeded.rowIds['onboarding'],
+      afterRef: 'form',
+    },
+    {
+      kind: 'createWorkItem',
+      ref: 'fields',
+      name: 'Form fields',
+      parentRef: 'form',
+      afterId: null,
+    },
+    {
+      kind: 'createWorkItem',
+      ref: 'email',
+      name: 'Email field',
+      parentRef: 'fields',
+      afterId: null,
+    },
+  ];
+  fixtureSuccess(
+    'postApiProjectsByIdCommands',
+    await fixtureClient(page).postApiProjectsByIdCommands({
+      params: { id: seeded.projectId },
+      body: { commands },
+    }),
+  );
+  await openSeededPlan(page, seeded);
+  await expect(page.getByLabel('Name of 010.1.1.1', { exact: true })).toBeVisible();
+}
+
+test('past the Number column’s indent cap the drop line starts where the number starts (F-143)', async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await seedDeep(page, 'deep', testInfo.workerIndex);
+  // A depth-3 row's number stands where a depth-2 row's does: the cap.
+  expect(
+    (await outlineLeft(page, '010.1.1.1')) - (await outlineLeft(page, '010.1.1')),
+    'the Number cell stops indenting at the cap',
+  ).toBe(0);
+  await dragOnto(page, '010.2', '010.1.1.1', 'below');
+  const starts = await lineStartX(page, rowOf(page, '010.1.1.1'), 'below');
+  // Proof: on 43ead5a10 this failed on `below 010.1.1.1 starts at its number ·
+  // Expected: <= 1 · Received: 12`: the line began a level inside the number,
+  // at the uncapped outline the Number cell no longer draws.
+  expect(
+    Math.abs(starts - (await outlineLeft(page, '010.1.1.1'))),
+    'below 010.1.1.1 starts at its number',
+  ).toBeLessThanOrEqual(1);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+});
+
 test('a drop leaves no tool hint waiting where the drag began (F-129)', async ({
   page,
 }, testInfo) => {

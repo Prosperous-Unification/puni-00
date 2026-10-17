@@ -19,19 +19,19 @@ amended in place to match.
 
 - **GIVEN** a leaf whose first step is unestimated and whose second is estimated at half a day
 - **WHEN** the chart draws the two bars in lanes at one instant
-- **THEN** the row's number is written once, as `010 · 2 steps · 1 no estimate`
+- **THEN** the row's number is written once, as `010 · no estimate on 1 of 2`
 - **AND** no two labels' glyphs touch on the chart
 
 #### Scenario: nobody estimated any step
 
 - **GIVEN** a leaf with two unestimated steps
-- **THEN** its one label reads `020 · 2 steps · no estimate`
+- **THEN** its one label reads `020 · no estimate ×2`
 
 #### Scenario: a long estimated step after an unestimated one
 
 - **GIVEN** a leaf whose first step is unestimated and whose second is estimated at ten days
 - **WHEN** the chart draws the two bars in lanes at one instant
-- **THEN** the stack's label `030 · 2 steps · 1 no estimate` spans the placeholder's assumed span
+- **THEN** the stack's label `030 · no estimate on 1 of 2` spans the placeholder's assumed span
 - **AND** the ten-day bar writes `030 · Row long` from there to its end, at 4.5:1 or better
 
 ### Requirement: Directory load lines use the app's link ink

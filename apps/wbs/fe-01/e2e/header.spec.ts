@@ -284,6 +284,14 @@ function headerFit(page: Page): Promise<{ rowsDeep: number; past: number; height
 const DISTINCT_STATES = 3;
 
 /**
+ * How far a pressed toggle's face stands off the default (primary) action's: a
+ * different paint, not a shade of the same one (UI review F-147). Lower than
+ * {@link DISTINCT_STATES} because the two are not one control's states, and the
+ * hue differs as well.
+ */
+const STATE_BESIDE_ACTION = 1.5;
+
+/**
  * The colour a control's own face is painted, composited over every ancestor's
  * paint the way `dark-mode.spec.ts`' `contrastOf` stacks a surface, and rasterised
  * through a canvas because a token resolves to `oklch(…)`.
@@ -517,7 +525,7 @@ test.describe('the header bar, measured by a browser', () => {
     // why that matrix is re-run below with it on the bar and FAULT W was
     // watched again.
     await expect(bar.getByRole('heading', { name: 'WBS tool v2' })).toBeVisible();
-    await expect(bar.getByRole('link', { name: 'Plan' })).toBeVisible();
+    await expect(bar.getByRole('link', { name: 'Project' })).toBeVisible();
     await expect(bar.getByRole('link', { name: 'Directory' })).toBeVisible();
     await expect(bar.getByRole('combobox', { name: 'Project' })).toBeVisible();
     await expect(bar.getByRole('heading', { name: 'Live', exact: true })).toBeVisible();
@@ -656,8 +664,8 @@ test.describe('the header bar, read by eye and measured', () => {
       await page.emulateMedia({ colorScheme: scheme });
       const nav = page.getByRole('navigation', { name: 'Pages' });
       for (const [path, current, other] of [
-        ['/', 'Plan', 'Directory'],
-        ['/directory', 'Directory', 'Plan'],
+        ['/', 'Project', 'Directory'],
+        ['/directory', 'Directory', 'Project'],
         ['/spaces', 'Spaces', 'Directory'],
       ] as const) {
         await page.goto(path);
@@ -776,7 +784,64 @@ test.describe('the header bar, read by eye and measured', () => {
         })
         .toBeGreaterThanOrEqual(DISTINCT_STATES);
     });
+
+    test(`paints a pressed toggle unlike the primary action beside it, ${scheme} (F-147)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: scheme });
+      const bar = page.getByRole('banner');
+      const plan = bar.getByRole('button', { name: 'Plan', exact: true });
+      const create = bar.getByRole('button', { name: 'Create new project', exact: true });
+      await expect(plan).toHaveAttribute('aria-pressed', 'true');
+      await page.mouse.move(1, 899);
+      // Read once the palette's colour transitions are over, and not polled: two
+      // faces mid-flip differ for a frame whatever they settle on.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              document
+                .getAnimations()
+                .filter((a) => a.playState !== 'finished' && a.playState !== 'idle').length,
+          ),
+        )
+        .toBe(0);
+      // A state and an action in one row, so in two paints.
+      // Proof: on 43ead5a10 (`PRESSED` the primary fill) this failed on `Plan
+      // pressed against Create new project · Expected: >= 1.5 · Received: 1`
+      // in both palettes.
+      expect(
+        await fillContrast(plan, create),
+        'Plan pressed against Create new project',
+      ).toBeGreaterThanOrEqual(STATE_BESIDE_ACTION);
+    });
   }
+
+  test('names the page so that the nav and the Plan · Board toggle agree on the Board (F-169)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const bar = page.getByRole('banner');
+    await bar.getByRole('button', { name: 'Board', exact: true }).click();
+    await expect(bar.getByRole('button', { name: 'Board', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    const current = bar.getByRole('navigation', { name: 'Pages' }).locator('[aria-current="page"]');
+    await expect(current).toHaveCount(1);
+    const word = (await current.textContent())?.trim() ?? '';
+    // Proof: on 43ead5a10 this failed on `the page marked current is a view the
+    // toggle shows unpressed · Expected: 0 · Received: 1`: the nav marked `Plan`
+    // beside an unpressed `Plan`.
+    await expect(
+      bar
+        .getByRole('button', { name: word, exact: true })
+        .and(bar.locator('[aria-pressed="false"]')),
+      'the page marked current is a view the toggle shows unpressed',
+    ).toHaveCount(0);
+    await bar.getByRole('button', { name: 'Plan', exact: true }).click();
+  });
 });
 
 /**

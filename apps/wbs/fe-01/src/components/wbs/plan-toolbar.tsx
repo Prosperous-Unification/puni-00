@@ -23,6 +23,7 @@ import type { PlanCommands } from '@/modules/plan-commands/contract';
 import { MenuControl } from './actions-menu';
 import { useClosedOnDismiss } from './close-on-dismiss';
 import { DateField } from './date-field';
+import { focusQuietly } from './hint';
 import { ImportWithAiHelp } from './import-with-ai-help';
 import type { PlanTableFeatures } from './plan-columns/column';
 import type { EstimateGaps } from './plan-completeness';
@@ -435,7 +436,8 @@ function closeOnChoice(panel: HTMLDivElement | null): (() => void) | undefined {
     if (menu === null || !(summary instanceof HTMLElement))
       throw new Error('the Export / Import panel is outside its <details> menu');
     menu.open = false;
-    summary.focus();
+    // Quietly: the reader's eyes are on what the choice did, not on the summary (F-159).
+    focusQuietly(summary);
   };
   const onClick = (event: MouseEvent): void => {
     if (event.target instanceof Element && event.target.closest('button') !== null) close();
@@ -541,8 +543,10 @@ export function SavedViews({
             // of the reader, so it does not wait.
             {...(filtering
               ? {
+                  // The overwrite said where it is decided on: it is the toolbar's one
+                  // silent replace (F-140, F-136).
                   'data-hint':
-                    'Save the Find box and the ticked filters. With no name, it is named by what it filters.',
+                    'Save the Find box and the ticked filters. With no name, it is named by what it filters. A name a view already has replaces that view.',
                 }
               : { 'data-fact': 'Nothing is filtered — there is no view to name' })}
           >

@@ -1411,7 +1411,7 @@ describe('the selected project, through the router', () => {
       expect(liveSession(owner)).toBe(session);
       expect(session.projects.snapshot().status).toBe('empty');
 
-      fireEvent.click(screen.getByRole('link', { name: 'Plan' }));
+      fireEvent.click(screen.getByRole('link', { name: 'Project' }));
 
       await waitFor(() => {
         expect(events.filter((event) => event === 'project p1 built')).toHaveLength(2);

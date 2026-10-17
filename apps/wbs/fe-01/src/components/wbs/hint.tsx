@@ -117,6 +117,30 @@ export interface Factable {
   'data-fact-tone'?: FactTone;
 }
 
+/** The control {@link focusQuietly} is focusing right now, while its `focusin` runs. */
+let quietlyFocused: HTMLElement | null = null;
+
+/**
+ * Hands the focus back to `control` the way a surface returns it after a
+ * pointer's choice, opening no hint card there.
+ *
+ * The keyboard's card opens on `focusin` with no wait, and that is right for a
+ * reader who Tabbed onto a control. A focus the page itself returns is not one:
+ * the Export / Import menu gives the focus to its summary after every choice,
+ * and the summary's card then stood over the table's headers as the reply to a
+ * download (UI review F-159), as a drop's returned focus did (F-129). `focus()`
+ * dispatches `focusin` synchronously, so {@link HintLayer} reads this marker
+ * inside the call and it is clear again before anything else can focus.
+ */
+export function focusQuietly(control: HTMLElement): void {
+  quietlyFocused = control;
+  try {
+    control.focus();
+  } finally {
+    quietlyFocused = null;
+  }
+}
+
 /** The selector {@link HintLayer} finds a hinted or facted mark by. */
 const HINTED = `[${FACT_ATTRIBUTE}],[${HINT_ATTRIBUTE}]`;
 
@@ -645,6 +669,16 @@ export function HintLayer(): React.JSX.Element {
       // drop · Expected: 0 · Received: 1` ("Drag to move this row"). Watched
       // 2026-10-16.
       if (dragged) return;
+      // A focus the page handed back ({@link focusQuietly}).
+      // Proof: with this guard removed, `e2e/toolbar-panels.spec.ts` `a choice in
+      // Export / Import gives the focus back without a hint card` failed on `a
+      // hint card after Download JSON · Expected: 0 · Received: 1`. Watched 2026-10-18.
+      if (
+        quietlyFocused !== null &&
+        event.target instanceof Node &&
+        quietlyFocused.contains(event.target)
+      )
+        return;
       // The pointer got here first — a click, most likely. Its own rules apply,
       // wait and all.
       if (at.node === attending) return;

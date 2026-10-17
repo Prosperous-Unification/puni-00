@@ -33,14 +33,14 @@ alone at any width and the header does not change height between the two.
 
 ### Requirement: The plan toolbar is a named toolbar with named groups
 
-The desktop plan toolbar SHALL be exposed as a `toolbar` named `Plan`. Its end SHALL be a `group`
+The desktop plan toolbar SHALL be exposed as a `toolbar` named `Plan actions` (the name since `ui-review-table-toolbar`, F-115). Its end SHALL be a `group`
 named `Whole plan` holding Undo, Redo, Keyboard shortcuts, Export / Import and a `group` named
 `Schedule` holding Starts, Plan with and Reset layout. Tab order SHALL stay control by control.
 
 #### Scenario: a screen reader reaches the end of the bar
 
 - **WHEN** the plan is open at 1440
-- **THEN** the toolbar `Plan` holds the group `Whole plan` with Undo, Redo and Keyboard shortcuts, which holds the group `Schedule` with the start date and `Final estimate`
+- **THEN** the toolbar `Plan actions` holds the group `Whole plan` with Undo, Redo and Keyboard shortcuts, which holds the group `Schedule` with the start date and `Final estimate`
 
 ### Requirement: The estimate shorthand placeholder clears 4.5:1
 

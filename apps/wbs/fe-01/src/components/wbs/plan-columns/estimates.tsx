@@ -500,7 +500,15 @@ export function createEstimatesColumns({
                           // Proof: restoring transparent ink for an equal trio made
                           // `says a flat trio once` fail on `expected 'transparent'
                           // to be 'var(--muted-foreground)'`. Watched 2026-09-27.
-                          color: 'var(--muted-foreground)',
+                          //
+                          // `--quiet-ink`, the `o/r/p` placeholder's own ink, so an empty
+                          // cell's word never outweighs a filled cell's figures (UI review
+                          // F-113) and the trio clears 4.5:1 on a banded or lit row
+                          // (F-114); the placeholder is told apart by its slant instead.
+                          // Proof: on 43ead5a10 `plan-table-review.spec.ts` `draws a resting
+                          // trio and the o/r/p alike` failed on the placeholder's
+                          // `oklch(0.5 …)` against this trio's `oklch(0.554 …)`.
+                          color: 'var(--quiet-ink)',
                           // The trio is what yields when all three do not fit, and it yields
                           // **visibly**: `20/24/30` beside `24.3` on a staffed row has 16px more
                           // trio than box, and without this the box cut `20/24` off mid-glyph and
@@ -620,8 +628,8 @@ export function createEstimatesColumns({
                     // Proof: restoring transparent ink for an equal roll-up made
                     // `shows a parent’s rolled-up trio once when it equals the result`
                     // fail on `expected 'transparent' to be 'var(--muted-foreground)'`.
-                    // Watched 2026-09-27.
-                    color: 'var(--muted-foreground)',
+                    // Watched 2026-09-27. `--quiet-ink` with the leaf's trio (F-113, F-114).
+                    color: 'var(--quiet-ink)',
                   }}
                 >
                   {atRest}

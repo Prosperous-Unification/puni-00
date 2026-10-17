@@ -7834,7 +7834,7 @@ describe('downloading the chart as a standalone .svg', () => {
     // estimate' ]` (2026-10-16); with the spill ignored in the file, on
     // `expected [ 'sand · 2 steps · 1 no estimate' ] to deeply equal [ …(2) ]`
     // (2026-10-17).
-    expect(written.sort()).toEqual(['sand · 2 steps · 1 no estimate', 'sand · sand']);
+    expect(written.sort()).toEqual(['sand · no estimate on 1 of 2', 'sand · sand']);
   });
 
   itDom(

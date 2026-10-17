@@ -33,6 +33,7 @@ const ready = (over: Partial<Extract<SavedPlanComparisonState, { kind: 'ready' }
     schedules: { left: { kind: 'present' }, right: { kind: 'present' } },
     rows: [row()],
     livePlanRevision: 0,
+    livePlanResettles: 0,
     ...over,
   }) satisfies SavedPlanComparisonState;
 

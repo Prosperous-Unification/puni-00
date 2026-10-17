@@ -113,6 +113,8 @@ export type SavedPlanComparisonState =
       readonly rows: readonly SavedPlanListEntryView[];
       /** {@link SavedPlans.livePlanRevision} when this comparison was asked for. */
       readonly livePlanRevision: number;
+      /** {@link SavedPlans.livePlanResettles} when this comparison was asked for. */
+      readonly livePlanResettles: number;
     };
 
 /**

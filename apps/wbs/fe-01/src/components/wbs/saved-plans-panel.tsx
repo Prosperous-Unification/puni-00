@@ -141,6 +141,10 @@ export function SavedPlansPanel({
     savedPlans.livePlanRevision.subscribe,
     savedPlans.livePlanRevision.snapshot,
   );
+  const livePlanResettles = useSyncExternalStore(
+    savedPlans.livePlanResettles.subscribe,
+    savedPlans.livePlanResettles.snapshot,
+  );
   const { state: saveState, save } = useSavedPlanSave(saveOf(savedPlans), projectId);
   /**
    * The last rows the shelf actually delivered, kept across a shelf that stops
@@ -235,6 +239,7 @@ export function SavedPlansPanel({
     // lands while the request is in flight may or may not be in the answer, so
     // the comparison counts it as newer than itself and offers to compare again.
     const askedAt = savedPlans.livePlanRevision.snapshot();
+    const resettlesAskedAt = savedPlans.livePlanResettles.snapshot();
     setComparison({ kind: 'loading' });
     void savedPlans
       .compare(left, right)
@@ -249,6 +254,7 @@ export function SavedPlansPanel({
               schedules: resolveSideSchedules(left, right, reply.body.diff, rows),
               rows,
               livePlanRevision: askedAt,
+              livePlanResettles: resettlesAskedAt,
             };
           case 'failure':
             return { kind: 'error', code: savedPlanFailureCode(reply.failure) };
@@ -322,8 +328,14 @@ export function SavedPlansPanel({
    * Only over `ready`. There is nothing to leave alone while a comparison is
    * loading, refused or failed, and offering to refresh one of those would be
    * a second control for what the pickers already do.
+   *
+   * **A move that is only possible says so (F-135).** When every count since the
+   * question was asked is the stream coming back after a drop
+   * ({@link SavedPlans.livePlanResettles}), nothing says the plan moved, only that
+   * whatever was published in the gap is lost: `connection_dropped`. One frame
+   * that names an edit makes it `plan_changed`.
    */
-  const stale: 'plan_changed' | 'side_deleted' | null = useMemo(() => {
+  const stale: 'plan_changed' | 'connection_dropped' | 'side_deleted' | null = useMemo(() => {
     if (comparison.kind !== 'ready') return null;
     const sides = [comparison.left, comparison.right];
     const deleted = sides.some(
@@ -334,8 +346,15 @@ export function SavedPlansPanel({
     // this comparison has been deleted.`.
     if (deleted) return 'side_deleted';
     const moved = sides.includes('current') && livePlanRevision !== comparison.livePlanRevision;
-    return moved ? 'plan_changed' : null;
-  }, [comparison, rows, livePlanRevision]);
+    if (!moved) return null;
+    // Proof: on 43ead5a10 (no resettle count), `a reconnect says the plan may have changed, and an
+    // edit after it that it has (F-135)` failed on `Unable to find an element with the text: The
+    // connection dropped while this comparison was on screen; the plan may have changed.`.
+    const onlyDrops =
+      livePlanRevision - comparison.livePlanRevision ===
+      livePlanResettles - comparison.livePlanResettles;
+    return onlyDrops ? 'connection_dropped' : 'plan_changed';
+  }, [comparison, rows, livePlanRevision, livePlanResettles]);
 
   /**
    * What the last rename said, or `null` while none has anything to say.
@@ -538,9 +557,7 @@ export function SavedPlansPanel({
           {stale !== null && (
             <div className="saved-plans-panel__stale flex items-center gap-2 text-xs">
               <p role="status" className="flex-1">
-                {stale === 'plan_changed'
-                  ? 'This plan has changed since the comparison below was made.'
-                  : 'A plan in this comparison has been deleted.'}
+                {STALE_WORDS[stale]}
               </p>
               <Button
                 variant="outline"
@@ -560,6 +577,14 @@ export function SavedPlansPanel({
     </section>
   );
 }
+
+/** What the panel says over a comparison that no longer answers its question, by why. */
+const STALE_WORDS = {
+  plan_changed: 'This plan has changed since the comparison below was made.',
+  connection_dropped:
+    'The connection dropped while this comparison was on screen; the plan may have changed.',
+  side_deleted: 'A plan in this comparison has been deleted.',
+} as const;
 
 /**
  * What a refused delete says. `not_found` is the shelf being stale — the row went

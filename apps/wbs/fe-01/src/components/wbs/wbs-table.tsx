@@ -168,13 +168,20 @@ interface PlanRowProps {
  * The line an edge zone draws over one target row, measured off the row as it
  * is drawn (UI review F-128).
  *
- * It starts at the outline's leading edge for the depth the drop lands at: the
- * row's caret gutter is that edge at the row's own depth once the Number cell's
- * capped indent ({@link numberIndentFor}) is taken back off, and
- * {@link hierarchyIndentFor} the landing depth puts it where the moved row's
- * number will start. It runs to the row's right edge, on its top for `above`
- * and its bottom for `below`, in the frame's scrolled coordinates as the
- * `Move under …` cue is.
+ * It starts where the moved row's number will start: the row's caret gutter
+ * is the Number cell's edge at the row's own depth once that cell's capped
+ * indent ({@link numberIndentFor}) is taken back off, and the same capped
+ * indent for the landing depth puts it back. Capped, not
+ * {@link hierarchyIndentFor}: past `DEEPEST_INDENT` the Number cell stops
+ * indenting, and the uncapped outline put the line's start a level or two
+ * inside the number it was naming (UI review F-143). It runs to the row's right
+ * edge, on its top for `above` and its bottom for `below`, in the frame's
+ * scrolled coordinates as the `Move under …` cue is.
+ *
+ * Proof: with {@link hierarchyIndentFor} for the landing depth,
+ * `e2e/drop-cue.spec.ts` `past the Number column’s indent cap the drop line
+ * starts where the number starts` failed on `below 010.1.1.1 starts at its
+ * number · Expected: <= 1 · Received: 12`. Watched 2026-10-18.
  *
  * Proof: drawn as the old 2px inset shadow on every cell instead,
  * `e2e/drop-cue.spec.ts` `the drop line starts at the depth the row will land
@@ -194,9 +201,7 @@ function dropLineOf(
   const box = row.getBoundingClientRect();
   const port = at.frame.getBoundingClientRect();
   const outline =
-    gutter.getBoundingClientRect().left -
-    numberIndentFor(depth) +
-    hierarchyIndentFor(at.landingDepth);
+    gutter.getBoundingClientRect().left - numberIndentFor(depth) + numberIndentFor(at.landingDepth);
   const leftPx = outline - port.left + at.frame.scrollLeft;
   return {
     edge: at.zone === 'above' ? 'top' : 'bottom',
@@ -2493,9 +2498,11 @@ export function WbsTable({
           data-toolbar
           // A toolbar to a screen reader (F-094). Tab still walks it control by
           // control: it holds Find and the start date, whose arrow keys move a
-          // caret, so arrow-key roving would take them away.
+          // caret, so arrow-key roving would take them away. Named as the phone
+          // names the same controls' sheet: `Plan` alone is also the Plan · Board
+          // button's name (F-115).
           role="toolbar"
-          aria-label="Plan"
+          aria-label="Plan actions"
           // Said out loud, because a control that is unavailable for a moment
           // and one that is unavailable for good look the same otherwise —
           // see {@link busyAffordance} for the click this makes visible.

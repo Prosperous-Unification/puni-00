@@ -98,6 +98,7 @@ const renameGoneReply = (): SavedPlanRenameReply => ({
 const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
   let shelf = [...start];
   let fire: ((changed?: string | null) => void) | undefined;
+  let resettled: (() => void) | undefined;
   const list = vi.fn(() => Promise.resolve(listReply(shelf)));
   const save = vi.fn((): Promise<SavedPlanSaveReply> => Promise.resolve(saveReply(NEWER)));
   const compare = vi.fn((): Promise<SavedPlanCompareReply> =>
@@ -119,11 +120,13 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
   const deps: SavedPlanRoutes = {
     available: () => Promise.resolve(true),
     list,
-    subscribe: (_projectId, onChange) => {
+    subscribe: (_projectId, onChange, onResettled) => {
       fire = onChange;
+      resettled = onResettled;
       return {
         unsubscribe: () => {
           fire = undefined;
+          resettled = undefined;
         },
       };
     },
@@ -148,6 +151,15 @@ const fakeDeps = (start: readonly SavedPlanListEntryView[] = [ROW]) => {
      * `subscribeToProject` reports it; none is a frame whose type is unknown.
      */
     broadcast: (changed?: string | null) => fire?.(changed),
+    /**
+     * The stream coming back after a drop, with whatever was published in the
+     * gap lost. Before the routes said so on a hook of its own they reported it
+     * as a frame of unknown type, which is what this falls back to.
+     */
+    resettle: () => {
+      if (resettled === undefined) fire?.(null);
+      else resettled();
+    },
   };
 };
 
@@ -556,6 +568,50 @@ describe('the saved-plans panel', () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
       expect(screen.getByText(/has changed since the comparison/)).toBeTruthy();
+    },
+  );
+
+  itDom(
+    'a reconnect says the plan may have changed, and an edit after it that it has (F-135)',
+    async () => {
+      const wiring = fakeDeps([ROW]);
+      render(<SavedPlansPanelOver projectId="p1" routes={wiring.deps} />);
+      await flush();
+
+      await act(async () => {
+        wiring.resettle();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      // What was published while the stream was down is lost, so the plan may
+      // have moved; nothing says it did.
+      // Proof: on 43ead5a10 (a resettle reported as `onChange(null)`) this failed
+      // on `Unable to find an element with the text: The connection dropped while
+      // this comparison was on screen; the plan may have changed.`.
+      expect(
+        screen.getByText(
+          'The connection dropped while this comparison was on screen; the plan may have changed.',
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByText(/has changed since the comparison/)).toBeNull();
+      expect(screen.getByRole('button', { name: 'Compare again' })).toBeTruthy();
+
+      // A frame that names an edit is a fact, whatever came before it.
+      await act(async () => {
+        wiring.broadcast('work_items_changed');
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(screen.getByText(/has changed since the comparison/)).toBeTruthy();
+      expect(screen.queryByText(/The connection dropped/)).toBeNull();
+
+      // Compared again, the next drop is said in its own words again.
+      fireEvent.click(screen.getByRole('button', { name: 'Compare again' }));
+      await flush();
+      expect(screen.queryByRole('button', { name: 'Compare again' })).toBeNull();
+      await act(async () => {
+        wiring.resettle();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(screen.getByText(/The connection dropped/)).toBeTruthy();
     },
   );
 

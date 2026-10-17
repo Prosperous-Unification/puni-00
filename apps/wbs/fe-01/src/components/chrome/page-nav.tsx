@@ -4,7 +4,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * The two pages of the signed-in region, and a mark on the one that is showing.
+ * The pages of the signed-in region, and a mark on the one that is showing.
  *
  * Real links rather than buttons that navigate: an address is the whole reason
  * `docs/adr/0004-the-signed-in-region-gets-a-router.md` exists, and a `<button>`
@@ -39,8 +39,8 @@ export function PageNav({ organization = false }: { organization?: boolean }) {
   // 2px bar in the ink along the link's foot, as a tab is marked (square
   // there, so the bar runs straight; no weight change, which would move the
   // links beside it from page to page). A bar rather than the pressed
-  // toggle's fill, because the plan's own Plan · Board toggle stands in the
-  // same header filled, and two filled `Plan`s read as one control. The ink stands far above 3:1 on the
+  // toggle's fill, because the project's Plan · Board toggle stands in the
+  // same header filled, and a filled page and a filled view read as one control. The ink stands far above 3:1 on the
   // header in both palettes. It was `activeProps` naming `bg-accent`, which
   // never painted — `buttonVariants`' `bg-transparent` came later in the
   // stylesheet — and would have stood 1.07:1 off white if it had (UI review
@@ -53,8 +53,16 @@ export function PageNav({ organization = false }: { organization?: boolean }) {
   );
   return (
     <nav aria-label="Pages" className="flex shrink-0 items-center gap-1">
+      {/*
+        `Project`, the page: what it shows is one project, as its Plan or its
+        Board. Named `Plan` it was a third control of that name in one header,
+        and on the Board it was marked current beside an unpressed `Plan`
+        toggle (UI review F-169). Proof: named `Plan`, `header.spec.ts` `names
+        the page so that the nav and the Plan · Board toggle agree on the Board`
+        failed on `Expected: 0 · Received: 1` (watched 2026-10-18).
+      */}
       <Link to="/" className={shape}>
-        Plan
+        Project
       </Link>
       <Link to="/directory" className={shape}>
         Directory

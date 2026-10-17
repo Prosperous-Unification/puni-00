@@ -147,7 +147,7 @@ struck through or dashed, and a pressed toggle SHALL be drawn filled.
 - **GIVEN** a leaf whose two steps are both unestimated
 - **WHEN** the chart draws its two placeholders in two lanes
 - **THEN** neither lane carries a label of its own, and the row's number is
-  written once, by the lane stack (`020 · 2 steps · no estimate`)
+  written once, by the lane stack (`020 · no estimate ×2`)
 
 #### Scenario: every bar colour, light and dark
 

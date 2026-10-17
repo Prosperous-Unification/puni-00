@@ -5,21 +5,28 @@ import { type Factable, type Hintable } from '@/components/wbs/hint';
 import { cn } from '@/lib/utils';
 
 /**
- * How every `aria-pressed="true"` button is drawn: filled in the primary, so a
+ * How every `aria-pressed="true"` button is drawn: filled in `--pressed`, so a
  * toggle's two states differ by its whole face. Its unpressed twin is whatever
  * variant the caller chose — `outline` or `ghost` for a toggle — which is the
  * Gantt strip's rule (plain when off, filled when pressed; ui-review F-013) made
  * the button's own.
  *
- * The primary rather than the strip's first `bg-accent`: the accent is
- * `--muted`'s slate, 1.1:1 against the light background, so a pressed and an
- * unpressed toggle sat one shade apart. The primary stands at least 3:1 off the
- * outline face in both palettes (WCAG 1.4.11), which `header.spec.ts` measures
- * (ui-review F-116). The hover keeps the fill, at the default variant's own
- * 90%, so the pointer resting on a pressed toggle cannot unfill it.
+ * Not the strip's first `bg-accent`: the accent is `--muted`'s slate, 1.1:1
+ * against the light background, so a pressed and an unpressed toggle sat one
+ * shade apart. `--pressed` stands at least 3:1 off the outline face in both
+ * palettes (WCAG 1.4.11), which `header.spec.ts` measures (ui-review F-116).
+ *
+ * Not the primary either, which it was until F-147: the primary is the default
+ * variant's face, every action's, and a pressed Plan beside Create new project
+ * painted one state and one action identically. `header.spec.ts` `paints a
+ * pressed toggle unlike the primary action beside it` failed on `Received: 1`
+ * in both palettes with the primary here (watched 2026-10-18).
+ *
+ * The hover keeps the fill, at 90%, so the pointer resting on a pressed toggle
+ * cannot unfill it.
  */
 const PRESSED =
-  'aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground';
+  'aria-pressed:border-pressed aria-pressed:bg-pressed aria-pressed:text-pressed-foreground aria-pressed:hover:bg-pressed/90 aria-pressed:hover:text-pressed-foreground';
 
 /**
  * Every shape a chrome button comes in, and the tokens each one reads.

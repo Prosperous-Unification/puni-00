@@ -166,6 +166,7 @@ describe('the saved plans’ own stream', () => {
     await settled();
     // The first settle is not a reconnect: nothing was missed.
     expect(savedPlans.livePlanRevision.snapshot()).toBe(0);
+    expect(savedPlans.livePlanResettles.snapshot()).toBe(0);
     expect(reads).toBe(1);
 
     sockets[0].onClose();
@@ -177,6 +178,10 @@ describe('the saved plans’ own stream', () => {
     // Proof: on 2026-10-16, against 76dc8ab32 (no `onConnectionChange` on the shelf's stream),
     // this failed on `expected +0 to be 1`.
     expect(savedPlans.livePlanRevision.snapshot()).toBe(1);
+    // And it says which kind of move it was, so the panel can say "may have" (F-135).
+    // Proof: on 43ead5a10 this failed on `Cannot read properties of undefined (reading
+    // 'snapshot')`: the reconnect was a frame of unknown type, told apart from nothing.
+    expect(savedPlans.livePlanResettles.snapshot()).toBe(1);
     expect(reads).toBe(2);
     close();
   });

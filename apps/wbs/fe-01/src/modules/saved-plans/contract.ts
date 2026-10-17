@@ -47,12 +47,14 @@ export interface SavedPlanRoutes {
   /**
    * Calls `onChange` on every broadcast about the project, until unsubscribed, with the event's
    * type when the frame names one (`subscribeToProject`'s `changed`) and `null` or nothing when
-   * it does not — including once when the stream comes back after a drop, since what was
-   * published in the gap is lost.
+   * it does not; and `onResettled` once each time the stream comes back after a drop, since what
+   * was published in the gap is lost. A resettle is its own call, not an `onChange(null)`, so a
+   * reader can say the plan *may* have changed rather than that it has (UI review F-135).
    */
   readonly subscribe: (
     projectId: string,
     onChange: (changed?: string | null) => void,
+    onResettled: () => void,
   ) => { unsubscribe(): void };
 }
 
@@ -80,6 +82,12 @@ export interface SavedPlans {
    * unknown type.
    */
   readonly livePlanRevision: Store<number>;
+  /**
+   * How many of {@link SavedPlans.livePlanRevision}'s counts were the stream coming back after a
+   * drop, starting at 0: a move that is only possible, where every other count is a frame that
+   * was published. Published with the revision, so a reader of both never sees one ahead.
+   */
+  readonly livePlanResettles: Store<number>;
   /** Reads the shelf again, which no broadcast would have caused: the actor's own fast path. */
   readonly refresh: () => void;
   /**

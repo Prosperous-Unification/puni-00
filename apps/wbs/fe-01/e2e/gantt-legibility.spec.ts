@@ -424,8 +424,8 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
     // The counts are pinned: the seed is fixed, so a stack that miscounted
     // must not pass (F-142).
     for (const [number, words] of [
-      ['010', '010 · 2 steps · 1 no estimate'],
-      ['020', '020 · 2 steps · no estimate'],
+      ['010', '010 · no estimate on 1 of 2'],
+      ['020', '020 · no estimate ×2'],
     ] as const) {
       const own = labels.filter((label) => label.text.startsWith(number));
       expect(
@@ -444,7 +444,7 @@ test.describe('Gantt legibility (ui-review 2026-10-13)', () => {
     expect(
       long.map((label) => `${label.stack ? 'stack' : 'bar'}: ${label.text}`).sort(),
       'labels for 030',
-    ).toEqual(['bar: 030 · Row long', 'stack: 030 · 2 steps · 1 no estimate']);
+    ).toEqual(['bar: 030 · Row long', 'stack: 030 · no estimate on 1 of 2']);
     // Every label here, the spilled one on its patch of bar fill included,
     // clears 4.5:1 on what it sits on.
     for (const [bar, measured] of Object.entries(await labelContrasts(page))) {
