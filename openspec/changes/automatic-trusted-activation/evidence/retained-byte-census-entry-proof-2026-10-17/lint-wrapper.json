@@ -1,0 +1,83 @@
+{
+  "configurationSha256": "4ea25ea19d02c765c14a78cf138e58a6fa5ae3b6d5a89a7657af7746eecfe63f",
+  "template": "for path in {staged_files}; do bunx eslint \"$path\" || exit $?; done",
+  "coveredTypeScriptPaths": [
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"
+  ],
+  "stagedTypeScriptPaths": [
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts"
+  ],
+  "receipts": [
+    {
+      "name": "all-files",
+      "shellCommand": "for path in apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts; do bunx eslint \"$path\" || exit $?; done",
+      "injectedFailurePath": "",
+      "observedExitCode": 0,
+      "observedArgv": [
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts"
+        ],
+        ["eslint", "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"]
+      ]
+    },
+    {
+      "name": "injected-nonzero",
+      "shellCommand": "for path in apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts; do bunx eslint \"$path\" || exit $?; done",
+      "injectedFailurePath": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "observedExitCode": 23,
+      "observedArgv": [
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts"
+        ]
+      ]
+    },
+    {
+      "name": "omitted-exit-negative",
+      "shellCommand": "for path in apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts; do bunx eslint \"$path\"; done",
+      "injectedFailurePath": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+      "observedExitCode": 0,
+      "observedArgv": [
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-matcher.test.fixture.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts"
+        ],
+        [
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts"
+        ],
+        ["eslint", "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts"]
+      ]
+    }
+  ]
+}

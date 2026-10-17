@@ -5203,3 +5203,45 @@ committed transcript now passes the unfiltered check.
 The next retry passed formatting but active ESLint then refused import ordering in the mount
 module; its earlier lint pass was not established. ESLint autofix sorted only the import group.
 The final retry retains every normal hook command and runs after the unfiltered whitespace check.
+
+### 2026-10-17 entry-count proof isolation after exact review of `1e70f350`
+
+Astra's exact review of `1e70f3502202bf368753e32b6633ad2219e649a1` found no P0–P2
+and one P3 evidence mismatch: the entry-count Proof comment claimed the owner-copy sentinel,
+while its existing `entry-cap.log` actually reached the later ledger-byte refusal. That original
+transcript is preserved and is not relabeled as an owner-copy observation.
+
+The successor adds `byte census entry count refuses before owner copy with ledger byte headroom`.
+It sets only maximumReadEntries=1, retaining the normal 100000-byte ledger ceiling, acquires the
+first tuple, then installs the owner-copy sentinel before acquiring a different second tuple.
+`evidence/retained-byte-census-entry-proof-2026-10-17/entry-fault.py` removes only the production
+entry-count guard, requires a named failing test containing `entry copy sentinel`, and restores
+the source in finally. `entry-copy-red.log` watches that exact fault reach the copy boundary;
+the restored source suite passes 94 tests. The adjacent production Proof now names this test
+and successor receipt. Runtime behavior is unchanged.
+
+The same evidence folder contains `lint-wrapper.py` and `lint-wrapper.json`. The proof reads
+the exact configured inline command from local lefthook configuration, records its SHA-256,
+expands the five TypeScript paths changed by the reviewed e4a slice, and records the current
+staged TypeScript subset. It substitutes only an isolated executable that records argv for this
+shell-wrapper proof; normal commit hooks continue to run actual ESLint. The successful run
+observes exactly one `bunx eslint <path>` invocation for each covered path. Injecting exit 23
+at the second path propagates exactly 23 and stops before the remaining paths. Removing only
+`|| exit $?` loses that oracle: the injected failure is followed by the remaining invocations
+and the shell returns zero. The existing real ESLint failures and final actual hook pass remain
+separate observations. This proof changes no tracked or local hook command.
+
+Original raw/normalized hook transcripts and their identity receipt remain intact. The broad
+spec typecheck errors and absent Nx cached ProjectGraph remain unpassed as recorded above;
+full host gate/build/CI and parent acceptance remain pending. No push or WBS write occurs.
+
+Successor scoped receipts (all under the same 921600 KiB process-tree ceiling):
+
+| Receipt              | Observed outcome                                      | Peak KiB |
+| -------------------- | ----------------------------------------------------- | -------: |
+| `entry-copy-red.log` | exit 1, entry copy sentinel observed                  |   349320 |
+| `source-green.log`   | 94 pass, 0 fail, 358 assertions                       |   634728 |
+| `mount-green.log`    | 21 pass, 0 fail, 329 assertions                       |   360212 |
+| `type-lib.log`       | exit 0                                                |   515440 |
+| `openspec.log`       | exit 0                                                |   128640 |
+| `lint-wrapper.log`   | exit 0, coverage and injected failure assertions pass |    31288 |

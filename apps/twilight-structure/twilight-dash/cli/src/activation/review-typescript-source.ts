@@ -206,7 +206,7 @@ export function createRetainedTypeScriptSource(
     const fresh = !ledger.has(encoding);
     // Proof: exact-contribution overcharge loses `exact ceilings`; comma omission loses `two entry comma` before its second-copy sentinel.
     const contribution = Buffer.byteLength(encoding) - 1 + (ledger.size === 0 ? 0 : 1);
-    // Proof: entry-cap omission reaches the copy sentinel in `exact ceilings`.
+    // Proof: entry-cap omission reaches `entry copy sentinel` in `entry count refuses before owner copy with ledger byte headroom` (successor entry-copy-red.log).
     if (fresh && ledger.size >= limits.maximumReadEntries)
       throw new Error('source read entry ceiling exceeded');
     // Proof: ledger-cap omission reaches candidate/runtime copy sentinels in `exact ceilings` and `runtime ledger`.

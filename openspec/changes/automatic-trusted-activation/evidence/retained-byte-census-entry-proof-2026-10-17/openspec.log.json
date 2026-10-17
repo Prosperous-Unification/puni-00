@@ -1,0 +1,11 @@
+{
+  "command": [
+    "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/.bin/openspec",
+    "validate",
+    "--all",
+    "--json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 128640,
+  "ceilingKiB": 921600
+}

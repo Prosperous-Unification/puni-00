@@ -1034,3 +1034,17 @@ test('byte census enumeration records link acquisitions without file metadata re
     },
   ]);
 });
+
+test('byte census entry count refuses before owner copy with ledger byte headroom', () => {
+  const f = setup({ maximumReadEntries: 1 });
+  f.source.readFile(`${root}/a.ts`);
+  const copy = spyOn(f.candidate, 'read').mockImplementation(() => {
+    throw new Error('entry copy sentinel');
+  });
+  try {
+    expect(() => f.source.readFile(`${root}/src/b.ts`)).toThrow('read entry ceiling');
+    expect(copy).not.toHaveBeenCalled();
+  } finally {
+    copy.mockRestore();
+  }
+});
