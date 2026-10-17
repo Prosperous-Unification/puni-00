@@ -1353,3 +1353,45 @@ syntax admission, before any literal-prefix read or matcher invocation.
   exactly those indexed entries; appended entries do not enter the matcher and missing entries refuse
 - **AND** missing-only includes remain no-match even if the caller truncates its original array
 - **AND** malformed pattern syntax and invalid supplied enumeration depth refuse before link reads
+
+### Requirement: Retained TypeScript compiler mounting
+
+The system SHALL provide an additive retained compiler entrypoint that constructs its source
+internally from the exact owned namespace, candidate and runtime. Its workspace and provenance
+SHALL come from the fixed retained namespace recipe and exact newly constructed source owner.
+Caller workspace, extractor labels and supplied sources SHALL confer no authority. The returned
+extraction SHALL explicitly retain unverified runtime trust.
+
+#### Scenario: Retained compiler replays after physical capture roots disappear
+
+- **GIVEN** a small captured candidate with noLib globals, wildcard config discovery, relative
+  imports/reexports, path aliases and a declared runtime package plus compiler package metadata
+- **WHEN** source, object store and runtime roots are removed before retained extraction
+- **THEN** SHA-1 and SHA-256 captures produce the same complete imports, reverse edges, public
+  declarations, configuration identities and compiler identity as the preserved legacy producer
+- **AND** intercepted filesystem, Git, environment, cwd and ts.sys routes cannot supply access
+
+#### Scenario: Request admission precedes source construction
+
+- **WHEN** retained extraction receives config and public entrypoint arrays and explicit limits
+- **THEN** it captures each top-level group once and captures finite integer ceilings before
+  source callbacks; source ceilings are positive and compiler/request ceilings are nonnegative
+- **AND** it bounds nonempty array counts before indexed reads, captures each fixed length and
+  path once, bounds each path's code units and UTF-8 bytes plus aggregate bytes before copying,
+  and refuses missing entries, duplicates and noncanonical relative paths
+- **AND** candidate selections refuse drive prefixes, lone surrogates and .git/node_modules
+  components before compiler normalization; runtime package and extends resolution remain
+  governed by the existing shared core and retained source
+
+#### Scenario: Retained compiler refuses uncertain or oversized extraction
+
+- **WHEN** config parsing, selected config/public entrypoint/import resolution, compiler
+  diagnostics or a source/compiler resource ceiling fails
+- **THEN** retained extraction throws rather than emitting a successful relationship envelope
+- **AND** an independent finite final ceiling measures canonical bytes of the whole returned
+  envelope including provenance and runtimeTrust; exact equality passes and one byte less refuses
+
+This mount supplies no compiler read manifest, freeze, runtime authentication, general
+config-generated escape policy or synchronous compiler CPU/heap bound. The noLib parity proof
+makes no default-library parity claim: legacy uses @typescript/old/lib while namespace V1 uses
+typescript/lib, and installed wrapper metadata can differ from the executing compiler.

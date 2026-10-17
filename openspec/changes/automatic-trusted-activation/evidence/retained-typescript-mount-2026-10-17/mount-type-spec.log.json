@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--noEmit",
+    "--project",
+    "apps/twilight-structure/twilight-dash/cli/tsconfig.spec.json",
+    "--incremental",
+    "false"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 689920,
+  "ceilingKiB": 921600
+}

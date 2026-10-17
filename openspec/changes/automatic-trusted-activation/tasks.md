@@ -333,6 +333,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       refusal, removed-root interception and independent omission faults. No compiler invocation,
       config parsing, compiler read manifest or freeze is supplied. Parent .3 remains open and
       this scoped acceptance remains unchecked until all required checks and exact review pass.
+- [ ] 2.1d.1.3e3 Mount the exact owned retained TypeScript source into the shared compiler
+      with fixed workspace and source-owned unverified provenance. Snapshot finite source/compiler/
+      request ceilings and bounded nonempty unique canonical candidate request paths before callbacks;
+      cap the full returned envelope. Prove SHA-1/SHA-256 noLib legacy identity parity for wildcard
+      discovery, relative imports/reexports, aliases and a declared runtime package after all capture
+      roots disappear under intercepted ambient routes. Watch independent request/bound/snapshot
+      omissions and compiler/config/selected-missing refusals. Default-library parity, runtime
+      authentication/completeness, compiler read manifest/freeze and parent .3 remain open; scoped
+      acceptance stays unchecked until recorded checks and exact review pass.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

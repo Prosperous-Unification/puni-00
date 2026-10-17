@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+387 | test('retained compiler refuses array impostors before source admission', () => {
+388 |   const f = setup();
+389 |   const trap = spyOn(sources, 'createRetainedTypeScriptSource').mockImplementation(() => { throw new Error('source admission reached'); });
+390 |   try {
+391 |     for (const key of ['configPaths', 'publicEntrypoints'] as const) {
+392 |       expect(() => extractRetainedTypeScriptRelationships({ ...f, request: { ...f.request, [key]: { length: 1.5, 0: 'tsconfig.json' } } as unknown as typeof f.request })).toThrow('request arrays');
+                                                                                                                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request arrays"
+Received message: "retained TypeScript request path missing"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:392:172)
+(fail) retained compiler refuses array impostors before source admission [158.01ms]
+
+ 0 pass
+ 14 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1114.00ms]

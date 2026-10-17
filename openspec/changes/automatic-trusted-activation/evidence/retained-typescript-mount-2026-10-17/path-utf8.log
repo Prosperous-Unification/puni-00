@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+468 |       extractRetainedTypeScriptRelationships({
+469 |         ...f,
+470 |         request: { ...f.request, configPaths: ['é'.repeat(8)] },
+471 |         requestLimits: { ...requestLimits, maximumPathBytes: 15 },
+472 |       }),
+473 |     ).toThrow('request path byte');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request path byte"
+Received message: "source admission reached"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:473:7)
+(fail) retained compiler bounds UTF8 paths and public count before admission [165.81ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1079.00ms]

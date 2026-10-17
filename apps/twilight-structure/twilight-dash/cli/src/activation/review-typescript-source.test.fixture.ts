@@ -43,7 +43,7 @@ export function fixture(
     'src/b.ts': 'export const b = 1;',
   },
   links: Record<string, string> = { link: 'a.ts' },
-  runtimeContent: Uint8Array = Buffer.from('x'),
+  runtimeContent: Uint8Array | Record<string, string | undefined> = Buffer.from('x'),
 ) {
   const root = mkdtempSync(join(tmpdir(), 'namespace-'));
   roots.push(root);
@@ -132,12 +132,19 @@ export function fixture(
   const runtimeFiles = runtimePaths
     .map((path) => {
       mkdirSync(dirname(join(runtimeRoot, path)), { recursive: true });
-      writeFileSync(join(runtimeRoot, path), runtimeContent);
+      let bytes: Uint8Array;
+      if (runtimeContent instanceof Uint8Array) bytes = runtimeContent;
+      else {
+        const text = runtimeContent[path];
+        if (text === undefined) throw new Error('runtime fixture content absent');
+        bytes = Buffer.from(text);
+      }
+      writeFileSync(join(runtimeRoot, path), bytes);
       return {
         path,
         role: path === 'parser.js' ? ('program' as const) : ('dependency' as const),
-        identity: hashBytes(runtimeContent),
-        byteLength: runtimeContent.byteLength,
+        identity: hashBytes(bytes),
+        byteLength: bytes.byteLength,
       };
     })
     .sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));

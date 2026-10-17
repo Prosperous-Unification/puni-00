@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+349 |     expect(() =>
+350 |       extractRetainedTypeScriptRelationships({
+351 |         ...f,
+352 |         requestLimits: f.requestLimits,
+353 |       }),
+354 |     ).toThrow('retained TypeScript output');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "retained TypeScript output"
+Received message: "TypeScript output byte limit exceeded"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:354:7)
+(fail) retained compiler captures request and all ceilings before source callbacks mutate caller objects [254.53ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1466.00ms]

@@ -1,0 +1,103 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+238 |       { configPaths: [], publicEntrypoints: ['src/index.ts'] },
+239 |       { configPaths: ['tsconfig.json'], publicEntrypoints: [] },
+240 |       { configPaths: ['tsconfig.json', 'tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
+241 |       { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts', 'src/index.ts'] },
+242 |     ])
+243 |       expect(() => extractRetainedTypeScriptRelationships({ ...f, request })).toThrow('request');
+                                                                                    ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request"
+
+Received function did not throw
+Received value: {
+  runtimeTrust: "unverified",
+  provenance: {
+    snapshotIdentity: "0a29df01efc9930d0ed11f76457c733ed8259d1fc8b4184a26c6425bb38bf8e0",
+    classificationPolicyIdentity: "5bc96ba018d0731cd46432bbd6128aa7de640be4ac6494fbe58baebc282b8eea",
+    runtimeClosureIdentity: "f193d166a80394ce95276a37b2c3fea7e7a5dfb56b9b3030ada6dda055631d04",
+    resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    runtimeTrust: "unverified",
+    namespacePolicyIdentity: "6181ca6a60a1af7563b1b877a5123b80d0047cb841be24ad0368091abd0e68ec",
+  },
+  extractor: {
+    extractorId: "typescript.compiler",
+    version: "v6.0.3",
+    blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+  },
+  relationships: {
+    imports: [
+      {
+        source: "src/consumer.ts",
+        specifier: "@local/provider",
+        target: "src/provider.ts",
+        importKind: "value",
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "fff002b6585048ebe609caf7c258981c6902473fcffca4e7be20d5b8075ff519",
+      },
+      {
+        source: "src/index.ts",
+        specifier: "./provider",
+        target: "src/provider.ts",
+        importKind: "re-export",
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "835029e31386884b6a8fd0f101ee2ad34c9096c45fbdbaafda4bc9210b076457",
+      },
+      {
+        source: "src/index.ts",
+        specifier: "pkg",
+        target: "external:pkg",
+        importKind: "type-re-export",
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "df22f8c0866c6ba53bcaf14a308b875888f26019958c6c1ab8d5e03363f88681",
+      }
+    ],
+    reverseEdges: [
+      {
+        provider: "src/provider.ts",
+        importers: [
+          {
+            source: "src/consumer.ts",
+            specifier: "@local/provider",
+            importKind: "value",
+          }, {
+            source: "src/index.ts",
+            specifier: "./provider",
+            importKind: "re-export",
+          }
+        ],
+        extractor: {
+          extractorId: "typescript.compiler",
+          version: "v6.0.3",
+          blob: "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
+        },
+        identity: "8b42ac9846cd326a95edda923f29b93015af39a544a9d0424dfe9db73bd70dd5",
+      }
+    ],
+    publicDeclarations: [],
+  },
+}
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:243:79)
+(fail) retained compiler rejects malformed or noncandidate requests before retained reads [241.30ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [1182.00ms]

@@ -2258,3 +2258,23 @@ matcher's unrestricted empty-include behavior. Query roots retain component-wise
 semantics and any candidate-link provenance after canonical spelling, so a root alias cannot
 expose dependency mounts. Immediate listing accepts a trailing separator. Cwd shares the
 lifetime returned-path budget. Full tsconfig-pattern compatibility is not asserted here.
+
+### Retained TypeScript compiler mount (2.1d.1.3e3)
+
+`extractRetainedTypeScriptRelationships` accepts owned namespace/candidate/runtime capabilities,
+a TypeScript request and three explicit budget groups. It snapshots groups and finite limits,
+then captures bounded nonempty unique config/public path arrays before constructing the source.
+Candidate request paths use RelativePath plus local drive/surrogate/reserved-component admission;
+config-generated paths continue through the unchanged shared core. The fixed V1 workspace is
+internal. Provenance comes from the exact newly constructed source's owner map, and the returned
+envelope contains explicit unverified trust, provenance, extractor and relationships. An independent
+canonical whole-envelope byte cap includes the provenance omitted from the core's own cap.
+
+The mount is additive: Nx, historical producers and the legacy filesystem compiler wrapper retain
+their behavior. Small noLib fixtures use retained global declarations, compiler package metadata
+and one declared package. They compare every legacy selector/config/extractor identity before
+physical capture roots are deleted; replay poisons filesystem/Git/cwd/environment/ts.sys routes.
+Legacy @typescript/old/lib and namespace typescript/lib still differ. No default-library parity,
+compiler read manifest, freeze, runtime authentication, general config-generated escape policy or
+synchronous compiler CPU/heap containment follows. The test process RSS guard is operational
+proof protection, not a product cancellation mechanism.

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+372 |   expect(() =>
+373 |     extractRetainedTypeScriptRelationships({
+374 |       ...f,
+375 |       request: { ...f.request, configPaths: sparse },
+376 |     }),
+377 |   ).toThrow('request path missing');
+          ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "request path missing"
+Received message: "undefined is not an object (evaluating 'path.length')"
+
+      at <anonymous> (/tmp/puni-retained-mount-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:377:5)
+(fail) retained compiler snapshots each path and limit getter once and refuses sparse entries [236.63ms]
+
+ 0 pass
+ 19 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1371.00ms]

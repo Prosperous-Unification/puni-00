@@ -5053,3 +5053,61 @@ local boundary fix; no compiler mount, namespace recipe, installed runtime trust
 build or CI acceptance is claimed. Existing tests' broader typecheck limitations remain.
 Normal commit hooks use the already proven per-file serial ESLint scheduling while retaining
 all hook commands; the successful commit receipt is reported with its exact successor SHA.
+
+### 2026-10-17 retained compiler mounting (.3e3)
+
+`extractRetainedTypeScriptRelationships` internally constructs the owned source and mounts the
+unchanged shared compiler under fixed namespace V1 cwd. Request arrays, their captured integer
+lengths, every selected path and all three limit groups are admitted before source callbacks.
+The returned envelope explicitly includes unverified runtime trust and exact source-owned
+provenance; its final canonical byte cap includes both. Source limits are positive while
+compiler/request limits permit zero. Scoped acceptance and parent .3 remain unchecked.
+
+The focused mount suite passed **20/20, 307 assertions**, sampled process-tree peak 357636 KiB
+(`mount-metadata-final.log`). Both actual SHA-1 and SHA-256 Git captures compare the complete
+legacy extractor, imports, reverse/public selectors and configuration identities. Fixtures use
+noLib global declarations, wildcard includes/config extends, relative imports/reexports, path
+aliases and one declared runtime package with metadata. Compiler identity retains the actual
+installed typescript package metadata; the legacy noLib fixture separately uses the actual
+@typescript/old metadata for its existing version check. Removing source/store/runtime roots
+before replay and invoking every installed filesystem/Git/cwd/environment/ts.sys trap proves
+interception; subsequent replay makes no trapped calls. An alternate owned provider type changes
+its public declaration identity while the extractor and imports remain equal.
+
+Request-count Proxy tests first failed at the forbidden source-admission sentinel for NaN;
+array length is now independently validated as a safe integer before range checks or indexed
+reads. The source predecessor `6d7f9dae9f7e16c46ba81dda7a652801d7b10ed7` was independently
+checked out clean and passed all 83 direct source tests after its normal commit, peak 641716 KiB.
+Its count repair and proofs are recorded separately above.
+
+The mount's 26 independent watched omissions and receipts live in
+`evidence/retained-typescript-mount-2026-10-17/faults.json`; each production omission reaches a
+named failing test and restoration retains the original source. These cover safe/minimum
+limits, real arrays, safe captured counts, nonempty/count limits, missing paths, pre-encoding
+codeunits, UTF-8/aggregate bytes, drive/surrogate/reserved/RelativePath grammar, uniqueness,
+fixed-length copying, request/compiler/source/output snapshots, returned provenance and the
+whole-envelope ceiling. The initial missing-module RED and explicit count-admission RED are
+retained separately. Config/diagnostics/selected missing/escape and mounted compiler/source
+budgets refuse through the production mount.
+
+Scoped library and focused new-test typechecks passed. The broad spec typecheck failed in
+existing namespace/runtime/direct-source test typing; its first run also identified this slice's
+new realpath mock missing `native`, which was corrected before the focused new-test typecheck
+passed. A full project tsc build was stopped by the process-tree guard at 947380 KiB; no full
+project typecheck pass is claimed. Named ESLint active rules pass, while Nx boundary lint skips
+because the isolated checkout has no cached ProjectGraph. Normal commit hooks use the same
+serial per-file ESLint scheduling as the e2 predecessor, preserving all original commands.
+
+Every guarded final check uses a 512 MiB heap and 921600 KiB sampled process-tree ceiling.
+This operational watchdog supplies no product compiler CPU/heap bound. No default-library
+parity (legacy @typescript/old/lib versus namespace typescript/lib), compiler read manifest,
+freeze, runtime completeness/authentication, general config-generated escape policy, full
+repository corpus fit, full gate, build, CI or activation is claimed. Historical/Nx producers
+and the compatibility masking of outside probes remain unchanged. Tool-wiki hook output is
+explicitly inactive because no external activation root is provisioned.
+
+The first mount commit attempt was refused by normal ESLint: the per-runtime-file fixture map
+had a total Record type despite its deliberate missing-key refusal. The map boundary now
+explicitly permits undefined entries, retaining the refusal with no cast or lint suppression.
+`mount-commit-first.log` is a failed hook receipt, not a successful commit. The final retry is
+reported externally with its exact SHA.

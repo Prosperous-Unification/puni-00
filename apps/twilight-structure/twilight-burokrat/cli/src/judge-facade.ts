@@ -120,6 +120,10 @@ export {
 } from './relationships/nx-core';
 export { type ExtractorIdentity } from './relationships/typescript';
 export type { TypeScriptSource } from './relationships/typescript-compiler';
+export {
+  extractTypeScriptRelationshipsFromSource,
+  type TypeScriptLimits,
+} from './relationships/typescript-core';
 export { AuditFinding } from './review/audit';
 export {
   type ExhaustiveFreezeDocuments,
