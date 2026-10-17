@@ -353,3 +353,34 @@ Eighteen original guard injections are recorded in `/tmp/step-activation-mutatio
 ### Remaining acceptance
 
 Exact committed review and the canonical `bin/h2puni-gate.sh <sha>` remain required before claiming host acceptance. The full workspace gate, real Docker/Compose/Kubernetes conformance, representative-host timing, live preserve-only rollout and attended activation were not run. Kubernetes source was unchanged and its strict first-start DISABLED negatives passed. Main-spec synchronization/archive remain pending. The operator must review the completed runbook and perform the two distinct windows; this local implementation does not authorize live activation.
+
+## Composed receipt rollback boundary (2026-10-17)
+
+The five receipt rollback cases originally compared the entire pre-call migration
+ledger. Adding the newer sparse Step migration exposed that this expectation
+asserted whole-selection atomicity. The existing
+[recovery contract](../restore-applied-migration-set/specs/applied-migration-set-rollback/spec.md#requirement-recovery-preserves-script-integrity-and-resumability)
+commits each successful down script with its ledger deletion and permits retry
+after partial rollback. The receipt requirement protects the refused receipt
+migration's schema and ledger; it does not undo an earlier committed reversal.
+No production runner, migration SQL or contract changed.
+
+At unchanged `796e279`, all five original assertions failed solely because the
+newer successful sparse migration's row was absent. The corrected composed cases
+compare the actual ledger directly with the exact captured ledger minus only that
+known newer row. They assert its table is gone, preserve the receipt and marker
+schema and rows exactly, and repeat the request to prove the same refusal and
+state on retry. They neither filter the actual ledger nor weaken it to membership.
+
+Independent production-path omissions skipped the newer migration's ledger
+deletion and its table drop. Each made all five corrected cases fail at the
+intended exact assertion. The runner and SQL were restored byte-for-byte before
+the receipt, activation, migration-down and Step-parallel suites passed 120 tests
+across four files. Adjacent Proof comments name the two observed omissions.
+
+Exact commands, source identities, resource limits and raw/compressed receipts
+are retained in `evidence/rollback-boundary-2026-10-17/manifest.json`. The initial
+900 MiB scoped typecheck was resource-killed before diagnostics and is disqualified.
+Normal hook and containing-commit receipts are delivered externally after review.
+Full host gate, broad workspace suites and deployment acceptance are not claimed
+by these bounded local checks.
