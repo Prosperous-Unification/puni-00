@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "source joins independent namespace identity field resolutionPolicyIdentity"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 346396,
+  "ceilingKiB": 921600
+}

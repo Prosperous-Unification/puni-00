@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) source rejects broken owned link decoder input "" [144.73ms]
+(pass) source rejects broken owned link decoder input "/outside" [115.61ms]
+444 |   (target) => {
+445 |     const f = setup();
+446 |     const bytes = Buffer.from(target);
+447 |     const trap = spyOn(Uint8Array, 'from').mockImplementation(() => bytes);
+448 |     try {
+449 |       expect(() => f.source.pathKind(root + '/link')).toThrow('symlink target invalid');
+                                                            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "symlink target invalid"
+
+Received function did not throw
+Received value: "absent"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:449:55)
+(fail) source rejects broken owned link decoder input "nul\u0000target" [104.39ms]
+(pass) source rejects broken owned link decoder input "\\target" [112.17ms]
+
+ 3 pass
+ 61 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 4 tests across 1 file. [1464.00ms]

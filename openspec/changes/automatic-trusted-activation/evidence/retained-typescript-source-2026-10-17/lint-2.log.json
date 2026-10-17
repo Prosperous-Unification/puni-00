@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "--fix",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 684996,
+  "ceilingKiB": 921600
+}

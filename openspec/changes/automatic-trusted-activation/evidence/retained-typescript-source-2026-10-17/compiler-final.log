@@ -1,0 +1,15 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+(pass) compiler source counts repeated probes at exact boundary [0.39ms]
+(pass) compiler source counts repeated UTF8 read bytes at exact boundary [0.11ms]
+(pass) compiler source counts both directory enumeration routes at exact boundary [0.11ms]
+(pass) compiler observations count UTF8 bytes at exact boundary [0.05ms]
+(pass) compiler namespace misses never delegate outside paths to any source port [0.07ms]
+(pass) compiler ambient output callback refuses unexpected compiler writes [0.08ms]
+(pass) compiler source preserves basename directory entries from installed sys contract [0.11ms]
+
+ 7 pass
+ 0 fail
+ 16 expect() calls
+Ran 7 tests across 1 file. [537.00ms]

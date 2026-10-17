@@ -48,21 +48,20 @@ export function fixture(overrides: Record<string, string> = {}) {
           (extensions === undefined || extensions.some((extension) => name.endsWith(extension))),
       );
     },
-    getDirectories: (path) =>
-      [
-        ...new Set(
-          [...files.keys()]
-            .filter((name) => name.startsWith(`${path}/`))
-            .map(
-              (name): string | undefined =>
-                name
-                  .slice(path.length + 1)
-                  .split('/')
-                  .slice(0, -1)[0],
-            )
-            .filter((name): name is string => name !== undefined),
-        ),
-      ].map((name) => posix.join(path, name)),
+    getDirectories: (path) => [
+      ...new Set(
+        [...files.keys()]
+          .filter((name) => name.startsWith(`${path}/`))
+          .map(
+            (name): string | undefined =>
+              name
+                .slice(path.length + 1)
+                .split('/')
+                .slice(0, -1)[0],
+          )
+          .filter((name): name is string => name !== undefined),
+      ),
+    ],
     realpath: (path) => path,
   };
   return { source, enumerations, files };

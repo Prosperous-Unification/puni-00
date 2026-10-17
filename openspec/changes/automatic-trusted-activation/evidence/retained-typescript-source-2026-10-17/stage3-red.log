@@ -1,0 +1,66 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+116 | });
+117 |
+118 |
+119 | test('getDirectories returns installed sys immediate basenames including directory aliases', () => {
+120 |  const f = fromPaths({ 'src/a.ts': 'a', 'src/nested/b.ts': 'b', 'other/c.ts': 'c' }, { alias: 'src' });
+121 |  expect(ts.sys.getDirectories(f.sourceRepository)).toEqual(['alias', 'other', 'src']);
+                                                         ^
+error: expect(received).toEqual(expected)
+
+  [
++   ".git",
+    "alias",
+    "other",
+    "src",
+  ]
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:121:52)
+(fail) getDirectories returns installed sys immediate basenames including directory aliases [152.11ms]
+104 |   useCaseSensitiveFileNames: true,
+105 |   getCurrentDirectory: () => namespace.workingDirectory,
+106 |   pathKind: (path: string) => { const {node} = resolvePath(path); return node === undefined ? 'absent' : node.kind === 'directory' ? 'directory' : 'file'; },
+107 |   readFile: (path: string) => { const {node} = resolvePath(path); return node === undefined || node.kind === 'directory' ? undefined : new TextDecoder('utf-8', {fatal:true}).decode(readNode(node)); },
+108 |   getDirectories: () => { throw new Error('source enumeration not implemented'); },
+109 |   readDirectory: () => { throw new Error('source enumeration not implemented'); },
+                                                                                   ^
+error: source enumeration not implemented
+      at readDirectory (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:109:78)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:140:27)
+(fail) readDirectory matches installed sys extensions includes excludes depth and ordering [142.94ms]
+144 |  expect(f.source.readDirectory(root + '/z.ts')).toEqual([]);
+145 | });
+146 |
+147 | test('enumeration patterns entries and path outputs have finite explicit budgets', () => {
+148 |  const patterns = setup({ maximumPatterns: 1 });
+149 |  expect(() => patterns.source.readDirectory(root, ['.ts'], [], ['**/*'])).toThrow('source pattern count ceiling');
+                                                                                ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source pattern count ceiling"
+Received message: "source enumeration not implemented"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:149:75)
+(fail) enumeration patterns entries and path outputs have finite explicit budgets [83.09ms]
+103 |   compilerLibraryDirectory: namespace.libraryDirectory,
+104 |   useCaseSensitiveFileNames: true,
+105 |   getCurrentDirectory: () => namespace.workingDirectory,
+106 |   pathKind: (path: string) => { const {node} = resolvePath(path); return node === undefined ? 'absent' : node.kind === 'directory' ? 'directory' : 'file'; },
+107 |   readFile: (path: string) => { const {node} = resolvePath(path); return node === undefined || node.kind === 'directory' ? undefined : new TextDecoder('utf-8', {fatal:true}).decode(readNode(node)); },
+108 |   getDirectories: () => { throw new Error('source enumeration not implemented'); },
+                                                                                    ^
+error: source enumeration not implemented
+      at getDirectories (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts:108:79)
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:176:19)
+(fail) all direct methods survive removed roots and intercepted ambient ports [128.25ms]
+
+ 0 pass
+ 27 filtered out
+ 4 fail
+ 11 expect() calls
+Ran 4 tests across 1 file. [1453.00ms]

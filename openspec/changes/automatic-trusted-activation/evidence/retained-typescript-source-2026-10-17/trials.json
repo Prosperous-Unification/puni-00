@@ -1,0 +1,450 @@
+[
+  {
+    "name": "metadata-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "if (identities === undefined) throw new Error('owned retained candidate source required');",
+    "new": "if (false) throw new Error('owned retained candidate source required');",
+    "test": "owned file identity"
+  },
+  {
+    "name": "metadata-tuple",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "identity?.blob !== blob",
+    "new": "false",
+    "test": "owned file identity"
+  },
+  {
+    "name": "namespace-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-namespace.ts",
+    "old": "if (provenance === undefined) throw new Error('owned retained namespace required');",
+    "new": "if (false) throw new Error('owned retained namespace required');",
+    "test": "source owners"
+  },
+  {
+    "name": "candidate-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "if (provenance === undefined) throw new Error('owned retained candidate source required');",
+    "new": "if (false) throw new Error('owned retained candidate source required');",
+    "test": "source owners"
+  },
+  {
+    "name": "runtime-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts",
+    "old": "if (provenance === undefined) throw new Error('owned review runtime required');",
+    "new": "if (false) throw new Error('owned review runtime required');",
+    "test": "source owners"
+  },
+  {
+    "name": "source-owner",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (provenance === undefined) throw new Error('owned retained TypeScript source required');",
+    "new": "if (false) throw new Error('owned retained TypeScript source required');",
+    "test": "source owners"
+  },
+  {
+    "name": "join-snapshotIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.snapshotIdentity !== candidateProof.snapshotIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field snapshotIdentity"
+  },
+  {
+    "name": "join-classificationPolicyIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.classificationPolicyIdentity !== candidateProof.classificationPolicyIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field classificationPolicyIdentity"
+  },
+  {
+    "name": "join-runtimeClosureIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.runtimeClosureIdentity !== runtimeProof.runtimeClosureIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field runtimeClosureIdentity"
+  },
+  {
+    "name": "join-resolutionPolicyIdentity",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "provenance.resolutionPolicyIdentity !== runtimeProof.resolutionPolicyIdentity",
+    "new": "false",
+    "test": "source joins independent namespace identity field resolutionPolicyIdentity"
+  },
+  {
+    "name": "node-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "namespace.nodes.length > limits.maximumNodes",
+    "new": "false",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "limit-grammar",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "!Number.isSafeInteger(ceiling) || ceiling < 1",
+    "new": "false",
+    "test": "explicit positive finite"
+  },
+  {
+    "name": "limit-snapshot",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "maximumReads: installedLimits.maximumReads,",
+    "new": "get maximumReads() { return installedLimits.maximumReads; },",
+    "test": "source snapshots"
+  },
+  {
+    "name": "read-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "reads >= limits.maximumReads",
+    "new": "false",
+    "test": "reserves raw"
+  },
+  {
+    "name": "read-byte-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "identity.byteLength > limits.maximumReadBytes - readBytes",
+    "new": "false",
+    "test": "byte reserve precedes"
+  },
+  {
+    "name": "measure-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "text.length > ceiling || Buffer.byteLength(text) > ceiling",
+    "new": "false",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "path-utf8-bytes",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": " || Buffer.byteLength(text) > ceiling",
+    "new": "",
+    "test": "source query counts UTF8"
+  },
+  {
+    "name": "path-grammar",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "path.includes('\\0') ||",
+    "new": "false ||",
+    "test": "direct malformed or outside"
+  },
+  {
+    "name": "path-unicode",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "/[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/u.test(path)",
+    "new": "false",
+    "test": "direct malformed or outside"
+  },
+  {
+    "name": "path-backslash",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "path.includes('\\\\') ||",
+    "new": "false ||",
+    "test": "direct malformed or outside"
+  },
+  {
+    "name": "path-empty-component",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "path.includes('//') ||",
+    "new": "false ||",
+    "test": "direct malformed or outside"
+  },
+  {
+    "name": "path-outside",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "(path !== root && !path.startsWith(`${root}/`))",
+    "new": "false",
+    "test": "direct malformed or outside"
+  },
+  {
+    "name": "path-traversal",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (depth < 0) throw new Error('source path escapes candidate');",
+    "new": "if (false) throw new Error('source path escapes candidate');",
+    "test": "lexical outside query refuses"
+  },
+  {
+    "name": "probe-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "probes >= limits.maximumProbes",
+    "new": "false",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "step-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "steps >= limits.maximumSteps",
+    "new": "false",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "depth-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (depth > limits.maximumDirectoryDepth)\n          throw new Error('source directory depth ceiling exceeded');",
+    "new": "if (false)\n          throw new Error('source directory depth ceiling exceeded');",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "runtime-link-mount",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "links > 0 && node.path.split('/').includes('node_modules')",
+    "new": "false",
+    "test": "candidate link expansion"
+  },
+  {
+    "name": "link-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "links >= limits.maximumLinkExpansions",
+    "new": "false",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "link-cycle",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "seen.has(state)",
+    "new": "false",
+    "test": "component walk resolves"
+  },
+  {
+    "name": "target-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "identity.byteLength > limits.maximumTargetBytes",
+    "new": "false",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "link-fatal-utf8",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "{ fatal: true, ignoreBOM: true }",
+    "new": "{ fatal: false, ignoreBOM: true }",
+    "test": "source rejects malformed owned link"
+  },
+  {
+    "name": "link-bom",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "ignoreBOM: true",
+    "new": "ignoreBOM: false",
+    "test": "component walk resolves"
+  },
+  {
+    "name": "target-empty",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target === ''",
+    "new": "false",
+    "test": "source rejects broken owned link decoder"
+  },
+  {
+    "name": "target-absolute",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target.startsWith('/')",
+    "new": "false",
+    "test": "source rejects broken owned link decoder"
+  },
+  {
+    "name": "target-nul",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target.includes('\\0')",
+    "new": "false",
+    "test": "source rejects broken owned link decoder"
+  },
+  {
+    "name": "target-backslash",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "target.includes('\\\\')",
+    "new": "false",
+    "test": "source rejects broken owned link decoder"
+  },
+  {
+    "name": "target-runtime-component",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "component === 'node_modules' || component === '.git'",
+    "new": "false",
+    "test": "candidate link target policy"
+  },
+  {
+    "name": "expand-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "measure(target, limits.maximumExpandedPathBytes, 'expanded path')",
+    "new": "Buffer.byteLength(target)",
+    "test": "lifetime probes"
+  },
+  {
+    "name": "ancestor-file",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-current-path.ts",
+    "old": "node.kind === 'file' && remaining.length > 0",
+    "new": "false",
+    "test": "component walk resolves"
+  },
+  {
+    "name": "ancestor-escape",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-current-path.ts",
+    "old": "if (resolved.pop() === undefined) ports.reject('escape', requestedPath);",
+    "new": "resolved.pop();",
+    "test": "component walk resolves"
+  },
+  {
+    "name": "pattern-count",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "values.length > limits.maximumPatterns - patterns",
+    "new": "false",
+    "test": "enumeration patterns"
+  },
+  {
+    "name": "pattern-byte",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "length > limits.maximumPatternBytes - patternBytes",
+    "new": "false",
+    "test": "pattern byte budget counts"
+  },
+  {
+    "name": "enumeration-cap",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "enumerated >= limits.maximumEnumeratedEntries",
+    "new": "false",
+    "test": "enumeration patterns"
+  },
+  {
+    "name": "returned-total",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "length > limits.maximumReturnedPathBytes - returnedBytes",
+    "new": "false",
+    "test": "source query counts UTF8"
+  },
+  {
+    "name": "file-fatal-utf8",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "new TextDecoder('utf-8', { fatal: true }).decode(readNode(node))",
+    "new": "new TextDecoder('utf-8', { fatal: false }).decode(readNode(node))",
+    "test": "fatal UTF8 for files"
+  },
+  {
+    "name": "source-freeze",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "const source: TypeScriptSource = Object.freeze({",
+    "new": "const source: TypeScriptSource = ({",
+    "test": "source owners"
+  },
+  {
+    "name": "no-fallback",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "new TextDecoder('utf-8', { fatal: true }).decode(readNode(node))",
+    "new": "ts.sys.readFile(path)",
+    "test": "all direct methods survive"
+  },
+  {
+    "name": "matcher-signature",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "runtime.matchFiles.length !== 9",
+    "new": "false",
+    "test": "matcher boundary"
+  },
+  {
+    "name": "cwd-output",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "return returnPath(root);",
+    "new": "return root;",
+    "test": "cwd shares"
+  },
+  {
+    "name": "query-codeunits",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "text.length > ceiling || ",
+    "new": "",
+    "test": "query codeunit bound"
+  },
+  {
+    "name": "child-utf8-bytes",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "Buffer.byteLength(name) + 1 > limits.maximumPathBytes - Buffer.byteLength(path)",
+    "new": "false",
+    "test": "enumeration child UTF8"
+  },
+  {
+    "name": "root-walk",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "      const resolved = resolvePath(path);",
+    "new": "      const resolved = resolvePath(posix.normalize(path));",
+    "test": "enumeration root walks"
+  },
+  {
+    "name": "root-miss",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (resolved.node?.kind !== 'directory') return [];",
+    "new": "if (false) return [];",
+    "test": "missing enumeration ancestor"
+  },
+  {
+    "name": "literal-prefix-walk",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "const resolved = resolvePath(query);",
+    "new": "const resolved = {path:query,node:nodes.get(query),crossedCandidateLink:false};",
+    "test": "literal.*prefix"
+  },
+  {
+    "name": "all-missing-includes",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (include !== undefined && include.length > 0 && selectedInclude?.length === 0) return [];",
+    "new": "if (false) return [];",
+    "test": "missing includes preserve"
+  },
+  {
+    "name": "root-alias-provenance",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "if (resolved.crossedCandidateLink) context.candidateOnlyRoot = true;",
+    "new": "if (false) context.candidateOnlyRoot = true;",
+    "test": "root and prefix canonicalization"
+  },
+  {
+    "name": "prefix-alias-provenance",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "resolved.crossedCandidateLink && resolved.path === root",
+    "new": "false",
+    "test": "root and prefix canonicalization"
+  },
+  {
+    "name": "entries-alias-provenance",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "(resolved.crossedCandidateLink || candidateOnlyRoot) &&\n        child.path.split('/').includes('node_modules')",
+    "new": "false",
+    "test": "root and prefix canonicalization"
+  },
+  {
+    "name": "matcher-version",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "runtime.version !== '6.0.3'",
+    "new": "false",
+    "test": "matcher boundary version"
+  },
+  {
+    "name": "pattern-dot-grammar",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "value.split('/').some((component) => component === '.' || component === '..')",
+    "new": "false",
+    "test": "pattern dot components"
+  },
+  {
+    "name": "metadata-freeze",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-selection-objects.ts",
+    "old": "return Object.freeze({ rawIdentity: identity.rawIdentity, byteLength: identity.byteLength });",
+    "new": "return { rawIdentity: identity.rawIdentity, byteLength: identity.byteLength };",
+    "test": "owned file identity"
+  },
+  {
+    "name": "directory-string-order",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "return entries(path, false).directories.sort();",
+    "new": "return entries(path, false).directories;",
+    "test": "directory basenames use"
+  },
+  {
+    "name": "no-cwd-fallback",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "return returnPath(root);",
+    "new": "return process.cwd();",
+    "test": "all direct methods survive"
+  },
+  {
+    "name": "pattern-drive-root",
+    "file": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "old": "/^[A-Za-z]:/u.test(value)",
+    "new": "false",
+    "test": "drive-rooted matcher"
+  }
+]

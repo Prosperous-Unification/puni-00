@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+(pass) enumeration root walks file ancestors and alias parents before matcher normalization [134.55ms]
+
+ 1 pass
+ 48 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1100.00ms]

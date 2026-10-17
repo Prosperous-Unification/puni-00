@@ -324,6 +324,15 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       removal, intercepted content/filesystem/Git traps, mutation isolation and independent omissions.
       This bounded prerequisite leaves compiler mounting, runtime completeness/authentication and
       parent 2.1d.1.3 open; scoped acceptance remains pending recorded checks and exact review.
+- [ ] 2.1d.1.3e2 Complete direct retained TypeScriptSource methods and exact-owner provenance,
+      reserving candidate/runtime raw bytes before copy from private metadata. Join all three
+      owners and identities before census; snapshot finite explicit ceilings. Share current
+      component walking with declaration reads, preserving BOM/UTF8, ancestor checks, misses,
+      candidate-only bounded links and direct runtime mounts. Prove installed matcher parity
+      for admitted no-dot POSIX patterns, extension/include/exclude/depth/order and basename directories, pinned helper shape
+      refusal, removed-root interception and independent omission faults. No compiler invocation,
+      config parsing, compiler read manifest or freeze is supplied. Parent .3 remains open and
+      this scoped acceptance remains unchecked until all required checks and exact review pass.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

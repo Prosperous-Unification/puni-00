@@ -147,8 +147,30 @@ const GraphProvenance = new WeakMap<
 export function readRetainedCandidateProvenance(candidate: RetainedCandidate) {
   const provenance = GraphProvenance.get(candidate);
   // Proof: removing this lookup refusal lost the copied false-empty Nx census ownership diagnosis.
+  // Proof: candidate-owner omission loses `source owners` (named RED in final fault ledger).
   if (provenance === undefined) throw new Error('owned retained candidate source required');
   return provenance;
+}
+
+const FileIdentities = new WeakMap<
+  RetainedCandidate,
+  ReadonlyMap<string, Readonly<{ blob: string; rawIdentity: string; byteLength: number }>>
+>();
+
+/** Looks up a complete current tuple in the exact owner's private metadata without copying bytes or performing IO. */
+export function readRetainedFileIdentity(
+  candidate: RetainedCandidate,
+  path: string,
+  blob: string,
+): Readonly<{ rawIdentity: string; byteLength: number }> {
+  const identities = FileIdentities.get(candidate);
+  // Proof: metadata-owner omission loses `owned file identity` (named RED in final fault ledger).
+  if (identities === undefined) throw new Error('owned retained candidate source required');
+  const identity = identities.get(path);
+  // Proof: metadata-tuple omission loses `owned file identity` (named RED in final fault ledger).
+  if (identity?.blob !== blob) throw new Error('retained file identity tuple differs');
+  // Proof: metadata-freeze omission loses `owned file identity` (named RED in final fault ledger).
+  return Object.freeze({ rawIdentity: identity.rawIdentity, byteLength: identity.byteLength });
 }
 
 /** Grants graph authority only to the exact owned, validated retained candidate capability. */
@@ -354,6 +376,19 @@ function openRetainedCandidate(
       return read(path, gitObjectId, entry.rawIdentity);
     },
   });
+  FileIdentities.set(
+    candidate,
+    new Map(
+      [...byPath].map(([path, entry]) => [
+        path,
+        Object.freeze({
+          blob: entry.gitObjectId,
+          rawIdentity: entry.rawIdentity,
+          byteLength: entry.bytes.byteLength,
+        }),
+      ]),
+    ),
+  );
   GraphProvenance.set(
     candidate,
     Object.freeze({

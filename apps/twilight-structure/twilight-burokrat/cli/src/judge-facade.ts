@@ -119,6 +119,7 @@ export {
   type NxSource,
 } from './relationships/nx-core';
 export { type ExtractorIdentity } from './relationships/typescript';
+export type { TypeScriptSource } from './relationships/typescript-compiler';
 export { AuditFinding } from './review/audit';
 export {
   type ExhaustiveFreezeDocuments,

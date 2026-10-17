@@ -86,3 +86,9 @@ test('compiler ambient output callback refuses unexpected compiler writes', () =
     host.writeFile('/candidate/unexpected.d.ts', 'unexpected output', false);
   }).toThrow('TypeScript compiler attempted an ambient output write');
 });
+
+test('compiler source preserves basename directory entries from installed sys contract', () => {
+  const { source } = fixture();
+  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  expect(system.getDirectories('/candidate')).toEqual(['src', 'node_modules']);
+});

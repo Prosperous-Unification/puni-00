@@ -4853,3 +4853,116 @@ and `git diff --check` exited 0 before staging. Actual normal commit hooks run u
 serial config/900 MiB guard after this ledger is staged; their external receipt will be
 `/tmp/retained-namespace-recipe-commit.log{,.json}` and the coordinator receives the exact
 successor SHA/tree after observed completion. No hook bypass or reviewed-commit amendment runs.
+
+## 2026-10-17 — direct retained TypeScript source, 2.1d.1.3e2
+
+Base: exact reviewed namespace successor `b8f1188a8be58898ac995061599ac01c8b97dd28`.
+Work is isolated in `/tmp/puni-retained-ts-source-sol-oct17`; no root checkout, push, merge,
+deployment or WBS update is performed. Evidence is
+[`evidence/retained-typescript-source-2026-10-17`](evidence/retained-typescript-source-2026-10-17).
+
+The factory admits all three exact owners before census and independently joins all four
+candidate/runtime provenance identities. Frozen source provenance preserves unverified runtime
+trust. Private candidate tuple metadata exposes raw digest/byte length without a content copy;
+source read count and raw-byte reservations precede candidate/runtime copies. The existing
+current declaration reader and new source share a component walk, preserving its existing
+callers and current/historical declaration semantics. File ancestors refuse before parent
+normalization. Candidate aliases cannot reach runtime mounts, including after query-root
+canonical spelling. Runtime files remain declared direct entries.
+
+The production adapter uses only the pinned installed `@typescript/old` 6.0.3 pure matcher
+behind an explicit version/function/arity boundary; the `typescript` package delegates to it.
+`boundSource` is unchanged. Product code invokes no compiler/config parser, emits no compiler
+read manifest and supplies no freeze input. Direct pattern admission is deliberately narrower
+than full tsconfig compatibility: include/exclude patterns have no `.`/`..` components and no
+Windows drive roots. All syntax is checked before any literal-prefix content read. Ordinary
+literal prefixes still walk candidate components, and all-missing includes cannot widen into
+the matcher's unrestricted empty-include behavior. Immediate directory names use installed
+sys Unicode string order, independently of the namespace's UTF-8 byte order.
+
+### Observed development and refusal proofs
+
+The ownership/read stage was observed RED then GREEN (3 tests); path/link stage RED then GREEN
+(27 tests/143 assertions); enumeration stage RED then GREEN (31 tests/175 assertions). Early
+invalid fixtures were refused upstream for lexical symlink escapes, a root `.` resolved target,
+undeclared binary content or incomplete fixture classification rules. Upstream admission was
+preserved. Effective escape uses an admitted ancestor alias; malformed owned-return tests inject
+faults only at the existing byte-copy dependency. Their injected bytes do not claim successful
+Git acquisition of invalid trusted state.
+
+Astra's WIP findings were reproduced and corrected: matcher normalization of query roots and
+literal prefixes, trailing-separator alias listing, and cwd output charging. The initial richer
+pattern rewrite experiment was discarded in favor of the explicit no-dot grammar. Its receipts
+are historical and do not establish final acceptance. `initial-unproven.json` and
+`faults-before-strict-grammar.json` retain disqualified trials: a later runtime mount guard masked
+one target-component omission, and the initial Unicode child fixture did not isolate its byte
+predicate. Final missing-runtime/.git target tests and a program-only runtime Unicode fixture
+produced independent named RED and restored GREEN for the intended predicates.
+
+The final `faults.json` records **64/64 independently injected production-path named REDs**,
+including owners/tuple/freeze, four provenance joins, every source work/read/path/link/pattern/
+enumeration/output bound, fatal decoding/BOM, file/escape ancestors, root/prefix alias
+provenance, no-match includes, matcher arity/version, Unicode directory order, and filesystem/cwd
+fallback dependencies. Every trial restores its source in `finally`; adjacent `Proof:` comments
+name its fault and observed test. Maximum sampled fault process tree: **683324 KiB**, below the
+900 MiB guard. The source-removal test separately proves active interceptions of filesystem,
+Git, cwd and `ts.sys` ports, then exercises all direct methods with those roots removed and an
+ambient Git override poisoned. Pre-removal installed-sys enumeration parity is a separate test.
+
+### Scoped checks and remaining limits
+
+All checks were serial under the sampled 900 MiB process-tree guard. Dependencies were reused
+read-only through the reviewed predecessor's installed `node_modules`; this lane did not perform
+a new dependency install. Node-based scoped lint used a 512 MiB heap ceiling.
+
+| Check                                            | Observed outcome                                                                                                                                                                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Final source direct suite                        | 67 pass, 0 fail, 246 assertions; exit 0 (`source-commit-control.log`), peak 659008 KiB                                                                                                                                                        |
+| Compiler seam regression                         | 7 pass, 0 fail, 16 assertions; peak 178148 KiB, exit 0 (`compiler-final.log`)                                                                                                                                                                 |
+| Namespace regression                             | 44 pass, 0 fail, 181 assertions; peak 561112 KiB, exit 0 (`namespace-final.log`)                                                                                                                                                              |
+| Existing declaration/Nx post-resolver regression | 79 pass, 0 fail, 109 assertions; peak 555056 KiB, exit 0 (`declarations-restored.log`)                                                                                                                                                        |
+| Fresh final declaration rerun                    | Memory-stopped after 21 passing cases; sampled 998904 KiB, exit -9 (`declarations-final.log`); no assertion failure before stop and no full-file retry                                                                                        |
+| Initial ten-file ESLint batch                    | Memory-stopped at sampled 951008 KiB, exit -9 (`lint.log`); not a pass                                                                                                                                                                        |
+| Ten named per-file ESLint checks                 | Each exit 0, max 770308 KiB (`lint-0.log` through `lint-9.log`); corrected import ordering and test method/Promise style, plus equivalent optional-chain tuple spelling                                                                       |
+| Scoped library typecheck                         | `bunx --no-install tsc --noEmit --project apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json --incremental false`: exit 0, peak 516760 KiB (`typecheck.log`); this predates only the final drive-root predicate, and was not retried |
+
+Nx module-boundary enforcement was skipped for absent cached ProjectGraph in all scoped ESLint
+runs; it remains unverified. The spec test project was not separately typechecked. The final
+full declaration rerun and final-predicate exact-tree typecheck are unavailable as described.
+Full hosted gate/CI, complete suites, build, corpus fit, compiler mounting, complete executing
+runtime authentication and external protected authority are unverified. e2, e1 and parent `.3`
+remain unchecked; these scoped checks are no activation certification.
+
+Normal hooks are installed. `hooks-original.json` and `hooks-serial.json` prove identical merged
+commands, globs/options and message hooks, with only pre-commit parallel scheduling changed to
+false (omitted by the normalized dump). Final strict OpenSpec validation and actual normal hooks
+are recorded after their observed runs. The actual commit receipt is retained externally so it
+can report that commit's exact SHA/tree without amending the reviewed predecessor.
+
+Initial normal serial pre-commit ran format, secrets, private nesting and Tool Wiki, but the
+ten-file grouped ESLint process exhausted its 512 MiB heap (lint exit 134; hook exit 1), sampled
+peak 867932 KiB. `hooks-original-heap-stopped.log` preserves that failure; it is not a lint pass.
+The coordinator authorized a clone-local equivalent per-file scheduler to retain complete hook
+coverage under the memory cap. Repository `lefthook.yml` remains unchanged.
+
+`hooks-per-file.json` differs from the original merged dump only in serial scheduling and lint
+run `bash .git/lint-staged-serial.sh {staged_files}`. The lint glob and every other command/option
+and message hook are identical. The wrapper invokes the original `bunx eslint` with each exact
+quoted hook-expanded path, the same cwd/environment/options/rules, and exits on any nonzero.
+`hook-wrapper-proof.json` proves paths with spaces are preserved; injected exit 23 at the second
+path stops before the third, and missing arguments refuse with exit 64. Actual expanded argv
+coverage is checked against the complete staged TypeScript/JavaScript path list after the run.
+
+The checked per-file normal pre-commit ran lint over all **10 exact ordered staged source/test
+paths**, with no omissions (`hook-expanded-coverage.json`), and all applicable lint rules passed;
+Nx module boundaries again reported unavailable. Its global exit was 1 solely because a newly
+added heap-failure receipt JSON needed Prettier; lint passed and peak was **820944 KiB**
+(`hooks-per-file-first.log`). That receipt was formatted and restaged before the actual normal
+commit. This failed pre-commit is not represented as a full hook pass.
+
+Strict pinned OpenSpec validation reported **1/1 valid, zero issues**, exit 0 at **112680 KiB**
+(`openspec.log`). Evidence logs were normalized only for trailing presentation whitespace and
+terminal blank lines; original log bytes remain in `/tmp/retained-ts-original-logs.tar.gz`.
+`source-files.sha256` binds the final ten code files; `sha256sum -c` and staged diff whitespace
+checks are required before the actual commit. Final commit hook receipt is retained outside
+the tree as `/tmp/retained-ts-commit.log{,.json}` and reported with the exact SHA/tree.

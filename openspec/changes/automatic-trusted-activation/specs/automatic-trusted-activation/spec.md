@@ -1276,3 +1276,65 @@ closure `resolutionPolicyIdentity`, and `runtimeTrust: 'unverified'`.
   canonical recipe bytes, including key order and terminal LF
 - **AND** the constructor hashes the private frozen recipe once after ownership and limit
   validation; replacing the published pin or omitting a recipe field fails the independent oracle
+
+### Requirement: Direct retained TypeScript source admission
+
+The system SHALL expose the complete TypeScript source interface over exact owned retained
+namespace, candidate and runtime capabilities, joining their snapshot/classification and runtime
+closure/resolution identities before inspecting the namespace census. The source and its
+exact-owner provenance SHALL remain frozen and retain unverified runtime trust.
+
+#### Scenario: Direct methods read an owned virtual namespace after physical removal
+
+- **GIVEN** an admitted retained namespace and candidate/runtime bytes whose source, store and
+  runtime roots have been removed
+- **WHEN** direct path-kind, read, directory listing, recursive matching, realpath and cwd methods run
+- **THEN** only owned metadata and content are consulted; intercepted filesystem, Git, ambient
+  environment and `ts.sys` ports cannot supply reads or enumeration
+- **AND** the source is case sensitive, uses the fixed candidate cwd and configured library directory,
+  and returns modeled in-namespace misses while refusing outside/malformed direct queries before reads
+
+#### Scenario: Current symlinks route through retained components
+
+- **WHEN** selected candidate links occur at leaf or ancestor components
+- **THEN** the shared retained component walk preserves exact BOM target bytes, follows candidate-only
+  links, refuses cycles/escapes and file ancestors before parent normalization, and never mounts a
+  declared runtime file through a candidate alias
+- **AND** reads decode fatal UTF-8; regular file BOMs are stripped, while runtime files are direct
+  declared entries and candidate file reads require complete private path/blob/raw identity tuples
+
+#### Scenario: Enumeration follows the installed pure TypeScript matcher
+
+- **WHEN** direct enumeration supplies extensions, include/exclude patterns or a depth
+- **THEN** ordering, matching and depth behavior match the pinned installed `ts.sys` on equivalent
+  small fixtures, and immediate directory listing returns basenames
+- **AND** production uses only the pinned pure matcher with a checked runtime shape and owned
+  metadata callbacks; changed matcher shape refuses without a filesystem fallback
+
+#### Scenario: Any source resource ceiling is exceeded
+
+- **WHEN** explicit positive safe integer ceilings for nodes, lifetime probes/steps/reads/raw bytes,
+  query/target/expanded path bytes, link expansions, directory depth, lifetime pattern count/bytes,
+  enumerated entries or returned path bytes would be exceeded
+- **THEN** the source throws before the bounded copy or accumulation; candidate raw byte length
+  comes from private exact-owner metadata and is reserved before candidate.read copies content
+- **AND** limits are captured once; copied owners, foreign provenance and changing limit getters
+  cannot replace the admitted source authority
+
+#### Scenario: Pattern normalization could erase a file ancestor or candidate alias
+
+- **WHEN** any include/exclude pattern contains a `.` or `..` path component, either before
+  or after a wildcard
+- **THEN** direct source admission refuses the pattern before any content read or matcher call
+- **AND** all supplied patterns receive syntax admission before literal-prefix resolution;
+  ordinary admitted literal prefixes still walk files and candidate aliases component-wise
+- **AND** all-missing include prefixes return no matches rather than passing an unrestricted
+  empty include array to the matcher; valid mixed includes retain their order
+- **AND** query-root normalization retains candidate alias provenance and cannot expose
+  runtime entries after canonical spelling; cwd output and trailing-separator listing remain bounded
+
+The direct e2 interface deliberately does not claim full tsconfig-pattern compatibility or
+compiler mounting. Dot components in direct query roots continue through the component walk.
+
+Drive-rooted patterns are outside the fixed POSIX namespace and SHALL refuse during pattern
+syntax admission, before any literal-prefix read or matcher invocation.

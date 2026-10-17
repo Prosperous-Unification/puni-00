@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+73 |   expect(() => createRetainedTypeScriptSource(poison, f.candidate, f.runtime, limits)).toThrow(
+74 |     'owned retained namespace',
+75 |   );
+76 |   expect(() =>
+77 |     createRetainedTypeScriptSource(f.namespace, { ...f.candidate }, f.runtime, limits),
+78 |   ).toThrow('owned retained candidate');
+         ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "owned retained candidate"
+Received message: "undefined is not an object (evaluating 'candidateProof.snapshotIdentity')"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:78:5)
+(fail) source owners precede census and provenance joins candidate and runtime [150.63ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1121.00ms]

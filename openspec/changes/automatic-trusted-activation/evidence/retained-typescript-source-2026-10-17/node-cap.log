@@ -1,0 +1,158 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+210 |   expect(() => expanded.source.pathKind(root + '/l')).toThrow('source expanded path ceiling');
+211 |   const link = fromPaths({ a: 'x' }, { l: 'm', m: 'a' }, { maximumLinkExpansions: 1 });
+212 |   expect(() => link.source.pathKind(root + '/l')).toThrow('source link ceiling');
+213 |   const depth = setup({ maximumDirectoryDepth: 1 });
+214 |   expect(() => depth.source.pathKind(root + '/src/b.ts')).toThrow('source directory depth ceiling');
+215 |   expect(() => setup({ maximumNodes: 1 })).toThrow('source node ceiling');
+                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source node ceiling"
+
+Received function did not throw
+Received value: {
+  root: "/tmp/namespace-NiyucJ",
+  sourceRepository: "/tmp/namespace-NiyucJ/source",
+  storeBase: "/tmp/namespace-NiyucJ/store",
+  runtimeRoot: "/tmp/namespace-NiyucJ/runtime",
+  candidate: {
+    [Symbol(owned retained review candidate)]: true,
+    snapshot: {
+      selection: {
+        kind: "committed",
+        revision: "b3c9a5303083e2d8d333d086e3206afe6310373c",
+        tree: "a662994d53138f283d5ce8f9db57377186669c9f",
+      },
+      entries: [
+        {
+          path: "a.ts",
+          mode: "100644",
+          blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+        }, {
+          path: "link",
+          mode: "120000",
+          blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+        }, {
+          path: "src/b.ts",
+          mode: "100644",
+          blob: "5235cf9c0f84a467188077ca16da9dfc1c47df11",
+        }
+      ],
+      untracked: [],
+    },
+    history: null,
+    readHistorical: [Function: readHistorical],
+    read: [Function: read],
+    readBlob: [Function: readBlob],
+  },
+  runtime: {
+    closure: {
+      compilerHostIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      files: [
+        {
+          byteLength: 1,
+          identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+          path: "node_modules/pkg/index.d.ts",
+          role: "dependency",
+        }, {
+          byteLength: 1,
+          identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+          path: "parser.js",
+          role: "program",
+        }, {
+          byteLength: 1,
+          identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+          path: "private.txt",
+          role: "dependency",
+        }
+      ],
+      kind: "review-runtime-closure",
+      parserProgramIdentity: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      resolutionPolicyIdentity: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      schemaVersion: 1,
+    },
+    runtimeClosureIdentity: "7d4379662227eb19ad2bdb302a2e6047ca42282ee689f047ab6565c33337633e",
+    readFile: [Function: readFile],
+  },
+  namespace: {
+    workingDirectory: "/__puni_review__/candidate",
+    libraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+    caseSensitive: true,
+    nodes: [
+      {
+        kind: "directory",
+        path: "/",
+      }, {
+        kind: "directory",
+        path: "/__puni_review__",
+      }, {
+        kind: "directory",
+        path: "/__puni_review__/candidate",
+      }, {
+        kind: "candidate-file",
+        source: {
+          path: "a.ts",
+          mode: "100644",
+          blob: "8cec2e9ced0d3575a0f7b97c7396d5bcefe0ea5e",
+        },
+        path: "/__puni_review__/candidate/a.ts",
+      }, {
+        kind: "candidate-symlink",
+        source: {
+          path: "link",
+          mode: "120000",
+          blob: "417ce6bd4ee0c0b5363301c19328c6ea3a3005ee",
+        },
+        path: "/__puni_review__/candidate/link",
+      }, {
+        kind: "directory",
+        path: "/__puni_review__/candidate/node_modules",
+      }, {
+        kind: "directory",
+        path: "/__puni_review__/candidate/node_modules/pkg",
+      }, {
+        kind: "runtime-file",
+        source: {
+          path: "node_modules/pkg/index.d.ts",
+          role: "dependency",
+          identity: "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+          byteLength: 1,
+        },
+        path: "/__puni_review__/candidate/node_modules/pkg/index.d.ts",
+      }, {
+        kind: "directory",
+        path: "/__puni_review__/candidate/src",
+      }, {
+        kind: "candidate-file",
+        source: {
+          path: "src/b.ts",
+          mode: "100644",
+          blob: "5235cf9c0f84a467188077ca16da9dfc1c47df11",
+        },
+        path: "/__puni_review__/candidate/src/b.ts",
+      }
+    ],
+  },
+  source: {
+    compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+    useCaseSensitiveFileNames: true,
+    getCurrentDirectory: [Function: getCurrentDirectory],
+    pathKind: [Function: pathKind],
+    readFile: [Function: readFile],
+    getDirectories: [Function: getDirectories],
+    readDirectory: [Function: readDirectory],
+    realpath: [Function: realpath],
+  },
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:215:44)
+(fail) lifetime probes steps path targets expansions and depth are bounded [829.15ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [1.77s]

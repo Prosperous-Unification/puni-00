@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+625 |     throw new Error('copy forbidden');
+626 |   });
+627 |   try {
+628 |     expect(() =>
+629 |       f.source.readDirectory(root, ['.ts'], undefined, ['link', 'a*/../src/**/*']),
+630 |     ).toThrow('source pattern dot component');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source pattern dot component"
+Received message: "copy forbidden"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:630:7)
+(fail) pattern dot components and later outside patterns refuse before link reads [133.78ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1089.00ms]

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "--smol",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts",
+    "-t",
+    "matcher boundary version"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 681644,
+  "ceilingKiB": 921600
+}

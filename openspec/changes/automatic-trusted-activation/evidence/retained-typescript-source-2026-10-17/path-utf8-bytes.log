@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+408 |   );
+409 | });
+410 |
+411 | test('source query counts UTF8 bytes and repeated output bytes', () => {
+412 |   const f = setup({ maximumPathBytes: root.length + 3 });
+413 |   expect(() => f.source.pathKind(root + '/éé')).toThrow('source path ceiling');
+                                                      ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source path ceiling"
+
+Received function did not throw
+Received value: "absent"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:413:49)
+(fail) source query counts UTF8 bytes and repeated output bytes [118.95ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1074.00ms]

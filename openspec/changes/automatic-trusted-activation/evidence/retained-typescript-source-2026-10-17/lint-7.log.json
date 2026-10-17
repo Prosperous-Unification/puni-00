@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "--fix",
+    "apps/twilight-structure/twilight-burokrat/cli/src/judge-facade.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 662788,
+  "ceilingKiB": 921600
+}

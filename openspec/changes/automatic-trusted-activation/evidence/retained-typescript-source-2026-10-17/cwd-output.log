@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+520 | });
+521 |
+522 | test('cwd shares the lifetime returned-path budget', () => {
+523 |   const f = setup({ maximumReturnedPathBytes: root.length });
+524 |   expect(f.source.getCurrentDirectory()).toBe(root);
+525 |   expect(() => f.source.getCurrentDirectory()).toThrow('source returned path ceiling');
+                                                     ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "source returned path ceiling"
+
+Received function did not throw
+Received value: "/__puni_review__/candidate"
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:525:48)
+(fail) cwd shares the lifetime returned-path budget [127.45ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1087.00ms]

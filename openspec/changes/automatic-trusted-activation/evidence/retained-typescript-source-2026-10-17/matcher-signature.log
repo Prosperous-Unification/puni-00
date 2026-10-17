@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+432 |         stdout: 'pipe',
+433 |         stderr: 'pipe',
+434 |         timeout: 20000,
+435 |       },
+436 |     );
+437 |     expect(invocation.exitCode).toBe(0);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:437:33)
+(fail) matcher boundary arity negative runs in an isolated module registry [1118.54ms]
+(pass) matcher boundary version negative runs in an isolated module registry [1086.28ms]
+
+ 1 pass
+ 63 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [3.15s]

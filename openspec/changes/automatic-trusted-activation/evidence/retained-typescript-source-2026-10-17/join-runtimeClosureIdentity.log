@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:
+374 |     [key]: 'f'.repeat(64),
+375 |   });
+376 |   try {
+377 |     expect(() =>
+378 |       createRetainedTypeScriptSource(f.namespace, f.candidate, f.runtime, limits),
+379 |     ).toThrow('identity differs');
+            ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "identity differs"
+
+Received function did not throw
+Received value: {
+  compilerLibraryDirectory: "/__puni_review__/candidate/node_modules/typescript/lib",
+  useCaseSensitiveFileNames: true,
+  getCurrentDirectory: [Function: getCurrentDirectory],
+  pathKind: [Function: pathKind],
+  readFile: [Function: readFile],
+  getDirectories: [Function: getDirectories],
+  readDirectory: [Function: readDirectory],
+  realpath: [Function: realpath],
+}
+
+      at <anonymous> (/tmp/puni-retained-ts-source-sol-oct17/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.ts:379:7)
+(fail) source joins independent namespace identity field runtimeClosureIdentity [110.50ms]
+
+ 0 pass
+ 64 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1067.00ms]

@@ -2217,3 +2217,44 @@ Available access to provision these has not been established by this packet. The
 authorized resolving the blocker without per-PR operator steps; this is not evidence that
 external credentials exist. Deployment acceptance must record the chosen provider, exact
 permissions and authentic invocation proof before any real activation.
+
+### Direct retained TypeScript source (2.1d.1.3e2)
+
+`createRetainedTypeScriptSource` admits the exact namespace, candidate and runtime owners before
+reading a census, then joins snapshot/classification and closure/resolution identities. Its
+frozen source retains the namespace provenance and `runtimeTrust: unverified`; this admits no
+compiler execution, config parsing, read manifest or freeze input. `boundSource` is unchanged.
+
+Candidate current-file identity is a private owner lookup over exact path/Git-blob metadata,
+returning raw digest and byte length without copying content or consulting storage. Both raw
+candidate and runtime read lengths reserve lifetime source reads/bytes before the owned capability
+makes its copy. Fatal UTF-8 strips file BOMs and preserves symlink target BOMs.
+
+The source and existing current declaration reader share a component walk. Files must never
+serve as directory ancestors before `..` normalization. Candidate links resolve through retained
+candidate entries only, including ancestor aliases; they cannot route to dependency mounts.
+Runtime dependency entries remain direct declared files. Within the fixed candidate namespace,
+misses use the source interface's absent/undefined/empty semantics; malformed or outside requests
+throw before content access. Symlink expansion has finite target/expanded-path bytes, expansions
+and directory depth, with lifetime probes/steps/reads additionally limiting repeated work.
+
+Enumeration uses the pure `matchFiles` implementation exported by installed `typescript`, whose
+lockfile-pinned implementation is `@typescript/old` 6.0.3. A narrow version/function/arity boundary
+refuses drift. The production route never delegates to `ts.sys`. Immediate directory entries are
+basenames, matching installed `ts.sys`, including selected directory aliases. Extension/include/
+exclude/depth and ordering parity is characterized on small physical fixtures before removal;
+a separate removed-root test intercepts ambient filesystem/Git/`ts.sys` routes. Every visited child
+path reserves output bytes before the matcher can accumulate its filtered output. Pattern counts/
+bytes, enumerated entries and returned path bytes are lifetime budgets, explicitly supplied along
+with nodes and all query/target/expanded path and work ceilings. No limit has a default.
+
+This bounded adapter leaves compiler mounting, config/resolution escape policy, complete executing
+runtime authentication, compiler read manifests and parent 2.1d.1.3 open.
+
+The e2 pattern boundary admits ordinary literal and wildcard patterns with no `.`/`..` path
+components. It validates every supplied pattern before any literal-prefix link read. Literal
+prefixes walk the owned component namespace; absent prefixes cannot widen includes to the
+matcher's unrestricted empty-include behavior. Query roots retain component-wise `.`/`..`
+semantics and any candidate-link provenance after canonical spelling, so a root alias cannot
+expose dependency mounts. Immediate listing accepts a trailing separator. Cwd shares the
+lifetime returned-path budget. Full tsconfig-pattern compatibility is not asserted here.
