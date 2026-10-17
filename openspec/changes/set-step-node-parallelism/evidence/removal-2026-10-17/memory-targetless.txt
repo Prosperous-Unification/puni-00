@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+142 |           if (owner === null)
+143 |             throw new Error('step parallelism has an invalid work-item reference');
+144 |           if (owner.projectId !== projectId) throw new Error('step parallelism project mismatch');
+145 |           if (owners.some((row) => row.parentId === owner.id))
+146 |             throw new Error('step parallelism owner is not a leaf');
+147 |           if (seen.has(owner.id)) throw new Error('duplicate step parallelism');
+                                                  ^
+error: duplicate step parallelism
+      at remove (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-fixture.ts:147:45)
+      at async <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:117:31)
+(fail) returns sorted detached memory references for the exact target [7.25ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 503386112, "exitCode": 1}

@@ -269,7 +269,11 @@ function bindStores(
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
   const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
-  const steps = inMemorySteps([], state.tables.steps, state.tables.estimates);
+  // Proof: a separate parallel table let source removal erase the step; mixed rollback tests failed, 2026-10-17.
+  const steps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
+    table: state.tables.stepParallels,
+    workItems,
+  });
   const projects = inMemoryProjects(users, state.tables.projects);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);

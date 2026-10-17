@@ -11,6 +11,7 @@ import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 
@@ -1827,4 +1828,57 @@ describe('estimate unit boundary', () => {
     );
     expect(await estimates.listByProject(project.id)).toHaveLength(0);
   });
+});
+
+for (const cascade of [false, true])
+  it(`returns 409 for retained sparse step parallelism (cascade=${String(cascade)})`, async () => {
+    const token = await register('owner');
+    const project = await newProject(token);
+    const strip = await newWorkItem(project.id, token, 'Strip');
+    const owner = await projects.findById(project.id);
+    if (owner === null) throw new Error('missing fixture project');
+    const parallels = new StepParallelRepository(openDrizzle(join(dir, 'test.db')), OPEN);
+    await parallels.set(
+      { workItemId: strip, stepId: project.qaId, maxParallel: 1 },
+      { at: 1, by: owner.ownerId },
+    );
+    const refused = await send(
+      `/api/projects/${project.id}/steps/${project.qaId}?cascade=${String(cascade)}`,
+      token,
+      { method: 'DELETE' },
+    );
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({
+      error: 'referenced_by_step_parallel',
+      nodes: [{ workItemId: strip, stepId: project.qaId }],
+    });
+    expect(await stepStore.findById(project.qaId)).not.toBeNull();
+  });
+
+it('does not disclose sparse references to outsiders or a foreign project', async () => {
+  const token = await register('owner');
+  const outsider = await register('outsider');
+  const project = await newProject(token);
+  const foreign = await newProject(token);
+  const strip = await newWorkItem(project.id, token, 'Strip');
+  await send(`/api/projects/${project.id}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ restricted: true }),
+  });
+  const parallels = new StepParallelRepository(openDrizzle(join(dir, 'test.db')), OPEN);
+  await parallels.set({ workItemId: strip, stepId: project.qaId, maxParallel: 1 }, wrote());
+  const denied = await send(
+    `/api/projects/${project.id}/steps/${project.qaId}?cascade=true`,
+    outsider,
+    { method: 'DELETE' },
+  );
+  expect(denied.status).toBe(403);
+  expect(await denied.json()).toEqual({ error: 'forbidden' });
+  const missing = await send(
+    `/api/projects/${foreign.id}/steps/${project.qaId}?cascade=true`,
+    token,
+    { method: 'DELETE' },
+  );
+  expect(missing.status).toBe(404);
+  expect(await missing.json()).toEqual({ error: 'not_found' });
 });

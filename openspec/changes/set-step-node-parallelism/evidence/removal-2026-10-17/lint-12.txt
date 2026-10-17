@@ -1,0 +1,3 @@
+libs/wbs/application/core/src/ports/step-store.ts
+heap576
+{"ceilingBytes": 943718400, "sampledPeakBytes": 710225920, "exitCode": 0}

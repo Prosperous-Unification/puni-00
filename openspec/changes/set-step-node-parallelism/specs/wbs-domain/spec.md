@@ -158,3 +158,30 @@ Schema 7 SHALL upgrade to an empty collection in memory without changing histori
 - **GIVEN** a stored schema 7 input body
 - **WHEN** the current reader normalizes it
 - **THEN** its in-memory schema 8 input has an empty override collection and stored bytes remain unchanged
+
+### Requirement: Step removal refuses retained sparse parallelism
+
+Authoritative step removal SHALL refuse either cascade value while the exact target step
+has a retained sparse parallelism fact, including explicit equality with the row default.
+The typed refusal SHALL be `referenced_by_step_parallel` with detached `nodes` ordered by
+work-item and step identity components. HTTP SHALL expose this refusal as 409. Authorization
+SHALL precede reference disclosure; absent steps and steps outside the requested project
+SHALL remain not-found. The guard SHALL read current facts inside the source write transaction,
+including facts inserted after service preflight. Refusal SHALL leave facts, revisions, journal
+and events unchanged. Corrupt target facts SHALL throw before mutation, including missing or
+foreign owners, parent ownership, invalid maxima and duplicate retained memory pairs.
+Clearing the last target fact SHALL permit the existing no-fact removal behavior, preserving
+sibling and foreign facts. Mixed units of work SHALL roll back removal and earlier writes together.
+
+#### Scenario: Cascade cannot erase authored parallelism
+
+- **GIVEN** a leaf's explicit Dev maximum equals its row default and QA has a separate override
+- **WHEN** Dev is removed with either cascade value
+- **THEN** removal refuses with only the Dev node reference and changes no stored state
+- **AND** after Dev's fact is explicitly cleared, Dev can be removed while QA remains unchanged
+
+#### Scenario: Late authored fact wins over preflight
+
+- **GIVEN** service preflight observes no generic usage
+- **WHEN** another write retains a Dev parallelism fact before authoritative removal
+- **THEN** the transaction refuses removal with the current exact Dev references

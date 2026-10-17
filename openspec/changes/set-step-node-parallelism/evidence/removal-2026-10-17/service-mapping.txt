@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+153 |  * transaction's — so the numbers a person is shown are built the same way
+154 |  * whichever of the two refused.
+155 |  */
+156 | function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
+157 |   return {
+158 |     estimates: usage.estimates,
+                     ^
+TypeError: undefined is not an object (evaluating 'usage.estimates')
+      at inUseFrom (/tmp/step-removal-20261017/libs/wbs/application/core/src/module/step/step.resource.ts:158:16)
+      at removeWithin (/tmp/step-removal-20261017/libs/wbs/application/core/src/module/step/step.resource.ts:400:52)
+      at async <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:824:24)
+(fail) refuses retained sparse parallelism atomically (cascade=false) [119.89ms]
+153 |  * transaction's — so the numbers a person is shown are built the same way
+154 |  * whichever of the two refused.
+155 |  */
+156 | function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
+157 |   return {
+158 |     estimates: usage.estimates,
+                     ^
+TypeError: undefined is not an object (evaluating 'usage.estimates')
+      at inUseFrom (/tmp/step-removal-20261017/libs/wbs/application/core/src/module/step/step.resource.ts:158:16)
+      at removeWithin (/tmp/step-removal-20261017/libs/wbs/application/core/src/module/step/step.resource.ts:400:52)
+      at async <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:824:24)
+(fail) refuses retained sparse parallelism atomically (cascade=true) [81.88ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.04s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 538783744, "exitCode": 1}

@@ -1,0 +1,57 @@
+[
+  {
+    "fault": "sqlite-guard",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-cascade",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-targetless",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-project-scope",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-inner-join",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-owner",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-project",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-leaf",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-range",
+    "failedTests": 1,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-order",
+    "failedTests": 2,
+    "exitCode": 1
+  },
+  {
+    "fault": "sqlite-copy",
+    "failedTests": 2,
+    "exitCode": 1
+  }
+]

@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+(pass) refuses scoped saved-plan writes without a transactional membership source [6.97ms]
+(pass) commits and rolls back project-seeded blockage facts and cascades removed owners [3.13ms]
+(pass) the staged memory source > saves committed capture and independent history while a batch commits [6.79ms]
+(pass) the staged memory source > saves committed capture and independent history while a batch refuses [0.91ms]
+(pass) the staged memory source > serializes competing saved-plan quota checks independently of command batches [1.44ms]
+(pass) the staged memory source > commits all mixed-store writes together [1.00ms]
+(pass) the staged memory source > queues public writes behind a held batch [20.94ms]
+(pass) the staged memory source > discards refused state and gives the next batch a fresh scope [1.07ms]
+(pass) the staged memory source > returns detached values from every public storage shape [5.90ms]
+(pass) the staged memory source > returns detached values from every admitted storage shape [1.54ms]
+(pass) the staged memory source > binds subtree writes and public dependency reads to one table [1.16ms]
+(pass) the staged memory source > refuses a missing independent-history route without deleting real history [0.50ms]
+(pass) the staged memory source > refuses saved-plan persistence mutations without their exact target state [0.57ms]
+(pass) refuses an attempt start at a node stated done [0.47ms]
+(pass) captures direct blockage detached from later memory writes [1.46ms]
+(pass) captures sparse parallel facts detached from later memory writes [1.67ms]
+(pass) captures sparse parallel facts from the memory epoch before concurrent clear [1.01ms]
+(pass) source removal retains sparse facts across mixed rollback (cascade=false) [0.99ms]
+(pass) source removal retains sparse facts across mixed rollback (cascade=true) [0.53ms]
+
+ 19 pass
+ 0 fail
+ 223 expect() calls
+Ran 19 tests across 1 file. [1.85s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 495022080, "exitCode": 0}

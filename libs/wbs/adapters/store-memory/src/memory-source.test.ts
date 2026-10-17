@@ -930,3 +930,30 @@ it('captures sparse parallel facts from the memory epoch before concurrent clear
     await source.close();
   }
 });
+
+for (const cascade of [false, true])
+  it(`source removal retains sparse facts across mixed rollback (cascade=${String(cascade)})`, async () => {
+    const source = await seededSource();
+    await source.stores.steps.add(
+      { id: 'st-1', projectId: 'p1', name: 'Dev', allowancePercent: 0, estimateUnit: 'workdays' },
+      stamp,
+    );
+    await source.stores.workItems.insert(workItemRow({ id: 'a:b', projectId: 'p1' }), [], stamp);
+    const fact = { workItemId: 'a:b', stepId: 'st-1', maxParallel: 1 };
+    await source.stores.stepParallels.set(fact, stamp);
+    const refusal = {
+      ok: false,
+      reason: 'referenced_by_step_parallel',
+      nodes: [{ workItemId: 'a:b', stepId: 'st-1' }],
+    };
+    expect(await source.stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+    await source.uow.run(async ({ stores }) => {
+      await stores.steps.rename('p1', 'st-1', 'Changed', stamp);
+      expect(await stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+      await stores.stepParallels.remove('a:b', 'st-1', stamp);
+      expect(await stores.steps.remove('p1', 'st-1', cascade, stamp)).toMatchObject({ ok: true });
+      return { commit: false, value: undefined };
+    });
+    expect(await source.stores.steps.findById('st-1')).toMatchObject({ name: 'Dev' });
+    expect(await source.stores.stepParallels.listByProject('p1')).toEqual([fact]);
+  });

@@ -393,6 +393,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
+    // Proof: omitted registry entry made removeStep fail TS2345 in the smallest step-module typecheck, 2026-10-17.
+    referenced_by_step_parallel: { nodes: { workItemId: string; stepId: string }[] };
     estimates_present: { count: number };
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };

@@ -1,0 +1,3 @@
+libs/wbs/domain/contracts/src/http/step-shapes.ts
+heap576
+{"ceilingBytes": 943718400, "sampledPeakBytes": 692379648, "exitCode": 0}

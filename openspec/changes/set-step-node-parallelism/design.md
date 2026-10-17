@@ -70,3 +70,20 @@ reject malformed collections, invalid maxima, duplicates, absent references and 
 Canonical ordering and pair-keyed capacity differences preserve explicit equality and sibling
 absence. Both source captures read facts from their existing consistent snapshot and detach them.
 This slice does not enable public writing, live resolution, scheduling or document version 10.
+
+## Step-removal prerequisite (2026-10-17)
+
+`StepRemoved` and `RemoveStepOutcome` carry a typed sparse-reference refusal with
+readonly structured node references. SQLite queries only the target step selected through
+its requested project, inside the existing gated synchronous transaction. A left owner join
+keeps malformed trusted references visible; owner project, leaf ownership and maximum are
+validated before either cascade path can mutate. No sparse fact is deleted implicitly.
+
+Memory source bindings and the legacy fixture factory pass the same `MemoryStepParallelTable`
+and owner authority to both stores. Removal validates target facts, refuses duplicates, sorts
+and copies references, and staged source rollback owns all prior writes. Raw fixture
+removal re-finds the exact target after owner awaits so concurrent removals cannot
+reuse a stale array index or delete a sibling. Service authorization
+runs before adapter reference lookup; resource, closed refusal registry and HTTP
+mappings preserve the typed 409.
+Generic non-cascade usage can retain its existing precedence. No public writer is enabled.

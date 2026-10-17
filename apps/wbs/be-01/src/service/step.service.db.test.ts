@@ -15,6 +15,7 @@ import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -802,4 +803,94 @@ describe('step events', () => {
       events: [{ seq: seenUpTo + 1, message: { type: 'step_removed', stepId: qaId } }],
     });
   });
+});
+
+for (const cascade of [false, true]) {
+  it(`refuses retained sparse parallelism atomically (cascade=${String(cascade)})`, async () => {
+    const parallels = new StepParallelRepository(db, OPEN);
+    await parallels.set({ workItemId: 'strip', stepId: devId, maxParallel: 1 }, wrote());
+    await parallels.set({ workItemId: 'sand', stepId: devId, maxParallel: 2 }, wrote());
+    await parallels.set({ workItemId: 'sand', stepId: qaId, maxParallel: 3 }, wrote());
+    const before = await projectStore.findById(projectId);
+    const nodes = [
+      { workItemId: 'sand', stepId: devId },
+      { workItemId: 'strip', stepId: devId },
+    ];
+    expect(await stepStore.remove(projectId, devId, cascade, wrote())).toEqual({
+      ok: false,
+      reason: 'referenced_by_step_parallel',
+      nodes,
+    });
+    expect(await steps.remove(projectId, devId, ownerId, cascade)).toEqual({
+      ok: false,
+      reason: 'referenced_by_step_parallel',
+      nodes,
+    });
+    expect(await projectStore.findById(projectId)).toEqual(before);
+    expect(broadcast.published).toEqual([]);
+    expect(await stepStore.remove('foreign', devId, cascade, wrote())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    expect(await stepStore.remove(projectId, 'missing', cascade, wrote())).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    await parallels.remove('strip', devId, wrote());
+    await parallels.remove('sand', devId, wrote());
+    expect(await stepStore.remove(projectId, devId, cascade, wrote())).toMatchObject({ ok: true });
+    expect(await parallels.listByProject(projectId)).toEqual([
+      { workItemId: 'sand', stepId: qaId, maxParallel: 3 },
+    ]);
+  });
+}
+
+it('refuses sparse parallelism inserted after the fast usage count', async () => {
+  const parallels = new StepParallelRepository(db, OPEN);
+  const service = new StepService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    clock: testClock,
+    projects: projectStore,
+    broadcast,
+    steps: storeWith({
+      async usageOf(project, step) {
+        const counted = await stepStore.usageOf(project, step);
+        await parallels.set({ workItemId: 'strip', stepId: devId, maxParallel: 1 }, wrote());
+        return counted;
+      },
+    }),
+  });
+  expect(await service.remove(projectId, devId, ownerId, false)).toEqual({
+    ok: false,
+    reason: 'referenced_by_step_parallel',
+    nodes: [{ workItemId: 'strip', stepId: devId }],
+  });
+  expect(await stepStore.findById(devId)).not.toBeNull();
+  expect(broadcast.published).toEqual([]);
+});
+
+it('authorizes before consulting sparse step references', async () => {
+  await projectStore.update(projectId, { restricted: true }, wrote());
+  await new StepParallelRepository(db, OPEN).set(
+    { workItemId: 'strip', stepId: devId, maxParallel: 1 },
+    wrote(),
+  );
+  let removals = 0;
+  const service = new StepService({
+    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    clock: testClock,
+    projects: projectStore,
+    broadcast,
+    steps: storeWith({
+      async remove(...args) {
+        removals++;
+        return stepStore.remove(...args);
+      },
+    }),
+  });
+  expect(await service.remove(projectId, devId, strangerId, true)).toEqual({
+    ok: false,
+    reason: 'forbidden',
+  });
+  expect(removals).toBe(0);
 });

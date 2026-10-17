@@ -1,0 +1,2 @@
+libs/wbs/domain/contracts/src/http/step-shapes.ts(146,47): error TS2345: Argument of type '{ method: string; path: string; operationId: string; policies: ({ readonly kind: 'origin'; readonly when: 'always-unsafe-with-session-cookie'; } | { readonly kind: 'identity'; readonly require: 'write-scope'; } | { ...; })[]; ... 4 more ...; document: { ...; }; }' is not assignable to parameter of type 'never'.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 926937088, "exitCode": 1}

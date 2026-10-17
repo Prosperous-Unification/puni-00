@@ -1,0 +1,53 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+88 | 		if (resultKind === "sync") {
+89 | 			let res;
+90 | 			try {
+91 | 				res = executors.all(params);
+92 | 			} catch (e) {
+93 | 				throw new DrizzleQueryError(sql, params, e);
+               ^
+DrizzleQueryError: Failed query: delete from "step" where (("step"."id" = ?) and ("step"."project_id" = ?)) returning "id", "project_id", "name", "position", "code", "allowance_bps", "allowance_revision", "estimate_unit", "created_at", "updated_at", "created_by"
+params: ca114c71-8568-41d9-af6d-78c979ec93be,85d12b3e-ea6c-4477-b8f3-5ff4c8fe6d22
+  query: "delete from \"step\" where ((\"step\".\"id\" = ?) and (\"step\".\"project_id\" = ?)) returning \"id\", \"project_id\", \"name\", \"position\", \"code\", \"allowance_bps\", \"allowance_revision\", \"estimate_unit\", \"created_at\", \"updated_at\", \"created_by\"",
+ params: [
+  "ca114c71-8568-41d9-af6d-78c979ec93be", "85d12b3e-ea6c-4477-b8f3-5ff4c8fe6d22"
+],
+
+      at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:93:11)
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:537:12)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at async remove (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:402:28)
+      at async removeWithin (/tmp/step-removal-20261017/libs/wbs/application/core/src/module/step/step.resource.ts:389:43)
+      at async <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:863:24)
+
+86 | 		const params = query.params.length === 0 ? query.params : fillPlaceholders(query.params, placeholderValues);
+87 | 		logger.logQuery(sql, params);
+88 | 		if (resultKind === "sync") {
+89 | 			let res;
+90 | 			try {
+91 | 				res = executors.all(params);
+                         ^
+SQLiteError: FOREIGN KEY constraint failed
+      errno: 787,
+ byteOffset: -1,
+       code: "SQLITE_CONSTRAINT_FOREIGNKEY"
+
+      at all (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/sqlite-core/async/session.js:91:21)
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:537:12)
+      at <anonymous> (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:49:13)
+      at transaction (bun:sqlite:400:27)
+      at transaction (/home/df/wd/puni/puni-00/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at async remove (/tmp/step-removal-20261017/libs/wbs/adapters/store-sqlite/src/step.ts:402:28)
+      at async removeWithin (/tmp/step-removal-20261017/libs/wbs/application/core/src/module/step/step.resource.ts:389:43)
+      at async <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:863:24)
+(fail) refuses sparse parallelism inserted after the fast usage count [132.35ms]
+
+ 0 pass
+ 29 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1.97s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 533037056, "exitCode": 1}

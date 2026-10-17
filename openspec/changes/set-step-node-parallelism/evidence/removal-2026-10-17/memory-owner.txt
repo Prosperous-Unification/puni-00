@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+114 |       throw new Error('step parallelism operation unexpectedly resolved');
+115 |     },
+116 |     (cause: unknown) => {
+117 |       expect(() => {
+118 |         throw cause;
+119 |       }).toThrow(message);
+               ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid work-item reference"
+Received message: "null is not an object (evaluating 'owner.projectId')"
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/application/conformance/src/step-parallel-conformance.ts:119:10)
+(fail) removal throws on corrupt retained memory owner [6.30ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.78s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 519639040, "exitCode": 1}

@@ -332,3 +332,108 @@ other worker stopped. This retry retains heap640, the same installed native
 lefthook and every required serial check. Its receipt and resulting commit, if
 any, are reported separately; the prior blocked state is preserved in the
 mode0600 staged patch reported to the coordinator. No typecheck retry is included.
+
+## Authoritative step-removal prerequisite (2026-10-17)
+
+Bounded tasks 3.1.1 and 3.2.1 build on reviewed saved-plan commit
+`50db6da82c2a93a804226763d1f46dbd8a3aef24`. Work lives in isolated clone
+`/tmp/step-removal-20261017`; its untracked dependency symlink reuses the existing
+workspace installation. No fresh frozen-install claim is made.
+
+Every test command below ran serially through the existing resolver
+`rss-guard.py` with `RUNTIME_CLOSURE_RSS_MIB=900` (943718400 B). Transcripts live
+in `evidence/removal-2026-10-17/`.
+
+- TDD RED: memory removal **2 failed** by deleting the referenced step
+  (`memory-red.txt`, peak 508522496 B); SQLite direct removal **2 failed** on the
+  restrictive FK (`sqlite-red.txt`, peak 541171712 B); mounted HTTP **2 failed**
+  with expected 409 / received 500 (`http-red.txt`, peak 638873600 B). The HTTP
+  fixture's initial undefined connection variable was corrected before recording
+  the final behavior RED.
+- Restored `bun test libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts`:
+  **18 passed**, peak 499257344 B (`memory-restored.txt`). Covers both cascade
+  flags, explicit equality, clearing the final target fact, retained foreign
+  facts, detached sorted colon-containing references and all memory corruption guards.
+- Restored `bun test libs/wbs/adapters/store-memory/src/memory-source.test.ts`:
+  **19 passed**, peak 495022080 B (`source-restored.txt`). Both public and staged
+  bindings refuse references; mixed rollback restores step name, presence and policy.
+- Restored `bun test libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts`:
+  **28 passed**, peak 589434880 B (`sql-corruption-restored.txt`). Includes missing/
+  foreign/parent owner and invalid maximum, exact full-state refusal, retained
+  foreign facts, and mixed rollback across project, work-item, step, sparse facts,
+  journal and event tables.
+- Restored `bun test apps/wbs/be-01/src/service/step.service.db.test.ts`:
+  **30 passed**, peak 605990912 B (`service-restored.txt`). Direct and service
+  outcomes match, references name only the target step, sibling facts survive,
+  missing/foreign target stays not-found, late insertion is refused, authorization
+  precedes authoritative lookup, and refusal publishes no event.
+- Restored `bun test apps/wbs/be-01/src/controller/step.controller.db.test.ts`:
+  **54 passed**, peak 640167936 B (`http-restored.txt`). Includes mounted 409 with
+  both cascade flags and outsider/wrong-project responses without references.
+- Restored `bun test apps/wbs/be-01/src/controller/step-marker-organization.controller.db.test.ts`:
+  **19 passed**, peak 642277376 B (`organization-restored.txt`). Includes viewer403,
+  foreign-organization404 and authorized409 over the same retained fact, both flags.
+
+The six complete restored files total **168 passing tests**. Every watched fault
+in `mutations.py` was restored byte-for-byte in `finally`; **31 injected faults**
+caused real focused test failures, with no false green and no watchdog kill.
+Machine receipts are the six `mutation-receipts-*.json` files. Individual fault
+transcripts name SQLite refusal/cascade/target scoping/left join/owner/project/leaf/
+range/order/copy, memory refusal/cascade/target/owner/project/leaf/range/duplicate/
+order/copy, both factory bindings, late insertion, authorization, service mapping,
+route payload and shared response shape. Maximum observed fault RSS was
+641257472 B. Adjacent `Proof:` comments name observed production-path failures.
+
+The early review found a stale memory array index across the new owner awaits.
+Deterministic delayed owner-read concurrency RED failed both different-step and
+same-step cases (`concurrency-red.txt`, peak 490463232 B). Re-finding the exact
+project/step immediately before splice fixes both; restoring the old index failed
+both tests, and omitting the new not-found guard failed the same-step loser test.
+The final complete memory file includes both controls.
+
+The cascade-preservation test seeds real estimate, assignment, actual and progress
+rows alongside the sparse fact. All ten retained tables remain byte-value equal
+on direct cascade refusal. Moving only the refusal block after `DELETE estimate`
+still returned the typed refusal but committed a missing estimate, failing the
+exact preservation assertion (`sqlite-mutation-order.txt`, peak 543002624 B).
+The repaired/restored full SQL file includes this ordering control.
+
+Pinned OpenSpec 1.12.0 status and apply instructions report schema `spec-driven`,
+13/28 complete and 15 remaining tasks; strict validation passed 1/1 with zero
+failures (`openspec-strict.txt`, peak 116334592 B).
+
+Nx graph generation passed (`nx-graph.txt`, peak 277684224 B). The smallest
+step-module typecheck initially failed TS2345 at `removeStep` because this slice
+omitted its error from the closed `RefusalDetail` registry
+(`step-module-typecheck.txt`, peak 926937088 B). The identical command in a clean
+exact-50db6da clone passed (`step-module-typecheck-base.txt`, peak 914436096 B),
+confirming a real candidate defect. Adding the precise registry entry repaired it:
+`NODE_OPTIONS=--max-old-space-size=576 bunx --no-install tsc --noEmit -p
+libs/wbs/application/core/src/module/step/tsconfig.json` passed under the same
+900 MiB watchdog (`step-module-typecheck-fixed.txt`, peak 933294080 B).
+
+The organization controller test's first per-file ESLint exhausted heap576
+(`lint-00.txt`, peak 853504000 B). One authorized heap640 attempt reached concrete
+boolean-template diagnostics (`lint-00-heap640.txt`, peak 906489856 B). Explicit
+`String` conversions repaired those diagnostics, and that file then passed
+(`lint-00-fixed.txt`, peak 894709760 B), with the generated graph and no skipped
+boundary warning. All thirteen subsequent independent changed TypeScript files
+passed graph-backed per-file ESLint (`lint-02.txt` through `lint-14.txt`), giving
+14/15 changed TypeScript files verified; maximum passing lint RSS was 915333120 B.
+The sole scoped lint gap is `step.controller.db.test.ts`: heap640 exhausted V8
+before diagnostics, exit 1, peak 914812928 B (`lint-01.txt`). That file was not
+retried during scoped checks and no lint success is inferred. Core, memory,
+SQLite production/test, closed refusal registry and shared step shapes all passed.
+
+Normal lefthook installation passed (`hooks-install.txt`, peak 81244160 B).
+The ignored local configuration serializes inherited required checks and runs each
+staged TypeScript file through the same ESLint rules individually; no required
+hook is disabled. Normal commit hooks remain pending review and the coordinator's
+heavy-lane authorization. Final changed-file Prettier and staged whitespace checks
+are recorded beside this appendix. Transcripts are normalized to LF and stripped
+of trailing output whitespace; their command results and failures are preserved.
+
+Broad native adapter typecheck is intentionally unrun because
+the reviewed baseline already exhausted its memory budget; no typecheck success
+is inferred from runtime tests. Full host gate, feature completion, rollout,
+public sparse writer, push and deploy remain unrun and outside this bounded slice.

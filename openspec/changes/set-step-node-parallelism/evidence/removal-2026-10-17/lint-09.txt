@@ -1,0 +1,3 @@
+libs/wbs/adapters/store-sqlite/src/step.ts
+heap576
+{"ceilingBytes": 943718400, "sampledPeakBytes": 800952320, "exitCode": 0}

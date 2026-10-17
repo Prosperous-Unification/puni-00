@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+(pass) memory parallelism corruption boundary > read refuses corrupt owner [6.92ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt step [0.22ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt project [0.08ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt leaf [0.27ms]
+(pass) memory parallelism corruption boundary > read refuses corrupt range [0.08ms]
+(pass) memory parallelism corruption boundary > write refuses a missing owner with a trusted-reference error [0.15ms]
+(pass) memory parallelism corruption boundary > read refuses duplicate pairs rather than choosing one [0.21ms]
+(pass) memory parallelism corruption boundary > reads and writes detached values [0.26ms]
+(pass) refuses removing a memory step with retained parallelism (cascade=false) [0.65ms]
+(pass) refuses removing a memory step with retained parallelism (cascade=true) [0.29ms]
+(pass) returns sorted detached memory references for the exact target [0.31ms]
+(pass) removal throws on corrupt retained memory owner [0.26ms]
+(pass) removal throws on corrupt retained memory project [0.11ms]
+(pass) removal throws on corrupt retained memory leaf [0.09ms]
+(pass) removal throws on corrupt retained memory range [0.10ms]
+(pass) removal throws on corrupt retained memory duplicate [0.09ms]
+(pass) rechecks the target after concurrent owner reads (sameStep=false) [0.42ms]
+(pass) rechecks the target after concurrent owner reads (sameStep=true) [0.17ms]
+
+ 18 pass
+ 0 fail
+ 49 expect() calls
+Ran 18 tests across 1 file. [1.85s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 499257344, "exitCode": 0}
