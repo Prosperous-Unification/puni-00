@@ -107,3 +107,31 @@ after-enrollment preflight on h3mon and steps 6–8; `tool-fleet:discover` again
 `discovery-ssh-transport`; the runbook still uses the playbooks directly);
 `platform.yml` Flux bootstrap on the VM lab; Hetzner snapshots; a memory-pressure drill on the
 observability stack.
+
+## Read-only production reconciliation, 2026-10-17
+
+No playbook, package install, restart, or host write ran in this reconciliation. The live host
+has advanced beyond the 2026-09-27 record, but the historical commands that caused that state
+were not available and are not retroactively claimed as verified.
+
+| Enrollment step | Verdict | Live proof |
+| --- | --- | --- |
+| 2. Reviewed identity and placement | Satisfied now | `/etc/machine-id` returned `bed07fdd1c9d47c08540df462db009f4`, matching `desired.yaml` and the Ansible inventory; `ip -brief -4 address` returned private `10.1.0.2/32`. |
+| 3. Backups | Still unverified | The September Victoria snapshot and `/etc` archive remain the last recorded evidence. No provider snapshot inventory was available to this read-only run. |
+| 5. Join h3mon | Satisfied live state; execution/idempotency unverified | `kubectl get node h3mon` returned Ready `True`, v1.36.4+k3s1, InternalIP `10.1.0.2`, label `puni.dev/capability-observability=true`, no taints, and `6222140Ki` allocatable. `k3s-agent` was active since `2026-10-06 19:00:50 UTC`. |
+| 5. Enrollment validation and after-enrollment preflight | Still unverified | Matching identity, address, label and cleared taint prove the resulting registration, not that the validation and preflight commands ran or passed. |
+| 6. Swap and memory | Swap satisfied; workload headroom failed | `swapon --show --bytes` returned `/swap.puni`, 4,294,963,200 bytes, with 186,671,104 used; `/etc/fstab` contains `/swap.puni none swap sw 0 0`; `kubepods.slice/memory.max` is 6,639,906,816 bytes. `free -m` returned 7,740 total and 5,771 available MiB. |
+| 7. Flux | Partially satisfied | `target`, `controllers`, `storage`, `policy`, and `secrets` were Ready. `platform` was False on stalled `Deployment/puni-registry/registry`; `observability`, `alerts`, and `backup` remained dependency-blocked. |
+| 8. Preserve services and reboot | Services satisfied before/after this read-only run; reboot unverified | VictoriaMetrics, VictoriaLogs and VictoriaTraces health endpoints returned 200; Grafana `/api/health` and MLflow `/health` returned 200; OTel HTTP receiver returned 404 at `/`, proving the listener answered. No reboot ran. |
+
+Live Docker cgroup usage was MLflow 200.4 MiB, OTel 56.32 MiB, VictoriaLogs 275.1
+MiB, VictoriaTraces 50.16 MiB, VictoriaMetrics 136 MiB, vmauth 7.16 MiB, and Grafana
+151.2 MiB (about 876 MiB total). The production Kubernetes observability graph requests
+5,830 MiB including the budget test's 128 MiB allowance, already 59 MiB more than current
+`MemAvailable` and leaving only 246 MiB of node allocatable. This falsifies the assumed
+parallel-run headroom. No observability workload was enabled and no smaller heap was substituted.
+
+Listener proof: the legacy services remained on loopback except vmauth on private
+`10.1.0.2:9428`. From h2puni, private probes found only 9428 open; 3000, 4318, 5000, 8428,
+10428, 6443, and 10250 were closed. Probing h3mon's public `62.238.112.126` from h2puni found
+all of those ports, including 9428, closed. Nothing new was exposed publicly.

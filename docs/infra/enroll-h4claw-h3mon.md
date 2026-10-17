@@ -8,16 +8,26 @@ execution record and its limits remain in
 [the enroll-existing-hosts verification](../../openspec/changes/enroll-existing-hosts/verify.md).
 Each step needs Dany's authorization of this exact procedure.
 
-A read-only inventory on 2026-10-17 (`ssh h4 k3s kubectl get nodes -o wide`,
-`get node h3mon` with JSONPath output, and `get kustomizations -n flux-system`) observed h4claw and h3mon
+A read-only inventory on 2026-10-17 (`ssh h4claw sudo k3s kubectl get node h3mon ...`,
+`get kustomizations -n flux-system`, and direct h3mon host checks) observed h4claw and h3mon
 Ready on v1.36.4+k3s1. h3mon's Node was created on 2026-10-06, carries the observability
-capability label and has no enrollment taint. Flux is installed: `target`, `controllers`,
-`storage`, `policy` and `secrets` are Ready; `platform` is blocked by missing registry Secrets,
-and later platform stages are not Ready. These observations establish that the live state
-advanced beyond the September record. They do not verify the intervening Ansible runs,
-idempotency, enrollment validation, memory checks, reboot checks or backups; those remain
-unverified by this inventory. Subsequent provider snapshots and whole-host restore point status
-are also unverified.
+capability label, has no enrollment taint, and reports the same machine ID and private address as
+the desired fleet and Ansible inventory. The 4 GiB `/swap.puni` is active and persistent. Flux is
+installed: `target`, `controllers`, `storage`, `policy` and `secrets` are Ready; `platform` is
+stalled on the registry Deployment, and later observability stages are not Ready. These
+observations establish that the live state advanced beyond the September record. They do not
+verify the intervening Ansible runs, their idempotency, the original enrollment validation run,
+provider snapshots, or a post-enrollment reboot; those remain unverified.
+
+Do not enable the production observability stage while the legacy Docker stack remains. The
+same 2026-10-17 probe measured only 5,771 MiB `MemAvailable`, while the repository's production
+observability graph requests 5,830 MiB on h3mon (including its 128 MiB unrequested-DaemonSet
+allowance). Its 6,076 MiB node allocatable leaves only 246 MiB after those requests, before the
+preserved Victoria, Grafana, MLflow and OTel containers. Their live cgroups already used about
+876 MiB. The prior assumption that a 2 GiB-heap Elasticsearch stack can run beside all of the
+legacy services is therefore falsified; keep the observability Kustomization blocked until the
+legacy stack is retired or the host is resized. Swap is not a substitute for pod memory: pods
+cannot swap.
 
 Placement is `infra/fleet/desired.yaml`; host variables are
 `infra/ansible/inventory/production-existing-hosts.yml`.
@@ -50,7 +60,8 @@ base role refuses `unread`.
 
 Pods never swap; host services may. The budget test
 `tools/tool-fleet/src/observability-budget.test.ts` fits every pinned workload and DaemonSet in
-h3mon's allocatable memory.
+h3mon's allocatable memory, but does not include the preserved Docker services. The live-headroom
+check above is an additional admission gate while those services coexist.
 
 ## Operator inputs
 
