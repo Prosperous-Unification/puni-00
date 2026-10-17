@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "tools/tool-devsync/src/test-levels.ts"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 689028,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "eslint",
+      "tools/tool-devsync/src/test-levels.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-validation-level-sol-oct17/node_modules/.bin/eslint",
+      "tools/tool-devsync/src/test-levels.ts"
+    ]
+  ]
+}

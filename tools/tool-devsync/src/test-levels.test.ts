@@ -1292,7 +1292,15 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
   // `; if` mislabeled failed find as no-cases. All nine injections failed this case (2026-10-09).
   it('refuses empty or failed selection before Bun runs and clears stale JUnit', async () => {
     const guarded = LEVEL_TARGETS;
-    expect(guarded).toHaveLength(6);
+    expect(guarded.map(({ project, target }) => `${project}:${target}`).sort()).toEqual([
+      'shared-validation:test:unit:level',
+      'wbs-core:test:unit',
+      'wbs-store-memory:test:conformance:level',
+      'wbs-store-memory:test:unit:level',
+      'wbs-store-sqlite:test:api',
+      'wbs-store-sqlite:test:conformance:level',
+      'wbs-store-sqlite:test:unit',
+    ]);
     for (const target of guarded) {
       const manifest = await readManifest(target.root);
       const command = manifest.targets[target.target]?.options?.command;

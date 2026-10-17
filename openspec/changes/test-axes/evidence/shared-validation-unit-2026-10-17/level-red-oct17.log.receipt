@@ -1,0 +1,19 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "tools/tool-devsync/src/shared-validation-level.test.ts",
+    "--timeout=30000"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 596,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000"
+    ]
+  ]
+}

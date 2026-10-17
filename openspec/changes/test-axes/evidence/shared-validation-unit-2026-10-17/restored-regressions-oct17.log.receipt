@@ -1,0 +1,62 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "tools/tool-devsync/src/test-levels.test.ts",
+    "--timeout=30000",
+    "-t",
+    "the level-selection table|refuses an unknown test target declaration|refuses a missing required level target|keeps store-memory conformance|keeps every test file outside|accounts for every test-running|names the Conformance file and both levels|refuses a selected Bun file that is missing|refuses an empty Bun selection|refuses a guarded target|refuses empty or failed selection|executes exact find operands|canonicalizes exactly one leading|collects exactly the files of its own level|writes a JUnit report where|refuses a command that"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 84016,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "--timeout=30000",
+      "-t",
+      "the level-selection table|refuses an unknown test target declaration|refuses a missing required level target|keeps store-memory conformance|keeps every test file outside|accounts for every test-running|names the Conformance file and both levels|refuses a selected Bun file that is missing|refuses an empty Bun selection|refuses a guarded target|refuses empty or failed selection|executes exact find operands|canonicalizes exactly one leading|collects exactly the files of its own level|writes a JUnit report where|refuses a command that"
+    ],
+    [
+      "bun",
+      "tools/tool-devsync/src/verify-test-levels-cli.ts",
+      "--manifest",
+      "libs/wbs/adapters/store-sqlite",
+      "/tmp/test-level-api-FbFcvo/project.json"
+    ],
+    [
+      "find",
+      "./src/testing",
+      "-name",
+      "source-conformance.db.test.ts"
+    ],
+    [
+      "sh",
+      "-c",
+      "find ./src/testing -name 'source-conformance.db.test.ts'"
+    ],
+    [
+      "sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-validation.unit.xml && files=$(find ./src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: shared-validation:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-validation.unit.xml --timeout=10000"
+    ],
+    [
+      "sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-memory.conformance.xml && files=$(find ./src/testing -name 'source-conformance.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-memory:test:conformance:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.conformance.xml --timeout=10000"
+    ],
+    [
+      "sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-memory.unit.xml && files=$(find ./src -name '*.test.ts' ! -path './src/testing/source-conformance.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-memory:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-memory.unit.xml --timeout=10000"
+    ],
+    [
+      "sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/wbs-store-sqlite.api.xml && files=$(find ./src -name '*.db.test.ts' ! -name 'source-conformance.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: wbs-store-sqlite:test:api' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/wbs-store-sqlite.api.xml --timeout=30000"
+    ]
+  ]
+}

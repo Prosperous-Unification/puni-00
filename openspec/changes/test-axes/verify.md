@@ -4819,3 +4819,166 @@ acceptance is recorded below. Coordinator owns review, hosted CI and integration
 Final changed-file Prettier check passed for all eleven changed/new files, and `git diff --check`
 exited zero (`/tmp/browser-source-format-final.log`). The local candidate is ready for independent
 Astra review; no push, hosted CI, host gate or WBS closure is implied.
+
+## WBS080.39 — shared-validation isolated Unit target (in progress)
+
+Base: `b0a0f50a82f3ecdf479565e743d4c065b8c73661`, tree `c9e72f4050b036769f526ba49fadd187e4de3458`.
+Isolated clone: `/tmp/puni-shared-validation-level-sol-oct17`. Dependency donor is that exact
+base with matching `bun.lock` SHA-256 `e8d77926f9dac4ba4824486143872bdfb123cafd8bed45cca50c44b2e23298a4`;
+only a local `node_modules` symlink was added, without installation or network access.
+
+All executions below ran serially under a 900 MiB process-tree monitor. Logs and adjacent
+JSON receipts use the listed `/tmp/` names; peaks are sampled observations.
+
+| Check                                                                                                                                               | Observation                                                                                                                                 |                                                        Peak KiB | Log                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------: | -------------------------------------------- |
+| Focused RED, `bun test tools/tool-devsync/src/shared-validation-level.test.ts --timeout=30000`                                                      | Exit 1; 0 pass, 10 fail. Missing level registration and unclassified legacy runner named.                                                   | 596 (41ms run; sampling does not establish representative peak) | `shared-validation-level-red-oct17.log`      |
+| First focused implementation run                                                                                                                    | Exit 1; 9 pass, 1 fail. Actual JUnit used leaf titles, while test expected describe prefixes; corrected expectations after reading raw XML. |                                                          102312 | `shared-validation-level-green-oct17.log`    |
+| Corrected focused run, same command                                                                                                                 | Exit 0; 10 pass, 0 fail, 30 assertions.                                                                                                     |                                                          106808 | `shared-validation-level-green2-oct17.log`   |
+| `bun test tools/tool-devsync/src/test-levels.test.ts --timeout=30000 -t 'refuses empty or failed selection before Bun runs and clears stale JUnit'` | Exit 0; 1 pass, 100 filtered, 64 assertions. Exact seven-target inventory and real production shell commands checked.                       |                                                           35252 | `shared-validation-existing-stale-oct17.log` |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run shared-validation:test:unit:level --skip-nx-cache`                                            | Exit 0; 3 pass, 0 fail, 5 assertions. Cache skipped.                                                                                        |                                                          341216 | `shared-validation-nx-unit-oct17.log`        |
+
+The Nx run wrote a fresh 1052-byte `tmp/junit/shared-validation.unit.xml`. Every testcase
+and testsuite file identity is exactly `src/core.test.ts`; all three cases passed:
+`re-exports ArkType type function that validates objects`, `parseOrThrow returns parsed value on success`,
+and `parseOrThrow throws ValidationError on failure, embedding the offending value`.
+The focused suite also joins the production selector's canonical collection to that file and
+uses the production report parser to check exact case names, outcomes and files.
+
+The extracted `verifyBunProjectCollection` body compares exactly to the former production
+`verifyDeclaredCollections` inventory/Bun block after removing two spaces of indentation
+(`/tmp/shared-validation-extraction-oct17.json`). The full verifier calls it at the same point;
+frontend and Browser branches retain their prior flow. Focused child fixtures invoke this same
+production boundary for complete source inventory and API/View isolation.
+
+Production allocator `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts scenario allocate . openspec/changes/test-axes/specs/test-axes/spec.md`
+issued TEST-AXES-148/149. Before persisting the exact proposed spec and journal, comparison
+preserved all 211 prior events, appended exactly two allocations and matched the returned
+proposed event delta (`/tmp/shared-validation-allocation-prefix-oct17.json`). Prior journal
+SHA-256: `84740f3c11f25227477f8d23f235adad7b79a32e9a41752a51bd78a936f402dc`;
+updated journal SHA-256: `8415d2112c0bc0a0475e812aba339a9ef360c33289ff2c92d13612abacd8300b`.
+Allocator exit 0, sampled peak 340632 KiB (`/tmp/shared-validation-allocate-oct17.log`).
+Production `scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md` returned
+`{"unidentified":[]}`, exit 0, sampled peak 328840 KiB
+(`/tmp/shared-validation-provenance-oct17.log`). These allocations establish scenario
+identity only; they do not complete Task 2.2 or prove test citation coverage.
+
+### R5 faults — nine qualified independent faults
+
+Each injected fault ran one named focused test in a fresh serial monitored Bun process,
+then restored the exact original verifier/manifest hashes. Raw logs and JSON receipts are
+`/tmp/shared-validation-r5-<fault>-oct17.log`; combined observations are
+`/tmp/shared-validation-r5-oct17.json`, and exact before/after restoration hashes are
+`/tmp/shared-validation-r5-restoration-oct17.json`.
+
+| Fault                 | Named production-path observation                                                                                   | Sampled peak KiB |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------: |
+| `registration`        | Removing shared-validation's registration made canonical Unit lookup refuse the missing declaration.                |             1288 |
+| `required-target`     | Removing required-target inventory guard made missing-target promise resolve and its rejection assertion fail.      |              668 |
+| `literal-operands`    | Changing `find ./src` to `find src` admitted nested matching decoy execution; actual command no longer exited zero. |              652 |
+| `empty-selection`     | Checking `never` instead of `$files` lost the named no-cases refusal.                                               |              676 |
+| `stale-report`        | Removing report deletion left stale XML after empty-selection refusal.                                              |              664 |
+| `complete-collection` | Removing complete-source guard let the narrowed selector omit `src/added.test.ts` and audit exit zero.              |            32632 |
+| `wrong-level`         | Removing classifier equality let an API file through the production Unit audit with exit zero.                      |            32208 |
+| `report-identity`     | Removing report equality let a command clearing/writing `wrong.xml` pass without throwing.                          |              596 |
+
+All qualified mutations exited one in the named tests. Several processes finished faster
+than the monitor's 50ms interval; tiny sampled peaks are not representative maxima.
+No cap breach occurred. The attempted ninth `selector-failure` fault is **disqualified**:
+changing `&& if` to `; if` was rejected by the test's `parseLevelCommand` precheck before
+actual shell execution. Its original receipt is retained. The test now injects the failing
+selector by exact known substitution so the intact command and isolated short-circuit fault
+can be rerun against actual shell execution. The repaired intact control passed (1 pass, 0 fail) and the isolated `&&` to `;`
+fault then failed at the actual `execution.exitCode` assertion: the partial selection ran
+and exited zero. The parser-mask diagnostic was absent. Logs:
+`/tmp/shared-validation-selector-control-oct17.log` and
+`/tmp/shared-validation-selector-fault-repaired-oct17.log` (adjacent JSON receipts).
+Both processes completed below the 50ms sampling interval (observed 668/584 KiB, not
+representative maxima). The manifest was restored byte-for-byte, SHA-256
+`d2c421e46f54a52e2458cc2e4ba41075e63e3e856d6885bebfeb3246ff7bef7c`, as recorded in
+`/tmp/shared-validation-selector-restoration-oct17.json`. All nine independent faults
+now qualify; the earlier masked attempt remains disqualified.
+
+### Restored checks and scoped validation
+
+| Check                                                                              | Observation                                                                                                                                                                                 | Sampled peak KiB | Raw log in `/tmp/`                                 |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------: | -------------------------------------------------- |
+| Restored focused suite                                                             | Exit 0; 10 pass, 0 fail, 31 assertions.                                                                                                                                                     |           110212 | `shared-validation-restored-focused-oct17.log`     |
+| Bounded existing collection/inventory/report/parser/stale/find-operand regressions | Exit 0; 25 pass, 76 filtered, 0 fail, 119 assertions; all seven real operand commands included.                                                                                             |            84016 | `shared-validation-restored-regressions-oct17.log` |
+| Prettier write, nine changed files                                                 | Exit 0.                                                                                                                                                                                     |           370376 | `shared-validation-format-oct17.log`               |
+| Fresh Nx graph                                                                     | Exit 0; generated `tmp/shared-validation-graph.json`.                                                                                                                                       |           198820 | `shared-validation-graph-oct17.log`                |
+| ESLint, three changed TS files with fresh graph                                    | Exit 1; five test-only errors: Bun rejected-promise assertions typed void and a callback returning void. Static repair uses existing rejection capture and a block callback; rerun pending. |           802372 | `shared-validation-lint-oct17.log`                 |
+| Scoped TypeScript verifier and both changed/new test files                         | Exit 0; `bunx tsc --noEmit --project tmp/tsconfig.shared-validation-level.json`.                                                                                                            |            94068 | `shared-validation-typecheck-oct17.log`            |
+| Pinned cached OpenSpec 1.12.0 `validate test-axes --strict`                        | Exit 0; `Change 'test-axes' is valid`. No package installation or network.                                                                                                                  |            72472 | `shared-validation-openspec-oct17.log`             |
+
+All checks remained serial under the 900 MiB tree cap. No frontend/Vitest execution,
+full Burokrat suite, whole workspace typecheck or full gate ran.
+
+After the test-only lint repair, Prettier passed (peak 351260 KiB), a fresh Nx graph
+passed (185756 KiB), and graph-backed ESLint passed over all three changed TS files
+(799068 KiB). The restored focused suite passed 10/10 with 31 assertions (112816 KiB);
+the bounded existing regressions passed 25/25 with 119 assertions, 76 filtered (74192 KiB).
+Raw `/tmp/` logs are `shared-validation-format2-oct17.log`, `shared-validation-graph2-oct17.log`,
+`shared-validation-lint2-oct17.log`, `shared-validation-restored-focused2-oct17.log` and
+`shared-validation-restored-regressions2-oct17.log`, each with adjacent monitor JSON.
+
+Boundary negative attempts retained for audit: `@wbs/domain` is explicitly allowlisted,
+so its import-sort-only failure is **disqualified** as boundary proof
+(`/tmp/shared-validation-boundary-negative-oct17.log`). The corrected `@wbs/domain/workday`
+import emitted `@nx/enforce-module-boundaries` with the buildable-library diagnostic,
+but the harness incorrectly demanded `scope:infra`; that attempt is also **disqualified**
+(`/tmp/shared-validation-boundary-negative-repaired-oct17.log`). Source bytes were restored
+after both attempts. The final harness requires the exact observed buildability diagnostic. Its fresh
+`@wbs/domain/workday` fault emitted `@nx/enforce-module-boundaries` with
+`Buildable libraries cannot import or export from non-buildable libraries`, negative lint
+exit 1, proof harness exit 0, peak 689028 KiB
+(`/tmp/shared-validation-boundary-negative-qualified-oct17.log`). Exact source SHA-256
+`b76e13745be7f40633cabb858a5203049778db57fd487afd689cca07acaf7a2e` was restored;
+clean graph-backed lint over all three changed TS files then exited 0, peak 805428 KiB
+(`/tmp/shared-validation-lint-restored-final-oct17.log`).
+
+Raw receipts, including disqualified attempts, allocator proposals, independent fault
+observations, restoration hashes and the restored focused run's real JUnit report, are
+preserved in [scoped evidence](evidence/shared-validation-unit-2026-10-17/manifest.json).
+The manifest names each original source, stored file, byte length and SHA-256. JSON monitor
+receipts use `.receipt`; raw logs use deterministic `.log.gz` with both stored and decoded
+digests, preserving whitespace and original bytes. Every stored and decoded digest was
+compared with its file before staging. These artifacts retain local diagnostic paths and
+are noncertifying operational evidence.
+
+Final formatting over all ten formattable changed paths exited 0, sampled peak 344900 KiB;
+scoped TypeScript after the test-only repair exited 0, peak 82660 KiB; final focused execution
+passed 10/10 with 31 assertions, peak 105612 KiB. Receipts are preserved as
+`format-final-oct17`, `typecheck-final-oct17` and `focused-final-oct17` in the scoped evidence.
+The exact scoped TypeScript config and final focused JUnit report are preserved there too.
+
+Astra exact review of staged tree `29606bcd69df959edd8300822d27826e1c1fac1d` found no
+P0–P3 issues and verified all 86 staged paths, evidence hashes, report and nine R5 faults.
+The later staged tree adds only these final-check observations and receipts.
+
+### Normal hooks
+
+Astra-high's final review of staged tree `36fad1d696e26c4fc8d0806afcd9ce73407866e5`
+found no P0–P3 issues, independently checked all 84 stored evidence hashes and qualified
+nine R5 fault logs. Root reviewed the unchanged `lefthook.yml` and approved a 1280 MiB
+tree cap for normal parallel hook execution, without overrides or skipped checks.
+Canonical `bun run tools/tool-git-hooks/src/install.ts` installed pre-commit,
+prepare-commit-msg and commit-msg (exit 0, peak 86848 KiB). `bunx lefthook dump`
+confirmed `parallel: true`, original commands and no bypass (exit 0, peak 70372 KiB).
+
+Actual `.git/hooks/pre-commit` rejected a staged `unusedHookProof` binding with
+`@typescript-eslint/no-unused-vars` (exit 1, peak 844592 KiB). The proof restored the
+exact verifier source SHA and complete index tree `36fad1d696e26c4fc8d0806afcd9ce73407866e5`.
+Actual restored `.git/hooks/pre-commit` then exited 0 (peak 845924 KiB). Lint, format,
+plaintext-secrets, private-nesting and tool-wiki all ran. Migration, website-migration and
+doc-caps hooks had no matching staged files. Tool-wiki explicitly returned inactive,
+`certified: false`, because no external activation root was provisioned; this does not
+establish certified admission. No cap termination occurred. Raw hook install/dump,
+negative/positive and restoration receipts are preserved in the scoped evidence.
+
+Task 2.1k is complete for this isolated target. Task 2.1 and WBS080.39 remain open;
+lineage holds, allocator rollout, scenario citations, trusted runner receipts and
+every-project level-target adoption are not completed by this packet. No full gate ran.
+The subsequent normal commit will rerun all applicable hooks on the final evidence tree. No full gate has run. Task 2.1, task 2.1k and WBS080.39 remain
+open; operational reports establish no trusted runner, scenario coverage, lineage hold,
+allocation completion or every-project adoption claim.

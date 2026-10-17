@@ -1266,6 +1266,18 @@
       "id": "BROWSER-T2-POLICY-PREVIEW-013",
       "source": "openspec/changes/browser-t2-policy-preview/specs/browser-t2-policy-preview/spec.md",
       "title": "Caller requests authority from a consistent preview"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-148",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared validation executes its complete isolated Unit collection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-149",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared validation refuses collection drift and stale evidence"
     }
   ]
 }

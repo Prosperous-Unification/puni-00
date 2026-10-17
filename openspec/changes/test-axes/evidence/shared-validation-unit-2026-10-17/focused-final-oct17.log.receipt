@@ -1,0 +1,42 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "tools/tool-devsync/src/shared-validation-level.test.ts",
+    "--timeout=30000"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 105612,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "--eval",
+      "\n      import { readFileSync } from 'node:fs';\n      import { WORKSPACE, verifyBunProjectCollection } from \"file:///tmp/puni-shared-validation-level-sol-oct17/tools/tool-devsync/src/test-levels.ts\";\n      WORKSPACE.pathname = \"/tmp/shared-validation-level-NgI13a/\";\n      await verifyBunProjectCollection(\"libs/shared/domain/validation\", JSON.parse(readFileSync(\"/tmp/shared-validation-level-NgI13a/libs/shared/domain/validation/project.json\", 'utf8')));\n    "
+    ],
+    [
+      "bun",
+      "--eval",
+      "\n      import { readFileSync } from 'node:fs';\n      import { WORKSPACE, verifyBunProjectCollection } from \"file:///tmp/puni-shared-validation-level-sol-oct17/tools/tool-devsync/src/test-levels.ts\";\n      WORKSPACE.pathname = \"/tmp/shared-validation-level-wfqEFx/\";\n      await verifyBunProjectCollection(\"libs/shared/domain/validation\", JSON.parse(readFileSync(\"/tmp/shared-validation-level-wfqEFx/libs/shared/domain/validation/project.json\", 'utf8')));\n    "
+    ],
+    [
+      "bun",
+      "test",
+      "./src/core.test.ts",
+      "--reporter=junit",
+      "--reporter-outfile=../../../../tmp/junit/shared-validation.unit.xml",
+      "--timeout=10000"
+    ],
+    [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-validation-level.test.ts",
+      "--timeout=30000"
+    ],
+    [
+      "sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-validation.unit.xml && files=$(find ./src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: shared-validation:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-validation.unit.xml --timeout=10000"
+    ]
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "base": "b0a0f50a82f3ecdf479565e743d4c065b8c73661",
+  "source": "tools/tool-devsync/src/test-levels.ts",
+  "extractedBodyMatchesOriginalAfterTwoSpaceDedent": true
+}

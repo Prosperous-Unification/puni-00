@@ -1,0 +1,20 @@
+{
+  "priorEventCount": 211,
+  "proposedEventCount": 213,
+  "priorPrefixEqual": true,
+  "priorJournalSha256": "84740f3c11f25227477f8d23f235adad7b79a32e9a41752a51bd78a936f402dc",
+  "events": [
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-148",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared validation executes its complete isolated Unit collection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-149",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared validation refuses collection drift and stale evidence"
+    }
+  ]
+}

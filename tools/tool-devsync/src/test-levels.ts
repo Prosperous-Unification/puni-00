@@ -34,11 +34,20 @@ export interface LevelTarget {
 /**
  * The level targets adopted by the first increment of the test-axes change.
  *
- * Two projects, because they hold every test of the adopted capability. Adding a
- * row obliges that target to collect exactly the files {@link levelOf} puts at
- * its level.
+ * Each added project is audited for complete source collection. Adding a row
+ * obliges that target to collect exactly the files {@link levelOf} puts at its level.
  */
 export const LEVEL_TARGETS: readonly LevelTarget[] = [
+  // Proof: removing this registration failed shared-validation's canonical Unit collection test
+  // with the production lookup's not-a-declared-level refusal (2026-10-17).
+  {
+    project: 'shared-validation',
+    root: 'libs/shared/domain/validation',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-validation.unit.xml',
+    testRoots: ['src'],
+  },
   {
     project: 'wbs-store-sqlite',
     root: 'libs/wbs/adapters/store-sqlite',
@@ -255,6 +264,8 @@ export function assertBunLevelCollection(
     });
     // Proof: removing this guard made the CLI accept a SQLite API selector that
     // collects source-conformance.db.test.ts; the named CLI negative saw exit 0.
+    // Proof: removing this guard made shared-validation's API-in-Unit production audit
+    // exit zero; "refuses api files in the Unit collection" failed (2026-10-17).
     if (level !== target.level)
       throw new Error(
         `${label} is declared ${target.level} and collects ${path}, which is ${level}`,
@@ -305,6 +316,8 @@ export function assertBunReport(target: LevelTarget, command: string): void {
   // Proof: changing both clear and write paths to wrong.xml made the named CLI
   // report negative pass when this identity guard was disabled. Removing the
   // outfile-family count made the duplicate-output CLI negative fail.
+  // Proof: removing this identity guard made shared-validation's same-clear/write wrong.xml
+  // command pass "refuses a different report identity" without throwing (2026-10-17).
   if (
     parsed.flags.filter((flag) => flag === '--reporter=junit').length !== 1 ||
     parsed.flags.filter((flag) => flag.startsWith('--reporter-outfile=')).length !== 1 ||
@@ -462,6 +475,41 @@ export function assertFrontendLevelCollection(
   return [...all].sort();
 }
 
+/**
+ * Audit one covered project's Bun target inventory, actual selectors, report
+ * identities and complete source collection. Frontend phases are audited by
+ * {@link verifyDeclaredCollections} after this shared inventory boundary.
+ *
+ * @throws when a required target is absent, a selector admits another level or
+ * omits a source test, or the command envelope or report identity differs.
+ */
+export async function verifyBunProjectCollection(
+  root: string,
+  manifest: ProjectManifest,
+): Promise<void> {
+  await verifyTargetInventory(root, manifest);
+  const conformance = conformanceFilesIn(
+    manifest.targets['test:conformance']?.options?.command ?? '',
+  );
+  const bunFiles = new Set<string>();
+  for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
+    const command = assertLevelEnvelope(target, manifest);
+    assertBunReport(target, command);
+    for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
+  }
+  if (bunFiles.size > 0) {
+    for (const file of await testFilesUnder(root, 'src')) {
+      const canonical = `${root}/${file}`;
+      // Proof: omitting space-fixture.test.ts from the memory Unit selector made
+      // the production CLI pass when this complete-collection guard was removed.
+      // Proof: removing this guard made shared-validation's narrowed selector omit added.test.ts
+      // and exit zero; the complete Unit inventory test failed (2026-10-17).
+      if (!bunFiles.has(canonical))
+        throw new Error(`${manifest.name} level targets do not collect ${canonical}`);
+    }
+  }
+}
+
 /** Check every covered project and refuse omitted frontend source or root tests. */
 export async function verifyDeclaredCollections(
   overrides: ReadonlyMap<string, ProjectManifest> = new Map(),
@@ -474,25 +522,7 @@ export async function verifyDeclaredCollections(
   for (const root of roots) {
     const manifest = manifests.get(root);
     if (manifest === undefined) throw new Error(`${root} manifest is absent`);
-    await verifyTargetInventory(root, manifest);
-    const conformance = conformanceFilesIn(
-      manifest.targets['test:conformance']?.options?.command ?? '',
-    );
-    const bunFiles = new Set<string>();
-    for (const target of LEVEL_TARGETS.filter((entry) => entry.root === root)) {
-      const command = assertLevelEnvelope(target, manifest);
-      assertBunReport(target, command);
-      for (const file of assertBunLevelCollection(target, command, conformance)) bunFiles.add(file);
-    }
-    if (bunFiles.size > 0) {
-      for (const file of await testFilesUnder(root, 'src')) {
-        const canonical = `${root}/${file}`;
-        // Proof: omitting space-fixture.test.ts from the memory Unit selector made
-        // the production CLI pass when this complete-collection guard was removed.
-        if (!bunFiles.has(canonical))
-          throw new Error(`${manifest.name} level targets do not collect ${canonical}`);
-      }
-    }
+    await verifyBunProjectCollection(root, manifest);
     if (root === 'apps/wbs/fe-01') {
       const collected = new Set(
         FRONTEND_LEVEL_TARGETS.flatMap((target) =>
@@ -612,6 +642,8 @@ export async function verifyTargetInventory(
   )) {
     // Proof: removing this guard made the named missing-Conformance-target
     // inventory negative resolve with no refusal.
+    // Proof: removing this guard made shared-validation's missing-target inventory resolve;
+    // its required-target assertion failed (2026-10-17).
     if (manifest.targets[target.target] === undefined)
       throw new Error(`${target.project}:${target.target} is missing from project manifest`);
   }
@@ -783,6 +815,10 @@ export const AGGREGATE_TARGETS: readonly string[] = AGGREGATE_DECLARATIONS.map(
  * one of these three lists.
  */
 export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
+  'shared-validation:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-validation:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
   'wbs-store-sqlite:test:conformance':
     'Conformance level. Its exact command is pinned by workspace-targets.test.ts, so it cannot ' +
     'gain a JUnit report in this increment.',

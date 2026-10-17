@@ -36,5 +36,17 @@ number (was a string)`, but a literal union or a regex **quotes what it got**
 ## Test
 
 ```sh
-bunx nx run shared-validation:test
+bunx nx run shared-validation:test:unit:level
 ```
+
+The isolated Unit target selects `src/**/*.test.ts` with literal `./` operands,
+excluding database tests, and refuses an empty or failed selection. It clears
+`tmp/junit/shared-validation.unit.xml` before selection and writes a fresh JUnit
+report with the existing 10000ms timeout. The production test-level verifier
+audits the target inventory, complete source collection, level isolation and
+report path. Currently `src/core.test.ts` supplies three cases.
+
+`shared-validation:test` and `shared-validation:test:unit` retain their existing
+commands. Both are unreported legacy runners without isolated level evidence
+credit. This target's operational report does not establish trusted execution or
+scenario coverage.

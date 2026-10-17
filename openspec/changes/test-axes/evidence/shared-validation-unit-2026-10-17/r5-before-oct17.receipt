@@ -1,0 +1,8 @@
+{
+  "base": "b0a0f50a82f3ecdf479565e743d4c065b8c73661",
+  "sources": {
+    "tools/tool-devsync/src/test-levels.ts": "c8391dda71431d6bed2cbd0de130d0fb78463ac4b0dc64d3f8ddbf409d5022a8",
+    "libs/shared/domain/validation/project.json": "d2c421e46f54a52e2458cc2e4ba41075e63e3e856d6885bebfeb3246ff7bef7c",
+    "tools/tool-devsync/src/shared-validation-level.test.ts": "353873e59b113ee99eaa0f1ed3b2b92eee1ea9b54e8ad109de5f05b046201555"
+  }
+}

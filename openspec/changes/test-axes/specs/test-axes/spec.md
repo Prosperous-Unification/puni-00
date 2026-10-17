@@ -1125,3 +1125,17 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 
 - **WHEN** source and built executable dispatch inspect isolated or wrong-level observations
 - **THEN** both preserve complete canonical identity and absent authentication with false certification, and map only wrong-level isolation to exit one
+
+### Requirement: Shared validation isolated Unit runner
+
+`shared-validation:test:unit:level` SHALL collect exactly shared-validation's Unit test files under `src`, use literal `./` operands, preserve the 10000ms timeout and write `tmp/junit/shared-validation.unit.xml`. It SHALL remove that report before selection and refuse empty or failed selection before invoking Bun. The production collection verifier SHALL audit its registration, complete Unit collection, target inventory and report identity. Existing `test` and `test:unit` commands SHALL remain visible as unreported legacy runners without evidence credit.
+
+#### Scenario: [TEST-AXES-148] Shared validation executes its complete isolated Unit collection
+
+- **WHEN** the isolated target runs against the current shared-validation project
+- **THEN** collection names only `src/core.test.ts` and a fresh parseable JUnit report records exactly its three passing cases, while database and TSX tests gain no Unit admission and nested matching decoys do not execute
+
+#### Scenario: [TEST-AXES-149] Shared validation refuses collection drift and stale evidence
+
+- **WHEN** an isolated target is missing, unknown, omits a new Unit file, admits another level, writes a different report, or selects no files or fails selection
+- **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report, and unchanged legacy commands remain classified without report credit
