@@ -5175,3 +5175,60 @@ activation root is not provisioned`; hook exit zero therefore proves no activate
 admission. Negative/positive/install/merged-config receipts are archived in the proof manifest.
 The normal hooked Git commit is the next operation; its external receipt and exact candidate
 identity are provided in the coordinator handoff, without claiming hosted or full-gate acceptance.
+
+## WBS080.39 — shared-failures isolated Unit target (2.1l, 2026-10-17)
+
+Isolated worktree `/tmp/puni-shared-failures-unit-oct17` starts at
+`796e279014ee94627627cb769fef20a5aac855e5`. Dependencies are supplied by a symlink
+to the shared-validation prerequisite's existing node_modules. No install or lockfile change.
+The new target follows the shared-validation contract; existing legacy commands remain
+unchanged and explicitly unreported. `verifyBunProjectCollection` audits all `src` test files.
+
+Production allocation issued **TEST-AXES-153/154**, preserving every prior event
+and appending exactly two events matching the allocator's proposed delta. Production scenario
+validation returned `{"unidentified":[]}`. These are allocated identities only; no scenario
+citation or coverage credit is claimed.
+
+| Check                                                                                                               | Observed result                                       | Peak process-tree KiB |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------: |
+| New focused test RED                                                                                                | 0 pass, 10 fail; missing canonical level registration |                 78248 |
+| Initial focused GREEN                                                                                               | 10 pass, 0 fail, 31 assertions                        |                160488 |
+| Full `test-levels.test.ts`, shared-validation and shared-failures focused regression                                | 123 pass, 0 fail, 435 assertions, 30.96s              |                344716 |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run shared-failures:test:unit:level --skip-nx-cache` | Exit 0; 20 pass, 0 fail, 57 assertions; cache skipped |                359356 |
+| Changed-file Prettier write                                                                                         | Exit 0                                                |                274740 |
+| Fresh Nx graph                                                                                                      | Exit 0                                                |                234016 |
+| ESLint for changed verifier and two test files                                                                      | Exit 0                                                |                784244 |
+| Scoped TypeScript, strict base plus allowJs/checkJs                                                                 | Exit 0                                                |                127024 |
+| Cached OpenSpec 1.12.0 `validate test-axes --strict`                                                                | Exit 0; change valid                                  |                 73816 |
+
+Each monitored command ran serially with a 900 MiB process-tree ceiling; sampled peaks
+are observations rather than representative workload measurements. The first direct cached
+OpenSpec binary attempt lacked commander, and a NODE_PATH attempt lacked diff; both refused.
+The complete pinned cached Bunx installation above supplied the required tool successfully.
+
+Nine independent production-path faults each exited 1 and failed the named assertion:
+
+| Fault                                     | Observed failed assertion                             |
+| ----------------------------------------- | ----------------------------------------------------- |
+| Remove shared-failures level registration | Canonical Unit lookup refuses missing declaration     |
+| Remove required-target guard              | Missing target inventory refusal no longer occurs     |
+| Remove literal selector `./` prefix       | Nested matching throwing decoy executes               |
+| Bypass empty selection guard              | Named no-cases refusal is absent                      |
+| Remove stale report deletion              | Old XML remains after empty selection                 |
+| Replace selector short circuit with `;`   | Partial failed-find selection executes and exits zero |
+| Remove complete-source guard              | Omitted new Unit file is accepted                     |
+| Remove level-isolation guard              | Database test is admitted to Unit                     |
+| Remove report-identity guard              | Same-clear/write wrong report path is accepted        |
+
+Source/manifest SHA-256 values before and after all injections match exactly. The selector
+fault reached the actual production shell command and failed its nonzero-exit assertion;
+no parser precheck masked it. Focused tests also cover TSX exclusion, unknown targets and
+all twenty exact real JUnit testcase names/outcomes/file identities replacing stale XML.
+
+Raw command logs, monitor receipts, allocator prefix proof, fault script and restoration
+proof are preserved in `evidence/shared-failures-unit-2026-10-17/manifest.json`.
+
+Committed-revision report inspection and final restored checks follow below. Parent Task 2.1
+and WBS080.39 remain open; trusted execution receipts, scenario citation adoption, remaining
+projects/levels, coverage and admission are outside this bounded target slice. No full host gate,
+hosted CI, release acceptance, push or merge has run here; the coordinator owns those checks.

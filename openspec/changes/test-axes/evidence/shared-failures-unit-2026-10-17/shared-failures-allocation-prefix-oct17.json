@@ -1,0 +1,20 @@
+{
+  "priorEventCount": 216,
+  "proposedEventCount": 218,
+  "priorPrefixEqual": true,
+  "priorJournalSha256": "4eed6a9b6cf16a0d1d8486304597e2083b133bfaf6d781bba18b988c008c1f89",
+  "events": [
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-153",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared failures executes complete isolated Unit collection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-154",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared failures refuses collection drift and stale evidence"
+    }
+  ]
+}

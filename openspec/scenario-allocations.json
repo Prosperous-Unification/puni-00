@@ -1296,6 +1296,18 @@
       "id": "TEST-AXES-152",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Bun report observation refuses duplicate cases and preserves canonical identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-153",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared failures executes complete isolated Unit collection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-154",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared failures refuses collection drift and stale evidence"
     }
   ]
 }
