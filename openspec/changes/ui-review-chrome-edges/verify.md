@@ -54,3 +54,15 @@ dark-mode quiet-load`: 171 passed, 1 skipped.
   `validate --all` passes 249/249.
 - Not covered by a browser check: the Gantt marker list (Close mark list, ✓ ✎ ◑ ✕), the fault
   cards' Reload and the marker composer. These are code changes only, covered by their unit tests.
+
+## Round 3 (review of #564 round 2: B3, F-174), 2026-10-18
+
+- The `chrome-frames.spec.ts` card-sheet case now taps `Customize 010 - Sign-up form` in the Depends
+  on sheet for 020. It runs the sweep and the 6px-corner check on the Customize editor.
+- Proofs observed on b78849a8b:
+  - `select "Whole work item…" · Top edge on the surface line`, for all three selects.
+  - With the selects on the control edge and the buttons left bare: `button "Back to dependency
+picker" radius 0px`, `button "Cancel" radius 0px`, `button "Add" radius 0px`.
+- Playwright `chrome-frames mobile deps-cell external-refs reference-cells`: 65 passed.
+  `plan-table-review` (the grid's Customize editor) and the capture pass: 17 passed.
+- Vitest `typed-dependency-editor`, `plan-dependencies`, `plan-cards`: 250 passed. `typecheck` passes.

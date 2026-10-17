@@ -1,6 +1,7 @@
 import type { SettableStatus } from '@wbs/domain/progress';
 import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
+import { Button } from '@/components/ui/button';
 import {
   Modal,
   ModalContent,
@@ -1285,7 +1286,7 @@ function CardNotBeforeField({
               aria-label={`Earliest start for ${row.number}`}
               data-cell={cellKey(row.id, 'not-before')}
               data-card-not-before-input
-              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draftDay}
               onChange={(event) => {
                 setDraftDay(event.target.value);
@@ -1305,7 +1306,7 @@ function CardNotBeforeField({
               type="text"
               aria-label={`Why ${row.number} may not start earlier`}
               data-card-not-before-reason
-              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draftReason}
               onChange={(event) => {
                 setDraftReason(event.target.value);
@@ -1526,7 +1527,7 @@ function CardDeadlineField({
               aria-invalid={impossible || undefined}
               data-cell={cellKey(row.id, 'deadline')}
               data-card-deadline-input
-              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draftDay}
               onChange={(event) => {
                 setDraftDay(event.target.value);
@@ -1933,7 +1934,7 @@ function CardPriorityField({
               aria-label={`Priority for ${row.number}, as a number`}
               data-cell={cellKey(row.id, 'priority')}
               data-card-priority-input
-              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -2306,14 +2307,16 @@ function CardDependsField({
                 return (
                   <p role="alert">
                     This dependency was removed.{' '}
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       type="button"
                       onClick={() => {
                         setEditing(null);
                       }}
                     >
                       Back to dependency picker
-                    </button>
+                    </Button>
                   </p>
                 );
               const predecessor = dependencyRows.find(
@@ -2325,14 +2328,16 @@ function CardDependsField({
                 return (
                   <p role="alert">
                     This predecessor was removed.{' '}
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       type="button"
                       onClick={() => {
                         setEditing(null);
                       }}
                     >
                       Back to dependency picker
-                    </button>
+                    </Button>
                   </p>
                 );
               if (
@@ -2584,7 +2589,7 @@ function CardTrioField({
                 aria-label={`${stepName} ${point} for ${row.number}`}
                 data-cell={cellKey(row.id, `${stepId}-${point}`)}
                 data-card-trio-input={point}
-                className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
+                className={`${TAP} border-control-edge bg-background box-border w-full rounded-md border p-2 text-base`}
                 value={draft[point] ?? ''}
                 onChange={(event) => {
                   const typed = event.target.value;

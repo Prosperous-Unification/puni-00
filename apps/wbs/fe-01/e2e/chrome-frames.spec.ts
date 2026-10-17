@@ -313,5 +313,24 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.keyboard.press('Escape');
       await expect(sheet).toBeHidden();
     }
+
+    // One sheet deeper: the Depends sheet's Customize editor, the grid cell's
+    // `TypedDependencyEditor` rendered outside the grid (review of #564, B3).
+    // Proof, watched 2026-10-18 on b78849a8b: failed on `select "Whole work item…" · Top edge
+    // on the surface line` (three selects), and with the selects on the
+    // control edge, `the Customize editor's controls` listed `button "Back to
+    // dependency picker" radius 0px`, `button "Cancel" radius 0px` and `button
+    // "Add" radius 0px`.
+    const next = page.getByRole('button', { name: 'Add details to 020', exact: true });
+    if ((await next.getAttribute('aria-expanded')) !== 'true') await next.click();
+    await page.getByRole('button', { name: 'Depends on for 020', exact: true }).click();
+    await page.getByRole('button', { name: 'Customize 010 - Sign-up form', exact: true }).click();
+    const editor = page.getByRole('dialog', { name: 'Customize dependency' });
+    await expect(editor).toBeVisible();
+    await expectNoStrayFrames(page, 'the Customize editor');
+    expect(
+      await bareControls(page, '[role="dialog"][aria-label="Customize dependency"]'),
+      "the Customize editor's controls",
+    ).toEqual([]);
   });
 }
