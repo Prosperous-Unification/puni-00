@@ -156,3 +156,7 @@ identical, a final real report read refuses publication drift, all outcomes stay
 wrong-level exits one, authentication is absent and certification false. Non-goals: changes to
 existing commands, tested-module claims, T2, scenario joins, coverage, admission, source
 reconciliation, Gantt/C-class/solver work or WBS closure.
+
+## Bun report observation intent (2026-10-17)
+
+Problem: the committed diagnostic pipeline accepts Browser reports but has no source-bound Bun report observation for the first SQLite API target. Outcome: `inspect-bun-test-reports <repository> <full-committed-sha> <external-report-authority>` reads closed external revision/candidate/project-manifest/target/JUnit pins, the selected manifest and regular source blobs, and real Bun JUnit. It preserves passed, failed and skipped cases, provenance and a complete observation digest. Target naming establishes provenance only; level and isolation remain unresolved, authentication absent and certification false. Constraints: share the existing strict JUnit parser through a package-safe extraction; execute no candidate code; accept no supplied observation JSON; preserve Browser contracts. Non-goals: scenario joins, level classification, collection completeness, trusted runner execution, coverage, admission and WBS080.39 closure.

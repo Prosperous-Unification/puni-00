@@ -170,3 +170,10 @@ concrete design before Sol implements it. Existing 2.1/2.2a/2.2/4.1 obligations 
 - [x] 4.1b.17b Prove exact snapshot/mode/digest/report and complete case-ID/file/outcome/source/classification/isolation joins, inherited missing/malformed/unreadable index and publication refusals, canonical complete payload and source/built dispatch. Watch new guards and output/dependency faults fail production assertions, restore and record evidence.
 - [x] 4.1b.17c Complete focused serial regression, changed-file formatting and lint, narrow direct declaration/type check, scenario provenance and strict/all OpenSpec validation. Record exact checks, memory settings, watched failures and explicit whole-project check limits; commit the clean local candidate.
 - [ ] 4.1b.17d Obtain Astra exact-commit review before any push. Coordinator owns hosted CI and integration. Parent Tasks 2.1/2.2a/2.2/4.1, tested-module/coverage/T2 authority, source reconciliation and WBS closure remain open.
+
+## 4.1b.18 Bun report observation (WBS080.39)
+
+- [x] 4.1b.18a Record approved intent/delta; allocate scenarios preserving the allocation journal prefix; observe unknown-command production CLI RED.
+- [x] 4.1b.18b Move the existing pure JUnit parser into @shared/test-evidence, migrate tool-devsync imports and preserve its public re-export surface without a WORKSPACE dependency. Deliberately reject repeated same-kind and conflicting outcome elements, which the old parser overwrote; prove existing tool-devsync callers and watched production negatives. Implement closed external pins, selected manifest/target and complete source bindings, preserved outcomes, unresolved axes and full noncertifying digest.
+- [x] 4.1b.18c Watch production negatives for authority/report input, revision/path/digest/source/duplicate disagreements and outcome loss; restore checks and record actual serial focused/regression/installed/scoped validation and skipped checks in verify.md.
+- [ ] 4.1b.18d Obtain independent exact-commit review; coordinator owns integration and release acceptance. Parent tasks and WBS080.39 remain open.

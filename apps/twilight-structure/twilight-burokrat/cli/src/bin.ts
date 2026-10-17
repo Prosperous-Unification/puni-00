@@ -39,6 +39,8 @@ const validatorCommands = new Set([
   // the validator's named usage refusal (installed-dispatch.test.ts).
   'inspect-performance-sources',
   'inspect-test-reports',
+  // Proof: omitting this route failed TEST-AXES-152's built executable smoke before named dispatch.
+  'inspect-bun-test-reports',
   // Proof: removing registration failed TEST-AXES-131's built installed Browser scenario dispatch.
   'inspect-browser-scenarios',
   'inspect-browser-source-levels',
@@ -77,6 +79,7 @@ const validatorCommands = new Set([
 const help = `usage: twilight-burokrat <command> ...
 
 commands:
+  twilight-burokrat inspect-bun-test-reports <repository> <full-committed-sha> <external-report-authority>
   twilight-burokrat validate-record <kind> <json>
   twilight-burokrat validate-progress-receipt <receipt.json> <plan-reference.json> <tasks.json>
   twilight-burokrat validate-plan-tasks <plan-reference.json> <tasks.json>

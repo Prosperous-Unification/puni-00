@@ -4982,3 +4982,196 @@ every-project level-target adoption are not completed by this packet. No full ga
 The subsequent normal commit will rerun all applicable hooks on the final evidence tree. No full gate has run. Task 2.1, task 2.1k and WBS080.39 remain
 open; operational reports establish no trusted runner, scenario coverage, lineage hold,
 allocation completion or every-project adoption claim.
+
+## Bun report observation — 2026-10-17 (WBS080.39, 4.1b.18)
+
+The isolated clone `/tmp/puni-bun-report-inspector-sol-oct17` starts at exact unpublished
+`f83139f2cf065c9ea119f3a91395a092076ebd19`. The bounded change adds
+`inspect-bun-test-reports <repository> <full-committed-sha> <external-report-authority>`.
+It reads closed schema-1 external pins, selected regular project manifest and case blobs,
+and strict Bun JUnit; target names establish provenance only. Outcomes remain passed,
+failed or skipped, with unresolved level/isolation, absent authentication and `certifies:false`.
+The canonical digest includes the complete payload, including raw authority/report provenance.
+Reordering a raw report preserves sorted case identities but changes its raw digest and thus
+the full observation digest. No candidate code executes; no supplied observation JSON is read.
+
+The single pure parser moved from `tool-devsync/src/test-levels.ts` to
+`@shared/test-evidence/src/bun-junit.ts`. The old devsync exports retain exact
+`{name,file,outcome}` case shape. `readBunJUnitReport` additionally preserves ordered nested
+`testsuite` names, excluding the outer source-file suite; it never splits `classname`.
+Repeated same-kind and conflicting outcome elements now deliberately refuse instead of
+allowing the old last-outcome overwrite. Existing parser/caller regressions exercise this
+shared behavior change. A real Bun nested same-leaf report proves distinct describe paths,
+a suite move changes case identity, and a committed execution sentinel stays absent.
+
+### Dependencies and allocation
+
+The initial donor lock matched `e8d77926f9dac4ba4824486143872bdfb123cafd8bed45cca50c44b2e23298a4`,
+but its packages linked into a root with a different lock; this was not accepted as frozen
+installation evidence. A dereferencing copy hit the donor's cyclic `node_modules` alias.
+The partial copy was confined to this clone's ignored dependencies, the alias was removed,
+and the physically copied closure was repaired using the authorized offline command:
+
+```sh
+RUNTIME_CLOSURE_RSS_MIB=900 python3 /tmp/runtime-rss-guard.py bun install --frozen-lockfile --offline
+```
+
+Exit 0, sampled peak 17,100,800 bytes; one cached `@types/dns-packet` package was installed.
+The lock digest above remained unchanged and `node_modules/typescript` became a physical
+clone-local directory. The later built installed executable independently exercised the
+trusted runtime dependency closure. No network install was used.
+
+The production allocator appended TEST-AXES-150..152, preserving all **213** prior events
+and adding exactly three. The evidence packager compared the complete predecessor prefix
+again against the base commit. Production provenance returned `{"unidentified":[]}`.
+This allocates identities only; B3 reconciliation and parent Tasks 2.1/2.2a/2.2/4.1 remain open.
+
+### Qualified checks and limits
+
+Every command ran serially through `/tmp/runtime-rss-guard.py`; the default ceiling was
+900 MiB. Measured retries used fresh available RAM and explicit bounded ceilings. Peaks
+below are sampled process-tree bytes, not guaranteed maxima. Full exact commands and
+raw logs are retained in [the proof manifest](evidence/bun-reports-2026-10-17/proof-manifest.json).
+Log names in the following table resolve to that directory with `.gz` appended.
+
+| Check                                                                                                                                                                               | Observed result                                                                                                                                                        | Sampled peak bytes | Receipt                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -----------------: | -------------------------------------------- |
+| Initial new-command RED                                                                                                                                                             | Exit 1, 0 pass/14 fail; command assertions reached unknown dispatch; installed setup separately refused donor symlink dependency                                       |          612130816 | `bun-report-red-oct17.log`                   |
+| Initial implementation                                                                                                                                                              | Exit 1, 13 pass/1 fail; installed smoke exposed missing bin allowlist registration, then registration was added                                                        |          744714240 | `bun-report-green-oct17.log`                 |
+| Restored ordinary source cases, `bun --smol test .../bun-test-reports.test.ts --timeout=30000 --test-name-pattern '^(?!.*(?:installed executable\|reader selection disagreement))'` | Exit 0, 16 pass, 2 filtered, 239 assertions                                                                                                                            |          621133824 | `bun-report-focused-final-oct17.log`         |
+| Restored spawned reader-selection faults, same file with `--test-name-pattern 'reader selection disagreement'`                                                                      | Exit 0, 1 pass, 17 filtered, 6 assertions                                                                                                                              |          683278336 | `bun-report-reader-final-oct17.log`          |
+| Restored built installed executable, `bun --smol test ... --test-name-pattern 'installed executable'`, measured 1400 MiB ceiling                                                    | Exit 0, 1 pass, 17 filtered, 9 assertions; source/output parity, failed observation exit 0, arity/refusal exit 1, selected-source sentinel absent                      |         1243893760 | `bun-report-installed-final-oct17.log`       |
+| Full devsync caller suite, `bun test tools/tool-devsync/src/test-levels.test.ts --timeout=30000`                                                                                    | Exit 0, 102 pass, 360 assertions, including repeated/conflicting outcomes                                                                                              |          345329664 | `bun-report-devsync-final-oct17.log`         |
+| Shared evidence source test, `bun test ./libs/shared/domain/test-evidence/src/index.test.ts --timeout=30000`                                                                        | Exit 0, 12 pass, 49 assertions                                                                                                                                         |          202514432 | `bun-report-shared-final-oct17.log`          |
+| Browser report regression, `bun test .../test-reports.test.ts --timeout=30000 --test-name-pattern '^(?!.*installed Browser)'`                                                       | Exit 0, 19 pass, 1 existing installed test filtered, 180 assertions                                                                                                    |          715374592 | `bun-report-browser-regression-oct17.log`    |
+| Nx graph, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx graph --file=/tmp/bun-report-graph-oct17.json`                                                             | Exit 0; cached graph available for boundary rules                                                                                                                      |          281808896 | `bun-report-graph-oct17.log`                 |
+| Graph-backed CLI changed-path ESLint with `NODE_OPTIONS=--max-old-space-size=1024`, measured 1100 MiB                                                                               | Exit 0; no skipped module-boundary warning                                                                                                                             |          952770560 | `bun-report-lint-cli-restored-oct17.log`     |
+| Graph-backed shared changed-path ESLint, same V8 option, 900 MiB                                                                                                                    | Exit 0                                                                                                                                                                 |          620400640 | `bun-report-lint-shared-restored-oct17.log`  |
+| Graph-backed devsync changed-path ESLint, same V8 option, 900 MiB                                                                                                                   | Exit 0                                                                                                                                                                 |          815468544 | `bun-report-lint-devsync-restored-oct17.log` |
+| `bunx --no-install tsc --build --force libs/shared/domain/test-evidence/tsconfig.json`                                                                                              | Exit 0, full shared production/test project                                                                                                                            |          173834240 | `bun-report-type-shared-oct17.log`           |
+| `GOMAXPROCS=2 bunx --no-install tsc --project /tmp/bun-report-narrow-tsconfig-oct17.json`                                                                                           | Exit 0; changed inspector/tests/parser and devsync caller/tests plus transitive imports, inherited strict base options, `allowJs` for unchanged devsync `.mjs` imports |          545800192 | `bun-report-type-narrow2-oct17.log`          |
+| Production scenario provenance                                                                                                                                                      | Exit 0, `{"unidentified":[]}`                                                                                                                                          |          337850368 | `bun-report-provenance-oct17.log`            |
+| Pinned OpenSpec 1.12.0, `validate test-axes --strict --json`                                                                                                                        | Exit 0                                                                                                                                                                 |           71458816 | `bun-report-openspec-strict-oct17.log`       |
+| Pinned OpenSpec 1.12.0, `validate --all --json`                                                                                                                                     | Exit 0                                                                                                                                                                 |          139231232 | `bun-report-openspec-all-oct17.log`          |
+
+The 18 new tests are accounted for by 16 ordinary + 1 reader + 1 installed tests in fresh
+serial processes. The existing Browser installed smoke was skipped; this slice's actual
+built installed smoke ran. Full CLI project typecheck was interrupted at the 1100 MiB
+ceiling (1,155,010,560 sampled bytes), so it is **not verified**. The narrower semantic check
+and full shared check above passed. No full repository gate, h2puni gate, hosted CI, push,
+merge, deploy or release acceptance was run or claimed.
+
+Superseded/interrupted receipts remain in the manifest: combined/default and Bun `--smol`
+ESLint attempts exceeded 900/1400 MiB; installed-only 900/1100 MiB attempts were killed;
+a combined source run was killed at the spawned reader test. Per-project normal `bunx`
+ESLint and isolated source/reader tests resolved those limits. `bun-report-lint-cli-final-oct17.log`
+is the superseded import-sort **failure**, not the green receipt. Initial narrow typecheck
+found test index-signature accesses and missing `.mjs` configuration; corrected typed test
+reads and `allowJs` passed. A bare shared-directory Bun filter accidentally collected emitted
+`dist` tests; the explicit `./.../index.test.ts` command above corrected that selection.
+
+### R5 watched production negatives
+
+All **40** independent mutations ran in fresh serial monitored processes, produced their
+expected assertion failures, and restored the original source in `finally`. Their raw logs,
+exact injections, named test commands and combined receipts are in the proof manifest and
+compressed `bun-report-{faults,extra-faults}-oct17.py` scripts. These are failed production
+assertions under injected faults, not forty claims of exit-zero acceptance: some removed
+boundaries still refused later with degraded diagnostics. In particular, absent manifest
+name and unnamed nested suite faults lost their named refusal and reached
+`canonical JSON cannot serialize undefined`; adjacent Proof comments say so.
+
+The watched boundaries cover full SHA and exact committed reader selection, authority
+revision/candidate, manifest/root/regular/blob/raw digest, own target presence and target
+shape, report digest, lexical/physical external path canonicality, required absent/unreadable
+artifact reads, fatal UTF-8 and malformed JSON, version/outer/nested closed schemas,
+revision/digest/empty-target schema constraints, project root and record shape, canonical
+regular case source, equal/conflicting duplicate identity, repeated/conflicting XML outcomes
+through both production inspector and old devsync surface, outcome loss, nested ancestry
+and suite moves, unnamed suites, stable sorting, diagnostic markers, complete digest and
+CLI arity. Existing strict XML/parser boundary tests regressed through the shared extraction.
+
+### Fresh real SQLite target — failed target, successful diagnostic inspection
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false RUNTIME_CLOSURE_RSS_MIB=1400 \
+  python3 /tmp/runtime-rss-guard.py bunx --no-install nx run wbs-store-sqlite:test:api --skip-nx-cache
+```
+
+This fresh run **failed**: 1427 pass, 4 fail, 5841 assertions, 1431 tests across 104 files,
+167.57 seconds, sampled peak 1,309,556,736 bytes. It published the 368,651-byte
+`tmp/junit/wbs-store-sqlite.api.xml`. All four JUnit failure messages are
+`EPERM: operation not permitted, write`, at child-process stdin writes. The failed cases are:
+
+- `browser-auth-lifecycle.db.test.ts`: `two Bun processes capturing one generation publish exactly one successor`.
+- `saved-plan-concurrency.db.test.ts`: `refuses at once while the other process is still writing, and only that process commits`.
+- `saved-plan-concurrency.db.test.ts`: `writes normally once the other process has committed, on a fresh attempt`.
+- `saved-plan-busy.db.test.ts`: `refuses at once and lets a live edit issued in the same window complete`.
+
+These files and `src/testing/write-lock-holder.ts` are unchanged by this slice; none is a
+changed implementation path. No baseline failure fix or test skip was added. The first
+900 MiB target attempt was killed without a report. Its stale Nx task-invocation row then
+refused the next invocation; after confirming the previous invocation had ended, normal
+clone-local `nx reset --onlyWorkspaceData` cleared that metadata. The bounded 1400 MiB
+retry above completed. This target is not green and does not establish API isolation.
+
+The fresh report was copied to canonical external
+`/tmp/puni-bun-report-real-sqlite-oct17/report.xml` and pinned by external schema-1
+`authority.json`, against exact selected revision `f83139f2cf065c9ea119f3a91395a092076ebd19`,
+candidate `53149f516650193cd2589310efd1a304dca2616fe8cc0189c2a3e12a0c09d9f0`, and selected
+manifest digest `7009d190125477c48039122c815861338bd4070c09d3c35639d9826b30ca54ee`.
+
+```sh
+RUNTIME_CLOSURE_RSS_MIB=900 python3 /tmp/runtime-rss-guard.py \
+  bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts inspect-bun-test-reports \
+  /tmp/puni-bun-report-inspector-sol-oct17 f83139f2cf065c9ea119f3a91395a092076ebd19 \
+  /tmp/puni-bun-report-real-sqlite-oct17/authority.json
+```
+
+The qualified **serial** inspector rerun exited 0, sampled peak 627,871,744 bytes. It
+preserved all 1431 cases (1427 passed, 4 failed), all 104 exact selected source tuples,
+complete nested titles, unresolved axes, absent authentication and false certification.
+Raw report digest is `14ea1b1985c04a6779e817a92098670faeede2de13c4da01ce1cedacc108182b`;
+observation digest is `ce1759a9c4c3edcb196bc0d367c78ab951945a8eed63267137c00f09c3c03e92`.
+An independent Python XML/Git/SHA-256 check compared every outcome/title/source tuple,
+all source bytes and the complete canonical payload (including its terminal newline), exit 0,
+32,223,232 sampled bytes. Raw authority, report, full observation and parity receipt are archived.
+Its first harness attempt omitted the canonical terminal newline and was corrected; the
+production digest was already correct. Authority preparation and the first inspector call
+accidentally overlapped; that inspector receipt is explicitly disqualified lane evidence.
+Only `bun-report-real-sqlite-inspect-final-oct17.log` is the qualified serial receipt.
+
+### Independent review and normal hook proof
+
+Independent Astra-high durable worktree review reported no P0–P3 findings after verifying
+all initial 109 archived artifacts, all 40 fault receipts, the exact allocation prefix and
+independent real XML/observation/Git parity. Its earlier nested-title and proof-wording findings
+were corrected before approval. Exact-commit review and coordinator release acceptance remain open.
+
+Normal hooks were installed with `bun run tools/tool-git-hooks/src/install.ts`, exit 0,
+85,929,984 sampled bytes. The clone-local ignored `lefthook-local.yml` contains only:
+
+```yaml
+pre-commit:
+  parallel: false
+```
+
+The merged `lefthook dump` retained every registered command and glob. The tracked
+`lefthook.yml` stayed at SHA-256 `f31bd0e09fa76829b9348f97ad958b66b13d77c557e058096f9052f51f5e6b09`.
+The override serializes jobs and is removed after the normal local commit; no job is bypassed.
+
+A temporary staged `libs/shared/domain/test-evidence/src/bun-report-hook-negative.ts` imported
+`@twilight-burokrat/judge` and exported that namespace. Normal `bunx --no-install lefthook run
+pre-commit` exited 1 at `@nx/enforce-module-boundaries` (a forbidden project cycle), sampled
+peak 1,222,045,696 bytes under a measured 1400 MiB ceiling with 17,756 MiB freshly available.
+This proves the real graph-backed boundary rule evaluated and propagated failure through
+the serialized hook. The temporary source was removed and unstaged. The restored same hook
+command exited 0, sampled peak 1,216,794,624 bytes, with format/lint/plaintext-secrets/
+private-nesting/tool-wiki jobs executed; SQL migration and LLM-only jobs legitimately had
+no matching staged files. Both commands used `NODE_OPTIONS=--max-old-space-size=1024`.
+
+The tool-wiki job visibly returned `status:inactive`, `certified:false`, reason `external
+activation root is not provisioned`; hook exit zero therefore proves no activated wiki
+admission. Negative/positive/install/merged-config receipts are archived in the proof manifest.
+The normal hooked Git commit is the next operation; its external receipt and exact candidate
+identity are provided in the coordinator handoff, without claiming hosted or full-gate acceptance.

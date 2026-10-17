@@ -1994,3 +1994,13 @@ it('normalizes explicit Conformance operands to project-relative source identity
   expect(files).toEqual(['src/testing/source-conformance.test.ts']);
   expect(levelOf('src/testing/source-conformance.test.ts', files)).toBe('conformance');
 });
+
+it('the devsync JUnit surface refuses repeated and conflicting outcome elements', () => {
+  for (const outcomes of ['<failure/><failure/>', '<skipped/><skipped/>', '<failure/><skipped/>']) {
+    expect(() =>
+      readJUnitReport(
+        `<testsuites><testsuite><testcase name="duplicate" file="src/a.test.ts">${outcomes}</testcase></testsuite></testsuites>`,
+      ),
+    ).toThrow('duplicate outcome');
+  }
+});

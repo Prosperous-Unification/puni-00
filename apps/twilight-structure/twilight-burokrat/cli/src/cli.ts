@@ -779,6 +779,16 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
       );
     });
   }
+  if (args[0] === 'inspect-bun-test-reports') {
+    // Proof: removing arity validation lost TEST-AXES-151's malformed-operands refusal.
+    if (args.length !== 4)
+      throw new Error(
+        'usage: twilight-burokrat inspect-bun-test-reports <repository> <full-committed-sha> <external-report-authority>',
+      );
+    return import('./evidence/bun-test-reports').then(({ inspectBunTestReports }) => {
+      process.stdout.write(`${JSON.stringify(inspectBunTestReports(args[1], args[2], args[3]))}\n`);
+    });
+  }
   if (args[0] === 'inspect-test-reports') {
     // Proof: removing this arity refusal made the production extra-argument CLI call exit 0
     // instead of refusing the named command usage.
@@ -830,7 +840,7 @@ export function runCli(argv: readonly string[]): Promise<void> | void {
   // re-adding its route above failed `submit-admission is an unknown command` (cli.test.ts) and
   // `the validator bundle carries no authority store` (packaging/bundle.test.ts) (2026-10-11).
   throw new Error(
-    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-evaluation-coverage|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-t2-policy|inspect-browser-t2|inspect-browser-scenario-ledger|inspect-browser-scenarios|inspect-browser-source-levels|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
+    `unknown command: ${args[0] ?? '<missing>'}\nusage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-evaluation-coverage|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-t2-policy|inspect-browser-t2|inspect-browser-scenario-ledger|inspect-browser-scenarios|inspect-browser-source-levels|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-bun-test-reports|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...`,
   );
 }
 

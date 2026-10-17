@@ -1139,3 +1139,25 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 
 - **WHEN** an isolated target is missing, unknown, omits a new Unit file, admits another level, writes a different report, or selects no files or fails selection
 - **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report, and unchanged legacy commands remain classified without report credit
+
+### Requirement: Bun report observations bind selected sources without claiming level authority
+
+`inspect-bun-test-reports` SHALL require exactly repository, full committed SHA and external report authority operands. Closed schema-1 authority SHALL bind exact revision/candidate, canonical project root, selected project-manifest path/raw digest, own target name and canonical external JUnit path/raw digest. It SHALL read selected regular manifest and case source blobs without executing candidate code or accepting supplied observations. It SHALL decode strict Bun JUnit, preserve every passed/failed/skipped case, refuse equal or conflicting duplicate case identities and bind canonical sorted case/source provenance with ordered nested describe-suite title ancestry (excluding the outer source-file suite). Case identity SHALL be outcome-independent. Level and isolation SHALL remain explicitly unresolved. Every output field SHALL participate in the canonical observation digest, with absent authentication and false certification. Valid failed/skipped observations SHALL exit zero; malformed inputs and disagreement SHALL refuse without JSON. Existing Browser schemas SHALL remain unchanged.
+
+#### Scenario: [TEST-AXES-150] Bun report observations preserve real outcomes and selected source identity
+
+- **GIVEN** real Bun JUnit containing passed failed and skipped cases and exact selected manifest/source pins
+- **WHEN** production inspects the external report
+- **THEN** every outcome and canonical committed source tuple remains visible with unresolved level and isolation and a complete noncertifying digest
+
+#### Scenario: [TEST-AXES-151] Bun report observation refuses input and committed identity disagreement
+
+- **GIVEN** absent unreadable malformed noncanonical symbolic mismatched escaping symlink or digest-inconsistent authority report manifest or source
+- **WHEN** production inspects the report even with working-tree repair
+- **THEN** it refuses by name without partial JSON
+
+#### Scenario: [TEST-AXES-152] Bun report observation refuses duplicate cases and preserves canonical identity
+
+- **GIVEN** reordered cases changed outcomes duplicate identities or parser dependency faults
+- **WHEN** source and installed production dispatch inspect the report
+- **THEN** ordering preserves identity outcome and provenance changes alter the observation digest and duplicate or lost-outcome observations are refused or detected by production assertions

@@ -1278,6 +1278,24 @@
       "id": "TEST-AXES-149",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Shared validation refuses collection drift and stale evidence"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-150",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Bun report observations preserve real outcomes and selected source identity"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-151",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Bun report observation refuses input and committed identity disagreement"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-152",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Bun report observation refuses duplicate cases and preserves canonical identity"
     }
   ]
 }
