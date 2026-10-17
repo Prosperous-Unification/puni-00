@@ -1,0 +1,17 @@
+{
+  "onlyChanges": [
+    "pre-commit.parallel true -> false (false omitted from Lefthook dump)",
+    "lint run splits original selected argv into serial per-file eslint calls"
+  ],
+  "sameGroupsGlobsAndTrailers": true,
+  "groups": [
+    "doc-caps",
+    "format",
+    "lint",
+    "migration-lint",
+    "plaintext-secrets",
+    "private-nesting",
+    "tool-wiki",
+    "website-migration-lint"
+  ]
+}

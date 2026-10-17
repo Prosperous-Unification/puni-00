@@ -115,3 +115,16 @@ shared HTTP 409 schema for single-command and multi-command `/commands` requests
 create/undo/redo behavior. Atomicity claims cover the command unit of work; direct
 standalone calls do not gain cross-call isolation. No public writer, remap, history
 schema, migration, document version, scheduler or UI changes ship in this slice.
+
+## Move destination preservation prerequisite (2026-10-17)
+
+Forward move reads sparse facts for every valid nonnull destination through the required
+admitted command reader after actor, membership and structural refusals, before stamping,
+clearing destination statements or writing. Valid retained facts refuse with copied
+`referenced_by_step_parallel` nodes. Existing-parent and same-parent selected reads validate
+corruption; root moves do not read policy. Incoming subtree and unrelated facts retain their
+owners. The compensating `applyMove` path separately reads its nonnull destination after
+membership validation and refuses valid retained policy through `ApplyOutcome`; the runner
+surfaces `stale_undo`, rolls back replay writes and discards the stale history entry under
+existing policy. Corrupt trusted evidence throws. This bounded refusal does not enable
+remapping, public writing, schema/version changes or complete the lifecycle parent task.

@@ -1,0 +1,22 @@
+[
+  {
+    "check": "lint-service",
+    "argv": [
+      "bunx",
+      "eslint",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+    ],
+    "capMiB": 900,
+    "exitCode": 0
+  },
+  {
+    "check": "lint-mounted",
+    "argv": [
+      "bunx",
+      "eslint",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"
+    ],
+    "capMiB": 1280,
+    "exitCode": 0
+  }
+]

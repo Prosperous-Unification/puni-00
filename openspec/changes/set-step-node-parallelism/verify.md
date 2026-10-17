@@ -731,3 +731,135 @@ The exact earlier source is preserved in `hook-proof-refusal-before-prettier.ts.
 recovered from local Git blob `dc15a9d1d0e3d169fbc3c0d2f4d3286be7078f18`;
 `hook-proof-final-format-comparison.json` records both full hashes and the exact diff.
 The restoration receipt does not claim the later formatted file has the earlier hash.
+
+## Move destination preservation prerequisite (2026-10-17)
+
+Base: `aeb2e33f8313857dd0c388c2244dfea05aa7bfa6`, tree
+`ba8d2989c7d10e70ca439749652a470c1fdfeafb`, isolated local clone. The complete-history
+bundle SHA256 matched `21f33e5440e4a4cad1deb5c82e713cf9f01768bb0fb1efe7d5595eae090960ef`.
+All Bun/Nx work is serialized through the PM heavy lane and monitored by
+`/tmp/runtime-rss-guard.py` with `RUNTIME_CLOSURE_RSS_MIB=900` unless a measured
+cap refusal and explicit PM authorization are recorded below.
+
+Evidence: `evidence/move-2026-10-17/`. Initial forward memory RED: **1 pass / 11 fail**,
+peak **504,872,960 bytes**; mounted one/multi-command RED: **0 pass / 2 fail**,
+peak **581,603,328 bytes**, both returned 200 instead of exact 409. Initial forward
+GREEN: **15 pass / 0 fail / 50 assertions**, peak **500,310,016 bytes**.
+
+The first replay fixture run (`red-replay-forward-green.txt`) is disqualified as
+replay evidence: missing normal blockage activation caused `step_blockage_inactive`
+before replay. After `activateTestStepBlockages`, `red-replay.txt` independently
+observed undo and redo with destination policy return **200 rather than 409**;
+forward mounted and unrelated-policy controls passed. A redo revision-control
+assertion also failed because the destination was not necessarily in the touched
+revision set. That control now mutates the known touched moving row. The SQL
+policy injection preserves owner revision to ensure the new applyMove guard is
+actually reached rather than hidden by ordinary revision staleness. Replay
+refusal assertions intentionally exclude the command journal: existing policy
+rolls back replay then discards the stale history entry.
+
+Final focused checks, mutations, review and hook receipts are recorded below once
+observed. Full feature/public writer/lifecycle parent tasks remain open.
+
+Expanded final focused service/mounted controls: **28 pass / 0 fail / 161 assertions**,
+peak **580,468,736 bytes** (`green-replay-controls.txt`); after all supplemental
+faults restored **28/0**, peak **587,341,824 bytes** (`restored-green.txt`).
+Undo and redo now journal mixed batches ordered to apply a real unrelated-row patch
+before the guarded move. A call-through observer records the actual adapter's written
+name, then table snapshots prove rollback. Valid retained policy returns stale_undo
+and removes the journal entry; unreadable or corrupt selected facts return 500 and
+preserve the entire exact journal. Corrupt selected policy uses persisted maximum 1001
+with SQL CHECK temporarily disabled only for fixture injection, then restored.
+
+Eleven initial watched production faults are recorded in `fault-receipts.json`:
+omitted forward guard, wrong moving owner, project-wide selection, early membership
+and actor lookup, swallowed reader, existing-parent skip, lost node details, stale
+empty admitted reader, omitted replay guard and project-wide replay selection.
+Each caused the named production test to fail (maximum peak **641,351,680 bytes**).
+Access-order negatives throw from the poisoned reader before the expected modeled
+refusal; they are recorded as boundary rejection, not assertion failures. A first
+swallow probe used `.catch` on a synchronous throw and was ineffective; the final
+probe wraps the call in Promise.then so both synchronous and asynchronous failures
+are swallowed, and the required-throw negative fails. All final faults are restored
+with SHA256 receipts; no ineffective probe is claimed as proof.
+
+Supplemental faults (`replay-fault-receipts.json`): moving the forward guard below
+stamp allocation failed both retained-pair negatives on stamps **1 vs 0**, peak
+**510,001,152 bytes**. Converting replay reader/corruption exceptions into stale
+outcomes failed four undo/redo controls on **409 vs 500**, peak **588,611,584 bytes**.
+Restoration receipts and the subsequent restored full GREEN confirm the production
+source was restored. Adjacent Proof comments name these observed production paths.
+Astra reviewed the implementation with no P0–P3 defect; the identified proof gaps
+(late stamp, replay exception propagation, preceding replay write rollback) are now
+covered by the supplemental evidence above. Final static checks/hooks remain pending.
+
+Final scoped static checks (`checks-*.json` and named logs): formatter **exit0**,
+peak **350,744,576 bytes**. Work-item scoped tsc **exit0**, peak **964,763,648 bytes**;
+plan-commands scoped tsc **exit0**, peak **942,477,312 bytes**. PM approved these two
+one-shot 1280MiB caps from earlier measured 946–957MB peaks and fresh available
+memory; all commands ran serially. No higher cap was used implicitly.
+
+Initial service/memory lint exit0 receipts are **disqualified** because Nx explicitly
+skipped boundary rules without a cached graph. The first mounted lint hit the 900MiB
+cap at **947,871,744 bytes**; no success is claimed. Fresh Nx graph generation
+**exit0**, peak **412,594,176 bytes**, produced a graph despite the documented socket
+sandbox fallback to main-process plugins. Real graph-backed lint then found two
+mounted test issues (import order and intentionally captured prototype method).
+Imports were sorted; the test-only unbound-method exception names the receiver
+boundary at its call-through observer. The measured mounted lint peak
+**992,415,744 bytes** plus fresh available memory justified explicit PM approval for
+one renewed 1280MiB run. Final graph-backed ESLint: service **exit0**,
+**821,174,272 bytes**; memory test **exit0**, **751,710,208 bytes** (both 900MiB);
+mounted test **exit0**, **993,779,712 bytes** (1280MiB). No rule-skipped warning.
+
+Injected actual core→SQLite adapter import failed **@nx/enforce-module-boundaries**
+with exit1, peak **872,624,128 bytes** (`lint-boundary-negative.txt`); byte restoration
+was recorded and restored service lint exited0. Pinned OpenSpec 1.12.0 selected strict
+validation **valid/exit0**, peak **72,888,320 bytes**; required `validate --all --json`
+**212 passed / 0 failed / exit0**, peak **136,171,520 bytes**. Status/apply instructions
+were read for the existing spec-driven change; broader tasks remain unchecked.
+
+Tasks 3.1.3 and 3.2.3 cover this bounded move prerequisite only. WBS leaf completion,
+public writer, lifecycle parent, full Nx/build checks and exact-SHA h2puni gate are
+not claimed. Final formatting-after-evidence, focused rerun, staging review and
+normal hook commit remain separately recorded steps. Restoration hashes describe
+immediate injected-fault restoration before later Proof comments and formatting;
+they do not claim those later source bytes have the earlier hash.
+
+Final formatting including evidence JSON **exit0**, peak **362,680,320 bytes**;
+formatted candidate focused rerun **28 pass / 0 fail / 161 assertions**, peak
+**584,904,704 bytes** (`focused-final.txt`). Normal `bun run
+tools/tool-git-hooks/src/install.ts` installed Lefthook without bypass. The ignored
+local serial override changes only pre-commit parallelism; effective dump comparison
+proves all eight groups, globs and both trailer stages are identical. Actual
+aggregate Lefthook lint at 900MiB was **killed at 948,994,048 bytes** before a success
+claim. Per-file lint and wrapper proof/full-hook receipts follow after explicit PM
+approval based on this measured bound. No commit has been made at this point.
+
+Per-file hook override was authorized after the measured aggregate bound. Its effective
+JSON changes only serial pre-commit plus the lint run command; all original groups,
+globs, exclusions and both trailer stages remain equal (`hooks/per-file-equivalence.json`).
+Actual Lefthook argv proof selects exactly the three staged TS paths, once each.
+First/middle/last injected lint failures stop after1/2/3 calls; removing `set -e`
+incorrectly exits0 after all three. Empty selected argv exits64, and removing the
+empty guard incorrectly exits0 (`hook-proof-receipts.json`). A real staged unused
+variable in the new memory test fails `@typescript-eslint/no-unused-vars` through
+Lefthook with the Nx graph active, exit1 and **813,608,960 bytes**, under900MiB.
+Working tree and staged index bytes restore to SHA256 `02129f2dfeff09957c1446237e67499db6138a885527d27b296c8b6a551a208b`
+(`hook-real-restoration.json`, `hook-index-restoration.json`).
+
+Raw tool output with trailing whitespace is retained exactly as SHA256 plus base64
+in adjacent `.raw.json` files; corresponding display logs trim trailing whitespace
+so cached diff checks stay meaningful. No fault or output is silently discarded.
+Full positive hooks and a normal commit await exact wrapper review and authorization.
+
+Restored full normal Lefthook pre-commit **exit0**, peak **1,056,579,584 bytes** under
+PM's fresh-memory-approved one-shot1280MiB envelope (`hooks-full-positive.json`).
+Format, graph-backed lint, plaintext-secrets, private-nesting and tool-wiki ran.
+Actual lint invocation multiset equals the three staged TS paths exactly once;
+there is no skipped Nx rule warning. Doc-caps and both migration groups visibly
+had no matching staged paths. Tool-wiki visibly reports `inactive`, `certified:false`,
+reason external activation root not provisioned; no active certification is claimed.
+Both trailer stages remain in the effective config for the subsequent normal commit.
+Raw output and SHA256 are retained beside the display log. Final receipt staging and
+normal local commit remain pending root authorization; no public push or deployment.

@@ -246,3 +246,33 @@ Malformed trusted facts and read failures SHALL throw before mutation.
 - **GIVEN** a selected parent already has children and corrupt sparse facts
 - **WHEN** another child is requested
 - **THEN** the trusted-state failure throws before any writes
+
+### Requirement: Move preserves sparse destination policy before mutation
+
+Forward move SHALL read the required admitted sparse store for each valid nonnull
+destination after actor, membership and structural refusals, before stamps, destination
+statement clearing or writes. Valid retained facts SHALL refuse with
+`referenced_by_step_parallel` and detached exact destination nodes in store order through
+shared HTTP 409. Selected corrupt or unreadable trusted evidence SHALL throw, including
+existing-parent and same-parent destinations. Root moves SHALL skip sparse reads. Empty
+selected policy SHALL preserve movement and unrelated or incoming-subtree sparse facts.
+
+#### Scenario: Mixed command batch cannot make an authored sparse owner a parent
+
+- **GIVEN** destination Dev and QA facts and an unrelated sibling fact
+- **WHEN** a batch patches a row and moves another row under that destination
+- **THEN** the move command index/kind and only destination Dev/QA nodes reach HTTP 409
+- **AND** all earlier writes, destination statements, revisions, journal and events roll back
+
+#### Scenario: Invalid destination and unauthorized actor precede sparse disclosure
+
+- **WHEN** a move names an absent or foreign destination, creates a cycle or lacks admission
+- **THEN** the existing structural or access refusal occurs before sparse access
+
+#### Scenario: Undo and redo refuse newly retained destination policy
+
+- **GIVEN** a journalled move whose replay destination later gains valid sparse policy
+- **WHEN** undo or redo would move a row beneath that destination
+- **THEN** replay refuses as stale_undo even when destination revision is unchanged
+- **AND** replay writes roll back and the stale history entry is discarded by existing policy
+- **AND** replay with no destination policy succeeds while unrelated sparse facts survive

@@ -1,0 +1,22 @@
+libs/wbs/application/core/src/module/work-item/work-item.resource.ts 1398ms (unchanged)
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts 56ms (unchanged)
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts 24ms (unchanged)
+openspec/changes/set-step-node-parallelism/design.md 41ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 16ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 45ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 96ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/checks-all.json 6ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/checks-lint-mounted.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/checks-lint-service-lint-memory-openspec-status-openspec-apply-openspec-selected-openspec-all.json 2ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/checks-lint-service-lint-mounted.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/fault-receipts.json 3ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/effective-base.json 1ms
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/effective-serial.json 1ms
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/effective-serial.yml 12ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/hooks/serial-equivalence.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/lint-boundary-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/lint-mounted-real-errors.raw.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/replay-fault-receipts.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/replay-restoration.json 1ms (unchanged)
+openspec/changes/set-step-node-parallelism/evidence/move-2026-10-17/restoration.json 1ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 362680320, "exitCode": 0}

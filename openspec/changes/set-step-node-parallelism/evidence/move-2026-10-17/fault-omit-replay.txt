@@ -1,0 +1,58 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+184 |         if (policy === 'unrelated') {
+185 |           expect(answer.status).toBe(200);
+186 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+187 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+188 |         } else {
+189 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "move “moving”",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:189:26)
+(fail) undo refuses newly retained destination [353.81ms]
+184 |         if (policy === 'unrelated') {
+185 |           expect(answer.status).toBe(200);
+186 |           expect(h.sqlite.query('SELECT parent_id FROM work_item WHERE id = ?').get('moving')).toEqual({ parent_id: destination });
+187 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual([{work_item_id:'unrelated',step_id:step.id,max_parallel:1}]);
+188 |         } else {
+189 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "move “moving”",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:189:26)
+(fail) redo refuses newly retained destination [263.34ms]
+
+ 0 pass
+ 6 filtered out
+ 2 fail
+ 11 expect() calls
+Ran 2 tests across 1 file. [2.60s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 583630848, "exitCode": 1}

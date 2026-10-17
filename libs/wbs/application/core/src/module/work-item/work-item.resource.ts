@@ -2939,7 +2939,9 @@ export class WorkItemService {
   }
 
   /**
-   * Reparents the subtree, clearing unrelated destination leaf statements before
+   * Reparents the subtree. Retained destination step parallel facts refuse before
+   * stamping or mutation; selected corrupt facts throw even on existing parents.
+   * Clears unrelated destination leaf statements before
    * the store move. Incoming facts stay with their owners. A last-child departure
    * hands up direct blockage only when every former leaf has that step fact,
    * using the latest blocked time even when negative or retained beneath done.
@@ -2948,7 +2950,14 @@ export class WorkItemService {
    * Undo restores destination progress through
    * the existing statement replay and restores blockage timestamps exactly.
    */
-  async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
+  async move(
+    id: string,
+    actorId: string,
+    input: MoveWorkItem,
+  ): Promise<
+    | WorkItemOutcome<null>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3018,6 +3027,25 @@ export class WorkItemService {
       // answer 500 instead of 409 with its relationship id; watched 2026-09-27.
       if (pinned.length > 0) {
         return { ok: false, reason: 'node_on_parent', dependencyIds: pinned.map((row) => row.id) };
+      }
+    }
+
+    // Proof: omitted guard/wrong moving owner accepted retained pairs; project-wide
+    // selection refused incoming-subtree policy. Lookup before actor/membership
+    // leaked the poisoned reader; swallowing it resolved the required failure.
+    // Skipping existing parents missed selected corruption; lost nodes failed exact
+    // mounted 409. Empty admitted reads committed the preceding patch. Moving this
+    // below stamp allocation spent a stamp on refusal (all watched 2026-10-17).
+    if (input.parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, [
+        input.parentId,
+      ]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
       }
     }
 
@@ -6335,6 +6363,19 @@ export class WorkItemService {
     if (moving === undefined) return { ok: false, detail: 'the work item is no longer there.' };
     if (parentId !== null && !rows.some((row) => row.id === parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
+    }
+    // Proof: omitted guard accepted newly retained policy on undo/redo; project-wide
+    // selection refused unrelated policy. Catching read/corruption as stale returned
+    // 409 instead of 500 and discarded history. Real preceding replay patches roll
+    // back before stale discard; thrown reads preserve history (watched 2026-10-17).
+    if (parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [parentId]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          detail: 'the destination has step parallelism stated since this move.',
+        };
+      }
     }
     const group = this.groupUnder(rows, parentId).filter((sibling) => sibling.id !== id);
     // `placeAfter` throws on a sibling that is not in the group, which is the

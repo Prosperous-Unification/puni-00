@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+341 |     ...fixture.requirements,
+342 |     stepParallels: { listByWorkItems: () => { throw new Error('selected parent corruption'); } },
+343 |   });
+344 |   const before = await fixture.snapshot();
+345 |   for (const id of ['moving', 'existing']) {
+346 |     expect(await rejectedMessage(workItems.move(id, 'owner', move))).toContain('selected parent corruption');
+                                                                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "selected parent corruption"
+Received: "parent parent holds a readiness or a hold"
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:346:70)
+(fail) validates selected facts for same-parent moves and existing parents [17.25ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.83s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 501714944, "exitCode": 1}

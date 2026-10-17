@@ -20,6 +20,8 @@
 - [x] 3.1.1 Write step-removal sparse-reference refusal, authorization, corruption and atomicity RED.
 - [x] 3.1.2 Write first-child sparse-preservation refusal, admitted-scope rollback, corruption and shared HTTP RED.
 - [x] 3.2.1 Implement authoritative memory/SQLite refusal and shared HTTP 409; prove guard omissions.
+- [x] 3.1.3 Write move destination sparse-preservation refusal, admitted-scope rollback, corruption and undo/redo RED.
+- [x] 3.2.3 Implement required admitted-scope move destination guard before mutation and replay guard; preserve exact 409 nodes and prove each boundary.
 - [ ] 3.2 Implement atomic remap/refusal and snapshot/history ownership of sparse facts.
 - [x] 3.2.2 Implement required admitted-scope sparse create guard before writes; preserve typed node details through the shared 409 and prove each boundary.
 - [ ] 3.3 Write copy/import/export/saved-plan version and ID remapping RED; allocate current schema versions.

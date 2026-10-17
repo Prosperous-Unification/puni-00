@@ -1,0 +1,43 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+(pass) move sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [558.61ms]
+(pass) move sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [454.79ms]
+(pass) undo refuses newly retained destination [265.84ms]
+(pass) undo preserves unrelated policy [252.60ms]
+(pass) undo refuses newly retained revision [282.53ms]
+{"level":"error","time":1792210062111,"service":"be-01","err":{"occurrence_id":"AE_VXD21PQWXBNSXSA3MKZ34CRKV6","fingerprint":"fp1_e200ac74e6ccfc0ddb8d8cfe5e382843","stack":["Error: replay sparse reader unavailable","    at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:201:145)","    at listByWorkItems (unknown)","    at applyMove (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6362:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) undo preserves history on throw sparse read [265.45ms]
+{"level":"error","time":1792210062351,"service":"be-01","err":{"occurrence_id":"AE_3G868YZWMQTDVP2XJYNGYHV8XX","fingerprint":"fp1_c6b95697e848cdf57aa433c4ac22361c","stack":["Error: step parallelism must be an integer from 1 to 1000","    at assertStepParallel (/tmp/puni-step-move-20261017/libs/wbs/domain/domain/src/step-parallel.ts:15:15)","    at read (/tmp/puni-step-move-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:65:7)","    at async applyMove (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6362:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) undo preserves history on corrupt sparse read [239.65ms]
+(pass) redo refuses newly retained destination [263.33ms]
+(pass) redo preserves unrelated policy [284.75ms]
+(pass) redo refuses newly retained revision [275.31ms]
+{"level":"error","time":1792210063450,"service":"be-01","err":{"occurrence_id":"AE_QKZXY47KE037HR1XQW93PYNGVT","fingerprint":"fp1_e200ac74e6ccfc0ddb8d8cfe5e382843","stack":["Error: replay sparse reader unavailable","    at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:201:145)","    at listByWorkItems (unknown)","    at applyMove (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6362:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) redo preserves history on throw sparse read [277.13ms]
+{"level":"error","time":1792210063718,"service":"be-01","err":{"occurrence_id":"AE_13D3CD55XY2C2MA3Y6TVRRJEWB","fingerprint":"fp1_c6b95697e848cdf57aa433c4ac22361c","stack":["Error: step parallelism must be an integer from 1 to 1000","    at assertStepParallel (/tmp/puni-step-move-20261017/libs/wbs/domain/domain/src/step-parallel.ts:15:15)","    at read (/tmp/puni-step-move-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:65:7)","    at async applyMove (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6362:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) redo preserves history on corrupt sparse read [266.74ms]
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+(pass) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [5.27ms]
+(pass) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [1.35ms]
+(pass) move sparse step parallel preservation > checks authorization and parent membership and cycles before a poisoned reader [0.94ms]
+(pass) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact [5.46ms]
+(pass) reads the admitted sparse store and rolls a preceding patch back with its journal/events [3.45ms]
+(pass) throws on trusted maximum corruption without moving or clearing statements [1.64ms]
+(pass) throws on trusted step corruption without moving or clearing statements [1.29ms]
+(pass) throws on trusted project corruption without moving or clearing statements [1.33ms]
+(pass) throws on trusted parent corruption without moving or clearing statements [1.39ms]
+(pass) throws on trusted duplicate corruption without moving or clearing statements [1.45ms]
+(pass) copies exact node references and allows move after clearing the final fact [2.72ms]
+(pass) throws when the required sparse reader is absent before any writes [1.31ms]
+(pass) does not consult sparse evidence for root moves [1.52ms]
+(pass) validates selected facts for same-parent moves and existing parents [1.30ms]
+(pass) retains moving subtree and sibling policy while moving under an empty destination [1.97ms]
+(pass) preserves empty-policy move undo and redo while unrelated facts survive [7.94ms]
+
+ 28 pass
+ 0 fail
+ 161 expect() calls
+Ran 28 tests across 2 files. [5.72s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 587341824, "exitCode": 0}

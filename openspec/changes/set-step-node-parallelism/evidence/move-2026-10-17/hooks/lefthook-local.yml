@@ -1,0 +1,5 @@
+pre-commit:
+  parallel: false
+  commands:
+    lint:
+      run: /tmp/puni-step-move-20261017/.git/move-lint-staged.sh {staged_files}
