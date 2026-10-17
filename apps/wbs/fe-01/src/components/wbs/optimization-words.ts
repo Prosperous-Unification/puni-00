@@ -20,23 +20,27 @@ import { shortIsoDate } from './short-date';
 
 /** What a variant is called on a control, where there is room for two words at most. */
 export const OBJECTIVE_LABEL: Readonly<Record<ScheduleObjectiveView, string>> = {
-  // `Pri` and not `PRI`: three letters in capitals read as an initialism for
-  // something, and this one is just the first syllable of "priority" (Dany,
-  // 2026-09-08). What each of the three schedules actually **is** is in
-  // {@link ALGORITHM_WORDS}, because a label this short can only be a name.
-  pri: 'Pri',
-  time: 'Time',
+  // Whole words that share their roots with {@link OBJECTIVE_SENTENCE}'s
+  // `Priority-first` and `Finish-first`, so the pill and Project settings name
+  // one objective one way (UI review F-149, Dany 2026-10-18). They were `Pri`
+  // and `Time`: an abbreviation, and a second name for finish-first. What each
+  // of the three schedules actually **is** is in {@link ALGORITHM_WORDS},
+  // because a label this short can only be a name.
+  // Proof: with `Pri` and `Time` put back, 28 cases in the three cue test files
+  // failed, first `expected 'Pri 3 days earlier' to be 'Priority 3 days
+  // earlier'`. Watched 2026-10-18.
+  pri: 'Priority',
+  time: 'Finish',
 };
 
 /**
  * What a variant is called in a sentence, and on the settings panel's radios.
  *
- * Spelled out rather than `OBJECTIVE_LABEL`'s abbreviation, because a sentence
- * is what a screen reader reads out and "Pri" is not a word. The settings
- * panel's radios read these too since ui-review F-119: a control label is not
- * abbreviated, and the panel's own description, two lines above, says
- * "priority-first and finish-first". The cue's pill keeps the short names,
- * where there is room for two words at most.
+ * The whole name, where {@link OBJECTIVE_LABEL} is its first word. The
+ * settings panel's radios read these too since ui-review F-119, and the
+ * panel's own description, two lines above, says "priority-first and
+ * finish-first". The cue's pill says the short names, where there is room for
+ * two words at most.
  */
 export const OBJECTIVE_SENTENCE: Readonly<Record<ScheduleObjectiveView, string>> = {
   pri: 'Priority-first',
@@ -51,7 +55,7 @@ export const FAST_LABEL = 'Fast';
  * between them.
  *
  * On the cue's own card and nowhere else: the pill has room for a name, and a
- * name alone ("Fast", "Pri", "Time") says nothing about what the thing does —
+ * name alone ("Fast", "Priority", "Finish") says nothing about what the thing does —
  * which was the complaint (Dany, 2026-09-08). The solver is named because it
  * is the reason two of the three take seconds rather than milliseconds, and
  * because a reader who wants to know why a plan came out as it did needs the
@@ -59,9 +63,9 @@ export const FAST_LABEL = 'Fast';
  */
 export const ALGORITHM_WORDS = [
   'Fast places the plan in milliseconds by walking the graph once, and is never claimed optimal.',
-  'Time searches for the earliest project deadline it can find.',
-  'Pri searches for the schedule that starts higher-priority work sooner, which can finish later.',
-  'Time and Pri are both CP-SAT searches from Google OR-Tools, given the budget below.',
+  'Finish searches for the earliest project deadline it can find.',
+  'Priority searches for the schedule that starts higher-priority work sooner, which can finish later.',
+  'Finish and Priority are both CP-SAT searches from Google OR-Tools, given the budget below.',
 ].join('\n');
 
 /**

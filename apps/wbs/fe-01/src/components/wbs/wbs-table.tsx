@@ -954,7 +954,7 @@ export function WbsTable({
    * Whether the schedule cue's menu is open.
    *
    * Its own flag for {@link freezeMenuOpen}'s reason, and no name collides with
-   * either of the other two: this menu's items are `Fast`, `PRI`, `Time` and a
+   * either of the other two: this menu's items are `Fast`, `Priority`, `Finish` and a
    * `Retry`. Not read by `columns`, and it must not become so — landmine #1.
    */
   const [cueMenuOpen, setCueMenuOpen] = useState(false);

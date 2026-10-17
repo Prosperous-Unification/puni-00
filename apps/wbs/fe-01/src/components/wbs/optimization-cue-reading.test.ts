@@ -43,7 +43,7 @@ describe('what the cue suggests', () => {
    * an earlier project deadline is the only thing worth being nudged about.
    */
   it.each([
-    ['an earlier finish is suggested', { pri: 7 }, { pri: true }, 'pri', 'Pri 3 days earlier'],
+    ['an earlier finish is suggested', { pri: 7 }, { pri: true }, 'pri', 'Priority 3 days earlier'],
     ['the same finish reordered is not', { pri: 10 }, { pri: false }, null, null],
     ['the same finish in the same order is not', { pri: 10 }, { pri: true }, null, null],
     ['a later finish is not', { pri: 12 }, { pri: true }, null, null],
@@ -109,7 +109,7 @@ describe('what the cue suggests', () => {
       finishDays: { fast: 10, pri: 7, time: 9 },
     });
     expect(view.suggestion).toBeNull();
-    // And the reader is still told what Time would do, measured against Fast
+    // And the reader is still told what Finish would do, measured against Fast
     // like every other row.
     expect(wordsFor(view, 'time')).toBe('Earlier project deadline by 1 day');
   });
@@ -117,7 +117,7 @@ describe('what the cue suggests', () => {
   it('offers the earlier of two candidates', () => {
     const view = reading({ finishDays: { fast: 10, pri: 8, time: 6 } });
     expect(view.suggestion).toBe('time');
-    expect(view.suggestionWords).toBe('Time 4 days earlier');
+    expect(view.suggestionWords).toBe('Finish 4 days earlier');
   });
 
   it('never offers the schedule already on screen', () => {
@@ -143,8 +143,8 @@ describe('what the cue suggests', () => {
 
   it.each([
     [-Number.EPSILON, 'Same project deadline + same order', null],
-    [-0.001, 'Earlier project deadline by <0.01 day', 'Pri <0.01 day earlier'],
-    [-1 / 48, 'Earlier project deadline by 0.02 days', 'Pri 0.02 days earlier'],
+    [-0.001, 'Earlier project deadline by <0.01 day', 'Priority <0.01 day earlier'],
+    [-1 / 48, 'Earlier project deadline by 0.02 days', 'Priority 0.02 days earlier'],
   ] as const)('takes a %s difference through the workday drift', (delta, expected, suggested) => {
     const view = reading({
       finishDays: { fast: 10, pri: 10 + delta },
@@ -162,8 +162,8 @@ describe('what the cue reads out', () => {
       'Finish-first is the active schedule',
     );
     expect(reading({}).sentence).toContain('Fast is the active schedule');
-    expect(reading({ engine: 'optimized', displayed: 'time' }).activeLabel).toBe('Time');
-    expect(reading({ engine: 'optimized', displayed: 'pri' }).activeLabel).toBe('Pri');
+    expect(reading({ engine: 'optimized', displayed: 'time' }).activeLabel).toBe('Finish');
+    expect(reading({ engine: 'optimized', displayed: 'pri' }).activeLabel).toBe('Priority');
   });
 
   it('says a variant is optimizing only once something has been admitted for the plan', () => {
@@ -187,7 +187,7 @@ describe('what the cue reads out', () => {
   /**
    * The contrast a reader actually decides on. Every figure on the card is
    * measured against Fast, which is one reference and the right one — but the
-   * choice in front of them is Pri or Time, and neither of those rows says
+   * choice in front of them is Priority or Finish, and neither of those rows says
    * anything about the other.
    *
    * The order half is derived from the two relations against Fast and says only
@@ -198,31 +198,31 @@ describe('what the cue reads out', () => {
       'both keep Fast’s order',
       { pri: 7, time: 8 },
       { pri: true, time: true },
-      'Pri against Time: Pri 1 day earlier, in the same order as each other.',
+      'Priority against Finish: Priority 1 day earlier, in the same order as each other.',
     ],
     [
       'exactly one reorders',
       { pri: 7, time: 8 },
       { pri: true, time: false },
-      'Pri against Time: Pri 1 day earlier, in a different order from each other.',
+      'Priority against Finish: Priority 1 day earlier, in a different order from each other.',
     ],
     [
       'both reorder, so their order against each other is unknowable from these two facts',
       { pri: 7, time: 8 },
       { pri: false, time: false },
-      'Pri against Time: Pri 1 day earlier, each in an order of its own.',
+      'Priority against Finish: Priority 1 day earlier, each in an order of its own.',
     ],
     [
       'they finish together',
       { pri: 7, time: 7 },
       { pri: true, time: true },
-      'Pri against Time: the same project deadline, in the same order as each other.',
+      'Priority against Finish: the same project deadline, in the same order as each other.',
     ],
     [
-      'Time is the earlier one',
+      'Finish is the earlier one',
       { pri: 9, time: 7 },
       { pri: true, time: true },
-      'Pri against Time: Time 2 days earlier, in the same order as each other.',
+      'Priority against Finish: Finish 2 days earlier, in the same order as each other.',
     ],
   ] as const)('contrasts the two variants when %s', (_what, finishes, orders, expected) => {
     const view = reading({ finishDays: { fast: 10, ...finishes }, sameOrderAsFast: { ...orders } });

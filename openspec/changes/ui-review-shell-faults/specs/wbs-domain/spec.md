@@ -9,8 +9,8 @@ a 5xx answer, a reply that is not the contract's, a modelled refusal of the requ
 thrown error — the app SHALL draw a `Server unavailable` state with one sentence naming the cause,
 SHALL NOT draw credential fields or sign-in links, and SHALL offer Try again, which SHALL read the
 session again and draw whichever state that read reports. The `Server unavailable` card SHALL sit in
-the signed-out page's column, under the `WBS tool v2` heading and the product line, centred across
-the window and anchored by its top near the window's middle.
+the signed-out page's column, under the `WBS tool v2` heading and the product line, centred in the
+window (`ui-review-signedout-centre`).
 
 #### Scenario: be-01 is down behind the proxy
 
@@ -20,7 +20,7 @@ the window and anchored by its top near the window's middle.
 #### Scenario: the outage card in the signed-out column
 
 - **WHEN** the session read answers 502 at 1440 × 900 or 375 × 812
-- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, inside the window, and with its top on the sign-in card’s anchor (decision D11, `ui-review-signin-gantt`)
+- **THEN** the column holding the heading and the `Server unavailable` card is centred across the window within 1px, at least 16px below its top, unclipped, and with the room above and below it within 48px of each other (`ui-review-signedout-centre`)
 
 #### Scenario: the server comes back
 

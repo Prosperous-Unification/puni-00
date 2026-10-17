@@ -29,7 +29,7 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-/** Fast on screen, PRI three workdays ahead of it, Time still solving. */
+/** Fast on screen, Priority three workdays ahead of it, Finish still solving. */
 const SUGGESTING: PlanOptimizationView = {
   enabled: true,
   engine: 'fast',
@@ -125,7 +125,7 @@ describe('the schedule cue', () => {
   itDom('wears the saving when a variant would land the plan earlier', () => {
     render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
     expect(document.querySelector('[data-cue-suggestion]')?.textContent).toBe(
-      '· Pri 3 days earlier',
+      '· Priority 3 days earlier',
     );
     expect(document.querySelector('[data-optimization-cue]')).toHaveAttribute(
       'data-cue-suggesting',
@@ -216,7 +216,7 @@ describe('the schedule cue', () => {
       expect(pill()).toHaveAccessibleName(/Search stopped before proving this schedule optimal/);
       fireEvent.click(pill());
       const pri = screen.getByRole('menuitem', {
-        name: /Pri · 7 days · Earlier project deadline by 3 days · Search stopped/,
+        name: /Priority · 7 days · Earlier project deadline by 3 days · Search stopped/,
       });
       expect(pri).toHaveAttribute('aria-disabled', 'false');
     },
@@ -300,8 +300,8 @@ describe('the schedule cue', () => {
     fireEvent.click(pill());
     expect(items()).toEqual([
       '✓ Fast · 10 days',
-      'Pri · 7 days · Earlier project deadline by 3 days',
-      'Time · Optimizing…',
+      'Priority · 7 days · Earlier project deadline by 3 days',
+      'Finish · Optimizing…',
     ]);
     // The active one is checked and carries **no** fact: `MenuControl` focuses
     // its first item on opening, and a fact there opens a card over the menu
@@ -311,11 +311,11 @@ describe('the schedule cue', () => {
     expect(fast).toHaveAttribute('aria-disabled', 'false');
     // Present and refused rather than absent, for every other reason: a control
     // that leaves a menu somebody is reading takes its own explanation with it.
-    expect(screen.getByRole('menuitem', { name: /^Time/ })).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: /^Finish/ })).toHaveAttribute(
       'data-fact',
       'Optimizing…',
     );
-    expect(screen.getByRole('menuitem', { name: /^Time/ })).toHaveAttribute(
+    expect(screen.getByRole('menuitem', { name: /^Finish/ })).toHaveAttribute(
       'aria-disabled',
       'true',
     );
@@ -332,7 +332,7 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Priority/ }));
     expect(asked).toEqual([{ scheduleEngine: 'optimized', scheduleObjective: 'pri' }]);
   });
 
@@ -377,7 +377,7 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Time/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Finish/ }));
     expect(asked).toEqual([]);
   });
 
@@ -405,7 +405,7 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Priority/ }));
 
     // The window: the switch has been asked for and no plan read has answered.
     // `onChoose` returns nothing, so this **is** the in-flight state — the
@@ -426,7 +426,7 @@ describe('the schedule cue', () => {
         onChoose={() => undefined}
       />,
     );
-    expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Pri');
+    expect(document.querySelector('[data-cue-active]')?.textContent).toBe('Priority');
   });
 
   itDom('shows the items unavailable while a write is in flight', () => {
@@ -441,8 +441,11 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    expect(screen.getByRole('menuitem', { name: /^Pri/ })).toHaveAttribute('aria-disabled', 'true');
-    fireEvent.click(screen.getByRole('menuitem', { name: /^Pri/ }));
+    expect(screen.getByRole('menuitem', { name: /^Priority/ })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Priority/ }));
     expect(asked).toEqual([]);
   });
 
@@ -461,7 +464,7 @@ describe('the schedule cue', () => {
       />,
     );
     fireEvent.click(pill());
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Time' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Retry Finish' }));
     expect(asked).toEqual([{ objective: 'time', inputHash: 'hash-a' }]);
   });
 
@@ -513,20 +516,20 @@ describe('the schedule cue', () => {
     const fact = pill().getAttribute('data-fact');
     expect(pill()).not.toHaveAttribute('data-hint');
     expect(fact).toContain('Fast · 10 days · active');
-    expect(fact).toContain('Pri · 7 days · Earlier project deadline by 3 days');
-    expect(fact).toContain('Time · Optimizing…');
+    expect(fact).toContain('Priority · 7 days · Earlier project deadline by 3 days');
+    expect(fact).toContain('Finish · Optimizing…');
     // What the three algorithms are — a name this short cannot say it, and the
     // reader has to choose between them.
     expect(fact).toContain('Fast places the plan in milliseconds');
-    expect(fact).toContain('Time searches for the earliest project deadline');
-    expect(fact).toContain('Pri searches for the schedule that starts higher-priority work');
+    expect(fact).toContain('Finish searches for the earliest project deadline');
+    expect(fact).toContain('Priority searches for the schedule that starts higher-priority work');
     expect(fact).toContain('CP-SAT searches from Google OR-Tools');
     // The metadata, which is the only place a reader can find out which plan
     // and which solver contract produced the figures.
     expect(fact).toContain('Solver 1.5+test · 60s budget · generation 7 · plan hash-a');
     // Blocks, not one line: the schedules, the algorithms and the run's
-    // identity are separated by a blank line each. The Pri-against-Time block
-    // is a fourth, and this fixture has no Time answer to contrast.
+    // identity are separated by a blank line each. The Priority-against-Time block
+    // is a fourth, and this fixture has no Finish answer to contrast.
     expect((fact ?? '').split('\n\n')).toHaveLength(3);
   });
 
@@ -538,11 +541,11 @@ describe('the schedule cue', () => {
       />,
     );
     const fact = pill().getAttribute('data-fact');
-    expect(fact).toContain('Pri · 7 days · Earlier project deadline by 3 days · active');
+    expect(fact).toContain('Priority · 7 days · Earlier project deadline by 3 days · active');
     expect(fact).not.toContain('Fast · 10 days · active');
   });
 
-  itDom('contrasts Pri with Time where both have an answer', () => {
+  itDom('contrasts Priority with Finish where both have an answer', () => {
     render(
       <Harness
         optimization={{
@@ -558,15 +561,15 @@ describe('the schedule cue', () => {
       />,
     );
     // The comparison a reader actually chooses between: Fast is the reference
-    // every figure is measured against, and the decision is Pri or Time.
+    // every figure is measured against, and the decision is Priority or Finish.
     expect(pill().getAttribute('data-fact')).toContain(
-      'Pri against Time: Pri 1 day earlier, in a different order from each other.',
+      'Priority against Finish: Priority 1 day earlier, in a different order from each other.',
     );
   });
 
-  itDom('says nothing about Pri against Time while one of them has no answer', () => {
+  itDom('says nothing about Priority against Finish while one of them has no answer', () => {
     render(<Harness optimization={SUGGESTING} onChoose={() => undefined} />);
-    expect(pill().getAttribute('data-fact')).not.toContain('Pri against Time');
+    expect(pill().getAttribute('data-fact')).not.toContain('Priority against Finish');
   });
 
   itDom('says in the fact that a stale plan has no comparison to show', () => {
@@ -597,7 +600,7 @@ describe('the schedule cue', () => {
       />,
     );
     const fact = pill().getAttribute('data-fact') ?? '';
-    expect(fact).toContain('Time · Plan infeasible · 3 Work item deadlines');
+    expect(fact).toContain('Finish · Plan infeasible · 3 Work item deadlines');
     // Offset 4 is also what a user-entered Saturday 12 Sep folds to. The cue
     // has only the effective offset, so it labels the reconstructed Friday
     // honestly instead of presenting it as the date the user entered.
@@ -782,6 +785,6 @@ describe('the schedule cue', () => {
       'Schedule comparison unavailable while this plan may be stale',
     );
     fireEvent.click(pill());
-    expect(items()).toEqual(['✓ Fast', 'Pri', 'Time · Optimizing…']);
+    expect(items()).toEqual(['✓ Fast', 'Priority', 'Finish · Optimizing…']);
   });
 });

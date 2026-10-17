@@ -158,10 +158,27 @@ export function menuShift(box: { left: number; right: number }, viewportWidth: n
   return 0;
 }
 
+/**
+ * The open menu's box: as wide as its longest item, but never wider than the
+ * window less both gutters, where an item wraps instead.
+ *
+ * `max-content` because an absolute box shrinks to its containing block, and a
+ * toolbar control's is the button it hangs from. The cap is what keeps a long
+ * item on screen at 390: the schedule cue's `Priority · 7 days · Earlier
+ * project deadline by 3 days` (UI review F-149) made its box 384px, which no
+ * {@link menuShift} can fit in 390 less two 8px gutters.
+ *
+ * Proof: `e2e/optimization-cue.spec.ts` `keeps its open menu inside the screen`
+ * failed with the words renamed and no cap on `the menu is cropped on the right
+ * at 390: 8px + 384px · Expected: <= 390 · Received: 391.9375`. Watched
+ * 2026-10-18.
+ */
 const menuBox = (align: 'left' | 'right'): CSSProperties => ({
   position: 'absolute',
   top: '100%',
   [align]: 0,
+  width: 'max-content',
+  maxWidth: `calc(100vw - ${String(2 * GUTTER_PX)}px)`,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'stretch',
@@ -184,7 +201,9 @@ const ITEM: CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   padding: '3px 6px',
   cursor: 'pointer',
-  whiteSpace: 'nowrap',
+  // Wraps only at the box's window cap; `menuBox`'s `max-content` keeps every
+  // item that fits on one line.
+  whiteSpace: 'normal',
 };
 
 /**
@@ -365,7 +384,13 @@ export function MenuControl({
   };
 
   return (
-    <span ref={wrapper} style={{ position: 'relative', display: 'inline-block' }}>
+    // `maxWidth` passes the room the caller gives down to the trigger, so a
+    // `max-w-full` trigger shrinks with it instead of measuring this span.
+    // Proof: without it the schedule cue's 13rem pill drew over `Plan actions`
+    // at 390 (`e2e/optimization-cue.spec.ts` `adds no sideways scroll to a
+    // phone`: `the pill is drawn over the control after it · Expected: <=
+    // 263.71875 · Received: 353.390625`). Watched 2026-10-18.
+    <span ref={wrapper} style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
       <button
         {...trigger}
         ref={button}

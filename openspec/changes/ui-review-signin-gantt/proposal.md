@@ -46,3 +46,8 @@ puni-plan `ui-review/DECISIONS.md` D11.
 `apps/wbs/fe-01` only: `components/ui/button.tsx`, `styles.css`, `app.tsx`, `components/wbs/
 gantt-panel.tsx`, `drag-drop.ts`, `wbs-table.tsx`, `hint.tsx`. The `ui-review-shell-faults` outage
 scenario now asks for the shared anchor instead of 48px of vertical centre.
+
+## Superseded (2026-10-18)
+
+Dany reversed D11 ("make them all middle of the screen"): the one-anchor requirement is struck from
+this change's delta, and `ui-review-signedout-centre` centres every signed-out card on its own.

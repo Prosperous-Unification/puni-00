@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { openSeededPlan, type SeededPlan, seedPlan } from './plan-fixture';
-import { expectAnchoredColumn } from './signed-out-column';
+import { expectCentredColumn } from './signed-out-column';
 
 /**
  * The shell when a tier is down, and the plan table's drop cue (UI review round
@@ -54,15 +54,14 @@ test.describe('the session gate when the server is down (F-079)', () => {
     // watched 2026-10-15: #479's top-left page (`p-8` main, `mb-6` heading)
     // with only `data-sign-in` added to its card failed at 1440 on `the column
     // is off the window’s middle · Expected: <= 1 · Received: 496`. The card
-    // now stands on the sign-in card's own anchor, about 188px above true
-    // centre at 1440, so the word mark does not move between the two (F-125,
-    // D11); `expectAnchoredColumn` holds it to that anchor.
+    // is centred on its own top to bottom too (Dany, 2026-10-18, reversing
+    // D11); `expectCentredColumn` measures both.
     for (const size of [
       { width: 1440, height: 900 },
       { width: 375, height: 812 },
     ]) {
       await page.setViewportSize(size);
-      await expectAnchoredColumn(page);
+      await expectCentredColumn(page);
     }
     await expect(page.getByRole('alert')).toHaveText('The server is not available right now.');
     await expect(page.getByRole('textbox', { name: 'Username' })).toHaveCount(0);
@@ -93,7 +92,7 @@ test.describe('the session gate when a proxy refuses the read (F-095)', () => {
       { width: 375, height: 812 },
     ]) {
       await page.setViewportSize(size);
-      await expectAnchoredColumn(page);
+      await expectCentredColumn(page);
     }
     await expect(page.getByRole('alert')).toHaveText(
       'Something in front of the server refused this request, so your session could not be checked.',

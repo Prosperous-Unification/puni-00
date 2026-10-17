@@ -21,7 +21,7 @@ export type CueSchedule = 'fast' | ScheduleObjectiveView;
 /** One schedule, as the cue reads it. */
 export interface CueRow {
   readonly which: CueSchedule;
-  /** `Fast`, `PRI`, `Time` — what fits on a control. */
+  /** `Fast`, `Priority`, `Finish` — what fits on a control. */
   readonly label: string;
   /** The project finish this schedule reaches, or `null` while it has none. */
   readonly finishDays: number | null;
@@ -64,7 +64,7 @@ export interface UnmeetableDeadline {
 export interface CueReading {
   /** The schedule the project is on — what the rows are placed by. */
   readonly active: CueSchedule;
-  /** What the active schedule is called on the pill: `Fast`, `PRI` or `Time`. */
+  /** What the active schedule is called on the pill: `Fast`, `Priority` or `Finish`. */
   readonly activeLabel: string;
   /** Fast first, then each objective, always all three. */
   readonly rows: readonly CueRow[];
@@ -99,7 +99,7 @@ export interface CueReading {
    *
    * Its own line on the card because it is the comparison a reader actually
    * chooses between — Fast is the reference every figure is measured against,
-   * but the decision is Pri or Time (Dany, 2026-09-08).
+   * but the decision is Priority or Finish (Dany, 2026-09-08).
    *
    * The order half is derived from the two relations against Fast and says only
    * what those two can support: if both keep Fast's order they keep each
@@ -233,7 +233,7 @@ export function cueReading(optimization: PlanOptimizationView, stale = false): C
 }
 
 /**
- * Pri against Time: the day difference between them, and whether they place the
+ * Priority against Finish: the day difference between them, and whether they place the
  * shared slices the same way.
  *
  * `null` unless both are `ready` with a finish, because there is nothing to
@@ -251,8 +251,8 @@ function contrastWords(optimization: PlanOptimizationView, stale: boolean): stri
   const gap = withinDrift(pri - time, 0)
     ? 'the same project deadline'
     : pri < time
-      ? `Pri ${days(pri - time)} earlier`
-      : `Time ${days(time - pri)} earlier`;
+      ? `${OBJECTIVE_LABEL.pri} ${days(pri - time)} earlier`
+      : `${OBJECTIVE_LABEL.time} ${days(time - pri)} earlier`;
   const priKeepsOrder = optimization.sameOrderAsFast.pri;
   const timeKeepsOrder = optimization.sameOrderAsFast.time;
   const order =
@@ -266,7 +266,7 @@ function contrastWords(optimization: PlanOptimizationView, stale: boolean): stri
             // and nothing about the pair, so this says what it knows.
             'each in an order of its own'
           : 'in a different order from each other';
-  return `Pri against Time: ${gap}, ${order}.`;
+  return `${OBJECTIVE_LABEL.pri} against ${OBJECTIVE_LABEL.time}: ${gap}, ${order}.`;
 }
 
 /**

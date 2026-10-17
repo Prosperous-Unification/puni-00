@@ -16,17 +16,6 @@ fill, in the light and the dark palette.
 - **WHEN** a plan is open in either palette
 - **THEN** Rename project and Freeze # each paint a left edge of at least 3:1 against both sides
 
-### Requirement: The signed-out word mark does not move between cards
-
-The signed-out page SHALL draw every card it holds (sign-in, server unavailable, access refused)
-under one top anchor, so the `WBS tool v2` heading SHALL stand at the same height whichever card is
-shown, at every window size.
-
-#### Scenario: Try again lands on another card
-
-- **WHEN** the session read answers 401, then 502, then 403 at 1440 × 900, 1024 × 768 or 375 × 812
-- **THEN** the heading's top is within 0.5px of where it stood on the sign-in card each time
-
 ### Requirement: Full keeps the chart's horizontal position
 
 Switching the Gantt chart into Full and out again SHALL keep the chart's horizontal scroll offset in

@@ -53,22 +53,24 @@ export interface OptimizationCueProps {
  * `w-56` rather than a box the width of its words, and it is the fix for a real
  * fault rather than a preference: this control is the last item in a wrapping
  * toolbar row, and its words change on every switch and on every solve that
- * lands (`Fast` → `Pri`, a saving appearing or going). A control that changes
+ * lands (`Fast` → `Priority`, a saving appearing or going). A control that changes
  * width there can push itself over the wrap threshold, which re-lays the whole
  * row and moves every other control on it — "the whole header toolbox jitters"
  * (Dany, 2026-09-08). A fixed box cannot: the words inside it change and
  * nothing outside it moves. `e2e/optimization-cue.spec.ts` measures a
  * neighbour's edge across a switch.
  *
- * 11.5rem is the width the pill measured at its widest **before** it was
- * pinned — 184px, a dot, `Fast` and `· Pri 3 days earlier`, measured in
- * Chromium — so the row wraps exactly where it wrapped before and the pin
- * costs no line. A longer saving truncates rather than growing past it; the
+ * 13rem holds `Fast` and `· Priority 3 days earlier` whole (UI review F-149,
+ * Dany 2026-10-18): the pin was 11.5rem, the pill's widest **before** it was
+ * pinned with `Pri` (184px), and `Priority` cut that saving by 21px. Proof:
+ * `e2e/optimization-cue.spec.ts` `stands inside the toolbar row` failed at
+ * 11.5rem on `the saving is cut · Expected: <= 0 · Received: 21`. Watched
+ * 2026-10-18. A longer saving truncates rather than growing past it; the
  * whole of it is in the card and in the menu either way. A `<button>`'s own padding and border in both arms, so the menu arm and
  * the read-only arm are the same object to a reader.
  */
 const PILL =
-  'inline-flex h-8 w-[11.5rem] max-w-full cursor-pointer items-center gap-1.5 rounded-md border border-transparent bg-muted px-2 text-sm whitespace-nowrap tabular-nums hover:border-border';
+  'inline-flex h-8 w-[13rem] max-w-full cursor-pointer items-center gap-1.5 rounded-md border border-transparent bg-muted px-2 text-sm whitespace-nowrap tabular-nums hover:border-border';
 
 /**
  * What the dot has to say, worst-first, or `null` when it has nothing.
@@ -339,7 +341,7 @@ export function OptimizationCue({
       )}
       {/*
         The name sizes itself: the box around it is fixed, so the few pixels
-        between `Fast`, `Pri` and `Time` move the saving beside them and
+        between `Fast`, `Priority` and `Finish` move the saving beside them and
         nothing outside the pill. A slot wide enough for the longest of the
         three cost the saving 38px of room and truncated it at 1600, which is
         the width this pill is pinned to fit.

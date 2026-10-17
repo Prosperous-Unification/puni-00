@@ -1,7 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { measureInk } from './measure-ink';
-import { expectAnchoredColumn } from './signed-out-column';
+import { expectCentredColumn } from './signed-out-column';
 
 /**
  * The signed-out page, measured (UI review F-052): one centred column with the
@@ -60,13 +60,13 @@ test.describe('the sign-in page (F-052)', () => {
       // `Received: 288`, and at 375 (where the old card already filled the width)
       // the password field stood `Received: 52` px above its button — the reserved
       // `min-h-5` line between two 16px gaps. (The column checks now live in
-      // `expectAnchoredColumn`, whose message reads `the signed-out page has no
+      // `expectCentredColumn`, whose message reads `the signed-out page has no
       // [data-sign-in]`.)
       await signOut(page);
       await page.setViewportSize(size);
       // Centred across, and anchored by its top near the middle of the window
       // (F-090), so it reads as centred at rest and grows downward.
-      await expectAnchoredColumn(page);
+      await expectCentredColumn(page);
       const measured = await measurePage(page);
       const cardMiddle = (measured.card.left + measured.card.right) / 2;
       expect(Math.abs(cardMiddle - measured.viewport.width / 2)).toBeLessThanOrEqual(1);
@@ -149,15 +149,15 @@ test.describe('the sign-in page (F-052)', () => {
 });
 
 /**
- * The word mark is the signed-out family's fixed point (UI review F-125,
- * decision D11): sign-in, server unavailable and a proxy's refusal draw their
- * cards under one anchor, so a Try again that lands on another card never moves
- * the heading. Each state is reached from inside the page: the session read
- * answered 401 (no session), 502 (a stopped be-01 behind its proxy) and 403 in
- * HTML (a WAF before be-01 — the access-refused card where that card exists, the
- * sign-in form with a notice where it does not; either way the same column).
+ * Every signed-out card is centred in the window on its own (Dany, 2026-10-18,
+ * reversing D11 and F-125's one anchor): the word mark moves between cards, and
+ * only a row opening on the same card leaves it where it is (F-090, above).
+ * Each state is reached from inside the page: the session read answered 401 (no
+ * session), 502 (a stopped be-01 behind its proxy) and 403 in HTML (a WAF
+ * before be-01 — the access-refused card). The two short windows are the ones
+ * where a column could clip: it must start 16px down and scroll to its end.
  */
-test.describe('the signed-out word mark (F-125)', () => {
+test.describe('every signed-out card, centred on its own', () => {
   const states = [
     ['sign-in', { status: 401, contentType: 'application/json', body: '{}' }],
     ['server unavailable', { status: 502, contentType: 'text/plain', body: 'Bad Gateway' }],
@@ -167,16 +167,12 @@ test.describe('the signed-out word mark (F-125)', () => {
     { width: 1440, height: 900 },
     { width: 1024, height: 768 },
     { width: 375, height: 812 },
+    { width: 1440, height: 600 },
+    { width: 375, height: 568 },
   ]) {
-    test(`stands at one height on every signed-out card at ${String(size.width)}`, async ({
-      page,
-    }) => {
-      // Proof, watched 2026-10-16 on 3e06eb5a4 (a padding per card,
-      // `COLUMN_ANCHOR`): failed at 1440 on `server unavailable: the word mark
-      // moved · Expected: <= 0.5 · Received: 96`.
+    test(`centres each card at ${String(size.width)}×${String(size.height)}`, async ({ page }) => {
       await page.setViewportSize(size);
       const heading = page.getByRole('heading', { level: 1, name: 'WBS tool v2' });
-      const tops = new Map<string, number>();
       for (const [state, reply] of states) {
         await page.route('**/api/**', (route) =>
           route.request().url().endsWith('/api/auth/me') || state === 'server unavailable'
@@ -188,13 +184,9 @@ test.describe('the signed-out word mark (F-125)', () => {
         await expect(
           page.locator('[data-sign-in] [data-sign-in-card], [data-server-unavailable]'),
         ).toBeVisible();
-        tops.set(state, await heading.evaluate((node) => node.getBoundingClientRect().top));
+        await expectCentredColumn(page);
         await page.unroute('**/api/**');
       }
-      const anchor = tops.get('sign-in');
-      if (anchor === undefined) throw new Error('the sign-in card was not measured');
-      for (const [state, top] of tops)
-        expect(Math.abs(top - anchor), `${state}: the word mark moved`).toBeLessThanOrEqual(0.5);
     });
   }
 });

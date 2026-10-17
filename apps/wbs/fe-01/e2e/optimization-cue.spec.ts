@@ -16,8 +16,8 @@ import { countToolbarControls } from './toolbar-controls';
  * The optimizer is **faked at the wire** rather than solved for real: a solver
  * run needs the Python package, a seat and a plan big enough to be worth
  * optimizing, and none of that is what these five assertions are about. What
- * comes back is a payload be-01 really can produce — PRI ready and three
- * workdays ahead of Fast, Time still solving.
+ * comes back is a payload be-01 really can produce — Priority ready and three
+ * workdays ahead of Fast, Finish still solving.
  */
 
 /**
@@ -42,7 +42,11 @@ import { countToolbarControls } from './toolbar-controls';
 // `project-settings.spec.ts` itemises (one-line Export / Import +45.41, square undo,
 // redo and keyboard buttons −18, the schedule group ±0). Measured 1629.890625; `rows`
 // is still 2.
-const LAID_OUT_WITH_THE_CUE_AT_1280 = 1630;
+//
+// **Re-pinned from 1630 to 1656 on 2026-10-18**, for the pill's 11.5rem → 13rem
+// (+24px) that holds `· Priority 3 days earlier` whole (F-149). Measured
+// 1655.890625; `rows` is still 2.
+const LAID_OUT_WITH_THE_CUE_AT_1280 = 1656;
 
 /**
  * The controls the cue's plan puts on the toolbar, counted by role
@@ -74,7 +78,7 @@ const SUGGESTING: PlanOptimizationView = {
  *
  * The handle is what makes a switch a switch: be-01's answer is intercepted, so
  * without it the plan read would keep saying Fast is displayed however many
- * times the reader chose Pri, and "nothing moved" would be a claim about a
+ * times the reader chose Priority, and "nothing moved" would be a claim about a
  * screen that never changed.
  */
 async function planWithACue(page: Page): Promise<{ serve: (next: PlanOptimizationView) => void }> {
@@ -153,7 +157,14 @@ test.describe('the schedule cue, in a browser', () => {
     // The saving is on the pill, drawn, and not merely in the markup.
     const saving = await boxOf(page, '[data-cue-suggestion]');
     expect(saving.width, 'the suggestion has no rendered width').toBeGreaterThan(0);
-    await expect(page.locator('[data-cue-suggestion]')).toHaveText('· Pri 3 days earlier');
+    await expect(page.locator('[data-cue-suggestion]')).toHaveText('· Priority 3 days earlier');
+    // The whole word fits the pinned pill, the saving uncut (F-149's `Priority`).
+    expect(
+      await page
+        .locator('[data-cue-suggestion]')
+        .evaluate((node) => node.scrollWidth - node.clientWidth),
+      'the saving is cut',
+    ).toBeLessThanOrEqual(0);
   });
 
   test('lays the 1280 toolbar out inside its budget with the cue on it', async ({ page }) => {
@@ -224,6 +235,17 @@ test.describe('the schedule cue, in a browser', () => {
     expect(cue.x).toBeGreaterThanOrEqual(0);
     expect(cue.x + cue.width).toBeLessThanOrEqual(390 + NEARLY);
 
+    // The pill itself, not only its wrapper, stops short of the control after it.
+    const drawn = await pill(page).evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const next = node.closest('[data-optimization-cue]')?.nextElementSibling;
+      if (next === null || next === undefined) throw new Error('nothing follows the cue');
+      return { right: box.right, nextLeft: next.getBoundingClientRect().left };
+    });
+    expect(drawn.right, 'the pill is drawn over the control after it').toBeLessThanOrEqual(
+      drawn.nextLeft,
+    );
+
     // And with the card open — the layer's, opened from the keyboard, which is
     // the path a phone reader with a keyboard gets and the one that needs no
     // pointer at all.
@@ -255,8 +277,8 @@ test.describe('the schedule cue, in a browser', () => {
     const card = cueCard(page);
     // Every schedule, its figures, its comparison and which one is active.
     await expect(card).toContainText('Fast · 10 days · active');
-    await expect(card).toContainText('Pri · 7 days · Earlier project deadline by 3 days');
-    await expect(card).toContainText('Time · Optimizing…');
+    await expect(card).toContainText('Priority · 7 days · Earlier project deadline by 3 days');
+    await expect(card).toContainText('Finish · Optimizing…');
     // What the three algorithms are, which a three-letter name cannot say.
     await expect(card).toContainText('Fast places the plan in milliseconds');
     await expect(card).toContainText('CP-SAT searches from Google OR-Tools');
@@ -352,7 +374,7 @@ test.describe('the schedule cue, in a browser', () => {
     expect(await countToolbarControls(page)).toBeGreaterThanOrEqual(CONTROLS_WITH_THE_CUE);
 
     // The switch, all the way through: the menu item asks be-01, the next plan
-    // read says Pri is displayed, and the pill loses its saving and changes its
+    // read says Priority is displayed, and the pill loses its saving and changes its
     // name — the two changes that used to move the row.
     plan.serve({
       ...SUGGESTING,
@@ -366,8 +388,8 @@ test.describe('the schedule cue, in a browser', () => {
       sameOrderAsFast: { pri: true, time: true },
     });
     await pill(page).click();
-    await page.getByRole('menuitem', { name: /^Pri/ }).click();
-    await expect(page.locator('[data-cue-active]')).toHaveText('Pri');
+    await page.getByRole('menuitem', { name: /^Priority/ }).click();
+    await expect(page.locator('[data-cue-active]')).toHaveText('Priority');
     expect(await page.locator('[data-cue-suggestion]').count()).toBe(0);
 
     const after = await shapeOf();
@@ -407,7 +429,7 @@ test.describe('the schedule cue, in a browser', () => {
         request.method() === 'PATCH' &&
         /\/api\/projects\/[^/]+$/.test(new URL(request.url()).pathname),
     );
-    await page.getByRole('menuitem', { name: /^Pri/ }).click();
+    await page.getByRole('menuitem', { name: /^Priority/ }).click();
     const request = await patched;
     expect(JSON.parse(request.postData() ?? '{}')).toEqual({
       scheduleEngine: 'optimized',

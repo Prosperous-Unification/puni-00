@@ -2,19 +2,21 @@ import { expect, type Page } from '@playwright/test';
 
 /**
  * Asserts the signed-out page's one column (`[data-sign-in]`, F-052) is centred
- * across the window and anchored by its top near the window's middle (F-090):
- * no sideways scroll, the middle within 1 px of the window's, at least 16 px
- * above it, nothing below the window, and its top on the one anchor every card
- * shares — 15.5rem above the window's middle, never under 1rem (F-125, D11).
+ * in the window on its own, whichever card it holds (Dany, 2026-10-18,
+ * reversing D11 / F-125's one anchor): no sideways scroll, the middle within
+ * 1 px of the window's across, at least 16 px above it, and the room above and
+ * below within 48 px of each other.
  *
- * Only the sign-in card is also held within 48 px of true vertical centre: the
- * anchor is measured from it, and the shorter cards under the same anchor
- * stand higher on purpose so the word mark never moves.
+ * A window too short for the column plus two 16 px gutters cannot centre it:
+ * there the column starts at least 16 px down and the page scrolls to its end,
+ * nothing clipped. The sign-in card is centred with its refusal row's room
+ * already counted (F-090): at rest the room above it is 18px more than below
+(202 / 184 at 1440 × 900, measured 2026-10-18).
  *
  * Shared by the sign-in page and the cards drawn in its column (F-093), read
  * off `main[data-signed-out]`.
  */
-export async function expectAnchoredColumn(page: Page): Promise<void> {
+export async function expectCentredColumn(page: Page): Promise<void> {
   const measured = await page.evaluate(() => {
     const column = document.querySelector('[data-sign-in]');
     if (column === null) throw new Error('the signed-out page has no [data-sign-in]');
@@ -22,28 +24,33 @@ export async function expectAnchoredColumn(page: Page): Promise<void> {
     return {
       card: column.closest('main')?.getAttribute('data-signed-out') ?? null,
       viewport: { width: window.innerWidth, height: window.innerHeight },
-      scrollWidth: document.documentElement.scrollWidth,
+      scroll: {
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+        y: window.scrollY,
+      },
       column: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
     };
   });
-  expect(measured.scrollWidth, 'the page scrolls sideways').toBe(measured.viewport.width);
+  if (measured.card === null) throw new Error('the signed-out column names no card');
+  const card = measured.card;
+  expect(measured.scroll.width, `${card}: the page scrolls sideways`).toBe(measured.viewport.width);
   const middle = (measured.column.left + measured.column.right) / 2;
   expect(
     Math.abs(middle - measured.viewport.width / 2),
-    'the column is off the window’s middle',
+    `${card}: the column is off the window’s middle`,
   ).toBeLessThanOrEqual(1);
-  const above = measured.column.top;
-  const below = measured.viewport.height - measured.column.bottom;
-  expect(above, 'room above the column').toBeGreaterThanOrEqual(16);
-  expect(below, 'room below the column').toBeGreaterThanOrEqual(0);
+  // Page coordinates, so a scrolled short window measures the same column.
+  const top = measured.column.top + measured.scroll.y;
+  const bottom = measured.column.bottom + measured.scroll.y;
+  expect(top, `${card}: room above the column`).toBeGreaterThanOrEqual(16);
+  expect(measured.scroll.height - bottom, `${card}: the column is clipped`).toBeGreaterThanOrEqual(
+    0,
+  );
+  if (bottom - top + 32 > measured.viewport.height) return;
+  const below = measured.viewport.height - bottom;
   expect(
-    Math.abs(above - Math.max(16, measured.viewport.height / 2 - 248)),
-    'the column is off the signed-out anchor',
-  ).toBeLessThanOrEqual(1);
-  if (measured.card === null) throw new Error('the signed-out column names no card');
-  if (measured.card !== 'sign-in') return;
-  expect(
-    Math.abs(above - below),
-    'the column is off the window’s vertical centre',
+    Math.abs(top - below),
+    `${card}: the column is off the window’s vertical centre`,
   ).toBeLessThanOrEqual(48);
 }

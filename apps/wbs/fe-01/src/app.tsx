@@ -178,41 +178,42 @@ const UNANSWERED_COPY = {
   },
 } as const;
 
-/**
- * The signed-out column's top padding: half the refused sign-in column's height
- * (about 31.5rem at 1440 and 375) above the window's middle, never under 1rem,
- * so the resting sign-in page sits 12px high and a refusal only adds below.
- * Literal, so Tailwind sees it.
- *
- * **One anchor for every card** (UI review F-125, decision D11): the word mark
- * is the signed-out page's fixed point. Each card once padded by half its own
- * height (9.5rem for the server-unavailable card), which centred each column
- * on its own and dropped the word mark 96px between sign-in and outage at every
- * width — so a Try again that succeeded jumped the page's one landmark. Under
- * this anchor the outage card stands about 188px above true centre at 1440
- * (the F-093 trade, now taken the other way): surfaces grow downward from the
- * word mark (D3), whichever card is under it.
- *
- * Proof: `e2e/sign-in.spec.ts` `stands at one height on every signed-out card`
- * failed at 1440, 1024 and 375 on `server unavailable: the word mark moved ·
- * Expected: <= 0.5 · Received: 96` with the per-card paddings. Watched
- * 2026-10-16.
- */
-const COLUMN_ANCHOR = 'pt-[max(1rem,calc(50dvh-15.5rem))]';
-
-/** Which card the signed-out column holds: a hook for tests, never a layout input. */
+/** Which card the signed-out column holds: a hook for tests, and where it stands. */
 type SignedOutCard = 'sign-in' | 'outage';
+
+/**
+ * Where each signed-out card stands: every one centred in the window on its
+ * own (Dany, 2026-10-18, reversing D11 and UI review F-125's one anchor), so
+ * the word mark moves when a Try again lands on another card.
+ *
+ * The sign-in card is centred by its top rather than by the grid, because its
+ * refusal row opens on the same card and a grid-centred column re-centred,
+ * lifting the heading 16px (F-090, the D3 rule that surfaces grow downward).
+ * Its top is half the refused column's height (about 31.5rem at 1440 and 375)
+ * above the window's middle, never under 1rem, so at rest it reads as centred
+ * and the refusal only adds below. The outage and access-refused cards open
+ * nothing, so the grid centres them; `py-4` keeps the 1rem gutter when the
+ * window is shorter than the card and the page scrolls instead.
+ *
+ * Literals, so Tailwind sees them.
+ *
+ * Proof: `e2e/sign-in.spec.ts` `centres each card` failed at 1440×900, 1024,
+ * 375, 1440×600 and 375×568 on `outage: the column is off the window’s
+ * vertical centre · Expected: <= 48 · Received: 188` while every card hung
+ * from the sign-in anchor. Watched 2026-10-18.
+ */
+const CARD_PLACEMENT: Readonly<Record<SignedOutCard, string>> = {
+  'sign-in': 'items-start pt-[max(1rem,calc(50dvh-15.5rem))] pb-4',
+  outage: 'content-center py-4',
+};
 
 /**
  * The signed-out page's one column (UI review F-052): the word mark, one line
  * saying what the product is, and the card the caller passes — the sign-in
  * panel, or the outage card (F-093), so both pages share one layout.
  *
- * Anchored by its top rather than centred (F-090, the D3 rule that surfaces
- * grow downward): a centred column re-centred when the refusal line opened,
- * lifting the heading 16px. The top sits half the column's height above the
- * window's middle, so at rest it reads as centred and anything that opens only
- * adds below. Every card shares that one anchor, {@link COLUMN_ANCHOR}.
+ * Each card is centred in the window on its own; {@link CARD_PLACEMENT} says
+ * how, and why the sign-in card is centred by its top.
  *
  * The heading is the tracer for the Tailwind integration, and still the
  * assertion `e2e/tailwind.spec.ts` reads the computed letter-spacing off. The
@@ -237,8 +238,8 @@ function SignedOutPage({
     <main
       data-signed-out={card}
       className={cn(
-        'bg-background text-foreground grid min-h-full items-start justify-items-center px-4 pb-4 font-sans sm:px-8',
-        COLUMN_ANCHOR,
+        'bg-background text-foreground grid min-h-full justify-items-center px-4 font-sans sm:px-8',
+        CARD_PLACEMENT[card],
       )}
     >
       <div data-sign-in className="grid w-full max-w-sm gap-6">
