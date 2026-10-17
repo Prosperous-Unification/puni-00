@@ -1409,3 +1409,61 @@ and is disqualified; an authorized1400MiB retry captured the actual diagnostic a
 the corrected check passed at997/994MB respectively. No full h2 gate, browser check
 or deployment completion is claimed by these local scoped receipts. Normal commit
 hooks and containing-commit delivery receipts are recorded externally afterward.
+
+## Exact migration inventory follow-up (2026-10-17)
+
+The isolated host gate exposed frozen migration expectations left behind by the
+new `20261015110000_add_step_node_parallelism` folder. Single reader-inventory and
+shared-people downgrade cases failed with only that extra actual name. Sixty
+literal sites in thirty tests now preserve the exact original order and add the
+new name at the descending head or ascending tail, or update the newest-name
+scalar. Actual pre-parallel baselines and receipt-ledger fault injection remain
+unchanged. Three post-down table expectations additionally exclude the table
+that the new down script removes; their observed RED showed only that extra
+expected `step_parallel`. No migration SQL or production rollback code changed.
+
+A separate SQLite fixture uses `satisfies StepRemoved` to retain its discriminant;
+the spec typecheck first reproduced two TS2769 errors, then passed. The lib check
+exceeded1400MiB before diagnostics; its authorized1800MiB retry passed. An initial
+root `--project tsconfig.json` noEmit invocation selected no files/references and
+is explicitly not typecheck evidence. The actual lib and spec projects were
+checked independently.
+
+R5 independently filtered the sparse migration out of the production folder
+reader and out of rollback selection. Each failed its intended exact equality;
+both files were restored byte-for-byte. The existing installed SQLite controls
+also passed real empty down/forward preservation of work items and retained-fact
+rollback refusal. Representative adjacent Proof comments name the observed
+reader and selection failures.
+
+The corrected SQLite selection passed532 tests in29 files:28 affected files plus
+the Step parallel tests. The affected browser-auth rollback case and backend
+migration CLI case passed separately. The browser concurrency test in the first
+29-file attempt failed on sandbox child-stdin EPERM; that run also captured the
+three table-inventory REDs and is not green evidence. A full backend attempt
+failed sandbox socket setup and was resource-killed before its summary; host
+exact gating remains required. These bounded checks do not establish full backend,
+full tool-devsync, browser or deployment completion.
+
+Gate workspace safety is documented once in
+[the dev runbook](../../../docs/runbook-dev-deploy.md#gate-workspace-safety), linked
+by AGENTS.md. The relay feasibility README now links actual tracked focused
+receipts while retaining the evidence directory locations in prose; both current
+document link/exemption checks changed from2 failures to2 passes without adding
+exemptions or modifying their checker. Full namespacing-file results and all
+command receipts/limits are recorded with this follow-up's evidence packet.
+
+The production index oracle then exposed six imported Step files absent from two
+exact module memberships: three memory adapter files and three work-item tests.
+Their exact paths were added without broader selectors or exclusions. Actual
+production checks first named each missing index; the restored index check passed
+separately under1800MiB. All remaining14 namespacing-file cases passed together
+under900MiB. The whole-file900/1400MiB and isolated-index1400MiB attempts were
+resource-killed and cannot qualify. This covers all15 cases through split runs,
+not a successful whole-file process. The other unidentified host tool-devsync
+failures remain outside these local observations.
+
+Receipts are retained in
+`evidence/integration-migration-gate-2026-10-17/manifest.json`, including the exact
+host reflog used by the safety runbook (UTC). Normal commit hooks and final
+containing-commit identity are external delivery receipts after review.

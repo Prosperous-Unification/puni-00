@@ -45,6 +45,8 @@
 
 - [x] 3.7 Repair integration validation: retain evidence bytes with non-executable modes, exhaustively assert sparse step 409, type the memory refusal fixture, and align both independent conformance inventories; prove omitted registration and inventory ID.
 
+- [x] 3.8 Update frozen migration, rollback and post-down table inventories for the sparse migration; type SQLite refusal fixtures; prove independent reader/selection omissions and real down/up preservation.
+
 ## 4. Resolution, scheduling and UI
 
 - [x] 4.0 Add the pure concrete-node resolver only: detached inherited/explicit provenance, exact pair and both maximum validations; prove equality, sibling isolation, mutation isolation and resource-rule composition independently. Keep all consumers unchanged.

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { assertStepParallelRefusal } from '@wbs/conformance';
+import type { StepRemoved } from '@wbs/core';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildStores } from './build-stores';
@@ -183,7 +184,7 @@ for (const cascade of [false, true])
       ok: false,
       reason: 'referenced_by_step_parallel',
       nodes: [{ workItemId: 'a', stepId: 'dev' }],
-    };
+    } satisfies StepRemoved;
     expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual(refusal);
     expect(tables.map((table) => connection.db.all(`SELECT * FROM ${table}`))).toEqual(before);
     await uow.run(async ({ stores }) => {

@@ -202,7 +202,7 @@ RSS**, zero swaps. RSS is not a summed simultaneous tree measurement. The new
 command allowlist and executable digest checks each have a watched omission
 failure. Full local Nx gates, project ESLint/typecheck, h2puni gate, CI, deployment
 and production CRI acceptance were not run. All receipts and source identities
-are in [evidence/cri](evidence/cri).
+are retained under `evidence/cri/`; see the [focused receipt](evidence/cri/focused.log.json).
 
 Independent review of `b08f61f22` found three evidence gaps, corrected in its
 successor: direct baselines explicitly bind **both** private endpoints despite an
@@ -210,7 +210,8 @@ inherited image-service trap; List requires native exit 1 and exact child-exit
 diagnostic; launched commands require exactly one valid CHILD PID receipt and
 prelaunch refusals require none. Watched endpoint omission, wrong List diagnostic,
 missing CHILD and malformed CHILD faults all fail their consuming checks.
-[Review receipts](evidence/cri/review) retain the raw red/green outputs and updated
+Review receipts under `evidence/cri/review/`, including the
+[restored control](evidence/cri/review/focused-green.log.json), retain the raw red/green outputs and updated
 source hashes. The restored CRI control passed 2 cases / 5 assertions in 590ms,
 maximum RSS 56,252 KiB; generic regression passed 26 cases / 117 assertions in
 28.72s, maximum RSS 34,348 KiB; both reported zero swaps. These correct observation
