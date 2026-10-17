@@ -1,0 +1,105 @@
+{
+  "changeName": "set-step-node-parallelism",
+  "schemaName": "spec-driven",
+  "planningHome": {
+    "kind": "repo",
+    "root": "/tmp/puni-delete-owner-20261017",
+    "changesDir": "/tmp/puni-delete-owner-20261017/openspec/changes",
+    "defaultSchema": "spec-driven"
+  },
+  "changeRoot": "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism",
+  "artifactPaths": {
+    "proposal": {
+      "outputPath": "proposal.md",
+      "resolvedOutputPath": "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/proposal.md",
+      "existingOutputPaths": [
+        "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/proposal.md"
+      ]
+    },
+    "specs": {
+      "outputPath": "specs/**/*.md",
+      "resolvedOutputPath": "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/specs/**/*.md",
+      "existingOutputPaths": [
+        "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md"
+      ]
+    },
+    "design": {
+      "outputPath": "design.md",
+      "resolvedOutputPath": "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/design.md",
+      "existingOutputPaths": [
+        "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/design.md"
+      ]
+    },
+    "tasks": {
+      "outputPath": "tasks.md",
+      "resolvedOutputPath": "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/tasks.md",
+      "existingOutputPaths": [
+        "/tmp/puni-delete-owner-20261017/openspec/changes/set-step-node-parallelism/tasks.md"
+      ]
+    }
+  },
+  "isPlanningComplete": true,
+  "isComplete": true,
+  "applyRequires": [
+    "tasks"
+  ],
+  "nextSteps": [
+    "All planning artifacts are complete. Run openspec instructions apply --change \"set-step-node-parallelism\" --json to inspect implementation progress."
+  ],
+  "actionContext": {
+    "mode": "repo-local",
+    "sourceOfTruth": "repo",
+    "planningArtifacts": [
+      "proposal",
+      "specs",
+      "design",
+      "tasks"
+    ],
+    "linkedContext": [],
+    "allowedEditRoots": [
+      "/tmp/puni-delete-owner-20261017"
+    ],
+    "requiresAffectedAreaSelection": false,
+    "constraints": [
+      "Repo-local change artifacts and implementation edits are scoped to this project."
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "proposal",
+      "outputPath": "proposal.md",
+      "status": "done",
+      "requires": []
+    },
+    {
+      "id": "specs",
+      "outputPath": "specs/**/*.md",
+      "status": "done",
+      "requires": [
+        "proposal"
+      ]
+    },
+    {
+      "id": "design",
+      "outputPath": "design.md",
+      "status": "done",
+      "requires": [
+        "proposal"
+      ]
+    },
+    {
+      "id": "tasks",
+      "outputPath": "tasks.md",
+      "status": "done",
+      "requires": [
+        "specs",
+        "design"
+      ]
+    }
+  ],
+  "root": {
+    "path": "/tmp/puni-delete-owner-20261017",
+    "source": "nearest"
+  }
+}
+{"ceilingBytes": 943718400, "sampledPeakBytes": 76955648, "exitCode": 0}

@@ -1,0 +1,32 @@
+[
+  {
+    "check": "format",
+    "argv": [
+      "bunx",
+      "prettier",
+      "--write",
+      "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+      "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts",
+      "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts",
+      "openspec/changes/set-step-node-parallelism/design.md",
+      "openspec/changes/set-step-node-parallelism/tasks.md",
+      "openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md",
+      "openspec/changes/set-step-node-parallelism/verify.md"
+    ],
+    "capMiB": 900,
+    "exitCode": 0
+  },
+  {
+    "check": "type-work-item",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/work-item/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "capMiB": 900,
+    "exitCode": 137
+  }
+]

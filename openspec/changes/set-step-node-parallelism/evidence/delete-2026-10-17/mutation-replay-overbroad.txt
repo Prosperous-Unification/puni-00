@@ -1,0 +1,80 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:
+228 |           patchRead.mockRestore();
+229 |           sparseRead?.mockRestore();
+230 |         }
+231 |         expect(appliedNames).toEqual(policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch']);
+232 |         if (policy === 'empty' || policy === 'unrelated') {
+233 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:233:33)
+(fail) redo-leaf unrelated sparse policy preserves replay atomicity and history policy [377.90ms]
+228 |           patchRead.mockRestore();
+229 |           sparseRead?.mockRestore();
+230 |         }
+231 |         expect(appliedNames).toEqual(policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch']);
+232 |         if (policy === 'empty' || policy === 'unrelated') {
+233 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:233:33)
+(fail) redo-cascade unrelated sparse policy preserves replay atomicity and history policy [314.81ms]
+228 |           patchRead.mockRestore();
+229 |           sparseRead?.mockRestore();
+230 |         }
+231 |         expect(appliedNames).toEqual(policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch']);
+232 |         if (policy === 'empty' || policy === 'unrelated') {
+233 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:233:33)
+(fail) undo-create unrelated sparse policy preserves replay atomicity and history policy [261.32ms]
+228 |           patchRead.mockRestore();
+229 |           sparseRead?.mockRestore();
+230 |         }
+231 |         expect(appliedNames).toEqual(policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch']);
+232 |         if (policy === 'empty' || policy === 'unrelated') {
+233 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:233:33)
+(fail) undo-duplicate unrelated sparse policy preserves replay atomicity and history policy [259.90ms]
+271 |     const policy = h.sqlite.query('SELECT * FROM step_parallel ORDER BY work_item_id,step_id').all();
+272 |     expect((await h.call('owner', 'POST', `/api/projects/${projectId}/commands`, { commands: [{ kind: 'deleteWorkItem', workItemId: 'root', strategy: 'promote' }] })).status).toBe(200);
+273 |     expect(h.sqlite.query("SELECT parent_id FROM work_item WHERE id = 'child'").get()).toEqual({ parent_id: null });
+274 |     expect(h.sqlite.query('SELECT * FROM step_parallel ORDER BY work_item_id,step_id').all()).toEqual(policy);
+275 |     expect((await h.call('owner', 'POST', `/api/projects/${projectId}/undo`)).status).toBe(200);
+276 |     expect((await h.call('owner', 'POST', `/api/projects/${projectId}/redo`)).status).toBe(200);
+                                                                                            ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:276:87)
+(fail) promote delete and redo retain surviving child sparse policy [294.05ms]
+
+ 0 pass
+ 22 filtered out
+ 5 fail
+ 32 expect() calls
+Ran 5 tests across 1 file. [3.48s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 642695168, "exitCode": 1}

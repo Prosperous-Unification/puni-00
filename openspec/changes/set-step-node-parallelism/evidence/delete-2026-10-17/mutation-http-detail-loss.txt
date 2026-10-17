@@ -1,0 +1,44 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:
+123 |                   { kind: 'deleteWorkItem', ...deletion },
+124 |                 ],
+125 |               }
+126 |             : { commands: [{ kind: 'deleteWorkItem', ...deletion }] },
+127 |         );
+128 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+      "at": 0,
+      "error": "referenced_by_step_parallel",
+      "kind": "deleteWorkItem",
+-     "nodes": [
+-       {
+-         "stepId": "3f9a2568-fa59-47e7-8e78-55c6363f4a42",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "a38ad122-4131-42e5-9a56-281d0c8ec593",
+-         "workItemId": "parent",
+-       },
+-     ],
++     "nodes": [],
+    },
+    "status": 409,
+  }
+
+- Expected  - 10
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:128:24)
+(fail) delete sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [550.25ms]
+
+ 0 pass
+ 26 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.51s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 638566400, "exitCode": 1}

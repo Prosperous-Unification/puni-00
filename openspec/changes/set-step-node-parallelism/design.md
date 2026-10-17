@@ -128,3 +128,21 @@ membership validation and refuses valid retained policy through `ApplyOutcome`; 
 surfaces `stale_undo`, rolls back replay writes and discards the stale history entry under
 existing policy. Corrupt trusted evidence throws. This bounded refusal does not enable
 remapping, public writing, schema/version changes or complete the lifecycle parent task.
+
+## Work-item deletion preservation prerequisite (2026-10-17)
+
+`step_parallel.work_item_id` cascades with work-item removal while deletion snapshots do
+not yet own sparse facts. Forward deletion therefore reads only the owners it removes:
+the exact subtree for leaf/cascade, the root alone for promote. The required admitted
+reader runs after authorization, context and required strategy checks, before stamping,
+ID allocation or mutation. Retained valid facts yield detached ordered references under
+`referenced_by_step_parallel` and the existing shared command HTTP 409 schema. Surviving
+promoted children and unrelated owners keep their facts; selected corrupt facts throw.
+
+`applyDelete` independently reads `command.remove` after trusted replay root/subtree,
+metadata and other pre-mutation checks. This covers redo-delete, undo-create and
+undo-duplicate without depending on operation names or owner revision drift. Retained
+valid policy refuses through `ApplyOutcome`, so the runner rolls back earlier replay
+writes and discards the stale entry under existing `stale_undo` policy. Unreadable or
+corrupt evidence throws, preserves the exact journal and returns HTTP 500. No sparse
+history schema, remapping, adapter/schema/migration or public writer ships in this slice.

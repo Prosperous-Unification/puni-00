@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+192 |   const refused = await workItems.remove('parent', 'owner', null);
+193 |   const expected = { ok: false, reason: 'referenced_by_step_parallel', nodes: [{ workItemId: 'parent', stepId: 'dev' }] };
+194 |   expect(refused).toEqual(expected);
+195 |   fact.workItemId = 'mutated';
+196 |   fact.stepId = 'mutated-step';
+197 |   expect(refused).toEqual(expected);
+                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+-       "stepId": "dev",
+-       "workItemId": "parent",
++       "stepId": [native code],
++       "workItemId": [native code],
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:197:19)
+(fail) copies detached exact refusal nodes and allows deletion when cleared [14.74ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.88s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 510849024, "exitCode": 1}

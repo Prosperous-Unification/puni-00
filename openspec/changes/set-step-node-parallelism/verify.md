@@ -863,3 +863,97 @@ reason external activation root not provisioned; no active certification is clai
 Both trailer stages remain in the effective config for the subsequent normal commit.
 Raw output and SHA256 are retained beside the display log. Final receipt staging and
 normal local commit remain pending root authorization; no public push or deployment.
+
+## Work-item deletion preservation prerequisite (2026-10-17)
+
+Base: `a990d0695b35e711d5fe93da22b66708e3bbe43e`, tree
+`63d624e2783ffcb1e651ce27edc4ebf60fb493c9`, isolated clone
+`/tmp/puni-delete-owner-20261017`. Complete-history bundle SHA256 matched
+`71de3471ba47dd5c83ab61cad0fce2a6c0eda955dfc3ed34b8bc7a46756a3ca9`.
+The predecessor dependency binding was reused only after both `bun.lock` hashes matched
+`15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c`.
+Every Bun/Nx process is serialized through the PM lane and monitored by
+`/tmp/runtime-rss-guard.py` under a 900MiB process-tree ceiling unless a measured
+refusal and explicit one-shot authorization are recorded.
+
+Evidence: `evidence/delete-2026-10-17/`. Initial memory RED was **0 pass / 12 fail**,
+peak **499,265,536 bytes**. Retained forward policy returned success; poisoned,
+missing and corrupt trusted reads resolved without consultation. Initial mounted RED
+was **13 pass / 14 fail**, peak **594,288,640 bytes**. Single/mixed command refusals
+returned 200 instead of exact 409; redo-leaf, redo-cascade, undo-create and undo-duplicate
+each returned 200 instead of 409 for retained policy or 500 for throw/corruption.
+Unrelated, empty and ordinary revision-stale controls passed, as did promote forward/redo.
+No fixture failures were disqualified from these RED receipts.
+
+After the two guards, memory GREEN was **12 pass / 0 fail / 46 assertions**,
+peak **504,459,264 bytes**; mounted GREEN was **27 pass / 0 fail / 235 assertions**,
+peak **638,824,448 bytes**. The replay fixtures inject sparse facts using raw SQL and
+assert owner revision is unchanged, then observe the real repository's preceding
+patch before policy refusal or trusted-state failure. Valid policy rolls back every
+captured table and discards the stale entry; thrown/corrupt evidence rolls back those
+tables and preserves the complete journal bytes. Promote and unrelated sparse owners
+survive forward removal and replay. No public writer or sparse snapshot/remapping ships.
+
+Pinned OpenSpec 1.12.0 status, apply instructions and selected strict validation each
+exited0 under900MiB, peaks **76,955,648**, **77,860,864** and **71,593,984 bytes**.
+The artifact schema is spec-driven; broader lifecycle, transfer, public writer and
+release tasks stay open. Full host gate, broader Nx suites, build and deployment have
+not been run in this laptop slice; final integration must gate the exact commit on h2puni.
+
+R5 faults: `prove.py` and `mutation-receipts-all.json` record **20 independent
+watched production-path failures**, each exit1 under900MiB. Maximum peak was
+**642,695,168 bytes** for overbroad replay selection. Forward probes omit the guard,
+select only the root, name the wrong owner/project, broaden to the project, read before
+context/authorization or required strategy, move lookup after statement removal,
+swallow trusted errors, refuse empty policy, lose details, or return getter aliases
+bound to mutable supplied facts. Other probes bypass the admitted sparse reader or
+strip shared command HTTP details. Replay probes omit the guard, select only the root,
+restrict it to delete metadata (missing undo-create/undo-duplicate), broaden to surviving
+owners, convert exceptions to stale policy, or move lookup after owner deletion.
+Every probe failed its named production test; no runtime attempt survived, hit the
+cap, or was disqualified. A static ambiguous method-name anchor was corrected before
+running the harness because blockage reads share `listByWorkItems`.
+
+Each receipt records original, mutated and restored SHA256. Service restoration was
+`fa7436753ea16ab47b2a3d8a2bf8e715e06767adc4e5d1bfeecb8d08313178e9` before
+adding observed adjacent Proof comments; the working-plan and command-binding files
+also restored exactly. The added comments describe observed faults, not planned tests.
+
+Final scoped checks and review: PM-reported Astra-high review verified the seven
+static candidate hashes and all 20 fault receipts, with no P0–P3 findings. Subsequent
+changes are formatting, verification/task bookkeeping and one test expected literal
+made `as const` for Bun's typed equality matcher. Initial WorkItem tsc at900MiB was
+killed137 at **945,676,288 bytes**; this is a resource refusal, not type evidence.
+The first explicitly authorized1280MiB retry produced two TS2769 matcher diagnostics
+at **942,739,456 bytes**. After the test-only literal fix, the separately authorized
+retry exited0 at **932,929,536 bytes**. PlanCommand tsc similarly hit900MiB at
+**944,275,456 bytes**, then its authorized1280MiB retry exited0 at **959,811,584 bytes**.
+Each increase followed fresh available-memory output and explicit PM authorization.
+
+Fresh Nx graph generation exited0 at **408,006,656 bytes**, using the supported
+main-process plugin fallback after the sandbox socket refusal. Graph-backed ESLint
+exited0 for the service at **825,098,240 bytes** and memory test at **757,030,912 bytes**.
+Mounted test lint hit900MiB at **944,992,256 bytes** before its separately authorized
+1280MiB retry passed at **985,821,184 bytes**. There were no skipped module-boundary
+warnings. Injecting an actual core import of the SQLite adapter failed the active
+`@nx/enforce-module-boundaries` rule (exit1, **877,199,360 bytes**); bytes restored exactly.
+
+Final focused memory suites (delete, first-child, move and WorkItem resource) passed
+**170 tests / 495 assertions**, peak **533,966,848 bytes**. The three mounted sparse
+preservation suites passed **41 tests / 382 assertions**, peak **597,417,984 bytes**.
+Pinned selected strict validation and required `validate --all --json` exited0;
+all validation reported **212 passed / 0 failed**, peak **135,729,152 bytes**.
+
+Normal hook installation exited0. Ignored local Lefthook configuration serializes
+all required commands and per-file real ESLint without disabling any rule. The seven
+`hook-proof-receipts.json` cases establish exact three-path coverage and refusal of
+first/middle/last failures; omitting `-e` wrongly exits0, and empty selection exits64
+while removing its guard wrongly exits0. A real staged unused declaration independently
+failed normal Lefthook lint via `@typescript-eslint/no-unused-vars` (exit1,
+**890,683,392 bytes**); both bytes and index restored. Full normal pre-commit under900MiB
+was killed137 at **955,985,920 bytes**, so that attempt proves no complete hook success.
+After fresh memory and explicit PM authorization, all eight normal required commands
+passed serially under1280MiB (exit0, **1,075,503,104 bytes**). Tool Wiki's observed
+status was inactive/not-certified because the external activation root is not provisioned;
+this run does not certify Tool Wiki activation. Normal commit hooks execute again;
+the commit receipt is retained externally to avoid changing the committed tree afterward.

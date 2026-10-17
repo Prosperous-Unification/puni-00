@@ -1,0 +1,10 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  pre-commit │
+╰───────────────────────────────────────╯
+┃  doc-caps ❯
+
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 955985920, "killed": true}

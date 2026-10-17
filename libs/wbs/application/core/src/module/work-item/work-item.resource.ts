@@ -3508,11 +3508,19 @@ export class WorkItemService {
     return { ok: true, value: { id: copyOf(id) } };
   }
 
+  /**
+   * Refuses retained sparse facts on the exact removed owners before stamping or
+   * writes; promote retains child owners. Corrupt or unreadable facts throw.
+   * Command scopes own atomic rollback until sparse snapshot/history support exists.
+   */
   async remove(
     id: string,
     actorId: string,
     strategy: DeleteStrategy | null,
-  ): Promise<WorkItemOutcome<null>> {
+  ): Promise<
+    | WorkItemOutcome<null>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3523,6 +3531,21 @@ export class WorkItemService {
     // A parent carries work below it that the caller may not have on screen, so
     // which of the two things they meant is theirs to say.
     if (children.length > 0 && strategy === null) return { ok: false, reason: 'strategy_required' };
+
+    // Proof: omission/root-only/wrong-owner/project and broad selection each failed
+    // exact leaf/cascade or promote-policy tests; early lookup broke missing/auth/
+    // strategy precedence, and late lookup changed the statement snapshot, 2026-10-17.
+    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, doomed);
+    if (parallels.length > 0) {
+      return {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        // Proof: empty details and getter aliases independently failed detached
+        // exact-node assertions; swallowed/absent readers failed before stamps, 2026-10-17.
+        nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+      };
+    }
 
     // Before the branch rather than inside each of them: whichever of the two a
     // delete takes, it is one act, and the hand-ups it writes on the surviving
@@ -3553,7 +3576,6 @@ export class WorkItemService {
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
-    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
     const deletedBlockages = storedBlockages.filter((fact) => inside.has(fact.workItemId));
     const previousParentProgress = storedProgress.filter((fact) => fact.workItemId === survivor);
@@ -6484,6 +6506,11 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * Refuses deletion of retained sparse owners on every compensating path.
+   * Trusted sparse read failures throw, preserving the journal on rollback;
+   * valid retained policy follows the existing stale-history discard outcome.
+   */
   private async applyDelete(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
@@ -6540,6 +6567,16 @@ export class WorkItemService {
       return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    // Proof: omission, root-only and operation-restricted reads erased retained
+    // owners on redo-delete/undo-create/undo-duplicate; broad reads blocked unrelated
+    // and promoted facts. Catch-to-stale returned 409 rather than 500 and late lookup
+    // failed owned-policy replay; observed preceding patches rolled back, 2026-10-17.
+    const parallels = await this.opts.stepParallels.listByWorkItems(projectId, command.remove);
+    if (parallels.length > 0)
+      return {
+        ok: false,
+        detail: 'a removed work item has step parallelism stated since this command.',
+      };
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)

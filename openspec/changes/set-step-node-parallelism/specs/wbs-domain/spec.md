@@ -276,3 +276,45 @@ selected policy SHALL preserve movement and unrelated or incoming-subtree sparse
 - **THEN** replay refuses as stale_undo even when destination revision is unchanged
 - **AND** replay writes roll back and the stale history entry is discarded by existing policy
 - **AND** replay with no destination policy succeeds while unrelated sparse facts survive
+
+### Requirement: Work-item deletion refuses retained sparse owners
+
+Before sparse deletion snapshots and history ownership exist, work-item removal SHALL
+refuse retained sparse parallelism on the exact removed owners, including explicit equality
+with a row default. Leaf and cascade removal SHALL select the removed subtree; promote
+SHALL select only its removed root. Valid facts SHALL yield `referenced_by_step_parallel`
+with detached exact node references in authoritative store order through HTTP 409, including
+command index/kind. Authorization, missing context and required strategy refusals SHALL
+precede evidence lookup. Evidence SHALL come from the admitted source scope before stamping,
+ID allocation or mutation. Forward refusal SHALL leave statements, sparse facts, revisions,
+events and journal unchanged; a mixed command refusal SHALL roll back earlier writes.
+Missing, unreadable or corrupt trusted sparse evidence SHALL throw without deletion.
+
+Compensating deletion SHALL independently read its exact `remove` owners before mutation,
+after trusted root, subtree and metadata checks, for redo-delete, undo-create and
+undo-duplicate. Retained valid policy SHALL produce `stale_undo`, roll back preceding replay
+writes and discard the stale entry under existing history policy. Trusted-state read failure
+SHALL propagate as HTTP 500 and preserve the exact journal. Empty policy and unrelated or
+surviving promoted-child policy SHALL retain existing deletion and replay behavior.
+
+#### Scenario: Cascade retains descendant equality
+
+- **GIVEN** two descendant leaves hold Dev and QA overrides, including explicit equality
+- **WHEN** their ancestor is removed with cascade
+- **THEN** removal refuses with exactly those descendant references before any writes
+- **AND** promoting the ancestor preserves the surviving descendants and every sparse fact
+
+#### Scenario: Newly authored policy blocks compensating deletion without revision drift
+
+- **GIVEN** a completed delete followed by undo, create, or duplicate with one history entry
+- **AND** a removed owner gains a sparse fact without changing its revision
+- **WHEN** redo-delete, undo-create, or undo-duplicate applies a preceding replay patch
+- **THEN** deletion refuses as stale_undo and that patch is rolled back
+- **AND** the existing stale-history policy discards the entry while retaining every fact
+
+#### Scenario: Trusted read failure preserves replay history
+
+- **GIVEN** compensating deletion follows a replay patch
+- **WHEN** its required sparse reader throws or returns corrupt trusted facts
+- **THEN** HTTP returns 500 and rolls back the patch and all deletion state
+- **AND** the exact original journal entry remains available

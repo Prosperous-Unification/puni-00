@@ -1,0 +1,78 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+111 |       const { workItems } = installWorkItem(fixture.requirements);
+112 |       expect(await workItems.remove('parent', 'owner', strategy)).toEqual({
+113 |         ok: false, reason: 'referenced_by_step_parallel',
+114 |         nodes: [{ workItemId: 'parent', stepId: 'dev' }, { workItemId: 'parent', stepId: 'qa' }],
+115 |       });
+116 |       expect(await fixture.snapshot()).toEqual(before);
+                                             ^
+error: expect(received).toEqual(expected)
+
+@@ -84,17 +84,11 @@
+      },
+    ],
+    [],
+    [],
+    [],
+-   [
+-     {
+-       "blockedAt": 1,
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
++   [],
+    [],
+    {
+      "assignments": [],
+      "people": [],
+    },
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:116:40)
+(fail) delete sparse owner preservation > refuses leaf null with exact equal-default pairs before stamps or writes [17.99ms]
+111 |       const { workItems } = installWorkItem(fixture.requirements);
+112 |       expect(await workItems.remove('parent', 'owner', strategy)).toEqual({
+113 |         ok: false, reason: 'referenced_by_step_parallel',
+114 |         nodes: [{ workItemId: 'parent', stepId: 'dev' }, { workItemId: 'parent', stepId: 'qa' }],
+115 |       });
+116 |       expect(await fixture.snapshot()).toEqual(before);
+                                             ^
+error: expect(received).toEqual(expected)
+
+@@ -84,17 +84,11 @@
+      },
+    ],
+    [],
+    [],
+    [],
+-   [
+-     {
+-       "blockedAt": 1,
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
++   [],
+    [],
+    {
+      "assignments": [],
+      "people": [],
+    },
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:116:40)
+(fail) delete sparse owner preservation > refuses leaf cascade with exact equal-default pairs before stamps or writes [3.32ms]
+
+ 0 pass
+ 10 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [1.83s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 504029184, "exitCode": 1}
