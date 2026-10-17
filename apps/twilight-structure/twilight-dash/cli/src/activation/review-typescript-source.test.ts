@@ -71,7 +71,7 @@ test('source owners precede census and provenance joins candidate and runtime', 
   const f = setup();
   const poison = {
     ...f.namespace,
-    get nodes() {
+    get nodes(): typeof f.namespace.nodes {
       throw new Error('census touched');
     },
   };
@@ -314,10 +314,11 @@ test('all direct methods survive removed roots and intercepted ambient ports', (
   ];
   const original = process.env['GIT_OBJECT_DIRECTORY'];
   try {
+    const rejectAmbient = (): never => {
+      throw new Error('ambient forbidden');
+    };
     for (const trap of traps)
-      trap.mockImplementation(() => {
-        throw new Error('ambient forbidden');
-      });
+      trap.mockImplementation(Object.assign(rejectAmbient, { native: rejectAmbient }));
     process.env['GIT_OBJECT_DIRECTORY'] = '/forbidden';
     for (const method of [
       () => fs.readFileSync('x'),

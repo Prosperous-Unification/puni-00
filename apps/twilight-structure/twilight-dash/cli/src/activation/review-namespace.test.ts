@@ -212,10 +212,12 @@ test.each(['sha1', 'sha256'] as const)(
         '/__puni_review__/candidate/node_modules/pkg',
         '/__puni_review__/candidate/node_modules/pkg/index.d.ts',
       ]);
-      expect(namespace.nodes.find((node) => node.kind === 'candidate-file')?.source).toEqual(
+      expect(namespace.nodes.find((node) => node.kind === 'candidate-file')).toHaveProperty(
+        'source',
         f.candidate.snapshot.entries.find((entry) => entry.path === 'a.ts'),
       );
-      expect(namespace.nodes.find((node) => node.kind === 'candidate-symlink')?.source).toEqual(
+      expect(namespace.nodes.find((node) => node.kind === 'candidate-symlink')).toHaveProperty(
+        'source',
         f.candidate.snapshot.entries.find((entry) => entry.path === 'link'),
       );
       expect(namespace.nodes.find((node) => node.kind === 'runtime-file')?.source).toEqual(
@@ -259,7 +261,7 @@ test('rejects copied candidate before accessing either census', () => {
   const f = fixture();
   const fakeCandidate = {
     ...f.candidate,
-    get snapshot() {
+    get snapshot(): typeof f.candidate.snapshot {
       throw new Error('candidate census accessed');
     },
   };
@@ -271,7 +273,7 @@ test('rejects copied runtime before accessing either census', () => {
   const f = fixture();
   const fakeRuntime = {
     ...f.runtime,
-    get closure() {
+    get closure(): typeof f.runtime.closure {
       throw new Error('runtime census accessed');
     },
   };
@@ -481,13 +483,14 @@ test('bounds code units before UTF8 measurement and bytes before grammar allocat
       if (text === path && path.length > 1024) throw new Error('forbidden UTF8 measurement');
       return measure(text, ...args);
     });
-    const grammarTrap = spyOn(String.prototype, 'split').mockImplementation(function (
-      this: string,
-      ...args: Parameters<typeof split>
-    ) {
-      if (this === path) throw new Error('forbidden grammar allocation');
-      return split.apply(this, args);
-    });
+    const grammarTrap = spyOn(String.prototype, 'split').mockImplementation(
+      new Proxy(split, {
+        apply(target, receiver, args): unknown {
+          if (receiver === path) throw new Error('forbidden grammar allocation');
+          return Reflect.apply(target, receiver, args);
+        },
+      }),
+    );
     try {
       expect(() => createRetainedNamespace(injected.candidate, f.runtime, limits)).toThrow(
         'namespace path ceiling',

@@ -336,14 +336,16 @@ test('capture detects a same-byte file mutation during the bounded read', () => 
   const read = fs.readSync;
   let changed = false;
   const probe = spyOn(fs, 'readSync').mockImplementation(
-    (...args: Parameters<typeof fs.readSync>) => {
-      const count = read(...args);
-      if (!changed) {
-        changed = true;
-        chmodSync(join(input.runtimeRoot, 'parser.js'), 0o600);
-      }
-      return count;
-    },
+    new Proxy(read, {
+      apply(target, receiver, args): unknown {
+        const count: unknown = Reflect.apply(target, receiver, args);
+        if (!changed) {
+          changed = true;
+          chmodSync(join(input.runtimeRoot, 'parser.js'), 0o600);
+        }
+        return count;
+      },
+    }),
   );
   try {
     expect(() => readReviewRuntime(input)).toThrow('identity or length');
@@ -380,7 +382,7 @@ test('a FIFO refuses without waiting for a writer', async () => {
     [
       'bun',
       '-e',
-      `import { readReviewRuntime } from './apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts'; const input = JSON.parse(process.argv[1]); input.closureBytes = Uint8Array.from(input.closureBytes); try { readReviewRuntime(input); process.exit(3); } catch { process.exit(2); }`,
+      `import { readReviewRuntime } from ${JSON.stringify(import.meta.resolve('./review-runtime.ts'))}; const input = JSON.parse(process.argv[1]); input.closureBytes = Uint8Array.from(input.closureBytes); try { readReviewRuntime(input); process.exit(3); } catch (cause) { if (!(cause instanceof Error) || cause.message !== 'runtime file unreadable') throw cause; process.exit(2); }`,
       JSON.stringify({ ...input, closureBytes: [...input.closureBytes] }),
     ],
     { stdout: 'ignore', stderr: 'pipe' },
@@ -391,7 +393,9 @@ test('a FIFO refuses without waiting for a writer', async () => {
     child.kill(9);
   }, 3000);
   try {
-    expect(await child.exited).toBe(2);
+    // Proof: removing O_NONBLOCK held this production child until its deadline and failed exit 2.
+    const exitCode = await child.exited;
+    expect(exitCode, await new Response(child.stderr).text()).toBe(2);
     expect(expired).toBe(false);
   } finally {
     clearTimeout(deadline);
@@ -579,11 +583,13 @@ test('publishes the captured pin after runtime file reads', () => {
   let captured = false;
   const read = fs.readSync;
   const probe = spyOn(fs, 'readSync').mockImplementation(
-    (...args: Parameters<typeof fs.readSync>) => {
-      const count = read(...args);
-      captured = true;
-      return count;
-    },
+    new Proxy(read, {
+      apply(target, receiver, args): unknown {
+        const count: unknown = Reflect.apply(target, receiver, args);
+        captured = true;
+        return count;
+      },
+    }),
   );
   try {
     const runtime = readReviewRuntime({
