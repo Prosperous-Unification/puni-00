@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+296 |         } catch (cause) {
+297 |           failures.push(cause);
+298 |         }
+299 |       }
+300 |     }
+301 |     if (failures.length === 1) throw failures[0];
+                                                    ^
+error: runtime read ceiling exceeded
+      at readReviewRuntime (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-runtime.ts:301:47)
+      at fixture (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts:166:19)
+      at setup (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:90:13)
+      at <anonymous> (/tmp/implicit-lib-parity-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:178:17)
+(fail) retained compiler implicit sha1 matches legacy after all capture roots disappear [173.44ms]
+
+ 0 pass
+ 31 filtered out
+ 1 fail
+ 85 expect() calls
+Ran 1 test across 1 file. [1133.00ms]

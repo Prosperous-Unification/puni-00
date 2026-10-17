@@ -1388,6 +1388,23 @@ extraction SHALL explicitly retain unverified runtime trust.
 - **AND** source/compiler read budgets, census bounds and whole-envelope bytes include library
   observations, with exact-fit success and one-byte-short refusal
 
+#### Scenario: Pinned implicit default libraries preserve legacy extraction
+
+- **GIVEN** captured candidate configs omit target/lib/noLib and handwritten globals, with
+  TypeScript 6.0.3's actual lib.es2025.full.d.ts recursive closure captured byte-identically
+  at the legacy @typescript/old/lib and retained namespace V1 typescript/lib locations
+- **WHEN** each SHA-1/SHA-256 replay runs after physical capture roots disappear under
+  invoked filesystem/Git/environment/cwd/ts.sys traps
+- **THEN** complete legacy relationships, declarations, configuration and compiler identities
+  match; public exports include real Document and ES5 types
+- **AND** the library census is exactly 82 raw identity/length tuples totaling 2936611 bytes,
+  matching fixed closure membership and parsed directives, excluding a declared unused library
+- **AND** absent root, direct DOM and transitive promise libraries refuse without ambient
+  fallback; physical mutation after capture cannot change retained extraction, while changed
+  valid captured indirect bytes change their census identity
+- **AND** finite source/compiler/census/envelope ceilings pass at equality and refuse one unit
+  below; each selected proof runs in a fresh serial process under a 900 MiB operational guard
+
 #### Scenario: Request admission precedes source construction
 
 - **WHEN** retained extraction receives config and public entrypoint arrays and explicit limits

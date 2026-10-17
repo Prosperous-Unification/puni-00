@@ -362,6 +362,19 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       and restored physical-dependence faults. This explicit lib:['es5'],types:[] fixture supplies
       no implicit default-lib breadth, runtime authentication, compiler read manifest or freeze;
       acceptance remains pending exact review and the required gate.
+- [ ] 2.1d.1.3e4b2 Prove pinned implicit-default standard-library legacy parity with candidate
+      target/lib/noLib and handwritten globals omitted. Pin actual TypeScript 6.0.3 default
+      lib.es2025.full.d.ts recursive closure (82 files / 2936611 raw bytes), assert exact parsed
+      directive membership, fatal UTF-8 roundtrip and owned config omissions. Compare full
+      SHA-1/SHA-256 legacy extraction after root removal under invoked ambient traps; assert
+      Document/ES5 public types, exact library census and absent unused library. Prove absent
+      root/direct DOM/indirect promise refusal, physical mutation isolation, changed indirect
+      identity and exact/short source/compiler/census/envelope limits. Watch wrong default
+      selection, namespace redirect, ESM-intercepted physical read, indirect omission/identity,
+      byte and envelope accounting faults. Run each selected test in a fresh serial process
+      under the 900 MiB process-tree guard; no combined-suite memory claim. Namespace V1,
+      production and unverified trust remain unchanged; full manifest/authentication/freeze and
+      parent .3 remain open pending independent review and required gate.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

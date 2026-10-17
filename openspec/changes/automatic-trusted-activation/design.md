@@ -2331,3 +2331,30 @@ Both Git hash formats compare complete legacy extractor/relationship identities 
 object-store and runtime deletion with filesystem, ts.sys, Git, environment and cwd traps. This
 is explicit ES5 parity, with no namespace V1 recipe change and no claim about implicit default
 library breadth, runtime parser/loader authentication, CompilerReadManifestV1 or freeze.
+
+### Implicit-default retained compiler parity (2.1d.1.3e4b2)
+
+The implicit fixture omits target, lib, noLib and handwritten globals in captured candidate
+configs. Installed TypeScript 6.0.3 chooses `lib.es2025.full.d.ts` when target is absent.
+The initially proposed 18-file `lib.d.ts` closure was falsified by the unchanged legacy
+producer requesting the ES2025 default. The actual fixed recursive closure has 82 files and
+2936611 raw bytes. A separate traversal of parsed reference directives must equal the fixed
+sorted list; fatal UTF-8 decode followed by exact re-encoding preserves every captured byte.
+Legacy receives identical files at its existing @typescript/old/lib location, and retained
+replay receives namespace V1 typescript/lib paths. This changes only fixtures and tests.
+
+The implicit runtime fixture admits a 64 KiB manifest, 128 entries, 512 reads, 2000 probes
+and 8 MiB allocation/read/owned byte ceilings. The original 128-read proposal refused during
+capture because descriptor reads include EOF verification; that failed receipt remains.
+Namespace limits are 128 entries, 256 nodes and 64 KiB total path bytes. Source limits are
+256 nodes, 20000 probes, 100000 steps, 2000 reads, 8 MiB read bytes and census bounds of
+128 entries / 256 KiB. Compiler probes/read bytes are 20000 / 8 MiB. Existing finite path,
+pattern and 1 MiB output ceilings remain. Shared fixture defaults and production contracts
+are unchanged.
+
+Each implicit test is selected into its own fresh serial process under the 900 MiB process
+tree guard. SHA-1 and SHA-256 parity are separate phases; legacy programs are collected before
+retained replay. This is an operational proof boundary, with no combined-suite heap/RSS or
+product cancellation claim. Exact closure/census/public declaration observations establish
+pinned implicit-default parity only; executing parser/loader authentication, full compiler
+read manifests, freeze integration and parent .3 remain open.

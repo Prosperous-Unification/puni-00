@@ -5350,3 +5350,116 @@ characters and retaining one final LF. Exact originals remain under
 `/tmp/puni-es5-raw-evidence-20261017/`; `normalized-log-receipts.json` records each raw path,
 SHA-256, normalized SHA-256 and transformation. The successful final commit must pass unfiltered
 `git show --check`; the whitespace finding is not suppressed.
+
+### 2026-10-17 pinned implicit-default standard-library parity (.3e4b2)
+
+Base: exact reviewed `.3e4b1` commit `e43ecad594f7932fa11b55971bbb26af9820f530`,
+cloned from its complete-history bundle. Only tests/fixtures and this OpenSpec packet change;
+production adapters, namespace V1 and explicit unverified runtime trust remain unchanged.
+Evidence: `evidence/retained-implicit-lib-parity-2026-10-17/`.
+
+The initial 18-file / 2673922-byte lib.d.ts proposal was falsified by `baseline-sha1.log`:
+the unchanged legacy producer requested lib.es2025.full.d.ts. TypeScript 6.0.3 selects ES2025
+when target is omitted; parseProject adds only emit options, and the compiler host calls the
+installed getDefaultLibFileName. The corrected fixed sorted closure contains 82 files and
+2936611 raw bytes. Independent recursive parsing of lib directives equals this list; fatal
+UTF-8 decoding and exact re-encoding preserve bytes. The fixture pins ts.version to 6.0.3.
+Both captured candidate configs explicitly omit target/lib/noLib, and the captured candidate
+contains no handwritten globals. Legacy receives identical library bytes under @typescript/old/lib;
+retained replay receives the unchanged namespace V1 typescript/lib paths.
+
+Initial corrected capture refused runtime maximumReads128 because descriptor capture counts
+EOF checks; `corrected-baseline-sha1.log` preserves that failure. Runtime reads512 were then
+approved; all other finite caps remain those in design.md. The original physical-mutation
+witness tried two extractions through one runtime owner and correctly exhausted its 8 MiB
+lifetime returned-byte budget. `physical-mutation-runtime-cap-refusal.log` preserves it. The
+corrected witness compares one baseline-owner extraction with one extraction from an owner whose
+physical libraries were overwritten after capture, asserting exact extractor/relationships/
+byteReads plus its own namespace provenance. No production cap was raised.
+
+Every named acceptance test runs alone in a fresh serial process under the 921600 KiB process
+tree guard. Positive receipts require exactly one selected passing test and zero failures.
+SHA-1/SHA-256 full legacy equality survives removal of all capture roots under invoked ambient
+filesystem/Git/cwd/environment/ts.sys traps; Document, ReadonlyArray<string> and Date appear in
+public exports. Exact library census membership includes all 82 identity/length tuples and
+excludes the declared unused library. Missing root, direct DOM and transitive promise libraries
+refuse without ambient fallback. Changed valid indirect bytes alter their census identity while
+relationships stay equal. Exact source/compiler/census/envelope limits pass at equality and
+refuse a one-unit shortage.
+
+| Fresh-process acceptance phase | Peak KiB |
+| ------------------------------ | -------: |
+| `budget-census-entries`        |   653552 |
+| `budget-census-bytes`          |   664368 |
+| `budget-envelope`              |   833848 |
+| `absent-root`                  |   377388 |
+| `absent-dom`                   |   450084 |
+| `absent-transitive`            |   680948 |
+| `physical-mutation`            |   671928 |
+| `changed-indirect`             |   667484 |
+| `restored-sha1`                |   852320 |
+| `restored-sha256`              |   868652 |
+| `control-nolib-sha1`           |   365184 |
+| `control-nolib-sha256`         |   363436 |
+| `control-es5-sha1`             |   421188 |
+| `control-es5-sha256`           |   420268 |
+| `budget-source`                |   697888 |
+| `budget-compiler`              |   648792 |
+
+All listed phases exit 0. These are separate per-test observations, not a combined-suite
+900 MiB claim. Initial successful individual SHA-1/SHA-256 trials peaked at 857796/863908 KiB;
+final strengthened parity receipts are in the table.
+
+| Watched production-path fault      | Peak KiB |
+| ---------------------------------- | -------: |
+| `redirect-library-namespace`       |   611860 |
+| `esm-physical-library-read`        |   613556 |
+| `ambient-library-substitution`     |   633936 |
+| `omitted-indirect-census-entry`    |   858864 |
+| `wrong-indirect-identity`          |   860508 |
+| `omitted-source-byte-accounting`   |   839708 |
+| `omitted-compiler-byte-accounting` |   831816 |
+| `omitted-envelope-accounting`      |   827208 |
+| `wrong-default-selection`          |   638448 |
+
+All nine faults produce exit 1 and exactly the expected named failing test; a guard kill is
+not accepted as a negative proof. ESM physical reads and ts.sys substitutions each require the
+exact forbidden ambient route sentinel once and no ENOENT. The original wrong-default selector
+mutation failed the legacy oracle before retained mounting, so its receipt is preserved as
+`disqualified-legacy-only-default-selection.log` and rejected in
+`disqualified-default-selection.json`. The corrected mutation applies only when the system's
+library directory is the retained V1 path, leaves legacy selection intact, and requires the
+explicit extractRetainedTypeScriptRelationships stack witness (`retainedMountReached:true`).
+All production originals are restored after every fault, including on runner failure.
+
+Source regression: 94 tests / 358 assertions pass, peak 638196 KiB. Initial focused typecheck
+passed at 435268 KiB. First test lint found unsafe JSON assignment/member access and an
+unnecessary dictionary conditional; typed unknown parsing and own-key admission corrected them.
+Restored test-file lint passes at 763500 KiB; fixture lint passes at 683292 KiB.
+Initial Nx graph output exited 0 after socket denial without creating a graph, and is rejected
+as evidence. With NX_DAEMON=false and NX_ISOLATE_PLUGINS=false, a fresh graph command exited 0
+at 270588 KiB and both the requested JSON and .nx/workspace-data/project-graph.json were observed.
+
+The local ignored lefthook override serializes commands and lints each staged TypeScript path,
+preserving normal hooks. `lint-wrapper.json` covers both changed files, injected first-path
+exit 23 stopping execution and the observed false zero when exit propagation is removed.
+
+Final clean SHA-1 restoration: one test / 131 assertions passes at 861860 KiB. Final focused
+typecheck exits 0 at 434696 KiB. Pinned cached OpenSpec 1.12.0 strict change validation is
+1/1 valid at 113448 KiB; all-document validation exits 0 at 141112 KiB. Exact independent
+re-review and normal commit hook receipt remain pending. Full combined mount suite, full
+h2puni gate, repository-wide test/lint/typecheck/build, secrets CI and migration CI are unrun.
+No full CompilerReadManifestV1, parser/loader authentication, freeze or parent .3 completion is
+claimed. This task remains unchecked pending review and required gate. No push, publication,
+merge, deploy or WBS write occurred.
+
+Raw log whitespace normalization, where needed, strips only line-end spaces/tabs/CR and keeps
+one final LF. Exact original files remain under /tmp/implicit-lib-parity-raw-evidence-20261017;
+normalized-log-receipts.json binds each original and normalized hash. This avoids suppressing
+unfiltered git diff/show whitespace checks.
+
+The first normal commit attempt was refused by format (exit 1, peak 790976 KiB): three
+new command receipt JSON files needed Prettier's command-array formatting. Lint, plaintext
+secrets, private nesting and inactive tool-wiki checks passed. The refused transcript and
+receipt remain as normal-hook-format-refusal.log{,.json}. Only JSON formatting was corrected;
+no hook was bypassed. Final normal-commit completion is supplied externally with its SHA/tree.

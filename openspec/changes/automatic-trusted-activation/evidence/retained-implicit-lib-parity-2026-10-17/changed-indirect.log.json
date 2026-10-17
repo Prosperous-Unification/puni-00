@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts",
+    "--test-name-pattern",
+    "implicit compiler observes changed indirect library identity"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 667484,
+  "ceilingKiB": 921600
+}

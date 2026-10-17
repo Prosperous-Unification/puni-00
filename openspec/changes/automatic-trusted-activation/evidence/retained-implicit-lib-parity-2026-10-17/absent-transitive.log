@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts:
+(pass) retained implicit compiler refuses absent lib.es2015.promise.d.ts without ambient fallback [1184.28ms]
+
+ 1 pass
+ 41 filtered out
+ 0 fail
+ 89 expect() calls
+Ran 1 test across 1 file. [2.11s]

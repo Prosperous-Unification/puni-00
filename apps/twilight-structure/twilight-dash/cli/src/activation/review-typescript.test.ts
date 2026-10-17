@@ -64,6 +64,7 @@ function setup(
   entry = "export { value } from './provider'; export type { PackageType } from 'pkg';",
   provider = 'export const value: number = 1;',
   libraries?: Record<string, string>,
+  libraryMode: 'ES5' | 'implicit' = 'ES5',
 ) {
   const metadata = fs.readFileSync(
     join(import.meta.dir, '../../../../../../node_modules/typescript/package.json'),
@@ -97,7 +98,11 @@ function setup(
       }),
       'base.json': JSON.stringify({
         compilerOptions: {
-          ...(libraries === undefined ? { noLib: true } : { lib: ['es5'] }),
+          ...(libraries === undefined
+            ? { noLib: true }
+            : libraryMode === 'ES5'
+              ? { lib: ['es5'] }
+              : {}),
           types: [],
           strict: true,
           module: 'esnext',
@@ -115,32 +120,88 @@ function setup(
     },
     {},
     content,
-    libraries === undefined ? 10000 : 1000000,
+    libraryMode === 'implicit' ? 8 * 1024 * 1024 : libraries === undefined ? 10000 : 1000000,
+    libraryMode === 'implicit'
+      ? {
+          maximumManifestBytes: 64 * 1024,
+          maximumEntries: 128,
+          maximumReads: 512,
+          maximumProbes: 2000,
+        }
+      : undefined,
   );
   const namespace = createRetainedNamespace(f.candidate, f.runtime, {
     maximumEntries: 100,
     maximumNodes: 100,
     maximumPathBytes: 2048,
     maximumTotalPathBytes: 20000,
+    ...(libraryMode === 'implicit'
+      ? { maximumEntries: 128, maximumNodes: 256, maximumTotalPathBytes: 64 * 1024 }
+      : {}),
   });
   return {
     ...f,
     namespace,
     request: { configPaths: ['tsconfig.json'], publicEntrypoints: ['src/index.ts'] },
-    sourceLimits: { ...sourceLimits },
-    compilerLimits: { ...compilerLimits },
+    sourceLimits: {
+      ...sourceLimits,
+      ...(libraryMode === 'implicit'
+        ? {
+            maximumNodes: 256,
+            maximumProbes: 20000,
+            maximumReads: 2000,
+            maximumReadBytes: 8 * 1024 * 1024,
+            maximumReadEntries: 128,
+            maximumReadLedgerBytes: 256 * 1024,
+          }
+        : {}),
+    },
+    compilerLimits: {
+      ...compilerLimits,
+      ...(libraryMode === 'implicit'
+        ? { maximumProbes: 20000, maximumReadBytes: 8 * 1024 * 1024 }
+        : {}),
+    },
     requestLimits: { ...requestLimits },
   };
 }
 for (const format of ['sha1', 'sha256'] as const)
-  for (const mode of ['noLib', 'ES5'] as const)
+  for (const mode of ['noLib', 'ES5', 'implicit'] as const)
     test(`retained compiler ${mode} ${format} matches legacy after all capture roots disappear`, () => {
-      const libraries = mode === 'ES5' ? readLibraries() : undefined;
+      // Proof: wrong default selector/namespace and ESM physical/ts.sys substitutions fail this removed-root parity; ambient substitutions hit the exact trap sentinel.
+      const libraries =
+        mode === 'implicit' ? readDefaultLibraries() : mode === 'ES5' ? readLibraries() : undefined;
       const entry =
-        mode === 'ES5'
-          ? "export { value } from './provider'; export type { PackageType } from 'pkg'; export const names: ReadonlyArray<string> = ['es5'].map((name) => name.toUpperCase()); export const epoch: Date = new Date(0);"
+        mode !== 'noLib'
+          ? "export { value } from './provider'; export type { PackageType } from 'pkg'; export const names: ReadonlyArray<string> = ['es5'].map((name) => name.toUpperCase()); export const epoch: Date = new Date(0);" +
+            (mode === 'implicit' ? ' export const page: Document = document;' : '')
           : undefined;
-      const f = setup(format, '{}', entry, undefined, libraries);
+      const f = setup(
+        format,
+        '{}',
+        entry,
+        undefined,
+        libraries,
+        mode === 'implicit' ? 'implicit' : 'ES5',
+      );
+      if (mode === 'implicit') {
+        for (const path of ['tsconfig.json', 'base.json']) {
+          const captured = f.candidate.snapshot.entries.find((entry) => entry.path === path);
+          if (captured === undefined) throw new Error('captured config absent');
+          const config: unknown = JSON.parse(
+            Buffer.from(f.candidate.readBlob(captured.blob, path)).toString('utf8'),
+          );
+          if (typeof config !== 'object' || config === null || Array.isArray(config))
+            throw new Error('captured config malformed');
+          const options: unknown = 'compilerOptions' in config ? config.compilerOptions : undefined;
+          if (options !== undefined)
+            for (const option of ['target', 'lib', 'noLib'])
+              expect(options).not.toHaveProperty(option);
+        }
+        expect(f.candidate.snapshot.entries.some((entry) => entry.path === 'globals.d.ts')).toBe(
+          false,
+        );
+      }
       // The legacy recipe needs old's matching metadata even with noLib. Both paths use identical compiler identity bytes.
       fs.mkdirSync(join(f.runtimeRoot, 'node_modules/@typescript/old/lib'), { recursive: true });
       fs.writeFileSync(
@@ -161,6 +222,7 @@ for (const format of ['sha1', 'sha256'] as const)
         join(f.runtimeRoot, 'node_modules'),
       );
       expect(legacy.relationships.imports.length).toBe(3);
+      if (mode === 'implicit') Bun.gc(true);
       for (const root of [f.sourceRepository, f.storeBase, f.runtimeRoot])
         fs.rmSync(root, { recursive: true });
       const originalEnvironment = process.env;
@@ -228,6 +290,12 @@ for (const format of ['sha1', 'sha256'] as const)
         expect(extracted.relationships).toEqual(legacy.relationships);
         if (libraries !== undefined) {
           expectLibraries(extracted, libraries);
+          if (mode === 'implicit')
+            expect(
+              extracted.relationships.publicDeclarations[0]?.declarations.some((declaration) =>
+                declaration.text.includes('Document'),
+              ),
+            ).toBe(true);
           expect(
             extracted.relationships.publicDeclarations[0]?.declarations.some((declaration) =>
               declaration.text.includes('ReadonlyArray<string>'),
@@ -866,3 +934,249 @@ test('retained ES5 compiler includes library observations in read and envelope b
     }),
   ).toThrow('retained TypeScript output');
 });
+
+const defaultLibraryNames = [
+  'lib.decorators.d.ts',
+  'lib.decorators.legacy.d.ts',
+  'lib.dom.asynciterable.d.ts',
+  'lib.dom.d.ts',
+  'lib.dom.iterable.d.ts',
+  'lib.es2015.collection.d.ts',
+  'lib.es2015.core.d.ts',
+  'lib.es2015.d.ts',
+  'lib.es2015.generator.d.ts',
+  'lib.es2015.iterable.d.ts',
+  'lib.es2015.promise.d.ts',
+  'lib.es2015.proxy.d.ts',
+  'lib.es2015.reflect.d.ts',
+  'lib.es2015.symbol.d.ts',
+  'lib.es2015.symbol.wellknown.d.ts',
+  'lib.es2016.array.include.d.ts',
+  'lib.es2016.d.ts',
+  'lib.es2016.intl.d.ts',
+  'lib.es2017.arraybuffer.d.ts',
+  'lib.es2017.d.ts',
+  'lib.es2017.date.d.ts',
+  'lib.es2017.intl.d.ts',
+  'lib.es2017.object.d.ts',
+  'lib.es2017.sharedmemory.d.ts',
+  'lib.es2017.string.d.ts',
+  'lib.es2017.typedarrays.d.ts',
+  'lib.es2018.asyncgenerator.d.ts',
+  'lib.es2018.asynciterable.d.ts',
+  'lib.es2018.d.ts',
+  'lib.es2018.intl.d.ts',
+  'lib.es2018.promise.d.ts',
+  'lib.es2018.regexp.d.ts',
+  'lib.es2019.array.d.ts',
+  'lib.es2019.d.ts',
+  'lib.es2019.intl.d.ts',
+  'lib.es2019.object.d.ts',
+  'lib.es2019.string.d.ts',
+  'lib.es2019.symbol.d.ts',
+  'lib.es2020.bigint.d.ts',
+  'lib.es2020.d.ts',
+  'lib.es2020.date.d.ts',
+  'lib.es2020.intl.d.ts',
+  'lib.es2020.number.d.ts',
+  'lib.es2020.promise.d.ts',
+  'lib.es2020.sharedmemory.d.ts',
+  'lib.es2020.string.d.ts',
+  'lib.es2020.symbol.wellknown.d.ts',
+  'lib.es2021.d.ts',
+  'lib.es2021.intl.d.ts',
+  'lib.es2021.promise.d.ts',
+  'lib.es2021.string.d.ts',
+  'lib.es2021.weakref.d.ts',
+  'lib.es2022.array.d.ts',
+  'lib.es2022.d.ts',
+  'lib.es2022.error.d.ts',
+  'lib.es2022.intl.d.ts',
+  'lib.es2022.object.d.ts',
+  'lib.es2022.regexp.d.ts',
+  'lib.es2022.string.d.ts',
+  'lib.es2023.array.d.ts',
+  'lib.es2023.collection.d.ts',
+  'lib.es2023.d.ts',
+  'lib.es2023.intl.d.ts',
+  'lib.es2024.arraybuffer.d.ts',
+  'lib.es2024.collection.d.ts',
+  'lib.es2024.d.ts',
+  'lib.es2024.object.d.ts',
+  'lib.es2024.promise.d.ts',
+  'lib.es2024.regexp.d.ts',
+  'lib.es2024.sharedmemory.d.ts',
+  'lib.es2024.string.d.ts',
+  'lib.es2025.collection.d.ts',
+  'lib.es2025.d.ts',
+  'lib.es2025.float16.d.ts',
+  'lib.es2025.full.d.ts',
+  'lib.es2025.intl.d.ts',
+  'lib.es2025.iterator.d.ts',
+  'lib.es2025.promise.d.ts',
+  'lib.es2025.regexp.d.ts',
+  'lib.es5.d.ts',
+  'lib.scripthost.d.ts',
+  'lib.webworker.importscripts.d.ts',
+] as const;
+function readDefaultLibraries() {
+  expect(ts.version).toBe('6.0.3');
+  const libraries = Object.fromEntries(
+    defaultLibraryNames.map((name) => {
+      const bytes = fs.readFileSync(
+        join(import.meta.dir, '../../../../../../node_modules/@typescript/old/lib', name),
+      );
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      expect(Buffer.from(text)).toEqual(bytes);
+      return [`node_modules/typescript/lib/${name}`, text];
+    }),
+  );
+  const reached = new Set<string>();
+  function visit(name: string) {
+    if (reached.has(name)) return;
+    const path = `node_modules/typescript/lib/${name}`;
+    if (!Object.hasOwn(libraries, path))
+      throw new Error(`undeclared pinned default library: ${name}`);
+    const text = libraries[path];
+    reached.add(name);
+    for (const reference of text.matchAll(/<reference lib="([^"]+)"/g))
+      visit(`lib.${reference[1]}.d.ts`);
+  }
+  visit('lib.es2025.full.d.ts');
+  expect([...reached].sort()).toEqual([...defaultLibraryNames]);
+  expect(Object.keys(libraries)).toHaveLength(82);
+  expect(Object.values(libraries).reduce((count, text) => count + Buffer.byteLength(text), 0)).toBe(
+    2936611,
+  );
+  return libraries;
+}
+
+function setupDefault(libraries = readDefaultLibraries()) {
+  return setup(
+    'sha1',
+    '{}',
+    'export const names: ReadonlyArray<string> = []; export const epoch: Date = new Date(0); export const page: Document = document;',
+    undefined,
+    libraries,
+    'implicit',
+  );
+}
+for (const name of ['lib.es2025.full.d.ts', 'lib.dom.d.ts', 'lib.es2015.promise.d.ts'])
+  test(`retained implicit compiler refuses absent ${name} without ambient fallback`, () => {
+    const libraries = Object.fromEntries(
+      Object.entries(readDefaultLibraries()).filter(
+        ([path]) => path !== `node_modules/typescript/lib/${name}`,
+      ),
+    );
+    const f = setupDefault(libraries);
+    const traps = [spyOn(fs, 'readFileSync'), spyOn(ts.sys, 'readFile')];
+    for (const trap of traps)
+      trap.mockImplementation(() => {
+        throw new Error('forbidden library fallback');
+      });
+    try {
+      expect(() => extractRetainedTypeScriptRelationships(f)).toThrow('compiler failed');
+      for (const trap of traps) expect(trap).not.toHaveBeenCalled();
+    } finally {
+      for (const trap of traps) trap.mockRestore();
+    }
+  });
+
+test('retained implicit compiler ignores physical library mutation after capture', () => {
+  const libraries = readDefaultLibraries();
+  const before = extractRetainedTypeScriptRelationships(setupDefault(libraries));
+  Bun.gc(true);
+  const f = setupDefault(libraries);
+  for (const path of Object.keys(libraries))
+    fs.writeFileSync(join(f.runtimeRoot, path), 'broken physical library');
+  const after = extractRetainedTypeScriptRelationships(f);
+  expect(after.extractor).toEqual(before.extractor);
+  expect(after.relationships).toEqual(before.relationships);
+  expect(after.byteReads).toEqual(before.byteReads);
+  expect(after.provenance).toEqual(readRetainedNamespaceProvenance(f.namespace));
+  expect(after.runtimeTrust).toBe('unverified');
+  expectLibraries(after, libraries);
+});
+
+test('retained implicit compiler observes changed indirect library identity', () => {
+  const libraries = readDefaultLibraries();
+  const before = extractRetainedTypeScriptRelationships(setupDefault(libraries));
+  Bun.gc(true);
+  const path = 'node_modules/typescript/lib/lib.es2015.promise.d.ts';
+  const changed = {
+    ...libraries,
+    [path]: libraries[path] + '\n// captured byte identity change\n',
+  };
+  const after = extractRetainedTypeScriptRelationships(setupDefault(changed));
+  expect(after.relationships).toEqual(before.relationships);
+  expect(after.extractor).toEqual(before.extractor);
+  expectLibraries(after, changed);
+  expect(after.byteReads.entries.find((entry) => entry.path === path)?.identity).not.toBe(
+    before.byteReads.entries.find((entry) => entry.path === path)?.identity,
+  );
+});
+
+for (const dimension of [
+  'source',
+  'compiler',
+  'census-entries',
+  'census-bytes',
+  'envelope',
+] as const)
+  test(`retained implicit compiler bounds exact ${dimension} library observations`, () => {
+    const f = setupDefault();
+    let acquiredBytes = 0;
+    const candidateRead = f.candidate.read.bind(f.candidate);
+    const runtimeRead = f.runtime.readFile.bind(f.runtime);
+    const reads = [
+      spyOn(f.candidate, 'read').mockImplementation((...args) => {
+        const bytes = candidateRead(...args);
+        acquiredBytes += bytes.byteLength;
+        return bytes;
+      }),
+      spyOn(f.runtime, 'readFile').mockImplementation((...args) => {
+        const bytes = runtimeRead(...args);
+        acquiredBytes += bytes.byteLength;
+        return bytes;
+      }),
+    ];
+    let extracted: ReturnType<typeof extractRetainedTypeScriptRelationships>;
+    try {
+      extracted = extractRetainedTypeScriptRelationships(f);
+    } finally {
+      for (const read of reads) read.mockRestore();
+    }
+    expect(acquiredBytes).toBeGreaterThanOrEqual(2936611);
+    // Proof: indirect census omission/identity faults fail the exact tuples; source/compiler/envelope accounting omissions make the one-unit shortage succeed.
+    expectLibraries(extracted, readDefaultLibraries());
+    const exact =
+      dimension === 'source' || dimension === 'compiler'
+        ? acquiredBytes
+        : dimension === 'census-entries'
+          ? extracted.byteReads.entries.length
+          : Buffer.byteLength(
+              serializeCanonical(dimension === 'envelope' ? extracted : extracted.byteReads),
+            );
+    for (const shortage of [0, 1]) {
+      Bun.gc(true);
+      const replay = setupDefault();
+      if (dimension === 'source') replay.sourceLimits.maximumReadBytes = exact - shortage;
+      if (dimension === 'compiler') replay.compilerLimits.maximumReadBytes = exact - shortage;
+      if (dimension === 'census-entries') replay.sourceLimits.maximumReadEntries = exact - shortage;
+      if (dimension === 'census-bytes')
+        replay.sourceLimits.maximumReadLedgerBytes = exact - shortage;
+      if (dimension === 'envelope') replay.requestLimits.maximumOutputBytes = exact - shortage;
+      if (shortage === 0) {
+        const bounded = extractRetainedTypeScriptRelationships(replay);
+        expect(bounded.byteReads).toEqual(extracted.byteReads);
+        expect(bounded.relationships).toEqual(extracted.relationships);
+      } else
+        expect(() => extractRetainedTypeScriptRelationships(replay)).toThrow(
+          dimension === 'source' || dimension.startsWith('census')
+            ? 'source read'
+            : dimension === 'compiler'
+              ? 'read byte limit'
+              : 'retained TypeScript output',
+        );
+    }
+  });

@@ -1,0 +1,59 @@
+{
+  "configurationSha256": "86765edd8cbc008e8282f0fb04fe06cfb78f5a258b89478a49ac29c7e52a15fe",
+  "template": "for path in {staged_files}; do bunx --no-install eslint \"$path\" || exit $?; done",
+  "coveredTypeScriptPaths": [
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts",
+    "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts"
+  ],
+  "receipts": [
+    {
+      "name": "all-files",
+      "shellCommand": "for path in apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts; do bunx --no-install eslint \"$path\" || exit $?; done",
+      "injectedFailurePath": "",
+      "observedExitCode": 0,
+      "observedArgv": [
+        [
+          "--no-install",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts"
+        ],
+        [
+          "--no-install",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts"
+        ]
+      ]
+    },
+    {
+      "name": "injected-nonzero",
+      "shellCommand": "for path in apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts; do bunx --no-install eslint \"$path\" || exit $?; done",
+      "injectedFailurePath": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts",
+      "observedExitCode": 23,
+      "observedArgv": [
+        [
+          "--no-install",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts"
+        ]
+      ]
+    },
+    {
+      "name": "omitted-exit-negative",
+      "shellCommand": "for path in apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts; do bunx --no-install eslint \"$path\"; done",
+      "injectedFailurePath": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts",
+      "observedExitCode": 0,
+      "observedArgv": [
+        [
+          "--no-install",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.test.fixture.ts"
+        ],
+        [
+          "--no-install",
+          "eslint",
+          "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.test.ts"
+        ]
+      ]
+    }
+  ]
+}
