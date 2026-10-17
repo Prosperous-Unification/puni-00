@@ -4,6 +4,7 @@ import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
 import type { PriorityBand } from './priority-band';
 import type { Hold, Readiness } from './progress';
 import type { StoredStepBlockage } from './step-blockage';
+import type { StoredStepParallel } from './step-parallel';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
 import type { EstimateUnit } from './stored-vocabularies';
 import type { ScheduleEngine, SolverObjectiveName } from './stored-vocabularies';
@@ -98,6 +99,7 @@ export interface PlanInputReads {
   readonly actuals: readonly StoredActual[];
   readonly progress: readonly StoredProgress[];
   readonly stepBlockages: readonly StoredStepBlockage[];
+  readonly stepParallels: readonly StoredStepParallel[];
   readonly measures: readonly StoredMeasure[];
   readonly dependencies: readonly CapturedDependency[];
   /** Detached relationship identities and endpoints from the capture snapshot. */

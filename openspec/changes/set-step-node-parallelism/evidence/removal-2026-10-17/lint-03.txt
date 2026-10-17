@@ -1,0 +1,3 @@
+libs/wbs/adapters/store-memory/src/in-memory-source.ts
+heap576
+{"ceilingBytes": 943718400, "sampledPeakBytes": 696725504, "exitCode": 0}

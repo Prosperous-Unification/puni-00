@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [600.34ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [474.38ms]
+
+apps/wbs/be-01/src/controller/typed-dependency-lifecycle.controller.db.test.ts:
+(pass) remaps a node endpoint on first child create and restores it on undo and redo [299.06ms]
+(pass) refuses moving a child onto a leaf with a pinned node endpoint [252.80ms]
+(pass) removes a promoted parent endpoint and restores it with the parent [269.86ms]
+(pass) removes node and whole endpoints on delete and restores their identities on undo [266.97ms]
+(pass) refuses deleting or moving the last child of a descendant-step parent [277.93ms]
+(pass) removes a relationship internal to a deleted subtree and restores it on undo [266.83ms]
+(pass) deletes a last child when its descendant-step relationship is removed with it [265.66ms]
+(pass) refuses restore with a stale surviving parent revision [343.15ms]
+(pass) refuses restore with a pinned peer relationship after refreshing revision evidence [354.25ms]
+(pass) refuses redo of a child create when a newer node relationship pins its parent [242.33ms]
+(pass) refuses undo of a move when a newer descendant-step endpoint would lose its children [250.28ms]
+(pass) refuses redo of a deletion when a newer descendant-step endpoint needs its last child [249.03ms]
+(pass) refuses undo of a move into a leaf with a newer pinned node endpoint [230.79ms]
+
+ 15 pass
+ 0 fail
+ 138 expect() calls
+Ran 15 tests across 2 files. [6.55s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 595521536, "exitCode": 0}

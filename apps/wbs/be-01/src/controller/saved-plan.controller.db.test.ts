@@ -7,6 +7,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { UnknownSavedPlanBodyVersionError } from '@wbs/core/module/saved-plans/saved-plan-integrity';
 import { type AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
 import { defaultSavedPlanName } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { TypedDependencyRepository } from '@wbs/store-sqlite/typed-dependency';
 import { afterEach, beforeEach, describe, expect, it, spyOn, test } from 'bun:test';
 
@@ -158,6 +159,7 @@ describe('the saved-plan routes', () => {
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
       history: testHistoryService(),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       replay: testReplay().replay,
       probeDatabase: () => 'ok',

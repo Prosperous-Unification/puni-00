@@ -259,6 +259,15 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // Proof: grouping this nodes-detail case with dependencyIds cases produced
+    // TS2322 in mounted scoped tsc; separation preserves exact mounted 409 nodes
+    // without losing reason/detail correlation (watched 2026-10-17).
+    case 'referenced_by_step_parallel':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
     case 'descendant_step_on_leaf':
     case 'node_on_parent':
       return {

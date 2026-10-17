@@ -1,0 +1,234 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+110 |         { workItemId: 'sibling', stepId: 'qa', maxParallel: 2 },
+111 |         stamp,
+112 |       );
+113 |       const before = await fixture.snapshot();
+114 |       const { workItems } = installWorkItem(requirements);
+115 |       expect(await workItems.move('moving', 'owner', move)).toEqual({
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 8
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:115:61)
+(fail) move sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [24.19ms]
+110 |         { workItemId: 'sibling', stepId: 'qa', maxParallel: 2 },
+111 |         stamp,
+112 |       );
+113 |       const before = await fixture.snapshot();
+114 |       const { workItems } = installWorkItem(requirements);
+115 |       expect(await workItems.move('moving', 'owner', move)).toEqual({
+                                                                  ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 12
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:115:61)
+(fail) move sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [2.89ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:163:18)
+(fail) move sparse step parallel preservation > checks authorization and parent membership and cycles before a poisoned reader [2.43ms]
+(pass) move sparse step parallel preservation > allows an empty destination policy and a root move while a sibling retains a fact [4.01ms]
+219 |   expect(
+220 |     await runner.run('p', 'owner', [
+221 |       { kind: 'patchWorkItem', workItemId: 'parent', patch: { name: 'Must roll back' } },
+222 |       { kind: 'moveWorkItem', workItemId: 'moving', ...move },
+223 |     ]),
+224 |   ).toEqual({
+          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "at": 1,
+-   "detail": {
+-     "nodes": [
+-       {
+-         "stepId": "dev",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "kind": "moveWorkItem",
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "index": 1,
++       "kind": "moveWorkItem",
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 12
++ Received  + 13
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:224:5)
+(fail) reads the admitted sparse store and rolls a preceding patch back with its journal/events [11.30ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:276:18)
+(fail) throws on trusted maximum corruption without moving or clearing statements [2.50ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:276:18)
+(fail) throws on trusted step corruption without moving or clearing statements [2.33ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:276:18)
+(fail) throws on trusted project corruption without moving or clearing statements [2.25ms]
+271 |       step: 'invalid step reference',
+272 |       project: 'project mismatch',
+273 |       parent: 'owner is not a leaf',
+274 |       duplicate: 'duplicate step parallelism',
+275 |     };
+276 |     expect(await rejectedMessage(workItems.move('moving', 'owner', move))).toContain(
+                                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner is not a leaf"
+Received: "parent parent holds a readiness or a hold"
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:276:76)
+(fail) throws on trusted parent corruption without moving or clearing statements [2.17ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:276:18)
+(fail) throws on trusted duplicate corruption without moving or clearing statements [2.31ms]
+289 |   const { workItems } = installWorkItem({
+290 |     ...fixture.requirements,
+291 |     stepParallels: { listByWorkItems: () => Promise.resolve(retained) },
+292 |   });
+293 |   const refused = await workItems.move('moving', 'owner', move);
+294 |   expect(refused).toEqual({
+                        ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 8
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:294:19)
+(fail) copies exact node references and allows move after clearing the final fact [2.14ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:317:16)
+(fail) throws when the required sparse reader is absent before any writes [2.02ms]
+(pass) does not consult sparse evidence for root moves [1.49ms]
+341 |     ...fixture.requirements,
+342 |     stepParallels: { listByWorkItems: () => { throw new Error('selected parent corruption'); } },
+343 |   });
+344 |   const before = await fixture.snapshot();
+345 |   for (const id of ['moving', 'existing']) {
+346 |     expect(await rejectedMessage(workItems.move(id, 'owner', move))).toContain('selected parent corruption');
+                                                                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "selected parent corruption"
+Received: "parent parent holds a readiness or a hold"
+
+      at <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:346:70)
+(fail) validates selected facts for same-parent moves and existing parents [1.85ms]
+(pass) retains moving subtree and sibling policy while moving under an empty destination [2.28ms]
+(pass) preserves empty-policy move undo and redo while unrelated facts survive [11.26ms]
+
+ 4 pass
+ 12 fail
+ 24 expect() calls
+Ran 16 tests across 1 file. [1.87s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 505188352, "exitCode": 1}

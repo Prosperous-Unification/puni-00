@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:
+{"level":"error","time":1792205770258,"service":"be-01","err":{"occurrence_id":"AE_VBD2NHMEGG4MP6AZKZ3CBZ29RR","fingerprint":"fp1_eafe58e53530ca9f269df75e367ced59","stack":["Error: unreadable sparse evidence","    at <anonymous> (/tmp/step-export-fence-20261017/apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts:1058:101)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) v9 sparse export retains uncoded refusal for valid shared evidence [652.34ms]
+
+ 1 pass
+ 33 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.56s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 584974336, "exitCode": 0}

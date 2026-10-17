@@ -1,0 +1,15 @@
+[
+  {
+    "check": "type-plan-commands",
+    "argv": [
+      "bunx",
+      "tsc",
+      "--project",
+      "libs/wbs/application/core/src/module/plan-commands/tsconfig.json",
+      "--pretty",
+      "false"
+    ],
+    "capMiB": 900,
+    "exitCode": 137
+  }
+]

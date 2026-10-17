@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [5000.01ms]
+  ^ this test timed out after 5000ms.
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [6.79s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 499781632, "exitCode": 1}

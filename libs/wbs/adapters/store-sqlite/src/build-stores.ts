@@ -19,6 +19,7 @@ import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
 import { StepNodeAttemptRepository } from './step-node-attempt';
+import { StepParallelRepository } from './step-parallel';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { UserRepository } from './user';
@@ -49,6 +50,7 @@ export function buildStores(
     measures: new StepMeasureRepository(db, gate),
     progress: new StepProgressRepository(db, gate),
     blockages: new StepBlockageRepository(db, gate),
+    stepParallels: new StepParallelRepository(db, gate),
     attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
     typedDependencies: new TypedDependencyRepository(db, gate),

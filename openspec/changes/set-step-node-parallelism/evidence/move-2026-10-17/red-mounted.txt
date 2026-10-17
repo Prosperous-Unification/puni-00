@@ -1,0 +1,86 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:
+116 |                   { kind: 'moveWorkItem', ...move },
+117 |                 ],
+118 |               }
+119 |             : { commands: [{ kind: 'moveWorkItem', ...move }] },
+120 |         );
+121 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "at": 0,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "moveWorkItem",
+-     "nodes": [
++     "redoable": false,
++     "results": [
+        {
+-         "stepId": "15d962b1-4ff6-4c6b-aea6-85806f325dd1",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "8b30c525-8f26-4cff-adfe-4875cb7db284",
+-         "workItemId": "parent",
++         "index": 0,
+        },
+      ],
++     "undoable": true,
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 11
++ Received  + 5
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:121:24)
+(fail) move sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [591.83ms]
+116 |                   { kind: 'moveWorkItem', ...move },
+117 |                 ],
+118 |               }
+119 |             : { commands: [{ kind: 'moveWorkItem', ...move }] },
+120 |         );
+121 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "at": 1,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "moveWorkItem",
+-     "nodes": [
++     "redoable": false,
++     "results": [
+        {
+-         "stepId": "8202d5f5-0dec-4e98-9eae-344181f9362f",
+-         "workItemId": "parent",
++         "index": 0,
+        },
+        {
+-         "stepId": "c33046fe-8785-4581-90ac-fd2b9f3f0a9b",
+-         "workItemId": "parent",
++         "index": 1,
+        },
+      ],
++     "undoable": true,
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 9
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-step-move-20261017/apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts:121:24)
+(fail) move sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [463.71ms]
+
+ 0 pass
+ 2 fail
+ 12 expect() calls
+Ran 2 tests across 1 file. [3.07s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 581603328, "exitCode": 1}

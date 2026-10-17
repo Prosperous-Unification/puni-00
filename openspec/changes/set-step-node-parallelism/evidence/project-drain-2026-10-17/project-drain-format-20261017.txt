@@ -1,0 +1,8 @@
+libs/wbs/adapters/store-sqlite/src/optimization-drain.ts 189ms (unchanged)
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts 36ms
+apps/wbs/be-01/src/services.db.test.ts 671ms
+openspec/changes/set-step-node-parallelism/design.md 74ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 73ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 13ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 156ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 353517568, "exitCode": 0}

@@ -1,0 +1,142 @@
+[
+  {
+    "fault": "collection",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses missing parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "collection.txt"
+  },
+  {
+    "fault": "reference-lists",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses malformed owner list while validating stored parallel facts",
+    "exitCode": 1,
+    "transcript": "reference-lists.txt"
+  },
+  {
+    "fault": "owner-shape",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses malformed owner row while validating stored parallel facts",
+    "exitCode": 1,
+    "transcript": "owner-shape.txt"
+  },
+  {
+    "fault": "step-shape",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses malformed step row while validating stored parallel facts",
+    "exitCode": 1,
+    "transcript": "step-shape.txt"
+  },
+  {
+    "fault": "fact-object",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses null fact parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "fact-object.txt"
+  },
+  {
+    "fault": "fact-values",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses string maximum parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "fact-values.txt"
+  },
+  {
+    "fault": "owner",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses unknown owner parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "owner.txt"
+  },
+  {
+    "fault": "leaf",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses parent owner parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "leaf.txt"
+  },
+  {
+    "fault": "step",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses unknown step parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "step.txt"
+  },
+  {
+    "fault": "duplicate",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses duplicate parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "duplicate.txt"
+  },
+  {
+    "fault": "tuple-percent",
+    "path": "libs/wbs/domain/domain/src/saved-plan/diff-plans.ts",
+    "test": "compares distinct tuples containing colons without losing an override",
+    "exitCode": 1,
+    "transcript": "tuple-percent.txt"
+  },
+  {
+    "fault": "tuple-key",
+    "path": "libs/wbs/domain/domain/src/saved-plan/diff-plans.ts",
+    "test": "compares distinct tuples containing colons without losing an override",
+    "exitCode": 1,
+    "transcript": "tuple-key.txt"
+  },
+  {
+    "fault": "range",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses oversized maximum parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "range.txt"
+  },
+  {
+    "fault": "capture-validation",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "refuses unknown owner parallel facts at capture",
+    "exitCode": 1,
+    "transcript": "capture-validation.txt"
+  },
+  {
+    "fault": "stored-validation",
+    "path": "libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.ts",
+    "test": "refuses duplicate parallel facts at stored read",
+    "exitCode": 1,
+    "transcript": "stored-validation.txt"
+  },
+  {
+    "fault": "legacy-upgrade",
+    "path": "libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.ts",
+    "test": "upgrades schema7 to absent overrides without changing historical bytes",
+    "exitCode": 1,
+    "transcript": "legacy-upgrade.txt"
+  },
+  {
+    "fault": "memory-read",
+    "path": "libs/wbs/adapters/store-memory/src/source.ts",
+    "test": "captures sparse parallel facts detached from later memory writes",
+    "exitCode": 1,
+    "transcript": "memory-read.txt"
+  },
+  {
+    "fault": "sqlite-read",
+    "path": "libs/wbs/adapters/store-sqlite/src/saved-plan-capture.ts",
+    "test": "captures sparse parallel facts on the SQLite snapshot before concurrent clear",
+    "exitCode": 1,
+    "transcript": "sqlite-read.txt"
+  },
+  {
+    "fault": "fold",
+    "path": "libs/wbs/domain/domain/src/saved-plan-input.ts",
+    "test": "preserves sparse explicit parallel policy through the authored capture fold",
+    "exitCode": 1,
+    "transcript": "fold.txt"
+  },
+  {
+    "fault": "accessor-reread",
+    "path": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts",
+    "test": "validates and captures the same maximum from a changing accessor",
+    "exitCode": 1,
+    "transcript": "accessor-reread.txt"
+  }
+]

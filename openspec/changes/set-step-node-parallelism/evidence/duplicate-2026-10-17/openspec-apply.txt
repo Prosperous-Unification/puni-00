@@ -1,0 +1,224 @@
+{
+  "changeName": "set-step-node-parallelism",
+  "changeDir": "/tmp/puni-duplicate-owner-20261017/openspec/changes/set-step-node-parallelism",
+  "schemaName": "spec-driven",
+  "contextFiles": {
+    "proposal": [
+      "/tmp/puni-duplicate-owner-20261017/openspec/changes/set-step-node-parallelism/proposal.md"
+    ],
+    "specs": [
+      "/tmp/puni-duplicate-owner-20261017/openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md"
+    ],
+    "design": [
+      "/tmp/puni-duplicate-owner-20261017/openspec/changes/set-step-node-parallelism/design.md"
+    ],
+    "tasks": [
+      "/tmp/puni-duplicate-owner-20261017/openspec/changes/set-step-node-parallelism/tasks.md"
+    ]
+  },
+  "progress": {
+    "total": 38,
+    "complete": 21,
+    "remaining": 17
+  },
+  "tasks": [
+    {
+      "id": "1",
+      "description": "1.1 Inspect ADR 0031, original memo, Stage 7a resolver, callers, stores and migration allocations.",
+      "done": true
+    },
+    {
+      "id": "2",
+      "description": "1.2 Write and watch real memory/SQLite source conformance RED for sparse facts and transactions.",
+      "done": true
+    },
+    {
+      "id": "3",
+      "description": "1.3 Add the precise stored type, internal port and explicit source inventory registration.",
+      "done": true
+    },
+    {
+      "id": "4",
+      "description": "1.4 Add memory facts, coordinated source binding and unit-of-work snapshot ownership.",
+      "done": true
+    },
+    {
+      "id": "5",
+      "description": "1.5 Add SQLite audited repository and fresh additive migration with guarded down.",
+      "done": true
+    },
+    {
+      "id": "6",
+      "description": "1.6 Watch independent production-path safety mutations fail; record adjacent Proof comments.",
+      "done": true
+    },
+    {
+      "id": "7",
+      "description": "1.7 Run focused conformance/store/migration tests, migration lint/rollback, scoped checks and pinned OpenSpec; record evidence.",
+      "done": true
+    },
+    {
+      "id": "8",
+      "description": "2.1 Write failing structured-node authorization, set/clear, malformed input and concurrency cases.",
+      "done": false
+    },
+    {
+      "id": "9",
+      "description": "2.2 Implement shared command, HTTP/MCP/batch registration, revision/event and undo/redo semantics.",
+      "done": false
+    },
+    {
+      "id": "10",
+      "description": "2.3 Prove explicit equal-default survives clear/undo, authorization refusal and stale history replay.",
+      "done": false
+    },
+    {
+      "id": "11",
+      "description": "3.1 Write first-child hand-down, child removal, deletion/step-usage and project lifecycle RED.",
+      "done": false
+    },
+    {
+      "id": "12",
+      "description": "3.1.1 Write step-removal sparse-reference refusal, authorization, corruption and atomicity RED.",
+      "done": true
+    },
+    {
+      "id": "13",
+      "description": "3.1.2 Write first-child sparse-preservation refusal, admitted-scope rollback, corruption and shared HTTP RED.",
+      "done": true
+    },
+    {
+      "id": "14",
+      "description": "3.2.1 Implement authoritative memory/SQLite refusal and shared HTTP 409; prove guard omissions.",
+      "done": true
+    },
+    {
+      "id": "15",
+      "description": "3.1.3 Write move destination sparse-preservation refusal, admitted-scope rollback, corruption and undo/redo RED.",
+      "done": true
+    },
+    {
+      "id": "16",
+      "description": "3.2.3 Implement required admitted-scope move destination guard before mutation and replay guard; preserve exact 409 nodes and prove each boundary.",
+      "done": true
+    },
+    {
+      "id": "17",
+      "description": "3.1.4 Write deletion sparse-owner refusal RED for leaf/cascade, promote survival, admitted scope, exact HTTP details and redo-delete/undo-create/undo-duplicate replay.",
+      "done": true
+    },
+    {
+      "id": "18",
+      "description": "3.2.4 Implement exact removed-owner sparse refusal before forward mutation and compensating deletion; prove policy refusal, trusted-state throws, rollback and journal outcomes independently.",
+      "done": true
+    },
+    {
+      "id": "19",
+      "description": "3.1.5 Write forward duplication sparse-source refusal RED, exact ordered nodes, pre-allocation atomicity, trusted-state failures, admitted batch scope and mounted single/mixed commands.",
+      "done": false
+    },
+    {
+      "id": "20",
+      "description": "3.2.5 Implement required admitted sparse source reader after size refusal and before IDs/stamps/writes; prove scope, ordering, detachment and required failures.",
+      "done": false
+    },
+    {
+      "id": "21",
+      "description": "3.2 Implement atomic remap/refusal and snapshot/history ownership of sparse facts.",
+      "done": false
+    },
+    {
+      "id": "22",
+      "description": "3.2.2 Implement required admitted-scope sparse create guard before writes; preserve typed node details through the shared 409 and prove each boundary.",
+      "done": true
+    },
+    {
+      "id": "23",
+      "description": "3.3 Write copy/import/export/saved-plan version and ID remapping RED; allocate current schema versions.",
+      "done": false
+    },
+    {
+      "id": "24",
+      "description": "3.3.1 Write saved-plan schema/capture/diff RED and explicit schema7 upgrade; allocate schema8 only.",
+      "done": true
+    },
+    {
+      "id": "25",
+      "description": "3.3.2 Implement detached source captures, canonical policy preservation and current/legacy readers; prove each safety boundary with watched faults.",
+      "done": true
+    },
+    {
+      "id": "26",
+      "description": "3.3.3 Write v9 JSON export preservation fence RED for direct/captured evidence and isolated/shared routes.",
+      "done": true
+    },
+    {
+      "id": "27",
+      "description": "3.4.1 Implement required same-snapshot sparse export evidence and typed unsupported_step_parallelism refusal; prove changed boundaries.",
+      "done": true
+    },
+    {
+      "id": "28",
+      "description": "3.4 Implement transports, duplication, captures, compatibility readers and recovery tooling.",
+      "done": false
+    },
+    {
+      "id": "29",
+      "description": "3.5 Prove no lifecycle/transfer path drops, invents, widens or silently defaults an override.",
+      "done": false
+    },
+    {
+      "id": "30",
+      "description": "4.0 Add the pure concrete-node resolver only: detached inherited/explicit provenance, exact pair and both maximum validations; prove equality, sibling isolation, mutation isolation and resource-rule composition independently. Keep all consumers unchanged.",
+      "done": true
+    },
+    {
+      "id": "31",
+      "description": "4.0.1 Capture the supplied numeric maximum once; prove a getter returning 2 then 1001 cannot escape validation through a second read.",
+      "done": true
+    },
+    {
+      "id": "32",
+      "description": "4.1 Write explicit-before-default live read, Fast and optimized request parity RED.",
+      "done": false
+    },
+    {
+      "id": "33",
+      "description": "4.2 Implement resolution, hashing/cache versions and independent optimized publication validation together.",
+      "done": false
+    },
+    {
+      "id": "34",
+      "description": "4.3 Prove person/pool clamps, zero-duration non-consumption and stale publication refusal.",
+      "done": false
+    },
+    {
+      "id": "35",
+      "description": "4.4 Write step-cell inheritance/clear/equal-default interaction RED; implement editor and rendering.",
+      "done": false
+    },
+    {
+      "id": "36",
+      "description": "5.1 Prove compatible readers/lifecycle guards and refusal of old-writer downgrade with retained facts.",
+      "done": false
+    },
+    {
+      "id": "37",
+      "description": "5.2 Implement phased writer admission after incompatible writers drain and documented recovery.",
+      "done": false
+    },
+    {
+      "id": "38",
+      "description": "5.3 Complete full feature verification, exact-SHA host gate, review and authorized release.",
+      "done": false
+    }
+  ],
+  "state": "ready",
+  "instruction": "Read context files, work through pending tasks, mark complete as you go.\nPause if you hit blockers or need clarification.",
+  "context": "Read AGENTS.md before producing any artifact. Rules R1-R5 there govern every\nartifact and every line of code. The two that bite hardest:\n\nR5 — Unknown is not OK. Missing file, unreadable state, absent tool, malformed\ntrusted data, unexpected nullish: throw. Never default them away. Every new\nsafety check needs a negative test on its production call path, watched failing\nwith the check removed, and an adjacent `Proof:` comment naming the injected\nfault. Checks that cannot fail have shipped here six times.\n\nR3 — Knowledge about a symbol lives in JSDoc on that symbol. Knowledge that\nspans files lives in docs/ and is linked from the JSDoc. CONTEXT.md is the\ndomain glossary, terms only. docs/adr/ is for decisions that are hard to\nreverse, surprising, and had real alternatives.\n\nStack: Nx monorepo, Bun everywhere, never npm. be-01 (Elysia + Drizzle +\nbun:sqlite, :3100), gw-01 (WS gateway, :3200), fe-01 (Vite + React).\nBlue/green deploy: two be-01 processes share one SQLite file during a swap,\nso migrations must be backward-compatible.\n\nUse CONTEXT.md's terms exactly. If you need a term it lacks, resolve it in the\ndesign interview and add it to CONTEXT.md before using it in an artifact.\n\nCI runs on GitHub Actions (`.github/workflows/ci.yml`) and is the merge gate:\n`bunx nx format:check --all`, then `bunx nx run-many -t test lint typecheck build`,\nthen `bunx @fission-ai/openspec@1.12.0 validate --all --json`. Locally, gate on h2puni with\n`bin/h2puni-gate.sh`, which takes the host-wide lock; AGENTS.md forbids the\nraw full Nx gate there. The earlier \"there is no CI\" line was stale and\nunder-scoped every plan that inherited it: it omitted format and build.\n",
+  "root": {
+    "path": "/tmp/puni-duplicate-owner-20261017",
+    "source": "nearest"
+  }
+}
+{"ceilingBytes": 943718400, "sampledPeakBytes": 74059776, "exitCode": 0}

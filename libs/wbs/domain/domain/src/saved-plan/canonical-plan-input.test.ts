@@ -208,6 +208,7 @@ describe('canonicalisePlanInput round trip', () => {
           },
         ],
         stepBlockages: [],
+        stepParallels: [],
         stepValues: ids.map((id) => ({
           workItemId: id,
           stepId: 's1',

@@ -117,6 +117,7 @@ function coordinatedStores(
       coordinator,
     ),
     blockages: coordinatedStore(stores.blockages, ['set', 'remove', 'moveAll'], coordinator),
+    stepParallels: coordinatedStore(stores.stepParallels, ['set', 'remove'], coordinator),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
@@ -448,6 +449,7 @@ function openMemorySourceWithSeams(
           coordinator.run(async () => {
             const staged = committed.clone();
             const decision = await act({ stores: bindStores(staged, lateWrite) });
+            // Proof: unconditional commit injected; sparse override replacement/removal rollback negative failed (memory-rollback.txt), 2026-10-15.
             if (decision.commit) committed.replaceWith(staged);
             else if (decision.afterRollback !== undefined) {
               await decision.afterRollback({ stores: bindStores(committed, lateWrite) });
@@ -622,6 +624,7 @@ async function capturePlanInput(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     typedDependencies,
@@ -642,6 +645,8 @@ async function capturePlanInput(
     stores.progress.listByProject(projectId),
     // Proof: capture read replaced with empty; detached blockage capture test failed (memory-source.test.ts), 2026-10-14.
     stores.blockages.listByProject(projectId),
+    // Proof: snapshot read replaced with empty; detached sparse capture failed (memory-read.txt), 2026-10-17.
+    stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
@@ -663,6 +668,7 @@ async function capturePlanInput(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({

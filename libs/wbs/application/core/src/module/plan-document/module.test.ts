@@ -53,12 +53,24 @@ async function seeded() {
           : { ok: false, reason: 'not_found', about: 'project' },
       ),
   };
-  return { project, tree, requirements: { directory: source.stores.directory, markers, clock } };
+  return {
+    project,
+    tree,
+    requirements: {
+      directory: source.stores.directory,
+      markers,
+      clock,
+      stepParallels: source.stores.stepParallels,
+    },
+  };
 }
 
 const hostRequirements = () => {
   const source = openMemorySource();
   return {
+    stepParallels: DiBag.createProvider(() => source.stores.stepParallels, {
+      factoryReturnKind: 'sync-value',
+    }),
     directory: DiBag.createProvider(() => source.stores.directory, {
       factoryReturnKind: 'sync-value',
     }),

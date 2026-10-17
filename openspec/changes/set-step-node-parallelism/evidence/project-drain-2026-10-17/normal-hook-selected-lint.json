@@ -1,0 +1,13 @@
+{
+  "selected": [
+    "apps/wbs/be-01/src/services.db.test.ts",
+    "libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts",
+    "libs/wbs/adapters/store-sqlite/src/optimization-drain.ts"
+  ],
+  "invoked": [
+    "apps/wbs/be-01/src/services.db.test.ts",
+    "libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts",
+    "libs/wbs/adapters/store-sqlite/src/optimization-drain.ts"
+  ],
+  "exactMultiset": true
+}

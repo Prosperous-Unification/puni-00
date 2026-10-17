@@ -1,0 +1,37 @@
+[
+  {
+    "fault": "override-ignored",
+    "exitCode": 1,
+    "transcript": "override-ignored.txt"
+  },
+  {
+    "fault": "equality-collapse",
+    "exitCode": 1,
+    "transcript": "equality-collapse.txt"
+  },
+  {
+    "fault": "work-item-guard",
+    "exitCode": 1,
+    "transcript": "work-item-guard.txt"
+  },
+  {
+    "fault": "step-guard",
+    "exitCode": 1,
+    "transcript": "step-guard.txt"
+  },
+  {
+    "fault": "row-validation",
+    "exitCode": 1,
+    "transcript": "row-validation.txt"
+  },
+  {
+    "fault": "override-validation",
+    "exitCode": 1,
+    "transcript": "override-validation.txt"
+  },
+  {
+    "fault": "mutable-boundary",
+    "exitCode": 1,
+    "transcript": "mutable-boundary.txt"
+  }
+]

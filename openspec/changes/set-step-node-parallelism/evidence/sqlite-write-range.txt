@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel-conformance.db.test.ts:
+92 |       throw new Error('step parallelism operation unexpectedly resolved');
+93 |     },
+94 |     (cause: unknown) => {
+95 |       expect(() => {
+96 |         throw cause;
+97 |       }).toThrow(message);
+              ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "integer from 1 to 1000"
+Received message: "Failed query: insert into \"step_parallel\" (\"work_item_id\", \"step_id\", \"max_parallel\", \"created_at\", \"updated_at\", \"created_by\") values (?, ?, ?, ?, ?, ?) on conflict (\"step_parallel\".\"work_item_id\", \"step_parallel\".\"step_id\") do update set \"max_parallel\" = ?, \"updated_at\" = ?\nparams: a,dev,0,1,1,u,0,1"
+
+      at <anonymous> (/tmp/puni-step-parallel-foundation-sol-20261015/libs/wbs/application/conformance/src/step-parallel-conformance.ts:97:10)
+(fail) store-sqlite sparse step parallelism > rejects each invalid value without storing a fact [192.82ms]
+
+ 0 pass
+ 4 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [3.09s]

@@ -769,6 +769,7 @@ const openers: ExistingStoreOpeners = {
   progress: (caseId) => openSqliteCase('progress', caseId),
   attempts: (caseId) => openSqliteCase('attempts', caseId),
   blockages: (caseId) => openSqliteCase('blockages', caseId),
+  stepParallels: (caseId) => openSqliteCase('stepParallels', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
   typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -818,6 +819,7 @@ const declaration: SourceDeclaration = {
     progress: { kind: 'offered', gaps: [], open: openers.progress },
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
+    stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -905,6 +907,7 @@ function emptyMissingCapture(): PlanInputReads {
     actuals: [],
     progress: [],
     stepBlockages: [],
+    stepParallels: [],
     measures: [],
     dependencies: [],
     typedDependencies: [],
@@ -4709,6 +4712,7 @@ async function proveFault(
         progress: (caseId) => takeFixture('progress', caseId),
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
+        stepParallels: (caseId) => takeFixture('stepParallels', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),
@@ -6176,6 +6180,13 @@ describe('SQLite existing source conformance', () => {
       'cleanup failed: injected cleanup failure after actual steps.add',
     );
     expect(existsSync(directory)).toBe(false);
+  });
+
+  it('certifies the sparse step parallelism source inventory', async () => {
+    const report = await runCases(existingStoreRegistrations(openers), {
+      focus: ['stepParallels.set:sparse-replace-remove'],
+    });
+    expect(report.cases.map(({ status }) => status)).toEqual(['passed']);
   });
 
   it('certifies the persisted blockage port', async () => {

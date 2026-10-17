@@ -1,0 +1,56 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 513421312, "exitCode": 1}
+
+libs/wbs/adapters/store-memory/src/memory-source.test.ts:
+897 |       stamp,
+898 |     );
+899 |     const fact = { workItemId: 'wi-parallel', stepId: 'st-1', maxParallel: 1 };
+900 |     await source.stores.stepParallels.set(fact, stamp);
+901 |     const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+902 |     expect(captured?.stepParallels).toEqual([fact]);
+                                          ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "maxParallel": 1,
+-     "stepId": "st-1",
+-     "workItemId": "wi-parallel",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:902:37)
+(fail) captures sparse parallel facts detached from later memory writes [5.39ms]
+922 |       [],
+923 |       stamp,
+924 |     );
+925 |     await source.stores.stepParallels.set(fact, stamp);
+926 |     const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+927 |     expect(captured?.stepParallels).toEqual([fact]);
+                                          ^
+error: expect(received).toEqual(expected)
+
+- [
+-   {
+-     "maxParallel": 1,
+-     "stepId": "st-1",
+-     "workItemId": "wi-parallel",
+-   },
+- ]
++ []
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-step-parallel-saved-plan-20261017/libs/wbs/adapters/store-memory/src/memory-source.test.ts:927:37)
+(fail) captures sparse parallel facts from the memory epoch before concurrent clear [0.90ms]
+
+ 0 pass
+ 15 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1.80s]

@@ -7,6 +7,7 @@ import { PriorityBandService } from '@wbs/core/module/priority-band/priority-ban
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -134,6 +135,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
         bands,
         broadcast,
       }),
+      stepParallels: testStepParallels(),
       calendarMarkers: testCalendarMarkerService(),
       steps: testStepService(),
       workItems: testWorkItemService(),

@@ -1,0 +1,70 @@
+[
+  {
+    "fault": "alias",
+    "exit": 1
+  },
+  {
+    "fault": "broad-scope",
+    "exit": 1
+  },
+  {
+    "fault": "catch-default",
+    "exit": 1
+  },
+  {
+    "fault": "early-reader",
+    "exit": 1
+  },
+  {
+    "fault": "early-size",
+    "exit": 1
+  },
+  {
+    "fault": "early-stamp",
+    "exit": 1
+  },
+  {
+    "fault": "late-ids",
+    "exit": 1
+  },
+  {
+    "fault": "late-writes",
+    "exit": 1
+  },
+  {
+    "fault": "leaves-only",
+    "exit": 1
+  },
+  {
+    "fault": "lost-detail",
+    "exit": 1
+  },
+  {
+    "fault": "omitted",
+    "exit": 1
+  },
+  {
+    "fault": "optional-default",
+    "exit": 1
+  },
+  {
+    "fault": "public-scope",
+    "exit": 1
+  },
+  {
+    "fault": "reversed-order",
+    "exit": 1
+  },
+  {
+    "fault": "root-only",
+    "exit": 1
+  },
+  {
+    "fault": "shared-detail",
+    "exit": 1
+  },
+  {
+    "fault": "wrong-project",
+    "exit": 1
+  }
+]

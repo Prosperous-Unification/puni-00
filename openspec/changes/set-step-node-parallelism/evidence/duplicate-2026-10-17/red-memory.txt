@@ -1,0 +1,207 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+112 |       for (const stepId of ['qa', 'dev'])
+113 |         await fixture.stores.stepParallels.set({ workItemId: owner, stepId, maxParallel: 1 }, stamp);
+114 |       await fixture.stores.stepParallels.set({ workItemId: 'moving', stepId: 'dev', maxParallel: 2 }, stamp);
+115 |       const before = await fixture.snapshot();
+116 |       const { workItems } = installWorkItem(fixture.requirements);
+117 |       expect(await workItems.duplicate('parent', 'owner')).toEqual({
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": {
++     "id": "new-1",
++   },
+  }
+
+- Expected  - 12
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:117:60)
+(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [26.98ms]
+33 |     // Proof: project guard removed; cross-project fixture negative failed; watched 2026-10-13.
+34 |     if (step.projectId !== owner.projectId)
+35 |       throw new Error('step blockage has an invalid step reference');
+36 |     // Proof: leaf guard removed; parent-owner fixture negatives failed; watched 2026-10-13.
+37 |     if ((await workItems.listByProject(owner.projectId)).some((row) => row.parentId === owner.id))
+38 |       throw new Error('step blockage owner is not a leaf');
+                     ^
+error: step blockage owner is not a leaf
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts:38:17)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/adapters/store-memory/src/step-blockage-fixture.ts:57:13)
+(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [2.58ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:135:18)
+(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [5.26ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:188:18)
+(fail) throws on selected trusted maximum corruption before duplication [3.77ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:188:18)
+(fail) throws on selected trusted step corruption before duplication [3.31ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:188:18)
+(fail) throws on selected trusted project corruption before duplication [3.28ms]
+183 |       step: 'invalid step reference',
+184 |       project: 'project mismatch',
+185 |       parent: 'owner is not a leaf',
+186 |       duplicate: 'duplicate step parallelism',
+187 |     };
+188 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+                                                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "owner is not a leaf"
+Received: "parent parent holds a readiness or a hold"
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:188:75)
+(fail) throws on selected trusted parent corruption before duplication [3.09ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:188:18)
+(fail) throws on selected trusted duplicate corruption before duplication [2.65ms]
+206 |   const expected = {
+207 |     ok: false,
+208 |     reason: 'referenced_by_step_parallel',
+209 |     nodes: [{ workItemId: 'parent', stepId: 'dev' }],
+210 |   } as const;
+211 |   expect(refused).toEqual(expected);
+                        ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "parent",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": {
++     "id": "new-1",
++   },
+  }
+
+- Expected  - 8
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:211:19)
+(fail) copies detached exact refusal nodes and allows duplication when cleared [2.36ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:227:16)
+(fail) throws when the required duplication sparse reader is absent before writes [2.95ms]
+256 |   expect(
+257 |     await runner.run('p', 'owner', [
+258 |       { kind: 'patchWorkItem', workItemId: 'moving', patch: { name: 'Must roll back' } },
+259 |       { kind: 'duplicateWorkItem', workItemId: 'parent' },
+260 |     ]),
+261 |   ).toEqual({
+          ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "at": 1,
+-   "detail": {
+-     "nodes": [
+-       {
+-         "stepId": "dev",
+-         "workItemId": "parent",
+-       },
+-     ],
+-   },
+-   "kind": "duplicateWorkItem",
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "redoable": false,
++   "results": [
++     {
++       "index": 0,
++       "kind": "patchWorkItem",
++     },
++     {
++       "id": "new-1",
++       "index": 1,
++       "kind": "duplicateWorkItem",
++       "ref": undefined,
++     },
++   ],
++   "undoable": true,
+  }
+
+- Expected  - 12
++ Received  + 15
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:261:5)
+(fail) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [16.55ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [3.20ms]
+
+ 1 pass
+ 11 fail
+ 11 expect() calls
+Ran 12 tests across 1 file. [1.95s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 505860096, "exitCode": 1}

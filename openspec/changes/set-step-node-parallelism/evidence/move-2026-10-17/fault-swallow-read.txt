@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:163:18)
+(fail) move sparse step parallel preservation > checks authorization and parent membership and cycles before a poisoned reader [24.88ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 1 test across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 500944896, "exitCode": 1}

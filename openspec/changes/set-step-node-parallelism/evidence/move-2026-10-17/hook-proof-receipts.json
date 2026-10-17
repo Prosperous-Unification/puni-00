@@ -1,0 +1,91 @@
+[
+  {
+    "case": "hook-selected-path-coverage",
+    "exitCode": 0,
+    "argv": [
+      "/tmp/puni-step-move-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-first",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/puni-step-move-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-middle",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/puni-step-move-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts"]
+    ]
+  },
+  {
+    "case": "hook-failure-last",
+    "exitCode": 1,
+    "argv": [
+      "/tmp/puni-step-move-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]
+    ]
+  },
+  {
+    "case": "hook-propagation-omitted",
+    "exitCode": 0,
+    "argv": [
+      "/tmp/puni-step-move-20261017/node_modules/.bin/lefthook",
+      "run",
+      "pre-commit",
+      "--command",
+      "lint"
+    ],
+    "selectedLintArgv": [
+      ["eslint", "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts"],
+      ["eslint", "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"]
+    ]
+  },
+  {
+    "case": "hook-empty-argv",
+    "exitCode": 64,
+    "argv": ["/tmp/puni-step-move-20261017/.git/move-lint-staged.sh"],
+    "selectedLintArgv": []
+  },
+  {
+    "case": "hook-empty-guard-omitted",
+    "exitCode": 0,
+    "argv": ["/tmp/puni-step-move-20261017/.git/move-lint-staged.sh"],
+    "selectedLintArgv": []
+  }
+]

@@ -1,0 +1,4 @@
+pre-commit:
+  commands:
+    lint:
+      run: /tmp/export-fence-lint-staged.sh {staged_files}

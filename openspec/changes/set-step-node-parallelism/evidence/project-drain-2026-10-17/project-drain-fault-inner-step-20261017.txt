@@ -1,0 +1,26 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+162 |           fraction: 'step parallelism must be an integer from 1 to 1000',
+163 |           'too-large': 'step parallelism must be an integer from 1 to 1000',
+164 |           'cleanup-order': 'step parallelism must be an integer from 1 to 1000',
+165 |         };
+166 |         // A later foreign-key failure cannot stand in for this sparse guard.
+167 |         expect(() => runDrain(path)).toThrow(diagnostics[fault]);
+                                           ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "step parallelism has an invalid step reference"
+
+Received function did not throw
+Received value: "finished"
+
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:167:38)
+(fail) finish throws on missing-step sparse evidence and rolls back the graph and slot transaction [143.12ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [312.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 107950080, "exitCode": 1}

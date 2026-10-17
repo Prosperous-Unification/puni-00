@@ -1,0 +1,47 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:
+(pass) first-child sparse step parallel preservation > refuses 1 retained pairs before stamping or clearing parent statements [16.35ms]
+(pass) first-child sparse step parallel preservation > refuses 2 retained pairs before stamping or clearing parent statements [2.18ms]
+(pass) first-child sparse step parallel preservation > checks authorization and parent membership before a poisoned reader [1.08ms]
+91 |     const fixture = await seeded();
+92 |     await fixture.stores.workItems.insert(workItemRow({ id: 'sibling', projectId: 'p' }), [], stamp);
+93 |     await fixture.stores.stepParallels.set({ workItemId: 'sibling', stepId: 'dev', maxParallel: 2 }, stamp);
+94 |     const { workItems } = installWorkItem(fixture.requirements);
+95 |     expect((await workItems.create('p', 'owner', { ...create, parentId: null })).ok).toBe(true);
+96 |     expect((await workItems.create('p', 'owner', create)).ok).toBe(true);
+                                                                   ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:96:63)
+(fail) first-child sparse step parallel preservation > allows an empty parent policy and a new root while a sibling retains a fact [7.76ms]
+(pass) reads the admitted sparse store and rolls a preceding patch back with its journal/events [9.11ms]
+(pass) confines borrowed sparse reads to their project and open working-plan scope [0.56ms]
+(pass) throws on trusted maximum corruption without creating or clearing statements [1.27ms]
+(pass) throws on trusted step corruption without creating or clearing statements [1.16ms]
+(pass) throws on trusted project corruption without creating or clearing statements [1.30ms]
+(pass) throws on trusted parent corruption without creating or clearing statements [1.33ms]
+(pass) throws on trusted duplicate corruption without creating or clearing statements [1.15ms]
+174 |   const refused = await workItems.create('p', 'owner', create);
+175 |   expect(refused).toEqual({ ok: false, reason: 'referenced_by_step_parallel', nodes: [{ workItemId: 'parent', stepId: 'dev' }] });
+176 |   fact.workItemId = 'mutated';
+177 |   expect(refused).toEqual({ ok: false, reason: 'referenced_by_step_parallel', nodes: [{ workItemId: 'parent', stepId: 'dev' }] });
+178 |   retained.length = 0;
+179 |   expect((await workItems.create('p', 'owner', create)).ok).toBe(true);
+                                                                  ^
+error: expect(received).toBe(expected)
+
+Expected: true
+Received: false
+
+      at <anonymous> (/tmp/step-first-child-20261017/libs/wbs/application/core/src/module/work-item/first-child-step-parallel.test.ts:179:61)
+(fail) copies exact node references and allows create after clearing the final fact [0.92ms]
+
+ 10 pass
+ 2 fail
+ 40 expect() calls
+Ran 12 tests across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 502484992, "exitCode": 1}

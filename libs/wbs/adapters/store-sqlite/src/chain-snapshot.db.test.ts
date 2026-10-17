@@ -40,6 +40,7 @@ import {
   solverQueue,
   solverSlot,
 } from './schema';
+import { StepParallelRepository } from './step-parallel';
 import { nodeDigest } from './testing/node-digest';
 import { openSpaceDatabase } from './testing/space-database';
 import { activateTestStepBlockages } from './testing/step-blockage-activation';
@@ -912,6 +913,49 @@ describe('detached live snapshot guards', () => {
     const moved = await target();
     expect(moved.basis).not.toBe(before.basis);
     expect(moved.inputHash).not.toBe(before.inputHash);
+  });
+  it('copies sparse adapter rows into private export evidence', async () => {
+    write(
+      "INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES ('a2', 'a2-s0', 1)",
+    );
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- invokes the real repository with its original receiver.
+    const list = StepParallelRepository.prototype.listByProject;
+    const retained: Awaited<ReturnType<typeof list>>[] = [];
+    const borrowing = spyOn(StepParallelRepository.prototype, 'listByProject').mockImplementation(
+      async function (this: StepParallelRepository, projectId) {
+        const rows = await list.call(this, projectId);
+        retained.push(rows);
+        return rows;
+      },
+    );
+    try {
+      const observed = await livePlans().readExport('a2', access);
+      if (observed.kind !== 'shared') throw new Error('shared export observation unavailable');
+      for (const rows of retained) for (const fact of rows) fact.maxParallel = 1000;
+      expect(observed.document.stepParallels).toEqual([
+        { workItemId: 'a2', stepId: 'a2-s0', maxParallel: 1 },
+      ]);
+    } finally {
+      borrowing.mockRestore();
+    }
+  });
+  it('detaches sparse export evidence before closing its owned snapshot', async () => {
+    write(
+      "INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES ('a2', 'a2-s0', 1)",
+    );
+    const observed = await livePlans().readExport('a2', access);
+    expect(closed).toBe(1);
+    if (observed.kind !== 'shared') throw new Error('shared export observation unavailable');
+    expect(observed.document.stepParallels).toEqual([
+      { workItemId: 'a2', stepId: 'a2-s0', maxParallel: 1 },
+    ]);
+    write("DELETE FROM step_parallel WHERE work_item_id = 'a2'");
+    expect(observed.document.stepParallels).toEqual([
+      { workItemId: 'a2', stepId: 'a2-s0', maxParallel: 1 },
+    ]);
+    const cleared = await livePlans().readExport('a2', access);
+    if (cleared.kind !== 'shared') throw new Error('shared export observation unavailable');
+    expect(cleared.document.stepParallels).toEqual([]);
   });
   it('closes its owned connection after successful detached projection', async () => {
     expect((await livePlans().read('a3', access)).kind).toBe('shared');

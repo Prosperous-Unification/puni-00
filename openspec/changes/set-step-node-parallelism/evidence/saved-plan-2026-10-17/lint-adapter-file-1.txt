@@ -1,0 +1,2 @@
+libs/wbs/adapters/store-memory/src/source.ts
+{"ceilingBytes": 943718400, "sampledPeakBytes": 711700480, "exitCode": 0}

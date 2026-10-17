@@ -125,6 +125,7 @@ const ROW_KEYS: Readonly<Record<string, readonly string[] | undefined>> = {
   steps: ['id'],
   stepValues: ['workItemId', 'stepId'],
   stepBlockages: ['workItemId', 'stepId'],
+  stepParallels: ['workItemId', 'stepId'],
   measures: ['workItemId', 'stepId', 'metric'],
   dependencies: ['predecessorId', 'successorId'],
   typedDependencies: ['id'],
@@ -197,6 +198,7 @@ const COLLECTION_CATEGORIES: Readonly<Record<string, PlanDiffCategory | undefine
   project: 'settings',
   measures: 'measures',
   stepBlockages: 'progress',
+  stepParallels: 'capacity',
   dependencies: 'dependencies',
   typedDependencies: 'dependencies',
   assignments: 'ownership',
@@ -430,6 +432,7 @@ function indexRows(
   return out;
 }
 
+/** Builds collection keys; sparse parallel pairs escape separators and escape characters without changing ordinary ID paths. */
 function rowKey(
   collection: string,
   row: unknown,
@@ -438,7 +441,15 @@ function rowKey(
 ): string {
   if (keyFields && isRecord(row)) {
     const parts = keyFields.map((f) => row[f]);
-    if (parts.every((p) => p !== undefined)) return parts.map(String).join(':');
+    if (parts.every((p) => p !== undefined)) {
+      // Proof: reverting to colon-joined tuple keys hid a captured override change (tuple-key.txt), 2026-10-17.
+      if (collection === 'stepParallels')
+        return parts
+          .map(String)
+          .map((part) => part.replaceAll('%', '%25').replaceAll(':', '%3A'))
+          .join(':');
+      return parts.map(String).join(':');
+    }
   }
   if (isRecord(row) || Array.isArray(row)) return `#${String(index)}`;
   // Scalar rows (none today) key by their own value, so a reordered list of

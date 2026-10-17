@@ -3,6 +3,7 @@ import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
@@ -114,6 +115,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
     capacity,
     priorityBands,
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers,
     auth: testAuthService(users),
     projects,

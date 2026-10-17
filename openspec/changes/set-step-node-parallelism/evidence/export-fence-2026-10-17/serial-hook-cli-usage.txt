@@ -1,0 +1,27 @@
+Incorrect Usage: flag provided but not defined: -commands
+
+NAME:
+   lefthook run - execute a group of hooks
+
+USAGE:
+   lefthook run <hook-name> [args...] [options]
+
+OPTIONS:
+   --verbose, -v                          enable debug logs
+   --colors string                        on, off, or auto (default: auto) (default: "auto")
+   --job string [ --job string ]          run only jobs with names
+   --tag string [ --tag string ]          run only jobs with tag names
+   --command string [ --command string ]  run only commands
+   --exclude string [ --exclude string ]  exclude files from all templates
+   --file string [ --file string ]        overwrite file templates with files
+   --force, -f                            do not skip if no files changed
+   --all-files                            replace files templates with {all_files}
+   --no-auto-install                      do not implicitly install hooks
+   --no-stage-fixed                       ignore 'stage_fixed: true' setting
+   --no-tty                               act as if no TTY is connected
+   --skip-lfs                             do not run LFS hooks
+   --[no-]fail-on-changes                 exit with 1 if some of the files were changed (default: false)
+   --files-from-stdin                     parse filelist from STDIN
+   --help, -h                             show help
+Error: flag provided but not defined: -commands
+{"ceilingBytes": 943718400, "sampledPeakBytes": 38043648, "exitCode": 1}

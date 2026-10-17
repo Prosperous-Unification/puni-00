@@ -28,6 +28,7 @@ async function seeded() {
     broadcast,
     requirements: {
       workItems: stores.workItems,
+      stepParallels: stores.stepParallels,
       projects: stores.projects,
       estimates: stores.estimates,
       actuals: stores.actuals,
@@ -54,6 +55,9 @@ const hostRequirements = () => {
   const { stores } = openMemorySource();
   return {
     workItemStore: DiBag.createProvider(() => stores.workItems, {
+      factoryReturnKind: 'sync-value',
+    }),
+    stepParallelStore: DiBag.createProvider(() => stores.stepParallels, {
       factoryReturnKind: 'sync-value',
     }),
     livePlans: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),

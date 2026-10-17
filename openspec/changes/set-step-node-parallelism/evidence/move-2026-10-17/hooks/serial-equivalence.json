@@ -1,0 +1,14 @@
+{
+  "onlyChange": "pre-commit.parallel true -> false (false omitted from Lefthook dump)",
+  "sameCommandsAndGlobsAndTrailers": true,
+  "groups": [
+    "doc-caps",
+    "format",
+    "lint",
+    "migration-lint",
+    "plaintext-secrets",
+    "private-nesting",
+    "tool-wiki",
+    "website-migration-lint"
+  ]
+}

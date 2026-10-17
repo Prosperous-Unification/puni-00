@@ -1,0 +1,99 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:
+85 |             expect(await sparse.listByWorkItems(projectId, ['parent'])).toHaveLength(
+86 |               steps.length - 1,
+87 |             );
+88 |             await sparse.set({ workItemId: 'parent', stepId: first.id, maxParallel: 1 }, stamp);
+89 |             expect(await sparse.listByProject(projectId)).toHaveLength(steps.length);
+90 |             expect(await working.stores.workItems.listByProject(projectId)).toEqual(
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "deadline": null,
+      "externalRefs": [],
+      "factEnd": null,
+      "factStart": null,
+      "frozenNumber": null,
+      "hold": "on_hold",
+      "id": "parent",
+      "maxParallel": 1,
+      "name": "Parent",
+      "notes": "",
+      "parentId": null,
+      "position": 1,
+      "priority": null,
+      "projectId": "1f8ade4c-728c-4835-81a0-d9fa68845e66",
+      "readiness": "ready",
+-     "revision": 2,
++     "revision": 1,
+      "serviceId": null,
+      "serviceIds": [],
+      "serviceTeamId": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "tagIds": [],
+      "teamIds": [],
+      "typeIds": [],
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:90:77)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [492.53ms]
+85 |             expect(await sparse.listByWorkItems(projectId, ['parent'])).toHaveLength(
+86 |               steps.length - 1,
+87 |             );
+88 |             await sparse.set({ workItemId: 'parent', stepId: first.id, maxParallel: 1 }, stamp);
+89 |             expect(await sparse.listByProject(projectId)).toHaveLength(steps.length);
+90 |             expect(await working.stores.workItems.listByProject(projectId)).toEqual(
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  [
+    {
+      "deadline": null,
+      "externalRefs": [],
+      "factEnd": null,
+      "factStart": null,
+      "frozenNumber": null,
+      "hold": "on_hold",
+      "id": "parent",
+      "maxParallel": 1,
+      "name": "Parent",
+      "notes": "",
+      "parentId": null,
+      "position": 1,
+      "priority": null,
+      "projectId": "a8521116-c27a-4d8d-9265-5ab41279261f",
+      "readiness": "ready",
+-     "revision": 2,
++     "revision": 1,
+      "serviceId": null,
+      "serviceIds": [],
+      "serviceTeamId": null,
+      "startNoEarlierThan": null,
+      "startNoEarlierThanReason": null,
+      "tagIds": [],
+      "teamIds": [],
+      "typeIds": [],
+    },
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/step-first-child-20261017/apps/wbs/be-01/src/controller/first-child-step-parallel.controller.db.test.ts:90:77)
+      at async <anonymous> (/tmp/step-first-child-20261017/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:41:28)
+(fail) first-child sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [424.98ms]
+
+ 0 pass
+ 2 fail
+ 14 expect() calls
+Ran 2 tests across 1 file. [2.88s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 641904640, "exitCode": 1}

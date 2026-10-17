@@ -1,0 +1,8 @@
+libs/wbs/application/core/src/module/work-item/work-item.resource.ts 1392ms
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts 54ms
+apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts 23ms
+openspec/changes/set-step-node-parallelism/design.md 38ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 13ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 39ms (unchanged)
+openspec/changes/set-step-node-parallelism/verify.md 93ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 350744576, "exitCode": 0}

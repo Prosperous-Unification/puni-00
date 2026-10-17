@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/saved-plan/step-parallels.test.ts:
+(pass) saved sparse step parallelism > compares distinct tuples containing colons without losing an override [1.74ms]
+
+ 1 pass
+ 32 filtered out
+ 0 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]
+{"ceilingBytes": 805306368, "sampledPeakBytes": 22147072, "exitCode": 0}

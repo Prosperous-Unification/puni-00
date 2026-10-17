@@ -1,0 +1,60 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step.controller.db.test.ts:
+1846 |       `/api/projects/${project.id}/steps/${project.qaId}?cascade=${cascade}`,
+1847 |       token,
+1848 |       { method: 'DELETE' },
+1849 |     );
+1850 |     expect(refused.status).toBe(409);
+1851 |     expect(await refused.json()).toEqual({
+                                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "error": "referenced_by_step_parallel",
+-   "nodes": [
+-     {
+-       "stepId": "001ad7a1-fc92-4a3d-b929-b42a3b65ac3c",
+-       "workItemId": "4da3e47f-2686-4f3e-952e-3e1cedc7c9ec",
+-     },
+-   ],
++   "nodes": [],
+  }
+
+- Expected  - 6
++ Received  + 1
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/controller/step.controller.db.test.ts:1851:34)
+(fail) returns 409 for retained sparse step parallelism (cascade=false) [310.39ms]
+1846 |       `/api/projects/${project.id}/steps/${project.qaId}?cascade=${cascade}`,
+1847 |       token,
+1848 |       { method: 'DELETE' },
+1849 |     );
+1850 |     expect(refused.status).toBe(409);
+1851 |     expect(await refused.json()).toEqual({
+                                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "error": "referenced_by_step_parallel",
+-   "nodes": [
+-     {
+-       "stepId": "f3037f7a-9d1c-426a-9955-cf11bf79841a",
+-       "workItemId": "676371be-15e6-4f49-92a6-a6c9246d921a",
+-     },
+-   ],
++   "nodes": [],
+  }
+
+- Expected  - 6
++ Received  + 1
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/controller/step.controller.db.test.ts:1851:34)
+(fail) returns 409 for retained sparse step parallelism (cascade=true) [228.93ms]
+
+ 0 pass
+ 52 filtered out
+ 2 fail
+ 4 expect() calls
+Ran 2 tests across 1 file. [2.47s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 641257472, "exitCode": 1}

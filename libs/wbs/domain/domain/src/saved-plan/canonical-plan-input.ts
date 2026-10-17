@@ -3,6 +3,7 @@ import type { EstimateMethod, EstimateRounding, EstimateUnit } from '../estimate
 import type { Hold, Readiness } from '../progress';
 import type { StepState } from '../progress';
 import type { StoredStepBlockage } from '../step-blockage';
+import { assertStepParallel, type StoredStepParallel } from '../step-parallel';
 import type { TypedDependency } from '../typed-dependency';
 
 /**
@@ -43,7 +44,7 @@ import type { TypedDependency } from '../typed-dependency';
  */
 export interface CanonicalPlanInput {
   /** Bumped whenever this field list changes; the body carries it. */
-  readonly schemaVersion: 7;
+  readonly schemaVersion: 8;
   readonly project: CanonicalProject;
   /** Sorted by `id`. */
   readonly workItems: readonly CanonicalWorkItem[];
@@ -53,6 +54,8 @@ export interface CanonicalPlanInput {
   readonly stepValues: readonly CanonicalStepValue[];
   /** Direct leaf-owned facts, sorted by work item and step identity. */
   readonly stepBlockages: readonly StoredStepBlockage[];
+  /** Sparse authored maxima; absence inherits, including after historical upgrades. */
+  readonly stepParallels: readonly StoredStepParallel[];
   /** Sorted by `workItemId`, then `stepId`, then `metric`. */
   readonly measures: readonly CanonicalMeasure[];
   /** Sorted by `predecessorId`, then `successorId`. */
@@ -340,6 +343,8 @@ export interface PlanInputRows {
   readonly stepValues: readonly CanonicalStepValue[];
   /** Direct leaf-owned facts, sorted by work item and step identity. */
   readonly stepBlockages: readonly StoredStepBlockage[];
+  /** Sparse authored maxima; absence inherits, including after historical upgrades. */
+  readonly stepParallels: readonly StoredStepParallel[];
   readonly measures: readonly CanonicalMeasure[];
   readonly dependencies: readonly CanonicalDependency[];
   readonly typedDependencies: readonly TypedDependency[];
@@ -359,7 +364,7 @@ export interface PlanInputRows {
 }
 
 /** The one version this module writes. Stored bodies carry it; readers check it. */
-export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 7 as const;
+export const CANONICAL_PLAN_INPUT_SCHEMA_VERSION = 8 as const;
 
 const byString =
   <T>(...keys: readonly ((row: T) => string)[]) =>
@@ -402,6 +407,8 @@ const sorted = <T>(rows: readonly T[], compare: (a: T, b: T) => number): T[] =>
  */
 export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput {
   // Proof: capture validation call removed; duplicate capture negative failed (step-blockages.test.ts), 2026-10-14.
+  // Proof: capture validation removed; unknown-owner capture negative failed (capture-validation.txt), 2026-10-17.
+  const stepParallels = readStepParallels(values);
   assertStepBlockages(values);
   return {
     schemaVersion: CANONICAL_PLAN_INPUT_SCHEMA_VERSION,
@@ -494,6 +501,13 @@ export function canonicalisePlanInput(values: PlanInputRows): CanonicalPlanInput
         (row) => row.stepId,
       ),
     ).map(({ workItemId, stepId, blockedAt }) => ({ workItemId, stepId, blockedAt })),
+    stepParallels: sorted(
+      stepParallels,
+      byString(
+        (row) => row.workItemId,
+        (row) => row.stepId,
+      ),
+    ),
     measures: sorted(
       values.measures,
       byString(
@@ -693,4 +707,87 @@ export function assertStepBlockages(body: unknown): void {
     if (pairs.has(pair)) throw new Error('step blockage pair is duplicated');
     pairs.add(pair);
   }
+}
+
+/**
+ * Validates sparse authored maxima at capture and stored-body boundaries.
+ * Throws for malformed collections, references, pairs or maxima; copies each
+ * fact with a single read of its fields so validation and canonical bytes agree.
+ * Empty collections need no references and never change another fact family's
+ * historical failure contract.
+ */
+export function readStepParallels(body: unknown): StoredStepParallel[] {
+  // Proof: collection guard removed; missing capture facts negative failed (collection.txt), 2026-10-17.
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('stepParallels' in body) ||
+    !Array.isArray(body.stepParallels)
+  )
+    throw new Error('step parallelism collection is missing or malformed');
+  const supplied: readonly unknown[] = body.stepParallels;
+  if (supplied.length === 0) return [];
+  // Proof: reference-list guard removed; malformed owner-list negative failed (reference-lists.txt).
+  if (
+    !('workItems' in body) ||
+    !Array.isArray(body.workItems) ||
+    !('steps' in body) ||
+    !Array.isArray(body.steps)
+  )
+    throw new Error('step parallelism references have no owner or step collection');
+  const owners = new Set<string>();
+  const parents = new Set<string>();
+  const steps = new Set<string>();
+  const ownerRows: readonly unknown[] = body.workItems;
+  for (const owner of ownerRows) {
+    // Proof: owner-shape guard removed; malformed owner-row negative failed (owner-shape.txt).
+    if (
+      typeof owner !== 'object' ||
+      owner === null ||
+      !('id' in owner) ||
+      typeof owner.id !== 'string'
+    )
+      throw new Error('step parallelism owner collection is malformed');
+    owners.add(owner.id);
+    if ('parentId' in owner && typeof owner.parentId === 'string') parents.add(owner.parentId);
+  }
+  const stepRows: readonly unknown[] = body.steps;
+  for (const step of stepRows) {
+    // Proof: step-shape guard removed; malformed step-row negative failed (step-shape.txt).
+    if (typeof step !== 'object' || step === null || !('id' in step) || typeof step.id !== 'string')
+      throw new Error('step parallelism step collection is malformed');
+    steps.add(step.id);
+  }
+  const pairs = new Set<string>();
+  const facts: StoredStepParallel[] = [];
+  for (const fact of supplied) {
+    // Proof: object guard removed; null-fact capture negative failed (fact-object.txt).
+    if (typeof fact !== 'object' || fact === null)
+      throw new Error('step parallelism fact is malformed');
+    const workItemId = 'workItemId' in fact ? fact.workItemId : undefined;
+    const stepId = 'stepId' in fact ? fact.stepId : undefined;
+    const maxParallel = 'maxParallel' in fact ? fact.maxParallel : undefined;
+    // Proof: value-shape guard removed; string-maximum capture negative failed (fact-values.txt).
+    if (
+      typeof workItemId !== 'string' ||
+      typeof stepId !== 'string' ||
+      typeof maxParallel !== 'number'
+    )
+      throw new Error('step parallelism fact is malformed');
+    // Proof: range call removed; oversized-maximum capture negative failed (range.txt).
+    assertStepParallel(maxParallel);
+    // Proof: owner guard removed; unknown-owner capture negative failed (owner.txt).
+    if (!owners.has(workItemId)) throw new Error('step parallelism owner is unknown');
+    // Proof: leaf guard removed; parent-owner capture negative failed (leaf.txt).
+    if (parents.has(workItemId)) throw new Error('step parallelism owner is not a leaf');
+    // Proof: step guard removed; unknown-step capture negative failed (step.txt).
+    if (!steps.has(stepId)) throw new Error('step parallelism step is unknown');
+    const pair = JSON.stringify([workItemId, stepId]);
+    // Proof: uniqueness guard removed; duplicate capture negative failed (duplicate.txt).
+    if (pairs.has(pair)) throw new Error('step parallelism pair is duplicated');
+    pairs.add(pair);
+    // Proof: rereading the accessor emitted 1001 after validating 2; single-read regression failed (accessor-reread.txt).
+    facts.push({ workItemId, stepId, maxParallel });
+  }
+  return facts;
 }

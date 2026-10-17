@@ -17,6 +17,7 @@ import type { ProjectStore } from '../../ports/project-store';
 import type { Scheduler } from '../../ports/scheduler';
 import type { StepBlockageStore } from '../../ports/step-blockage-store';
 import type { StepNodeAttemptStore } from '../../ports/step-node-attempt-store';
+import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type { TypedDependencyStore } from '../../ports/typed-dependency-store';
 import type { WorkItemStore } from '../../ports/work-item-store';
@@ -45,6 +46,7 @@ export const workItemModule = DiBag.createBuilder()
       ({
         livePlans,
         workItemStore,
+        stepParallelStore,
         projectStore,
         estimateStore,
         actualStore,
@@ -67,6 +69,7 @@ export const workItemModule = DiBag.createBuilder()
       }: {
         livePlans: LivePlanStore | undefined;
         workItemStore: WorkItemStore;
+        stepParallelStore: Pick<StepParallelStore, 'listByWorkItems'>;
         projectStore: ProjectStore;
         estimateStore: EstimateStore;
         actualStore: ActualStore;
@@ -89,6 +92,7 @@ export const workItemModule = DiBag.createBuilder()
       }): WorkItemServiceOptions => ({
         ...(livePlans === undefined ? {} : { livePlans }),
         workItems: workItemStore,
+        stepParallels: stepParallelStore,
         projects: projectStore,
         estimates: estimateStore,
         actuals: actualStore,

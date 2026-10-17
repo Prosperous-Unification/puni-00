@@ -1,0 +1,58 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+{"level":"error","time":1792213711349,"service":"be-01","err":{"occurrence_id":"AE_115AVGFVD7V5DZ6VQXMF52N9Y5","fingerprint":"fp1_f903ec9a705d1b9a8c3f6b96377016ac","stack":["Error: step parallelism owner is not a leaf","    at read (/tmp/puni-restore-destination-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:63:44)","    at async applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6780:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+188 |           expect(snapshot()).toEqual(before);
+189 |           expect(
+190 |             h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+191 |           ).toEqual(journalBefore);
+192 |         } else {
+193 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "body": {
+-     "error": "stale_undo",
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 4
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:193:26)
+(fail) redo-create destination sparse policy preserves replay atomicity and history policy [455.97ms]
+{"level":"error","time":1792213711681,"service":"be-01","err":{"occurrence_id":"AE_T8E96TA9ZEFGK9R5W50BF3EJGG","fingerprint":"fp1_f903ec9a705d1b9a8c3f6b96377016ac","stack":["Error: step parallelism owner is not a leaf","    at read (/tmp/puni-restore-destination-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:63:44)","    at async applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6780:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+188 |           expect(snapshot()).toEqual(before);
+189 |           expect(
+190 |             h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+191 |           ).toEqual(journalBefore);
+192 |         } else {
+193 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "body": {
+-     "error": "stale_undo",
+-   },
+-   "status": 409,
++   "body": "Internal Server Error",
++   "status": 500,
+  }
+
+- Expected  - 4
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:193:26)
+(fail) undo-delete destination sparse policy preserves replay atomicity and history policy [330.90ms]
+
+ 0 pass
+ 21 filtered out
+ 2 fail
+ 13 expect() calls
+Ran 2 tests across 1 file. [2.53s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 583102464, "exitCode": 1}

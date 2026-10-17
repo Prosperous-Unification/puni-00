@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "python3",
+    "/tmp/step-first-child-20261017/openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/rss-guard.py",
+    "bunx",
+    "eslint",
+    "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+  ],
+  "exitCode": 1,
+  "boundaryRuleReported": true,
+  "skipped": false
+}

@@ -1,0 +1,8 @@
+
+/tmp/step-removal-20261017/apps/wbs/be-01/src/controller/step-marker-organization.controller.db.test.ts
+  572:97  error  Invalid type "boolean" of template literal expression  @typescript-eslint/restrict-template-expressions
+  582:64  error  Invalid type "boolean" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+✖ 2 problems (2 errors, 0 warnings)
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 906489856, "exitCode": 1}

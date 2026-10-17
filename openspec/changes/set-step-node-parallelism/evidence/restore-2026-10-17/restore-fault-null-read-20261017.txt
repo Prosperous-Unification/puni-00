@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+{"level":"error","time":1792213706399,"service":"be-01","err":{"occurrence_id":"AE_WTAA9AFC02RGN7H9RECWMTRZEP","fingerprint":"fp1_c0d2d43e412ff89369fce7778d5bfc34","stack":["Error: restore replay sparse reader unavailable","    at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:155:27)","    at listByWorkItems (unknown)","    at applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6745:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+170 |         if (policy === 'captured-blockage') expect(removedBlockages).toEqual([]);
+171 |         expect(appliedNames).toEqual(
+172 |           policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch'],
+173 |         );
+174 |         if (policy === 'empty' || policy === 'unrelated' || policy === 'root') {
+175 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:175:33)
+(fail) redo-create root sparse policy preserves replay atomicity and history policy [451.68ms]
+{"level":"error","time":1792213706732,"service":"be-01","err":{"occurrence_id":"AE_M2Q2288MM1AX6HZYRFAFFCEMTG","fingerprint":"fp1_c0d2d43e412ff89369fce7778d5bfc34","stack":["Error: restore replay sparse reader unavailable","    at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:155:27)","    at listByWorkItems (unknown)","    at applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6745:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+170 |         if (policy === 'captured-blockage') expect(removedBlockages).toEqual([]);
+171 |         expect(appliedNames).toEqual(
+172 |           policy === 'revision' ? [] : [replay === 'undo' ? 'unrelated' : 'Edited in batch'],
+173 |         );
+174 |         if (policy === 'empty' || policy === 'unrelated' || policy === 'root') {
+175 |           expect(answer.status).toBe(200);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 200
+Received: 500
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:175:33)
+(fail) undo-delete root sparse policy preserves replay atomicity and history policy [332.96ms]
+
+ 0 pass
+ 21 filtered out
+ 2 fail
+ 13 expect() calls
+Ran 2 tests across 1 file. [2.79s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 643686400, "exitCode": 1}

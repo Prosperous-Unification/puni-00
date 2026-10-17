@@ -414,7 +414,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     assertOpen();
     const owner = await scope.stores.workItems.findById(workItemId);
     if (owner?.projectId !== projectId) {
-      throw new Error(`step blockage owner ${workItemId} is outside project ${projectId}`);
+      throw new Error(`work item ${workItemId} is outside project ${projectId}`);
     }
   };
   /** Scope-bound facts preserve the transactional read and row revision after writes. */
@@ -516,6 +516,40 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     progress: retainedProgress,
     attempts,
     blockages,
+    stepParallels: {
+      // Proof: spreading the real SQLite class dropped prototype methods;
+      // mounted borrowed-scope regression failed on listByProject (prototype-red.txt).
+      listByProject: (requestedProjectId) => {
+        // Proof: independently omitting project or lifetime checks resolved the
+        // mounted foreign/closed read negatives (mutation-list-*-guard.txt).
+        assertProject(requestedProjectId);
+        return scope.stores.stepParallels.listByProject(requestedProjectId);
+      },
+      listByWorkItems: (requestedProjectId, ids) => {
+        // Proof: omitted scope guard resolved foreign/closed reads; stale empty
+        // evidence committed the preceding batch patch (first-child mutation logs).
+        assertProject(requestedProjectId);
+        return scope.stores.stepParallels.listByWorkItems(requestedProjectId, ids);
+      },
+      set: async (parallel, stamp) => {
+        // Proof: omitted owner check accepted the mounted foreign-scope write
+        // (mutation-set-owner-guard.txt); the closed call also refuses here.
+        await assertOwner(parallel.workItemId);
+        await scope.stores.stepParallels.set(parallel, stamp);
+        // Proof: omitted refresh left the warmed listByProject revision stale
+        // against SQLite (mutation-set-refresh.txt); findById is not this cache.
+        await refreshRows([parallel.workItemId]);
+      },
+      remove: async (workItemId, stepId, stamp) => {
+        // Proof: omitted owner check accepted foreign/missing-owner removal
+        // (mutation-remove-owner-guard.txt); the mounted regression failed.
+        await assertOwner(workItemId);
+        await scope.stores.stepParallels.remove(workItemId, stepId, stamp);
+        // Proof: omitted refresh left the warmed listByProject revision stale
+        // against SQLite (mutation-remove-refresh.txt).
+        await refreshRows([workItemId]);
+      },
+    },
     dependencies: retainedDependencies,
     typedDependencies,
     subtrees: retainedSubtrees,

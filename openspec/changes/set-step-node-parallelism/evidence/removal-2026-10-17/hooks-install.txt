@@ -1,0 +1,4 @@
+[tool-git-hooks] installing lefthook in /tmp/step-removal-20261017
+sync hooks: ✔️(prepare-commit-msg, pre-commit, commit-msg)
+[tool-git-hooks] hooks installed — pre-commit + commit-msg are active.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 81244160, "exitCode": 0}

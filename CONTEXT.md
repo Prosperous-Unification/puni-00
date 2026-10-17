@@ -282,6 +282,11 @@ The effective person, teams and parallel width of one leaf step. A person is exp
 assumed from the leaf's sole assignment, or unassigned. Teams are the nearest stated
 whole set, with each team's stated project capacity or no capacity statement.
 
+**Step maximum parallelism override**:
+An explicit integer ceiling from 1 through 1000 authored for one leaf work item's step.
+Absence inherits the row default; an explicit equal-default value remains a distinct fact.
+_Avoid_: node width, pool capacity, row concurrency
+
 **Step node ID**:
 A step node's stable identity: a versioned encoding of its work item's ID and its step's
 ID. Unchanged by renumbering, reparenting while it stays a leaf, step rename or step

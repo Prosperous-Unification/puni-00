@@ -1,6 +1,6 @@
 export { STEP_POSITION_STEP } from '@wbs/domain';
 
-import type { AllowancePercent, EstimateUnit } from '@wbs/domain';
+import type { AllowancePercent, EstimateUnit, StepNodeRef } from '@wbs/domain';
 
 import type { Assignment } from './directory-store';
 import type { WriteStamp } from './write-stamp';
@@ -159,7 +159,8 @@ export interface StepRemoval {
 export type StepRemoved =
   | { ok: true; removal: StepRemoval }
   | { ok: false; reason: 'not_found' }
-  | { ok: false; reason: 'in_use'; usage: StepUsageRows };
+  | { ok: false; reason: 'in_use'; usage: StepUsageRows }
+  | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] };
 
 export interface StepStore {
   /** In step order, which is the order every reader of a project's steps gets. */
@@ -214,7 +215,9 @@ export interface StepStore {
    * for a stronger one — see {@link StepUsageRows.actuals}. The **stated
    * progress** goes the same way and is counted the same way, see
    * {@link StepUsageRows.progress}. Direct blockage is counted independently
-   * of progress and explicitly removed in this same transaction.
+   * of progress and explicitly removed in this same transaction. Retained sparse
+   * step parallelism refuses either cascade value with detached sorted node
+   * references; corrupt selected facts throw before mutation.
    */
   remove(
     projectId: string,

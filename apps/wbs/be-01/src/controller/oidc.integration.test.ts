@@ -5,6 +5,7 @@ import {
   InMemoryTokenStore,
   OidcCallbackRefused,
 } from '@wbs/auth';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
 import { errors } from 'jose';
 
@@ -190,6 +191,7 @@ function fixture(
     capacity: testCapacityService(),
     directory: testDirectoryService(),
     history: testHistoryService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     internalAuthSecret: 'x'.repeat(32),
     writes: testWrites(),

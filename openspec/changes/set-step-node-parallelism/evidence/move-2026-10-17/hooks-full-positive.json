@@ -1,0 +1,19 @@
+{
+  "exitCode": 0,
+  "capMiB": 1280,
+  "sampledPeakBytes": 1056579584,
+  "exactSelectedLintPaths": [
+    "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+    "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+    "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+  ],
+  "selectedMultisetMatches": true,
+  "nxBoundarySkipped": false,
+  "applicableGroups": ["format", "lint", "plaintext-secrets", "private-nesting", "tool-wiki"],
+  "unmatchedGroups": ["doc-caps", "migration-lint", "website-migration-lint"],
+  "toolWiki": {
+    "status": "inactive",
+    "certified": false,
+    "reason": "external activation root is not provisioned"
+  }
+}

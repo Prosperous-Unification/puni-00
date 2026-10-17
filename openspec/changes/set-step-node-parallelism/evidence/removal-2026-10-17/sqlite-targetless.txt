@@ -1,0 +1,76 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+814 |     const before = await projectStore.findById(projectId);
+815 |     const nodes = [
+816 |       { workItemId: 'sand', stepId: devId },
+817 |       { workItemId: 'strip', stepId: devId },
+818 |     ];
+819 |     expect(await stepStore.remove(projectId, devId, cascade, wrote())).toEqual({
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+        "stepId": "2c852463-62d9-4c44-a091-233d46ee5bbe",
+        "workItemId": "sand",
+      },
+      {
++       "stepId": "c2f38bdc-0a27-4828-a2ac-e6fb7120c60d",
++       "workItemId": "sand",
++     },
++     {
+        "stepId": "2c852463-62d9-4c44-a091-233d46ee5bbe",
+        "workItemId": "strip",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 0
++ Received  + 4
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:819:72)
+(fail) refuses retained sparse parallelism atomically (cascade=false) [130.71ms]
+814 |     const before = await projectStore.findById(projectId);
+815 |     const nodes = [
+816 |       { workItemId: 'sand', stepId: devId },
+817 |       { workItemId: 'strip', stepId: devId },
+818 |     ];
+819 |     expect(await stepStore.remove(projectId, devId, cascade, wrote())).toEqual({
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
++       "stepId": "2904c2ea-526f-4b46-9fda-457a00a8ca6c",
++       "workItemId": "sand",
++     },
++     {
+        "stepId": "519572b4-928d-42d7-9d66-2aa5ec5ef926",
+        "workItemId": "sand",
+      },
+      {
+        "stepId": "519572b4-928d-42d7-9d66-2aa5ec5ef926",
+        "workItemId": "strip",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 0
++ Received  + 4
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/service/step.service.db.test.ts:819:72)
+(fail) refuses retained sparse parallelism atomically (cascade=true) [87.36ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.09s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 544948224, "exitCode": 1}

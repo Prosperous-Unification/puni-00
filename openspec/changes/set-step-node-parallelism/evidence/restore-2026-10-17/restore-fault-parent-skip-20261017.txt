@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+182 |             policy === 'empty'
+183 |               ? []
+184 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+185 |           );
+186 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+187 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:187:33)
+(fail) redo-create parent sparse policy preserves replay atomicity and history policy [520.36ms]
+182 |             policy === 'empty'
+183 |               ? []
+184 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+185 |           );
+186 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+187 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:187:33)
+(fail) undo-delete parent sparse policy preserves replay atomicity and history policy [380.32ms]
+
+ 0 pass
+ 21 filtered out
+ 2 fail
+ 13 expect() calls
+Ran 2 tests across 1 file. [3.86s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 638844928, "exitCode": 1}

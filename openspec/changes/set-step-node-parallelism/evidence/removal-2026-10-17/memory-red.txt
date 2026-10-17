@@ -1,0 +1,82 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+82 | });
+83 |
+84 | for (const cascade of [false, true])
+85 |   it(`refuses removing a memory step with retained parallelism (cascade=${cascade})`, async () => {
+86 |     await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
+87 |     expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual({
+                                                                       ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "a",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "removal": {
++     "actuals": 0,
++     "assignments": 0,
++     "attempts": 0,
++     "blockages": 0,
++     "estimates": 0,
++     "measures": 0,
++     "progress": 0,
++     "workItemIds": [],
++   },
+  }
+
+- Expected  - 8
++ Received  + 11
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:87:67)
+(fail) refuses removing a memory step with retained parallelism (cascade=false) [7.63ms]
+82 | });
+83 |
+84 | for (const cascade of [false, true])
+85 |   it(`refuses removing a memory step with retained parallelism (cascade=${cascade})`, async () => {
+86 |     await stores.stepParallels.set({ workItemId: 'a', stepId: 'dev', maxParallel: 1 }, stamp);
+87 |     expect(await stores.steps.remove('p', 'dev', cascade, stamp)).toEqual({
+                                                                       ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "a",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "removal": {
++     "actuals": 0,
++     "assignments": 0,
++     "attempts": 0,
++     "blockages": 0,
++     "estimates": 0,
++     "measures": 0,
++     "progress": 0,
++     "workItemIds": [],
++   },
+  }
+
+- Expected  - 8
++ Received  + 11
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:87:67)
+(fail) refuses removing a memory step with retained parallelism (cascade=true) [0.23ms]
+
+ 0 pass
+ 8 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 508522496, "exitCode": 1}

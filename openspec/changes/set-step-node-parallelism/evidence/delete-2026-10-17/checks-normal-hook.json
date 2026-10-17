@@ -1,0 +1,8 @@
+[
+  {
+    "check": "normal-hook",
+    "argv": ["bunx", "lefthook", "run", "pre-commit", "--force"],
+    "capMiB": 900,
+    "exitCode": 137
+  }
+]

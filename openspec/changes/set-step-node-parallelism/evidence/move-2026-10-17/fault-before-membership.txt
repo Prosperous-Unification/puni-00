@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:
+128 |     const fixture = await seeded();
+129 |     const { workItems } = installWorkItem({
+130 |       ...fixture.requirements,
+131 |       stepParallels: {
+132 |         listByWorkItems: () => {
+133 |           throw new Error('poisoned sparse read');
+                          ^
+error: poisoned sparse read
+      at listByWorkItems (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:133:21)
+      at move (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:2966:55)
+      at async <anonymous> (/tmp/puni-step-move-20261017/libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts:155:28)
+(fail) move sparse step parallel preservation > checks authorization and parent membership and cycles before a poisoned reader [11.76ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 495697920, "exitCode": 1}

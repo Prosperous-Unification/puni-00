@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -eu
+if [[ $# -eq 0 ]]; then
+  printf 'project drain lint requires selected paths\n' >&2
+  exit 64
+fi
+for path in "$@"; do
+  printf '%s\n' "$path" >> /tmp/project-drain-lint-invocations-20261017.txt
+  bunx --no-install eslint "$path"
+done

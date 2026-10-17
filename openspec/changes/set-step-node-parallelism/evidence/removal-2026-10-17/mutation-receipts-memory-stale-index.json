@@ -1,0 +1,7 @@
+[
+  {
+    "fault": "memory-stale-index",
+    "failedTests": 2,
+    "exitCode": 1
+  }
+]

@@ -26,6 +26,7 @@ import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
 import { readStepBlockageActivation } from '@wbs/store-sqlite/step-blockage-activation';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
+import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
 import { DiBag } from 'di-bag';
 
 import { type AppOptions, buildApp } from './app';
@@ -390,6 +391,7 @@ export async function bootBe01(
               emailDelivery,
               steps: services.steps,
               calendarMarkers: services.calendarMarkers,
+              stepParallels: new StepParallelRepository(db, services.gate),
               workItems: services.workItems,
               optimizer: services.optimizer,
               savedPlans: services.savedPlans,

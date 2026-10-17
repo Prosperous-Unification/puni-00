@@ -1,0 +1,8 @@
+[
+  {
+    "check": "graph",
+    "argv": ["bunx", "nx", "show", "project", "wbs-core", "--json"],
+    "capMiB": 900,
+    "exitCode": 0
+  }
+]

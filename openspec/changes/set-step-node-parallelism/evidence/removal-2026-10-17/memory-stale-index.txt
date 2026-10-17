@@ -1,0 +1,59 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+188 |     await arrived;
+189 |     if (release === undefined) throw new Error('missing release signal');
+190 |     release();
+191 |     expect(await first).toMatchObject({ ok: true });
+192 |     expect(await second).toMatchObject(sameStep ? { ok: false, reason: 'not_found' } : { ok: true });
+193 |     expect((await steps.listByProject('p')).map((step) => step.id)).toEqual(sameStep ? ['b'] : []);
+                                                                          ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "b",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:193:69)
+(fail) rechecks the target after concurrent owner reads (sameStep=false) [3.16ms]
+187 |     const second = steps.remove('p', sameStep ? 'a' : 'b', true, stamp);
+188 |     await arrived;
+189 |     if (release === undefined) throw new Error('missing release signal');
+190 |     release();
+191 |     expect(await first).toMatchObject({ ok: true });
+192 |     expect(await second).toMatchObject(sameStep ? { ok: false, reason: 'not_found' } : { ok: true });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "not_found",
++   "ok": true,
++   "removal": {
++     "actuals": 0,
++     "assignments": 0,
++     "attempts": 0,
++     "blockages": 0,
++     "estimates": 0,
++     "measures": 0,
++     "progress": 0,
++     "workItemIds": [],
++   },
+  }
+
+- Expected  - 2
++ Received  + 11
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:192:26)
+(fail) rechecks the target after concurrent owner reads (sameStep=true) [0.26ms]
+
+ 0 pass
+ 16 filtered out
+ 2 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [1.80s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 495104000, "exitCode": 1}

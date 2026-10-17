@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:
+(pass) rechecks the target after concurrent owner reads (sameStep=false) [7.29ms]
+196 |     const second = steps.remove('p', sameStep ? 'a' : 'b', true, stamp);
+197 |     await arrived;
+198 |     if (release === undefined) throw new Error('missing release signal');
+199 |     release();
+200 |     expect(await first).toMatchObject({ ok: true });
+201 |     expect(await second).toMatchObject(
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "not_found",
++   "ok": true,
++   "removal": {
++     "actuals": 0,
++     "assignments": 0,
++     "attempts": 0,
++     "blockages": 0,
++     "estimates": 0,
++     "measures": 0,
++     "progress": 0,
++     "workItemIds": [],
++   },
+  }
+
+- Expected  - 2
++ Received  + 11
+
+      at <anonymous> (/tmp/step-removal-20261017/libs/wbs/adapters/store-memory/src/step-parallel-fixture.test.ts:201:26)
+(fail) rechecks the target after concurrent owner reads (sameStep=true) [0.35ms]
+
+ 1 pass
+ 16 filtered out
+ 1 fail
+ 5 expect() calls
+Ran 2 tests across 1 file. [1.82s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 501231616, "exitCode": 1}

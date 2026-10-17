@@ -1,0 +1,6 @@
+{
+  "libs/wbs/adapters/store-sqlite/src/optimization-drain.ts": "78a92ff1a3b195028b08ba919cccc35b0e2ac1fd8843b386791c3af34dde22e9",
+  "libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts": "688bb72c387d1cfd715438728de69b99100a797abe81836505d42e58c32d338d",
+  "libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts": "8ec188830e97baae3889bfaddf5fdab6046b7bdaaf98c73b13dbac3a805fe66b",
+  "apps/wbs/be-01/src/services.db.test.ts": "88ccf8a6a9ef1648f82dd2cb56affd161696dbd1616aadbf9fe2d1c2593e2068"
+}

@@ -17,6 +17,9 @@ export function installPlanDocument(requirements: PlanDocumentRequirements): Pla
   const bag = DiBag.createBuilder()
     .withInstalledModules([planDocumentModule])
     .withServices({
+      stepParallels: DiBag.createProvider(() => requirements.stepParallels, {
+        factoryReturnKind: 'sync-value',
+      }),
       directory: DiBag.createProvider(() => requirements.directory, {
         factoryReturnKind: 'sync-value',
       }),

@@ -1,0 +1,12 @@
+{
+  "base": "a990d0695b35e711d5fe93da22b66708e3bbe43e",
+  "files": {
+    "libs/wbs/application/core/src/module/work-item/work-item.resource.ts": "04ce9727afb813b135746993800a28462b786b7936214b951d9698c678e66168",
+    "libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts": "2d191d24a1fa46e37c28ab639e97b56ed3e4f6eb30f091ed8bfb5ff84f29eba6",
+    "apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts": "b83b1c9c7396cc7307bcc3f4b76d548d220ea627a1efecbf1ba8846380a7c6ce",
+    "openspec/changes/set-step-node-parallelism/design.md": "c32178d70f211dead7c1bf84e96505372848fdee6a9250a626da12c078427f8e",
+    "openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md": "9894a00852e69348a60fd86cc2d6e0996fe02a6a1fa5372a1f94741767543413",
+    "openspec/changes/set-step-node-parallelism/tasks.md": "24d874e8b87d1f559e22fe5af64d89ba2b13dada04875011a56faebdf062b388",
+    "openspec/changes/set-step-node-parallelism/verify.md": "4ff596d5da49c7900d3e1f9b9483cea71588d3dffcdcdf59f19deada52820ae4"
+  }
+}

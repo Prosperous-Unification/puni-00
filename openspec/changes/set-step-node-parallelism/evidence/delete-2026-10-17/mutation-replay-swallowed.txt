@@ -1,0 +1,122 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) redo-leaf throw sparse policy preserves replay atomicity and history policy [386.89ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) redo-leaf corrupt sparse policy preserves replay atomicity and history policy [280.76ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) redo-cascade throw sparse policy preserves replay atomicity and history policy [297.29ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) redo-cascade corrupt sparse policy preserves replay atomicity and history policy [282.03ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) undo-create throw sparse policy preserves replay atomicity and history policy [251.29ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) undo-create corrupt sparse policy preserves replay atomicity and history policy [284.50ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) undo-duplicate throw sparse policy preserves replay atomicity and history policy [263.13ms]
+234 |           expect(h.sqlite.query('SELECT id FROM work_item WHERE id = ?').get(authored.id)).toBeNull();
+235 |           expect(h.sqlite.query('SELECT work_item_id,step_id,max_parallel FROM step_parallel').all()).toEqual(
+236 |             policy === 'empty' ? [] : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+237 |           );
+238 |         } else if (policy === 'throw' || policy === 'corrupt') {
+239 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 409
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/apps/wbs/be-01/src/controller/delete-step-parallel.controller.db.test.ts:239:33)
+(fail) undo-duplicate corrupt sparse policy preserves replay atomicity and history policy [258.75ms]
+
+ 0 pass
+ 19 filtered out
+ 8 fail
+ 52 expect() calls
+Ran 8 tests across 1 file. [4.29s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 592404480, "exitCode": 1}

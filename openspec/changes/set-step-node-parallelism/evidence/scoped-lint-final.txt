@@ -1,0 +1,31 @@
+
+ NX   Running target lint for 5 projects:
+
+- wbs-domain
+- wbs-core
+- wbs-conformance
+- wbs-store-memory
+- wbs-store-sqlite
+
+
+✔  nx run wbs-domain:lint
+✔  nx run wbs-conformance:lint
+✔  nx run wbs-store-memory:lint
+✔  nx run wbs-core:lint
+✔  nx run wbs-store-sqlite:lint
+
+
+
+ NX   Successfully ran target lint for 5 projects
+
+
+Output of 5 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      1m 5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     50.5s (1 task)
+  Recoverable time:  14.0s (22% of the run)
+
+  Recommendations:
+    - Increase parallelism to recover up to 14.0s → https://nx.dev/docs/concepts/ci-concepts/parallelization-distribution?utm_source=nx-cli&utm_medium=cli&utm_campaign=performance-report&utm_content=parallelization.
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.

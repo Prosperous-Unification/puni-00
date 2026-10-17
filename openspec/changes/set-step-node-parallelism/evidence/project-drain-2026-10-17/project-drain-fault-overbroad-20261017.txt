@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:
+45 | 	transaction(transaction, config = {}) {
+46 | 		const tx = new SQLiteBunTransaction("sync", this.dialect, this, this.relations);
+47 | 		let result;
+48 | 		this.client.transaction(() => {
+49 | 			result = transaction(tx);
+50 | 		})[config.behavior ?? "deferred"]();
+                             ^
+error: step parallelism project mismatch
+      at transaction (bun:sqlite:407:13)
+      at transaction (/home/df/wd/puni/puni-00/.worktrees/shared-restore-activation-sol/node_modules/drizzle-orm/bun-sqlite/session.js:50:25)
+      at <anonymous> (/tmp/puni-project-drain-parallel-20261017/libs/wbs/adapters/store-sqlite/src/optimization-drain-step-parallel.db.test.ts:211:14)
+(fail) finish keeps nonincident corrupt bystander policy byte-equal without validating it [154.22ms]
+
+ 0 pass
+ 44 filtered out
+ 1 fail
+Ran 1 test across 1 file. [373.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 108003328, "exitCode": 1}

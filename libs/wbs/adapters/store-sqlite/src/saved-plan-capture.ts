@@ -13,6 +13,7 @@ import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
+import { StepParallelRepository } from './step-parallel';
 import { StepProgressRepository } from './step-progress';
 import { TypedDependencyRepository } from './typed-dependency';
 import { WorkItemRepository } from './work-item';
@@ -180,6 +181,8 @@ export async function readPlanInputIn(
   const progress = await new StepProgressRepository(db, OPEN).listByProject(projectId);
   // Proof: snapshot read replaced with empty; concurrent-clear capture regression failed (saved-plan-capture.db.test.ts), 2026-10-14.
   const stepBlockages = await new StepBlockageRepository(db, OPEN).listByProject(projectId);
+  // Proof: snapshot read replaced with empty; concurrent-clear sparse capture failed (sqlite-read.txt), 2026-10-17.
+  const stepParallels = await new StepParallelRepository(db, OPEN).listByProject(projectId);
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
   const typedDependencies = (
@@ -224,6 +227,7 @@ export async function readPlanInputIn(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     // Proof: omitting this snapshot read made `keeps captured node endpoints after step reorder and live relationship removal` receive undefined (2026-09-27).

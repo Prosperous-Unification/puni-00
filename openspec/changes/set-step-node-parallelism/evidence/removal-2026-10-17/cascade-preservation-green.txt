@@ -1,0 +1,11 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/step-parallel.db.test.ts:
+(pass) preserves retained cascade families before refusing sparse parallelism [130.61ms]
+
+ 1 pass
+ 27 filtered out
+ 0 fail
+ 7 expect() calls
+Ran 1 test across 1 file. [2.00s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 532336640, "exitCode": 0}

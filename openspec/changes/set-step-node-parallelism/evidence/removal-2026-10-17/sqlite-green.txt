@@ -1,0 +1,39 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/service/step.service.db.test.ts:
+(pass) StepService.add > adds a step and announces it [141.60ms]
+(pass) StepService.add > trims the name, and refuses one that is only spaces [83.38ms]
+(pass) StepService.add > refuses a name the project already holds [82.64ms]
+(pass) StepService.add > refuses a project that is not there, and one the caller may not write to [79.23ms]
+(pass) StepService.rename > renames a step and announces it [78.65ms]
+(pass) StepService.rename > refuses a name the project already holds [77.61ms]
+(pass) StepService.rename > refuses a step that belongs to another project [77.11ms]
+(pass) StepService.remove > refuses direct blockage before opening the deletion transaction, including beneath done progress [85.47ms]
+(pass) StepService.remove > refuses a blockage arriving after the fast usage count [80.93ms]
+(pass) StepService.remove > confirmed cascade counts blockage facts, bumps blockage-only owners and keeps unrelated facts [84.17ms]
+(pass) StepService.remove > rolls back blockage facts, step and revisions when deletion fails after owner bumps [87.87ms]
+(pass) StepService.remove > removes a step nothing points at, without asking again [82.46ms]
+(pass) StepService.remove > refuses a step that is used, counting what would go [81.47ms]
+(pass) StepService.remove > carries the figures that are not days into the refusal it shows a person [78.66ms]
+(pass) StepService.remove > refuses a step holding only recorded days at the gate, before a transaction opens [97.47ms]
+(pass) StepService.remove > refuses a step holding only progress at the gate, before a transaction opens [85.02ms]
+(pass) StepService.remove > removes it on the second, explicit call [82.57ms]
+(pass) StepService.remove > refuses an unconfirmed removal when an estimate lands after the count [81.83ms]
+(pass) StepService.remove > refuses the loser of two removals, bumping and announcing nothing [96.61ms]
+(pass) StepService.remove > refuses a caller who may not write to the project, cascade or not [92.89ms]
+(pass) StepService.remove > refuses a step that is not there [82.74ms]
+(pass) a step removed between the check and the write > refuses the estimate rather than answering with the foreign key [80.43ms]
+(pass) a step removed between the check and the write > refuses the assignee the same way [78.96ms]
+(pass) a step removed between the check and the write > names the person, not the step, when it is the person who has gone [77.54ms]
+(pass) step events > records the event after the write, never before it [79.65ms]
+(pass) step events > replays a step event to a client that reconnects [110.82ms]
+(pass) refuses retained sparse parallelism atomically (cascade=false) [95.25ms]
+(pass) refuses retained sparse parallelism atomically (cascade=true) [89.21ms]
+(pass) refuses sparse parallelism inserted after the fast usage count [87.01ms]
+(pass) authorizes before consulting sparse step references [78.58ms]
+
+ 30 pass
+ 0 fail
+ 95 expect() calls
+Ran 30 tests across 1 file. [4.45s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 611610624, "exitCode": 0}

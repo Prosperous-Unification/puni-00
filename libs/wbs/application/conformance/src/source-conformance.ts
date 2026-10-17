@@ -48,6 +48,7 @@ export interface ExistingStoreOpeners {
   readonly measures: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['measures']>>;
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
+  readonly stepParallels: OpenCase<'stepParallels'>;
   readonly blockages: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['blockages']>>;
   readonly typedDependencies: (
     caseId: CaseId,
@@ -162,6 +163,28 @@ export function existingStoreRegistrations(
         ]);
         expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
         await port.remove(blockage.workItemId, blockage.stepId, seed.stamps[1]);
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      },
+    ),
+    storeCase(
+      'stepParallels',
+      'stepParallels.set:sparse-replace-remove',
+      openers.stepParallels,
+      async ({ port, seed }) => {
+        const parallel = {
+          workItemId: seed.workItemIds[0][0],
+          stepId: seed.stepIds[0][0],
+          maxParallel: 1,
+        };
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        await port.set(parallel, seed.stamps[0]);
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([parallel]);
+        await port.set({ ...parallel, maxParallel: 1000 }, seed.stamps[1]);
+        expect(await port.listByWorkItems(seed.projectIds[0], [parallel.workItemId])).toEqual([
+          { ...parallel, maxParallel: 1000 },
+        ]);
+        expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+        await port.remove(parallel.workItemId, parallel.stepId, seed.stamps[1]);
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
       },
     ),

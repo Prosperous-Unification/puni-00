@@ -1,0 +1,40 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/step.controller.db.test.ts:
+{"level":"error","time":1792203899373,"service":"be-01","err":{"occurrence_id":"AE_SXSYMZ7V4BEE7WY949NVDCXDZ5","fingerprint":"fp1_c45cc46dfe6fad281f23df13706e6e0b","stack":["Error: Endpoint deleteApiProjectsByIdStepsByStepId returned an undeclared refusal","    at renderReply (/tmp/step-removal-20261017/apps/wbs/be-01/src/http/elysia/mount.ts:440:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+1845 |     const refused = await send(
+1846 |       `/api/projects/${project.id}/steps/${project.qaId}?cascade=${cascade}`,
+1847 |       token,
+1848 |       { method: 'DELETE' },
+1849 |     );
+1850 |     expect(refused.status).toBe(409);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/controller/step.controller.db.test.ts:1850:28)
+(fail) returns 409 for retained sparse step parallelism (cascade=false) [307.09ms]
+{"level":"error","time":1792203899602,"service":"be-01","err":{"occurrence_id":"AE_9MAS40422SDRV8BBB6ANQ5C2GH","fingerprint":"fp1_c45cc46dfe6fad281f23df13706e6e0b","stack":["Error: Endpoint deleteApiProjectsByIdStepsByStepId returned an undeclared refusal","    at renderReply (/tmp/step-removal-20261017/apps/wbs/be-01/src/http/elysia/mount.ts:440:15)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+1845 |     const refused = await send(
+1846 |       `/api/projects/${project.id}/steps/${project.qaId}?cascade=${cascade}`,
+1847 |       token,
+1848 |       { method: 'DELETE' },
+1849 |     );
+1850 |     expect(refused.status).toBe(409);
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: 409
+Received: 500
+
+      at <anonymous> (/tmp/step-removal-20261017/apps/wbs/be-01/src/controller/step.controller.db.test.ts:1850:28)
+(fail) returns 409 for retained sparse step parallelism (cascade=true) [228.49ms]
+
+ 0 pass
+ 52 filtered out
+ 2 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [2.51s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 640364544, "exitCode": 1}

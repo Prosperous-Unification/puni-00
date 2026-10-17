@@ -1,0 +1,7 @@
+[
+  {
+    "path": "apps/wbs/be-01/src/controller/calendar-marker-identity.db.test.ts",
+    "exitCode": 137,
+    "log": "openspec/changes/set-step-node-parallelism/evidence/first-child-2026-10-17/lint-00.txt"
+  }
+]

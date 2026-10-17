@@ -7595,3 +7595,86 @@ describe('shared-person replay closure (6l)', () => {
     });
   });
 });
+
+// Proof: forcing COMMIT instead of UOW error rollback failed all four graph/
+// journal/event assertions below; restored passing controls also check sparse state
+// exactly (watched 2026-10-17).
+describe('installed project drain sparse policy rollback', () => {
+  for (const operation of ['finish', 'last-release'] as const) {
+    for (const fault of ['after-capture', 'event-insert'] as const) {
+      it(`${operation} restores sparse policy, graph, journal and events after ${fault}`, async () => {
+        let captures = 0;
+        let armed = false;
+        const { db, path, services, pushUrls } = bootstrap(undefined, () => {
+          if (fault === 'after-capture' && armed && ++captures === 2)
+            throw new Error('sparse drain after-capture fault');
+        });
+        seedSharedLifecycle(path, true, undefined, true);
+        const seed = openDatabase(path);
+        try {
+          seed.run(
+            "INSERT INTO step (id,project_id,name,position) VALUES ('A-policy-step','A','Second target policy',20)",
+          );
+          seed.run(
+            "INSERT INTO step_parallel (work_item_id,step_id,max_parallel) VALUES ('A','A-step',1),('A','A-policy-step',4),('B','B-step',4)",
+          );
+          seed.run(
+            "INSERT INTO command_journal (id,project_id,user_id,seq,kind,payload,inverse,preconditions,created_at) VALUES ('sparse-history','A','ada',1,'fixture','{}','{}','{}',2)",
+          );
+        } finally {
+          seed.close();
+        }
+        const slot = operation === 'last-release' ? seedLifecycleSlot(db) : undefined;
+        expect(await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' })).toBe(
+          operation === 'finish' ? 0 : 1,
+        );
+        const before = lifecycleTables(db);
+        const sparseBefore = db.all(
+          sql.raw('SELECT * FROM step_parallel ORDER BY work_item_id,step_id'),
+        );
+        const bystander = db.all(sql.raw("SELECT * FROM step_parallel WHERE work_item_id = 'B'"));
+        const failure = openDatabase(path);
+        try {
+          if (fault === 'event-insert')
+            failure.run(
+              "CREATE TRIGGER fail_sparse_drain_event BEFORE INSERT ON event_log WHEN NEW.subscription = 'project:C' BEGIN SELECT RAISE(ABORT, 'sparse drain event fault'); END",
+            );
+        } finally {
+          failure.close();
+        }
+        const finish = () =>
+          slot === undefined
+            ? services.optimizationLifecycle.finishDrain('A')
+            : services.optimizationLifecycle.releaseSlot(slot);
+        armed = true;
+        expect(await rejectedMessage(finish())).toContain(
+          fault === 'after-capture' ? 'sparse drain after-capture fault' : 'project:C',
+        );
+        armed = false;
+        expect(lifecycleTables(db)).toEqual(before);
+        expect(
+          db.all(sql.raw('SELECT * FROM step_parallel ORDER BY work_item_id,step_id')),
+        ).toEqual(sparseBefore);
+        expect(pushUrls).toEqual([]);
+        if (fault === 'event-insert') {
+          const repair = openDatabase(path);
+          try {
+            repair.run('DROP TRIGGER fail_sparse_drain_event');
+          } finally {
+            repair.close();
+          }
+        }
+        expect(await finish()).toEqual(
+          operation === 'finish'
+            ? 'finished'
+            : { released: true, retirement: 'finished', deletion: 'finished' },
+        );
+        expect(db.all(sql.raw('SELECT * FROM step_parallel'))).toEqual(bystander);
+        expect(db.all(sql.raw("SELECT id FROM command_journal WHERE project_id = 'A'"))).toEqual(
+          [],
+        );
+        expect(db.all(sql.raw('PRAGMA foreign_key_check'))).toEqual([]);
+      });
+    }
+  }
+});

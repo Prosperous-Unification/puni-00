@@ -66,6 +66,7 @@ import {
   spanOfAttempts,
   type StepAllowances,
   type StepNodeCycle,
+  type StepNodeRef,
   type StepPolicy,
   type StepState,
   treeOrder,
@@ -126,6 +127,7 @@ import type {
   StepNodeAttemptStore,
   StoredAttempt,
 } from '../../ports/step-node-attempt-store';
+import type { StepParallelStore } from '../../ports/step-parallel-store';
 import type { Step } from '../../ports/step-store';
 import type { SubtreeStore } from '../../ports/subtree-store';
 import type {
@@ -936,6 +938,8 @@ export interface MoveWorkItem {
 export interface WorkItemServiceOptions {
   livePlans?: LivePlanStore;
   workItems: WorkItemStore;
+  /** Required scope-bound evidence; create refuses retained facts before any writes. */
+  stepParallels: Pick<StepParallelStore, 'listByWorkItems'>;
   projects: ProjectStore;
   estimates: EstimateStore;
   /**
@@ -2084,6 +2088,10 @@ export class WorkItemService {
    * and assignments to that child and returns the node mapping in project step order.
    * Blockage keeps its original time through create, undo and redo; conditional
    * replacements refuse newer facts inside the structural command transaction.
+   * Retained step parallel facts refuse a nonnull parent before stamping or
+   * mutation until hand-down and history ownership exist (ADR 0031). The reader
+   * validates selected existing-parent facts too; corrupt trusted state throws.
+   * Command scopes own rollback; standalone calls gain no cross-call isolation.
    * The mapping is internal to the application; command responses still return
    * the created work item ID alone.
    */
@@ -2091,7 +2099,12 @@ export class WorkItemService {
     projectId: string,
     actorId: string,
     input: CreateWorkItem,
-  ): Promise<WorkItemOutcome<WorkItem> & { stepNodeMapping?: { from: string; to: string }[] }> {
+  ): Promise<
+    (
+      | WorkItemOutcome<WorkItem>
+      | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    ) & { stepNodeMapping?: { from: string; to: string }[] }
+  > {
     const project = await this.opts.projects.findById(projectId);
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
@@ -2104,6 +2117,23 @@ export class WorkItemService {
     // project throws instead of rendering.
     if (input.parentId !== null && !rows.some((row) => row.id === input.parentId)) {
       return { ok: false, reason: 'not_found' };
+    }
+    if (input.parentId !== null) {
+      // Proof: omitting this read/refusal let both retained-pair negatives create
+      // a child and clear parent statements; observed 2026-10-17.
+      // Moving this below the first apply changed parent readiness/hold in the
+      // snapshot (mutation-late-guard.txt); unconditional refusal blocked empty policy.
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [input.parentId]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          // Proof: aliasing the supplied facts failed exact detached-node assertions
+          // (mutation-aliased-nodes.txt); wrong parent/project and project-wide reads
+          // separately failed selected-policy tests, 2026-10-17.
+          nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
+      }
     }
     const placed = placeAfter(this.groupUnder(rows, input.parentId), input.afterId);
     // Read here, per create, against **this** project's ladder — not hoisted to
@@ -2684,7 +2714,9 @@ export class WorkItemService {
   }
 
   /**
-   * Reparents the subtree, clearing unrelated destination leaf statements before
+   * Reparents the subtree. Retained destination step parallel facts refuse before
+   * stamping or mutation; selected corrupt facts throw even on existing parents.
+   * Clears unrelated destination leaf statements before
    * the store move. Incoming facts stay with their owners. A last-child departure
    * hands up direct blockage only when every former leaf has that step fact,
    * using the latest blocked time even when negative or retained beneath done.
@@ -2693,7 +2725,14 @@ export class WorkItemService {
    * Undo restores destination progress through
    * the existing statement replay and restores blockage timestamps exactly.
    */
-  async move(id: string, actorId: string, input: MoveWorkItem): Promise<WorkItemOutcome<null>> {
+  async move(
+    id: string,
+    actorId: string,
+    input: MoveWorkItem,
+  ): Promise<
+    | WorkItemOutcome<null>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -2763,6 +2802,25 @@ export class WorkItemService {
       // answer 500 instead of 409 with its relationship id; watched 2026-09-27.
       if (pinned.length > 0) {
         return { ok: false, reason: 'node_on_parent', dependencyIds: pinned.map((row) => row.id) };
+      }
+    }
+
+    // Proof: omitted guard/wrong moving owner accepted retained pairs; project-wide
+    // selection refused incoming-subtree policy. Lookup before actor/membership
+    // leaked the poisoned reader; swallowing it resolved the required failure.
+    // Skipping existing parents missed selected corruption; lost nodes failed exact
+    // mounted 409. Empty admitted reads committed the preceding patch. Moving this
+    // below stamp allocation spent a stamp on refusal (all watched 2026-10-17).
+    if (input.parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, [
+        input.parentId,
+      ]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          reason: 'referenced_by_step_parallel',
+          nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
       }
     }
 
@@ -2989,10 +3047,18 @@ export class WorkItemService {
    * Proof: injecting copied facts failed the blocked leaf/descendant regression;
    * watched 2026-10-14.
    *
-   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
-   * nothing.
+   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}. Then reads all original
+   * subtree owners through the required admitted sparse reader; retained policy
+   * refuses with detached ordered nodes before IDs, stamps or writes. Malformed
+   * or unreadable selected evidence throws; unrelated policy keeps its owners.
    */
-  async duplicate(id: string, actorId: string): Promise<WorkItemOutcome<{ id: string }>> {
+  async duplicate(
+    id: string,
+    actorId: string,
+  ): Promise<
+    | WorkItemOutcome<{ id: string }>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3001,6 +3067,21 @@ export class WorkItemService {
     // `parent_id` references a row that must already be there.
     const originals = subtreeOf(rows, id);
     if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
+
+    // Proof: omitted/root-only/wrong-project/broad/leaves-only reads failed retained,
+    // nested, parent-corruption and unrelated-policy production cases. Early reads
+    // failed auth/size precedence; catch/optional defaults accepted required failures.
+    // Late IDs/stamps/writes failed zero-allocation snapshots; reversed/lost nodes
+    // and aliased facts failed exact detached refusal tests. Public graph selection
+    // committed the admitted-policy mixed batch (all watched 2026-10-17).
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, originals);
+    if (parallels.length > 0) {
+      return {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+      };
+    }
 
     const newIds = new Map(originals.map((originalId) => [originalId, this.clock.newId()]));
     /**
@@ -3225,11 +3306,19 @@ export class WorkItemService {
     return { ok: true, value: { id: copyOf(id) } };
   }
 
+  /**
+   * Refuses retained sparse facts on the exact removed owners before stamping or
+   * writes; promote retains child owners. Corrupt or unreadable facts throw.
+   * Command scopes own atomic rollback until sparse snapshot/history support exists.
+   */
   async remove(
     id: string,
     actorId: string,
     strategy: DeleteStrategy | null,
-  ): Promise<WorkItemOutcome<null>> {
+  ): Promise<
+    | WorkItemOutcome<null>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3240,6 +3329,21 @@ export class WorkItemService {
     // A parent carries work below it that the caller may not have on screen, so
     // which of the two things they meant is theirs to say.
     if (children.length > 0 && strategy === null) return { ok: false, reason: 'strategy_required' };
+
+    // Proof: omission/root-only/wrong-owner/project and broad selection each failed
+    // exact leaf/cascade or promote-policy tests; early lookup broke missing/auth/
+    // strategy precedence, and late lookup changed the statement snapshot, 2026-10-17.
+    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, doomed);
+    if (parallels.length > 0) {
+      return {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        // Proof: empty details and getter aliases independently failed detached
+        // exact-node assertions; swallowed/absent readers failed before stamps, 2026-10-17.
+        nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+      };
+    }
 
     // Before the branch rather than inside each of them: whichever of the two a
     // delete takes, it is one act, and the hand-ups it writes on the surviving
@@ -3270,7 +3374,6 @@ export class WorkItemService {
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
-    const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
     const inside = new Set(doomed);
     const deletedBlockages = storedBlockages.filter((fact) => inside.has(fact.workItemId));
     const previousParentProgress = storedProgress.filter((fact) => fact.workItemId === survivor);
@@ -6081,6 +6184,19 @@ export class WorkItemService {
     if (parentId !== null && !rows.some((row) => row.id === parentId)) {
       return { ok: false, detail: 'the work item it sat under has been deleted since then.' };
     }
+    // Proof: omitted guard accepted newly retained policy on undo/redo; project-wide
+    // selection refused unrelated policy. Catching read/corruption as stale returned
+    // 409 instead of 500 and discarded history. Real preceding replay patches roll
+    // back before stale discard; thrown reads preserve history (watched 2026-10-17).
+    if (parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [parentId]);
+      if (parallels.length > 0) {
+        return {
+          ok: false,
+          detail: 'the destination has step parallelism stated since this move.',
+        };
+      }
+    }
     const group = this.groupUnder(rows, parentId).filter((sibling) => sibling.id !== id);
     // `placeAfter` throws on a sibling that is not in the group, which is the
     // right answer for a caller that made the id up and the wrong one for a
@@ -6188,6 +6304,11 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * Refuses deletion of retained sparse owners on every compensating path.
+   * Trusted sparse read failures throw, preserving the journal on rollback;
+   * valid retained policy follows the existing stale-history discard outcome.
+   */
   private async applyDelete(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'delete_subtree' }>,
@@ -6244,6 +6365,16 @@ export class WorkItemService {
       return { ok: false, detail: `relationship ${invalid.id} no longer fits this tree.` };
     const attemptsRefused = await this.attemptsRefusal(projectId, command.setAttempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    // Proof: omission, root-only and operation-restricted reads erased retained
+    // owners on redo-delete/undo-create/undo-duplicate; broad reads blocked unrelated
+    // and promoted facts. Catch-to-stale returned 409 rather than 500 and late lookup
+    // failed owned-policy replay; observed preceding patches rolled back, 2026-10-17.
+    const parallels = await this.opts.stepParallels.listByWorkItems(projectId, command.remove);
+    if (parallels.length > 0)
+      return {
+        ok: false,
+        detail: 'a removed work item has step parallelism stated since this command.',
+      };
     await this.opts.dependencies.removeAllFor(command.remove, stamp);
     await this.opts.typedDependencies.removeAllFor(command.remove, stamp);
     if (command.deletionState !== undefined)
@@ -6324,6 +6455,11 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * Replays historical rows under their surviving destination after existing refusals.
+   * Retained destination policy refuses as stale history; trusted sparse failures throw
+   * before any restore writes so the runner preserves the original journal.
+   */
   private async applyRestore(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'restore_subtree' }>,
@@ -6384,6 +6520,22 @@ export class WorkItemService {
     if (command.deletionState !== undefined) {
       const refused = await this.deletionRefusal(projectId, command.deletionState);
       if (refused !== null) return refused;
+    }
+    // Proof: omitted guard accepted redo-create/undo-delete and nested duplicate
+    // destinations; overbroad reads refused unrelated policy. Swallowed failures
+    // returned 409 instead of 500; parent-skip accepted corrupt parent ownership.
+    // Early reads displaced deletion refusal; late reads cleared captured blockage
+    // or inserted rows before refusal. Root reads and source rereads broke controls
+    // (mounted restore-step-parallel cases, independently watched 2026-10-17).
+    if (root.parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [root.parentId]);
+      if (parallels.length > 0)
+        return {
+          ok: false,
+          detail: 'the destination has step parallelism stated since this restore.',
+        };
+    }
+    if (command.deletionState !== undefined) {
       await this.replaceDeletionBlockages(
         projectId,
         command.deletionState.parentBlockages,

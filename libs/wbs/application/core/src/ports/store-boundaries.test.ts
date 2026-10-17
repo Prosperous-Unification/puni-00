@@ -82,6 +82,7 @@ describe('store ports', () => {
       progress: [],
       measures: [],
       stepBlockages: [],
+      stepParallels: [],
       dependencies: [],
       typedDependencies: [],
       assignments: [],

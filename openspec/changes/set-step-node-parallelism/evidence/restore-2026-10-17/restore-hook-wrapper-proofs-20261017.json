@@ -1,0 +1,34 @@
+[
+  {
+    "fault": "",
+    "exit": 0,
+    "calls": ["first", "middle", "last"]
+  },
+  {
+    "fault": "first",
+    "exit": 1,
+    "calls": ["first"]
+  },
+  {
+    "fault": "middle",
+    "exit": 1,
+    "calls": ["first", "middle"]
+  },
+  {
+    "fault": "last",
+    "exit": 1,
+    "calls": ["first", "middle", "last"]
+  },
+  {
+    "fault": "empty",
+    "exit": 64
+  },
+  {
+    "fault": "fail-fast",
+    "exit": 0
+  },
+  {
+    "fault": "empty-guard",
+    "exit": 0
+  }
+]

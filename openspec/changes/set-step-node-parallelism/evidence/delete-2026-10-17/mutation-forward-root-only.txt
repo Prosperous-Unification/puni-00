@@ -1,0 +1,41 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:
+128 |     for (const [workItemId, stepId] of [['leaf', 'qa'], ['peer', 'dev'], ['moving', 'dev']] as const)
+129 |       await fixture.stores.stepParallels.set({ workItemId, stepId, maxParallel: 1 }, stamp);
+130 |     const before = await fixture.snapshot();
+131 |     const policy = await fixture.stores.stepParallels.listByProject('p');
+132 |     const { workItems } = installWorkItem(fixture.requirements);
+133 |     expect(await workItems.remove('parent', 'owner', 'cascade')).toEqual({
+                                                                       ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "qa",
+-       "workItemId": "leaf",
+-     },
+-     {
+-       "stepId": "dev",
+-       "workItemId": "peer",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 12
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-delete-owner-20261017/libs/wbs/application/core/src/module/work-item/delete-step-parallel.test.ts:133:66)
+(fail) delete sparse owner preservation > refuses cascade descendant owners while promote keeps their exact sparse policy [22.20ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1.83s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 508350464, "exitCode": 1}

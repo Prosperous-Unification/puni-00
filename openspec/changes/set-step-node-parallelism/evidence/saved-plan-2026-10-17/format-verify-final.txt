@@ -1,0 +1,2 @@
+openspec/changes/set-step-node-parallelism/verify.md 112ms (unchanged)
+{"ceilingBytes": 805306368, "sampledPeakBytes": 142094336, "exitCode": 0}

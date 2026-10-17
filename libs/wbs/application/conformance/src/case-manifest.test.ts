@@ -80,6 +80,7 @@ describe('the closed case manifest', () => {
       'progress',
       'attempts',
       'blockages',
+      'stepParallels',
       'dependencies',
       'typedDependencies',
       'subtrees',
@@ -87,6 +88,7 @@ describe('the closed case manifest', () => {
       'savedPlans',
       'savedPlanCapture',
     ]);
+    expect(CASE_MANIFEST.stepParallels).toEqual(['stepParallels.set:sparse-replace-remove']);
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],

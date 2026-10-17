@@ -1,0 +1,2 @@
+libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts
+{"ceilingBytes": 943718400, "sampledPeakBytes": 814878720, "exitCode": 0}

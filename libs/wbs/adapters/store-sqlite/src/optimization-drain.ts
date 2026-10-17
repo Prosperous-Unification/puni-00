@@ -1,5 +1,6 @@
 import type { WriteStamp } from '@wbs/core';
-import { and, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { assertStepParallel } from '@wbs/domain';
+import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
@@ -14,6 +15,7 @@ import {
   solverQueue,
   solverSlot,
   step,
+  stepParallel,
   typedDependency,
   workItem,
 } from './schema';
@@ -227,7 +229,10 @@ export type OptimizationDrainFinish = 'finished' | 'waiting' | 'open' | 'absent'
  * delete cascades valid local legacy and typed dependencies. The
  * migrated schema deliberately restricts deletion of a populated root. Root
  * cascades then remove optimizer, placement and history rows, preserving shared
- * directory entries and unrelated projects. Retiring one contract version
+ * directory entries and unrelated projects. Incident sparse step policy is
+ * validated in this transaction before cleanup; malformed or unreadable trusted
+ * evidence throws, while valid local facts cascade with the deleted graph.
+ * Retiring one contract version
  * removes only that version's cache and generation rows.
  *
  * **Assumption A-1, and what would falsify it.** Retiring a contract version
@@ -346,6 +351,44 @@ function finishDrainIn(
       .get();
     if (foreignTyped !== undefined)
       throw new Error(`project ${projectId} has cross-project typed dependency ${foreignTyped.id}`);
+
+    // Proof: owner-only/step-only selection missed the opposite incident direction;
+    // inner joins hid missing references. Missing/unreadable storage defaulted to
+    // empty accepted deletion; overbroad reads refused nonincident corrupt policy.
+    // Early reads displaced waiting/typed refusals; late reads hit the first-cleanup
+    // witness. Premature release commit lost generation/slot/cache; reclaim commit
+    // lost the slot. Installed UOW error commit failed graph/journal/event snapshots
+    // (optimization-drain-step-parallel and services cases, watched 2026-10-17).
+    const parallels = tx
+      .select({
+        workItemId: stepParallel.workItemId,
+        stepId: stepParallel.stepId,
+        maxParallel: stepParallel.maxParallel,
+        ownerProject: workItem.projectId,
+        stepProject: step.projectId,
+        hasChildren: sql<number>`EXISTS (SELECT 1 FROM work_item child WHERE child.parent_id = ${stepParallel.workItemId})`,
+      })
+      .from(stepParallel)
+      .leftJoin(workItem, eq(workItem.id, stepParallel.workItemId))
+      .leftJoin(step, eq(step.id, stepParallel.stepId))
+      .where(or(eq(workItem.projectId, projectId), eq(step.projectId, projectId)))
+      .all();
+    for (const parallel of parallels) {
+      // Proof: omitting each null check independently returned project mismatch
+      // instead of the required missing-owner/missing-step sparse diagnostic.
+      if (parallel.ownerProject === null)
+        throw new Error('step parallelism has an invalid work-item reference');
+      if (parallel.stepProject === null)
+        throw new Error('step parallelism has an invalid step reference');
+      // Proof: dropping either project predicate accepted cross-project evidence
+      // or reached an independent FK failure instead of the sparse refusal.
+      if (parallel.ownerProject !== projectId || parallel.stepProject !== projectId)
+        throw new Error('step parallelism project mismatch');
+      // Proof: omitting leaf validation accepted the corrupt parent policy case.
+      if (parallel.hasChildren !== 0) throw new Error('step parallelism owner is not a leaf');
+      // Proof: omitting range validation accepted zero/fraction/1001; watched 2026-10-17.
+      assertStepParallel(parallel.maxParallel);
+    }
 
     const ownedWorkItems = tx
       .select({ id: workItem.id })

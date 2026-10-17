@@ -144,3 +144,8 @@ export async function personAdded(added: Promise<PersonAdded>): Promise<Person> 
 }
 
 export { labelledRow, workItemRow } from '@wbs/core/testing/work-item-fixture';
+
+/** An explicit empty memory sparse store for compositions that author no overrides. */
+export function testStepParallels() {
+  return inMemoryStores().stepParallels;
+}

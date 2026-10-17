@@ -88,11 +88,20 @@ export type Refusal =
       detail: { workItemId: string; projectDayZero: string };
     }
   | { reason: 'descendant_step_on_leaf' | 'node_on_parent'; detail: { dependencyIds: string[] } }
+  | {
+      reason: 'referenced_by_step_parallel';
+      detail: { nodes: { workItemId: string; stepId: string }[] };
+    }
   | { reason: 'taken'; detail: { name: string } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
+  | {
+      ok: false;
+      reason: 'referenced_by_step_parallel';
+      nodes: readonly { workItemId: string; stepId: string }[];
+    }
   | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {

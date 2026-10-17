@@ -1875,3 +1875,38 @@ describe('shared export observation', () => {
     },
   );
 });
+
+for (const initiallyPresent of [true, false]) {
+  it(`v9 sparse export uses its shared observation across concurrent change (${String(initiallyPresent)})`, async () => {
+    const { higher, lower, lowerStep } = await seedSharedPlans();
+    const insert = () =>
+      h.sqlite.run(
+        'INSERT INTO step_parallel (work_item_id, step_id, max_parallel) VALUES (?, ?, 1)',
+        ['lower-work', lowerStep],
+      );
+    if (initiallyPresent) insert();
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- invokes the repository method with its original receiver.
+    const list = WorkItemRepository.prototype.listByProject;
+    let changed = false;
+    const concurrent = spyOn(WorkItemRepository.prototype, 'listByProject').mockImplementation(
+      async function (this: WorkItemRepository, projectId) {
+        const rows = await list.call(this, projectId);
+        if (!changed && projectId === higher) {
+          changed = true;
+          if (initiallyPresent)
+            h.sqlite.run('DELETE FROM step_parallel WHERE work_item_id = ?', ['lower-work']);
+          else insert();
+        }
+        return rows;
+      },
+    );
+    try {
+      const answer = await h.call('ada', 'GET', `/api/projects/${lower}/export?format=json`);
+      expect(changed).toBe(true);
+      expect(answer.status).toBe(initiallyPresent ? 409 : 200);
+      if (initiallyPresent) expect(answer.body).toEqual({ error: 'unsupported_step_parallelism' });
+    } finally {
+      concurrent.mockRestore();
+    }
+  });
+}

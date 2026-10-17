@@ -1,0 +1,35 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [603.75ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [474.69ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [5.96ms]
+(pass) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [5.26ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [60.06ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.51ms]
+(pass) throws on selected trusted step corruption before duplication [0.99ms]
+(pass) throws on selected trusted project corruption before duplication [0.89ms]
+21 |     await promise;
+22 |   } catch (cause) {
+23 |     if (cause instanceof Error) return cause.message;
+24 |     throw cause;
+25 |   }
+26 |   throw new Error('expected the production call to reject');
+                 ^
+error: expected the production call to reject
+      at rejectedMessage (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:26:13)
+      at async <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:237:18)
+(fail) throws on selected trusted parent corruption before duplication [2.34ms]
+(pass) throws on selected trusted duplicate corruption before duplication [1.37ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [2.23ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.48ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.88ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.74ms]
+
+ 13 pass
+ 1 fail
+ 63 expect() calls
+Ran 14 tests across 2 files. [3.13s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 573657088, "exitCode": 1}

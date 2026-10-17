@@ -1,0 +1,79 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:
+(pass) v9 refuses corrupt captured sparse evidence: missing collection [0.61ms]
+(pass) v9 refuses corrupt captured sparse evidence: null collection [0.03ms]
+(pass) v9 refuses corrupt captured sparse evidence: object collection [0.01ms]
+(pass) v9 refuses corrupt captured sparse evidence: array row [0.15ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing maximum [0.05ms]
+(pass) v9 refuses corrupt captured sparse evidence: string maximum [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: null row [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: numeric owner [0.01ms]
+(pass) v9 refuses corrupt captured sparse evidence: numeric step
+(pass) v9 refuses corrupt captured sparse evidence: missing owner [0.02ms]
+(pass) v9 refuses corrupt captured sparse evidence: missing step [0.02ms]
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /integer from 1 to 1000/
+
+Received function did not throw
+Received value: {
+  ok: false,
+  error: "unsupported_step_parallelism",
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: fraction [0.37ms]
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /integer from 1 to 1000/
+
+Received function did not throw
+Received value: {
+  ok: false,
+  error: "unsupported_step_parallelism",
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: zero [0.11ms]
+1119 |     const reads = {
+1120 |       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+1121 |       markers: [],
+1122 |       stepParallels: sparse,
+1123 |     };
+1124 |     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
+                                                                                 ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /integer from 1 to 1000/
+
+Received function did not throw
+Received value: {
+  ok: false,
+  error: "unsupported_step_parallelism",
+}
+
+      at <anonymous> (/tmp/step-export-fence-20261017/libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts:1124:75)
+(fail) v9 refuses corrupt captured sparse evidence: too large [0.07ms]
+(pass) v9 refuses corrupt captured sparse evidence: duplicate [0.03ms]
+
+ 12 pass
+ 58 filtered out
+ 3 fail
+ 15 expect() calls
+Ran 15 tests across 1 file. [1.75s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 507523072, "exitCode": 1}

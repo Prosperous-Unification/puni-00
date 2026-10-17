@@ -4,7 +4,11 @@ import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { describe, expect, it } from 'bun:test';
 
-import { openMemorySource, openMemorySourceFixture } from './source';
+import {
+  openMemorySource,
+  openMemorySourceFixture,
+  openMemorySourceWithCaptureReadSeam,
+} from './source';
 
 const stamp = { at: 1, by: 'owner' };
 const STORE_BINDINGS = [
@@ -23,6 +27,7 @@ const STORE_BINDINGS = [
   'priorityBands',
   'progress',
   'projects',
+  'stepParallels',
   'steps',
   'subtrees',
   'typedDependencies',
@@ -58,8 +63,7 @@ it('refuses scoped saved-plan writes without a transactional membership source',
   await source.close();
 });
 
-async function seededSource() {
-  const source = openMemorySource();
+async function seededSource(source = openMemorySource()) {
   await source.stores.users.create(
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
     stamp,
@@ -221,6 +225,10 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     { workItemId: 'wi-1', stepId: 'step-memory', state: 'done', statedAt: 2 },
     stamp,
   );
+  await stores.stepParallels.set(
+    { workItemId: 'wi-1', stepId: 'step-memory', maxParallel: 1 },
+    stamp,
+  );
   const recorded = await stores.eventLog.recordEvent(
     'project:p1',
     { nested: { label: 'stored message' } },
@@ -305,6 +313,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'step find',
       returned: await stores.steps.findById('step-memory'),
       reread: () => stores.steps.findById('step-memory'),
+    },
+    {
+      name: 'step parallelism',
+      returned: await stores.stepParallels.listByProject('p1'),
+      reread: () => stores.stepParallels.listByProject('p1'),
     },
     {
       name: 'dependencies',
@@ -874,3 +887,73 @@ it('captures direct blockage detached from later memory writes', async () => {
     await source.close();
   }
 });
+
+it('captures sparse parallel facts detached from later memory writes', async () => {
+  const source = await seededSource();
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'wi-parallel', projectId: 'p1' }),
+      [],
+      stamp,
+    );
+    const fact = { workItemId: 'wi-parallel', stepId: 'st-1', maxParallel: 1 };
+    await source.stores.stepParallels.set(fact, stamp);
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(captured?.stepParallels).toEqual([fact]);
+    await source.stores.stepParallels.remove(fact.workItemId, fact.stepId, stamp);
+    expect(captured?.stepParallels).toEqual([fact]);
+    expect((await source.history.savedPlanCapture.readPlanInput('p1'))?.stepParallels).toEqual([]);
+  } finally {
+    await source.close();
+  }
+});
+
+it('captures sparse parallel facts from the memory epoch before concurrent clear', async () => {
+  const fact = { workItemId: 'wi-parallel', stepId: 'st-1', maxParallel: 1 };
+  const fixture = openMemorySourceWithCaptureReadSeam({
+    async afterFirstRead() {
+      await fixture.source.stores.stepParallels.remove(fact.workItemId, fact.stepId, stamp);
+    },
+  });
+  const source = await seededSource(fixture.source);
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: fact.workItemId, projectId: 'p1' }),
+      [],
+      stamp,
+    );
+    await source.stores.stepParallels.set(fact, stamp);
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(captured?.stepParallels).toEqual([fact]);
+    expect(await source.stores.stepParallels.listByProject('p1')).toEqual([]);
+  } finally {
+    await source.close();
+  }
+});
+
+for (const cascade of [false, true])
+  it(`source removal retains sparse facts across mixed rollback (cascade=${String(cascade)})`, async () => {
+    const source = await seededSource();
+    await source.stores.steps.add(
+      { id: 'st-1', projectId: 'p1', name: 'Dev', allowancePercent: 0, estimateUnit: 'workdays' },
+      stamp,
+    );
+    await source.stores.workItems.insert(workItemRow({ id: 'a:b', projectId: 'p1' }), [], stamp);
+    const fact = { workItemId: 'a:b', stepId: 'st-1', maxParallel: 1 };
+    await source.stores.stepParallels.set(fact, stamp);
+    const refusal = {
+      ok: false,
+      reason: 'referenced_by_step_parallel',
+      nodes: [{ workItemId: 'a:b', stepId: 'st-1' }],
+    };
+    expect(await source.stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+    await source.uow.run(async ({ stores }) => {
+      await stores.steps.rename('p1', 'st-1', 'Changed', stamp);
+      expect(await stores.steps.remove('p1', 'st-1', cascade, stamp)).toEqual(refusal);
+      await stores.stepParallels.remove('a:b', 'st-1', stamp);
+      expect(await stores.steps.remove('p1', 'st-1', cascade, stamp)).toMatchObject({ ok: true });
+      return { commit: false, value: undefined };
+    });
+    expect(await source.stores.steps.findById('st-1')).toMatchObject({ name: 'Dev' });
+    expect(await source.stores.stepParallels.listByProject('p1')).toEqual([fact]);
+  });

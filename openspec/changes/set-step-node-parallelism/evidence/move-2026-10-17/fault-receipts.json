@@ -1,0 +1,165 @@
+[
+  {
+    "fault": "omit-forward",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts"
+    ],
+    "exitCode": 1,
+    "log": "fault-omit-forward.txt",
+    "observedFailure": "assertion failure"
+  },
+  {
+    "fault": "read-moving",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "retained pairs"
+    ],
+    "exitCode": 1,
+    "log": "fault-read-moving.txt",
+    "observedFailure": "assertion failure"
+  },
+  {
+    "fault": "overbroad-forward",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "retains moving subtree"
+    ],
+    "exitCode": 1,
+    "log": "fault-overbroad-forward.txt",
+    "observedFailure": "assertion failure"
+  },
+  {
+    "fault": "before-membership",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "checks authorization"
+    ],
+    "exitCode": 1,
+    "observedFailure": "unexpected poisoned-reader rejection before modeled refusal",
+    "log": "fault-before-membership.txt"
+  },
+  {
+    "fault": "before-authorization",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "checks authorization"
+    ],
+    "exitCode": 1,
+    "observedFailure": "unexpected poisoned-reader rejection before modeled refusal",
+    "log": "fault-before-authorization.txt"
+  },
+  {
+    "fault": "swallow-read",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "poisoned reader"
+    ],
+    "exitCode": 1,
+    "observedFailure": "assertion failure",
+    "log": "fault-swallow-read.txt"
+  },
+  {
+    "fault": "skip-existing",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "validates selected facts"
+    ],
+    "exitCode": 1,
+    "observedFailure": "assertion failure",
+    "log": "fault-skip-existing.txt"
+  },
+  {
+    "fault": "lose-nodes",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "exact 409"
+    ],
+    "exitCode": 1,
+    "observedFailure": "assertion failure",
+    "log": "fault-lose-nodes.txt"
+  },
+  {
+    "fault": "empty-admitted-reader",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "libs/wbs/application/core/src/module/work-item/move-step-parallel.test.ts",
+      "--test-name-pattern",
+      "reads the admitted sparse store"
+    ],
+    "exitCode": 1,
+    "observedFailure": "assertion failure",
+    "log": "fault-empty-admitted-reader.txt"
+  },
+  {
+    "fault": "omit-replay",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "newly retained destination"
+    ],
+    "exitCode": 1,
+    "observedFailure": "assertion failure",
+    "log": "fault-omit-replay.txt"
+  },
+  {
+    "fault": "overbroad-replay",
+    "argv": [
+      "python3",
+      "/tmp/runtime-rss-guard.py",
+      "bun",
+      "test",
+      "apps/wbs/be-01/src/controller/move-step-parallel.controller.db.test.ts",
+      "--test-name-pattern",
+      "preserves unrelated policy"
+    ],
+    "exitCode": 1,
+    "observedFailure": "assertion failure",
+    "log": "fault-overbroad-replay.txt"
+  }
+]

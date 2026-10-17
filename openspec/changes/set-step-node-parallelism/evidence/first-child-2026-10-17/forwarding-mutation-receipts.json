@@ -1,0 +1,34 @@
+[
+  {
+    "fault": "list-project-guard",
+    "exitCode": 1
+  },
+  {
+    "fault": "list-lifetime-guard",
+    "exitCode": 1
+  },
+  {
+    "fault": "set-owner-guard",
+    "exitCode": 1
+  },
+  {
+    "fault": "remove-owner-guard",
+    "exitCode": 1
+  },
+  {
+    "fault": "set-refresh",
+    "exitCode": 1
+  },
+  {
+    "fault": "remove-refresh",
+    "exitCode": 1
+  },
+  {
+    "fault": "closed-command-registry",
+    "exitCode": 1
+  },
+  {
+    "fault": "optional-command-nodes",
+    "exitCode": 1
+  }
+]

@@ -11,6 +11,7 @@ import {
 } from '@wbs/contracts';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { inMemorySpaces } from '@wbs/store-memory/space-fixture';
+import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
 import type { AppOptions } from './app';
@@ -70,6 +71,7 @@ function options(): AppOptions {
     clock: testClock,
     directory: testDirectoryService(),
     capacity: testCapacityService(),
+    stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     priorityBands: testPriorityBandService(),
     history: testHistoryService(),

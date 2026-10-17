@@ -39,6 +39,7 @@ export function sqliteUnitOfWork(
         let decision: Decision<T, TransactionalStores>;
         try {
           decision = await act(scope);
+          // Proof: unconditional COMMIT injected; sparse override refused-batch read lost its original fact (sqlite-rollback.txt), 2026-10-15.
           db.run(sql.raw(decision.commit ? 'COMMIT' : 'ROLLBACK'));
         } catch (cause) {
           try {

@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [608.80ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [479.40ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [5.74ms]
+(pass) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [6.40ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [63.32ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.60ms]
+(pass) throws on selected trusted step corruption before duplication [1.17ms]
+(pass) throws on selected trusted project corruption before duplication [1.09ms]
+(pass) throws on selected trusted parent corruption before duplication [3.06ms]
+(pass) throws on selected trusted duplicate corruption before duplication [1.43ms]
+262 |     nodes: [{ workItemId: 'parent', stepId: 'dev' }],
+263 |   } as const;
+264 |   expect(refused).toEqual(expected);
+265 |   fact.workItemId = 'mutated';
+266 |   fact.stepId = 'mutated-step';
+267 |   expect(refused).toEqual(expected);
+                        ^
+error: expect(received).toEqual(expected)
+
+  {
+    "nodes": [
+      {
+-       "stepId": "dev",
+-       "workItemId": "parent",
++       "stepId": "mutated-step",
++       "workItemId": "mutated",
+      },
+    ],
+    "ok": false,
+    "reason": "referenced_by_step_parallel",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:267:19)
+(fail) copies detached exact refusal nodes and allows duplication when cleared [0.95ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.34ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.56ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [2.27ms]
+
+ 13 pass
+ 1 fail
+ 66 expect() calls
+Ran 14 tests across 2 files. [3.14s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 571334656, "exitCode": 1}

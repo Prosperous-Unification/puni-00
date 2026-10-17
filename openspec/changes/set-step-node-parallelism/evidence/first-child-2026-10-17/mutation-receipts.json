@@ -1,0 +1,50 @@
+[
+  {
+    "fault": "omitted-guard",
+    "exitCode": 1
+  },
+  {
+    "fault": "wrong-parent",
+    "exitCode": 1
+  },
+  {
+    "fault": "wrong-project",
+    "exitCode": 1
+  },
+  {
+    "fault": "project-wide",
+    "exitCode": 1
+  },
+  {
+    "fault": "unconditional",
+    "exitCode": 1
+  },
+  {
+    "fault": "aliased-nodes",
+    "exitCode": 1
+  },
+  {
+    "fault": "late-guard",
+    "exitCode": 1
+  },
+  {
+    "fault": "dropped-command-detail",
+    "exitCode": 1
+  },
+  {
+    "fault": "dropped-http-detail",
+    "exitCode": 1
+  },
+  {
+    "fault": "missing-409-schema",
+    "exitCode": 1
+  },
+  {
+    "fault": "stale-scope",
+    "exitCode": 1
+  },
+  {
+    "fault": "unscoped-read",
+    "exitCode": 1
+  }
+]

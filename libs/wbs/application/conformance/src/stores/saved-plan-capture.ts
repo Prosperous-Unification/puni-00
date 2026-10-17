@@ -13,6 +13,7 @@ type CaptureSeedStores = Pick<
   | 'actuals'
   | 'progress'
   | 'blockages'
+  | 'stepParallels'
   | 'measures'
   | 'dependencies'
   | 'typedDependencies'
@@ -341,6 +342,7 @@ async function readSeededPlanInput(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     typedDependencies,
@@ -361,6 +363,7 @@ async function readSeededPlanInput(
     stores.actuals.listByProject(projectId),
     stores.progress.listByProject(projectId),
     stores.blockages.listByProject(projectId),
+    stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
     stores.typedDependencies.listByProject(projectId),
@@ -385,6 +388,7 @@ async function readSeededPlanInput(
     actuals,
     progress,
     stepBlockages,
+    stepParallels,
     measures,
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({

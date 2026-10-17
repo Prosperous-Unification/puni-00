@@ -1,0 +1,4 @@
+[tool-git-hooks] installing lefthook in /tmp/puni-delete-owner-20261017
+sync hooks: ✔️(pre-commit, commit-msg, prepare-commit-msg)
+[tool-git-hooks] hooks installed — pre-commit + commit-msg are active.
+{"ceilingBytes": 943718400, "sampledPeakBytes": 92663808, "exitCode": 0}
