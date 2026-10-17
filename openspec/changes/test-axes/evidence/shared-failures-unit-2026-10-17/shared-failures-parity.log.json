@@ -1,0 +1,14 @@
+{
+  "command": ["python3", "/tmp/shared-failures-parity.py"],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 22124,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "git",
+      "show",
+      "4b318f48125b99ce13fd6e10c60ece66b49487dd:libs/shared/domain/failures/src/report-failure.test.ts"
+    ],
+    ["python3", "/tmp/shared-failures-parity.py"]
+  ]
+}
