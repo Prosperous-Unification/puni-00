@@ -1,0 +1,7 @@
+
+/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts
+  194:99  error  Invalid type ""./types" | "../../outside" | undefined" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+✖ 1 problem (1 error, 0 warnings)
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 751665152, "exitCode": 1}

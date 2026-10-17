@@ -1594,3 +1594,32 @@ prior behavior, and unknown modes SHALL refuse before source callbacks.
 
 This prerequisite does not establish nested project-reference config policy, general configuration
 admission, a complete compiler manifest, runtime authentication or parent 2.1d.1.3 completion.
+
+### Requirement: Retained effective root-project baseUrl admission
+
+Retained TypeScript extraction SHALL admit a defined effective root-project baseUrl through its
+owned source after successful config parsing and before constructing that project's compiler host.
+The pinned parser SHALL supply declaring-config normalization and effective override semantics.
+Outside roots and symlink ancestor escapes SHALL refuse even when unused or followed by absent
+descendants. Inside absent roots SHALL remain valid. Admission SHALL charge the existing shared
+compiler probe and source traversal budgets and preserve raw symlink byte census entries.
+
+#### Scenario: Inherited outside base replaced inside
+
+- **WHEN** a root project replaces an inherited outside baseUrl with an inside baseUrl
+- **THEN** extraction admits only the effective inside root and preserves bare import resolution
+
+#### Scenario: Unused outside root refuses before host
+
+- **WHEN** an effective baseUrl is outside the candidate even with types empty and no bare imports
+- **THEN** extraction refuses before that project's host and publishes no extraction owner
+
+#### Scenario: Omitted roots and narrower modes remain compatible
+
+- **WHEN** baseUrl is omitted or a caller selects compatible or retained-type-roots mode
+- **THEN** no new explicit baseUrl admission is invented and ordinary package/default misses remain absent
+
+#### Scenario: Replay uses retained bytes
+
+- **WHEN** SHA-1 or SHA-256 captured roots are removed and ambient filesystem ports throw
+- **THEN** replay produces the same canonical relationships and byte census

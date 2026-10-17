@@ -412,6 +412,13 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       SHA-1/SHA-256 replay. Watch independent production faults and record their restoration.
       Parent .3, full WBS/release/gate, general configuration admission, project-reference policy,
       complete manifest and runtime authentication stay open pending their own work and evidence.
+- [ ] 2.1d.1.3e6c Admit effective root-project TypeScript baseUrl in retained-config-roots
+      after successful parsing and before each host. Use the parser-normalized effective value
+      whenever defined; keep omitted roots and earlier modes unchanged. Prove unused direct
+      and inherited escapes, overrides, inside missing and linked roots, exact shared budgets,
+      bare import declarations and census, wildcard paths compatibility, second-project cutoff,
+      and removed-root SHA-1/SHA-256 replay. Watch independent production faults and restore.
+      Wildcard paths admission, parent .3, full manifest, authentication and freeze stay open.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

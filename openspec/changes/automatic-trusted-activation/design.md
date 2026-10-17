@@ -2455,3 +2455,23 @@ namespace behavior, and the old retained-type-roots mode does not acquire rootDi
 No TypeScriptPolicy, legacy limits, namespace schema, owner publication or envelope format changes.
 Failure on a later config can follow earlier host construction, but never constructs the rejected
 project's host or publishes a successful extraction owner. Parent 2.1d.1.3 remains open.
+
+### Effective retained baseUrl admission prerequisite (2.1d.1.3e6c)
+
+**Intent.** An unused effective baseUrl can currently escape retained candidate ownership because
+ordinary compiler namespace probes mask outside paths as absent. Admit that explicit root before
+its project host, including when no import uses it. Keep the existing retained source owner,
+compiler and traversal budgets, unverified trust and canonical byte census.
+
+The pinned parser computes inheritance, declaring-config bases and effective overrides. In
+retained-config-roots mode, after successful parsing, pass defined parsed.options.baseUrl to
+system.admitConfigurationRoot after effective typeRoots and rootDirs. Use a definedness check;
+an empty raw string normalizes to its declaring directory. Do not inspect discarded raw options,
+require existence, rewrite compiler options or change candidate classification. Earlier modes
+retain ordinary namespace probes. The existing source traversal checks link ancestors, including
+missing descendants, and records raw link bytes. The existing compiler and source counters remain
+shared with ordinary parsing and extraction.
+
+Scope is baseUrl alone. Wildcard paths with an admitted base and paths without baseUrl receive
+compatibility controls; general paths-root admission, project references, full manifest,
+authentication and freeze remain separate work.

@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 362340352, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:
+249 |       return { kind: 'ambient-non-code' };
+250 |     }
+251 |     const source = workspacePath(workspace, sourceFile.fileName) ?? sourceFile.fileName;
+252 |     // Proof: classifying every unresolved module as ambient made the real `./absent` production
+253 |     // test lose this exact source/specifier refusal on 2026-09-21.
+254 |     throw new Error(`TypeScript import unresolved: ${source} -> '${site.specifier}'`);
+                                                                                          ^
+error: TypeScript import unresolved: src/index.ts -> 'provider'
+      at resolveDependency (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-imports.ts:254:85)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:141:28)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:337:21)
+(fail) retained effective baseUrl resolves direct bare provider with exact declaration and census [191.00ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1130.00ms]

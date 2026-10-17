@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 358510592, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:
+248 |   // lost missing-root success. Global admission lost the previous-mode compatibility control;
+249 |   // deduplication lost the repeated compiler admission exact-fit test.
+250 |   if (mode === 'retained-config-roots') {
+251 |     for (const path of parsed.options.rootDirs ?? []) system.admitConfigurationRoot(path);
+252 |     if (parsed.options.baseUrl !== undefined) system.admitConfigurationRoot(parsed.options.baseUrl);
+253 |     if (parsed.options.baseUrl !== undefined && !system.directoryExists(parsed.options.baseUrl)) throw new Error("base absent");
+                                                                                                                                    ^
+error: base absent
+      at parseProject (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts:253:127)
+      at map (1:11)
+      at extractTypeScriptRelationshipsWithPolicy (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-core.ts:124:40)
+      at extractRetainedTypeScriptRelationships (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript.ts:241:21)
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-base-url.test.ts:207:23)
+(fail) retained effective baseUrl admits missing [156.39ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+Ran 1 test across 1 file. [1114.00ms]

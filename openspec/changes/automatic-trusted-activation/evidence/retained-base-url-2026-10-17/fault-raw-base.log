@@ -1,0 +1,68 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 186638336, "exitCode": 1}
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+208 |     });
+209 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+210 |     const roots: string[] = [];
+211 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+212 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+213 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "/candidate/configs/types",
++   "/candidate",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:213:19)
+(fail) retained baseUrl admission preserves effective normalization {} ./types [19.60ms]
+208 |     });
+209 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+210 |     const roots: string[] = [];
+211 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+212 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+213 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "/candidate/types",
++   "./types",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:213:19)
+(fail) retained baseUrl admission preserves effective normalization {"baseUrl":"./types"} ../../outside [1.70ms]
+208 |     });
+209 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+210 |     const roots: string[] = [];
+211 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+212 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+213 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "/candidate",
++   "",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:213:19)
+(fail) retained baseUrl admission preserves effective normalization {"baseUrl":""} undefined [1.35ms]
+(pass) retained baseUrl admission preserves effective normalization {} undefined [1.04ms]
+
+ 1 pass
+ 12 filtered out
+ 3 fail
+ 5 expect() calls
+Ran 4 tests across 1 file. [557.00ms]

@@ -192,7 +192,7 @@ function normalizedCompilerValue(value: unknown, workspace: string): unknown {
 
 /**
  * Parses one root project with compiler inheritance semantics. Retained modes admit effective
- * typeRoots; retained-config-roots also admits effective rootDirs before constructing the host.
+ * typeRoots; retained-config-roots also admits effective rootDirs and baseUrl before the host.
  * Absent admitted roots are valid, and repeated roots consume repeated admission work.
  * @throws Error for config failures, refused source admission or escaped declarations.
  */
@@ -249,6 +249,15 @@ export function parseProject(
   // deduplication lost the repeated compiler admission exact-fit test.
   if (mode === 'retained-config-roots') {
     for (const path of parsed.options.rootDirs ?? []) system.admitConfigurationRoot(path);
+    // Proof: omitted/usage/types gates and masked/bypassed source admission lost unused outside
+    // refusal. Raw/wrong bases lost effective normalization; discarded inheritance lost override
+    // success. Requiring existence lost missing success; invented defaults lost omitted admission.
+    // Option removal/rewrite lost bare-provider resolution; lexical-only admission lost link escape
+    // refusal. Global admission lost prior-mode compatibility; late admission lost zero-host cutoff.
+    // Physical lookup lost removed-root replay. Compiler/source charge omission or reset lost
+    // shared exact-fit controls; removing the source path fence lost the long-root encoding guard.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- The pinned TS6 parser returns this supported deprecated option; admit its effective root before compiler use.
+    if (parsed.options.baseUrl !== undefined) system.admitConfigurationRoot(parsed.options.baseUrl);
   }
   const options: ts.CompilerOptions = {
     ...parsed.options,

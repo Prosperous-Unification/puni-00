@@ -1,0 +1,8 @@
+
+/tmp/puni-baseurl-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts
+  259:24  error  `baseUrl` is deprecated  @typescript-eslint/no-deprecated
+  259:92  error  `baseUrl` is deprecated  @typescript-eslint/no-deprecated
+
+✖ 2 problems (2 errors, 0 warnings)
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 677609472, "exitCode": 1}

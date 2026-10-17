@@ -184,3 +184,49 @@ test('previous retained type roots mode preserves rootDirs as ordinary namespace
     expect(parseProject(workspace, 'tsconfig.json', system, mode).configPath).toBe('tsconfig.json');
   }
 });
+
+for (const [options, inherited, expected] of [
+  [{}, './types', ['/candidate/configs/types']],
+  [{ baseUrl: './types' }, '../../outside', ['/candidate/types']],
+  [{ baseUrl: '' }, undefined, ['/candidate']],
+  [{}, undefined, []],
+] as const)
+  test(`retained baseUrl admission preserves effective normalization ${JSON.stringify(options)} ${String(inherited)}`, () => {
+    const { source } = fixture({
+      'tsconfig.json': JSON.stringify({
+        extends: './configs/base.json',
+        compilerOptions: options,
+        files: ['globals.d.ts', 'src/index.ts'],
+      }),
+      'configs/base.json': JSON.stringify({
+        compilerOptions: {
+          noLib: true,
+          types: [],
+          ...(inherited === undefined ? {} : { baseUrl: inherited }),
+        },
+      }),
+    });
+    const system = boundSource(workspace, source, { kind: 'bounded', limits });
+    const roots: string[] = [];
+    system.admitConfigurationRoot = (path) => {
+      roots.push(path);
+    };
+    const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+    expect(roots).toEqual([...expected]);
+    expect(project.configPath).toBe('tsconfig.json');
+  });
+
+test('previous modes preserve outside baseUrl as ordinary namespace probes', () => {
+  const { source } = fixture({
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { noLib: true, types: [], baseUrl: '/outside' },
+      files: ['globals.d.ts', 'src/index.ts'],
+    }),
+  });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  system.admitConfigurationRoot = () => {
+    throw new Error('unexpected explicit admission');
+  };
+  for (const mode of ['compatible', 'retained-type-roots'] as const)
+    expect(parseProject(workspace, 'tsconfig.json', system, mode).configPath).toBe('tsconfig.json');
+});

@@ -5823,3 +5823,142 @@ certified admission. Exact argv/resource receipts and transcripts are `hook-{neg
 Staged read-only review found no P0–P3 issues after the lint-evidence correction. Actual normal
 commit/trailer execution, final committed-candidate review and the required gate remain pending.
 Task .3e6b and parent .3 remain open. There has been no push, merge or deploy.
+
+## Effective retained baseUrl admission prerequisite — 2026-10-17 (candidate)
+
+Scope: 2.1d.1.3e6c, isolated `/tmp/puni-baseurl-sol-20261017` at exact predecessor
+`5d6ca664328eeb59817b15181a32b2b26165c417`, tree `3c82f16ed15b669d01d3ae67113c17be11f7389a`.
+Transport bundle SHA-256 `cb5605cf430c4593bf99347472d06dc3cc3d530119b5bf5ac7b7675954cfb5f4`.
+Dependencies reuse `/tmp/retained-config-roots-sol-oct17/node_modules`; both exact bun.lock
+SHA-256 values were `15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c`.
+No install/network was used. Runs use `/tmp/runtime-rss-guard.py` with a 900 MiB process-tree ceiling.
+
+Initial normalized compiler RED returned no admitted roots for inherited, overridden and empty
+baseUrl, with three expected failures and one omitted-root pass (187,514,880-byte sampled peak).
+The initial extraction RED was disqualified because TS 6.0.3 deprecated baseUrl; explicitly setting
+ignoreDeprecations to 6.0 in the tiny noLib fixture restored the intended unused-absolute-outside
+RED: extraction returned an unverified envelope instead of refusing (363,696,128-byte peak).
+Logs live in `evidence/retained-base-url-2026-10-17/`. Further GREEN, watched production faults,
+checks, independent review and normal hooks remain pending. Parent .3, manifest, authentication,
+freeze and wildcard paths admission remain open.
+
+First focused GREEN: compiler 16 pass / 0 fail / 35 assertions, 191,672,320-byte peak.
+BaseUrl extraction 21 pass / 2 fail / 87 assertions, 688,594,944-byte peak. The two failures
+were the budget comparison's expected one-probe delta: adding baseUrl changed ordinary package
+lookup by 27 additional probes, giving 28 total. The budget fixture now uses an export-only source
+without imports, preserving the separate real bare-import and package resolution controls.
+The corrected budget run remains pending; this failed GREEN is retained as evidence.
+
+Corrected export-only budget controls passed 3 tests / 15 assertions, sampled peak 658,956,288
+bytes. Each dimension observes exact fit and one-less refusal; the compiler/source admission delta
+is one without unrelated import probes. The 21 independent production faults below each returned
+exit 1 with named assertion failures, no syntax/import failures and no cap event. The harness
+restored source bytes in finally and independently checked compiler/source hashes against every
+ledger sourceIdentity. Restored absolute-outside control passed 1 test / 4 assertions (356,216,832
+bytes). `fault-ledger.json` records exact source/injection hashes, patterns, names, exits and peaks.
+
+| Fault                 | Observed failing control                         |  Peak bytes |
+| --------------------- | ------------------------------------------------ | ----------: |
+| omit-base             | `refuses absolute outside`                       | 366,735,360 |
+| usage-gate            | `refuses absolute outside`                       | 362,434,560 |
+| types-empty-gate      | `refuses absolute outside`                       | 359,837,696 |
+| masked-pathkind       | `refuses absolute outside`                       | 364,625,920 |
+| raw-base              | `preserves effective normalization`              | 186,638,336 |
+| discarded-inherited   | `admits override discarded outside`              | 358,010,880 |
+| wrong-base            | `preserves effective normalization`              | 190,885,888 |
+| require-existence     | `admits missing`                                 | 358,510,592 |
+| invent-default        | `preserves effective normalization {} undefined` | 184,586,240 |
+| remove-option         | `direct bare provider`                           | 359,321,600 |
+| rewrite-option        | `direct bare provider`                           | 362,340,352 |
+| lexical-only          | `refuses ancestor escape`                        | 359,669,760 |
+| bypass-source         | `refuses absolute outside`                       | 366,497,792 |
+| omit-compiler-charge  | `charges shared compiler`                        | 363,835,392 |
+| reset-compiler-charge | `charges shared compiler`                        | 643,293,184 |
+| physical-lookup       | `sha1 replays`                                   | 358,195,200 |
+| source-path-fence     | `bounds long roots`                              | 365,748,224 |
+| omit-source-charge    | `charges shared source`                          | 363,704,320 |
+| reset-source-charge   | `charges shared source`                          | 621,805,568 |
+| global-admission      | `previous modes preserve outside baseUrl`        | 185,520,128 |
+| host-before-admission | `refuses absolute outside`                       | 357,265,408 |
+
+Adjacent Proof comments were added after these watched failures. Restored full focused suites,
+format, typecheck, lint, OpenSpec, independent review, hooks and required gate remain pending.
+
+After formatting and adjacent Proof comments, all 109 restored tests / 342 assertions passed in
+fresh serial process trees under the 900 MiB ceiling. No cap events occurred.
+
+| Check                       | Fresh outcome           |  Peak bytes |
+| --------------------------- | ----------------------- | ----------: |
+| format                      | exit 0                  | 326,479,872 |
+| green-restored-compiler     | 16 pass / 35 assertions | 189,014,016 |
+| green-restored-base-url     | 23 pass / 87 assertions | 668,065,792 |
+| green-restored-type-roots   | 19 pass / 70 assertions | 672,063,488 |
+| green-restored-config-roots | 20 pass / 76 assertions | 682,754,048 |
+| green-restored-core         | 31 pass / 74 assertions | 212,312,064 |
+| type-focused                | exit 0                  | 437,542,912 |
+| type-dash-lib               | exit 0                  | 527,958,016 |
+
+Exact argv, exits and sampled peaks are recorded in the matching `.receipt.json` files; raw
+transcripts are retained in `.log` files. Lint/OpenSpec, independent review, normal hooks and the
+required gate remain pending. The local prerequisite and parent task remain unchecked.
+
+Astra's independent read-only review of the stable scoped baseUrl candidate reported no P0–P3
+findings. It inspected all 21 fault transcripts and accepted six positive/dependency-control
+failures as relevant to the protected behavior. Final lint/OpenSpec, hooks, exact committed-candidate
+review and required gate remain pending; this review does not close parent .3 or the manifest,
+authentication, freeze or wildcard paths admission work.
+
+Fresh Nx graph creation returned exit 0 (276,766,720-byte peak), with both requested graph JSON
+and `.nx/workspace-data/project-graph.json` present. Initial production lint exposed the pinned
+TS6 baseUrl API's deprecation; its two named no-deprecated errors are retained in
+`lint-initial-deprecated.log`. A narrow adjacent suppression explains why this parser boundary
+must still admit that supported deprecated option. No option semantics changed. Initial test lint
+exposed an optional value in its test-name template; explicit String conversion preserves the name.
+That failure is retained in `lint-initial-test-template.log`.
+
+All three changed-path ESLint runs then returned exit 0 with no warnings or skipped rules:
+compiler 681,648,128 bytes, compiler tests 746,123,264 bytes, baseUrl tests 737,431,552 bytes.
+The real cross-app relative-import fault exited 1 and named @nx/enforce-module-boundaries
+(763,985,920-byte peak). Restored compiler bytes matched SHA-256
+`a98b9418e73b8233e6121f6af0ee7dc4c058c25c691e2d7c736842ee1827f158`, and fresh restored lint
+returned exit 0 without warnings (677,498,880-byte peak). Exact imports, identities, argv and
+receipts live in `lint-boundary-proof.json` and matching logs/receipts.
+
+Pinned OpenSpec 1.12.0 status, apply instructions and strict selected-change validation returned
+exit 0 (108,249,088 / 112,443,392 / 110,329,856-byte peaks). Strict validation reported one pass,
+zero failures and no issues. Apply reports sdd-lean, ready, 7/60 complete; metadata does not close
+implementation acceptance. No process exceeded the 900 MiB tree cap. Final formatting, affected
+focused reruns, normal hooks, exact committed-candidate review and required gate remain pending.
+
+After the annotation and test-name correction, final formatting returned exit 0 (326,479,872-byte
+peak); affected compiler tests passed 16/35 assertions (189,014,016 bytes) and baseUrl tests passed
+23/87 assertions (668,065,792 bytes). These final receipts replace the matching first restored
+receipts; the table above now reports their final observed peaks. Other restored regression and
+type receipts remain from the preceding batch, before only comments and the equivalent test-name
+conversion changed. Cached staged diff whitespace validation returned 0. Normal hooks and final
+exact-candidate review remain pending, with no commit or full-gate claim.
+
+Installed Lefthook 2.1.12 with the normal install command and compared its dumped effective
+configuration against tracked lefthook.yml. All eight command groups, exact run strings, globs,
+exclusions and both trailer hooks match; only the ignored local override changes pre-commit
+parallelism from true to false. `hook-inputs.json` records the tracked/override/installed hook
+identities and the semantic comparison. No tracked hook configuration changed.
+
+The actual `git hook run pre-commit` over the staged deliberate invalid production declaration
+returned exit 1: Prettier reported SyntaxError and ESLint reported its named parsing error. Peak
+was 923,234,304 bytes under the 900 MiB ceiling. Source bytes and the exact staged tree were
+restored in finally and independently compared; `hook-negative-proof.json` records both trees,
+staged paths and restored identity. The restored positive's first 900 MiB attempt was killed at
+944,590,848 bytes after formatter success; `hook-restored-capped900` preserves that failed check.
+Fresh host free-m reported 19,478 MiB available, and no hook/eslint descendants remained. With the
+root PM's explicit one-shot authorization, the unchanged normal hook command then passed exit 0
+under a 1024 MiB cap at 956,133,376 bytes. No hook command was split or bypassed.
+
+The restored positive passed format, graph-backed lint without skipped boundary rules, plaintext
+secrets, private nesting and tool-wiki. Doc caps, WBS migration lint and website migration lint
+skipped because no staged paths matched their scopes. Tool-wiki visibly returned inactive because
+no external activation root is provisioned; this establishes no certification. Raw log whitespace
+normalization preserves original UTF-8 transcripts and raw/display hashes in
+`normalized-log-provenance.json`. Final metadata formatting, exact staged hook-input review,
+normal commit and the required full gate remain pending. Parent .3, manifest, authentication,
+freeze and wildcard paths admission remain open.
