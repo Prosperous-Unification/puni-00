@@ -1,0 +1,88 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+122 |                   { kind: 'duplicateWorkItem', ...duplication },
+123 |                 ],
+124 |               }
+125 |             : { commands: [{ kind: 'duplicateWorkItem', ...duplication }] },
+126 |         );
+127 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "at": 0,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "duplicateWorkItem",
+-     "nodes": [
++     "redoable": false,
++     "results": [
+        {
+-         "stepId": "97f0d363-68b2-4f9c-bc9e-8ef2ebaceef1",
+-         "workItemId": "parent",
+-       },
+-       {
+-         "stepId": "04f963fd-58ba-4065-ac82-e81f4b39d8e0",
+-         "workItemId": "parent",
++         "id": "7e30e1c7-03a9-43d2-ba84-36f2735b0fff",
++         "index": 0,
+        },
+      ],
++     "undoable": true,
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 11
++ Received  + 6
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:127:24)
+(fail) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [519.85ms]
+122 |                   { kind: 'duplicateWorkItem', ...duplication },
+123 |                 ],
+124 |               }
+125 |             : { commands: [{ kind: 'duplicateWorkItem', ...duplication }] },
+126 |         );
+127 |         expect(answer).toEqual({
+                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "at": 1,
+-     "error": "referenced_by_step_parallel",
+-     "kind": "duplicateWorkItem",
+-     "nodes": [
++     "redoable": false,
++     "results": [
+        {
+-         "stepId": "3cfa2404-cd04-48f8-aded-98bbe5f5fc8f",
+-         "workItemId": "parent",
++         "index": 0,
+        },
+        {
+-         "stepId": "f5285704-fe00-4d3d-a00f-dc8165caa1c6",
+-         "workItemId": "parent",
++         "id": "80be1f1a-7192-41a3-9a2a-54eb44520eb7",
++         "index": 1,
+        },
+      ],
++     "undoable": true,
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 9
++ Received  + 7
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:127:24)
+(fail) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [447.10ms]
+
+ 0 pass
+ 2 fail
+ 12 expect() calls
+Ran 2 tests across 1 file. [3.04s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 643047424, "exitCode": 1}

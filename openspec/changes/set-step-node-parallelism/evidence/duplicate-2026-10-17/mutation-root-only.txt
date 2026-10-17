@@ -1,0 +1,57 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [647.54ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [528.80ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+(pass) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [7.36ms]
+128 |         { workItemId: 'moving', stepId: 'dev', maxParallel: 2 },
+129 |         stamp,
+130 |       );
+131 |       const before = await fixture.snapshot();
+132 |       const { workItems } = installWorkItem(fixture.requirements);
+133 |       expect(await workItems.duplicate('parent', 'owner')).toEqual({
+                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "nodes": [
+-     {
+-       "stepId": "dev",
+-       "workItemId": "leaf",
+-     },
+-     {
+-       "stepId": "qa",
+-       "workItemId": "leaf",
+-     },
+-   ],
+-   "ok": false,
+-   "reason": "referenced_by_step_parallel",
++   "ok": true,
++   "value": {
++     "id": "new-1",
++   },
+  }
+
+- Expected  - 12
++ Received  + 4
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:133:60)
+(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [5.18ms]
+(pass) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [63.77ms]
+(pass) throws on selected trusted maximum corruption before duplication [1.41ms]
+(pass) throws on selected trusted step corruption before duplication [0.94ms]
+(pass) throws on selected trusted project corruption before duplication [0.93ms]
+(pass) throws on selected trusted parent corruption before duplication [2.49ms]
+(pass) throws on selected trusted duplicate corruption before duplication [0.99ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [1.67ms]
+(pass) throws when the required duplication sparse reader is absent before writes [1.11ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [3.00ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [1.79ms]
+
+ 13 pass
+ 1 fail
+ 63 expect() calls
+Ran 14 tests across 2 files. [3.24s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 572731392, "exitCode": 1}

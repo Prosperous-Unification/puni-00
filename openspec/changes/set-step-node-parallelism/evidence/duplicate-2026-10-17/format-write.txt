@@ -1,0 +1,7 @@
+libs/wbs/application/core/src/module/work-item/work-item.resource.ts 913ms
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts 32ms
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts 12ms
+openspec/changes/set-step-node-parallelism/design.md 55ms (unchanged)
+openspec/changes/set-step-node-parallelism/specs/wbs-domain/spec.md 53ms (unchanged)
+openspec/changes/set-step-node-parallelism/tasks.md 14ms (unchanged)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 370180096, "exitCode": 0}

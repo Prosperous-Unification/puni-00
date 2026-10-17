@@ -146,3 +146,17 @@ valid policy refuses through `ApplyOutcome`, so the runner rolls back earlier re
 writes and discards the stale entry under existing `stale_undo` policy. Unreadable or
 corrupt evidence throws, preserves the exact journal and returns HTTP 500. No sparse
 history schema, remapping, adapter/schema/migration or public writer ships in this slice.
+
+## Forward duplication preservation prerequisite (2026-10-17)
+
+Duplication snapshots do not own sparse policy. Forward duplicate therefore reads
+`listByWorkItems(workItem.projectId, originals)` through the required admitted
+reader after context authorization and the 500-row size check. Selection includes
+the source root and every descendant, including parents so malformed retained
+parent facts throw. Valid nonempty evidence yields detached ordered
+`referenced_by_step_parallel` nodes before IDs, placement, stamps or writes.
+Unreadable, absent or malformed trusted evidence throws. Unrelated and foreign
+policy stays with its owners, and an empty selected source keeps current duplicate
+and undo/redo behavior. Existing shared command binding carries exact HTTP 409
+detail. Restore-destination preservation remains a separate next slice; this
+change adds no sparse writer, remapping, history schema or public schema.

@@ -318,3 +318,26 @@ surviving promoted-child policy SHALL retain existing deletion and replay behavi
 - **WHEN** its required sparse reader throws or returns corrupt trusted facts
 - **THEN** HTTP returns 500 and rolls back the patch and all deletion state
 - **AND** the exact original journal entry remains available
+
+### Requirement: Forward duplication refuses retained source sparse policy
+
+Forward duplication SHALL read the exact original subtree's sparse facts, including
+root and parent rows, through the required admitted reader after authorization,
+source validation and the existing size refusal. Valid nonempty evidence SHALL
+return `referenced_by_step_parallel` with detached nodes in reader order before
+allocating IDs, placement, stamps or writes. Absent, unreadable or malformed
+selected trusted evidence SHALL throw. Unrelated and foreign policy SHALL retain
+its owners and SHALL NOT refuse a selected empty duplication.
+
+#### Scenario: Retained equal-default descendant policy refuses a mixed batch
+
+- **GIVEN** a source subtree leaf with explicit maximum one and unrelated policy
+- **WHEN** duplication follows a patch in the same admitted transaction
+- **THEN** the shared command returns exact HTTP 409 nodes at the duplicate command
+- **AND** the patch, journal, revisions, events and all source facts roll back
+
+#### Scenario: Empty selected policy permits duplication and replay
+
+- **GIVEN** no policy on source subtree rows and retained unrelated policy
+- **WHEN** duplication, undo and redo run
+- **THEN** each succeeds and unrelated sparse facts retain their exact owners

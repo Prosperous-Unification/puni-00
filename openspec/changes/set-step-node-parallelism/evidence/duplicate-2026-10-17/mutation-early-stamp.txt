@@ -1,0 +1,196 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [587.31ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [484.56ms]
+
+libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:
+137 |           { workItemId: owner, stepId: 'dev' },
+138 |           { workItemId: owner, stepId: 'qa' },
+139 |         ],
+140 |       });
+141 |       expect(await fixture.snapshot()).toEqual(before);
+142 |       expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:142:32)
+(fail) duplicate sparse source preservation > refuses leaf equal-default policy before IDs, stamps or writes [8.54ms]
+137 |           { workItemId: owner, stepId: 'dev' },
+138 |           { workItemId: owner, stepId: 'qa' },
+139 |         ],
+140 |       });
+141 |       expect(await fixture.snapshot()).toEqual(before);
+142 |       expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:142:32)
+(fail) duplicate sparse source preservation > refuses nested equal-default policy before IDs, stamps or writes [2.78ms]
+183 |     expect(await workItems.duplicate('parent', 'owner')).toEqual({
+184 |       ok: false,
+185 |       reason: 'too_large',
+186 |     });
+187 |     expect(await fixture.snapshot()).toEqual(before);
+188 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:188:30)
+(fail) duplicate sparse source preservation > keeps missing, authorization and 501-row precedence before failed evidence [59.63ms]
+236 |     };
+237 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+238 |       messages[fault],
+239 |     );
+240 |     expect(await fixture.snapshot()).toEqual(before);
+241 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:241:30)
+(fail) throws on selected trusted maximum corruption before duplication [1.83ms]
+236 |     };
+237 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+238 |       messages[fault],
+239 |     );
+240 |     expect(await fixture.snapshot()).toEqual(before);
+241 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:241:30)
+(fail) throws on selected trusted step corruption before duplication [1.02ms]
+236 |     };
+237 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+238 |       messages[fault],
+239 |     );
+240 |     expect(await fixture.snapshot()).toEqual(before);
+241 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:241:30)
+(fail) throws on selected trusted project corruption before duplication [0.89ms]
+236 |     };
+237 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+238 |       messages[fault],
+239 |     );
+240 |     expect(await fixture.snapshot()).toEqual(before);
+241 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:241:30)
+(fail) throws on selected trusted parent corruption before duplication [0.97ms]
+236 |     };
+237 |     expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+238 |       messages[fault],
+239 |     );
+240 |     expect(await fixture.snapshot()).toEqual(before);
+241 |     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                   ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:241:30)
+(fail) throws on selected trusted duplicate corruption before duplication [1.13ms]
+(pass) copies detached exact refusal nodes and allows duplication when cleared [2.88ms]
+279 |   const before = await fixture.snapshot();
+280 |   expect(await rejectedMessage(workItems.duplicate('parent', 'owner'))).toContain(
+281 |     'listByWorkItems',
+282 |   );
+283 |   expect(await fixture.snapshot()).toEqual(before);
+284 |   expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
+                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "ids": 0,
+-   "stamps": 0,
++   "stamps": 1,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-duplicate-owner-20261017/libs/wbs/application/core/src/module/work-item/duplicate-step-parallel.test.ts:284:28)
+(fail) throws when the required duplication sparse reader is absent before writes [0.99ms]
+(pass) reads admitted sparse duplication evidence and rolls a preceding patch and journal back [2.67ms]
+(pass) duplicates an empty selection while unrelated and foreign policies keep their owners [1.93ms]
+
+ 5 pass
+ 9 fail
+ 63 expect() calls
+Ran 14 tests across 2 files. [3.11s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 586276864, "exitCode": 1}

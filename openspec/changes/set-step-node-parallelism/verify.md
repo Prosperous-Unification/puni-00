@@ -957,3 +957,111 @@ passed serially under1280MiB (exit0, **1,075,503,104 bytes**). Tool Wiki's obser
 status was inactive/not-certified because the external activation root is not provisioned;
 this run does not certify Tool Wiki activation. Normal commit hooks execute again;
 the commit receipt is retained externally to avoid changing the committed tree afterward.
+
+## Forward duplication preservation prerequisite (2026-10-17)
+
+Base: `09f484ce5197fd59dcb3c6a4056b1eeeb8d345fe`; isolated clone
+`/tmp/puni-duplicate-owner-20261017`. Only forward duplication ships here. Restore
+destination admission, sparse remapping/history ownership, public writing and all
+unchecked parent tasks remain outstanding.
+
+Dependencies: the initially inspected root donor lock differed, and its briefly
+created link was removed. The deletion donor's matching lock concealed a transitive
+link to that same physical root tree. Its early `red-memory.txt`, `red-mounted.txt`
+and first `red-matched.txt` runs are disqualified for dependency provenance; the last
+also exposed two invalid fixture parent blockage snapshots, fixed before qualifying
+RED. The physical donor now is
+`/home/df/wd/puni/puni-00/.worktrees/shared-restore-activation-sol/node_modules`; its
+parent's and this clone's `bun.lock` SHA256 both equal
+`15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c`. No install
+or network action ran. Plain `openspec` was unavailable; the local cached pinned
+CLI executable reported version **1.12.0**, then status/apply reported ready,
+38 tasks / 21 complete before this slice.
+
+Evidence: `evidence/duplicate-2026-10-17/`. Terminal trailing whitespace was
+normalized in text transcripts for clean diff checks. Every runtime command was serialized
+under the PM's heavy lane and `/tmp/runtime-rss-guard.py`, default900MiB. Historical
+`red-matched-fixed.txt`: **1 pass / 13 fail**, peak **579,809,280 bytes**; its two
+parent-status fixture branches were subsequently disqualified by review. Final
+`red-corrected-fixtures.txt` replays the omitted guard against the corrected fixtures
+and is the qualifying final RED evidence. Retained
+source policy returned success; absent, unreadable and malformed evidence was never
+read. Empty selected policy with unrelated and foreign owners passed as control.
+After the minimal required admitted reader and widened return union, focused tests
+passed **14 / 14**, peak **584,212,480 bytes**. Final regression memory suites
+(duplicate, deletion, first-child, move, WorkItem resource) passed **182 tests /
+538 assertions**, peak **553,394,176 bytes**. Four mounted preservation suites
+passed **43 tests / 404 assertions**, peak **608,305,152 bytes**.
+
+Astra review found that the original nested/parent-corrupt fixture retained
+leaf readiness/hold after adding children. Its root-only and leaves-only fault
+failures reached the parent-status invariant, so those receipts are explicitly
+disqualified as confounded (`disqualified-confounded-*.txt`). Corrected fixtures
+clear readiness, hold and the original estimate before adding children. Two new
+positive controls prove duplication succeeds after clearing policy from the nested
+source or the injected corrupt-parent table. Corrected focused baseline passes
+**14 tests / 67 assertions**, peak **583,974,912 bytes**. All17 final qualifying mutations
+were rerun against these corrected fixtures.
+
+`mutation-receipts.json` records **17 independent qualifying production-path
+faults**, each exit1 with actual assertion failures; maximum peak **638,550,016
+bytes**. Faults omit the read, select root only, wrong project, every project row
+or leaves only; swallow a reader throw or default an absent reader; lose, reverse
+or alias nodes; drop shared HTTP details; read before authorization/size refusal;
+allocate IDs/stamps or write before refusal. The admitted-scope fault retains
+transaction rows and writes but substitutes the stale public sparse reader through
+composition: it returns successful mixed patch+duplicate instead of exact refusal.
+An earlier whole-public-graph substitution timed out and is explicitly disqualified
+(`disqualified-public-graph-timeout.txt`); it is not an atomicity proof. All changed
+production files restored after each fault, then observed adjacent Proof comments
+were added. `prove-corrected.py`, `prove-extra.py` and `prove-public-reader.py` retain
+the qualifying executed fault recipes. The earlier recipe and disqualified logs
+remain as historical evidence.
+
+Prettier write exited0, peak **370,180,096 bytes**. Fresh Nx graph generation
+exited0, peak **261,832,704 bytes**, using the supported main-process plugin mode.
+The first guessed compiler path `typescript/bin/tsc` was absent and proves no type
+check. The locked `.bin/tsc` points to `@typescript/native/bin/tsc`. WorkItem scoped
+typecheck at900MiB was killed137 at **946,667,520 bytes**, a resource refusal. After
+fresh available memory (**18,894MiB**) and explicit PM authorization, the one-shot
+1280MiB retry exited0 at **948,211,712 bytes**. Later commands return to900MiB.
+
+The initial queued per-file graph-backed lint shell sequence lacked fail-fast:
+service, memory and mounted attempts each hit900MiB, at **949,559,296**,
+**960,262,144** and **950,927,360 bytes**. These resource refusals prove no lint
+success. Fresh available memory was **19,025MiB**; PM authorized one-shot1280MiB
+retries for each exact path, to run and inspect separately.
+
+All three authorized graph-backed ESLint retries exited0: service at
+**1,173,635,072 bytes**, corrected memory test at **1,105,309,696 bytes**, mounted
+test at **1,160,802,304 bytes**. No skipped boundary-rule warnings appeared.
+Corrected fixture WorkItem scoped tsc hit900MiB at **946,843,648 bytes**; after
+fresh **18,999MiB** available and explicit PM authorization, its one-shot1280MiB
+retry exited0 at **947,826,688 bytes**. The scoped program includes imported
+composition/command binding callers through the new batch test.
+
+Pinned OpenSpec selected strict validation exited0 (peak **70,307,840 bytes**);
+required `validate --all --json` exited0 (peak **133,038,080 bytes**). Final Prettier write exited0, peak **132,259,840 bytes**.
+
+Canonical hook installation exited0 (peak **87,920,640 bytes**). Effective
+configuration preserves all original groups and rules, serializes pre-commit and
+uses per-file real ESLint over exactly the original staged lint selection. All
+seven wrapper proofs passed: exact three-path multiset, first/middle/last faults
+stop after1/2/3 calls; removing `set -e` wrongly exits0; empty argv exits64 and
+removing that guard wrongly exits0. Real staged `duplicationLintFault` was refused
+by active `@typescript-eslint/no-unused-vars` through normal Lefthook lint, exit1
+with named diagnostic (peak **872,235,008 bytes** under explicit1280MiB cap).
+Source and index restored exactly before the full positive hook.
+
+Restored normal pre-commit exited0 under the authorized1280MiB cap, peak
+**1,031,573,504 bytes**. Format, graph-backed lint, plaintext-secrets,
+private-nesting and Tool Wiki ran; doc-caps and both migration lint groups skipped
+because no matching paths changed. Real lint invocation multiset equals the
+three selected TypeScript paths exactly once (`normal-hook-selected-lint.json`).
+Tool Wiki reports inactive/not-certified because its external activation root is
+not provisioned; this receipt does not certify activation. Normal commit hooks
+will run again after PM clearance, with the receipt retained outside the tree.
+
+Full host gate, broad Nx
+test/lint/typecheck/build and deployment have not run in this bounded slice; final
+integration must gate the exact commit through `bin/h2puni-gate.sh` on h2puni.

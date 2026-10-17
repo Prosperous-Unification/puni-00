@@ -3272,10 +3272,18 @@ export class WorkItemService {
    * Proof: injecting copied facts failed the blocked leaf/descendant regression;
    * watched 2026-10-14.
    *
-   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}, having written
-   * nothing.
+   * Refuses `too_large` past {@link MAX_DUPLICATED_ROWS}. Then reads all original
+   * subtree owners through the required admitted sparse reader; retained policy
+   * refuses with detached ordered nodes before IDs, stamps or writes. Malformed
+   * or unreadable selected evidence throws; unrelated policy keeps its owners.
    */
-  async duplicate(id: string, actorId: string): Promise<WorkItemOutcome<{ id: string }>> {
+  async duplicate(
+    id: string,
+    actorId: string,
+  ): Promise<
+    | WorkItemOutcome<{ id: string }>
+    | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+  > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
@@ -3284,6 +3292,21 @@ export class WorkItemService {
     // `parent_id` references a row that must already be there.
     const originals = subtreeOf(rows, id);
     if (originals.length > MAX_DUPLICATED_ROWS) return { ok: false, reason: 'too_large' };
+
+    // Proof: omitted/root-only/wrong-project/broad/leaves-only reads failed retained,
+    // nested, parent-corruption and unrelated-policy production cases. Early reads
+    // failed auth/size precedence; catch/optional defaults accepted required failures.
+    // Late IDs/stamps/writes failed zero-allocation snapshots; reversed/lost nodes
+    // and aliased facts failed exact detached refusal tests. Public graph selection
+    // committed the admitted-policy mixed batch (all watched 2026-10-17).
+    const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, originals);
+    if (parallels.length > 0) {
+      return {
+        ok: false,
+        reason: 'referenced_by_step_parallel',
+        nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+      };
+    }
 
     const newIds = new Map(originals.map((originalId) => [originalId, this.clock.newId()]));
     /**
