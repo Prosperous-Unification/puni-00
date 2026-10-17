@@ -26,6 +26,8 @@
 - [x] 3.2.4 Implement exact removed-owner sparse refusal before forward mutation and compensating deletion; prove policy refusal, trusted-state throws, rollback and journal outcomes independently.
 - [x] 3.1.5 Write forward duplication sparse-source refusal RED, exact ordered nodes, pre-allocation atomicity, trusted-state failures, admitted batch scope and mounted single/mixed commands.
 - [x] 3.2.5 Implement required admitted sparse source reader after size refusal and before IDs/stamps/writes; prove scope, ordering, detachment and required failures.
+- [x] 3.1.6 Write restore destination sparse-preservation RED for redo-create/undo-delete, preceding-patch rollback, history outcomes, trusted failures and precedence controls.
+- [x] 3.2.6 Implement admitted restore destination guard after deletion-state refusal and before mutation; prove independent omissions, late reads, overbroad reads and swallowed throws.
 - [ ] 3.2 Implement atomic remap/refusal and snapshot/history ownership of sparse facts.
 - [x] 3.2.2 Implement required admitted-scope sparse create guard before writes; preserve typed node details through the shared 409 and prove each boundary.
 - [ ] 3.3 Write copy/import/export/saved-plan version and ID remapping RED; allocate current schema versions.

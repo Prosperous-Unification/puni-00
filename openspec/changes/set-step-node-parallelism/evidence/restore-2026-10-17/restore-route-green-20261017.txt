@@ -1,0 +1,42 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/duplicate-step-parallel.controller.db.test.ts:
+(pass) duplicate sparse preservation through single command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [582.94ms]
+(pass) duplicate sparse preservation through batch command > returns exact 409 nodes and rolls back every table touched by an earlier batch patch [473.31ms]
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+(pass) redo-create destination sparse policy preserves replay atomicity and history policy [359.62ms]
+(pass) redo-create unrelated sparse policy preserves replay atomicity and history policy [372.28ms]
+(pass) redo-create empty sparse policy preserves replay atomicity and history policy [357.14ms]
+(pass) redo-create revision sparse policy preserves replay atomicity and history policy [367.30ms]
+{"level":"error","time":1792214044892,"service":"be-01","err":{"occurrence_id":"AE_JVT6TD36TACWET57JR35BQ22FK","fingerprint":"fp1_03d01398921915971ed150b5875f5838","stack":["Error: restore replay sparse reader unavailable","    at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:180:27)","    at listByWorkItems (unknown)","    at applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6756:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) redo-create throw sparse policy preserves replay atomicity and history policy [354.37ms]
+{"level":"error","time":1792214045241,"service":"be-01","err":{"occurrence_id":"AE_GKB7JWW51AFY7YRYEFAHPMPBGD","fingerprint":"fp1_46337d49ca10327e93037213cd09a62c","stack":["Error: step parallelism must be an integer from 1 to 1000","    at assertStepParallel (/tmp/puni-restore-destination-20261017/libs/wbs/domain/domain/src/step-parallel.ts:15:15)","    at read (/tmp/puni-restore-destination-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:65:7)","    at async applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6756:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) redo-create corrupt sparse policy preserves replay atomicity and history policy [348.67ms]
+{"level":"error","time":1792214045590,"service":"be-01","err":{"occurrence_id":"AE_M2D3BWKC7VZ9QFGC0JWF5X1S2G","fingerprint":"fp1_d5b21fbde58120d7343cfdb5d1c0a825","stack":["Error: step parallelism owner is not a leaf","    at read (/tmp/puni-restore-destination-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:63:44)","    at async applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6756:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) redo-create parent sparse policy preserves replay atomicity and history policy [349.24ms]
+(pass) redo-create root sparse policy preserves replay atomicity and history policy [348.05ms]
+(pass) redo-create shape sparse policy preserves replay atomicity and history policy [341.37ms]
+(pass) undo-delete destination sparse policy preserves replay atomicity and history policy [332.32ms]
+(pass) undo-delete unrelated sparse policy preserves replay atomicity and history policy [335.13ms]
+(pass) undo-delete empty sparse policy preserves replay atomicity and history policy [347.54ms]
+(pass) undo-delete revision sparse policy preserves replay atomicity and history policy [329.82ms]
+{"level":"error","time":1792214047959,"service":"be-01","err":{"occurrence_id":"AE_R3BN9AXKJRWRWRWTE1Z4B8AZPM","fingerprint":"fp1_03d01398921915971ed150b5875f5838","stack":["Error: restore replay sparse reader unavailable","    at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:180:27)","    at listByWorkItems (unknown)","    at applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6756:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) undo-delete throw sparse policy preserves replay atomicity and history policy [333.25ms]
+{"level":"error","time":1792214048294,"service":"be-01","err":{"occurrence_id":"AE_09HNYNMN5WA24FDDXJ394HNBBR","fingerprint":"fp1_46337d49ca10327e93037213cd09a62c","stack":["Error: step parallelism must be an integer from 1 to 1000","    at assertStepParallel (/tmp/puni-restore-destination-20261017/libs/wbs/domain/domain/src/step-parallel.ts:15:15)","    at read (/tmp/puni-restore-destination-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:65:7)","    at async applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6756:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) undo-delete corrupt sparse policy preserves replay atomicity and history policy [335.36ms]
+{"level":"error","time":1792214048625,"service":"be-01","err":{"occurrence_id":"AE_GY0XHJ2HT4KVPCB1YQ9Z1XWDYV","fingerprint":"fp1_d5b21fbde58120d7343cfdb5d1c0a825","stack":["Error: step parallelism owner is not a leaf","    at read (/tmp/puni-restore-destination-20261017/libs/wbs/adapters/store-sqlite/src/step-parallel.ts:63:44)","    at async applyRestore (/tmp/puni-restore-destination-20261017/libs/wbs/application/core/src/module/work-item/work-item.resource.ts:6756:55)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) undo-delete parent sparse policy preserves replay atomicity and history policy [331.33ms]
+(pass) undo-delete root sparse policy preserves replay atomicity and history policy [340.27ms]
+(pass) undo-delete shape sparse policy preserves replay atomicity and history policy [352.49ms]
+(pass) undo-delete blockage sparse policy preserves replay atomicity and history policy [336.00ms]
+(pass) undo-delete captured-blockage sparse policy preserves replay atomicity and history policy [332.47ms]
+(pass) redo-duplicate restores its historical snapshot without rereading newly authored source policy [251.98ms]
+(pass) nonnull-parent redo-duplicate source policy uses historical source and current destination [274.10ms]
+(pass) nonnull-parent redo-duplicate destination policy uses historical source and current destination [256.05ms]
+
+ 25 pass
+ 0 fail
+ 231 expect() calls
+Ran 25 tests across 2 files. [10.65s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 592654336, "exitCode": 0}

@@ -160,3 +160,20 @@ policy stays with its owners, and an empty selected source keeps current duplica
 and undo/redo behavior. Existing shared command binding carries exact HTTP 409
 detail. Restore-destination preservation remains a separate next slice; this
 change adds no sparse writer, remapping, history schema or public schema.
+
+## Restore destination preservation prerequisite (2026-10-17)
+
+Historical restore snapshots do not own sparse destination policy. `applyRestore`
+therefore reads only a surviving nonnull `root.parentId` through the admitted
+`stepParallels.listByWorkItems` reader. The read follows collision, missing-parent,
+projected typed-shape, attempts and deletion-state refusals, before parent blockage
+replacement or subtree insertion. Existing-parent destinations are read as well,
+so invalid retained parent policy throws. A null destination skips the reader.
+
+Valid nonempty destination policy returns failed `ApplyOutcome`, producing the
+existing stale_undo rollback and stale-entry discard. Missing/unreadable/corrupt
+trusted evidence throws, rolls back preceding replay writes and preserves the
+exact journal. Redo-create and undo-delete reach this guard independently of
+owner revision drift. Redo-duplicate replays the historical snapshot without
+rereading the original source; the same destination guard still applies. This
+slice adds no sparse history ownership, public writer, version 10 document or UI.

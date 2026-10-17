@@ -6680,6 +6680,11 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * Replays historical rows under their surviving destination after existing refusals.
+   * Retained destination policy refuses as stale history; trusted sparse failures throw
+   * before any restore writes so the runner preserves the original journal.
+   */
   private async applyRestore(
     projectId: string,
     command: Extract<CompensatingCommand, { do: 'restore_subtree' }>,
@@ -6740,6 +6745,22 @@ export class WorkItemService {
     if (command.deletionState !== undefined) {
       const refused = await this.deletionRefusal(projectId, command.deletionState);
       if (refused !== null) return refused;
+    }
+    // Proof: omitted guard accepted redo-create/undo-delete and nested duplicate
+    // destinations; overbroad reads refused unrelated policy. Swallowed failures
+    // returned 409 instead of 500; parent-skip accepted corrupt parent ownership.
+    // Early reads displaced deletion refusal; late reads cleared captured blockage
+    // or inserted rows before refusal. Root reads and source rereads broke controls
+    // (mounted restore-step-parallel cases, independently watched 2026-10-17).
+    if (root.parentId !== null) {
+      const parallels = await this.opts.stepParallels.listByWorkItems(projectId, [root.parentId]);
+      if (parallels.length > 0)
+        return {
+          ok: false,
+          detail: 'the destination has step parallelism stated since this restore.',
+        };
+    }
+    if (command.deletionState !== undefined) {
       await this.replaceDeletionBlockages(
         projectId,
         command.deletionState.parentBlockages,

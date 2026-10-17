@@ -1065,3 +1065,138 @@ will run again after PM clearance, with the receipt retained outside the tree.
 Full host gate, broad Nx
 test/lint/typecheck/build and deployment have not run in this bounded slice; final
 integration must gate the exact commit through `bin/h2puni-gate.sh` on h2puni.
+
+## Restore destination preparation (2026-10-17)
+
+Isolated `/tmp/puni-restore-destination-20261017` starts at exact local prerequisite
+`2cc9984ac9040adb2c6415e319bb6416df75bc8f`. Physical dependency donor
+`/home/df/wd/puni/puni-00/.worktrees/shared-restore-activation-sol` has byte-identical
+`bun.lock` (SHA-256 `15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c`);
+its existing node_modules is linked without network installation.
+
+Static preparation only: mounted redo-create/undo-delete matrix, destination
+retention, reader throw, corrupt maximum, corrupt existing parent, unrelated,
+empty/null destination and authorization/revision/typed-shape/deletion-state
+precedence cases. No production change yet. RED, focused checks, R5 fault
+injections, formatting and OpenSpec CLI validation remain unrun pending the PM's
+serial heavy lane grant. Default monitored cap is 900 MiB. Public writer,
+version 10, lifecycle parent tasks and UI remain open.
+
+### Restore implementation and watched proofs
+
+The corrected initial scaffold ran 20 mounted cases: 12 pass, 8 fail,
+peak **583,872,512 bytes**. Only destination-retention, throw, corrupt-maximum
+and corrupt existing-parent cases failed across redo-create and undo-delete.
+An earlier scaffold incorrectly assumed create restoration carried deletionState
+and expected root revision to be a create replay precondition; those fixture
+assumptions were corrected before production edits and are not production RED
+proofs. The final scaffold adds captured-blockage timing and two nested duplicate
+controls, totaling 23 cases: **23 pass, 0 fail, 209 assertions**, peak
+**641,708,032 bytes**. Prettier write exited0, peak **360,259,584 bytes**.
+
+All runtime test and mutation commands use the PM's serial lane and
+`RUNTIME_CLOSURE_RSS_MIB=900 python3 /tmp/runtime-rss-guard.py ...`; no higher cap was used
+for those tests or mutations; later compiler and hook checks use separately approved caps. No network install was used. Raw receipts and reproducible isolated source
+mutations are retained in `evidence/restore-2026-10-17/`. Each mutation restored
+the source in `finally`; every listed run exited1 with named behavioral failures:
+
+| Injected fault                            | Observed failure                                              |  Peak bytes |
+| ----------------------------------------- | ------------------------------------------------------------- | ----------: |
+| Omit destination guard                    | redo-create and undo-delete return200 instead of409           | 583,757,824 |
+| Select project-wide policy                | two unrelated-policy controls return409 instead of200         | 582,672,384 |
+| Catch trusted failures as stale           | four throw/corrupt cases return409 instead of500              | 639,520,768 |
+| Skip destinations already parented        | two corrupt parent cases return200 instead of500              | 638,844,928 |
+| Read null destinations                    | two root controls return500 instead of200                     | 643,686,400 |
+| Read before deletionRefusal               | undo-delete blockage loses its existing refusal detail        | 582,037,504 |
+| Read after subtree insertion              | two destination cases no longer return stale_undo             | 583,102,464 |
+| Read after captured parent blockage clear | real parent remove observed before refusal, expected no clear | 583,241,728 |
+| Omit nested duplicate destination check   | nested duplicate destination returns200 instead of409         | 581,242,880 |
+| Reread historical original source         | nested duplicate source control returns500 instead of200      | 576,929,792 |
+
+The nonempty captured parent blockage comes from deleting the blocked child;
+its real repository removal is observed independently of final rollback. The
+nested duplicate controls move its original source away using raw SQL without
+revision changes, leaving a valid surviving destination leaf. Newly authored
+source policy permits historical replay; destination policy refuses it. Both
+cases retain exact sparse owners. These controls preserve public writer,
+version10 and UI tasks as open.
+
+Restored-source regression passed **291 tests / 1,257 assertions** across five
+files: mounted restore/deletion/typed-dependency lifecycle, SQLite undo and core
+WorkItem resource. Peak **777,445,376 bytes**. Final Astra-high exact-candidate
+review reported no P0–P3 findings and qualified the ten intended mutation failures.
+
+WorkItem scoped native `tsc --project
+libs/wbs/application/core/src/module/work-item/tsconfig.json --noEmit` hit900MiB
+at **949,764,096 bytes** (exit137, resource-disqualified). Fresh available memory
+was18,900MiB; PM approved an exact one-shot1280MiB retry, which exited0 without
+diagnostics at **961,105,920 bytes**. This proves the scoped module program only.
+
+Mounted-test compiler config `/tmp/restore-controller-tsconfig-20261017.json`
+extends the app spec config, includes only the new mounted test, removes project
+references and explicitly resolves bun-types through the linked donor. Its imported
+OrganizationHarness reaches the composed application graph. Native scoped tsc
+hit900MiB at **944,697,344 bytes**; fresh available18,803MiB preceded the PM-approved
+one-shot1280MiB retry, which also hit its cap at **1,348,689,920 bytes**. Both
+exit137 receipts are resource-disqualified; mounted typecheck was unresolved at that checkpoint and is proven by the later restored-source receipts.
+Fresh available18,850MiB and the second refusal were reported before further work.
+
+Fresh Nx graph generation used supported main-process plugins and exited0, peak
+**364,834,816 bytes**. Graph-backed production ESLint passed at **816,246,784
+bytes**. Mounted ESLint hit900MiB at **947,228,672 bytes**; after fresh available
+18,659MiB and explicit PM authorization its one-shot1280MiB retry exited0 at
+**974,909,440 bytes**. Neither passing lint receipt skipped Nx boundary rules.
+Pinned OpenSpec1.12.0 selected strict and all-change JSON validation exited0 at
+**72,990,720** and **130,617,344 bytes** respectively.
+
+The final authorized1700MiB mounted compiler run completed (exit1, peak
+**1,497,219,072 bytes**) with TS2322 in unchanged
+`libs/wbs/application/core/src/http/work-item.routes.ts:269`: grouped refusal
+mapping loses the correlation between `referenced_by_step_parallel`/nodes and
+shape errors/dependencyIds. This is a real compiler diagnostic, not a cap refusal;
+that checkpoint did not prove mounted typecheck. The later PM/Astra diagnosis and restored passing compiler receipts below resolve it.
+
+The PM/Astra diagnosis confirmed the grouped HTTP refusal type error is inherited
+from the exact prerequisite base. The route now returns the sparse refusal in its
+own case, preserving exact runtime bytes and keeping the two relationship cases
+grouped. No cast, default or widened response type was introduced. The same scoped
+mounted compiler then passed at **1,467,781,120 bytes** under the expressly approved
+1700MiB cap after fresh available18,726MiB. Independently remerging the cases
+reproduced TS2322 (exit1, **1,497,800,704 bytes**); source SHA-256 restoration was
+checked exactly in `restore-route-restoration-20261017.json`. Restored compiler
+passed again at **1,475,657,728 bytes**. This is a compiler proof; mounted duplicate
+single/batch exact409-node assertions supply the runtime control. Restore plus
+those exact-node controls passed **25 tests / 231 assertions**, peak
+**592,654,336 bytes**. These scoped compiler receipts do not claim a full app gate.
+
+Duplicate exact409 plus typed relationship lifecycle controls passed **15 tests /
+138 assertions**, peak **595,521,536 bytes** after the route correlation repair.
+
+Canonical Lefthook installation passed. Local configuration keeps every original
+hook group, command and selection, runs pre-commit serially and feeds each selected
+TS path separately to real graph-backed ESLint. Effective configuration comparison
+and seven wrapper proofs passed: positive exact ordering; first/middle/last failures
+stop after1/2/3 calls; empty argv exits64; removing fail-fast or the empty guard
+incorrectly exits0. Missing Python YAML parser made an initial comparison unavailable;
+the executed comparison uses the installed YAML library through Bun and validates
+all original commands/globs/exclusions. Lefthook omits false parallel in its dump;
+the proof checks both explicit local false and absence of effective true.
+
+Normal pre-commit at900MiB was killed137 at **946,872,320 bytes**; that receipt is
+resource-disqualified. After fresh available18,600MiB and PM authorization, the
+1280MiB retry passed, peak **1,046,458,368 bytes**. A real staged unused constant
+`restoreHookLintFault` was then refused by normal Lefthook lint with active
+`@typescript-eslint/no-unused-vars` (exit1, **1,049,587,712 bytes**). Both source and
+index SHA-256 were restored exactly before the final positive hook. No hook was
+bypassed. Tool Wiki reports inactive/not-certified because its external activation
+root is unprovisioned; these receipts do not certify activation. Doc-caps and the
+two migration lint groups have no matching staged files.
+
+Full host gate, broad Nx test/lint/typecheck/build, push and deployment remain
+unrun. Final integration requires `bin/h2puni-gate.sh <exact-sha>` on h2puni;
+public sparse writing, version10 and UI remain open.
+
+Restored normal pre-commit passed at **1,046,327,296 bytes**. Its lint invocation
+multiset equals all three staged TS paths exactly once, including both production
+paths and the mounted test. The final receipt and selection proof are retained in
+the evidence directory; trailing whitespace in text receipts is normalized only.

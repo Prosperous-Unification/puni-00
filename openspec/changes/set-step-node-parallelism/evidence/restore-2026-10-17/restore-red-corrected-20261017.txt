@@ -1,0 +1,153 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:
+175 |           expect(snapshot()).toEqual(before);
+176 |           expect(
+177 |             h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+178 |           ).toEqual(journalBefore);
+179 |         } else {
+180 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:180:26)
+(fail) redo-create destination sparse policy preserves replay atomicity and history policy [510.05ms]
+(pass) redo-create unrelated sparse policy preserves replay atomicity and history policy [379.61ms]
+(pass) redo-create empty sparse policy preserves replay atomicity and history policy [374.45ms]
+(pass) redo-create revision sparse policy preserves replay atomicity and history policy [383.45ms]
+169 |             policy === 'empty'
+170 |               ? []
+171 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+172 |           );
+173 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+174 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:174:33)
+(fail) redo-create throw sparse policy preserves replay atomicity and history policy [421.28ms]
+169 |             policy === 'empty'
+170 |               ? []
+171 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+172 |           );
+173 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+174 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:174:33)
+(fail) redo-create corrupt sparse policy preserves replay atomicity and history policy [391.06ms]
+169 |             policy === 'empty'
+170 |               ? []
+171 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+172 |           );
+173 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+174 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:174:33)
+(fail) redo-create parent sparse policy preserves replay atomicity and history policy [404.91ms]
+(pass) redo-create root sparse policy preserves replay atomicity and history policy [400.39ms]
+(pass) redo-create shape sparse policy preserves replay atomicity and history policy [361.68ms]
+175 |           expect(snapshot()).toEqual(before);
+176 |           expect(
+177 |             h.sqlite.query('SELECT * FROM command_journal WHERE project_id = ?').all(projectId),
+178 |           ).toEqual(journalBefore);
+179 |         } else {
+180 |           expect(answer).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+                               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+    "body": {
+-     "error": "stale_undo",
++     "detail": null,
++     "done": "2 changes",
+    },
+-   "status": 409,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:180:26)
+(fail) undo-delete destination sparse policy preserves replay atomicity and history policy [382.71ms]
+(pass) undo-delete unrelated sparse policy preserves replay atomicity and history policy [363.89ms]
+(pass) undo-delete empty sparse policy preserves replay atomicity and history policy [369.71ms]
+(pass) undo-delete revision sparse policy preserves replay atomicity and history policy [349.81ms]
+169 |             policy === 'empty'
+170 |               ? []
+171 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+172 |           );
+173 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+174 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:174:33)
+(fail) undo-delete throw sparse policy preserves replay atomicity and history policy [359.22ms]
+169 |             policy === 'empty'
+170 |               ? []
+171 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+172 |           );
+173 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+174 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:174:33)
+(fail) undo-delete corrupt sparse policy preserves replay atomicity and history policy [345.33ms]
+169 |             policy === 'empty'
+170 |               ? []
+171 |               : [{ work_item_id: 'unrelated', step_id: step.id, max_parallel: 1 }],
+172 |           );
+173 |         } else if (policy === 'throw' || policy === 'corrupt' || policy === 'parent') {
+174 |           expect(answer.status).toBe(500);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 500
+Received: 200
+
+      at <anonymous> (/tmp/puni-restore-destination-20261017/apps/wbs/be-01/src/controller/restore-step-parallel.controller.db.test.ts:174:33)
+(fail) undo-delete parent sparse policy preserves replay atomicity and history policy [357.69ms]
+(pass) undo-delete root sparse policy preserves replay atomicity and history policy [345.31ms]
+(pass) undo-delete shape sparse policy preserves replay atomicity and history policy [341.72ms]
+(pass) undo-delete blockage sparse policy preserves replay atomicity and history policy [339.92ms]
+(pass) redo-duplicate restores its historical snapshot without rereading newly authored source policy [260.43ms]
+
+ 12 pass
+ 8 fail
+ 164 expect() calls
+Ran 20 tests across 1 file. [9.38s]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 583872512, "exitCode": 1}

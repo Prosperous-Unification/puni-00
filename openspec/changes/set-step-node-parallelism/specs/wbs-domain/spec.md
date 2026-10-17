@@ -341,3 +341,37 @@ its owners and SHALL NOT refuse a selected empty duplication.
 - **GIVEN** no policy on source subtree rows and retained unrelated policy
 - **WHEN** duplication, undo and redo run
 - **THEN** each succeeds and unrelated sparse facts retain their exact owners
+
+### Requirement: Restore preserves sparse destination policy before mutation
+
+Compensating subtree restore SHALL read required admitted sparse evidence for
+its surviving nonnull root parent after collision, missing-parent, projected
+shape, attempts and deletion-state refusals and before blockage replacement or
+subtree insertion. Every selected surviving destination SHALL be read, including
+already-parented destinations with corrupt policy. A null parent SHALL skip the
+sparse read. Valid nonempty policy SHALL return stale_undo, roll back preceding
+replay writes and discard the stale entry under existing history policy.
+Unreadable, absent or corrupt trusted evidence SHALL throw as HTTP 500, roll
+back all replay writes and preserve the exact journal. Redo-duplicate SHALL
+replay its historical snapshot without rereading its original source policy.
+
+#### Scenario: Redo-create and undo-delete detect retained policy without revision drift
+
+- **GIVEN** a journalled child create undone for redo or a deleted child awaiting undo
+- **AND** the surviving parent gains sparse policy without changing revision
+- **WHEN** replay applies a preceding patch and then restores the child
+- **THEN** HTTP returns stale_undo and the patch and every restore write roll back
+- **AND** the stale journal entry is discarded while every sparse fact survives
+
+#### Scenario: Broken destination evidence preserves history
+
+- **GIVEN** a restore follows a replay patch
+- **WHEN** its targeted reader throws or selected policy has corrupt maximum or parent ownership
+- **THEN** HTTP returns 500 with all replay writes rolled back and the exact journal preserved
+
+#### Scenario: Earlier refusal and empty destination retain existing behavior
+
+- **WHEN** replay lacks admission or fails revision, typed shape or deletion-state checks
+- **THEN** that existing refusal precedes sparse access
+- **AND** empty selected policy or unrelated policy permits replay with its exact facts intact
+- **AND** root restoration succeeds without consulting a poisoned sparse reader
