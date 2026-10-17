@@ -1285,7 +1285,7 @@ function CardNotBeforeField({
               aria-label={`Earliest start for ${row.number}`}
               data-cell={cellKey(row.id, 'not-before')}
               data-card-not-before-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
               value={draftDay}
               onChange={(event) => {
                 setDraftDay(event.target.value);
@@ -1305,7 +1305,7 @@ function CardNotBeforeField({
               type="text"
               aria-label={`Why ${row.number} may not start earlier`}
               data-card-not-before-reason
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
               value={draftReason}
               onChange={(event) => {
                 setDraftReason(event.target.value);
@@ -1316,7 +1316,7 @@ function CardNotBeforeField({
             <button
               type="button"
               data-card-not-before-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={save}
             >
               Save
@@ -1332,7 +1332,7 @@ function CardNotBeforeField({
               <button
                 type="button"
                 data-card-not-before-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   setNotBefore(row, null, null);
                   setOpen(false);
@@ -1526,7 +1526,7 @@ function CardDeadlineField({
               aria-invalid={impossible || undefined}
               data-cell={cellKey(row.id, 'deadline')}
               data-card-deadline-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
               value={draftDay}
               onChange={(event) => {
                 setDraftDay(event.target.value);
@@ -1537,7 +1537,7 @@ function CardDeadlineField({
             <button
               type="button"
               data-card-deadline-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={save}
             >
               Save
@@ -1552,7 +1552,7 @@ function CardDeadlineField({
               <button
                 type="button"
                 data-card-deadline-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   setDeadline(row, null);
                   setOpen(false);
@@ -1896,7 +1896,7 @@ function CardPriorityField({
                     // in a list, not options in a listbox — nothing here owns a
                     // focus the way a combobox owns its list's.
                     aria-pressed={paint !== null && paint.rank === rank}
-                    className={`${TAP} flex w-full items-center justify-between rounded-md border px-3 text-left`}
+                    className={`${TAP} border-control-edge flex w-full items-center justify-between rounded-md border px-3 text-left`}
                     style={
                       paint !== null && paint.rank === rank ? { background: line?.tint } : undefined
                     }
@@ -1933,7 +1933,7 @@ function CardPriorityField({
               aria-label={`Priority for ${row.number}, as a number`}
               data-cell={cellKey(row.id, 'priority')}
               data-card-priority-input
-              className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+              className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
               value={draft}
               onChange={(event) => {
                 setDraft(event.target.value);
@@ -1944,7 +1944,7 @@ function CardPriorityField({
             <button
               type="button"
               data-card-priority-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={() => {
                 void send(draft);
               }}
@@ -1963,7 +1963,7 @@ function CardPriorityField({
               <button
                 type="button"
                 data-card-priority-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   void send('');
                 }}
@@ -2232,7 +2232,7 @@ function CardDependsField({
                     </span>
                     <button
                       type="button"
-                      className={`${TAP} rounded-md border px-3`}
+                      className={`${TAP} border-control-edge rounded-md border px-3`}
                       aria-label={`Edit ${words.label}`}
                       onClick={() => {
                         setEditing({
@@ -2245,7 +2245,7 @@ function CardDependsField({
                     </button>
                     <button
                       type="button"
-                      className={`${TAP} rounded-md border px-3`}
+                      className={`${TAP} border-control-edge rounded-md border px-3`}
                       data-card-wait-remove={wholeWait ? predecessorNumber : undefined}
                       aria-label={
                         wholeWait
@@ -2283,7 +2283,7 @@ function CardDependsField({
                     // it with a `title` no finger can reach.
                     aria-label={`Stop ${row.number} waiting for ${each.number}`}
                     disabled={removing.has(each.id)}
-                    className={`${TAP} inline-flex shrink-0 items-center justify-center rounded-md border px-3 disabled:opacity-50`}
+                    className={`${TAP} border-control-edge inline-flex shrink-0 items-center justify-center rounded-md border px-3 disabled:opacity-50`}
                     onClick={() => {
                       onRemove(each.id);
                     }}
@@ -2435,7 +2435,7 @@ function CardDependsField({
                     // cannot send the same edge twice — `onAdd` is the guard
                     // and the `disabled` is the thing a finger hits.
                     disabled={entry.refusal !== undefined || adding.has(entry.id)}
-                    className={`${TAP} flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
+                    className={`${TAP} border-control-edge flex min-w-0 flex-1 items-center gap-2 rounded-md border px-3 text-left disabled:opacity-50`}
                     onClick={() => {
                       onAdd(entry);
                     }}
@@ -2450,7 +2450,7 @@ function CardDependsField({
                   </button>
                   <button
                     type="button"
-                    className={`${TAP} min-w-11 shrink-0 rounded-md border px-3`}
+                    className={`${TAP} border-control-edge min-w-11 shrink-0 rounded-md border px-3`}
                     aria-label={`Customize ${entry.number} - ${entry.name}`}
                     onClick={() => {
                       setEditing({ predecessorId: entry.id });
@@ -2584,7 +2584,7 @@ function CardTrioField({
                 aria-label={`${stepName} ${point} for ${row.number}`}
                 data-cell={cellKey(row.id, `${stepId}-${point}`)}
                 data-card-trio-input={point}
-                className={`${TAP} box-border w-full rounded-md border p-2 text-base`}
+                className={`${TAP} border-control-edge box-border w-full rounded-md border p-2 text-base`}
                 value={draft[point] ?? ''}
                 onChange={(event) => {
                   const typed = event.target.value;
@@ -2597,7 +2597,7 @@ function CardTrioField({
             <button
               type="button"
               data-card-trio-save
-              className={`${TAP} inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
+              className={`${TAP} border-control-edge inline-flex flex-1 items-center justify-center rounded-md border px-3 font-semibold`}
               onClick={() => {
                 // Composed into the shorthand the cell above takes, so the
                 // three boxes are a keypad-shaped way of typing one string and
@@ -2620,7 +2620,7 @@ function CardTrioField({
               <button
                 type="button"
                 data-card-trio-clear
-                className={`${TAP} inline-flex items-center justify-center rounded-md border px-3`}
+                className={`${TAP} border-control-edge inline-flex items-center justify-center rounded-md border px-3`}
                 onClick={() => {
                   send('');
                 }}

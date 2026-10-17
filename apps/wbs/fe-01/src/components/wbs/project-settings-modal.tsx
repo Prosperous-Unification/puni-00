@@ -587,7 +587,8 @@ export function ProjectSettingsModal({
           {/*
             `pb-6`, the surface's own `p-6`: a section that scrolls ends with the
             room the modal starts with, rather than its last line on the box's
-            edge (ui-review F-123, Estimating at 1024×768).
+            edge (ui-review F-123, found on Estimating at 1024×768; measured at
+            1024×700 since the fieldsets lost their platform padding, F-153).
           */}
           <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 pb-6">
             <div

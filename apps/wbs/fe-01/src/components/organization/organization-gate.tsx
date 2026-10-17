@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } fro
 
 import { LifetimeFault } from '@/components/chrome/lifetime-fault';
 import { InvitationAcceptance } from '@/components/onboarding/invitation-acceptance';
+import { Button } from '@/components/ui/button';
 import { useFeatureReachable } from '@/lib/session-features';
 import { useRetirementJoin } from '@/runtime/application-services-context';
 import { createOrganizationOwner, type OrganizationRoutes } from '@/runtime/organization-owner';
@@ -198,7 +199,9 @@ export function OrganizationGate({
           </p>
         ))}
       {switcher}
-      <button
+      <Button
+        variant="outline"
+        size="sm"
         type="button"
         disabled={state.kind === 'switching' || state.kind === 'loading'}
         onClick={() => {
@@ -206,10 +209,10 @@ export function OrganizationGate({
         }}
       >
         Check current organization
-      </button>
-      <button type="button" onClick={signOut}>
+      </Button>
+      <Button variant="outline" size="sm" type="button" onClick={signOut}>
         Sign out
-      </button>
+      </Button>
     </main>
   );
 }

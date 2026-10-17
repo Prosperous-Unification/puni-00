@@ -16,15 +16,23 @@ dark palette.
 ### Requirement: The chrome draws no platform frame and no ink-coloured border
 
 No visible element outside the plan grid SHALL draw a border styled `outset`,
-`inset`, `groove` or `ridge`, and no such element SHALL draw a border in its own
-text colour. A border whose utility names no colour SHALL draw the surface
-border colour. A bare `<button>` or `<fieldset>` SHALL draw no border unless it
-asks for one.
+`inset`, `groove` or `ridge`, and no such element other than a radio or a check
+box (whose ring is the control itself, not a frame) SHALL draw a border in its
+own text colour. A border whose utility names no colour SHALL draw the surface
+border colour, and no control box SHALL draw that surface colour. A bare
+`<button>` or `<fieldset>` SHALL draw no border unless it asks for one, and every
+button outside the grid that is a control rather than a row label SHALL be drawn
+in the chrome's button vocabulary.
 
 #### Scenario: the Gantt, a dialog and the settings sections
 
-- **WHEN** the home card, the plan, each toolbar popover, the Gantt, the cheat sheet, the account menu, each Project settings section, Directory or Spaces is shown in either palette
-- **THEN** no element outside the grid draws a bevel, a groove or a border in its own ink
+- **WHEN** the home card, the plan, each toolbar popover, the Gantt, the Board, the cheat sheet, the account menu, each Project settings section, Directory or Spaces is shown in either palette
+- **THEN** no element outside the grid draws a bevel, a groove, a border in its own ink, or a control box on the surface line
+
+#### Scenario: onboarding and the phone card sheets
+
+- **WHEN** onboarding asks to create an organization, verify an email or join one, or a phone card's Earliest start, Priority or Depends on sheet is open
+- **THEN** every field and button draws the control edge and the chrome's 6px corner
 
 ### Requirement: The header marks the page that is showing
 

@@ -17,7 +17,10 @@ and the Plan actions sheet started its labels at two x positions (F-161).
 - `--input` is retired: every control box (button, text box, select, summary)
   draws `--control-edge`, at least 3:1 against its ground in both palettes.
 - The base layer gives every border outside the grid `--border` as its default
-  colour, and zeroes the platform's frame on bare `button` and `fieldset`.
+  colour, and zeroes the platform's frame on bare `button` and `fieldset`. Every
+  control that relied on the old defaults (phone card sheets, onboarding,
+  organization choice, the Board, sign-out failure, the Gantt marker list and
+  the fault cards' Reload) names its edge or is a `<Button>`.
 - The current page's header link carries a 2px ink bar; no page link is
   underlined.
 - The phone's view toggle takes Plan actions' 14px.
@@ -25,8 +28,9 @@ and the Plan actions sheet started its labels at two x positions (F-161).
 
 ## Non-goals
 
-- The plan cards and the grid keep their own edges: the base layer's guard stops
-  at `[data-grid]`, and `[data-plan-cards] button` keeps `--border`.
+- The card face and the grid keep their own edges: the base layer's guard stops
+  at `[data-grid]`, and `[data-plan-cards] button` keeps `--border` (F-170). The
+  card's sheets render outside the grid and are on the control edge.
 - No change to the Gantt strip's metrics (decision D5); only its edge colour.
 
 ## Impact

@@ -33,3 +33,24 @@ Each new case was run against the unchanged source, or with the named fault inje
 - F-161 glyph column removed: `Collapse all starts elsewhere · Expected: <= 1 · Received: 22`.
 
 Not re-verified: the F-123 case's own proof at its new 1024×700 viewport.
+
+## Round 2 (review of #564: B1, B2, F-166, F-168, F-171), 2026-10-18
+
+- `chrome-frames.spec.ts` now refuses a control box on the surface line and checks the chrome's 6px
+  corner on the Board and onboarding. It also sweeps onboarding (`create_organization`,
+  `verification_required`, `join_organization`, mocked) and the phone card's Earliest start,
+  Priority and Depends on sheets.
+- Proofs observed on 555d6fc25:
+  - Board: `button "Return to Plan" radius 0px`.
+  - Onboarding: `input "" · Top edge on the surface line`.
+  - Card sheet: `input[data-cell] "Earliest start for 010"`, `input "Why 010 may not start earlier"`
+    and `button "Save"` · `Top edge on the surface line`.
+  - With the onboarding fields fixed and its buttons left bare: `button "Sign out" radius 0px` and
+    `button "Create organization" radius 0px`.
+- Playwright `chrome-frames mobile step-board organization gantt gantt-attempts header control-edge
+dark-mode quiet-load`: 171 passed, 1 skipped.
+- Vitest: 16 touched files (onboarding, organization gate, Board, Gantt panel, chart seam, attempt
+  panel, chrome, app), 678 passed. `typecheck` and `lint:fast` pass, prettier is clean, and
+  `validate --all` passes 249/249.
+- Not covered by a browser check: the Gantt marker list (Close mark list, ✓ ✎ ◑ ✕), the fault
+  cards' Reload and the marker composer. These are code changes only, covered by their unit tests.
