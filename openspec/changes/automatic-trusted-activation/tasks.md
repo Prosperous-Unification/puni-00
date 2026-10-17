@@ -419,6 +419,16 @@ Their completion does not close parent task 1.2, external bootstrap or 030.6.
       bare import declarations and census, wildcard paths compatibility, second-project cutoff,
       and removed-root SHA-1/SHA-256 replay. Watch independent production faults and restore.
       Wildcard paths admission, parent .3, full manifest, authentication and freeze stay open.
+- [ ] 2.1d.1.3e6d Admit effective literal TypeScript paths substitutions in retained-config-roots
+      after baseUrl and before the host, using the pinned compiler pure-path resolver and
+      effective baseUrl or parser-owned declaring pathsBasePath. Preserve key/array order,
+      duplicates, discarded inheritance, options and earlier modes; wildcard-bearing targets
+      remain outside this admission slice. Refuse malformed mappings, substitutions, origins
+      and helper shape. Prove unused escapes, fixed targets under wildcard keys, normalized
+      separators, inherited and overridden origins, missing/link roots, alias/fallback declarations,
+      exact shared budgets and SHA-1/SHA-256 removed-root replay with link census. Watch independent
+      production faults and restore. Parent .3, wildcard expansion, complete manifest,
+      authentication and freeze remain open pending separate work, review and required gate.
 - [x] 2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted
       record kind, raw-response payload versus container digest, semantic digest non-edges,
       installed extra-edge selectors, zero-indegree roots, missing/foreign/ambiguous response,

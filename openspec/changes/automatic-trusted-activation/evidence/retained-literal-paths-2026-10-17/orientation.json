@@ -1,0 +1,19 @@
+{
+  "baseCommit": "4d074d89672c2dc3706992b3377d73d2310709cb",
+  "baseTree": "a1f18afa58786a54ee0e5ae3afdf61af728681f9",
+  "dependencyDonor": "/tmp/puni-baseurl-sol-20261017",
+  "runtimeVersion": "6.0.3",
+  "fileIdentities": {
+    "/tmp/puni-literal-paths-sol-20261017/bun.lock": "15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c",
+    "/tmp/puni-baseurl-sol-20261017/bun.lock": "15651c976776d7c1ab3a87935b53dae67e73939c6f7d06dec12ed10598cfe80c",
+    "/tmp/puni-baseurl-sol-20261017/node_modules/@typescript/old/package.json": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+    "/tmp/puni-baseurl-sol-20261017/node_modules/@typescript/old/lib/typescript.js": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+    "/tmp/puni-baseurl-sol-20261017/node_modules/typescript/lib/typescript.js": "d3f3cd2b04b7f466f4484df921b744223f7bd1f3e353ec9110bdf52695b983d5",
+    "/tmp/runtime-rss-guard.py": "a663e33c5bcea1702399f96ba3e37aff262a5be2492324f59835c0f043e125e1"
+  },
+  "runtimeForwarder": "module.exports = require(\"@typescript/old\");\n",
+  "baseBundle": {
+    "sha256": "7619ce82750283b599cf3217603b2e196f5e9d23745eaa49cd33c2aebc7e0793",
+    "freshVerification": "sha256sum matched; git bundle verify exit0 says complete history and sha1"
+  }
+}

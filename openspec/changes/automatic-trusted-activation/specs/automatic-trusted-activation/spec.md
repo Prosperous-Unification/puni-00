@@ -1623,3 +1623,34 @@ compiler probe and source traversal budgets and preserve raw symlink byte census
 
 - **WHEN** SHA-1 or SHA-256 captured roots are removed and ambient filesystem ports throw
 - **THEN** replay produces the same canonical relationships and byte census
+
+### Requirement: Retained effective literal TypeScript paths admission
+
+Retained-config-roots extraction SHALL admit every effective paths substitution containing no
+asterisk after effective baseUrl and before its project host, independent of key shape or usage.
+Admission SHALL use the pinned compiler pure-path normalization with effective baseUrl when
+defined, otherwise parser-owned declaring pathsBasePath. Malformed mappings, nested arrays,
+strings, required origin or pinned helper shape SHALL refuse before host construction.
+
+#### Scenario: Unused literal substitutions escape
+
+- **WHEN** an unused absolute, relative or inherited literal target escapes lexically or through
+  a symlink ancestor, including missing descendants and fixed targets under wildcard keys
+- **THEN** extraction refuses before the rejected project host, census seal or successful owner
+
+#### Scenario: Effective mappings preserve compiler behavior
+
+- **WHEN** mappings are inherited, replaced including an empty map, normalized, repeated or use
+  an effective baseUrl override or parser configDir expansion
+- **THEN** only effective literals are admitted in existing key and substitution order
+- **AND** options, duplicates, fallback order and admissible absence remain intact
+- **AND** wildcard-bearing substitutions and compatible or retained-type-roots modes gain no
+  explicit literal admission
+
+#### Scenario: Retained literal aliases replay and remain bounded
+
+- **WHEN** exact or fixed wildcard aliases resolve declarations, including ordered fallbacks
+- **THEN** declarations, import targets, raw file/link census and unverified trust remain exact
+- **AND** SHA-1 and SHA-256 extraction replays after physical capture roots disappear
+- **AND** repeated targets consume shared compiler probes, source probes and traversal steps at
+  exact-fit and one-less limits

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--project",
+    "apps/twilight-structure/twilight-dash/cli/tsconfig.lib.json",
+    "--noEmit",
+    "--incremental",
+    "false"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 527216640,
+  "exitCode": 0
+}

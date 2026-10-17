@@ -1,0 +1,11 @@
+{
+  "extends": "../../../../../apps/twilight-structure/twilight-dash/cli/tsconfig.spec.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": [
+    "../../../../../apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "../../../../../apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "../../../../../apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts"
+  ]
+}

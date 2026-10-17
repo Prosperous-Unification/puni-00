@@ -191,8 +191,82 @@ function normalizedCompilerValue(value: unknown, workspace: string): unknown {
 }
 
 /**
+ * Uses the lockfile-pinned @typescript/old 6.0.3 pure path algebra, including drive roots and
+ * backslashes. This private helper performs no IO and never consults an ambient cwd.
+ * @throws Error if the installed private helper's version, signature or return shape differs.
+ */
+function resolveLiteralPath(base: string, substitution: string): string {
+  const runtime: unknown = ts;
+  // Proof: helper-callable/version/signature omissions failed the isolated helper-absent,
+  // helper-version and helper-signature production boundary cases in typescript-compiler.test.ts.
+  if (
+    runtime === null ||
+    typeof runtime !== 'object' ||
+    !('version' in runtime) ||
+    runtime.version !== '6.0.3' ||
+    !('resolvePath' in runtime) ||
+    typeof runtime.resolvePath !== 'function' ||
+    runtime.resolvePath.length !== 1
+  )
+    throw new Error('installed TypeScript resolvePath shape differs');
+  // Boundary: the pinned 6.0.3 private helper has this pure signature; its output is checked below.
+  const resolvePath = runtime.resolvePath as (path: string, ...paths: string[]) => unknown;
+  const path = resolvePath(base, substitution);
+  // Proof: removing this refusal failed the isolated helper-return production boundary case.
+  if (typeof path !== 'string')
+    throw new Error('installed TypeScript resolvePath returned nonstring');
+  return path;
+}
+
+/**
+ * Admits only effective fixed substitutions, preserving key/array order and repeated work.
+ * The parser owns inheritance and configDir expansion; wildcard-bearing targets are untouched.
+ * @throws Error for malformed effective mappings, nested substitutions or required origins.
+ */
+function admitLiteralPaths(options: ts.CompilerOptions, system: TypeScriptSystem): void {
+  const paths: unknown = options.paths;
+  if (paths === undefined) return;
+  // Proof: removing the mapping guard failed boundary nonobject; removing its array clause
+  // failed boundary array-map in the isolated production parser path.
+  if (paths === null || typeof paths !== 'object' || Array.isArray(paths))
+    throw new Error('TypeScript effective paths must be a mapping');
+  // Proof: key filtering lost fixed wildcard-key outside refusal; reversing mappings lost
+  // prior-roots/key-order normalization. Reintroducing discarded mappings lost override success.
+  const mappings: unknown[] = Object.values(paths);
+  for (const substitutions of mappings) {
+    // Proof: removing this refusal failed the isolated boundary nonarray production case.
+    if (!Array.isArray(substitutions))
+      throw new Error('TypeScript effective paths substitutions must be arrays');
+    const entries: readonly unknown[] = substitutions;
+    // Proof: deduplicating this loop lost declaring-origin repeated admission and order.
+    for (const substitution of entries) {
+      // Proof: removing this refusal failed the isolated boundary nonstring production case.
+      if (typeof substitution !== 'string')
+        throw new Error('TypeScript effective paths substitution must be a string');
+      // Proof: admitting wildcard-bearing targets lost admits wildcard substitution untouched.
+      if (substitution.includes('*')) continue;
+      // Proof: cwd origin substitution lost declaring-origin normalization; ignoring baseUrl
+      // lost baseUrl override. The corrected consumer configDir oracle failed omitted admission.
+      let base: unknown;
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Pinned TS6 paths resolution prefers defined baseUrl over parser-owned pathsBasePath.
+      if (options.baseUrl !== undefined) base = options.baseUrl;
+      else base = options['pathsBasePath'];
+      // Proof: origin-guard omission and cwd-default injection failed boundary missing-origin.
+      if (typeof base !== 'string')
+        throw new Error('TypeScript effective paths requires a string baseUrl or pathsBasePath');
+      // Proof: Node resolution lost backslash/drive normalization; existence checks lost inside
+      // missing success. Ambient sys access lost removed-root replay; omitting link census lost
+      // inside-linked raw bytes. Compiler/source omission or reset and omitted steps lost shared
+      // exact-fit controls. Lexical-only admission lost ancestor escape refusal.
+      system.admitConfigurationRoot(resolveLiteralPath(base, substitution));
+    }
+  }
+}
+
+/**
  * Parses one root project with compiler inheritance semantics. Retained modes admit effective
- * typeRoots; retained-config-roots also admits effective rootDirs and baseUrl before the host.
+ * typeRoots; retained-config-roots also admits effective rootDirs, baseUrl and literal paths
+ * substitutions before the host, using the effective baseUrl or parser-owned declaring origin.
  * Absent admitted roots are valid, and repeated roots consume repeated admission work.
  * @throws Error for config failures, refused source admission or escaped declarations.
  */
@@ -258,6 +332,11 @@ export function parseProject(
     // shared exact-fit controls; removing the source path fence lost the long-root encoding guard.
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- The pinned TS6 parser returns this supported deprecated option; admit its effective root before compiler use.
     if (parsed.options.baseUrl !== undefined) system.admitConfigurationRoot(parsed.options.baseUrl);
+    // Proof: omitted/usage/types-gated/masked/bypassed admission lost unused outside refusal;
+    // late admission lost zero-host cutoff. Global admission lost previous-mode compatibility.
+    // Option removal and reversed fallbacks lost exact alias declarations. Removing the source
+    // path fence reached the forbidden long-root encoding sentinel.
+    admitLiteralPaths(parsed.options, system);
   }
   const options: ts.CompilerOptions = {
     ...parsed.options,

@@ -5962,3 +5962,135 @@ normalization preserves original UTF-8 transcripts and raw/display hashes in
 `normalized-log-provenance.json`. Final metadata formatting, exact staged hook-input review,
 normal commit and the required full gate remain pending. Parent .3, manifest, authentication,
 freeze and wildcard paths admission remain open.
+
+## Effective literal TypeScript paths prerequisite — 2026-10-17 (candidate)
+
+Scope: task `2.1d.1.3e6d`, effective literal paths substitutions in retained-config-roots.
+The isolated clone starts at commit `4d074d89672c2dc3706992b3377d73d2310709cb`, tree
+`a1f18afa58786a54ee0e5ae3afdf61af728681f9`. Lockfile donor identity and pinned compiler
+forwarder/runtime identities are retained in
+`evidence/retained-literal-paths-2026-10-17/orientation.json`.
+
+The parser owns effective mapping replacement, declaring pathsBasePath, effective baseUrl and
+`${configDir}` substitution. The pinned parser substitutes an inherited configDir template at
+the consuming root project's basePath, while ordinary inherited relative targets retain the
+parent pathsBasePath. Admission uses those effective values without reinterpreting either.
+The private pure resolver follows compiler backslash/drive normalization and performs no IO.
+
+### Initial focused evidence
+
+Every listed run used a fresh serial process with the 900 MiB process-tree RSS cap; command
+receipts and raw logs live in `evidence/retained-literal-paths-2026-10-17/`.
+
+| Run                                                         | Observed output                                                        |    Sampled peak bytes |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------: |
+| corrected compiler RED                                      | 1 pass, 17 fail; ordered admission and isolated boundary assertions    |             386334720 |
+| corrected retained outside RED                              | 0 pass, 6 fail; extraction returned instead of refusing unused targets |             362995712 |
+| restored compiler GREEN with explicit malformed host cutoff | 39 pass, 0 fail                                                        |             377683968 |
+| restored retained outside GREEN                             | 6 pass, 0 fail                                                         |             357928960 |
+| initial inside controls                                     | 5 pass, 0 fail                                                         |             361299968 |
+| initial aliases and fallbacks                               | 4 pass, 0 fail                                                         |             369582080 |
+| initial SHA-1/SHA-256 removed-root replay                   | 2 pass, 0 fail                                                         |             364752896 |
+| initial second-project host cutoff                          | 1 pass, 0 fail                                                         |             357838848 |
+| initial long-root encoding cutoff                           | 1 pass, 0 fail                                                         |             357740544 |
+| pinned OpenSpec status/apply                                | ready; sdd-lean, 7/61 tasks complete                                   | 111280128 / 113635328 |
+
+Disqualified evidence is listed in `disqualified.json`. The first malformed-boundary harness
+attempt used an unsupported TS accessor spy; corrected RED uses isolated module registries.
+Two first-run escape strings lacked a leading `./` and reached a compiler option diagnostic.
+The first configDir oracle expected the declaring directory; the pinned parser actually returns
+the consumer directory. That original configDir RED supplies no feature proof. Its corrected
+oracle requires a watched omission before acceptance.
+
+### Shared budget and watched production faults
+
+All three isolated budget controls passed (1 pass, 0 fail each), including exact-fit success,
+one-less refusal and repeated literal charging after existing typeRoots work. Compiler/source
+probe minima increase by two for two duplicate literals; traversal-step work increases.
+Sampled peaks: compiler 644939776, source 658309120, steps 643432448 bytes.
+
+The 38 independent faults in `fault-ledger.json` each exited 1 with named expected assertions,
+with maximum sampled process-tree RSS 710443008 bytes and no cap kills. The additional
+`omit-configdir` fault specifically establishes the corrected consumer-directory oracle.
+All production files restored in the fault runner's finally block; the restored compiler suite
+passed 39/0 and retained outside suite passed 6/0. Final malformed fixtures observe actual host
+construction as well as cwd callbacks, and empty/wildcard-only controls require no origin or
+private resolver. Logs include both isolated inner and outer failures for boundary faults.
+
+| Injected production fault | Expected observed oracle                         |
+| ------------------------- | ------------------------------------------------ |
+| `omit-literals`           | refuses absolute outside                         |
+| `usage-gate`              | refuses absolute outside                         |
+| `types-gate`              | refuses absolute outside                         |
+| `masked-admission`        | refuses absolute outside                         |
+| `bypass-source`           | refuses absolute outside                         |
+| `wrong-origin`            | admission preserves declaring origin             |
+| `ignore-base-override`    | admission preserves baseUrl override             |
+| `node-normalization`      | admission preserves normalized separators        |
+| `require-existence`       | admits inside missing                            |
+| `lexical-only`            | refuses ancestor escape                          |
+| `filter-wildcard-keys`    | refuses wildcard key fixed outside               |
+| `admit-wildcards`         | admits wildcard substitution untouched           |
+| `reverse-mappings`        | admission preserves prior roots then key order   |
+| `deduplicate`             | admission preserves declaring origin             |
+| `remove-options`          | resolves exact fallback                          |
+| `reverse-fallback`        | resolves exact fallback                          |
+| `omit-compiler-charge`    | charges shared compiler                          |
+| `reset-compiler-charge`   | charges shared compiler                          |
+| `omit-source-charge`      | charges shared source                            |
+| `reset-source-charge`     | charges shared source                            |
+| `omit-step-charge`        | charges shared steps                             |
+| `physical-lookup`         | sha1 replays                                     |
+| `omit-link-census`        | admits inside linked                             |
+| `path-fence`              | bounds long roots                                |
+| `mapping-guard`           | boundary nonobject                               |
+| `array-mapping-guard`     | boundary array-map                               |
+| `substitutions-guard`     | boundary nonarray                                |
+| `string-guard`            | boundary nonstring runs                          |
+| `origin-guard`            | boundary missing-origin                          |
+| `default-origin`          | boundary missing-origin                          |
+| `helper-callable`         | boundary helper-absent                           |
+| `helper-version`          | boundary helper-version                          |
+| `helper-signature`        | boundary helper-signature                        |
+| `helper-return`           | boundary helper-return                           |
+| `global-admission`        | previous modes preserve literal paths            |
+| `late-admission`          | refuses absolute outside                         |
+| `merge-discarded`         | admits discarded outside                         |
+| `omit-configdir`          | admission preserves consumer configDir expansion |
+
+Raw transcripts, command/RSS receipts, mutation source hashes and before/after identities are
+retained beside `inject-faults.py.txt` and `run-checks.py.txt`. Mutation hashes identify code
+before the final adjacent Proof comments and formatting; the comments record those observed
+faults without altering their behavior. No fault run was disqualified in this batch.
+
+### Final scoped checks and successor review
+
+Prettier, focused test types, Dash library types and pinned strict OpenSpec validation passed.
+The initial lint run had no cached graph and found real deprecation/ternary errors after
+formatting; it is retained as `lint-initial.log`, not accepted as boundary evidence. Final code
+uses an explicit if/else: read baseUrl first and read pathsBasePath only when baseUrl is
+undefined. This preserves the reviewed access order and refusal of null or nonstring origins. The deprecation directive covers
+its exact line. Fresh Nx graph creation and all four scoped ESLint processes passed without
+warnings or skipped rules. Injecting a cross-product import failed the named
+`@nx/enforce-module-boundaries` rule; restored lint passed and the source hash matched.
+
+Final restored suites passed: compiler 39/0, literal paths 22/0, baseUrl 23/0, rootDirs 20/0,
+typeRoots 19/0 and compiler core 31/0. Exact command logs and RSS receipts accompany each run;
+all stayed within the 900 MiB cap. Installed normal hook configuration is retained. The earlier
+Astra static review covered tree `6e0d5a4623fd7679160725dc062d02b64d50fa83` with no P0-P3;
+formatting and the definedness-preserving lint adjustment require successor clearance.
+Raw transcripts are retained byte-for-byte in deterministic `.log.raw.gz` archives with raw,
+archive and normalized display SHA-256 identities in `normalized-log-provenance.json`. Display
+logs strip trailing whitespace and ensure a final newline; originals remain recoverable.
+The installed normal pre-commit rejected injected production syntax (exit 1, sampled peak
+943058944 bytes). Its 900 MiB restored run was killed at 944201728 bytes and is disqualified.
+Fresh host memory showed 19040 MiB available; the PM authorized one restored retry at 1100 MiB.
+That normal hook passed at 945078272 bytes, with formatter, lint, secrets and private-nesting
+commands active. Migration, website-migration and doc-cap hooks had no matching changed files.
+Tool Wiki explicitly returned `inactive`, `certified:false`: external activation is unprovisioned.
+No hook was bypassed or reconfigured. Hook proof precedes the final access-order correction;
+after that correction compiler 39/0, focused types, formatter and graph-backed source lint pass.
+The actual normal commit must rerun hooks on that final code. Exact successor clearance and
+resulting commit/bundle identities are recorded in the final handoff. The task checkbox and parent `.3` remain open.
+This slice claims no wildcard expansion, reference-config policy, complete compiler manifest,
+protected freeze, authentication, full repository gate, public publication, merge or deployment.

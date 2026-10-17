@@ -1,0 +1,342 @@
+{
+  "changeName": "automatic-trusted-activation",
+  "changeDir": "/tmp/puni-literal-paths-sol-20261017/openspec/changes/automatic-trusted-activation",
+  "schemaName": "sdd-lean",
+  "contextFiles": {
+    "intent": [
+      "/tmp/puni-literal-paths-sol-20261017/openspec/changes/automatic-trusted-activation/proposal.md"
+    ],
+    "specs": [
+      "/tmp/puni-literal-paths-sol-20261017/openspec/changes/automatic-trusted-activation/specs/automatic-trusted-activation/spec.md"
+    ],
+    "design": [
+      "/tmp/puni-literal-paths-sol-20261017/openspec/changes/automatic-trusted-activation/design.md"
+    ],
+    "tasks": [
+      "/tmp/puni-literal-paths-sol-20261017/openspec/changes/automatic-trusted-activation/tasks.md"
+    ],
+    "verify": [
+      "/tmp/puni-literal-paths-sol-20261017/openspec/changes/automatic-trusted-activation/verify.md"
+    ]
+  },
+  "progress": {
+    "total": 61,
+    "complete": 7,
+    "remaining": 54
+  },
+  "tasks": [
+    {
+      "id": "1",
+      "description": "1.1 Define and validate bootstrap configuration and canonical request identities — tests:",
+      "done": false
+    },
+    {
+      "id": "2",
+      "description": "1.2 Add durable request stages, compare-and-swap ownership and automatic event/timer",
+      "done": false
+    },
+    {
+      "id": "3",
+      "description": "1.2a Mount a read-only provider boundary into `readyCandidates` and `currentCandidate`.",
+      "done": false
+    },
+    {
+      "id": "4",
+      "description": "1.2b Mount discovery and current reads into the durable controller's reconciliation tick.",
+      "done": false
+    },
+    {
+      "id": "5",
+      "description": "1.2c Prove held provider reads with two durable owners and crash/reopen:",
+      "done": false
+    },
+    {
+      "id": "6",
+      "description": "1.2d Implement the GET-only GitHub REST reader behind the existing source port.",
+      "done": false
+    },
+    {
+      "id": "7",
+      "description": "1.2e First prove `scheduler initialization never repairs established state` and",
+      "done": true
+    },
+    {
+      "id": "8",
+      "description": "1.2f First prove `cancelled current response cannot commit after shutdown`,",
+      "done": true
+    },
+    {
+      "id": "9",
+      "description": "1.2g First prove `provider cooldown survives restart and clock rollback`,",
+      "done": true
+    },
+    {
+      "id": "10",
+      "description": "1.2h Add the executable one-tick service composition, an explicit protected configuration",
+      "done": true
+    },
+    {
+      "id": "11",
+      "description": "2.1 Mount the external cold/informed reviewer and authenticated journal verifier through the",
+      "done": false
+    },
+    {
+      "id": "12",
+      "description": "2.1a Freeze the selected GitHub attestation provider descriptor and explicit versioned",
+      "done": false
+    },
+    {
+      "id": "13",
+      "description": "2.1b Mount read-only attestation retrieval/authentication through `verifyReview` and",
+      "done": false
+    },
+    {
+      "id": "14",
+      "description": "2.1c Implement GitHub dispatch plus authenticated exact-effect registry query/acceptance",
+      "done": false
+    },
+    {
+      "id": "15",
+      "description": "2.1d.1 Implement the initial selector policy and retained input preparation first.",
+      "done": false
+    },
+    {
+      "id": "16",
+      "description": "2.1d.1.1 After bounded acquisition/retention, introduce the closed retained-candidate",
+      "done": false
+    },
+    {
+      "id": "17",
+      "description": "2.1d.1.2 Capture every policy-declared historical selector before deleting acquired Git",
+      "done": true
+    },
+    {
+      "id": "18",
+      "description": "2.1d.1.3 Implement the retained materializer and closed TypeScript config/compiler/resolution",
+      "done": false
+    },
+    {
+      "id": "19",
+      "description": "2.1d.1.3a Extract retained current/historical declarations through the shared Burokrat",
+      "done": true
+    },
+    {
+      "id": "20",
+      "description": "2.1d.1.3b Extract the shared filesystem-independent static Nx selector core and mount an",
+      "done": false
+    },
+    {
+      "id": "21",
+      "description": "2.1d.1.3c Extract the shared TypeScript compiler IO seam behind the preserved",
+      "done": false
+    },
+    {
+      "id": "22",
+      "description": "2.1d.1.3d Admit the strict independently pinned `ReviewRuntimeClosureV1` and",
+      "done": false
+    },
+    {
+      "id": "23",
+      "description": "2.1d.1.3e1 Build the immutable retained namespace index and exact-owner provenance before",
+      "done": false
+    },
+    {
+      "id": "24",
+      "description": "2.1d.1.3e2 Complete direct retained TypeScriptSource methods and exact-owner provenance,",
+      "done": false
+    },
+    {
+      "id": "25",
+      "description": "2.1d.1.3e3 Mount the exact owned retained TypeScript source into the shared compiler",
+      "done": false
+    },
+    {
+      "id": "26",
+      "description": "2.1d.1.3e4a Record retained source successful raw byte acquisitions with private candidate",
+      "done": false
+    },
+    {
+      "id": "27",
+      "description": "2.1d.1.3e4b1 Prove explicit ES5 standard-library legacy parity with pinned installed",
+      "done": false
+    },
+    {
+      "id": "28",
+      "description": "2.1d.1.3e4b2 Prove pinned implicit-default standard-library legacy parity with candidate",
+      "done": false
+    },
+    {
+      "id": "29",
+      "description": "2.1d.1.3e5a Publish exact-owner successful TypeScript extractions with a private",
+      "done": false
+    },
+    {
+      "id": "30",
+      "description": "2.1d.1.3e5b Add public exact-owner retained candidate review provenance as a narrow prerequisite.",
+      "done": false
+    },
+    {
+      "id": "31",
+      "description": "2.1d.1.3e6a Admit effective root-project TypeScript typeRoots through the retained source",
+      "done": false
+    },
+    {
+      "id": "32",
+      "description": "2.1d.1.3e6b Admit effective root-project TypeScript rootDirs alongside typeRoots through",
+      "done": false
+    },
+    {
+      "id": "33",
+      "description": "2.1d.1.3e6c Admit effective root-project TypeScript baseUrl in retained-config-roots",
+      "done": false
+    },
+    {
+      "id": "34",
+      "description": "2.1d.1.3e6d Admit effective literal TypeScript paths substitutions in retained-config-roots",
+      "done": false
+    },
+    {
+      "id": "35",
+      "description": "2.1d.1.4 Implement and pin deterministic artifact graph derivation. TDD every allowlisted",
+      "done": true
+    },
+    {
+      "id": "36",
+      "description": "2.1d.1.5 Generate and retain all eleven documents and the versioned preparation record,",
+      "done": false
+    },
+    {
+      "id": "37",
+      "description": "2.1d.1a Implement strict selector V2 partitions after the full unpartitioned resource",
+      "done": false
+    },
+    {
+      "id": "38",
+      "description": "2.1d.1b Implement the protected actual-request count preflight port and pure policy",
+      "done": false
+    },
+    {
+      "id": "39",
+      "description": "2.1d.1c Before model execution, implement and freeze the deterministic reduction template",
+      "done": false
+    },
+    {
+      "id": "40",
+      "description": "2.1d.2 Add selection storage/forward-and-down migration and prepared-plan freeze owner.",
+      "done": false
+    },
+    {
+      "id": "41",
+      "description": "2.1d.3 Only after the producer/freeze proofs, version reservation/dispatch and mount the",
+      "done": false
+    },
+    {
+      "id": "42",
+      "description": "2.1d First implement the protected selection producer/freeze prerequisite, before",
+      "done": false
+    },
+    {
+      "id": "43",
+      "description": "2.1d.4 Version the pinned synthesis protocol/strict phase outputs and implement authenticated",
+      "done": false
+    },
+    {
+      "id": "44",
+      "description": "2.1d.5 Implement delayed non-leaf V4 selection materialization and mount existing",
+      "done": false
+    },
+    {
+      "id": "45",
+      "description": "2.1d.6 Mount paired execution on leaf, crossing-relationship and recursive-reducer nodes",
+      "done": false
+    },
+    {
+      "id": "46",
+      "description": "2.1d.7 Implement atomic terminal V2 coverage-and-synthesis certification and request join.",
+      "done": false
+    },
+    {
+      "id": "47",
+      "description": "2.1e Prove installed external acceptance after one-time protected control repository,",
+      "done": false
+    },
+    {
+      "id": "48",
+      "description": "2.2 Run selected commands in isolated workers and authenticate measured receipts — tests:",
+      "done": false
+    },
+    {
+      "id": "49",
+      "description": "2.3 Mount trusted preparation and production launcher self-certification — test:",
+      "done": false
+    },
+    {
+      "id": "50",
+      "description": "2.4 Join independent check/audit obligation completion inside one evaluating phase —",
+      "done": false
+    },
+    {
+      "id": "51",
+      "description": "3.1 Publish authenticated candidate-addressed descriptors and archives — tests:",
+      "done": false
+    },
+    {
+      "id": "52",
+      "description": "3.2 Wire the production trusted-wiki workflow and host resolver to the trusted selection",
+      "done": false
+    },
+    {
+      "id": "53",
+      "description": "3.3 Implement bounded retry and crash reconciliation across publication and admission —",
+      "done": false
+    },
+    {
+      "id": "54",
+      "description": "4.1 Coordinate protected automatic merge with exact head precondition and enforced base",
+      "done": false
+    },
+    {
+      "id": "55",
+      "description": "4.2 Certify the actual merged SHA before downstream admission — test:",
+      "done": false
+    },
+    {
+      "id": "56",
+      "description": "4.3 Install the same authenticated archive atomically on the host and retain referenced",
+      "done": false
+    },
+    {
+      "id": "57",
+      "description": "5.1 Implement and test the serialized migration through the existing archive route —",
+      "done": false
+    },
+    {
+      "id": "58",
+      "description": "5.2 Provision the independently controlled runtime/provider, journal verifier, issuer,",
+      "done": false
+    },
+    {
+      "id": "59",
+      "description": "5.3 Observe an unattended real PR from ready event through review, publication, required",
+      "done": false
+    },
+    {
+      "id": "60",
+      "description": "5.4 Update `docs/runbook-tool-wiki-activation.md`, consumer documentation/template and",
+      "done": false
+    },
+    {
+      "id": "61",
+      "description": "5.5 Run touched tests, source lint/typecheck, OpenSpec validation, independent exact-SHA",
+      "done": false
+    }
+  ],
+  "state": "ready",
+  "instruction": "1. **Workspace**: Skill tool → **superpowers:using-git-worktrees** for an\n   isolated worktree.\n\n2. **Executor**: Skill tool → **superpowers:subagent-driven-development**,\n   executing the slices in tasks.md with a fresh subagent per slice.\n\n   Tell the executor to read tasks.md in this change directory, update its\n   checkboxes as slices complete, and work inside the worktree.\n\n   Transitive — do NOT invoke these manually:\n   - **superpowers:test-driven-development** — RED-GREEN-REFACTOR per slice.\n     Implementation written before a failing test is deleted.\n   - **superpowers:requesting-code-review** — a reviewer subagent after each\n     slice, plus a final review before apply concludes.\n\n   Fallback only where subagents are unavailable: **superpowers:executing-plans**,\n   which does NOT bring TDD or code-review. You then owe both manually.\n\n3. **Debugging**: unexpected failures go through\n   **superpowers:systematic-debugging** before any fix is proposed.\n\n4. **Verification**: produce the `verify` artifact. Re-run until no blocking\n   issues remain. The failure-proof table is not optional.\n\n5. **Completion**: Skill tool → **superpowers:finishing-a-development-branch**.",
+  "context": "Read AGENTS.md before producing any artifact. Rules R1-R5 there govern every\nartifact and every line of code. The two that bite hardest:\n\nR5 — Unknown is not OK. Missing file, unreadable state, absent tool, malformed\ntrusted data, unexpected nullish: throw. Never default them away. Every new\nsafety check needs a negative test on its production call path, watched failing\nwith the check removed, and an adjacent `Proof:` comment naming the injected\nfault. Checks that cannot fail have shipped here six times.\n\nR3 — Knowledge about a symbol lives in JSDoc on that symbol. Knowledge that\nspans files lives in docs/ and is linked from the JSDoc. CONTEXT.md is the\ndomain glossary, terms only. docs/adr/ is for decisions that are hard to\nreverse, surprising, and had real alternatives.\n\nStack: Nx monorepo, Bun everywhere, never npm. be-01 (Elysia + Drizzle +\nbun:sqlite, :3100), gw-01 (WS gateway, :3200), fe-01 (Vite + React).\nBlue/green deploy: two be-01 processes share one SQLite file during a swap,\nso migrations must be backward-compatible.\n\nUse CONTEXT.md's terms exactly. If you need a term it lacks, resolve it in the\ndesign interview and add it to CONTEXT.md before using it in an artifact.\n\nCI runs on GitHub Actions (`.github/workflows/ci.yml`) and is the merge gate:\n`bunx nx format:check --all`, then `bunx nx run-many -t test lint typecheck build`,\nthen `bunx @fission-ai/openspec@1.12.0 validate --all --json`. Locally, gate on h2puni with\n`bin/h2puni-gate.sh`, which takes the host-wide lock; AGENTS.md forbids the\nraw full Nx gate there. The earlier \"there is no CI\" line was stale and\nunder-scoped every plan that inherited it: it omitted format and build.\n",
+  "root": {
+    "path": "/tmp/puni-literal-paths-sol-20261017",
+    "source": "nearest"
+  }
+}
+{"ceilingBytes": 943718400, "sampledPeakBytes": 113635328, "exitCode": 0}

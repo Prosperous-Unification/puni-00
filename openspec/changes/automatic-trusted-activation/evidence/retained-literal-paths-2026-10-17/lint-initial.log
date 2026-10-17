@@ -1,0 +1,14 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts
+  250:7   warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-deprecated')
+  252:9   error    Prefer using nullish coalescing operator (`??`) instead of a ternary expression, as it is simpler to read  @typescript-eslint/prefer-nullish-coalescing
+  252:17  error    `baseUrl` is deprecated                                                                                    @typescript-eslint/no-deprecated
+  252:49  error    `baseUrl` is deprecated                                                                                    @typescript-eslint/no-deprecated
+
+✖ 4 problems (3 errors, 1 warning)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+
+{"ceilingBytes": 943718400, "sampledPeakBytes": 676167680, "exitCode": 1}

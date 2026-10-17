@@ -1,0 +1,6 @@
+{
+  "command": ["bunx", "--no-install", "lefthook", "install"],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 75608064,
+  "exitCode": 0
+}

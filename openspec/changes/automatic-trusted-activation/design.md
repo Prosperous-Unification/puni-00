@@ -2475,3 +2475,22 @@ shared with ordinary parsing and extraction.
 Scope is baseUrl alone. Wildcard paths with an admitted base and paths without baseUrl receive
 compatibility controls; general paths-root admission, project references, full manifest,
 authentication and freeze remain separate work.
+
+### Effective literal paths admission prerequisite (2.1d.1.3e6d)
+
+**Intent.** Unused literal paths substitutions can escape retained candidate ownership because
+ordinary compiler misses mask outside paths. Admit each effective fixed substitution before the
+project host, including substitutions under wildcard keys. Preserve compiler fallback behavior,
+shared traversal budgets, unverified trust and byte census. Wildcard expansion, project-reference
+policy, complete manifest, runtime authentication and protected freeze remain separate work.
+
+After effective baseUrl admission in retained-config-roots, validate effective paths as mapping
+arrays of strings. Traverse the existing key and array order without deduplication. Skip targets
+containing `*`. For each literal require a string effective baseUrl when defined, otherwise the
+parser-owned pathsBasePath; never infer origin from cwd or the root config. The parser owns
+inheritance, replacement and `${configDir}` expansion. The pinned @typescript/old 6.0.3 pure
+resolvePath helper normalizes combinePaths(base, substitution), including backslashes and drive
+roots. Validate its runtime version, callable signature and returned string at the private API
+boundary. Admit through system.admitConfigurationRoot without changing options or requiring
+existence. Existing source traversal checks lexical and symlink ancestors, charges repeated
+work, and records link bytes. Earlier modes retain their current compiler probe behavior.

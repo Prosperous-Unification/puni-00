@@ -1,4 +1,5 @@
 import { expect, test } from 'bun:test';
+import ts from 'typescript';
 
 import { fixture, limits, workspace } from './typescript.test.fixture';
 import { boundSource, createCompilerHost, parseProject } from './typescript-compiler';
@@ -230,3 +231,143 @@ test('previous modes preserve outside baseUrl as ordinary namespace probes', () 
   for (const mode of ['compatible', 'retained-type-roots'] as const)
     expect(parseProject(workspace, 'tsconfig.json', system, mode).configPath).toBe('tsconfig.json');
 });
+
+for (const [label, options, inherited, expected] of [
+  [
+    'declaring origin',
+    {},
+    { paths: { z: ['./types', '../shared', './types'], a: ['./other'] } },
+    [
+      '/candidate/configs/types',
+      '/candidate/shared',
+      '/candidate/configs/types',
+      '/candidate/configs/other',
+    ],
+  ],
+  [
+    'prior roots then key order',
+    {
+      typeRoots: ['./types'],
+      rootDirs: ['./generated'],
+      baseUrl: './src',
+      paths: { z: ['./last'], a: ['./first'] },
+    },
+    {},
+    [
+      '/candidate/types',
+      '/candidate/generated',
+      '/candidate/src',
+      '/candidate/src/last',
+      '/candidate/src/first',
+    ],
+  ],
+  [
+    'baseUrl override',
+    { baseUrl: './src' },
+    { paths: { unused: ['./types'] }, baseUrl: '../../outside' },
+    ['/candidate/src', '/candidate/src/types'],
+  ],
+  [
+    'child replacement',
+    { paths: { local: ['./src/value.ts'] } },
+    { paths: { discarded: ['/outside'] } },
+    ['/candidate/src/value.ts'],
+  ],
+  ['empty child replacement', { paths: {} }, { paths: { discarded: ['/outside'] } }, []],
+  [
+    'wildcard key fixed substitution',
+    { paths: { '@local/*': ['./src/value.ts', './src/*'] } },
+    {},
+    ['/candidate/src/value.ts'],
+  ],
+  [
+    'normalized separators',
+    { paths: { unused: ['.\\src\\..\\types', 'C:\\outside\\..\\types', '/outside/../types'] } },
+    {},
+    ['/candidate/types', 'C:/types', '/types'],
+  ],
+  [
+    'consumer configDir expansion',
+    {},
+    { paths: { unused: ['${configDir}/types'] } },
+    ['/candidate/types'],
+  ],
+] as const)
+  test(`retained literal paths admission preserves ${label}`, () => {
+    const { source } = fixture({
+      'tsconfig.json': JSON.stringify({
+        extends: './configs/base.json',
+        compilerOptions: options,
+        files: ['globals.d.ts', 'src/index.ts'],
+      }),
+      'configs/base.json': JSON.stringify({
+        compilerOptions: { noLib: true, types: [], ignoreDeprecations: '6.0', ...inherited },
+      }),
+    });
+    const system = boundSource(workspace, source, { kind: 'bounded', limits });
+    const roots: string[] = [];
+    system.admitConfigurationRoot = (path) => {
+      roots.push(path);
+    };
+    const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+    expect(roots).toEqual([...expected]);
+    expect(project.options.paths).toEqual(
+      ts.parseJsonConfigFileContent(
+        JSON.parse(source.readFile('/candidate/tsconfig.json') ?? 'null'),
+        system,
+        workspace,
+        {},
+        '/candidate/tsconfig.json',
+      ).options.paths,
+    );
+  });
+
+test('previous modes preserve literal paths as ordinary namespace probes', () => {
+  const { source } = fixture({
+    'tsconfig.json': JSON.stringify({
+      compilerOptions: { noLib: true, types: [], paths: { unused: ['/outside'] } },
+      files: ['globals.d.ts', 'src/index.ts'],
+    }),
+  });
+  const system = boundSource(workspace, source, { kind: 'bounded', limits });
+  system.admitConfigurationRoot = () => {
+    throw new Error('unexpected explicit admission');
+  };
+  for (const mode of ['compatible', 'retained-type-roots'] as const)
+    expect(parseProject(workspace, 'tsconfig.json', system, mode).configPath).toBe('tsconfig.json');
+});
+
+for (const shape of [
+  'nonobject',
+  'array-map',
+  'primitive-map',
+  'nonarray',
+  'nonstring',
+  'missing-origin',
+  'nonstring-origin',
+  'nonstring-base',
+  'helper-absent',
+  'helper-signature',
+  'helper-version',
+  'helper-return',
+  'wildcard-only',
+  'empty-map',
+])
+  test(`retained literal paths boundary ${shape} runs in isolated registry`, () => {
+    const child = Bun.spawnSync(
+      [
+        process.execPath,
+        '--smol',
+        'test',
+        `${import.meta.dir}/typescript-literal-paths.test.fixture.ts`,
+      ],
+      {
+        env: { ...process.env, LITERAL_PATHS_SHAPE: shape },
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: 20000,
+      },
+    );
+    expect(child.stderr.toString()).toContain('1 pass');
+    expect(child.exitCode).toBe(0);
+  });

@@ -1,0 +1,189 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:
+249 |     });
+250 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+251 |     const roots: string[] = [];
+252 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+253 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+254 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/candidate/configs/types",
+-   "/candidate/shared",
+-   "/candidate/configs/types",
+- ]
++ []
+
+- Expected  - 5
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:254:19)
+(fail) retained literal paths admission preserves declaring origin [17.09ms]
+249 |     });
+250 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+251 |     const roots: string[] = [];
+252 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+253 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+254 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+  [
+    "/candidate/src",
+-   "/candidate/src/types",
+  ]
+
+- Expected  - 1
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:254:19)
+(fail) retained literal paths admission preserves baseUrl override [2.01ms]
+249 |     });
+250 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+251 |     const roots: string[] = [];
+252 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+253 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+254 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/candidate/src/value.ts",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:254:19)
+(fail) retained literal paths admission preserves child replacement [1.81ms]
+(pass) retained literal paths admission preserves empty child replacement [1.70ms]
+249 |     });
+250 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+251 |     const roots: string[] = [];
+252 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+253 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+254 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/candidate/src/value.ts",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:254:19)
+(fail) retained literal paths admission preserves wildcard key fixed substitution [1.30ms]
+249 |     });
+250 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+251 |     const roots: string[] = [];
+252 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+253 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+254 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/candidate/types",
+-   "C:/types",
+-   "/types",
+- ]
++ []
+
+- Expected  - 5
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:254:19)
+(fail) retained literal paths admission preserves normalized separators [1.80ms]
+249 |     });
+250 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+251 |     const roots: string[] = [];
+252 |     system.admitConfigurationRoot = (path) => { roots.push(path); };
+253 |     const project = parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots');
+254 |     expect(roots).toEqual([...expected]);
+                        ^
+error: expect(received).toEqual(expected)
+
+- [
+-   "/candidate/configs/types",
+- ]
++ []
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:254:19)
+(fail) retained literal paths admission preserves configDir expansion [1.53ms]
+275 | ] as const)
+276 |   test(`retained literal paths refuses malformed effective ${label} before host`, () => {
+277 |     const { source } = fixture();
+278 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+279 |     const parse = ts.parseJsonConfigFileContent;
+280 |     const parser = spyOn(ts, 'parseJsonConfigFileContent').mockImplementation((...args) => {
+                         ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:280:20)
+(fail) retained literal paths refuses malformed effective nonobject paths before host [0.22ms]
+275 | ] as const)
+276 |   test(`retained literal paths refuses malformed effective ${label} before host`, () => {
+277 |     const { source } = fixture();
+278 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+279 |     const parse = ts.parseJsonConfigFileContent;
+280 |     const parser = spyOn(ts, 'parseJsonConfigFileContent').mockImplementation((...args) => {
+                         ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:280:20)
+(fail) retained literal paths refuses malformed effective nonarray substitutions before host [0.03ms]
+275 | ] as const)
+276 |   test(`retained literal paths refuses malformed effective ${label} before host`, () => {
+277 |     const { source } = fixture();
+278 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+279 |     const parse = ts.parseJsonConfigFileContent;
+280 |     const parser = spyOn(ts, 'parseJsonConfigFileContent').mockImplementation((...args) => {
+                         ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:280:20)
+(fail) retained literal paths refuses malformed effective nonstrings before host [0.03ms]
+275 | ] as const)
+276 |   test(`retained literal paths refuses malformed effective ${label} before host`, () => {
+277 |     const { source } = fixture();
+278 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+279 |     const parse = ts.parseJsonConfigFileContent;
+280 |     const parser = spyOn(ts, 'parseJsonConfigFileContent').mockImplementation((...args) => {
+                         ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:280:20)
+(fail) retained literal paths refuses malformed effective missing origin before host [0.03ms]
+275 | ] as const)
+276 |   test(`retained literal paths refuses malformed effective ${label} before host`, () => {
+277 |     const { source } = fixture();
+278 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+279 |     const parse = ts.parseJsonConfigFileContent;
+280 |     const parser = spyOn(ts, 'parseJsonConfigFileContent').mockImplementation((...args) => {
+                         ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:280:20)
+(fail) retained literal paths refuses malformed effective nonstring origin before host [0.03ms]
+275 | ] as const)
+276 |   test(`retained literal paths refuses malformed effective ${label} before host`, () => {
+277 |     const { source } = fixture();
+278 |     const system = boundSource(workspace, source, { kind: 'bounded', limits });
+279 |     const parse = ts.parseJsonConfigFileContent;
+280 |     const parser = spyOn(ts, 'parseJsonConfigFileContent').mockImplementation((...args) => {
+                         ^
+error: spyOn(target, prop) does not support accessor properties yet
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts:280:20)
+(fail) retained literal paths refuses malformed effective nonstring baseUrl before host [0.02ms]
+
+ 1 pass
+ 17 filtered out
+ 12 fail
+ 8 expect() calls
+Ran 13 tests across 1 file. [557.00ms]
+{"ceilingBytes": 943718400, "sampledPeakBytes": 191467520, "exitCode": 1}

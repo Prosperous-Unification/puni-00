@@ -1,0 +1,33 @@
+bun test v1.4.2 (744846f84)
+{"ceilingBytes": 943718400, "sampledPeakBytes": 366080000, "exitCode": 1}
+
+apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:
+177 |   test(`retained literal paths admits ${label}`, () => {
+178 |     const extracted = extractRetainedTypeScriptRelationships(setup({ ...paths }, { inherited: inherited === undefined ? undefined : { ...inherited }, links: { ...links } }));
+179 |     expect(extracted.runtimeTrust).toBe('unverified');
+180 |     expect(extracted.relationships.publicDeclarations).toHaveLength(1);
+181 |     for (const [path, target] of Object.entries(links))
+182 |       expect(extracted.byteReads.entries.find((entry) => entry.path === path)).toEqual({ namespace: 'candidate', path, revision: null, identity: hashBytes(Buffer.from(target)), byteLength: Buffer.byteLength(target) });
+                                                                                     ^
+error: expect(received).toEqual(expected)
+
+- {
+-   "byteLength": 5,
+-   "identity": "8d8460221bf4eb295f964884b40a9ba6302a9c2af2f9b1997cbed42fda139de8",
+-   "namespace": "candidate",
+-   "path": "alias",
+-   "revision": null,
+- }
++ undefined
+
+- Expected  - 7
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts:182:80)
+(fail) retained literal paths admits inside linked [251.82ms]
+
+ 0 pass
+ 21 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1206.00ms]

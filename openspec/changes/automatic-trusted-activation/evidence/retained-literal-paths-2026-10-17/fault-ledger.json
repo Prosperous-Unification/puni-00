@@ -1,0 +1,538 @@
+[
+  {
+    "fault": "omit-literals",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "ceab3ba0d33d75648f1f7d2284295d41b1d23b0cac6893a60598a9286e033429",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 366387200,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses absolute outside before host and owner [251.96ms]"
+    ]
+  },
+  {
+    "fault": "usage-gate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "99e7c4ecb7cf8aa3ace52fe5ef7d8c2940a9d93ef7f1cb77fcd5872cb6cd292a",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363024384,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses absolute outside before host and owner [265.19ms]"
+    ]
+  },
+  {
+    "fault": "types-gate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "bcd59eb32b1a88111f558c98d31504dbf7401fa87f60f0433bb6c6b0dd58e763",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 366981120,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses absolute outside before host and owner [258.92ms]"
+    ]
+  },
+  {
+    "fault": "masked-admission",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "06c523df0617f19cfa199310ff9e50fd2e800b7986e722dabe4a98bf56202fa3",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 365715456,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses absolute outside before host and owner [251.78ms]"
+    ]
+  },
+  {
+    "fault": "bypass-source",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "62a91f5071ce5825f9054c551c2d2071f395d38e74250b954922d677120758ee",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 349290496,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses absolute outside before host and owner [244.00ms]"
+    ]
+  },
+  {
+    "fault": "wrong-origin",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "23887cc081e28beafb6545f77324cb9dd49f05c45398edbe15093b0895382065",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "admission preserves declaring origin",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 186929152,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admission preserves declaring origin [18.84ms]"
+    ]
+  },
+  {
+    "fault": "ignore-base-override",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "ba2b6f2c630528b2e273b0e1deddc7fd2594e7641f75dbe888de5568841c0b74",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "admission preserves baseUrl override",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 185978880,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admission preserves baseUrl override [20.29ms]"
+    ]
+  },
+  {
+    "fault": "node-normalization",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "37c268a7534dd970542b404912c2bd5e550f716cacf1df1022c3b5fd3969a362",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "admission preserves normalized separators",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 187813888,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admission preserves normalized separators [18.13ms]"
+    ]
+  },
+  {
+    "fault": "require-existence",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "c7b91abf1810c8148721cf3f115b0bd8f0bd795d7708ee8ac7053c88ed4d233d",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "admits inside missing",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 360681472,
+    "exitCode": 1,
+    "observedFailure": ["(fail) retained literal paths admits inside missing [177.50ms]"]
+  },
+  {
+    "fault": "lexical-only",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "06b401dac0afb3eb9bff51922e2f937e3b7d1bd3ddf94c844475cd1244f6253a",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses ancestor escape",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 710443008,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses ancestor escape before host and owner [267.91ms]"
+    ]
+  },
+  {
+    "fault": "filter-wildcard-keys",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "6fe581fcde9b6f6db34a646324b74f076f3e4eddca0eef2d36285f6b7943ee69",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses wildcard key fixed outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 370307072,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses wildcard key fixed outside before host and owner [257.42ms]"
+    ]
+  },
+  {
+    "fault": "admit-wildcards",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "25741fc257d4903d266fbbccfddf690ff85273200fa16d803e7d588cdad38651",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "admits wildcard substitution untouched",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 365772800,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admits wildcard substitution untouched [195.58ms]"
+    ]
+  },
+  {
+    "fault": "reverse-mappings",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "78410bf3cc2c3d1382e4c8549a44e5d4b476c88fb2e228e868b2633606d86bc7",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "admission preserves prior roots then key order",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 188706816,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admission preserves prior roots then key order [22.29ms]"
+    ]
+  },
+  {
+    "fault": "deduplicate",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "25b1cbb4367351177e1cc01c74b3c4f697154362fc638259482a54990241ad29",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "admission preserves declaring origin",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 184717312,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admission preserves declaring origin [18.00ms]"
+    ]
+  },
+  {
+    "fault": "remove-options",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "860d30b2b715d7d0d348dd7e81a70c2132168fd7afa10f900918c3c22d38ff4a",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "resolves exact fallback",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 361734144,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths resolves exact fallback with exact declarations and census [243.20ms]"
+    ]
+  },
+  {
+    "fault": "reverse-fallback",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "ff41a78aaaa1a286111f8e63323ad490afda5561ce68d9c69596642456c336a1",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "resolves exact fallback",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 361861120,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths resolves exact fallback with exact declarations and census [253.91ms]"
+    ]
+  },
+  {
+    "fault": "omit-compiler-charge",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "67f9e8bc8ff225baff184e96da83e423e968809c587a9042c734ec85987eaca8",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "charges shared compiler",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 646496256,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths charges shared compiler admission at exact fit [4404.32ms]"
+    ]
+  },
+  {
+    "fault": "reset-compiler-charge",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "1a6d275d743f231db10fdd30d8f00102af49acbf24b5ac46265824c75416a830",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "charges shared compiler",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 691855360,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths charges shared compiler admission at exact fit [4415.52ms]"
+    ]
+  },
+  {
+    "fault": "omit-source-charge",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "d5637d7100fd83e0fef9ed5b5d344ff1727889d7d22ddf74a246da3d91953c16",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "charges shared source",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 634937344,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths charges shared source admission at exact fit [2147.08ms]"
+    ]
+  },
+  {
+    "fault": "reset-source-charge",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "55279f7d229937b3caf615fc20e3c875baf57dc66aae9ed3cb678851d1030698",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "charges shared source",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 672178176,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths charges shared source admission at exact fit [4196.78ms]"
+    ]
+  },
+  {
+    "fault": "omit-step-charge",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "49d8136ac9b00722b83474b4f0858886554184d47f748cf6efdcb8d675ba22ce",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "charges shared steps",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 611876864,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths charges shared steps admission at exact fit [2304.65ms]"
+    ]
+  },
+  {
+    "fault": "physical-lookup",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "81596e8df370b9bbca12f56d31f3ca354fa6fe4fd819cff39c87de5bed8ed71b",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "sha1 replays",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 361086976,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths sha1 replays after physical roots disappear [246.23ms]"
+    ]
+  },
+  {
+    "fault": "omit-link-census",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "cd2c08e29fa401963c93bf89efe5ad24ceb3fea2a6c7e1a8572712a93bc73a89",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "admits inside linked",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 366080000,
+    "exitCode": 1,
+    "observedFailure": ["(fail) retained literal paths admits inside linked [251.82ms]"]
+  },
+  {
+    "fault": "path-fence",
+    "path": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-source.ts",
+    "sourceIdentity": "7f93382e10e5ffa4b751d1e00c86748ea7e3035c44366771c4f149f92f85eb8e",
+    "injectedIdentity": "e26a279cb4205c58709e4ac7a67b3a291522cab32d084585d88d3c04f1d85f2e",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "bounds long roots",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 368304128,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths bounds long roots before source UTF8 encoding [264.63ms]"
+    ]
+  },
+  {
+    "fault": "mapping-guard",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "d54dab85228412182530cc58fcef4ccbd913157ba0e4195e37dba6268bdc9a22",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary nonobject",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 371015680,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\nReceived message: \\\"Object.values requires that input parameter not be null or undefined\\\"\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [5.94ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [523.00ms]\\n\"",
+      "(fail) retained literal paths boundary nonobject runs in isolated registry [537.74ms]"
+    ]
+  },
+  {
+    "fault": "array-mapping-guard",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "784871df0b8ec68333468ec7adc93e8a373ab6983100f0f3daee968f41261f7f",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary array-map",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 367808512,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"cb6988d99f706dc21d22b9d7e8ab2eb6ec45583adf9c1b353108697cbaa5a799\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: [],\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: \\\"/candidate\\\",\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [16.83ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [534.00ms]\\n\"",
+      "(fail) retained literal paths boundary array-map runs in isolated registry [547.53ms]"
+    ]
+  },
+  {
+    "fault": "substitutions-guard",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "afce5772c3d96dd799cb4692d74211ae1082441cf655596f09490b82df9377d8",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary nonarray",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363450368,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"f791ed4b4e340df6e285a66fb638f2ff12359b352f9215c83e442a1cafc4ef83\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: {\\n      unused: \\\"./types\\\",\\n    },\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: \\\"/candidate\\\",\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [19.59ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [539.00ms]\\n\"",
+      "(fail) retained literal paths boundary nonarray runs in isolated registry [551.33ms]"
+    ]
+  },
+  {
+    "fault": "string-guard",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "965f4504d349e3c5babd786d09613308f21ef1dfbc9cb74276988ba12a186227",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary nonstring runs",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363778048,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\nReceived message: \\\"null is not an object (evaluating 'substitution.includes')\\\"\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [6.55ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [535.00ms]\\n\"",
+      "(fail) retained literal paths boundary nonstring runs in isolated registry [546.69ms]"
+    ]
+  },
+  {
+    "fault": "origin-guard",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "5da1ca715a8e4424af7296ed64a9a25d6084c5e0be9b55469a2c3236b4672a41",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary missing-origin",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363552768,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"6a83d73957488a7f35b34ac2d963a4805f723de7d8b2d34e3c1f3c2da561dc71\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: {\\n      unused: [ \\\"./types\\\" ],\\n    },\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: undefined,\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [16.24ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [532.00ms]\\n\"",
+      "(fail) retained literal paths boundary missing-origin runs in isolated registry [543.32ms]"
+    ]
+  },
+  {
+    "fault": "default-origin",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "c624d724fa7d6b8719da6529af6c202ad06694868e2622de28f42c9918874c8e",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary missing-origin",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 367321088,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"6a83d73957488a7f35b34ac2d963a4805f723de7d8b2d34e3c1f3c2da561dc71\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: {\\n      unused: [ \\\"./types\\\" ],\\n    },\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: undefined,\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [19.61ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [581.00ms]\\n\"",
+      "(fail) retained literal paths boundary missing-origin runs in isolated registry [597.42ms]"
+    ]
+  },
+  {
+    "fault": "helper-callable",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "011a58a5db376a6328c798daf74707c277c31145cb00e3eb7a3cb0a27144bd99",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary helper-absent",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 358264832,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\nReceived message: \\\"resolvePath is not a function. (In 'resolvePath(base, substitution)', 'resolvePath' is undefined)\\\"\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [6.58ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [533.00ms]\\n\"",
+      "(fail) retained literal paths boundary helper-absent runs in isolated registry [542.42ms]"
+    ]
+  },
+  {
+    "fault": "helper-version",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "eff3763861646620ee87a268a7a2982bf81afd975790fd1a583425866b941c52",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary helper-version",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 363663360,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"6decbfb6625be0a777c98076525a42666a5b1a459111f8f0f4c850f9e175a815\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: {\\n      unused: [ \\\"./types\\\" ],\\n    },\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: \\\"/candidate\\\",\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [18.05ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [535.00ms]\\n\"",
+      "(fail) retained literal paths boundary helper-version runs in isolated registry [547.87ms]"
+    ]
+  },
+  {
+    "fault": "helper-signature",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "cae400ad04d7b41d8cdf221af118abe6cccda08334f63b202b744447628b65c3",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary helper-signature",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 365654016,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"6decbfb6625be0a777c98076525a42666a5b1a459111f8f0f4c850f9e175a815\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: {\\n      unused: [ \\\"./types\\\" ],\\n    },\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: \\\"/candidate\\\",\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [17.79ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [538.00ms]\\n\"",
+      "(fail) retained literal paths boundary helper-signature runs in isolated registry [551.88ms]"
+    ]
+  },
+  {
+    "fault": "helper-return",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "0e5b3b207a1feefc472b9f026c2b419cb7aa0354e023e43c142b825cd26914ef",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "boundary helper-return",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 366780416,
+    "exitCode": 1,
+    "observedFailure": [
+      "Received: \"\\napps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:\\n43 |     if (shape === 'wildcard-only' || shape === 'empty-map') {\\n44 |       expect(compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots').configPath).toBe('tsconfig.json');\\n45 |       expect(hostCreations).toBe(1);\\n46 |       return;\\n47 |     }\\n48 |     expect(() => compiler.parseProject(workspace, 'tsconfig.json', system, 'retained-config-roots')).toThrow(/TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/);\\n                                                                                                          ^\\nerror: expect(received).toThrow(expected)\\n\\nExpected pattern: /TypeScript.*paths|TypeScript.*base|TypeScript.*resolvePath/\\n\\nReceived function did not throw\\nReceived value: {\\n  system: {\\n    compilerLibraryDirectory: \\\"/candidate/node_modules/@typescript/old/lib\\\",\\n    useCaseSensitiveFileNames: true,\\n    pathKind: [Function: pathKind],\\n    admitConfigurationRoot: [Function: admitConfigurationRoot],\\n    fileExists: [Function: fileExists],\\n    directoryExists: [Function: directoryExists],\\n    readFile: [Function: readFile],\\n    readDirectory: [Function: readDirectory],\\n    getDirectories: [Function: getDirectories],\\n    realpath: [Function: realpath],\\n    getCurrentDirectory: [Function],\\n    chargeOutput: [Function: chargeOutput],\\n  },\\n  configPath: \\\"tsconfig.json\\\",\\n  configurationIdentity: \\\"6decbfb6625be0a777c98076525a42666a5b1a459111f8f0f4c850f9e175a815\\\",\\n  options: {\\n    noLib: true,\\n    types: [],\\n    paths: {\\n      unused: [ \\\"./types\\\" ],\\n    },\\n    configFilePath: \\\"/candidate/tsconfig.json\\\",\\n    pathsBasePath: \\\"/candidate\\\",\\n    declaration: true,\\n    declarationMap: false,\\n    emitDeclarationOnly: true,\\n    noEmit: false,\\n  },\\n  program: {\\n    getRootFileNames: [Function: getRootFileNames],\\n    getSourceFile: [Function: getSourceFile],\\n    getSourceFileByPath: [Function: getSourceFileByPath],\\n    getSourceFiles: [Function: getSourceFiles],\\n    getMissingFilePaths: [Function: getMissingFilePaths],\\n    getModuleResolutionCache: [Function: getModuleResolutionCache],\\n    getFilesByNameMap: [Function: getFilesByNameMap],\\n    getCompilerOptions: [Function: getCompilerOptions],\\n    getSyntacticDiagnostics: [Function: getSyntacticDiagnostics],\\n    getOptionsDiagnostics: [Function: getOptionsDiagnostics],\\n    getGlobalDiagnostics: [Function: getGlobalDiagnostics],\\n    getSemanticDiagnostics: [Function: getSemanticDiagnostics],\\n    getCachedSemanticDiagnostics: [Function: getCachedSemanticDiagnostics],\\n    getSuggestionDiagnostics: [Function: getSuggestionDiagnostics],\\n    getDeclarationDiagnostics: [Function: getDeclarationDiagnostics2],\\n    getBindAndCheckDiagnostics: [Function: getBindAndCheckDiagnostics],\\n    getProgramDiagnostics: [Function: getProgramDiagnostics],\\n    getTypeChecker: [Function: getTypeChecker],\\n    getClassifiableNames: [Function: getClassifiableNames],\\n    getCommonSourceDirectory: [Function: getCommonSourceDirectory2],\\n    emit: [Function: emit],\\n    getCurrentDirectory: [Function: getCurrentDirectory],\\n    getNodeCount: [Function: getNodeCount],\\n    getIdentifierCount: [Function: getIdentifierCount],\\n    getSymbolCount: [Function: getSymbolCount],\\n    getTypeCount: [Function: getTypeCount],\\n    getInstantiationCount: [Function: getInstantiationCount],\\n    getRelationCacheSizes: [Function: getRelationCacheSizes],\\n    getFileProcessingDiagnostics: [Function: getFileProcessingDiagnostics],\\n    getAutomaticTypeDirectiveNames: [Function: getAutomaticTypeDirectiveNames],\\n    getAutomaticTypeDirectiveResolutions: [Function: getAutomaticTypeDirectiveResolutions],\\n    isSourceFileFromExternalLibrary: [Function: isSourceFileFromExternalLibrary],\\n    isSourceFileDefaultLibrary: [Function: isSourceFileDefaultLibrary],\\n    getModeForUsageLocation: [Function: getModeForUsageLocation2],\\n    getEmitSyntaxForUsageLocation: [Function: getEmitSyntaxForUsageLocation],\\n    getModeForResolutionAtIndex: [Function: getModeForResolutionAtIndex2],\\n    getSourceFileFromReference: [Function: getSourceFileFromReference],\\n    getLibFileFromReference: [Function: getLibFileFromReference],\\n    sourceFileToPackageName: Map {},\\n    redirectTargetsMap: Map {},\\n    usesUriStyleNodeCoreModules: undefined,\\n    resolvedModules: Map(1) {\\n      \\\"/candidate/src/index.ts\\\": {\\n        get: [Function: get],\\n        set: [Function: set],\\n        delete: [Function: delete],\\n        has: [Function: has],\\n        forEach: [Function: forEach],\\n        size: [Function: size],\\n      },\\n    },\\n    resolvedTypeReferenceDirectiveNames: undefined,\\n    resolvedLibReferences: undefined,\\n    getProgramDiagnosticsContainer: [Function: getProgramDiagnosticsContainer],\\n    getResolvedModule: [Function: getResolvedModule],\\n    getResolvedModuleFromModuleSpecifier: [Function: getResolvedModuleFromModuleSpecifier],\\n    getResolvedTypeReferenceDirective: [Function: getResolvedTypeReferenceDirective],\\n    getResolvedTypeReferenceDirectiveFromTypeReferenceDirective: [Function: getResolvedTypeReferenceDirectiveFromTypeReferenceDirective],\\n    forEachResolvedModule: [Function: forEachResolvedModule],\\n    forEachResolvedTypeReferenceDirective: [Function: forEachResolvedTypeReferenceDirective],\\n    getCurrentPackagesMap: [Function: getCurrentPackagesMap],\\n    typesPackageExists: [Function: typesPackageExists],\\n    packageBundlesTypes: [Function: packageBundlesTypes],\\n    isEmittedFile: [Function: isEmittedFile],\\n    getConfigFileParsingDiagnostics: [Function: getConfigFileParsingDiagnostics2],\\n    getProjectReferences: [Function: getProjectReferences],\\n    getResolvedProjectReferences: [Function: getResolvedProjectReferences],\\n    getRedirectFromSourceFile: [Function: getRedirectFromSourceFile],\\n    getResolvedProjectReferenceByPath: [Function: getResolvedProjectReferenceByPath],\\n    forEachResolvedProjectReference: [Function: forEachResolvedProjectReference2],\\n    isSourceOfProjectReferenceRedirect: [Function: isSourceOfProjectReferenceRedirect],\\n    getRedirectFromOutput: [Function: getRedirectFromOutput],\\n    getCompilerOptionsForFile: [Function: getCompilerOptionsForFile],\\n    getDefaultResolutionModeForFile: [Function: getDefaultResolutionModeForFile2],\\n    getEmitModuleFormatOfFile: [Function: getEmitModuleFormatOfFile2],\\n    getImpliedNodeFormatForEmit: [Function: getImpliedNodeFormatForEmit2],\\n    shouldTransformImportCall: [Function: shouldTransformImportCall],\\n    emitBuildInfo: [Function: emitBuildInfo],\\n    fileExists: [Function: fileExists],\\n    readFile: [Function],\\n    directoryExists: undefined,\\n    getSymlinkCache: [Function: getSymlinkCache],\\n    realpath: [Function],\\n    useCaseSensitiveFileNames: [Function: useCaseSensitiveFileNames],\\n    getCanonicalFileName: [Function: getCanonicalFileName],\\n    getFileIncludeReasons: [Function: getFileIncludeReasons],\\n    structureIsReused: 0,\\n    writeFile: [Function: writeFile2],\\n    getGlobalTypingsCacheLocation: undefined,\\n  },\\n  declarations: Map {},\\n}\\n\\n      at <anonymous> (/tmp/puni-literal-paths-sol-20261017/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-literal-paths.test.fixture.ts:48:102)\\n(fail) effective literal paths validates boundary before compiler host [17.56ms]\\n\\n 0 pass\\n 1 fail\\n 1 expect() calls\\nRan 1 test across 1 file. [526.00ms]\\n\"",
+      "(fail) retained literal paths boundary helper-return runs in isolated registry [539.17ms]"
+    ]
+  },
+  {
+    "fault": "global-admission",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "90602e67e91091f9539ab4b4d2cb936ff251ad83576aa1cdab6dad554b6dfe15",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "previous modes preserve literal paths",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 181116928,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) previous modes preserve literal paths as ordinary namespace probes [5.90ms]"
+    ]
+  },
+  {
+    "fault": "late-admission",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "bddfcbd35a01af614ebd9934b2b9d611438750fc31d100c81170f3529498783e",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "refuses absolute outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 353525760,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths refuses absolute outside before host and owner [174.09ms]"
+    ]
+  },
+  {
+    "fault": "merge-discarded",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "43c2be2898e8aceff706ace8695012e36f50626cf7bc5c3d4f83853d22fb351a",
+    "test": "apps/twilight-structure/twilight-dash/cli/src/activation/review-typescript-literal-paths.test.ts",
+    "pattern": "admits discarded outside",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 354807808,
+    "exitCode": 1,
+    "observedFailure": ["(fail) retained literal paths admits discarded outside [189.78ms]"]
+  },
+  {
+    "fault": "omit-configdir",
+    "path": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "sourceIdentity": "811402c8730d30c8c76374790e62a9769cc97b983679f5f6e9b47cdcb5a6c869",
+    "injectedIdentity": "ceab3ba0d33d75648f1f7d2284295d41b1d23b0cac6893a60598a9286e033429",
+    "test": "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.test.ts",
+    "pattern": "admission preserves consumer configDir expansion",
+    "ceilingBytes": 943718400,
+    "sampledPeakBytes": 186114048,
+    "exitCode": 1,
+    "observedFailure": [
+      "(fail) retained literal paths admission preserves consumer configDir expansion [16.87ms]"
+    ]
+  }
+]

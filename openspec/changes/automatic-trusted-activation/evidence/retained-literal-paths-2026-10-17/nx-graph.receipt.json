@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "nx",
+    "graph",
+    "--file=/tmp/literal-paths-project-graph.json"
+  ],
+  "ceilingBytes": 943718400,
+  "sampledPeakBytes": 280301568,
+  "exitCode": 0
+}
