@@ -341,6 +341,57 @@ async function delaySettingsWrites(page: Page, ms: number): Promise<void> {
   });
 }
 
+/** How a settings box draws: its ink, its cursor, and the ink's contrast on its own fill. */
+interface BoxInk {
+  color: string;
+  cursor: string;
+  contrast: number;
+}
+
+/**
+ * Reads a box's computed ink and fill and measures their WCAG contrast the way
+ * `status.spec.ts` does: both painted through a 1×1 canvas, the fill over the
+ * dialog's own surface so a translucent one is composited.
+ */
+function inkOf(box: Locator): Promise<BoxInk> {
+  return box.evaluate((input) => {
+    const surface = input.closest('[role="dialog"]');
+    if (surface === null) throw new Error('the box is not inside a dialog');
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (context === null) throw new Error('no 2d canvas in this browser');
+    const paint = (colour: string): void => {
+      context.fillStyle = colour;
+      context.fillRect(0, 0, 1, 1);
+    };
+    const pixel = (): [number, number, number] => {
+      const rgba = context.getImageData(0, 0, 1, 1).data;
+      if (rgba[3] !== 255) throw new Error('the dialog surface is not opaque');
+      return [rgba[0], rgba[1], rgba[2]];
+    };
+    const channel = (value: number): number => {
+      const part = value / 255;
+      return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = ([red, green, blue]: [number, number, number]): number =>
+      0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
+    const style = getComputedStyle(input);
+    paint(getComputedStyle(surface).backgroundColor);
+    paint(style.backgroundColor);
+    const fill = pixel();
+    paint(style.color);
+    const ink = luminance(pixel());
+    const ground = luminance(fill);
+    return {
+      color: style.color,
+      cursor: style.cursor,
+      contrast: (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05),
+    };
+  });
+}
+
 test.describe('the settings flow while a write travels (round 3)', () => {
   test('Enter in a band keeps the caret in the box while the ladder travels (F-066)', async ({
     page,
@@ -366,6 +417,39 @@ test.describe('the settings flow while a write travels (round 3)', () => {
     await expect(band).toBeFocused();
     await expect(band).toHaveValue('Blocker');
   });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`a box whose write travels looks busy, still reads, and its section says so, ${scheme} (F-081)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.emulateMedia({ colorScheme: scheme });
+      const dialog = await openSettings(page);
+      await dialog.getByRole('tab', { name: 'Priorities' }).click();
+      const band = dialog.getByLabel('Name of band 1');
+      const editable = await inkOf(band);
+      await band.fill('Blocker');
+      await delaySettingsWrites(page, 1500);
+      await band.press('Enter');
+      await expect(band).toHaveJSProperty('readOnly', true);
+      const saying = dialog.getByRole('status').filter({ hasText: 'Saving Priorities…' });
+      // Proof: on 2026-10-16, against 3e06eb5a4 (no busy style, the foot line
+      // only with a close request), this failed on `expect(locator)
+      // .toBeVisible() failed` for `Saving Priorities…`; with the line in
+      // place and the style removed, the cursor below failed on `Expected:
+      // "progress" Received: "text"`, in both palettes.
+      await expect(saying).toBeVisible();
+      const busy = await inkOf(band);
+      expect(busy.cursor).toBe('progress');
+      expect(busy.color).not.toBe(editable.color);
+      expect(busy.contrast, `busy ink ${busy.color}`).toBeGreaterThanOrEqual(4.5);
+
+      await expect(dialog.getByText('The ladder is applied.')).toBeVisible();
+      await expect(saying).toHaveCount(0);
+      const landed = await inkOf(band);
+      expect(landed).toEqual(editable);
+    });
+  }
 
   test('the closing line moves neither the title nor the tabs (453 review nit)', async ({
     page,

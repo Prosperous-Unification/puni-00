@@ -75,7 +75,7 @@ const ROWS_BEFORE_AT_1280 = 2;
 /**
  * The controls a fresh project's toolbar offers at 1280, counted by role
  * (`countToolbarControls`), measured 2026-10-14: ten buttons, the `Plan with`
- * combobox, two textboxes (Find, the start date) and four popover groups.
+ * combobox, two textboxes (Find, the start date) and four `<details>` popovers.
  */
 const CONTROLS_AT_1280 = 17;
 
@@ -280,8 +280,8 @@ test.describe('the project settings control, in a browser', () => {
     await expect(optimization).toBeChecked();
 
     const fast = dialog.getByRole('radio', { name: 'Fast' });
-    const priority = dialog.getByRole('radio', { name: 'Pri' });
-    const time = dialog.getByRole('radio', { name: 'Time' });
+    const priority = dialog.getByRole('radio', { name: 'Priority-first' });
+    const time = dialog.getByRole('radio', { name: 'Finish-first' });
     await expect(fast).toBeEnabled();
     await fast.focus();
     await page.keyboard.press('ArrowRight');

@@ -228,6 +228,7 @@ describe('the Save plan action', () => {
     const fake = deferredSave();
     const savedPlans: SavedPlans = {
       shelf: { subscribe: () => () => undefined, snapshot: () => ({ kind: 'loading' }) },
+      livePlanRevision: { subscribe: () => () => undefined, snapshot: () => 0 },
       refresh: () => undefined,
       save: () => fake.deps.save('p1'),
       rename: () => Promise.reject(new Error('not asked in this case')),

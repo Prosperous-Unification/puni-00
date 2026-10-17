@@ -853,10 +853,16 @@ itDom(
     const setStepUnit = vi.fn(() => Promise.resolve({ ...QA, estimateUnit: 'minutes' as const }));
     stubbed({ estimateCounts: { 'step-dev': 2, 'step-qa': 0 }, setStepUnit });
     expect(screen.getByRole('radio', { name: 'Dev minutes' })).toBeDisabled();
-    expect(screen.getByRole('group', { name: 'Dev estimate unit' })).toHaveAttribute(
-      'title',
-      '2 estimates',
+    // Said on the row, not in a hover title (ui-review F-118). Proof: on 3e06eb5a4 this
+    // failed with `Unable to find an element with the text: fixed by 2 estimates`.
+    expect(screen.getByText('fixed by 2 estimates')).toBeVisible();
+    expect(screen.getByRole('group', { name: 'Dev estimate unit' })).toHaveAccessibleDescription(
+      'fixed by 2 estimates',
     );
+    // A step nothing is estimated against says nothing beside its live radios.
+    expect(
+      screen.getByRole('group', { name: 'QA estimate unit' }),
+    ).not.toHaveAccessibleDescription();
     fireEvent.click(screen.getByRole('radio', { name: 'QA minutes' }));
     await settle();
     expect(setStepUnit).toHaveBeenCalledWith('step-qa', 'minutes');

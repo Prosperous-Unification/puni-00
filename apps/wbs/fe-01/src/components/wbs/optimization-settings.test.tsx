@@ -38,12 +38,22 @@ describe('project optimization settings', () => {
 
     expect(screen.getByRole('checkbox', { name: 'Optimize schedules' })).not.toBeChecked();
     expect(screen.getByRole('radio', { name: 'Fast' })).toBeChecked();
-    expect(screen.getByRole('radio', { name: 'Pri' })).toBeDisabled();
-    expect(screen.getByRole('radio', { name: 'Time' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Priority-first' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeDisabled();
     expect(screen.getByText('Fast is active while optimization is off.')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Active schedule' })).toHaveAccessibleDescription(
       'Fast is active while optimization is off.',
     );
+  });
+
+  itDom('names its schedules in the words the sentence above them uses (F-119)', () => {
+    mounted(ON);
+
+    // Proof: on 3e06eb5a4 this failed with `expected [ 'Fast', 'Pri', 'Time' ] to deeply
+    // equal [ 'Fast', 'Priority-first', 'Finish-first' ]`.
+    expect(
+      screen.getAllByRole('radio').map((radio) => radio.closest('label')?.textContent.trim()),
+    ).toEqual(['Fast', 'Priority-first', 'Finish-first']);
   });
 
   itDom('writes the shared project flag, then rereads the plan', async () => {
@@ -79,9 +89,9 @@ describe('project optimization settings', () => {
 
   itDom.each([
     ['Fast', ON, { scheduleEngine: 'fast' }],
-    ['Pri', ON, { scheduleEngine: 'optimized', scheduleObjective: 'pri' }],
+    ['Priority-first', ON, { scheduleEngine: 'optimized', scheduleObjective: 'pri' }],
     [
-      'Time',
+      'Finish-first',
       { enabled: true, engine: 'optimized', objective: 'pri' },
       { scheduleEngine: 'optimized', scheduleObjective: 'time' },
     ],
@@ -110,6 +120,6 @@ describe('project optimization settings', () => {
 
     // Proof: the selected schedule held in component state instead of read
     // from `value` leaves Fast checked here after the collaborator's reread.
-    expect(screen.getByRole('radio', { name: 'Time' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Finish-first' })).toBeChecked();
   });
 });

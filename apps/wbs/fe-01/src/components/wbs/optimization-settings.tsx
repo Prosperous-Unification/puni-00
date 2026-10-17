@@ -5,6 +5,7 @@ import type {
   ScheduleObjectiveView,
 } from '@/lib/wbs-api';
 
+import { OBJECTIVE_SENTENCE } from './optimization-words';
 import { SectionProblem, useSettingsSection } from './use-settings-section';
 
 export interface OptimizationSettingsValue {
@@ -54,14 +55,12 @@ export function OptimizationSettingsPanel({
 
   return (
     <div aria-busy={section.busy} className="space-y-4">
-      <div>
-        <h3 className="font-medium">Schedule optimization</h3>
-        <p className="text-muted-foreground text-sm">
-          Compute priority-first and finish-first schedules for this project in the background. Fast
-          stays on screen until somebody switches, and the toolbar cue says when one of them would
-          land the plan earlier.
-        </p>
-      </div>
+      {/* No heading of its own: the selected tab names the section, as for the other five (ui-review F-122). */}
+      <p className="text-muted-foreground text-sm">
+        Compute priority-first and finish-first schedules for this project in the background. Fast
+        stays on screen until somebody switches, and the toolbar cue says when one of them would
+        land the plan earlier.
+      </p>
 
       <SectionProblem problem={section.problem} />
 
@@ -106,7 +105,7 @@ export function OptimizationSettingsPanel({
                 write({ scheduleEngine: 'optimized', scheduleObjective: 'pri' });
               }}
             />
-            Pri
+            {OBJECTIVE_SENTENCE.pri}
           </label>
           <label className="flex items-center gap-1.5 text-sm">
             <input
@@ -118,7 +117,7 @@ export function OptimizationSettingsPanel({
                 write({ scheduleEngine: 'optimized', scheduleObjective: 'time' });
               }}
             />
-            Time
+            {OBJECTIVE_SENTENCE.time}
           </label>
         </div>
       </fieldset>

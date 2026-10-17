@@ -21,14 +21,47 @@ export type DropRefusal =
   | 'dependency_cycle';
 
 /**
+ * The line an edge zone draws, in the table frame's scrolled coordinates: 2px
+ * on the target row's top (`above`) or bottom (`below`) edge, from the left
+ * edge of the outline at the depth the drop lands at to the row's right edge.
+ */
+export interface DropLine {
+  edge: 'top' | 'bottom';
+  topPx: number;
+  leftPx: number;
+  widthPx: number;
+}
+
+/**
  * The row a drag is over and the zone the drop would land in, plus where the
- * `Move under …` cue is drawn for a middle zone: the target row's bottom edge,
- * in the table frame's scrolled coordinates.
+ * `Move under …` cue is drawn for a middle zone (the target row's bottom edge)
+ * and the line an edge zone draws, in the table frame's scrolled coordinates.
+ * `line` is null for `into`, which outlines the whole row instead.
  */
 export interface DropHint {
   rowId: string;
   zone: DropZone;
   cueTopPx: number;
+  line: DropLine | null;
+}
+
+/**
+ * How deep a drop in an edge zone puts the dragged row, counted as the target's
+ * `depth` is (0 at the top level): beside the target, or — `below` a row whose
+ * children are on screen — as its first child, which is what {@link planMove}
+ * resolves that gap to.
+ *
+ * The line is drawn from this depth's outline because the gap under a last
+ * child is two places at once: after `010.4` (inside `010`) and before `020`
+ * (at the top). A full-width line said the same thing for both (UI review
+ * F-128); a line that starts where the landed row's number will start does not.
+ */
+export function landingDepthFor(
+  zone: 'above' | 'below',
+  targetDepth: number,
+  targetShowsChildren: boolean,
+): number {
+  return zone === 'below' && targetShowsChildren ? targetDepth + 1 : targetDepth;
 }
 
 /**

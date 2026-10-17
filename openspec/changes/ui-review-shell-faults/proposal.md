@@ -20,7 +20,7 @@ be-01 under an open page and found the shell telling the reader things it did no
 ## What Changes
 
 - The session gate draws the sign-in form only when the session read says there is no session (200
-  with no user, a refusal, or a 401/403 the contract does not model). No connection, a 5xx or a reply
+  with no user, a refusal, or a 401 the contract does not model). No connection, a 5xx or a reply
   that is not the contract's draws **Server unavailable**: the sentence, a note that signing in will
   not help, and Try again, which reads the session again. No credential boxes.
 - Decision D9: the header pill is the **live link** (the plan's stream through gw-01). It reads `Live`

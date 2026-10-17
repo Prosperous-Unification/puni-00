@@ -4597,13 +4597,23 @@ describe('the caption follows the scroll', () => {
     expect(screen.queryByText('Aug 2026')).toBeNull();
   });
 
+  /** Presses the strip's Full switch, on or off. */
+  const pressFullScreen = (): void => {
+    const toggle = document.querySelector('[data-gantt-fullscreen-toggle]');
+    if (!(toggle instanceof HTMLElement)) throw new Error('the full-screen switch is not drawn');
+    fireEvent.click(toggle);
+  };
+
   /**
    * Full mounts a new scroll box (the overlay wraps the chart in a layer the
-   * panel is not in), and a new box starts at `scrollLeft` 0 — so the caption
-   * has to name the month at 0, not the month the old box was scrolled to.
-   * The same on the way back under the plan. ui-review F-064.
+   * panel is not in), and a new box starts at `scrollLeft` 0 — so the old box's
+   * offset is put on it, both ways, and the caption names the month there
+   * (ui-review F-126; F-064 for the caption).
+   *
+   * Proof: with the carry removed (the new box left at 0), this failed on
+   * `expected +0 to be 236` for the Full box. Watched 2026-10-16.
    */
-  itDom('names the month of the box on screen after Full is switched on and off', () => {
+  itDom("carries the box's offset into Full and back out", () => {
     augustIntoSeptember();
     const scrolled = document.querySelector('[data-gantt-panel]');
     if (!(scrolled instanceof HTMLElement)) throw new Error('the panel is not on the page');
@@ -4611,26 +4621,72 @@ describe('the caption follows the scroll', () => {
     fireEvent.scroll(scrolled);
     expect(screen.getByText('Sep 2026')).toBeDefined();
 
-    const pressFull = (): void => {
-      const toggle = document.querySelector('[data-gantt-fullscreen-toggle]');
-      if (!(toggle instanceof HTMLElement)) throw new Error('the full-screen switch is not drawn');
-      fireEvent.click(toggle);
-    };
-    pressFull();
+    pressFullScreen();
     const full = document.querySelector('[data-gantt-panel]');
     if (!(full instanceof HTMLElement)) throw new Error('full screen drew no scroll box');
     expect(full, 'setup: Full mounts a new scroll box').not.toBe(scrolled);
-    expect(full.scrollLeft).toBe(0);
-    expect(screen.getByText('Aug 2026')).toBeDefined();
-    expect(screen.queryByText('Sep 2026')).toBeNull();
-
-    full.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
-    fireEvent.scroll(full);
+    expect(full.scrollLeft).toBe(8 * DAY_PX + CHART_PAD_PX);
     expect(screen.getByText('Sep 2026')).toBeDefined();
-    pressFull();
+
+    full.scrollLeft = 0;
+    fireEvent.scroll(full);
+    expect(screen.getByText('Aug 2026')).toBeDefined();
+    pressFullScreen();
     expect(document.querySelector('[data-gantt-fullscreen]'), 'setup: Full closed').toBeNull();
+    const back = document.querySelector('[data-gantt-panel]');
+    if (!(back instanceof HTMLElement)) throw new Error('the panel did not come back');
+    expect(back.scrollLeft).toBe(0);
     expect(screen.getByText('Aug 2026')).toBeDefined();
     expect(screen.queryByText('Sep 2026')).toBeNull();
+  });
+
+  /**
+   * The caption names the month of the box on screen even when that box could
+   * not take the old offset: a browser clamps `scrollLeft` at the new box's end,
+   * and the reading must come from the box, not from what was asked of it
+   * (ui-review F-064). jsdom clamps nothing, so the clamp is put on the Full
+   * box's setter here.
+   *
+   * Proof: with the mount's `readTheScroll(port)` removed, this failed on
+   * `Unable to find an element with the text: Aug 2026` — the caption still
+   * naming September over a box clamped short of it. Watched 2026-10-16
+   * (first watched on the uncarried box, 2026-10-14).
+   */
+  itDom('names the month of the box on screen when Full clamps the offset', () => {
+    augustIntoSeptember();
+    const scrolled = document.querySelector('[data-gantt-panel]');
+    if (!(scrolled instanceof HTMLElement)) throw new Error('the panel is not on the page');
+    scrolled.scrollLeft = 8 * DAY_PX + CHART_PAD_PX;
+    fireEvent.scroll(scrolled);
+    expect(screen.getByText('Sep 2026')).toBeDefined();
+
+    // The boundary that makes this safe: one accessor on the jsdom realm this
+    // file owns, wrapped transparently and put back in the `finally`.
+    const real = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollLeft');
+    if (real?.get === undefined || real.set === undefined)
+      throw new Error('jsdom has no scrollLeft accessor to wrap');
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- restored below; `call(this)` supplies the receiver.
+    const { get, set } = real;
+    Object.defineProperty(Element.prototype, 'scrollLeft', {
+      configurable: true,
+      get(this: Element): number {
+        return get.call(this) as number;
+      },
+      set(this: Element, offset: number) {
+        const end = this.closest('[data-gantt-fullscreen]') === null ? offset : DAY_PX;
+        set.call(this, Math.min(offset, end));
+      },
+    });
+    try {
+      pressFullScreen();
+      const full = document.querySelector('[data-gantt-panel]');
+      if (!(full instanceof HTMLElement)) throw new Error('full screen drew no scroll box');
+      expect(full.scrollLeft, 'setup: the Full box clamped the carried offset').toBe(DAY_PX);
+      expect(screen.getByText('Aug 2026')).toBeDefined();
+      expect(screen.queryByText('Sep 2026')).toBeNull();
+    } finally {
+      Object.defineProperty(Element.prototype, 'scrollLeft', real);
+    }
   });
 
   /**
@@ -4855,6 +4911,40 @@ describe('the detail switch', () => {
       expect(countOf('[data-gantt-arrow]')).toBeGreaterThan(0);
     },
   );
+
+  /**
+   * A project switch hands the panel generation 0 before the next plan's first
+   * read; with nothing remembered the default is decided again from that read,
+   * both ways (ui-review F-088).
+   *
+   * Proof: on the code before F-088 (the latch kept once set), this failed on
+   * `expected 'false' to be 'true'` after the read with links. Watched
+   * 2026-10-16.
+   */
+  itDom('decides the never-said detail again for the next plan, both ways', () => {
+    const drawnAt = (generation: number, plan: GanttPlan) => (
+      <GanttPanel
+        plan={plan}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={generation}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />
+    );
+    const unread = planOf({ rows: [], slices: [] });
+    const drawn = render(drawnAt(4, unread));
+    expect(theSwitch().getAttribute('aria-pressed'), 'setup: no links, so off').toBe('false');
+    drawn.rerender(drawnAt(0, unread));
+    drawn.rerender(drawnAt(1, everyGatedMark()));
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('true');
+    expect(countOf('[data-gantt-arrow]')).toBeGreaterThan(0);
+    drawn.rerender(drawnAt(0, unread));
+    drawn.rerender(drawnAt(1, unread));
+    expect(theSwitch().getAttribute('aria-pressed')).toBe('false');
+  });
 
   itDom('opens with both families on a plan with edges, and hides them when asked', () => {
     drawEveryMark();
@@ -7702,6 +7792,49 @@ describe('downloading the chart as a standalone .svg', () => {
       expect(label.getAttribute('aria-hidden')).toBe('true');
       expect(bar.getAttribute('aria-label')).toContain('010 - Hull');
     }
+  });
+
+  itDom('writes a lane stack’s one label in the file, as the live chart does (F-101)', async () => {
+    render(
+      <GanttPanel
+        plan={planOf({
+          rows: [rowAt('sand', 3, 6)],
+          slices: [
+            sliceAt('sand-plan', 'sand', 3, 3, { stepId: 'plan', estimated: false, duration: 0 }),
+            sliceAt('sand-dev', 'sand', 3, 6),
+          ],
+          steps: [
+            { id: 'plan', name: 'Plan' },
+            { id: 'dev', name: 'Dev' },
+          ],
+        })}
+        startDate={MONDAY_START}
+        scheduleError={null}
+        generation={0}
+        heightPx={null}
+        onPickRow={() => undefined}
+        onPointRow={() => undefined}
+        pointed={pointedAtRow(null)}
+      />,
+    );
+    const { blobs } = captureDownloads();
+    clickDownload();
+
+    const doc = new DOMParser().parseFromString(await readBlobText(blobs[0]), 'image/svg+xml');
+    const written = [...doc.documentElement.children]
+      .filter((element) => element.tagName === 'text')
+      .map((element) => element.textContent)
+      // On-bar spelling only, not the label column's `sand - sand`.
+      .filter((words) => words.startsWith('sand ·'));
+    // The Dev bar runs past the placeholder, so it writes its own words there
+    // too (F-138).
+    //
+    // Proof: with the stack loop deleted from `buildStandaloneGanttSvg`, this
+    // failed on `expected [] to deeply equal [ 'sand · 2 steps · 1 no
+    // estimate' ]` (2026-10-16); with the spill ignored in the file, on
+    // `expected [ 'sand · 2 steps · 1 no estimate' ] to deeply equal [ …(2) ]`
+    // (2026-10-17).
+    expect(written.sort()).toEqual(['sand · 2 steps · 1 no estimate', 'sand · sand']);
   });
 
   itDom(

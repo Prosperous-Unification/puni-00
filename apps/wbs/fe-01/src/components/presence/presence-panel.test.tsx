@@ -46,8 +46,22 @@ describe('the presence panel', () => {
     render(<PresencePanel me="kat" users={['kat', 'sam']} connected />);
 
     const panel = screen.getByRole('region', { name: 'Live' });
-    expect(panel.getAttribute('data-fact')).toBe('Live: kat (you), sam');
+    // Proof: on 3e06eb5a4 (the roster alone after `Live:`) this failed on `expected
+    // 'Live: kat (you), sam' to be 'Live: edits by other people and who i…'` — nothing
+    // said what Live means (F-096).
+    expect(panel.getAttribute('data-fact')).toBe(
+      'Live: edits by other people and who is here arrive as they happen. Here now: kat (you), sam.',
+    );
+    expect(panel.getAttribute('data-fact-lead')).toBe('Live');
     expect(panel.querySelector('[data-presence-count]')?.textContent).toBe('2');
+  });
+
+  itDom('says what Live means while nobody has arrived, too (F-096)', () => {
+    render(<PresencePanel me="kat" users={[]} connected />);
+
+    expect(screen.getByRole('region', { name: 'Live' }).getAttribute('data-fact')).toBe(
+      'Live: edits by other people and who is here arrive as they happen. Here now: nobody yet.',
+    );
   });
 
   itDom('says so while nobody has arrived', () => {
@@ -90,5 +104,6 @@ describe('the presence panel', () => {
     expect(panel.getAttribute('data-fact')).toBe(
       'Reconnecting: who else is here is not known until the link is back.',
     );
+    expect(panel.getAttribute('data-fact-lead')).toBe('Reconnecting');
   });
 });

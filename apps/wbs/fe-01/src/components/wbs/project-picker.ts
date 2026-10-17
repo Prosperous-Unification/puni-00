@@ -17,7 +17,14 @@ export interface PickableProject {
 }
 
 /**
- * The parenthetical an entry carries after its name: `(kat · 1 Jun)`.
+ * The parenthetical an entry carries after its name: `(1 Jun · kat)`.
+ *
+ * The date first: it is what tells most twins apart (`Review fixture` made on
+ * two days by one account), and the meta is the half of an entry that is
+ * clipped when the list is narrow, so the owner is what gives way (ui-review
+ * F-107). Proof: in the owner-first order `every entry’s date is still on
+ * screen at 1024` (`e2e/header.spec.ts`) failed on the date 33px past the
+ * clipped edge; watched 2026-10-16.
  *
  * `createdAt` is an **epoch millisecond**, which is why this asks
  * {@link shortInstant} and not {@link shortIsoDate}. The two are chosen by the
@@ -34,7 +41,7 @@ export function entryMeta(
   entry: { ownerName: string; createdAt: number },
   now: Date = new Date(),
 ): string {
-  return `(${entry.ownerName} · ${shortInstant(entry.createdAt, now)})`;
+  return `(${shortInstant(entry.createdAt, now)} · ${entry.ownerName})`;
 }
 
 /**
@@ -68,7 +75,7 @@ export interface ProjectCardSource {
  * markup so the unit test is the card's content, not its chrome.
  */
 export interface ProjectCardMeta {
-  /** `(kat · 1 Jun)` — the entry meta, never truncated on the card. */
+  /** `(1 Jun · kat)` — the entry meta, never truncated on the card. */
   ownership: string;
   /** `Start 12 Mar`, or `Not scheduled` while the project is off the calendar. */
   start: string;

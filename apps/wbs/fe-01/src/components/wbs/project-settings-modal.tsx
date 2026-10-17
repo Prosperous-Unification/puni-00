@@ -237,9 +237,12 @@ export function ProjectSettingsModal({
   const dirtyRef = useRef(new Set<SettingsSection>());
   const [dirtySections, setDirtySections] = useState<readonly SettingsSection[]>([]);
   /**
-   * Whether a close has been refused since the modal opened. The sentence it
-   * earns is shown only while something is still held — see {@link holding} —
-   * so a refusal whose cause has since landed says nothing stale.
+   * Whether a close has been refused over the hold that is live now. The
+   * sentence it earns is shown only while something is still held — see
+   * {@link holding} — and the flag ends with that hold, when the last section
+   * lets go: Escape in a dirty field is refused as it puts the field back, and a
+   * flag that outlived the revert turned the next keystroke anywhere into the
+   * red "has an unsaved edit" while the reader was only typing (UI review F-080).
    */
   const [refused, setRefused] = useState(false);
   /**
@@ -275,10 +278,15 @@ export function ProjectSettingsModal({
       (dirty: boolean): void => {
         if (dirty) dirtyRef.current.add(section);
         else dirtyRef.current.delete(section);
+        // Proof: on 2026-10-16, without this reset, `typing after an Escape put
+        // a field back raises no refusal` (project-settings-modal.test.tsx)
+        // failed on `expected <p role="alert" …(2)></p> to be null`.
+        if (dirtyRef.current.size === 0) setRefused(false);
         publishDirty();
       },
-    // `publishDirty` closes over a setter and a ref, both stable for the life
-    // of the component, so the reporters are made once.
+    // `publishDirty` closes over a setter and a ref, and `setRefused` is a
+    // setter, all stable for the life of the component, so the reporters are
+    // made once.
     [],
   );
   const busyReporterFor = useCallback(
@@ -455,6 +463,13 @@ export function ProjectSettingsModal({
       ? SECTIONS.filter((s) => dirtySections.includes(s.id)).map((s) => s.label)
       : [];
   const holdingLabel = SECTIONS.find((s) => s.id === holding)?.label;
+  const saving = SECTIONS.filter((s) => busySections.includes(s.id)).map((s) => s.label);
+  const savingWords =
+    travelling.length > 0
+      ? `Saving ${travelling.join(' and ')}. The window closes when it lands.`
+      : saving.length > 0
+        ? `Saving ${saving.join(' and ')}…`
+        : '';
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -546,7 +561,10 @@ export function ProjectSettingsModal({
                   aria-controls={panelId(section.id)}
                   tabIndex={selected ? 0 : -1}
                   data-state={selected ? 'active' : 'inactive'}
-                  className="data-[state=active]:bg-muted data-[state=inactive]:text-muted-foreground hover:bg-muted/60 rounded-md px-3 py-1.5 text-left text-sm"
+                  // `border-0 bg-transparent` is what `buttonVariants` brings every chrome
+                  // button: without it the platform's 2px border boxed each tab, the
+                  // only 2px edge in the app (ui-review F-117).
+                  className="data-[state=active]:bg-muted data-[state=inactive]:text-muted-foreground hover:bg-muted/60 rounded-md border-0 bg-transparent px-3 py-1.5 text-left text-sm"
                   onClick={() => {
                     show(section.id);
                   }}
@@ -566,7 +584,12 @@ export function ProjectSettingsModal({
             })}
           </div>
 
-          <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1">
+          {/*
+            `pb-6`, the surface's own `p-6`: a section that scrolls ends with the
+            room the modal starts with, rather than its last line on the box's
+            edge (ui-review F-123, Estimating at 1024×768).
+          */}
+          <div className="-mx-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-1 pb-6">
             <div
               role="tabpanel"
               id={panelId('teams')}
@@ -663,11 +686,25 @@ export function ProjectSettingsModal({
           `the closing line moves neither the title nor the tabs`
           (settings-layout.spec.ts) failed on `Expected: 150, Received: 186`.
         */}
-        {travelling.length > 0 && (
-          <p role="status" data-settings-closing="" className="text-muted-foreground text-sm">
-            Saving {travelling.join(' and ')}. The window closes when it lands.
-          </p>
-        )}
+        {/*
+          What travels, said politely as it goes (UI review F-081): a section's
+          boxes are only `readOnly` while its write is in the air, and the
+          tabpanel's `aria-busy` is read out by no screen reader. Mounted for the
+          modal's whole life, because a live region that appears together with
+          its words may not be read; `empty:sr-only` takes the quiet one out of
+          the flow, so it costs the foot no gap.
+          Proof: on 2026-10-16, against 3e06eb5a4 (the line rendered only with a
+          close request), `says, politely, which section is saving while its
+          write travels` (project-settings-modal.test.tsx) failed on `expected
+          undefined to be 'status'`.
+        */}
+        <p
+          role="status"
+          data-settings-saving=""
+          className="text-muted-foreground text-sm empty:sr-only"
+        >
+          {savingWords}
+        </p>
         {holdingLabel !== undefined && (
           <p role="alert" data-settings-closing="" className="text-destructive text-sm">
             {holdingLabel} has an unsaved edit. Finish it or cancel it before closing.

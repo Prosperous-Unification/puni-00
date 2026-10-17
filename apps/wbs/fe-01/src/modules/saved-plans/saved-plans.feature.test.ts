@@ -347,7 +347,7 @@ describe('one project’s saved plans', () => {
   const heldRoutes = () => {
     const sent: string[] = [];
     const reads: ((reply: Awaited<ReturnType<SavedPlanRoutes['list']>>) => void)[] = [];
-    let fire: (() => void) | undefined;
+    let fire: ((changed?: string | null) => void) | undefined;
     const unsubscribe = vi.fn(() => {
       fire = undefined;
     });
@@ -379,8 +379,46 @@ describe('one project’s saved plans', () => {
         return { unsubscribe };
       },
     };
-    return { routes, sent, reads, unsubscribe, broadcast: () => fire?.() };
+    return {
+      routes,
+      sent,
+      reads,
+      unsubscribe,
+      broadcast: (changed?: string | null) => fire?.(changed),
+    };
   };
+
+  it('does not count a shelf broadcast as a move of the live plan (F-100)', async () => {
+    const held = heldRoutes();
+    let current = true;
+    const { savedPlans } = openSavedPlans({
+      projectId: 'p1',
+      routes: held.routes,
+      isCurrent: () => current,
+    });
+    const told = vi.fn();
+    savedPlans.livePlanRevision.subscribe(told);
+    await settled();
+    await listReply([ROW]).then(held.reads[0]);
+    await settled();
+    expect(savedPlans.livePlanRevision.snapshot()).toBe(0);
+
+    held.broadcast('saved_plans_changed');
+    expect(savedPlans.livePlanRevision.snapshot()).toBe(0);
+    expect(told).not.toHaveBeenCalled();
+
+    // A plan event, and a frame naming no type: both may have moved the plan.
+    held.broadcast('work_items_changed');
+    held.broadcast(null);
+    held.broadcast();
+    expect(savedPlans.livePlanRevision.snapshot()).toBe(3);
+    expect(told).toHaveBeenCalledTimes(3);
+
+    // Withdrawn, the revision stays where it was, like the shelf.
+    current = false;
+    held.broadcast('work_items_changed');
+    expect(savedPlans.livePlanRevision.snapshot()).toBe(3);
+  });
 
   it('starts from loading and shows the rows its first read answered', async () => {
     const held = heldRoutes();

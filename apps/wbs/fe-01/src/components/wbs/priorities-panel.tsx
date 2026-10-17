@@ -230,87 +230,109 @@ export function PrioritiesPanel({
       <p className="text-muted-foreground text-sm">
         What this plan calls its priority numbers. A band starts where you say and ends where the
         next one begins, so every number has exactly one name. The number a band writes is what
-        picking its name in the Prio column puts on a row. Every band is this plan’s own.
+        picking its name in the Priority column puts on a row. Every band is this plan’s own.
       </p>
 
       <SectionProblem problem={section.problem} />
 
-      <ul ref={ladder} className="flex flex-col gap-2">
-        {drafts.map((draft, at) => {
-          // The swatch is the **saved** ladder's colour for this rung, which is
-          // a colour of the rank and not of anything being typed: the rank
-          // cannot change here, so the dot beside a row somebody is renaming
-          // stays the colour that row will still be.
-          const paint = priorityBandStyleOf(bands, bands.at(at)?.startsAt ?? 1);
-          return (
-            // Two lines on a phone — the swatch and the name, then the start,
-            // the range and what the band writes — because four controls in
-            // one row clipped the names to "Cri" and pushed the last box past
-            // the modal's edge (F-053). One row from `sm`.
-            <li
-              key={`band-${String(at)}`}
-              className="flex flex-wrap items-center gap-2 max-sm:pb-2 sm:flex-nowrap"
-            >
-              <span
-                aria-hidden="true"
-                data-priority-swatch={at}
-                className="size-3 shrink-0 rounded-full"
-                style={{ background: paint?.ink ?? 'var(--muted-foreground)' }}
-              />
-              <Input
-                className="h-8 min-w-0 flex-1 max-sm:basis-[calc(100%-1.25rem)]"
-                aria-label={`Name of band ${String(at + 1)}`}
-                // `readOnly`, not `disabled`, while the ladder travels: a
-                // disabled box gives the focus to the dialog (F-066). Proof: on
-                // 2026-10-14, against `disabled`, `Enter in a band keeps the
-                // caret in the box` (settings-layout.spec.ts) failed on
-                // `toBeFocused() … Received: inactive`.
-                value={draft.label}
-                readOnly={section.busy}
-                onBlur={onLadderBlur}
-                onKeyDown={onLadderKey}
-                onChange={(event) => {
-                  edit(at, 'label', event.currentTarget.value);
-                }}
-              />
-              <Input
-                className="h-8 w-16 shrink-0 text-right max-sm:ml-5"
-                aria-label={`${draft.label} starts at`}
-                inputMode="numeric"
-                value={draft.startsAt}
-                readOnly={section.busy}
-                onBlur={onLadderBlur}
-                onKeyDown={onLadderKey}
-                onChange={(event) => {
-                  edit(at, 'startsAt', event.currentTarget.value);
-                }}
-              />
-              <span
-                data-priority-range={at}
-                className="text-muted-foreground w-24 shrink-0 text-right text-sm"
-                // The range a start amounts to, recomputed as the boxes change.
-                // A band is stored as a start and read as a range, and this is
-                // the only place the reader is shown the second.
-                data-fact={`${draft.label} holds priorities ${bandRangeWords(drafts, at)}.`}
+      {/*
+        The columns' names, drawn once over the ladder as Steps and Estimating
+        head theirs (ui-review F-120). Hidden from a screen reader, which hears
+        each box's own label (`Critical starts at`) instead. The cells take the
+        rows' widths and wrap as a row does, so on a phone the second line of
+        the header stands over the second line of every band. The list loses the
+        platform's 40px indent for the same reason, which also puts the ladder on
+        the paragraph's edge, where Steps' grid stands.
+      */}
+      <div className="flex flex-col gap-2">
+        <div
+          aria-hidden="true"
+          data-priority-header=""
+          className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium sm:flex-nowrap"
+        >
+          <span className="size-3 shrink-0" />
+          <span className="min-w-0 flex-1 max-sm:basis-[calc(100%-1.25rem)]">Band</span>
+          <span className="w-16 shrink-0 text-right max-sm:ml-5">Starts at</span>
+          <span className="w-24 shrink-0 text-right">Holds</span>
+          <span className="w-16 shrink-0 text-right">Writes</span>
+        </div>
+        <ul ref={ladder} className="m-0 flex list-none flex-col gap-2 p-0">
+          {drafts.map((draft, at) => {
+            // The swatch is the **saved** ladder's colour for this rung, which is
+            // a colour of the rank and not of anything being typed: the rank
+            // cannot change here, so the dot beside a row somebody is renaming
+            // stays the colour that row will still be.
+            const paint = priorityBandStyleOf(bands, bands.at(at)?.startsAt ?? 1);
+            return (
+              // Two lines on a phone — the swatch and the name, then the start,
+              // the range and what the band writes — because four controls in
+              // one row clipped the names to "Cri" and pushed the last box past
+              // the modal's edge (F-053). One row from `sm`.
+              <li
+                key={`band-${String(at)}`}
+                className="flex flex-wrap items-center gap-2 max-sm:pb-2 sm:flex-nowrap"
               >
-                {bandRangeWords(drafts, at)}
-              </span>
-              <Input
-                className="h-8 w-16 shrink-0 text-right"
-                aria-label={`${draft.label} writes`}
-                inputMode="numeric"
-                value={draft.defaultValue}
-                readOnly={section.busy}
-                onBlur={onLadderBlur}
-                onKeyDown={onLadderKey}
-                onChange={(event) => {
-                  edit(at, 'defaultValue', event.currentTarget.value);
-                }}
-              />
-            </li>
-          );
-        })}
-      </ul>
+                <span
+                  aria-hidden="true"
+                  data-priority-swatch={at}
+                  className="size-3 shrink-0 rounded-full"
+                  style={{ background: paint?.ink ?? 'var(--muted-foreground)' }}
+                />
+                <Input
+                  className="h-8 min-w-0 flex-1 max-sm:basis-[calc(100%-1.25rem)]"
+                  aria-label={`Name of band ${String(at + 1)}`}
+                  // `readOnly`, not `disabled`, while the ladder travels: a
+                  // disabled box gives the focus to the dialog (F-066). Proof: on
+                  // 2026-10-14, against `disabled`, `Enter in a band keeps the
+                  // caret in the box` (settings-layout.spec.ts) failed on
+                  // `toBeFocused() … Received: inactive`.
+                  value={draft.label}
+                  readOnly={section.busy}
+                  onBlur={onLadderBlur}
+                  onKeyDown={onLadderKey}
+                  onChange={(event) => {
+                    edit(at, 'label', event.currentTarget.value);
+                  }}
+                />
+                <Input
+                  className="h-8 w-16 shrink-0 text-right max-sm:ml-5"
+                  aria-label={`${draft.label} starts at`}
+                  inputMode="numeric"
+                  value={draft.startsAt}
+                  readOnly={section.busy}
+                  onBlur={onLadderBlur}
+                  onKeyDown={onLadderKey}
+                  onChange={(event) => {
+                    edit(at, 'startsAt', event.currentTarget.value);
+                  }}
+                />
+                <span
+                  data-priority-range={at}
+                  className="text-muted-foreground w-24 shrink-0 text-right text-sm"
+                  // The range a start amounts to, recomputed as the boxes change.
+                  // A band is stored as a start and read as a range, and this is
+                  // the only place the reader is shown the second.
+                  data-fact={`${draft.label} holds priorities ${bandRangeWords(drafts, at)}.`}
+                >
+                  {bandRangeWords(drafts, at)}
+                </span>
+                <Input
+                  className="h-8 w-16 shrink-0 text-right"
+                  aria-label={`${draft.label} writes`}
+                  inputMode="numeric"
+                  value={draft.defaultValue}
+                  readOnly={section.busy}
+                  onBlur={onLadderBlur}
+                  onKeyDown={onLadderKey}
+                  onChange={(event) => {
+                    edit(at, 'defaultValue', event.currentTarget.value);
+                  }}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       <p className="text-muted-foreground text-sm">
         Changing a band renames what this plan’s numbers are called. It moves no dates — a priority

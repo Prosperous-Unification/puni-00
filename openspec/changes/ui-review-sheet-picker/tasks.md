@@ -10,3 +10,4 @@
 6. [x] Place portalled cards and wait rings above modal surfaces, and keyboard shortcuts on the modal layer; add mouse fact-card and standing-toast paint probes.
 7. [x] Widen the phone project list within viewport margins; preserve wrapped names and amend `project-dropdown-details` to the implemented rule.
 8. [ ] Verify this reconciliation in hosted CI, including the new mouse fact-card probe and R5 mutation runs; local browser/full suites are deferred after host OOM.
+9. [x] Integration-4 fix: from 768px up the project list is at least 18rem wide (`md:min-w-72`), whatever room the outline Plan / Board selector (#528) leaves the input (F-086) — `e2e/header.spec.ts`.

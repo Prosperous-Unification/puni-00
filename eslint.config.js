@@ -106,6 +106,10 @@ export default [
       '**/*.gen.ts',
       '**/vite.config.*.timestamp*',
       '**/vitest.config.*.timestamp*',
+      // Feasibility probes are evidence, hashed into their environment.json, and
+      // no tsconfig includes them; the project targets never lint them either, so
+      // the pre-commit hook (which lints every staged file) must not stop on them.
+      'tools/*/feasibility/**',
     ],
   },
 

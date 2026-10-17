@@ -8,13 +8,16 @@ Runs 2026-10-14 in `/home/df/wd/puni/ui-settings-flow` (branch `ui-review/settin
 
 - `bunx nx run-many -t lint:fast typecheck -p wbs-fe-01 --skip-nx-cache` — passed.
 - `bunx prettier --check` on touched files — clean.
-- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — see the lane record for the count.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json` — 200 of 200 valid (182 changes, 18
+  specs), exit 0.
 - Playwright `settings-layout, toolbar-panels, mobile, keyboard, project-settings, attempts, steps,
 hints` — 95 passed, 2 failed in `mobile.spec.ts` (`keeps the focus and the half-typed word when
 somebody else edits another card`, `reads every priority band chip on a card at 4.5:1`); both
   fail the same way on the branch base 85849d1f3 with this change's source stashed, so they are
   not this change's.
-- `bunx nx run wbs-fe-01:test` — see the lane record for the run on the final head.
+- `bunx nx run wbs-fe-01:test` on the final head — the UTC run 74 files / 935 tests and the
+  `TZ=Pacific/Auckland` run 205 files / 4028 tests, all passed (results recorded here by
+  `ui-review-settings-busy`, F-084, from the lane record).
 
 ## R5 proofs (observed failures)
 
