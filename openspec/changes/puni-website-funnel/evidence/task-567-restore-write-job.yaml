@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-567-restore-write-proof
+  namespace: website-dev
+data:
+  proof.ts: |
+    import { createHash } from 'node:crypto';
+    import { writeFileSync } from 'node:fs';
+    import { Database } from 'bun:sqlite';
+    import { s3ObjectStore } from '/srv/api/k8s-runner/object-store.ts';
+
+    const prefix = 'sqlite/website-dev/';
+    const store = s3ObjectStore(process.env);
+    const reportKey = (await store.list(prefix))
+      .filter((key) => key.endsWith('.report.json'))
+      .sort()
+      .at(-1);
+    if (!reportKey) throw new Error(`No backup report under ${prefix}`);
+    const report = JSON.parse(new TextDecoder().decode(await store.get(reportKey)));
+    if (report.objectKey !== reportKey.slice(0, -'.report.json'.length))
+      throw new Error(`${reportKey} names another object`);
+    const body = await store.get(report.objectKey);
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    if (sha256 !== report.sha256 || body.byteLength !== report.bytes)
+      throw new Error(`${report.objectKey} differs from its report`);
+    const databasePath = '/scratch/website.sqlite';
+    writeFileSync(databasePath, body, { mode: 0o600, flag: 'wx' });
+    const database = new Database(databasePath);
+    const before = Number(database.query('SELECT COUNT(*) AS count FROM intake_draft').get().count);
+    database.close();
+
+    const server = Bun.spawn(['bun', '/srv/api/main.js'], {
+      env: {
+        ...process.env,
+        WEBSITE_API_HOST: '127.0.0.1',
+        WEBSITE_API_PORT: '3101',
+        WEBSITE_DATABASE_PATH: databasePath,
+        PUBLIC_ORIGIN: 'https://dev.puni.dev',
+        APP_ORIGIN: 'https://dev.app.puni.dev',
+        TRUSTED_PROXY_HOPS: '0',
+        OPENROUTER_ENABLED: '0',
+        RETENTION_JOURNAL: 'disabled',
+        RETENTION_JOURNAL_ID: '',
+        RETENTION_ERASURE: 'report',
+      },
+      stdout: 'inherit', stderr: 'inherit',
+    });
+    try {
+      let healthy = false;
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        try { healthy = (await fetch('http://127.0.0.1:3101/health')).ok; } catch {}
+        if (healthy) break;
+        await Bun.sleep(250);
+      }
+      if (!healthy) throw new Error('Disposable restored API did not become healthy');
+      const response = await fetch('http://127.0.0.1:3101/intakes', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://dev.puni.dev' },
+        body: JSON.stringify({ description: 'TASK-567 disposable restore proof' }),
+      });
+      if (response.status !== 201) throw new Error(`Restored intake answered HTTP ${response.status}`);
+      const check = new Database(databasePath, { readonly: true });
+      const after = Number(check.query('SELECT COUNT(*) AS count FROM intake_draft').get().count);
+      check.close();
+      if (after !== before + 1) throw new Error(`Expected one new draft, observed ${before} -> ${after}`);
+      console.log(JSON.stringify({ reportKey, capturedAt: report.capturedAt, sha256, status: response.status, before, after }));
+    } finally {
+      server.kill();
+      await server.exited;
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: task-567-restore-write-proof
+  namespace: website-dev
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels: { puni.dev/workload: sqlite-backup }
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      nodeSelector: { puni.dev/capability-product: 'true' }
+      imagePullSecrets: [{ name: ghcr-pull }]
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: proof
+          image: ghcr.io/prosperous-unification/puni-website-api@sha256:0720e5d4136bd9b02c062cc6160b54ca390a0c9eebd272ec10746a49f7f3a97c
+          command: [bun, /proof/proof.ts]
+          envFrom:
+            - secretRef: { name: website-runtime }
+            - secretRef: { name: website-backup-s3 }
+          env:
+            - { name: S3_BUCKET, value: puni-01 }
+            - { name: HOME, value: /tmp }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile: { type: RuntimeDefault }
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: proof, mountPath: /proof, readOnly: true }
+            - { name: scratch, mountPath: /scratch }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: proof
+          configMap: { name: task-567-restore-write-proof }
+        - name: scratch
+          emptyDir: { sizeLimit: 1Gi }
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
