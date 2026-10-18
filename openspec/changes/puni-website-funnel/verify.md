@@ -74,7 +74,13 @@ An actual checked-in fixture copy then exposed `Invalid ring: tag` for `libs/web
 The live `website-dev` API was Ready on image `sha256:0720e5d4136bd9b02c062cc6160b54ca390a0c9eebd272ec10746a49f7f3a97c`. The documented `sqlite-restore-drill` Job restored and verified the newest real backup without mounting the live PVC. Its complete result was:
 
 ```json
-{"verified":"sqlite/website-dev/20261018T142300786Z.sqlite.report.json","capturedAt":"2026-10-18T14:23:00.786Z","ageHours":0.18,"migrations":9,"counts":{"intake_draft":56,"software_request":0,"proposal_submission":0}}
+{
+  "verified": "sqlite/website-dev/20261018T142300786Z.sqlite.report.json",
+  "capturedAt": "2026-10-18T14:23:00.786Z",
+  "ageHours": 0.18,
+  "migrations": 9,
+  "counts": { "intake_draft": 56, "software_request": 0, "proposal_submission": 0 }
+}
 ```
 
 The checked-in [disposable write proof](evidence/task-567-restore-write-job.yaml) downloaded that same versioned object into an `emptyDir`, verified the report SHA-256, started the exact deployed API image against only that copy, and posted a new intake through the production route. It printed `status: 201`, `before: 56`, `after: 57`, and SHA-256 `ea0e52eccd9a0a25a87e227a0f97fbac51d5134b49109e121bbc6a1cf2ae9efb`. The Job had no live data volume and performed no S3 write; production/dev request data was neither restored over nor written to.
