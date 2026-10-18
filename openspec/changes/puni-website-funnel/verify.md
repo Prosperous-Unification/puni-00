@@ -68,3 +68,25 @@ An actual checked-in fixture copy then exposed `Invalid ring: tag` for `libs/web
 - Clean private copy: a temporary workspace with `puni-pr-00` root configuration (`package.json`, `bun.lock`, `nx.json`, `tsconfig.base.json` without website aliases, `eslint.config.mjs`, Prettier files, `workspace.portability.json`, `tools/workspace`) and no project trees ran `portability.ts sync` and `check` from this branch. `copy … apps/website/fe-01` refused with `Missing package @types/react@^19.2.18 in …/package.json: add it, run bun install, then commit bun.lock` because the private manifest pins `19.2.18`. After setting the declared specifications, `bun install` and `bun install --frozen-lockfile` reported no changes, `copy` printed `libs/website/domain/contracts` and `apps/website/fe-01`, and `NX_DAEMON=false bunx nx run-many -t test,lint,typecheck,build -p website-fe-01,website-contracts --skip-nx-cache --output-style=static` printed `Successfully ran targets test, lint, typecheck, build for 2 projects` (fe-01 78 tests, contracts 15 tests, Vite build of 109 modules).
 - Private gate (puni-pr-00 PR #46, `.github/workflows/gate.yml`, no `secrets.` reference, `persist-credentials: false`): run 38167285803 failed `website-deploy:test` because a container test assumed host uid 1000. The test now runs the container as the host user, and run 38167759069 passed install, the anonymous pinned public fetch, `Baseline check`, OpenSpec and the Nx targets. A pushed commit altering one `.puni-baseline.json` fingerprint character failed run 38167982425 at `Baseline check` with `Baseline receipt mismatch`; it is reverted, and run 38168231673 on the final head passed.
 - Not run: the h2puni host gate (the orchestrator runs it on the merged SHA).
+
+## Operational recovery acceptance, 2026-10-18 (TASK-567)
+
+The live `website-dev` API was Ready on image `sha256:0720e5d4136bd9b02c062cc6160b54ca390a0c9eebd272ec10746a49f7f3a97c`. The documented `sqlite-restore-drill` Job restored and verified the newest real backup without mounting the live PVC. Its complete result was:
+
+```json
+{
+  "verified": "sqlite/website-dev/20261018T142300786Z.sqlite.report.json",
+  "capturedAt": "2026-10-18T14:23:00.786Z",
+  "ageHours": 0.18,
+  "migrations": 9,
+  "counts": { "intake_draft": 56, "software_request": 0, "proposal_submission": 0 }
+}
+```
+
+The checked-in [disposable write proof](evidence/task-567-restore-write-job.yaml) downloaded that same versioned object into an `emptyDir`, verified the report SHA-256, started the exact deployed API image against only that copy, and posted a new intake through the production route. It printed `status: 201`, `before: 56`, `after: 57`, and SHA-256 `ea0e52eccd9a0a25a87e227a0f97fbac51d5134b49109e121bbc6a1cf2ae9efb`. The Job had no live data volume and performed no S3 write; production/dev request data was neither restored over nor written to.
+
+At private main `76cf6eed705c45bedbf7a28cf8b43f724fd8f73a`, Bun 1.4.2 on h2puni ran `failed replacement and rollback reports the retained database and manual move`: 1 pass, 0 fail. Its deliberately injected second/third rename failures stopped replacement and printed `Manual completion while API remains stopped` followed by the exact quoted `mv -- '<retained website.sqlite.before-restore-UUID>' '<website.sqlite>'` command. The separate two-release fleet fixture `rollback re-pins the previous receipt, removes the newest and commits` also passed (1 pass, 0 fail).
+
+A live release rollback was not claimed. Fleet revision `569d99e88b2c5587d000685e3367b5527308a4d7` contains only `00000000-placeholder.json` and one real receipt, `20261007-b9f5848bfc70.json`; the reviewed rollback command must refuse this as `no earlier real release`. In addition, `/api/health` returns only `{ "ok": true, "service": "puni-website-api" }`; the deployed identity is at `/release.json`, not `/health`. A second real release and reconciliation of that acceptance wording are therefore prerequisites for the end-to-end before/during/after proof.
+
+The preserved failed Job shows both Oct-12 attempts failed at 15:23/15:24 UTC while checking S3 object existence, with `S3Error`, path-specific keys and `code: "UnknownError"`; Kubernetes recorded no explanatory event. PR #52 improves future diagnostics but cannot recover the missing provider response from those old pods, so the cause remains unknown. Hourly backups are now succeeding and daily verification is green. Using the runbook's seven-day quiet period, the observation window ends after 2026-10-19T15:24Z; no earlier closure is claimed.
