@@ -16,6 +16,24 @@ client name, keeps no agent identity, and forwards the human's upstream token to
 `agent:<agentId>:subagent:<uuid>` (docs.openclaw.ai/tools/subagents); Claire's engine
 requires that shape for `minion_run_id` (`bin/engine-fields.mjs`).
 
-Not verified: that an Auth0 machine-to-machine token carries `wbs_groups` (task 0.2); that
-plan document v6 carries a person's teams (task 0.3). `openspec validate --all --json` on this
-change: run before each push, result in the PR.
+Task 0.2, verified 2026-10-19 on h2puni against the dev tenant with the dev web client's
+credentials from `oidc-dev.env` (values never printed): `POST /oauth/token` with
+`grant_type=client_credentials` and the WBS API audience answered
+`403 unauthorized_client: Grant type 'client_credentials' not allowed for the client`. No
+machine-to-machine application exists in the dev tenant. The deployed groups Action
+(`docs/auth-integration.md` §post-login) maps `event.authorization.roles` in the post-login
+flow, which Auth0 does not run for client-credentials tokens, so an M2M token would carry no
+`wbs_groups` even once an M2M application is authorized for the API. Decision owed to Dany
+before slice 2.5: either (a) an M2M application per fleet plus a credentials-exchange
+(Machine to Machine flow) Action that sets `wbs_groups` from the application's metadata, or
+(b) be-01 scopes a request from a linked credential by the linked account's memberships
+when the token carries no groups claim, keeping the contract independent of the identity
+provider. Recommended: (b), with (a)'s application still needed for the audience.
+
+Task 0.3, read 2026-10-19 in `plan-document-shapes.ts`: plan document v6 carries `people`
+with `teamIds`, `teams` with `serviceIds`, and per-item `assignees` keyed by step reference.
+A Burokrat branch rule can therefore read a person's teams and a step's assignee from v6
+without a v7. Claims are not in v6; showing them in the export needs a v7 field, which is
+not in this change (the export SHALL NOT carry account ids either way).
+
+`openspec validate --all --json` on this change: run before each push, result in the PR.

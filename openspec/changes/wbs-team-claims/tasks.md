@@ -2,13 +2,13 @@
 
 - [x] 0.1 Dany's design interview on D1 to D8 and the `CONTEXT.md` terms (2026-10-19; three
       items marked assumed in design.md remain open for his review).
-- [ ] 0.2 Verify on dev that an Auth0 machine-to-machine token for the WBS audience carries
-      the groups claim and is accepted by be-01's verifier — test: a recorded request against
-      dev with the token's claims (redacted) in verify.md. If it is not, decide whether the
-      Auth0 action sets it or be-01 scopes a linked credential from its account.
-- [ ] 0.3 Read the plan document v6 and confirm it carries `assignees` keyed by frozen step
-      reference and a person's teams; record what the Burokrat branch rule can read without a
-      v7 and whether claims need a v7 field.
+- [x] 0.2 Verified 2026-10-19 (verify.md): the dev tenant has no machine-to-machine
+      application and its groups Action is post-login only, so an M2M token would carry no
+      `wbs_groups`. Open decision for Dany: Auth0 credentials-exchange Action, or be-01 scopes
+      a linked credential from its account (recommended). Blocks 2.5, not 2.1 to 2.4.
+- [x] 0.3 Read 2026-10-19 (verify.md): v6 carries `people.teamIds` and per-item `assignees`
+      keyed by step reference; the branch rule needs no v7; claims would need a v7 field, out
+      of scope here.
 
 ## 1. The claim record and its decision
 
