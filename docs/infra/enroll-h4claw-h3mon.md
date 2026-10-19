@@ -19,15 +19,16 @@ observations establish that the live state advanced beyond the September record.
 verify the intervening Ansible runs, their idempotency, the original enrollment validation run,
 provider snapshots, or a post-enrollment reboot; those remain unverified.
 
-Do not enable the production observability stage while the legacy Docker stack remains. The
-same 2026-10-17 probe measured only 5,771 MiB `MemAvailable`, while the repository's production
+The 2026-10-17 probe measured only 5,771 MiB `MemAvailable`, while the repository's production
 observability graph requests 5,830 MiB on h3mon (including its 128 MiB unrequested-DaemonSet
-allowance). Its 6,076 MiB node allocatable leaves only 246 MiB after those requests, before the
-preserved Victoria, Grafana, MLflow and OTel containers. Their live cgroups already used about
-876 MiB. The prior assumption that a 2 GiB-heap Elasticsearch stack can run beside all of the
-legacy services is therefore falsified; keep the observability Kustomization blocked until the
-legacy stack is retired or the host is resized. Swap is not a substitute for pod memory: pods
-cannot swap.
+allowance), so activation correctly stopped. Dany resized and rebooted h3mon on 2026-10-19.
+After boot it had 15,602 MiB total and 14,170 MiB available, and Kubernetes reported 13.6 GiB
+allocatable. The 5,830 MiB graph therefore has 8,340 MiB of host headroom while the legacy
+services coexist; the resize resolves the memory admission failure without reducing the 2 GiB
+Elasticsearch heap. The graph is still not activated: all six externally provided platform
+Secrets are absent, the registry Pod is Pending, and Flux keeps `observability` dependency
+blocked. Credentials must come from the documented operator inputs; do not fabricate them.
+Swap is not a substitute for pod memory: pods cannot swap.
 
 ### h4claw reconciliation on 2026-10-17 (WBS 50.10)
 
@@ -85,7 +86,7 @@ From the read-only probe of 2026-09-27:
 
 - **h4claw** (8 cores, 15 GiB, private 10.1.0.4) is the single platform server with `product` and
   `ingress`.
-- **h3mon** (4 cores, 7.6 GiB, private 10.1.0.2) is an agent with `observability` only. Its
+- **h3mon** (8 cores, 15.6 GiB after the 2026-10-19 resize, private 10.1.0.2) is an agent with `observability` only. Its
   Docker-run Victoria, Grafana and MLflow stay outside k3s and keep running.
 - **h2puni** (private 10.1.0.3) stays outside k3s. It is live production, the build box, the
   registry and the host-wide gate; a join would share its memory and firewall with k3s before
@@ -303,6 +304,15 @@ then rerun step 6.
 Rerun step 5's after-enrollment preflight for both hosts after a reboot of each, one at a time
 (`sudo systemctl reboot`), and compare Grafana dashboards and a Victoria query with the step 3
 snapshot.
+
+The 2026-10-19 resize reboot supplies h3mon's post-change persistence check. The host booted at
+09:08:29 UTC; `/swap.puni` activated at 09:08:35 from its `/etc/fstab` entry, Docker at 09:08:43,
+and k3s-agent at 09:08:39. VictoriaMetrics, VictoriaLogs, VictoriaTraces, Grafana and MLflow all
+returned 200 after that boot; the OTel HTTP receiver returned its expected 404 at `/`, proving
+the listener answered. The same services had passed before the resize in the 2026-10-17
+reconciliation. This proves the service and swap portions of step 8 for h3mon, but does not
+retroactively prove the unrecovered enrollment playbook run or a Grafana-dashboard/Victoria-data
+comparison against the September snapshot.
 
 ## Rollback
 
