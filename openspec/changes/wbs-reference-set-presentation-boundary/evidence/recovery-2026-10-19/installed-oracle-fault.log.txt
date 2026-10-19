@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/wbs100-reference-installed-oracle-20261019.py", line 10, in <module>
+    assert not any(selected(finding) for finding in candidate['findings']),'selected reference-set-field finding remains'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: selected reference-set-field finding remains

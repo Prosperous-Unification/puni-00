@@ -1,0 +1,43 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "nx",
+    "graph",
+    "--file=/tmp/wbs100-reference-graph-20261019.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 304852,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "nx",
+      "graph",
+      "--file=/tmp/wbs100-reference-graph-20261019.json"
+    ],
+    [
+      "env",
+      "NX_DAEMON=false",
+      "NX_ISOLATE_PLUGINS=false",
+      "bunx",
+      "nx",
+      "graph",
+      "--file=/tmp/wbs100-reference-graph-20261019.json"
+    ],
+    [
+      "git",
+      "merge-base",
+      "main",
+      "HEAD"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/nx",
+      "graph",
+      "--file=/tmp/wbs100-reference-graph-20261019.json"
+    ]
+  ]
+}

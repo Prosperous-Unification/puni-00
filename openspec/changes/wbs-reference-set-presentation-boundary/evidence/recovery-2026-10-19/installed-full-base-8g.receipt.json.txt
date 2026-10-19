@@ -1,0 +1,20 @@
+{
+  "command": [
+    "bun",
+    "/tmp/wbs100-reference-consumer-20261019/node_modules/twilight-burokrat/dist/bin.mjs",
+    "check",
+    "committed",
+    "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+    "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+    "/tmp/wbs100-reference-consumer-20261019/policy.json"
+  ],
+  "cwd": "/tmp/wbs100-reference-consumer-20261019",
+  "exitCode": -9,
+  "peakProcessTreeKiB": 8420212,
+  "ceilingKiB": 8388608,
+  "timeoutSeconds": 360,
+  "seconds": 16.382,
+  "availableBeforeKiB": 23804836,
+  "minimumAvailableKiB": 18874368,
+  "stopReason": "rss_limit"
+}

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 714980,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts"
+    ]
+  ]
+}

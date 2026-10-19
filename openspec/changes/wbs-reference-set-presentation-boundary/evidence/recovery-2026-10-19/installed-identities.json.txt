@@ -1,0 +1,13 @@
+{
+  "consumer": "/tmp/wbs100-reference-consumer-20261019",
+  "files": {
+    "node_modules/twilight-burokrat/dist/bin.mjs": "92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c",
+    "node_modules/twilight-burokrat/dist/toolkit/toolkit.json": "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a"
+  },
+  "manifest": {
+    "packageVersion": "0.1.0",
+    "schemaVersion": 1,
+    "sourceRevision": "ac774f0c358db369c2048e537151e263cc29361e",
+    "toolkitIdentity": "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a"
+  }
+}

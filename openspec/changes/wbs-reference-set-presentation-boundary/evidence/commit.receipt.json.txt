@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "refactor(wbs): extract reference set contracts and presentation"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 837079040,
+  "seconds": 12.57
+}
