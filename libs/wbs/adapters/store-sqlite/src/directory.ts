@@ -35,6 +35,7 @@ import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
 import {
   assignment,
+  claim,
   externalIdentity,
   externalSystem,
   externalSystemOrganization,
@@ -73,6 +74,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   steps: [],
   people: [],
   members: [],
+  claims: [],
   capacityOf: new Map(),
 };
 
@@ -238,6 +240,13 @@ function usageRowsIn(
     .from(step)
     .where(inArray(step.projectId, ids))
     .all();
+  const claims = reader
+    .select({ workItemId: claim.workItemId, stepId: claim.stepId, personId: claim.personId })
+    .from(claim)
+    .innerJoin(workItem, eq(claim.workItemId, workItem.id))
+    .where(inArray(workItem.projectId, ids))
+    .orderBy(asc(claim.workItemId), asc(claim.stepId))
+    .all();
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
     named.length === 0
@@ -273,6 +282,7 @@ function usageRowsIn(
     steps,
     people,
     members,
+    claims,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
 }
@@ -592,7 +602,7 @@ export class DirectoryRepository implements DirectoryStore {
           sql`UPDATE ${sql.raw(root)} SET updated_at = ${auditOnUpdate(stamp).updatedAt} WHERE id = ${resourceId}`,
         );
         const touched: Record<NamedCatalog, () => string[]> = {
-          people: () => this.projectsAssigning(tx, resourceId),
+          people: () => this.projectsReaching(tx, resourceId),
           teams: () => this.projectsLabelled(tx, resourceId),
           services: () => this.projectsServiced(tx, resourceId),
           tags: () => this.projectsTagged(tx, resourceId),
@@ -1114,7 +1124,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: true,
             person: { ...patched, teamIds: teamIds.map((row) => row.serviceTeamId) },
-            projectIds: this.projectsAssigning(tx, personId),
+            projectIds: this.projectsReaching(tx, personId),
           };
         });
       } catch (err) {
@@ -1162,7 +1172,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfPerson(personId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return usageRowsIn(this.db, this.projectsAssigning(this.db, personId), []);
+    return usageRowsIn(this.db, this.projectsReaching(this.db, personId), []);
   }
 
   /**
@@ -1533,15 +1543,24 @@ export class DirectoryRepository implements DirectoryStore {
           .from(assignment)
           .where(eq(assignment.personId, personId))
           .all();
-        if (!cascade && held.length > 0) {
+        const claimed = tx
+          .select({ workItemId: claim.workItemId })
+          .from(claim)
+          .where(eq(claim.personId, personId))
+          .all();
+        // Proof: with `claimed` left out of this test, the SQLite certification's
+        // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
+        if (!cascade && (held.length > 0 || claimed.length > 0)) {
           return {
             ok: false,
             reason: 'in_use',
-            usage: usageRowsIn(tx, this.projectsAssigning(tx, personId), []),
+            usage: usageRowsIn(tx, this.projectsReaching(tx, personId), []),
           };
         }
-        const projectIds = this.projectsAssigning(tx, personId);
+        const projectIds = this.projectsReaching(tx, personId);
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
+        // Delegated claims under these go with them: `parent_claim_id` cascades.
+        tx.delete(claim).where(eq(claim.personId, personId)).run();
         tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
         const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
         // Nothing was deleted, so there was nothing here to delete: somebody
@@ -1549,7 +1568,7 @@ export class DirectoryRepository implements DirectoryStore {
         // move no revision — the two deletes above touched nothing for the same
         // reason.
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
-        const workItemIds = [...new Set(held.map((each) => each.workItemId))];
+        const workItemIds = [...new Set([...held, ...claimed].map((each) => each.workItemId))];
         bumpWorkItems(tx, workItemIds, stamp);
         return { ok: true, removal: { workItemIds, projectIds } };
       });
@@ -1634,16 +1653,22 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
-  /** Every project holding a work item this person is assigned on. */
-  private projectsAssigning(reader: Reader, personId: string): string[] {
-    return projectsOf(
-      reader
+  /** Every project holding a work item this person is assigned on or holds a claim on. */
+  private projectsReaching(reader: Reader, personId: string): string[] {
+    return projectsOf([
+      ...reader
         .select({ projectId: workItem.projectId })
         .from(assignment)
         .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
         .where(eq(assignment.personId, personId))
         .all(),
-    );
+      ...reader
+        .select({ projectId: workItem.projectId })
+        .from(claim)
+        .innerJoin(workItem, eq(claim.workItemId, workItem.id))
+        .where(eq(claim.personId, personId))
+        .all(),
+    ]);
   }
 
   /**

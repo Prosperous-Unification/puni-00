@@ -126,6 +126,7 @@ export function inMemorySteps(
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: [],
       });
     },
@@ -180,6 +181,7 @@ export function inMemorySteps(
           blockages: 0,
           measures: 0,
           attempts: 0,
+          claims: 0,
           assignments: 0,
           workItemIds: [],
         },

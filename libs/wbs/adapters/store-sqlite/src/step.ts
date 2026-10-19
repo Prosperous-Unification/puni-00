@@ -30,6 +30,7 @@ import { bumpProject, bumpWorkItems } from './revision';
 import {
   actual,
   assignment,
+  claim,
   estimate,
   step,
   stepBlockage,
@@ -309,6 +310,10 @@ export class StepRepository implements StepStore {
       .select({ workItemId: stepBlockage.workItemId })
       .from(stepBlockage)
       .where(eq(stepBlockage.stepId, stepId));
+    const claimed = await this.db
+      .select({ workItemId: claim.workItemId })
+      .from(claim)
+      .where(eq(claim.stepId, stepId));
     const ids = await this.db
       .select({ id: workItem.id })
       .from(workItem)
@@ -323,6 +328,7 @@ export class StepRepository implements StepStore {
         blockages: blocked.length,
         measures: measured.length,
         attempts: attempted.length,
+        claims: claimed.length,
         assignments: [],
       };
     const assignments = await this.db
@@ -345,6 +351,7 @@ export class StepRepository implements StepStore {
       blockages: blocked.length,
       measures: measured.length,
       attempts: attempted.length,
+      claims: claimed.length,
       assignments,
     };
   }
@@ -493,6 +500,11 @@ export class StepRepository implements StepStore {
           .from(stepBlockage)
           .where(inArray(stepBlockage.stepId, stepInProject))
           .all();
+        const claimedHere = tx
+          .select({ workItemId: claim.workItemId })
+          .from(claim)
+          .where(inArray(claim.stepId, stepInProject))
+          .all();
         const assigned = tx
           .select({ workItemId: assignment.workItemId })
           .from(assignment)
@@ -505,6 +517,7 @@ export class StepRepository implements StepStore {
           blockages: blocked.length,
           measures: measured.length,
           attempts: attempted.length,
+          claims: claimedHere.length,
           assignments: assigned.length,
         };
         if (!cascade && stepIsInUse(held)) {
@@ -537,6 +550,9 @@ export class StepRepository implements StepStore {
         tx.delete(stepNodeAttempt).where(inArray(stepNodeAttempt.stepId, stepInProject)).run();
         // Proof: omitting this delete failed confirmed cascade with a restrictive foreign-key error (step.service.db.test.ts, 2026-10-14).
         tx.delete(stepBlockage).where(inArray(stepBlockage.stepId, stepInProject)).run();
+        // Explicit: `claim.step_id` is restrictive like the blockage's, and a
+        // confirmed cascade releases the claims on the step.
+        tx.delete(claim).where(inArray(claim.stepId, stepInProject)).run();
         tx.delete(assignment).where(inArray(assignment.stepId, stepInProject)).run();
         const removed = tx
           .delete(step)
@@ -558,6 +574,7 @@ export class StepRepository implements StepStore {
               ...measured,
               ...attempted,
               ...blocked,
+              ...claimedHere,
               ...assigned,
             ].map((row) => row.workItemId),
           ),
@@ -573,6 +590,7 @@ export class StepRepository implements StepStore {
             blockages: blocked.length,
             measures: measured.length,
             attempts: attempted.length,
+            claims: claimedHere.length,
             assignments: assigned.length,
             workItemIds,
           },

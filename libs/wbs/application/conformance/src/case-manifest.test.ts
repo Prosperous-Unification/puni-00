@@ -81,6 +81,7 @@ describe('the closed case manifest', () => {
       'attempts',
       'blockages',
       'stepParallels',
+      'claims',
       'dependencies',
       'typedDependencies',
       'subtrees',
@@ -90,6 +91,10 @@ describe('the closed case manifest', () => {
     ]);
     expect(CASE_MANIFEST.stepParallels).toEqual(['stepParallels.set:sparse-replace-remove']);
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
+    expect(CASE_MANIFEST.claims).toEqual([
+      'claims.add:taken-stated-remove',
+      'claims.remove:delegated-cascade',
+    ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],
       immediateBusy: ['history.batch:busy-does-not-wait'],

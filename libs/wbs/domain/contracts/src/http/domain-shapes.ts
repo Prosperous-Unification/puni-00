@@ -84,7 +84,8 @@ export const createDomainChallenge = defineEndpointShape({
       schema: responseSchema(type({ error: "'invalid_origin' | 'insufficient_scope'" })),
     },
     { status: 403, schema: responseSchema(type({ error: "'forbidden'" })) },
-    { status: 409, schema: responseSchema(type({ error: "'unclaimable' | 'already_claimed'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'unclaimable'" })) },
+    { status: 409, schema: responseSchema(type({ error: "'already_claimed'" })) },
   ],
   document: { summary: 'Issue an exact-domain TXT challenge.' },
 });

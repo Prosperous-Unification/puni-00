@@ -14,6 +14,12 @@ import {
   memoryCapacityTable,
 } from './capacity-fixture';
 import {
+  cascadeClaims,
+  inMemoryClaims,
+  type MemoryClaimTable,
+  memoryClaimTable,
+} from './claim-fixture';
+import {
   inMemoryCommandJournal,
   type MemoryCommandJournalTables,
   memoryCommandJournalTables,
@@ -90,6 +96,7 @@ interface MemoryTables {
   readonly attempts: MemoryAttemptTable;
   readonly blockages: MemoryStepBlockageTable;
   readonly stepParallels: MemoryStepParallelTable;
+  readonly claims: MemoryClaimTable;
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
@@ -113,6 +120,7 @@ function emptyTables(): MemoryTables {
     attempts: memoryAttemptTable(),
     blockages: memoryStepBlockageTable(),
     stepParallels: memoryStepParallelTable(),
+    claims: memoryClaimTable(),
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
@@ -223,6 +231,9 @@ export class MemoryState {
     // Proof: copy removed; source commit assertion lost the real authored fact (memory-commit.txt), 2026-10-15.
     replaceArray(this.tables.stepParallels.rows, next.tables.stepParallels.rows);
     replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
+    // Proof: with this copy removed, eight cases of claim-command.test.ts lost
+    // their committed claims; watched 2026-10-19.
+    replaceArray(this.tables.claims.rows, next.tables.claims.rows);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
@@ -247,6 +258,10 @@ export function bindStores(
     state.tables.directory,
     state.tables.users.byId,
   );
+  const claimsOf = (personId: string) =>
+    state.tables.claims.rows
+      .filter((each) => each.personId === personId)
+      .map(({ workItemId, stepId }) => ({ workItemId, stepId, personId }));
   const directory: TransactionalStores['directory'] = {
     ...fixtureDirectory,
     async renameTag(tagId, name, stamp) {
@@ -262,6 +277,27 @@ export function bindStores(
         ),
       ].sort();
       return { ...written, projectIds };
+    },
+    // Claims live in the source's own table, out of the fixture's sight: a
+    // person's claims refuse an unconfirmed removal and go with a confirmed one,
+    // as SQLite's do.
+    async usageOfPerson(personId) {
+      return { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimsOf(personId) };
+    },
+    async removePerson(personId, cascade, stamp) {
+      const claimed = claimsOf(personId);
+      // Proof: with this refusal removed, the memory certification's
+      // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
+      if (!cascade && claimed.length > 0) {
+        return {
+          ok: false,
+          reason: 'in_use',
+          usage: { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimed },
+        };
+      }
+      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp);
+      if (removed.ok) cascadeClaims(state.tables.claims, (each) => each.personId === personId);
+      return removed;
     },
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
@@ -336,6 +372,8 @@ export function bindStores(
       // left an unreadable blockage fact; watched 2026-10-13.
       removeSatelliteRows(state.tables.blockages.rows);
       removeSatelliteRows(state.tables.attempts.issued);
+      // SQLite cascades claims with their work item and delegated claims with their parent.
+      cascadeClaims(state.tables.claims, ({ workItemId }) => removed.has(workItemId));
     },
   };
   const stores: TransactionalStores = {
@@ -351,6 +389,7 @@ export function bindStores(
     attempts,
     blockages,
     stepParallels,
+    claims: inMemoryClaims(workItems, state.tables.progress, state.tables.claims),
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),

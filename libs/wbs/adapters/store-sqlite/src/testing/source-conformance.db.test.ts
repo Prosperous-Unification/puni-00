@@ -12,6 +12,7 @@ import {
   type CaseFixture,
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
+  CLAIM_IN_USE,
   createFaultControl,
   defineFault,
   DEPENDENCY_SURVIVOR_IDS,
@@ -375,6 +376,8 @@ async function openSqliteCase<Family extends ExistingFamily>(
         sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${organizationId}, ${DETERMINISTIC_SEED.ownerIds[0]}, 'member', 1)`,
       );
     }
+    if (caseId === 'directory.removePerson:claims-in-use')
+      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
   });
   if (family === 'subtrees') {
     return {
@@ -791,6 +794,7 @@ const openers: ExistingStoreOpeners = {
   attempts: (caseId) => openSqliteCase('attempts', caseId),
   blockages: (caseId) => openSqliteCase('blockages', caseId),
   stepParallels: (caseId) => openSqliteCase('stepParallels', caseId),
+  claims: (caseId) => openSqliteCase('claims', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
   typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
   directory: (caseId) => openSqliteCase('directory', caseId),
@@ -841,6 +845,7 @@ const declaration: SourceDeclaration = {
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    claims: { kind: 'offered', gaps: [], open: openers.claims },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -4734,6 +4739,7 @@ async function proveFault(
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        claims: (caseId) => takeFixture('claims', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),

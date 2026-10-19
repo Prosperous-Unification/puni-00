@@ -9,8 +9,8 @@ import { afterEach, describe, expect, it } from 'bun:test';
 
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
-const PERSON_ACCOUNT = '20261019120000_add_person_account';
-const IDENTITY_PERSON = '20261019120100_add_external_identity_person';
+const PERSON_ACCOUNT = '20261019130000_add_person_account';
+const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
 const roots: string[] = [];
 
 afterEach(() => {

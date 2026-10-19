@@ -75,7 +75,14 @@ export type ParserRefusalCode =
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
   | 'startNoEarlierThanReason_must_be_at_most_200_characters'
-  | 'allowancePercent_must_be_0_to_1000_with_two_decimals';
+  | 'allowancePercent_must_be_0_to_1000_with_two_decimals'
+  /** A `claimWorkItem` run that is not text of 1 to 256 characters (`wbs-team-claims`). */
+  | 'runId_must_be_1_to_256_characters'
+  | 'parentClaim_must_be_an_id'
+  | 'steps_must_be_a_list_of_ids'
+  | 'steps_must_be_at_most_50'
+  /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
+  | 'steps_must_name_a_step';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -162,7 +169,29 @@ export type CommandRefusalCode =
   | 'invalid_kind'
   | 'nothing_to_change'
   | 'taken'
-  | 'in_use';
+  | 'in_use'
+  // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  | 'person_not_bound'
+  | 'credential_not_for_person'
+  | 'parent_claim_unknown'
+  | 'parent_claim_foreign'
+  | 'parent_claim_not_ancestor'
+  | 'steps_on_subtree'
+  | 'item_done'
+  | 'not_startable'
+  | 'step_done'
+  | 'already_claimed'
+  | 'inside_subtree_claim'
+  | 'overlaps_subtree_claim'
+  | 'not_claimed_by';
+
+/** One claim a claim refusal names: the claim, its person by id and name, and its run. */
+export interface ClaimRefusalHolder {
+  claimId: string;
+  personId: string;
+  name: string;
+  runId: string | null;
+}
 
 /**
  * Proof (type boundary only): making kind optional produces TS2578 for both the
@@ -178,6 +207,7 @@ type ParserContext = undefined | { at: number; kind?: never } | CommandContext;
 
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; step: { id: string; name: string } }
+  | { kind: 'claim_released'; step: { id: string; name: string } | null }
   | { kind: 'label_nulled' }
   | { kind: 'label_removed' }
   | { kind: 'capacity_released'; size: number; fromId: string }
@@ -207,6 +237,8 @@ export interface StepInUse {
   measures: number;
   /** Optional on the wire: an outgoing be-01 mid-swap counts no attempts. */
   attempts?: number;
+  /** Optional on the wire: an outgoing be-01 mid-swap counts no claims. */
+  claims?: number;
   assignments: number;
   assumedAssignees: {
     workItemId: string;
@@ -259,7 +291,15 @@ export type CommandRefusalDetail = {
             ? { usage: DirectoryUsage }
             : C extends 'taken'
               ? { name?: string }
-              : Record<never, never>);
+              : C extends 'not_startable'
+                ? { status: string }
+                : C extends 'step_done'
+                  ? { stepIds: string[] }
+                  : C extends 'already_claimed'
+                    ? { holders: ClaimRefusalHolder[] }
+                    : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                      ? { holder: ClaimRefusalHolder }
+                      : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -286,7 +326,6 @@ type BareRefusalCode =
   | 'domain_matched'
   | 'invalid_domain'
   | 'unclaimable'
-  | 'already_claimed'
   | 'stale'
   | 'proof_mismatch'
   | 'domain_taken'
@@ -386,7 +425,8 @@ type SharedCommandCode =
   | 'taken'
   | 'in_use'
   | 'calendar_range'
-  | 'referenced_by_step_parallel';
+  | 'referenced_by_step_parallel'
+  | 'already_claimed';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -411,6 +451,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     /** Bare from a step PATCH's allowance; with its command context from a batch. */
     calendar_range: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
+    /** Bare from a domain claim; with its holders from a `claimWorkItem` batch. */
+    already_claimed: undefined | CommandRefusalDetail['already_claimed'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };

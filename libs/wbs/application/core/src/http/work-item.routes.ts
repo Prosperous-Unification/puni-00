@@ -360,6 +360,44 @@ function answerBatch(
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
     case 'nothing_to_change':
       return { ok: false, status: 400, body: { ...context, error: outcome.reason } };
+    // The caller may not act as the person, or under the parent claim, named.
+    case 'person_not_bound':
+    case 'credential_not_for_person':
+    case 'parent_claim_foreign':
+      return { ok: false, status: 403, body: { ...context, error: outcome.reason } };
+    case 'parent_claim_unknown':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The plan's state stands in the way; the same claim succeeds once it moves.
+    case 'parent_claim_not_ancestor':
+    case 'steps_on_subtree':
+    case 'item_done':
+    case 'not_claimed_by':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'not_startable':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'step_done':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'already_claimed':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'inside_subtree_claim':
+    case 'overlaps_subtree_claim':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));

@@ -20,8 +20,9 @@ const parallelMigration = '20261015110000_add_step_node_parallelism';
 /** Every migration newer than the receipt's, each reversed before its refusal. */
 const newerMigrations = [
   parallelMigration,
-  '20261019120000_add_person_account',
-  '20261019120100_add_external_identity_person',
+  '20261019120000_add_claim',
+  '20261019130000_add_person_account',
+  '20261019130100_add_external_identity_person',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',

@@ -1947,7 +1947,7 @@ export const person = sqliteTable(
      * unbound. One account may be bound to many persons (a human and each of
      * their agents); a person to at most one account. Written only by
      * `patchPerson` from an organization admin or super-admin; never exported.
-     * Added by `20261019120000_add_person_account`, whose `down.sql` refuses
+     * Added by `20261019130000_add_person_account`, whose `down.sql` refuses
      * while any person is bound.
      */
     accountId: text('account_id').references(() => users.id),
@@ -2025,6 +2025,55 @@ export const assignment = sqliteTable(
 );
 
 export type AssignmentRow = typeof assignment.$inferSelect;
+
+/**
+ * Who occupies one step of a leaf now, or reserves dispatch of a non-leaf's
+ * subtree when `stepId` is null — beside the assignment, never instead of it
+ * (`wbs-team-claims` D1). `claim_step` keeps one claim per step and
+ * `claim_subtree` one subtree claim per work item: SQLite treats nulls as
+ * distinct in a plain unique index, so the subtree case needs its own partial one.
+ *
+ * `parentClaimId` names the subtree claim a delegated claim was made under.
+ * Work item, person and parent cascade on delete: an outgoing release deleting
+ * a row this release claimed must not hit a constraint it cannot see, and a
+ * released subtree takes its delegated claims (D8). Step deletion is
+ * restrictive, as for `step_blockage`, until the step command accounts for claims.
+ * `runId` is the harness's opaque agent run, at most 256 characters.
+ */
+export const claim = sqliteTable(
+  'claim',
+  {
+    id: text('id').primaryKey(),
+    workItemId: text('work_item_id')
+      .notNull()
+      .references((): AnySQLiteColumn => workItem.id, { onDelete: 'cascade' }),
+    stepId: text('step_id').references(() => step.id),
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    runId: text('run_id'),
+    parentClaimId: text('parent_claim_id').references((): AnySQLiteColumn => claim.id, {
+      onDelete: 'cascade',
+    }),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('claim_step').on(t.workItemId, t.stepId),
+    uniqueIndex('claim_subtree')
+      .on(t.workItemId)
+      .where(sql`${t.stepId} IS NULL`),
+    index('claim_by_step').on(t.stepId),
+    index('claim_by_person').on(t.personId),
+    index('claim_by_parent').on(t.parentClaimId),
+    check(
+      'claim_run_id_length',
+      sql`${t.runId} IS NULL OR (typeof(${t.runId}) = 'text' AND length(${t.runId}) BETWEEN 1 AND 256)`,
+    ),
+    check('claim_not_own_parent', sql`${t.parentClaimId} IS NULL OR ${t.parentClaimId} <> ${t.id}`),
+  ],
+);
+
+export type ClaimRow = typeof claim.$inferSelect;
 
 /**
  * A finish-to-start dependency: `successor` cannot start until the
@@ -2807,7 +2856,7 @@ export const externalIdentity = sqliteTable(
      * agent person, which must be bound to the same account. Null is an
      * unpinned credential, as every browser login is. Written only by
      * `link-credential-cli.ts`; added by
-     * `20261019120100_add_external_identity_person`, whose `down.sql` refuses
+     * `20261019130100_add_external_identity_person`, whose `down.sql` refuses
      * while any credential is pinned.
      */
     personId: text('person_id').references(() => person.id),

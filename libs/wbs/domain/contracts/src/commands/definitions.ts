@@ -225,6 +225,25 @@ export const commandDefinitions = {
     description:
       'Name who does one step of a work item, or null to unassign. Accepts stepNodeId in place of the work-item and step pair.',
   }),
+  claimWorkItem: defineCommand('claimWorkItem', {
+    schema: type({
+      kind: "'claimWorkItem'",
+      ...target,
+      ...person,
+      'steps?': 'string[]',
+      'runId?': 'string',
+      'parentClaim?': 'string',
+    }),
+    scope: 'project',
+    description:
+      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, item_done, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), inside_subtree_claim, overlaps_subtree_claim.',
+  }),
+  releaseWorkItem: defineCommand('releaseWorkItem', {
+    schema: type({ kind: "'releaseWorkItem'", ...target, ...person, 'steps?': 'string[]' }),
+    scope: 'project',
+    description:
+      'Release a person’s claims: on a leaf the named steps or every step; on a non-leaf the subtree claim and every claim delegated under it. Progress is untouched. Refused not_claimed_by when the person holds none, and person_not_bound or credential_not_for_person as for claimWorkItem.',
+  }),
   addDependency: defineCommand('addDependency', {
     schema: type({ kind: "'addDependency'", ...predecessor }),
     scope: 'project',

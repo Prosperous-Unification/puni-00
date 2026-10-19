@@ -121,8 +121,9 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
-      '20261019120100_add_external_identity_person',
-      '20261019120000_add_person_account',
+      '20261019130100_add_external_identity_person',
+      '20261019130000_add_person_account',
+      '20261019120000_add_claim',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',

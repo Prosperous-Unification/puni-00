@@ -118,6 +118,7 @@ function coordinatedStores(
     ),
     blockages: coordinatedStore(stores.blockages, ['set', 'remove', 'moveAll'], coordinator),
     stepParallels: coordinatedStore(stores.stepParallels, ['set', 'remove'], coordinator),
+    claims: coordinatedStore(stores.claims, ['add', 'remove'], coordinator),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],
