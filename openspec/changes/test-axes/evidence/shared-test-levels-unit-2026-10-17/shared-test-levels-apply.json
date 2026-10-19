@@ -1,0 +1,486 @@
+{
+  "changeName": "test-axes",
+  "changeDir": "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/openspec/changes/test-axes",
+  "schemaName": "sdd-lean",
+  "contextFiles": {
+    "intent": [
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/openspec/changes/test-axes/proposal.md"
+    ],
+    "specs": [
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/openspec/changes/test-axes/specs/test-axes/spec.md"
+    ],
+    "design": [
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/openspec/changes/test-axes/design.md"
+    ],
+    "tasks": [
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/openspec/changes/test-axes/tasks.md"
+    ],
+    "verify": [
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/openspec/changes/test-axes/verify.md"
+    ]
+  },
+  "progress": {
+    "total": 90,
+    "complete": 72,
+    "remaining": 18
+  },
+  "tasks": [
+    {
+      "id": "1",
+      "description": "1.1 Record this delta spec, its level-selection table and its identifier rules — test: strict OpenSpec validation reporting zero failures; negative: remove the sole scenario heading of TEST-AXES-023 and watch it report `must include at least one scenario`, then restore it",
+      "done": true
+    },
+    {
+      "id": "2",
+      "description": "2.1 Add one Nx target per level without renaming or removing an existing target, and make every runner write a JUnit report; implements the level and target requirements — test: run each level target and confirm it collects only that level's files; negative: add an existing Conformance file, which rule 2 of the level table keeps classified as Conformance, to a target declared for the API level alone, and watch the isolation assertion fail naming that file and both levels; restore the target",
+      "done": false
+    },
+    {
+      "id": "3",
+      "description": "2.1a Declare the covered Bun and frontend Unit/View collection targets, their report outputs and aggregate membership; verify actual selectors/config lists through the production devsync CLI — negatives: Conformance in API, omitted files, unknown or mixed targets, bad Vitest output and changed aggregate members each refuse; watch the responsible guards fail when removed. This verifies collection only; runner execution, trusted report receipts and the remaining levels remain in 2.1.",
+      "done": true
+    },
+    {
+      "id": "4",
+      "description": "2.1b Run the frontend Unit and View targets on one committed candidate in an environment that permits their required subprocesses; require both phases of each target and four fresh, nonempty, parseable JUnit reports with exact collected file identities, counts and outcomes. Preserve runner timeouts and record sandbox failures separately from successful execution. These operational reports are noncertifying; the remaining levels and trusted receipts stay in 2.1.",
+      "done": true
+    },
+    {
+      "id": "5",
+      "description": "2.1c Run the SQLite API level target uncached in an environment that permits its real write-lock-holder subprocesses; require a fresh parseable JUnit report and exact equality between its testcase/testsuite file IDs and the declared selector's API files, with Conformance excluded. Preserve the production timeout and record this as noncertifying operational execution; the remaining levels and trusted receipts stay in 2.1.",
+      "done": true
+    },
+    {
+      "id": "6",
+      "description": "2.1d Run the packaged Browser level target uncached on one committed candidate with Chromium and Docker; inspect its immutable publication under an external Browser RulePolicy, reconcile discovery/execution and both JUnit forms with two passing case identities and built asset inventory, and verify normal Caddy teardown across sequential runs. Correct the fixture's missing onboarding response and the digest-only Browser manifest consumer under production RED/GREEN and watched negatives. Record that the observation is noncertifying, served bytes are not independently authenticated and timeout cleanup remains unverified; ordinary Browser, revised portable execution and trusted receipts stay in 2.1.",
+      "done": true
+    },
+    {
+      "id": "7",
+      "description": "2.1e Run the ordinary Browser level target uncached with both selected Chromium projects on one committed candidate; reconcile immutable discovery/execution, raw and normalized JUnit, exact case identities/outcomes/skips and the external observe-only Browser policy. Preserve all skipped identities as debt, including opt-in skips, and verify all three shifted servers stop after normal exit. The report is noncertifying; revised portable execution and trusted receipts stay in 2.1.",
+      "done": true
+    },
+    {
+      "id": "8",
+      "description": "2.1f Add and allocate one real WBS rendering Performance case with an evidence-backed mounted-cell threshold; specify real stack startup, readiness, shifted-port and process-group cleanup before implementation.",
+      "done": true
+    },
+    {
+      "id": "9",
+      "description": "2.1g Implement and prove the Performance case and runner lifecycle with production-path negatives: threshold breach retains failing diagnostics but no success pointer; missing readiness and occupied shifted port refuse safely; verified Linux child-subreaper/pidfd ownership kills and reaps orphaned separate-session descendants without signaling unrelated processes; two sequential runs publish fresh reports and release owned listeners.",
+      "done": true
+    },
+    {
+      "id": "10",
+      "description": "2.1h Run the Performance target uncached twice on the exact committed candidate, inspect fresh discovery/run/JUnit/binding outputs and actual mounted-cell count, and record its noncertifying status. Keep Task 2.1 open until trusted evidence/admission and remaining level obligations are complete.",
+      "done": true
+    },
+    {
+      "id": "11",
+      "description": "2.1i Preserve Architecture policy authority and runner validation/report behavior while executing every sorted selected Bun operand with exactly one `./` prefix. Prove real nested matching decoys never execute for one and two mappings; retain canonical policy/JUnit identities and watch prefix removal fail.",
+      "done": true
+    },
+    {
+      "id": "12",
+      "description": "2.1j Execute each of the six find-based Bun level commands with literal `./src` operands, retain Memory Unit's exclusion and canonical bare collection identities; prove actual manifest execution with two Unit/API files, source Conformance filenames, nested marker/throw decoys and stale JUnit. Watch each prefix, exclusion and canonicalization mutation fail; preserve selector-error/empty/stale proofs and existing shell-compatible scope. See verify.md for focused checks. Task 2.1 remains open.",
+      "done": true
+    },
+    {
+      "id": "13",
+      "description": "2.1k Onboard shared-validation as a small non-pilot isolated Unit/JUnit target; preserve and classify legacy runners, audit the real selector and complete source inventory, run all three current cases fresh and prove registration, literal operands, empty/stale selection, completeness/isolation and report-path refusals independently (WBS080.39).",
+      "done": true
+    },
+    {
+      "id": "14",
+      "description": "2.1l Onboard shared-failures to an isolated Unit/JUnit target using the shared-validation pattern; allocate scenarios, observe registration RED, prove complete collection and isolation, literal operands, empty/failed selection, stale-report deletion and report identity through production faults; run all twenty real cases uncached and the noncertifying Bun report inspector, focused regressions and scoped checks. Task 2.1 remains open.",
+      "done": true
+    },
+    {
+      "id": "15",
+      "description": "2.2 Deliver the scenario identifier allocator with predecessor support, then allocate the identifiers of one capability end to end, cite them in its existing tests and produce the first coverage table by hand; implements the identifier requirements — test: the join from the JUnit reports to that capability's scenarios; negative: remove one citation and watch the scenario show as uncovered (needs slice B3 of the rules design, which also imports and reserves the identifiers this change already wrote by hand)",
+      "done": false
+    },
+    {
+      "id": "16",
+      "description": "2.2a Reconcile the active whole-tree source lineage before closing 2.2: inventory each unresolved operation with capability, exact title, path, kind and digest; classify genuine new requirements, accepted unsynced predecessors and active dependencies; sync only reviewed canonical lineage, correct proven ADDED/MODIFIED mistakes, and resolve overlaps explicitly without a path-order winner or archived runtime input. Preserve source holds. Test: the production committed `SPEC-SCENARIOS` selector evaluates the full active tree; negative: an unresolved competing operation still refuses. Record each source correction and any remaining refusal in `verify.md`.",
+      "done": false
+    },
+    {
+      "id": "17",
+      "description": "2.2a.4 Prepare the docs-only Name ownership exact-source review packet from pinned #423: rerun production `inspect-spec-sources`, bind both active owners and the Name-specific addition to exact source/fragment tuples, map all predecessor scenarios and distinguish approved semantic supersession from pending human acceptance. Record a proposed later lifecycle and both owner holds in `verify.md`; preserve seven competing groups and leave 2.2a/2.2 open. Validation: pinned strict OpenSpec, changed-file format and whitespace checks. No sync, archive, relabel, selector change or acceptance request in this packet.",
+      "done": true
+    },
+    {
+      "id": "18",
+      "description": "2.2a.3 Add a bounded committed `inspect-spec-sources` diagnostic sharing the selector's active source reader and Markdown parser. Bind revision, candidate, sorted source paths/digests, canonical requirements, operations, rename endpoints and raw fragments in a complete-payload digest with `certifies:false`. Prove multi-group visibility, reorder invariance, committed-vs-staged isolation, archive exclusion, parser/read faults, exact raw fragments and identity/certifies mutation negatives; retain selector refusals and source holds. This inventory does not close 2.2a or authorize lineage classification/sync/archive.",
+      "done": true
+    },
+    {
+      "id": "19",
+      "description": "2.2a.1 Prove pointed-row behavior before source reconciliation: retain G2/G3/G4 negatives and the reachable linked-pane no-navigation/no-scroll G1 oracle; separately reconcile the archived offscreen-table/visible-bar precondition with linked scrolling before sync/archive.",
+      "done": true
+    },
+    {
+      "id": "20",
+      "description": "2.2a.2 Reconcile the active Gantt bar explanation overlap without changing the calendar-axis owner or archived predecessor: make the hover surface refinement a separate ADDED requirement, prove both packets' exact operations and scenarios through committed production selector fixtures, watch conflict, predecessor and source-preservation faults, and record the next whole-tree refusal. Keep calendar 7.3, hover 6.2 and the unperformed remount negative open.",
+      "done": true
+    },
+    {
+      "id": "21",
+      "description": "3.1.1 Define versioned Manual disposition, procedure, report, environment and external approval schemas, strict readers and the thin committed-candidate `inspect-manual` CLI entry — test: valid records reach the production command and decode with exact identities; negative: absent, unreadable, malformed UTF-8/JSON, unknown version/fields, duplicates, symlink and path escape each refuse at the responsible reader.",
+      "done": true
+    },
+    {
+      "id": "22",
+      "description": "3.1.2 Validate candidate dispositions and ordered procedure steps, resolving each scenario only through the existing B3 effective selector and journal — test: a synthetic committed candidate resolves one reviewed scenario; negative: missing/blank reason, missing/unreadable/malformed procedure, mismatched scenario, retired/unknown scenario and unresolved active-spec conflict each refuse with a named finding.",
+      "done": true
+    },
+    {
+      "id": "23",
+      "description": "3.1.3 Validate exact external reviews, report/environment bindings, UTC chronology/expiry and step outcomes — test: a synthetic exact approval chain produces a structured passing observation with `certifies:false`; negatives: altered or absent approval, wrong tested revision/environment digest, self-asserted identity, malformed/future timestamps, invalid ordering, overdue deadline with scenario/date, and missing/duplicate/extra/failed/skipped step each refuse. Probe each production guard by removal and observe its named CLI assertion fail.",
+      "done": true
+    },
+    {
+      "id": "24",
+      "description": "3.1.4 Derive source freshness from immutable Git objects, complete module membership and intervening history — test: unchanged source remains current; negatives: requirement, procedure, module content/membership changes, change-then-revert, nonancestor revision and missing/incomplete history each mark stale or refuse as specified. Remove each freshness guard and observe its corresponding CLI assertion fail.",
+      "done": true
+    },
+    {
+      "id": "25",
+      "description": "3.1.5 Complete CLI verdict mappings and consolidate all production-path R5 proofs — test: the CLI distinguishes current, stale, overdue, failed and refused reports; negative: removing each final verdict mapping makes its named CLI assertion fail. Synthetic successes remain non-certifying, create no coverage and emit no passing Manual JUnit.",
+      "done": true
+    },
+    {
+      "id": "26",
+      "description": "4.1 Compute both coverage ledgers in Twilight Burokrat and enforce T2; implements T1, T2, both coverage requirements, the capability chain and Manual-case integration — test: the Burokrat's ledger tests; negative: remove a citation from an API-level test, and separately give a scenario a disposition that is neither manual nor a reasoned inapplicability; B4 depends on the B3 selector, completed Task 2.1/2.2 and the Manual inspector in 3.1.",
+      "done": false
+    },
+    {
+      "id": "27",
+      "description": "4.1a Add the noncertifying `inspect-test-reports` production command for existing Browser modes, binding exact committed case sources, case identities, outcomes and observation provenance; tests: production CLI scenarios TEST-AXES-042 through TEST-AXES-047 using selected Git blobs and real Browser bundle fixtures. Negatives: missing/nonregular/escaping source despite internally matching reports, duplicate case identities with equal or differing outcomes, mismatched candidate and inherited Browser publication/policy/parity refusals. Watch each new guard removed or dependency broken make its named assertion fail, then restore it. Prove order-independent observation identity, outcome-independent case identity and outcome/source/provenance-sensitive observation digest. All outcomes remain observations, authentication absent and certifies false; no B3 scenario join, test-level inference, coverage credit or admission. This diagnostic prerequisite can proceed while 2.1/2.2 are open; 4.1 remains blocked on their completion.",
+      "done": true
+    },
+    {
+      "id": "28",
+      "description": "4.1b.1 Add the noncertifying `inspect-test-sources` diagnostic over the real Browser report inspector and exact committed module-index ownership. First write production CLI negatives and watch them fail before implementation; then implement only source-owner/provenance bindings, explicit unresolved levels and preserved index review debt. Prove missing/ambiguous ownership, mismatched selections, inherited report/index refusals and unsupported CLI inputs; watch each new guard removal or dependency break fail its named assertion. Prove deterministic complete-payload digest and no level/coverage/authentication promotion. Record exact RED/GREEN/mutation and scoped validation evidence before Astra review; coordinator owns the committed candidate gate. No full level classification, tested-module claim, B3 join, source sync/archive or admission.",
+      "done": true
+    },
+    {
+      "id": "29",
+      "description": "4.1b.2 Implement immutable Performance publication inspection and shared raw decoding under production CLI RED/GREEN and R5 mutation proofs. Bind committed revision/candidate/policy/config/declaration, all artifact digests, raw discovery/execution, exact evidence and normalized JUnit; refuse unsuccessful success pointers and pointer races. Emit deterministic complete-payload observation digest, authentication absent and certifies:false. No runner, coverage, admission, source synchronization or archive. Tasks 2.1/2.2/4.1 remain open.",
+      "done": true
+    },
+    {
+      "id": "30",
+      "description": "4.1b.3 Add the independent noncertifying `inspect-performance-sources` CLI over the real Performance publication inspector and exact committed index checker. Bind unique nested owner, source tuple, case judgment, publication/index identities, review debt and complete normalized digest. Prove missing/ambiguous owners, mismatched candidates/source tuples, working-tree repair refusal, inherited publication/index failures, unsupported operands, canonical order and no classification/authentication/coverage promotion through production CLI negatives and watched faults. Record scoped checks in verify.md; coordinator owns the host gate and downstream certification. Tasks 2.1/2.2/4.1 remain open.",
+      "done": true
+    },
+    {
+      "id": "31",
+      "description": "4.1b.4 Add a noncertifying `inspect-manual-observation` adapter over the real `inspectManual`, with exact committed candidate identity, canonical caller instant, complete nested verdict, absent authentication, false certification and full-envelope digest. First observe the unknown-command RED, then implement source and installed dispatch. Prove current/stale/failed/overdue JSON and exit status, deadline boundary, symbolic/staged and mismatched-revision refusals, immutable staging, missing evidence/B3 refusal, malformed operands, digest sensitivity and packaged dispatch through production CLI tests and watched faults. Record scoped evidence in verify.md. Full level classification and Tasks 2.1/2.2/4.1 remain open.",
+      "done": true
+    },
+    {
+      "id": "32",
+      "description": "4.1b.5 Refuse annotated tag-object SHAs in `inspect-spec-sources`, `inspect-test-reports`, `inspect-test-sources` and `inspect-performance` before downstream IO. First run real valid fixture production CLI negatives and observe their exact-requested-SHA refusals fail; add local requested/selected revision guards and the missing Performance committed-kind guard, then watch every guard removed fail its named production test. Allocate four scenarios through the real allocator, retain generic candidate-reader peeling and existing certification boundaries, and run dependent Performance-source/Manual and installed-dispatch regression suites. This slice does not complete 2.1/2.2/4.1.",
+      "done": true
+    },
+    {
+      "id": "33",
+      "description": "4.1b.6 Assemble complete, candidate-bound level facts for one Performance declaration with no classification or coverage promotion. Its two reviewed increments are below; leave this parent open until the committed Conformance and Architecture adapters are complete.",
+      "done": true
+    },
+    {
+      "id": "34",
+      "description": "4.1b.6a Add strict external version-1 authority and a facts-only production CLI for one exact committed Performance declaration. Require exact revision/candidate, project manifest/declaration/config pins, unique complete in-root fixture set, regular selected Git blobs, explicit Manual/Conformance/Architecture reviewed-empty states, and refusal of a present Conformance target contradicting reviewed-empty. Reject committed Conformance/Architecture forms pending their adapter; never execute candidate code or inspect a publication. Allocate scenarios through the real allocator; use production CLI RED/GREEN and watched guard-off R5 proofs for source, scope, pins, digest, input shape, selection and installed dispatch. Emit no level, coverage, authenticated or certifying claim.",
+      "done": true
+    },
+    {
+      "id": "35",
+      "description": "4.1b.6b Add committed Conformance and Architecture source adapters. Admit only the exact reviewed Conformance command/envelope grammar in the pinned project manifest, reject shell indirection, filters, globs, directories, duplicate/outside paths and unsupported present targets. Extract Architecture fixture schema/mapping/unmapped checks into pure selected-byte validation shared with the unchanged runner, including the nonrecursive boundary and original error/side-effect order. Preserve legitimate cross-row membership overlap. First write production CLI negatives, watch every new guard fail when removed, then run runner regression and package checks. Manual remains explicit reviewed-empty; classification, publication collection, T2, coverage, receipts and admission stay later.",
+      "done": true
+    },
+    {
+      "id": "36",
+      "description": "4.1b.6b.1 Add committed Conformance membership only: allocate scenarios through the production allocator; first observe production CLI RED for bounded committed selection; implement exact manifest pin, closed Nx target/options, safe literal Bun selector grammar requiring `./` operands, complete regular selected-blob validation and sorted fixture intersection. Preserve overlap, explicit empty intersection and all selected source tuples. TDD the reviewed SQLite-only migration-input tuple and explicit Memory/SQLite manifest operands; prove bare-filter refusal with a nested matching decoy, canonical prefix normalization and near-miss/order/root refusals and command-only scope. Watch pin, schema, cwd, grammar, end constraint, duplicate, complete-source, deduplication, intersection and ordering faults fail production assertions; run source and packaged executable checks and record focused evidence. Keep Architecture, parent 4.1b.6 and Tasks 2.1/2.2/4.1 open and all observations noncertifying.",
+      "done": true
+    },
+    {
+      "id": "37",
+      "description": "4.1b.6b.2 Add committed Architecture policy facts: pin the runner's fixed policy, share closed decoding and per-mapping/nonrecursive discovery checks with original runner error/side-effect order, validate all mapped regular selected blobs before Performance intersection, preserve overlap and disjoint selections and bind sorted unique complete sources. Allocate TEST-AXES-084..086 through the production allocator, observe CLI RED/GREEN and watched guard faults, regress runner stale-report/precedence and source/packaged dispatch. Membership is policy-declared; bare Bun runner filters remain unchanged and imply no execution collection guarantee.",
+      "done": true
+    },
+    {
+      "id": "38",
+      "description": "4.1b.7 Join real committed level facts and Performance publication in a noncertifying `inspect-performance-levels` command: allocate scenarios, first observe production CLI RED, share earlier-row classification without unknown later facts, require exact revision/candidate/declaration semantics/config/project/source/complete recorded collection joins, then emit typed isolated or wrong-level observations with both upstream digests and correct CLI status. Prove inherited refusals, missing/extra/duplicate/substituted joins, Conformance>Architecture>Performance precedence, overlap isolation and source/packaged dispatch with watched R5 faults. Preserve v1 source-owner output and run scoped checks; coverage/admission and Tasks 2.1/2.2a/2.2/4.1 stay open.",
+      "done": true
+    },
+    {
+      "id": "39",
+      "description": "4.1b.8 Add the bounded facts-only `inspect-browser-memberships` adapter over real source-bound Browser reports and exact external review authority. Allocate scenarios; observe production CLI RED/GREEN; prove candidate/revision/mode/report joins, complete unique earlier rows, unknown versus reviewed-empty, malformed/absent/unreadable authority, inherited refusals and source/installed dispatch under watched R5 faults. Bind complete report/collection, authority digest and full noncertifying payload. No membership discovery, classification, isolation, T1/T2, coverage or admission; tasks 2.1/2.2a/2.2/4.1 remain open.",
+      "done": true
+    },
+    {
+      "id": "40",
+      "description": "4.1b.9 Add the bounded noncertifying `inspect-performance-scenarios` diagnostic over the real isolated Performance context and whole-tree B3 selector, allocating TEST-AXES-096..099 through the production allocator. Observe production CLI RED/GREEN; require external scenarios authority, adopted requested identities and terminal-only citations; preserve unrelated B3 debt; emit passing case IDs or unobserved-in-selection plus separate diagnostic citation findings. Prove whole-tree unrelated conflict refusal, source/policy/publication failures, canonical complete-payload identity and installed dispatch with watched R5 faults. Preserve levels output; global coverage/admission and Tasks 2.1/2.2a/2.2/4.1 remain open.",
+      "done": true
+    },
+    {
+      "id": "41",
+      "description": "4.1b.10a Establish the separate command and exact Browser authority (TEST-AXES-100/101/103). Read `evidence/browser-memberships.ts`, `test-reports.ts`, `test-reports.test.ts`, `level-facts.ts`, `level-facts.test.ts`, `cli.ts` and `bin.ts` before editing. Create `evidence/browser-conformance.test.ts` with a committed scratch project and real Browser publication; observe the new command's unknown-command RED. Test absent versus unreadable authority separately; malformed UTF-8/JSON, closed fields, unsupported versions, symbolic/annotated-tag selection, all revision/candidate/mode/report/manifest joins, empty collection, foreign root and selected source mode/digest substitutions. Implement `evidence/browser-conformance.ts` and thin dispatch with the exact authority schema in design.md. This internal checkpoint may refuse after successful authority validation until the complete target reader exists; it must emit no partial success envelope. Watch each new guard removal or explicitly labeled broken-dependency substitution fail its named assertion.",
+      "done": true
+    },
+    {
+      "id": "42",
+      "description": "4.1b.10b Share the bounded committed Conformance decoder and validate the entire selection (TEST-AXES-100/102). First exercise the existing Performance target negatives and add Browser CLI REDs for a valid overlap and disjoint selection. Extract only the target/envelope/literal-selector decoder into `evidence/conformance-selection.ts`; retain Performance validation order, error text and version-1 output. Both callers read selected blobs and validate every selected path before intersection. Prove closed executor/options, exact cwd, no dependencies/overrides, cache/input restrictions, the SQLite-only drizzle input tuple, bare filter plus nested decoy, safe alphabet, traversal/glob/shell/flag/newline refusal, duplicate selectors and true command end. Prove missing/nonregular/unreadable manifest and selected test blobs, including disjoint sources, refuse despite working replacements. Watch grammar, envelope, pin, complete-source and intersection faults fail; restore source before adding Proof comments. Regress `level-facts.test.ts` after the extraction.",
+      "done": true
+    },
+    {
+      "id": "43",
+      "description": "4.1b.10c Complete the facts envelope and production package path (TEST-AXES-100/103). Preserve the full report and every passed/failed/skipped case admitted upstream. Bind the sorted unique union of manifest, Browser and complete Conformance source tuples; reject same-path disagreement. Record complete selectedFiles and sorted intersection, with Manual/Architecture/Performance unknown. Add canonical ordering, duplicate-source case, empty intersection, changed source/authority bytes and independently recomputed full-digest assertions. Watch omission, deduplication, ordering, unknown-to-empty and authentication/certification mutations fail. Prove source and built installed executable dispatch, argument count/mode refusals, inherited Browser failures and no JSON on refusal; preserve existing Browser membership output. Update owning README/exports as required without new dependencies or unrelated refactors.",
+      "done": true
+    },
+    {
+      "id": "44",
+      "description": "4.1b.10d Run scoped acceptance and independent review. From `apps/twilight-structure/twilight-burokrat/cli`, run `bun test --preload ../../../../tools/test/scratch/preload.ts ./src/evidence/browser-conformance.test.ts ./src/evidence/test-reports.test.ts ./src/evidence/level-facts.test.ts ./src/evidence/performance-levels.test.ts ./src/evidence/performance-scenarios.test.ts --timeout=120000`, preserving any per-case production deadlines. Run uncached `bunx nx run twilight-burokrat:lint:source`, `:typecheck` and `:build`, plus the new installed-dispatch case. Check changed-file Prettier, scenario provenance and pinned strict/all OpenSpec validation. If the implementation needs manifest test-input edits, update both relationship facts and watch the production hasher omit the new input when the dependency is removed. Record actual output, fault/assertion pairs and any skips in verify.md; obtain Astra independent review. No synthetic fixture pass is whole-repository acceptance.",
+      "done": false
+    },
+    {
+      "id": "45",
+      "description": "4.1b.10e Coordinator release acceptance only: freeze the reviewed implementation SHA on an accepted descendant of #488, run `bin/h2puni-gate.sh <exact-sha>` under the canonical lock, record its printed SHA and exit status, require exact-head CI and integrate through the authorized workflow. Do not run a host gate for this design-only preparation or claim completion of the parent ledgers, source reconciliation, classification or certification.",
+      "done": false
+    },
+    {
+      "id": "46",
+      "description": "4.1c.1 Allocate TEST-AXES-104..107 through the production allocator and observe new-command production CLI RED. Reuse the real isolated Performance scenario inspector; enumerate adopted requested rows and preserve full B3/citation/unidentified observations. Add exact closed external authority, named unassigned obligations and explicit automated lowest-level/inapplicability dispositions.",
+      "done": true
+    },
+    {
+      "id": "47",
+      "description": "4.1c.2 Compose real Manual observations over the same exact committed candidate and external policy. Preserve current/stale/failed/overdue and skipped outcomes; join full nested identity, evaluation instant and digest, refusing unreadable or mismatched reports without partial JSON.",
+      "done": true
+    },
+    {
+      "id": "48",
+      "description": "4.1c.3 Complete watched production guard/dependency negatives, installed dispatch, canonical digest and focused regression validation. Record actual evidence and independent review. Parent 4.1, T2, source reconciliation and certification remain open; WBS080.39 remains in progress.",
+      "done": false
+    },
+    {
+      "id": "49",
+      "description": "4.1c.4 Add a closed version-two Browser authority to the unchanged diagnostic ledger over real Browser and mandatory Performance observations; retain exact v1 behavior. Allocate fresh scenarios preserving journal prefix, observe production RED/GREEN, prove full nested joins before assignments with repinned fault and watched guard negatives, preserve outcomes and labelled debt, prove installed parity, and record owning/adjacent tests and scoped uncached checks. Parent 4.1, 4.1c.3, T2, source reconciliation and certification remain open.",
+      "done": true
+    },
+    {
+      "id": "50",
+      "description": "4.1b.11a Allocate scenarios through the production allocator preserving the journal prefix; observe actual invokeCli unknown-command RED; specify exact authority and committed/reviewed-empty contract.",
+      "done": true
+    },
+    {
+      "id": "51",
+      "description": "4.1b.11b Implement exact report/candidate/source joins, strict external authority and manifest/policy pins, complete mapped-source validation through existing Architecture validators, runner-compatible immediate discovery, explicit reviewed-empty contradictions and complete noncertifying output. Watch each changed safety check fail its production-path assertion under guard or dependency faults and add adjacent Proof comments.",
+      "done": true
+    },
+    {
+      "id": "52",
+      "description": "4.1b.11c Run the focused five-file suite, scoped lint/typecheck/build, installed dispatch, changed-file format, scenario provenance and pinned strict/all OpenSpec validation; record actual output and limits in verify.md. Obtain independent Astra review before push.",
+      "done": false
+    },
+    {
+      "id": "53",
+      "description": "4.1b.11d Coordinator only: integrate reviewed candidate, rerun affected checks after restack, obtain exact-head CI and host gate evidence, and advance WBS. Parent Tasks 2.1/2.2a/2.2/4.1 remain open.",
+      "done": false
+    },
+    {
+      "id": "54",
+      "description": "4.1b.12a Record approved Browser Performance contract and allocate scenarios through production allocator preserving journal prefix.",
+      "done": true
+    },
+    {
+      "id": "55",
+      "description": "4.1b.12b Observe actual invokeCli unknown-command RED; implement complete committed Browser Performance membership with shared decoder/digest, full selected-source validation, source and installed dispatch, negative guards and watched proofs; run focused/scoped acceptance.",
+      "done": true
+    },
+    {
+      "id": "56",
+      "description": "4.1b.12c Obtain independent Astra review of exact committed candidate.",
+      "done": false
+    },
+    {
+      "id": "57",
+      "description": "4.1b.12d Coordinator restacks onto #496 lineage and performs release/CI/host acceptance.",
+      "done": false
+    },
+    {
+      "id": "58",
+      "description": "4.1b.13a Record approved bounded intent and contract; allocate four scenarios through production scenario allocate preserving every prior journal event; observe production CLI RED for explicit v2 authority.",
+      "done": true
+    },
+    {
+      "id": "59",
+      "description": "4.1b.13b Add closed v2 committed/reviewed-empty authority, selected-manifest contradiction and unchanged v1 bytes; retain complete identities/source union and noncertifying output. Cover source and built installed dispatch, malformed/missing/unreadable boundaries and working-tree repairs.",
+      "done": true
+    },
+    {
+      "id": "60",
+      "description": "4.1b.13c Watch disposition, contradiction, authority version/shape and identity guard faults fail their production assertions; run focused regressions, scoped Nx lint/typecheck/build, changed-file formatting, scenario provenance and pinned strict/all OpenSpec validation; record actual evidence.",
+      "done": true
+    },
+    {
+      "id": "61",
+      "description": "4.1b.13d Obtain independent Astra review of exact committed candidate. Coordinator owns integration, release/CI/host acceptance; WBS080.39 and parent tasks remain open.",
+      "done": true
+    },
+    {
+      "id": "62",
+      "description": "4.1b.14a Record the approved bounded composer contract and allocate fresh scenarios preserving the journal prefix; create a committed Browser publication with four real external authorities and observe production CLI unknown-command RED.",
+      "done": true
+    },
+    {
+      "id": "63",
+      "description": "4.1b.14b Compose the real review and three source adapters with exact requested snapshot/report/digest/collection/scope/pin/source joins, explicit Manual empty and other rows unknown, and a final real report re-read. TDD every named refusal and watch joins/collection/source/review/publication guard faults fail production assertions.",
+      "done": true
+    },
+    {
+      "id": "64",
+      "description": "4.1b.14c Classify the complete admitted collection through the shared first-match table; preserve full upstream observations/outcomes/sources, deterministic isolated/wrong-level findings, noncertifying envelope and full digest. Prove precedence, wrong-level CLI status, source and built installed dispatch, bounded usage and canonical identity with watched faults.",
+      "done": true
+    },
+    {
+      "id": "65",
+      "description": "4.1b.14d Run focused composer/adapter/Performance-level regressions, scoped Nx lint/typecheck/build, final restored negatives, changed-file format, scenario provenance and pinned strict/all OpenSpec validation. Record evidence and skips; commit clean local candidate for independent Astra review. Coordinator owns release/host acceptance; WBS080.39, T2 and parent tasks remain open.",
+      "done": true
+    },
+    {
+      "id": "66",
+      "description": "4.1b.14e Independent Astra review of the exact local candidate, followed by coordinator integration and release/CI/host acceptance. This packet does not close WBS080.39 or the parent ledgers.",
+      "done": false
+    },
+    {
+      "id": "67",
+      "description": "4.1b.15a Record bounded intent, resolved term and v2 contract; allocate scenarios with production allocator preserving journal prefix; observe production v2 schema RED.",
+      "done": true
+    },
+    {
+      "id": "68",
+      "description": "4.1b.15b Implement closed v2 dispositions, selected target/declaration contradiction checks and unchanged committed v1 behavior; preserve all report and source identities, unknown unrelated rows and certifies:false.",
+      "done": true
+    },
+    {
+      "id": "69",
+      "description": "4.1b.15c Watch new guard/schema faults fail production assertions; run focused and scoped acceptance, installed dispatch, format, provenance and strict/all OpenSpec validation; record evidence and commit clean local candidate.",
+      "done": true
+    },
+    {
+      "id": "70",
+      "description": "4.1b.15d Independent Astra review and coordinator release/CI/host acceptance. Parent WBS080.39 and 2.1/2.2a/2.2/4.1 remain open.",
+      "done": false
+    },
+    {
+      "id": "71",
+      "description": "4.1b.16a Record approved bounded intent and full-tree Browser scenario contract; allocate fresh IDs through production allocator preserving the journal; observe actual invokeCli unknown-command RED.",
+      "done": true
+    },
+    {
+      "id": "72",
+      "description": "4.1b.16b Join real isolated Browser levels with full B3 selection and exact snapshot/policy/digest identities. Preserve complete outcomes, terminal-only invalid citation findings, active other-capability citations and every requested scenario. Watch each new guard fail its production-path negative under injected faults.",
+      "done": true
+    },
+    {
+      "id": "73",
+      "description": "4.1b.16c Run focused Browser/Performance/specification regression, scoped lint/typecheck/build, installed dispatch, format, provenance and pinned strict/all OpenSpec validation; record actual evidence and commit clean local candidate.",
+      "done": true
+    },
+    {
+      "id": "74",
+      "description": "4.1b.16d Independent Astra review and coordinator release/CI/host acceptance. WBS080.39, T2, source reconciliation, certification and parent Tasks 2.1/2.2a/2.2/4.1 remain open.",
+      "done": false
+    },
+    {
+      "id": "75",
+      "description": "4.1c.5a Record approved intent and contract, allocate fresh scenarios preserving the complete journal prefix, and observe production unknown-command RED with no Performance execution publication.",
+      "done": true
+    },
+    {
+      "id": "76",
+      "description": "4.1c.5b Implement strict closed authority, real Browser and Manual joins, complete B3/inventory validation, outcomes, supported-level limits, labelled debt and noncertifying envelope. Preserve old ledger v1/v2.",
+      "done": true
+    },
+    {
+      "id": "77",
+      "description": "4.1c.5c Watch production guard/dependency negatives; run focused/adjacent tests, installed dispatch, scoped lint/typecheck/build, format, provenance and strict/all OpenSpec validation. Record evidence and commit exact clean candidate for Astra review.",
+      "done": true
+    },
+    {
+      "id": "78",
+      "description": "4.1c.5d Independent Astra review and coordinator release/CI/host acceptance. WBS080.39, parent ledgers, source reconciliation and certification remain open.",
+      "done": false
+    },
+    {
+      "id": "79",
+      "description": "4.1c.6a Record approved bounded intent and contract, allocate scenarios through the production allocator preserving the journal prefix, and observe production unknown-command RED.",
+      "done": true
+    },
+    {
+      "id": "80",
+      "description": "4.1c.6b Implement direct real Browser-only ledger consumption, exact diagnostic joins, complete disjoint citation partition, full output and debt-independent successful exit. Cover malformed dependencies, strict input/authority boundaries and source/installed parity through production dispatch.",
+      "done": true
+    },
+    {
+      "id": "81",
+      "description": "4.1c.6c Watch production-path negative guard/dependency mutations, add adjacent Proof comments, run sequential focused checks with memory monitoring, format and provenance/OpenSpec checks; record actual evidence and skips.",
+      "done": true
+    },
+    {
+      "id": "82",
+      "description": "4.1c.6d Independent Astra review of the committed draft PR and coordinator hosted exact-head/release/host acceptance. Coordinator owns restack and integration; WBS080.39 and parent ledgers remain open.",
+      "done": false
+    },
+    {
+      "id": "83",
+      "description": "4.1b.17a Allocate TEST-AXES-144..147 through the production scenario allocator, preserve the journal prefix and observe unknown-command production CLI RED. Read source/report/levels/index callers and tests; add the bounded same-operands composer preserving both full real upstreams, review debt and diagnostic markers.",
+      "done": true
+    },
+    {
+      "id": "84",
+      "description": "4.1b.17b Prove exact snapshot/mode/digest/report and complete case-ID/file/outcome/source/classification/isolation joins, inherited missing/malformed/unreadable index and publication refusals, canonical complete payload and source/built dispatch. Watch new guards and output/dependency faults fail production assertions, restore and record evidence.",
+      "done": true
+    },
+    {
+      "id": "85",
+      "description": "4.1b.17c Complete focused serial regression, changed-file formatting and lint, narrow direct declaration/type check, scenario provenance and strict/all OpenSpec validation. Record exact checks, memory settings, watched failures and explicit whole-project check limits; commit the clean local candidate.",
+      "done": true
+    },
+    {
+      "id": "86",
+      "description": "4.1b.17d Obtain Astra exact-commit review before any push. Coordinator owns hosted CI and integration. Parent Tasks 2.1/2.2a/2.2/4.1, tested-module/coverage/T2 authority, source reconciliation and WBS closure remain open.",
+      "done": false
+    },
+    {
+      "id": "87",
+      "description": "4.1b.18a Record approved intent/delta; allocate scenarios preserving the allocation journal prefix; observe unknown-command production CLI RED.",
+      "done": true
+    },
+    {
+      "id": "88",
+      "description": "4.1b.18b Move the existing pure JUnit parser into @shared/test-evidence, migrate tool-devsync imports and preserve its public re-export surface without a WORKSPACE dependency. Deliberately reject repeated same-kind and conflicting outcome elements, which the old parser overwrote; prove existing tool-devsync callers and watched production negatives. Implement closed external pins, selected manifest/target and complete source bindings, preserved outcomes, unresolved axes and full noncertifying digest.",
+      "done": true
+    },
+    {
+      "id": "89",
+      "description": "4.1b.18c Watch production negatives for authority/report input, revision/path/digest/source/duplicate disagreements and outcome loss; restore checks and record actual serial focused/regression/installed/scoped validation and skipped checks in verify.md.",
+      "done": true
+    },
+    {
+      "id": "90",
+      "description": "4.1b.18d Obtain independent exact-commit review; coordinator owns integration and release acceptance. Parent tasks and WBS080.39 remain open.",
+      "done": false
+    }
+  ],
+  "state": "ready",
+  "instruction": "1. **Workspace**: Skill tool → **superpowers:using-git-worktrees** for an\n   isolated worktree.\n\n2. **Executor**: Skill tool → **superpowers:subagent-driven-development**,\n   executing the slices in tasks.md with a fresh subagent per slice.\n\n   Tell the executor to read tasks.md in this change directory, update its\n   checkboxes as slices complete, and work inside the worktree.\n\n   Transitive — do NOT invoke these manually:\n   - **superpowers:test-driven-development** — RED-GREEN-REFACTOR per slice.\n     Implementation written before a failing test is deleted.\n   - **superpowers:requesting-code-review** — a reviewer subagent after each\n     slice, plus a final review before apply concludes.\n\n   Fallback only where subagents are unavailable: **superpowers:executing-plans**,\n   which does NOT bring TDD or code-review. You then owe both manually.\n\n3. **Debugging**: unexpected failures go through\n   **superpowers:systematic-debugging** before any fix is proposed.\n\n4. **Verification**: produce the `verify` artifact. Re-run until no blocking\n   issues remain. The failure-proof table is not optional.\n\n5. **Completion**: Skill tool → **superpowers:finishing-a-development-branch**.",
+  "context": "Read AGENTS.md before producing any artifact. Rules R1-R5 there govern every\nartifact and every line of code. The two that bite hardest:\n\nR5 — Unknown is not OK. Missing file, unreadable state, absent tool, malformed\ntrusted data, unexpected nullish: throw. Never default them away. Every new\nsafety check needs a negative test on its production call path, watched failing\nwith the check removed, and an adjacent `Proof:` comment naming the injected\nfault. Checks that cannot fail have shipped here six times.\n\nR3 — Knowledge about a symbol lives in JSDoc on that symbol. Knowledge that\nspans files lives in docs/ and is linked from the JSDoc. CONTEXT.md is the\ndomain glossary, terms only. docs/adr/ is for decisions that are hard to\nreverse, surprising, and had real alternatives.\n\nStack: Nx monorepo, Bun everywhere, never npm. be-01 (Elysia + Drizzle +\nbun:sqlite, :3100), gw-01 (WS gateway, :3200), fe-01 (Vite + React).\nBlue/green deploy: two be-01 processes share one SQLite file during a swap,\nso migrations must be backward-compatible.\n\nUse CONTEXT.md's terms exactly. If you need a term it lacks, resolve it in the\ndesign interview and add it to CONTEXT.md before using it in an artifact.\n\nCI runs on GitHub Actions (`.github/workflows/ci.yml`) and is the merge gate:\n`bunx nx format:check --all`, then `bunx nx run-many -t test lint typecheck build`,\nthen `bunx @fission-ai/openspec@1.12.0 validate --all --json`. Locally, gate on h2puni with\n`bin/h2puni-gate.sh`, which takes the host-wide lock; AGENTS.md forbids the\nraw full Nx gate there. The earlier \"there is no CI\" line was stale and\nunder-scoped every plan that inherited it: it omitted format and build.\n",
+  "root": {
+    "path": "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17",
+    "source": "nearest"
+  }
+}

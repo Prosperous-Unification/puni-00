@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-test-levels-level.test.ts:
+228 |   it('removes stale reports before refusing an empty selection', async () => {
+229 |     await withRunnerFixture(({ project, report, command }) => {
+230 |       writeFileSync(report, '<stale/>');
+231 |       const execution = runCommand(project, command);
+232 |       expect(execution.exitCode).toBe(1);
+233 |       expect(execution.stderr.toString()).toContain(`no-cases: ${QUALIFIED}`);
+                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "no-cases: shared-test-levels:test:unit:level"
+Received: "No tests found!\n\nTests need \".test\", \"_test_\", \".spec\" or \"_spec_\" in the filename (ex: \"MyApp.test.ts\")\n\nLearn more about bun test: https://bun.com/docs/cli/test\n"
+
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/shared-test-levels-level.test.ts:233:43)
+      at withRunnerFixture (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/shared-test-levels-level.test.ts:52:11)
+      at async <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/shared-test-levels-level.test.ts:229:11)
+(fail) shared-test-levels isolated Unit level > removes stale reports before refusing an empty selection [13.10ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [150.00ms]

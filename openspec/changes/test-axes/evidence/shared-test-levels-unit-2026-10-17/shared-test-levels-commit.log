@@ -1,0 +1,95 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 4.35 seconds)
+✓ tool-wiki (0.00 seconds)
+✓ plaintext-secrets (0.02 seconds)
+✓ private-nesting (0.03 seconds)
+✓ format (2.25 seconds)
+✓ lint (4.31 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+[feat/shared-test-levels-unit-oct17 1a3fa48c0] feat(test): add isolated shared test levels Unit reporting
+ 59 files changed, 6194 insertions(+), 1 deletion(-)
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/manifest.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/process-tree-guard-1280.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/process-tree-guard.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-allocate-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-allocate-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-allocate-oct17.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-allocation-prefix-oct17.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-apply.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-focused-corrected.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-focused-corrected.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-focused.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-focused.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-format.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-format.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-green.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-green.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-lint.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-lint.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-nx-scoped.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-nx-scoped.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-openspec.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-openspec.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-provenance-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-provenance-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-complete-collection-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-complete-collection-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-empty-selection-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-empty-selection-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-literal-operands-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-literal-operands-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-oct17.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-oct17.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-registration-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-registration-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-report-identity-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-report-identity-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-required-target-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-required-target-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-restoration-oct17.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-selector-failure-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-selector-failure-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-stale-report-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-stale-report-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-wrong-level-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-r5-wrong-level-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-red.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-red.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-typecheck.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/shared-test-levels-typecheck.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-test-levels-unit-2026-10-17/tsconfig.scoped.json
+ create mode 100644 tools/tool-devsync/src/shared-test-levels-level.test.ts

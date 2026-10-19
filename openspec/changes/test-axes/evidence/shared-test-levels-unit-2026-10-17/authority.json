@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "revision": "1a3fa48c0b3042290c10da61db5d8c44f40f0dd9",
+  "candidate": "1724428c30c2ab52872f5ee2195a041dd4e8feb58c4eaf042441f6affa78f4d3",
+  "projectRoot": "libs/shared/domain/test-levels",
+  "projectManifest": {
+    "path": "libs/shared/domain/test-levels/project.json",
+    "digest": "46acb8d29987db82a33476bb69f7c989b926764b1505b33b04608667a0c33447"
+  },
+  "target": "test:unit:level",
+  "junit": {
+    "path": "/tmp/shared-test-levels-real-unit-oct17/report.xml",
+    "digest": "13941642ed132942af89c55da1945e60fbe089b9ad47467640b662697369a7fc"
+  }
+}

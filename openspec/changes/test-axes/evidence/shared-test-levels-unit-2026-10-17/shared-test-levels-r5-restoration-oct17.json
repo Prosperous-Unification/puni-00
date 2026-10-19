@@ -1,0 +1,11 @@
+{
+  "before": {
+    "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/test-levels.ts": "863d6cb8746a1fbbdaac56ed87436a0b40f61c68f2f4b8b24cded0e43c013ee0",
+    "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/libs/shared/domain/test-levels/project.json": "ba16e7c412fc6a8e89ce69215f2a4baef874ae255267ddca92510b9349e4e96f"
+  },
+  "after": {
+    "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/test-levels.ts": "863d6cb8746a1fbbdaac56ed87436a0b40f61c68f2f4b8b24cded0e43c013ee0",
+    "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/libs/shared/domain/test-levels/project.json": "ba16e7c412fc6a8e89ce69215f2a4baef874ae255267ddca92510b9349e4e96f"
+  },
+  "equal": true
+}

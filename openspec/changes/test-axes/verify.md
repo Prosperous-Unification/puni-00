@@ -5175,3 +5175,177 @@ activation root is not provisioned`; hook exit zero therefore proves no activate
 admission. Negative/positive/install/merged-config receipts are archived in the proof manifest.
 The normal hooked Git commit is the next operation; its external receipt and exact candidate
 identity are provided in the coordinator handoff, without claiming hosted or full-gate acceptance.
+
+## WBS080.39 — shared-failures isolated Unit target (2.1l, 2026-10-17)
+
+Isolated worktree `/tmp/puni-shared-failures-unit-oct17` starts at
+`796e279014ee94627627cb769fef20a5aac855e5`. Dependencies are supplied by a symlink
+to the shared-validation prerequisite's existing node_modules. No install or lockfile change.
+The new target follows the shared-validation contract; existing legacy commands remain
+unchanged and explicitly unreported. `verifyBunProjectCollection` audits all `src` test files.
+
+Production allocation issued **TEST-AXES-153/154**, preserving every prior event
+and appending exactly two events matching the allocator's proposed delta. Production scenario
+validation returned `{"unidentified":[]}`. These are allocated identities only; no scenario
+citation or coverage credit is claimed.
+
+| Check                                                                                                               | Observed result                                       | Peak process-tree KiB |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | --------------------: |
+| New focused test RED                                                                                                | 0 pass, 10 fail; missing canonical level registration |                 78248 |
+| Initial focused GREEN                                                                                               | 10 pass, 0 fail, 31 assertions                        |                160488 |
+| Full `test-levels.test.ts`, shared-validation and shared-failures focused regression                                | 123 pass, 0 fail, 435 assertions, 30.96s              |                344716 |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx --no-install nx run shared-failures:test:unit:level --skip-nx-cache` | Exit 0; 20 pass, 0 fail, 57 assertions; cache skipped |                359356 |
+| Changed-file Prettier write                                                                                         | Exit 0                                                |                274740 |
+| Fresh Nx graph                                                                                                      | Exit 0                                                |                234016 |
+| ESLint for changed verifier and two test files                                                                      | Exit 0                                                |                784244 |
+| Scoped TypeScript, strict base plus allowJs/checkJs                                                                 | Exit 0                                                |                127024 |
+| Cached OpenSpec 1.12.0 `validate test-axes --strict`                                                                | Exit 0; change valid                                  |                 73816 |
+
+Each monitored command ran serially with a 900 MiB process-tree ceiling; sampled peaks
+are observations rather than representative workload measurements. The first direct cached
+OpenSpec binary attempt lacked commander, and a NODE_PATH attempt lacked diff; both refused.
+The complete pinned cached Bunx installation above supplied the required tool successfully.
+
+Nine independent production-path faults each exited 1 and failed the named assertion:
+
+| Fault                                     | Observed failed assertion                             |
+| ----------------------------------------- | ----------------------------------------------------- |
+| Remove shared-failures level registration | Canonical Unit lookup refuses missing declaration     |
+| Remove required-target guard              | Missing target inventory refusal no longer occurs     |
+| Remove literal selector `./` prefix       | Nested matching throwing decoy executes               |
+| Bypass empty selection guard              | Named no-cases refusal is absent                      |
+| Remove stale report deletion              | Old XML remains after empty selection                 |
+| Replace selector short circuit with `;`   | Partial failed-find selection executes and exits zero |
+| Remove complete-source guard              | Omitted new Unit file is accepted                     |
+| Remove level-isolation guard              | Database test is admitted to Unit                     |
+| Remove report-identity guard              | Same-clear/write wrong report path is accepted        |
+
+Source/manifest SHA-256 values before and after all injections match exactly. The selector
+fault reached the actual production shell command and failed its nonzero-exit assertion;
+no parser precheck masked it. Focused tests also cover TSX exclusion, unknown targets and
+all twenty exact real JUnit testcase names/outcomes/file identities replacing stale XML.
+
+Raw command logs, monitor receipts, allocator prefix proof, fault script and restoration
+proof are preserved in `evidence/shared-failures-unit-2026-10-17/manifest.json`.
+
+Committed-revision report inspection and final restored checks follow below. Parent Task 2.1
+and WBS080.39 remain open; trusted execution receipts, scenario citation adoption, remaining
+projects/levels, coverage and admission are outside this bounded target slice. No full host gate,
+hosted CI, release acceptance, push or merge has run here; the coordinator owns those checks.
+
+### Committed execution and report inspection
+
+Normal implementation commit is `4b318f48125b99ce13fd6e10c60ece66b49487dd`. The first normal commit attempt
+was killed by the 900 MiB guard at 956812 KiB; it created no commit. Normal unchanged parallel
+hooks then passed at **952188 KiB** under the approved 1280 MiB cap. No hook was bypassed.
+Lint, format, secrets, private nesting and tool-wiki ran; migration/doc-cap hooks had no matching
+files. Tool-wiki reported inactive and certified false because external activation is absent.
+Before the final evidence-only hooks, `/proc/meminfo` reported MemAvailable 13877420 KiB.
+
+The exact committed revision's target ran uncached again: **20 pass, 0 fail, 57 assertions**,
+exit 0, sampled peak 262352 KiB. Its fresh external report SHA-256 is
+`8938e13480430117dfcff37acfc13ee42ed7180ffc2cd0230db9df193f4e84ba`; selected manifest SHA-256 is
+`7df8eb0f7e07fd405a1a921e8323e19242a062313ff59841d17d345a44dec09d`. The authority binds candidate
+`0aa4824c805e2ad0314c7d79910a2f39e308c11f58a75c880226cfcb810f19ae` and the exact target name.
+
+Production `inspect-bun-test-reports` exited 0 at **698004 KiB**, preserving all twenty
+passed outcomes, exact selected Git source tuples and complete case identities. Every case
+retains unresolved level/isolation; authentication is absent and certification false.
+Complete observation digest: `91fdd924db042f439e8aa1bfccb0c4775f18b8bdfd75ed8200dcaaa8ec5400ba`.
+
+Independent Python XML/Git/SHA-256 verification compared all twenty raw report cases, every
+selected source's mode/blob/content digest, the selected manifest bytes, outcome-independent
+case IDs and the complete canonical payload with terminal newline. Corrected verifier exited 0
+at 21672 KiB. The first parity harness incorrectly hashed a keyed object for case identity;
+the production contract hashes an array. That harness-only error is retained as a failed receipt;
+the corrected independent verifier agrees with the production output.
+
+Task **2.1l** is complete. Task 2.1 and WBS080.39 remain open. Reports are operational and
+noncertifying; no trusted execution receipt, scenario citation coverage, remaining-project
+adoption, release acceptance or full gate is established by this slice. The coordinator owns
+independent review, exact-head CI, the canonical host gate, publication and integration.
+
+## WBS080.39 — shared-test-levels isolated Unit target (2.1m, 2026-10-17)
+
+Isolated worktree `.worktrees/shared-test-levels-unit-oct17`, branch
+`feat/shared-test-levels-unit-oct17`, starts at reviewed predecessor
+`bec08dedb78c69d268b5d84fc7b4583b265113ae`. This bounded slice adds the
+`shared-test-levels:test:unit:level` target; the original five tests and legacy
+`test`/`test:unit` commands remain unchanged. The allocator appended
+`TEST-AXES-155` and `TEST-AXES-156`, preserving all prior journal events.
+
+Commands ran serially under a sampled 900 MiB process-tree guard; hook commands use
+the existing 1280 MiB guard. Formatting briefly overlapped the first focused run;
+its peak was 260116 KiB and that run's peak was 339840 KiB. No guard terminated
+either process. All other verification commands below ran serially.
+
+| Check                                                  | Observed output                                                                         | Peak process-tree KiB |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------- | --------------------- |
+| Missing-registration RED                               | Expected exit 1; canonical lookup: not a declared level target                          | 71820                 |
+| Focused GREEN                                          | 10 pass, 0 fail, 31 assertions                                                          | 160056                |
+| First full focused regression                          | 133 pass, 1 fail; expected sorted list placed shared-test-levels before shared-failures | 339840                |
+| Corrected full focused regression                      | 134 pass, 0 fail, 479 assertions                                                        | 339436                |
+| Scoped TypeScript                                      | Exit 0                                                                                  | 146260                |
+| Changed source ESLint                                  | Exit 0                                                                                  | 827560                |
+| Shared library Nx typecheck and build, serial uncached | Exit 0; both targets succeeded                                                          | 365280                |
+| Pinned strict OpenSpec                                 | Exit 0; test-axes valid                                                                 | 65056                 |
+
+### Independent failure proofs
+
+Each fault was applied separately to production source or the actual manifest
+command. Every named assertion failed, then the original production bytes were
+restored; before/after SHA-256 values match.
+
+| Fault                                   | Observed failed assertion                          |
+| --------------------------------------- | -------------------------------------------------- |
+| Remove level registration               | Canonical Unit lookup refuses missing declaration  |
+| Remove required-target guard            | Missing target inventory refusal no longer occurs  |
+| Remove literal `./` selector prefix     | Nested matching throwing decoy executes            |
+| Bypass empty selection guard            | Named no-cases refusal is absent                   |
+| Remove stale report deletion            | Old XML survives empty selection                   |
+| Replace selector short circuit with `;` | Partial failed-find output executes and exits zero |
+| Remove complete-source guard            | New Unit file omitted by selector is accepted      |
+| Remove level-isolation guard            | Database test is admitted to Unit                  |
+| Remove report-identity guard            | Same-clear/write wrong report path is accepted     |
+
+Focused tests also check unknown targets, TSX exclusion, and the exact five real
+JUnit testcase names, outcomes and file identities replacing stale XML.
+Raw command logs, sampled process receipts, allocator prefix proof, mutation
+script and restoration proof live in `evidence/shared-test-levels-unit-2026-10-17/`.
+Committed target execution and noncertifying report reconciliation follow in the
+evidence commit. Task 2.1 and WBS080.39 remain open. Full h2puni gate, hosted CI,
+release acceptance, push and merge have not run; the coordinator owns integration
+and independent exact-commit review. No trusted execution, scenario citation,
+coverage, admission or certification claim follows from these checks.
+
+### Committed execution and report inspection
+
+Normal implementation commit is `1a3fa48c0b3042290c10da61db5d8c44f40f0dd9`. All normal hooks passed,
+including lint, format, secrets, private nesting and tool-wiki, with a sampled
+process-tree peak of **896700 KiB** under the 1280 MiB cap. Migration and doc-cap
+hooks had no matching files. Tool-wiki reported inactive and certified false
+because external activation is absent. No hook was bypassed.
+
+The exact committed target ran uncached with seeded stale XML and produced
+**5 pass, 0 fail, 25 assertions**, exit 0, peak **172956 KiB**.
+Report SHA-256: `13941642ed132942af89c55da1945e60fbe089b9ad47467640b662697369a7fc`.
+Selected manifest SHA-256: `46acb8d29987db82a33476bb69f7c989b926764b1505b33b04608667a0c33447`.
+Candidate digest: `1724428c30c2ab52872f5ee2195a041dd4e8feb58c4eaf042441f6affa78f4d3`.
+
+Production `inspect-bun-test-reports` exited 0, peak **625028 KiB**, retaining
+all five passing cases and exact selected source tuples. All case levels and
+isolation remain unresolved; authentication is absent and certification false.
+Complete observation digest: `0a8decd8c42302cb7fada052ab6f1f9adbaa40cb140f54052a6a1353be77aa62`.
+
+Independent Python XML/Git/SHA-256 reconciliation exited 0 at **21000 KiB**.
+It compared all five cases including nested describe ancestry, selected source
+mode/blob/content hashes, selected manifest bytes, outcome-independent case
+identities and the full canonical observation payload with terminal newline.
+The external report and authority are copied byte-for-byte into the evidence
+directory; raw operational output and the parity script are included.
+
+Task **2.1m** is complete. Task 2.1 and WBS080.39 remain open. Independent
+review, exact-head CI, canonical h2puni gate, publication and integration remain
+coordinator work. The existing target shell-path contract is unchanged; no
+whitespace/glob safety expansion, trusted execution receipts, scenario citation
+credit, coverage, admission or certification is claimed.
