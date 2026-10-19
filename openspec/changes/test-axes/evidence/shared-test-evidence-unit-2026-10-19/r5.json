@@ -1,0 +1,200 @@
+[
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "registers the canonical Unit"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 65096,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.207,
+    "availableBeforeKiB": 23039452,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "registration",
+    "expectedTest": "registers the canonical Unit",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses unknown and missing target declarations"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 67120,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.196,
+    "availableBeforeKiB": 23036172,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "required-target",
+    "expectedTest": "refuses unknown and missing target declarations",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "executes literal operands"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 85036,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.196,
+    "availableBeforeKiB": 23035152,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "literal-operands",
+    "expectedTest": "executes literal operands",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports before refusing an empty selection"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 84640,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.197,
+    "availableBeforeKiB": 23031628,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "empty-selection",
+    "expectedTest": "removes stale reports before refusing an empty selection",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports before refusing an empty selection"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 67648,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.197,
+    "availableBeforeKiB": 23051392,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "stale-report",
+    "expectedTest": "removes stale reports before refusing an empty selection",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports and refuses a failing selector"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 84772,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.196,
+    "availableBeforeKiB": 23053440,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "selector-failure",
+    "expectedTest": "removes stale reports and refuses a failing selector",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "audits the full Unit source inventory"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 156520,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.652,
+    "availableBeforeKiB": 23032332,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "complete-collection",
+    "expectedTest": "audits the full Unit source inventory",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses api files in the Unit collection"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 157100,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.391,
+    "availableBeforeKiB": 23033260,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "wrong-level",
+    "expectedTest": "refuses api files in the Unit collection",
+    "observedNamedFailure": true
+  },
+  {
+    "command": [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-evidence-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses a different report identity"
+    ],
+    "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+    "exitCode": 1,
+    "peakProcessTreeKiB": 66120,
+    "ceilingKiB": 2097152,
+    "timeoutSeconds": 360,
+    "seconds": 0.196,
+    "availableBeforeKiB": 23032188,
+    "minimumAvailableKiB": 12582912,
+    "stopReason": null,
+    "fault": "report-identity",
+    "expectedTest": "refuses a different report identity",
+    "observedNamedFailure": true
+  }
+]
