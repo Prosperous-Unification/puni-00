@@ -1,0 +1,5 @@
+{
+  "sha256": "7121e9713abd5d69f21a64c4faff4c3db3fecc08943723522b8e0cf969085031",
+  "bytes": 722,
+  "text": "{\n  \"status\": \"dirty/precommit diagnostic build; descriptor sourceRevision names HEAD, not edited bytes\",\n  \"head\": \"7d445c48d471a90e885e3d06069d466b8cb8ac13\",\n  \"sha256\": {\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts\": \"1d984eb1fcf893cf22e43c272826daabbebc8628cd0c08f8fa7957aa470994d2\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts\": \"34c040dbafbbc89de5da46d749e39f4f178ae0b207128320b3cd6c08ec721910\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\": \"41ab4adea20b116cc1c0038791ffeee376d4f719a18a8cc454b8800fb8549582\"\n  },\n  \"patchSha256\": \"5551b244cef572d2a9a15c0c839fb9af58d7822ad166fabf6af49f0ff8c00ac8\"\n}\n"
+}

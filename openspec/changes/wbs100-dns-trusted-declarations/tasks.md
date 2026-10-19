@@ -8,8 +8,8 @@
 
 - [x] 2.1 Enroll dns-packet and @types/dns-packet without resolver, dependency, lockfile or policy changes; run the complete focused closure suite.
 - [x] 2.2 Build/pack and pass the installed vendor oracle. Rebuild with only the type root omitted, observe the compiler refusal, restore the root and rebuild/pass the same oracle. Retain exact artifact identities and raw receipts.
-- [ ] 2.3 Run scoped lint, typecheck, formatting, strict OpenSpec validation and independent review; verify unchanged dependency/lockfile and unrelated source hashes.
-- [ ] 2.4 Commit with normal hooks and package the exact committed successor for coordinator acceptance.
+- [x] 2.3 Run scoped lint, typecheck, formatting, strict OpenSpec validation and independent review; verify unchanged dependency/lockfile and unrelated source hashes.
+- [x] 2.4 Commit with normal hooks and package the exact committed successor for coordinator acceptance.
 
 ## 3. Coordinator acceptance
 

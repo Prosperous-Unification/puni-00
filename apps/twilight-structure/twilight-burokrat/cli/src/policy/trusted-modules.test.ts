@@ -115,6 +115,7 @@ test('the release closure includes the reviewed supported declaration roots and 
     '@types/dns-packet',
     '@leichtgewicht/ip-codec',
     'yaml',
+    'nodemailer',
     'bun-types',
     '@types/react',
     '@types/react-dom',
@@ -176,4 +177,13 @@ test('DNS declaration roots retain only their declared transitive dependency ins
   expect(trustedModuleNames(root)).toEqual(
     [...trustedDeclarationRoots, '@leichtgewicht/ip-codec', '@types/node'].sort(),
   );
+});
+
+test('SMTP bundled declarations enroll only the reviewed root', () => {
+  expect(trustedDeclarationRoots).toContain('nodemailer');
+  expect(trustedDeclarationRoots).not.toContain('@types/nodemailer');
+  const root = fixture();
+  manifest(root, 'nodemailer');
+  manifest(root, 'unreviewed-mail-package');
+  expect(trustedModuleNames(root)).toEqual([...trustedDeclarationRoots].sort());
 });

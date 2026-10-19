@@ -79,6 +79,8 @@ export const trustedDeclarationRoots = [
   'drizzle-orm',
   'elysia',
   'jose',
+  // Proof: the preserved DNS package failed the installed vendor oracle at the SMTP subpath.
+  'nodemailer',
   'openapi-types',
   'openid-client',
   'pino',
