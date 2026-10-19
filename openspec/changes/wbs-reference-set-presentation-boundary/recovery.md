@@ -227,3 +227,21 @@ every normalized log are preserved losslessly in
 JSON `utf8` strings reconstruct the original bytes with UTF-8 encoding.
 Structured installed stdout/stderr, command receipts and all historical packet
 files remain unchanged. The raw original command logs also remain under `/tmp`.
+
+## Final authorized full-survey retry
+
+After the 4 GiB refusal was recorded, the coordinator explicitly authorized one
+final resource adjustment: 8 GiB RSS, unchanged 360-second timeout, and at least
+18 GiB available before each invocation. Only base and candidate full-rule
+surveys were in scope, with no concurrent local heavy work. The
+[separate guard](evidence/recovery-2026-10-19/installed-guard-8g.py.txt)
+changes only those two memory thresholds; it preserves the first guard and all
+its receipts.
+
+The exact base invocation began with 23804836 KiB available memory. At 16.382
+seconds it reached sampled RSS 8420212 KiB, exceeding the 8388608 KiB ceiling.
+The guard killed the process group; exit -9, stop reason `rss_limit`. Both
+stdout and stderr were empty. No candidate full survey, timeout extension,
+further memory increase or additional evaluation followed. Full-rule
+preservation remains unverified. The immutable reference source and successful
+installed F7 comparison remain unchanged.
