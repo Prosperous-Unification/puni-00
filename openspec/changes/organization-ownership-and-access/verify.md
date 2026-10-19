@@ -1931,3 +1931,54 @@ itself. Pinned OpenSpec 1.12.0 `validate <change> --strict --json` passed all si
 affected changes with no issues; changed-file Prettier and `git diff --check`
 passed. Existing installed dependencies supplied formatting/hooks; no frozen
 install or application verification was performed for this documentation slice.
+
+## Activation CLI — 2026-10-20
+
+Task 7.1A, branch `feat/organization-activation-cli` from `origin/main` `a82d6fa9b`.
+`apps/wbs/be-01/src/organization-activation-cli.ts` is a thin shell over
+`activateLegacyOrganization` (`libs/wbs/adapters/store-sqlite/src/organization-legacy-activation.ts`),
+which reuses `readOrganizationActivation`, `OrganizationOwnershipRepository.backfillLegacyOwnership`
+(nested as a savepoint), `backfillExternalIdentities` and the preflight's three reconciliation
+queries inside one `BEGIN IMMEDIATE`. The preflight's own `preflightOrganizationOwnership` opens a
+`BEGIN DEFERRED` and cannot nest, so its three repository queries are called directly. Without
+`--apply` the transaction is rehearsed and rolled back. No migration.
+
+Reconciliation runs after the backfill because before it every event stream resolves to no mapped
+project and every root is unmapped. Refusals are typed and exit 3 (activated), 4 (organization
+exists), 5 (super-admin not exactly one user) or 6 (reconciliation); a broken marker, a half legacy
+solution or identity pair and usage errors throw (exit 1).
+
+Fixture: migrated disposable SQLite with three users (one with a legacy Auth0 pair), three
+projects (one with a legacy solution pair), two people, two teams, a service, a tag, a type, an
+external system, two saved plans, work items, a dependency, links, capacity and an event stream.
+
+| Command                                                                                                                                                                                        | Result                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/organization-activation-cli.db.test.ts apps/wbs/be-01/src/organization-activation.boot.db.test.ts`                                              | 20 pass, 0 fail, 108 expect() calls |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts`                         | 69 pass, 0 fail                     |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts` | 19 pass, 0 fail                     |
+| `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                        | succeeded                           |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                       | 258/258 passed                      |
+
+The rehearsal leaves every written table, the marker and the main database file byte for byte
+unchanged. The apply maps each root kind's full row count, grants one `super_admin` and two
+`member` rows, moves one solution pair and copies one identity. The booted test runs the CLI as a
+separate process against the file `bootBe01` serves (`BROWSER_SESSION_AUTHORITY=enabled`), with no
+restart. Afterwards the super-admin and a member each select their one membership and list both
+legacy projects, a Bearer-only request and a stranger registered after activation get
+`403 no_active_organization`, and under `disabled` the super-admin gets the same 403.
+
+R5 faults, each watched failing and restored:
+
+- Marker check removed: `refuses a second apply before touching the store` exited 4
+  (`organization_exists`) instead of 3; `refuses an activated marker even when no organization
+exists` reached the marker's no-revert trigger (exit 1).
+- Reconciliation check removed: `refuses and rolls back over a root planted after the backfill`
+  (bridge trigger dropped, tag inserted by a planted membership trigger) and `refuses an event
+stream that resolves to no project` both exited 0 and committed the marker.
+- Rehearsal committed: `rehearses without --apply` observed the identity, mappings and cleared
+  legacy solution pair.
+- Booted test run without `--apply`: the memberships read answered 403, not 200.
+
+Not verified: the CLI has not run on dev or prod. Drain/fence of old processes, the MCP epoch,
+trusted policy state and the release fence for `project_solution` remain 7.1B.
