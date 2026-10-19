@@ -5349,3 +5349,82 @@ review, exact-head CI, canonical h2puni gate, publication and integration remain
 coordinator work. The existing target shell-path contract is unchanged; no
 whitespace/glob safety expansion, trusted execution receipts, scenario citation
 credit, coverage, admission or certification is claimed.
+
+## Shared Unit integration recovery (2026-10-19)
+
+WBS080.39 was claimed before work under the two-fleet coordination contract.
+Claire's TASK-566 reconciliation was read on h1claw without builds or tests.
+Remote `task-*` heads and the latest 40 PRs were checked. Final integration
+`717576f9` is absent locally, but original source tips `bec08dedb` and `1ae0fa6ae`
+exist locally and remotely; fresh main still lacked their isolated Unit targets.
+
+Merge `b869d77e182449fce143086b02620de37ff22429` combines main
+`3e8d0742154e90a606b23d305dd6e424bb9c7d06` with the four original commits ending
+at `1ae0fa6ae855c6860009ed4e32f0486939fe8af6`, without conflicts. Tree:
+`7d52cb5a59ccf5afe7688dd256f42f64f2cd7d91`. Independent review verified all 157
+recovered paths are byte-identical to the original tip, all 29 upstream-only
+paths match main, and all 144 historical artifacts match recorded hashes and
+lengths. No findings or credential material were identified. The branch is
+`integration/wbs08039-unit-recovery-20261019`; original branches were preserved.
+
+### Fresh local verification
+
+Bun 1.4.2 installed frozen dependencies in a physical worktree-local directory.
+The unchanged lock SHA-256 is
+`e8d77926f9dac4ba4824486143872bdfb123cafd8bed45cca50c44b2e23298a4`.
+
+| Check                                                                                                                        | Observed outcome                                |
+| ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Baseline `bun test` of `test-levels.test.ts` and `shared-validation-level.test.ts`                                           | 112 passed, 0 failed                            |
+| Same command plus both recovered level suites                                                                                | 134 passed, 0 failed, 479 assertions            |
+| Restored two recovered suites after mutations                                                                                | 20 passed, 0 failed, 62 assertions              |
+| `nx run-many --projects=shared-failures,shared-test-levels --targets=test:unit:level,typecheck --parallel=1 --skip-nx-cache` | All four tasks passed                           |
+| `nx run tool-devsync:test-levels:verify --skip-nx-cache`                                                                     | Production collection verification passed       |
+| ESLint on verifier and three changed test files                                                                              | Exit 0                                          |
+| OpenSpec 1.12.0 `validate test-axes --strict --json`                                                                         | One valid change, no issues                     |
+| Normal merge hooks using locked local Lefthook                                                                               | Passed; trusted activation inactive/uncertified |
+
+Both targets ran uncached again with static Nx output at committed `b869d77e`:
+20 shared-failures cases and 5 shared-test-levels cases passed. Fresh external
+authorities pinned that revision, candidate, manifest and report bytes.
+Production `inspect-bun-test-reports` accepted both. Independent Python XML/Git/
+SHA-256 reconciliation confirmed every outcome, title, selected source, case ID
+and complete observation digest. Digests respectively:
+`83920c925669b592f2ae1c40c32538263f793eab8ff4c70e35d39341242c2ae4` and
+`b88e4437d3a6431a887d3a4f1744afaa5b62d8f9e50e6f800acca2a88b0e76c3`.
+Authentication remains absent, certification false, case level/isolation unresolved.
+
+### Watched production negatives
+
+Each fault ran separately for each project: 18 exits of 1 at the named assertions.
+Before/after hashes proved restoration of the verifier and project manifests.
+
+| Fault                                   | Observed assertion failure          |
+| --------------------------------------- | ----------------------------------- |
+| Remove registration                     | Canonical Unit collection lookup    |
+| Remove required-target guard            | Missing target declaration refusal  |
+| Remove literal selector `./`            | Nested throwing decoy executes      |
+| Bypass empty-selection guard            | Expected no-cases diagnostic absent |
+| Remove stale-report deletion            | Stale report remains                |
+| Replace selector short circuit with `;` | Failed selector runs partial output |
+| Remove complete-source guard            | Omitted Unit source accepted        |
+| Remove level-isolation guard            | API source admitted to Unit         |
+| Remove report-identity guard            | Different report path accepted      |
+
+Local replay copies used current paths and the archived 900 MiB process-tree
+guard. The first replay failed before injection at an obsolete temporary root;
+that attempt is not a qualifying negative. Corrected replay and restored tests
+passed. Original scripts and evidence bytes remain intact. Historical raw logs
+retain trailing whitespace/CRLF: whole import `git diff --check` reports those
+logs; the check excluding historical evidence passed.
+
+The 68 fresh logs, scripts, authorities, reports, independent parity results and
+fault/restoration receipts are in
+`evidence/shared-unit-recovery-2026-10-19/receipts.json.gz`, SHA-256
+`5fb19a6b3e9388acd9580649a9e5285574ac47975985269963fd1e6bc817d795`.
+The initial sandboxed install failed on a read-only temporary directory; the
+authorized frozen install succeeded. No full local gate was run.
+
+Canonical exact-SHA h2puni gate, hosted CI and release acceptance remain pending
+at this documentation checkpoint. Tasks 2.1l/2.1m retain bounded implementation
+completion; parent 2.1, wider test axes, trusted activation and WBS080.39 stay open.
