@@ -152,3 +152,11 @@ Commands after the fixes, laptop, `env -u CLAUDECODE`:
 | `bun test` step service/controller, typed-dependency ×3, directory controllers (be-01)               | 192 pass, 0 fail after one expectation gained `claims: 0` |
 | `bunx vitest run` wbs-api and directory tests (fe-01, `TZ=UTC`)                                      | 113 pass, 0 fail                                          |
 | `bunx tsc --build --force` domain, contracts, core, conformance, both adapters, be-01, mcp-01, fe-01 | no diagnostics                                            |
+
+Index fix after review: the gate on `4bad2c3ac` would fail R1's module index check
+(`tools/tool-devsync/src/repo-namespacing-handoff.test.ts`: "unindexed candidate path …
+claim-fixture.ts"); it was cancelled. `claim-fixture.ts`, `claims.ts` and
+`claim-command.test.ts` were added to their folders' `module-index` memberships; the other new
+files sit in folders with no module index. `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`:
+15 pass, 0 fail; the whole tool-devsync suite: 859 pass, 0 fail (one earlier run showed ten
+eslint-boundary failures that did not repeat, the "No cached ProjectGraph" condition).
