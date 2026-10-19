@@ -1,0 +1,12 @@
+diff --git a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+index 13b128160..e59ca23b4 100644
+--- a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+@@ -136,7 +136,6 @@ export function RolledEstimateTrio({
+         // Proof: dropping these three declarations made `quiets a parent’s rolled-up
+         // trio exactly as a leaf’s` fail on `expected '' to be '10px'`. Watched
+         // 2026-09-20.
+-        fontSize: QUIET_TRIO_PX,
+         fontWeight: 400,
+         // Proof: restoring transparent ink for an equal roll-up made
+         // `shows a parent’s rolled-up trio once when it equals the result`

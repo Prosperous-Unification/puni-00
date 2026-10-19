@@ -1,0 +1,38 @@
+[
+  {
+    "fault": "duplicate-final",
+    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+    "sha256": "3882227f1fbb39f9588f200b6fbfd1fe9ecbe85e61dcb7c018ab591333974b52",
+    "restored": true
+  },
+  {
+    "fault": "quiet-parent",
+    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+    "sha256": "3882227f1fbb39f9588f200b6fbfd1fe9ecbe85e61dcb7c018ab591333974b52",
+    "restored": true
+  },
+  {
+    "fault": "draft-points",
+    "path": "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+    "sha256": "339661df5846ab6203a6731b5a2746f5f643c2be144d7e5ef2a3bacb2b1425c2",
+    "restored": true
+  },
+  {
+    "fault": "draft-points",
+    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+    "sha256": "3882227f1fbb39f9588f200b6fbfd1fe9ecbe85e61dcb7c018ab591333974b52",
+    "restored": true
+  },
+  {
+    "fault": "draft-final",
+    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+    "sha256": "3882227f1fbb39f9588f200b6fbfd1fe9ecbe85e61dcb7c018ab591333974b52",
+    "restored": true
+  },
+  {
+    "fault": "detail-focus",
+    "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+    "sha256": "3882227f1fbb39f9588f200b6fbfd1fe9ecbe85e61dcb7c018ab591333974b52",
+    "restored": true
+  }
+]

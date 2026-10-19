@@ -1,0 +1,9 @@
+{
+  "command": [
+    "python3",
+    "/tmp/wbs100-estimate-installed-oracle-20261019.py",
+    "/tmp/wbs100-estimate-installed-base-20261019.stdout",
+    "/tmp/wbs100-estimate-installed-fault-20261019.stdout"
+  ],
+  "exitCode": 1
+}
