@@ -115,6 +115,17 @@ person or a delegated claim under a claim of that person; otherwise `credential_
 Browser logins are unpinned credentials of the same account. Revoking a fleet is deleting its
 row. Verified in slice 0 (verify.md): the dev tenant has no M2M application and its groups Action is post-login only, so an M2M token carries no `wbs_groups`; the open decision is an Auth0 credentials-exchange Action or be-01 scoping a linked credential from its account.
 
+**D6b. A linked credential without a groups claim is scoped by its account (assumed, for
+Dany's nod).** Slice 0 showed an Auth0 machine-to-machine token carries no `wbs_groups`
+without tenant work. Rather than depend on a credentials-exchange Action, be-01 SHALL, when
+a verified token carries no groups claim and its `(issuer, subject)` is a linked credential,
+derive the request's scopes from the linked account's memberships: `viewer` reads, `member`
+reads and writes, `admin` and `super_admin` edit. A token that carries the groups claim keeps
+today's mapping; a credential that is not linked and carries no groups claim is refused as
+today. An M2M application per fleet is still created in the tenant for the audience, which
+is a dashboard act, not an Action. Alternative rejected: the Action, because it ties the
+contract to one provider (the `enable-public-mcp-client-auth` non-goal).
+
 **D7. A subtree claim reserves dispatch; steps under it are claimed as delegated claims.** A claim
 on a non-leaf has no step and names the subtree. Inside it, a step claim is accepted only
 when its person is the subtree holder, or when it names the subtree claim as `parentClaim`
