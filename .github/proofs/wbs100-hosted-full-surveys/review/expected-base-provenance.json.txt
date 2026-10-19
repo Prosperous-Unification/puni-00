@@ -1,0 +1,25 @@
+{
+  "sourceCommit": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "publishedCarrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/public-collection/full-base.json",
+  "publishedCarrierSha256": "e1bebcf8c898d0763e500b55700c138a77b9c4a62630428e96238a082263e0b4",
+  "member": "stdout.text",
+  "decodedSha256": "eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2",
+  "decodedBytes": 7541,
+  "independentLocalReport": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-base.stdout",
+  "bytesEqual": true,
+  "findings": 41,
+  "unevaluated": [
+    {
+      "ruleId": "INV-CLASSIFY",
+      "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "reason": "Performance config content differs from reviewed authority"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+    }
+  ]
+}

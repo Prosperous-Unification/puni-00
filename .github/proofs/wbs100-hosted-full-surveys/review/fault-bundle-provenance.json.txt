@@ -1,0 +1,107 @@
+{
+  "finalPublishedSource": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "commonPrerequisite": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+  "bundleHeader": [
+    "# v2 git bundle",
+    "-3e8d0742154e90a606b23d305dd6e424bb9c7d06 Merge pull request #572 from Prosperous-Unification/task-565-h3mon-post-resize",
+    "d6026f83be7c0af4c325406961ebc3eacb58363c refs/heads/proof/wbs100-reference-oversized-20261019",
+    "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5 refs/heads/proof/wbs100-estimate-oversized-20261019"
+  ],
+  "bundleSha256": "f048e6498241ab967ab0554dd768316028fdf3e588b738c1576c3181b2b1e8d2",
+  "bundleBytes": 42757,
+  "transportedCommits": [
+    {
+      "commit": "40d40ff6219aae3d2115dd39eee6ca36f1cd9e61",
+      "parent": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "paths": [
+        "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts",
+        "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx",
+        "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/commit.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/fault-commit.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/hidden-count.log.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/hidden-count.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/hooks-original.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/hooks-serial.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/inherited-hover.log.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/inherited-hover.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/measure-committed.mjs.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/mounted-final.log.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/mounted-final.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/rest-height.log.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/rest-height.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/single-member.log.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/single-member.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-fault.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-fault.log.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-fault.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-restored.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-restored.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/evidence/typecheck-final.receipt.json.txt",
+        "openspec/changes/wbs-reference-set-presentation-boundary/proposal.md",
+        "openspec/changes/wbs-reference-set-presentation-boundary/specs/reference-set-presentation-boundary/spec.md",
+        "openspec/changes/wbs-reference-set-presentation-boundary/tasks.md",
+        "openspec/changes/wbs-reference-set-presentation-boundary/verify.md"
+      ],
+      "patchSha256": "043d241bfd291d92de8b038284e93a01d033c3d9a4950eecdcc2d628755da945",
+      "alreadyPublishedAncestorOfFinalSource": true,
+      "faultRestoresExactPublishedBaseBlob": false
+    },
+    {
+      "commit": "d6026f83be7c0af4c325406961ebc3eacb58363c",
+      "parent": "40d40ff6219aae3d2115dd39eee6ca36f1cd9e61",
+      "paths": [
+        "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+      ],
+      "patchSha256": "5f9c03517b4e18b402218d120c53bb048ed443c342f99ac4c80d9c13324753bb",
+      "alreadyPublishedAncestorOfFinalSource": false,
+      "faultRestoresExactPublishedBaseBlob": true
+    },
+    {
+      "commit": "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+      "parent": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "paths": [
+        "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+        "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/check-source-preservation.ts.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/commit.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/fault-commit.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/flat-green.log.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/flat-green.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/hooks-original.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/hooks-serial.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/measure-committed.mjs.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/mounted-estimates.log.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/mounted-estimates.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-fault.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-fault.log.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-fault.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-restored.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes-restored.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/sizes.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/typecheck-ts6.receipt.json.txt",
+        "openspec/changes/wbs-estimate-presentation-boundary/proposal.md",
+        "openspec/changes/wbs-estimate-presentation-boundary/specs/estimate-presentation-boundary/spec.md",
+        "openspec/changes/wbs-estimate-presentation-boundary/tasks.md",
+        "openspec/changes/wbs-estimate-presentation-boundary/verify.md"
+      ],
+      "patchSha256": "85f88b166f0bf71b8e26445c9b4087bf56552617d4a0122b12ea74c1b7555a38",
+      "alreadyPublishedAncestorOfFinalSource": true,
+      "faultRestoresExactPublishedBaseBlob": false
+    },
+    {
+      "commit": "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5",
+      "parent": "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+      "paths": [
+        "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+      ],
+      "patchSha256": "329887533b9ebe358b975fc514195c3ea1f4de381401832785150e41878eaec8",
+      "alreadyPublishedAncestorOfFinalSource": false,
+      "faultRestoresExactPublishedBaseBlob": true
+    }
+  ],
+  "scope": "Only four commits above published prerequisite; two already-public recovered source commits and two single-path faults restoring original public base blobs. No unrelated repository history or new component content."
+}

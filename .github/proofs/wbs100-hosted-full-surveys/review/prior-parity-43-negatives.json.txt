@@ -1,0 +1,288 @@
+{
+  "scope": "Actual hosted-driver checks, capture helper and exact retained guard on small local file/subprocess fixtures; tiny synthetic ZIP and identity dictionaries test validation only, not real package authenticity. No hosted, package-build or evaluator execution.",
+  "driverSha256": "99faf6eda9ccb1cc3d333ea72af48df95ec7561d930bdbc7f2ae0bb2e41fa71d",
+  "guardBindings": {
+    "60": {
+      "path": "guards/identity-guard.py",
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/identity-guard.py",
+      "sha256": "4df8066c4111c33746c33d5159c4de77a3cac20afdf06165f860f377ad7dbc29",
+      "bytes": 1953
+    },
+    "360": {
+      "path": "guards/preparation-guard.py",
+      "source": "/tmp/wbs100-serial-compiler-20261019/guard.py",
+      "sha256": "291398b1395dcdc5a342f7439f48c2f9f497ceaa83481176110cec1192df974c",
+      "bytes": 1954
+    }
+  },
+  "faults": [
+    {
+      "fault": "policy byte changed",
+      "expected": "input digest mismatch",
+      "observed": "input digest mismatch: positive-policy.json",
+      "rejected": true
+    },
+    {
+      "fault": "wrong expected checkout commit",
+      "expected": "source checkout is not clean exact final SHA",
+      "observed": "source checkout is not clean exact final SHA",
+      "rejected": true
+    },
+    {
+      "fault": "dirty checkout",
+      "expected": "source checkout is not clean exact final SHA",
+      "observed": "source checkout is not clean exact final SHA",
+      "rejected": true
+    },
+    {
+      "fault": "installed source differs from requested source",
+      "expected": "source identity mismatch",
+      "observed": "source identity mismatch",
+      "rejected": true
+    },
+    {
+      "fault": "installed role bytes changed",
+      "expected": "toolkit role mismatch: validator.mjs",
+      "observed": "toolkit role mismatch: validator.mjs",
+      "rejected": true
+    },
+    {
+      "fault": "before/after executable bytes differ",
+      "expected": "installed identity changed during invocation",
+      "observed": "installed identity changed during invocation",
+      "rejected": true
+    },
+    {
+      "fault": "identity differs between invocations",
+      "expected": "installed identity changed between invocations",
+      "observed": "installed identity changed between invocations",
+      "rejected": true
+    },
+    {
+      "fault": "runtime identity bunVersion",
+      "expected": "runtime identity mismatch",
+      "observed": "runtime identity mismatch",
+      "rejected": true
+    },
+    {
+      "fault": "runtime identity descriptor.bunVersion",
+      "expected": "runtime identity mismatch",
+      "observed": "runtime identity mismatch",
+      "rejected": true
+    },
+    {
+      "fault": "manifest/descriptor binding changed",
+      "expected": "toolkit descriptor identity mismatch",
+      "observed": "toolkit descriptor identity mismatch",
+      "rejected": true
+    },
+    {
+      "fault": "historical identity executableSha256",
+      "expected": "historical installed identity changed",
+      "observed": "historical installed identity changed",
+      "rejected": true
+    },
+    {
+      "fault": "historical identity descriptorSha256",
+      "expected": "historical installed identity changed",
+      "observed": "historical installed identity changed",
+      "rejected": true
+    },
+    {
+      "fault": "artifact metadata id",
+      "expected": "immutable artifact metadata differs",
+      "observed": "immutable artifact metadata differs",
+      "rejected": true
+    },
+    {
+      "fault": "artifact metadata expired",
+      "expected": "immutable artifact metadata differs",
+      "observed": "immutable artifact metadata differs",
+      "rejected": true
+    },
+    {
+      "fault": "artifact metadata workflow_run",
+      "expected": "immutable artifact metadata differs",
+      "observed": "immutable artifact metadata differs",
+      "rejected": true
+    },
+    {
+      "fault": "artifact metadata digest",
+      "expected": "immutable artifact metadata differs",
+      "observed": "immutable artifact metadata differs",
+      "rejected": true
+    },
+    {
+      "fault": "ZIP bytes changed without size change",
+      "expected": "historical artifact ZIP digest differs",
+      "observed": "historical artifact ZIP digest differs",
+      "rejected": true
+    },
+    {
+      "fault": "ZIP size changed",
+      "expected": "historical artifact ZIP digest differs",
+      "observed": "historical artifact ZIP digest differs",
+      "rejected": true
+    },
+    {
+      "fault": "package hash expectation wrong",
+      "expected": "historical package digest differs",
+      "observed": "historical package digest differs",
+      "rejected": true
+    },
+    {
+      "fault": "ZIP package member absent",
+      "expected": "historical package member absent or ambiguous",
+      "observed": "historical package member absent or ambiguous",
+      "rejected": true
+    },
+    {
+      "fault": "ZIP package member duplicate",
+      "expected": "historical package member absent or ambiguous",
+      "observed": "historical package member absent or ambiguous",
+      "rejected": true
+    },
+    {
+      "fault": "hosted environment marker absent",
+      "expected": "hosted execution required",
+      "observed": "hosted execution required",
+      "rejected": true
+    },
+    {
+      "fault": "hosted environment marker false",
+      "expected": "hosted execution required",
+      "observed": "hosted execution required",
+      "rejected": true
+    },
+    {
+      "fault": "report candidate changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "report policy changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "report allowed changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "report ruleIds changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "report findings changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "report unevaluated changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "report certifies changed",
+      "expected": "complete fixture report mismatch",
+      "observed": "complete fixture report mismatch: report-positive",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt command",
+      "expected": "guard receipt binding mismatch",
+      "observed": "guard receipt binding mismatch: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt cwd",
+      "expected": "guard receipt binding mismatch",
+      "observed": "guard receipt binding mismatch: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt ceilingKiB",
+      "expected": "guard receipt binding mismatch",
+      "observed": "guard receipt binding mismatch: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt timeoutSeconds",
+      "expected": "guard receipt binding mismatch",
+      "observed": "guard receipt binding mismatch: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt minimumAvailableKiB",
+      "expected": "guard receipt binding mismatch",
+      "observed": "guard receipt binding mismatch: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt availableBeforeKiB",
+      "expected": "guard receipt binding mismatch",
+      "observed": "guard receipt binding mismatch: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt exitCode",
+      "expected": "guarded command failed",
+      "observed": "guarded command failed: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard receipt stopReason",
+      "expected": "guarded command failed",
+      "observed": "guarded command failed: receipt-mutant",
+      "rejected": true
+    },
+    {
+      "fault": "guard subprocess receives child exit 7",
+      "expected": "guard process failed",
+      "observed": "guard process failed: tiny-seven",
+      "rejected": true
+    },
+    {
+      "fault": "guard accepts child exit 1 but caller requires 0",
+      "expected": "guarded command failed",
+      "observed": "guarded command failed: tiny-unexpected-one",
+      "rejected": true
+    },
+    {
+      "fault": "guard output reuse",
+      "expected": "guard output already exists",
+      "observed": "guard output already exists: tiny-zero.stdout",
+      "rejected": true
+    },
+    {
+      "fault": "retained guard bytes altered",
+      "expected": "reviewed guard digest mismatch",
+      "observed": "reviewed guard digest mismatch: guards/identity-guard.py",
+      "rejected": true
+    },
+    {
+      "fault": "unfilled final source",
+      "exitCode": 1,
+      "observed": "Traceback (most recent call last):\n  File \"/tmp/puni-wbs100-hosted-parity-plan-20261020/run-hosted.py\", line 216, in <module>\n    main()\n    ~~~~^^\n  File \"/tmp/puni-wbs100-hosted-parity-plan-20261020/run-hosted.py\", line 150, in main\n    raise ValueError('finalSourceRevision must be filled with reviewed committed SHA before launch')\nValueError: finalSourceRevision must be filled with reviewed committed SHA before launch\n",
+      "rejected": true
+    }
+  ],
+  "restored": "Input bytes, checkout, role bytes, executable identity, report and guard each passed after restoration; final tiny guarded child exit 0 passed.",
+  "notProven": [
+    "hosted workflow execution/permissions",
+    "actual package install/build and parity",
+    "RSS-limit kill",
+    "timeout kill",
+    "low-memory refusal in guard before child launch",
+    "network transfer failures",
+    "every possible malformed identity-schema fault"
+  ]
+}

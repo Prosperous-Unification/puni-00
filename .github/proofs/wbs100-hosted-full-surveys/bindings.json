@@ -1,0 +1,56 @@
+{
+  "finalSourceRevision": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "artifact": {
+    "id": 12228379062,
+    "runId": 39340870682,
+    "zipSha256": "7c2941538885bdb2836ae4225272c3bf7dce79c00ba7a67cc54a340ca91fc126",
+    "bytes": 32569755
+  },
+  "successorArchiveSha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+  "artifactMember": "successor.tgz",
+  "historicalSource": "ac774f0c358db369c2048e537151e263cc29361e",
+  "faultPrerequisite": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+  "faultRefs": {
+    "proof/wbs100-reference-oversized-20261019": "d6026f83be7c0af4c325406961ebc3eacb58363c",
+    "proof/wbs100-estimate-oversized-20261019": "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5"
+  },
+  "inputs": {
+    "candidate-bindings.json.txt": {
+      "bytes": 7024,
+      "sha256": "eb9cfaf9d6621e59cc6edf528d6f7dc4ab53511d48e1e68af6dc0c0820be8133"
+    },
+    "faults.bundle": {
+      "bytes": 42757,
+      "sha256": "f048e6498241ab967ab0554dd768316028fdf3e588b738c1576c3181b2b1e8d2"
+    },
+    "installed-identity.json.txt": {
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    "policy.json.txt": {
+      "bytes": 69622,
+      "sha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c"
+    },
+    "expected-base.json.txt": {
+      "bytes": 7541,
+      "sha256": "eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2"
+    }
+  },
+  "guards": {
+    "360": {
+      "path": "guards/preparation-guard.py",
+      "bytes": 1954,
+      "sha256": "291398b1395dcdc5a342f7439f48c2f9f497ceaa83481176110cec1192df974c"
+    },
+    "900": {
+      "path": "guards/survey-guard.py",
+      "bytes": 1954,
+      "sha256": "72118f728b8abda764a85d07fed79326c098fe71e3b710657fe022a1e98258f7"
+    }
+  },
+  "reviewedHelpers": {
+    "parity-support.py": "99faf6eda9ccb1cc3d333ea72af48df95ec7561d930bdbc7f2ae0bb2e41fa71d",
+    "compare-surveys.py": "6652e594f7d6b7016fa3a38c2cc63ae2d81bc10dbbebdff9827ec3dd9f37716a",
+    "capture-installed.py": "984f247c8d70cc3795280765e93839f59c835c06b51504d17baceb3955599c50"
+  }
+}

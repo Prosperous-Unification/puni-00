@@ -1,0 +1,11 @@
+{
+  "driverSha256": "b597b36dfd05b962522e26d63d48be62c48c148b86cfbc2df110e45fda641fec",
+  "adapterSha256": "ebb3fb638e1056d643943992cc15558137fdd745635e13db0c6d94478475a980",
+  "negativeCount": 53,
+  "restoredAdapterPassed": true,
+  "staticPythonSyntax": "pass",
+  "immutableInputs": "pass",
+  "reviewedHelperHashes": "pass",
+  "noLocalEvaluatorOrHeavyTests": true,
+  "hostedExecution": "not launched; root/peer review pending"
+}

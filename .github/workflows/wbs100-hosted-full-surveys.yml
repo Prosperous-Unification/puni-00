@@ -1,0 +1,59 @@
+name: wbs100-hosted-full-surveys
+
+on:
+  push:
+    branches: [integration/wbs100-hosted-full-surveys-20261020]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wbs100-hosted-full-surveys
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    # Ten sequential invocations retain their 900-second caps. This independent outer
+    # bound can refuse an unfinished run; it does not guarantee ten worst-case runs fit.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: proof
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: d7f2129598af7a3cb7ed3c7161e06d504b586891
+          fetch-depth: 0
+          path: candidates
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: Compare five installed full surveys and five standalone F7 runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 proof/.github/proofs/wbs100-hosted-full-surveys/run-hosted.py candidates receipts
+      - name: Preserve exact proof inputs and driver
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p receipts
+          cp -R proof/.github/proofs/wbs100-hosted-full-surveys receipts/proof-inputs
+      - name: Preserve installed survey evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wbs100-hosted-full-surveys-d7f2129-${{ github.run_attempt }}
+          path: |
+            receipts/
+            !receipts/source-artifact.zip
+            !receipts/successor.tgz
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1

@@ -1,0 +1,280 @@
+{
+  "scope": "Actual adapter and new driver paths on tiny local fixtures; projected F7 fixtures are not observed standalone outputs. No evaluator, build, hosted or heavy test run.",
+  "driverSha256": "b597b36dfd05b962522e26d63d48be62c48c148b86cfbc2df110e45fda641fec",
+  "adapterSha256": "ebb3fb638e1056d643943992cc15558137fdd745635e13db0c6d94478475a980",
+  "negativeCount": 53,
+  "allNamedFailuresObserved": true,
+  "restoredAdapterPassed": true,
+  "observations": [
+    {
+      "fault": "baseline-compiler-refusal",
+      "expected": "hosted baseline differs from published final-source baseline",
+      "observed": "hosted baseline differs from published final-source baseline\n--- expected\n+++ observed\n@@ -287,6 +287,10 @@\n     {\n       \"reason\": \"competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors\",\n       \"ruleId\": \"SPEC-SCENARIOS\"\n+    },\n+    {\n+      \"reason\": \"injected compiler refusal\",\n+      \"ruleId\": \"REL-EXTRACT\"\n     }\n   ]\n }"
+    },
+    {
+      "fault": "baseline-compiler-finding",
+      "expected": "hosted baseline differs from published final-source baseline",
+      "observed": "hosted baseline differs from published final-source baseline\n--- expected\n+++ observed\n@@ -179,7 +179,7 @@\n     },\n     {\n       \"effect\": \"debt\",\n-      \"message\": \"feature in apps/wbs/be-01/src/service imports feature in libs/wbs/application/core/src/service\",\n+      \"message\": \"injected compiler finding drift\",\n       \"path\": \"apps/wbs/be-01/src/service/optimization-dequeue-reservation.ts\",\n       \"ruleId\": \"K6\",\n       \"subject\": \"libs/wbs/application/core/src/service/committed-fanout.ts\""
+    },
+    {
+      "fault": "candidate",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -1,6 +1,6 @@\n {\n   \"allowed\": true,\n-  \"candidate\": \"b39ad452fd4a7fad018486fd67046bce04f36a2b2f8912cc1f7c31cdd42477f2\",\n+  \"candidate\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n   \"certifies\": false,\n   \"findings\": [\n     {"
+    },
+    {
+      "fault": "policy",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -172,7 +172,7 @@\n       \"ruleId\": \"F7\"\n     }\n   ],\n-  \"policy\": \"wbs.plan-export.recovery.full.v1\",\n+  \"policy\": \"wrong\",\n   \"ruleIds\": [\n     \"F7\"\n   ],"
+    },
+    {
+      "fault": "rule-selection",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -174,6 +174,7 @@\n   ],\n   \"policy\": \"wbs.plan-export.recovery.full.v1\",\n   \"ruleIds\": [\n+    \"F1\",\n     \"F7\"\n   ],\n   \"schemaVersion\": 1,"
+    },
+    {
+      "fault": "allowed",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -1,5 +1,5 @@\n {\n-  \"allowed\": true,\n+  \"allowed\": false,\n   \"candidate\": \"b39ad452fd4a7fad018486fd67046bce04f36a2b2f8912cc1f7c31cdd42477f2\",\n   \"certifies\": false,\n   \"findings\": ["
+    },
+    {
+      "fault": "unevaluated",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -177,5 +177,10 @@\n     \"F7\"\n   ],\n   \"schemaVersion\": 1,\n-  \"unevaluated\": []\n+  \"unevaluated\": [\n+    {\n+      \"reason\": \"fault\",\n+      \"ruleId\": \"F7\"\n+    }\n+  ]\n }"
+    },
+    {
+      "fault": "finding-effect",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -4,7 +4,7 @@\n   \"certifies\": false,\n   \"findings\": [\n     {\n-      \"effect\": \"debt\",\n+      \"effect\": \"block\",\n       \"message\": \"1241 lines exceeds the ceiling 800\",\n       \"path\": \"apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts\",\n       \"ruleId\": \"F7\""
+    },
+    {
+      "fault": "finding-message",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -5,7 +5,7 @@\n   \"findings\": [\n     {\n       \"effect\": \"debt\",\n-      \"message\": \"1241 lines exceeds the ceiling 800\",\n+      \"message\": \"changed\",\n       \"path\": \"apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts\",\n       \"ruleId\": \"F7\"\n     },"
+    },
+    {
+      "fault": "missing-finding",
+      "expected": "standalone F7 differs",
+      "observed": "reference: standalone F7 differs from full-survey subset\n--- expected\n+++ observed\n@@ -164,12 +164,6 @@\n       \"message\": \"1878 lines exceeds the ceiling 800\",\n       \"path\": \"libs/wbs/application/core/src/testing/import-service-source-contract.ts\",\n       \"ruleId\": \"F7\"\n-    },\n-    {\n-      \"effect\": \"debt\",\n-      \"message\": \"3883 lines exceeds the ceiling 800\",\n-      \"path\": \"libs/wbs/domain/domain/src/schedule.ts\",\n-      \"ruleId\": \"F7\"\n     }\n   ],\n   \"policy\": \"wbs.plan-export.recovery.full.v1\","
+    },
+    {
+      "fault": "unexpected-field",
+      "expected": "F7 report fields",
+      "observed": "reference: F7 report fields"
+    },
+    {
+      "fault": "certification",
+      "expected": "F7 boolean/certification fields",
+      "observed": "reference: F7 boolean/certification fields"
+    },
+    {
+      "fault": "boolean-schema",
+      "expected": "F7 schema type",
+      "observed": "reference: F7 schema type"
+    },
+    {
+      "fault": "duplicate-key",
+      "expected": "duplicate JSON key",
+      "observed": "duplicate JSON key: allowed"
+    },
+    {
+      "fault": "nonfinite",
+      "expected": "nonfinite JSON constant",
+      "observed": "nonfinite JSON constant: NaN"
+    },
+    {
+      "fault": "invocation-rule",
+      "expected": "guard command",
+      "observed": "guard command\n--- expected\n+++ observed\n@@ -6,5 +6,5 @@\n   \"40d40ff6219aae3d2115dd39eee6ca36f1cd9e61\",\n   \"/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020/.github/proofs/wbs100-hosted-full-surveys/inputs/policy.json.txt\",\n   \"--rule\",\n-  \"F7\"\n+  \"F1\"\n ]"
+    },
+    {
+      "fault": "invocation-revision",
+      "expected": "guard command",
+      "observed": "guard command\n--- expected\n+++ observed\n@@ -3,7 +3,7 @@\n   \"check\",\n   \"committed\",\n   \"/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020\",\n-  \"40d40ff6219aae3d2115dd39eee6ca36f1cd9e61\",\n+  \"0000000000000000000000000000000000000000\",\n   \"/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020/.github/proofs/wbs100-hosted-full-surveys/inputs/policy.json.txt\",\n   \"--rule\",\n   \"F7\""
+    },
+    {
+      "fault": "invocation-policy",
+      "expected": "guard command",
+      "observed": "guard command\n--- expected\n+++ observed\n@@ -4,7 +4,7 @@\n   \"committed\",\n   \"/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020\",\n   \"40d40ff6219aae3d2115dd39eee6ca36f1cd9e61\",\n-  \"/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020/.github/proofs/wbs100-hosted-full-surveys/inputs/policy.json.txt\",\n+  \"/wrong\",\n   \"--rule\",\n   \"F7\"\n ]"
+    },
+    {
+      "fault": "invocation-executable",
+      "expected": "guard command",
+      "observed": "guard command\n--- expected\n+++ observed\n@@ -1,5 +1,5 @@\n [\n-  \"/tmp/wbs100-hosted-adapter-a7yb3uwo/consumer/node_modules/.bin/twib\",\n+  \"/wrong\",\n   \"check\",\n   \"committed\",\n   \"/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020\","
+    },
+    {
+      "fault": "invocation-cwd",
+      "expected": "guard cwd",
+      "observed": "guard cwd\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"/tmp/wbs100-hosted-adapter-a7yb3uwo/consumer\"\n+\"/wrong\""
+    },
+    {
+      "fault": "resource-stop",
+      "expected": "guard resource termination",
+      "observed": "guard resource termination"
+    },
+    {
+      "fault": "child-exit",
+      "expected": "guard child exit",
+      "observed": "guard child exit\n--- expected\n+++ observed\n@@ -1 +1 @@\n-0\n+1"
+    },
+    {
+      "fault": "cap",
+      "expected": "guard ceilingKiB",
+      "observed": "guard ceilingKiB\n--- expected\n+++ observed\n@@ -1 +1 @@\n-4194304\n+8388608"
+    },
+    {
+      "fault": "deadline",
+      "expected": "guard timeoutSeconds",
+      "observed": "guard timeoutSeconds\n--- expected\n+++ observed\n@@ -1 +1 @@\n-900\n+1800"
+    },
+    {
+      "fault": "memory-floor",
+      "expected": "guard minimumAvailableKiB",
+      "observed": "guard minimumAvailableKiB\n--- expected\n+++ observed\n@@ -1 +1 @@\n-12582912\n+1"
+    },
+    {
+      "fault": "rss",
+      "expected": "guard peak RSS",
+      "observed": "guard peak RSS"
+    },
+    {
+      "fault": "available",
+      "expected": "guard available memory",
+      "observed": "guard available memory"
+    },
+    {
+      "fault": "duration",
+      "expected": "guard duration",
+      "observed": "guard duration"
+    },
+    {
+      "fault": "snapshot-before",
+      "expected": "F7 evaluator identity changed",
+      "observed": "reference: F7 evaluator identity changed\n--- expected\n+++ observed\n@@ -366,7 +366,7 @@\n     \"trustedNodeModulesIdentity\": \"4bf3fbbca1b7cc5ed5154452b062850c8c6babca879125da74cd61816f12f2dd\"\n   },\n   \"descriptorSha256\": \"b9598fa37b1485b513f357525404495e26ec430b042c5f3f7ed4b39f33d769f1\",\n-  \"executableSha256\": \"de6591ce7b2c843738309b4d0bb50924866c8c32041e166f720dd6dd4b53cd4c\",\n+  \"executableSha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n   \"manifest\": {\n     \"packageVersion\": \"0.1.0\",\n     \"schemaVersion\": 1,"
+    },
+    {
+      "fault": "snapshot-after",
+      "expected": "F7 evaluator identity changed",
+      "observed": "reference: F7 evaluator identity changed\n--- expected\n+++ observed\n@@ -366,7 +366,7 @@\n     \"trustedNodeModulesIdentity\": \"4bf3fbbca1b7cc5ed5154452b062850c8c6babca879125da74cd61816f12f2dd\"\n   },\n   \"descriptorSha256\": \"b9598fa37b1485b513f357525404495e26ec430b042c5f3f7ed4b39f33d769f1\",\n-  \"executableSha256\": \"de6591ce7b2c843738309b4d0bb50924866c8c32041e166f720dd6dd4b53cd4c\",\n+  \"executableSha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n   \"manifest\": {\n     \"packageVersion\": \"0.1.0\",\n     \"schemaVersion\": 1,"
+    },
+    {
+      "fault": "coherent-wrong-count",
+      "expected": "F7 finding count",
+      "observed": "base: F7 finding count\n--- expected\n+++ observed\n@@ -1 +1 @@\n-29\n+30"
+    },
+    {
+      "fault": "coherent-unrelated-drift",
+      "expected": "standalone F7 removed unrelated findings",
+      "observed": "reference: standalone F7 removed unrelated findings\n--- expected\n+++ observed\n@@ -1,7 +1,7 @@\n [\n   {\n     \"effect\": \"debt\",\n-    \"message\": \"1241 lines exceeds the ceiling 800\",\n+    \"message\": \"coherent drift\",\n     \"path\": \"apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts\",\n     \"ruleId\": \"F7\"\n   },"
+    },
+    {
+      "fault": "coherent-fault-drift",
+      "expected": "standalone fault did not restore baseline",
+      "observed": "reference: standalone fault did not restore baseline\n--- expected\n+++ observed\n@@ -1,7 +1,7 @@\n [\n   {\n     \"effect\": \"debt\",\n-    \"message\": \"1241 lines exceeds the ceiling 800\",\n+    \"message\": \"coherent fault drift\",\n     \"path\": \"apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts\",\n     \"ruleId\": \"F7\"\n   },"
+    },
+    {
+      "fault": "candidate-tree",
+      "expected": "candidate tree",
+      "observed": "reference: candidate tree\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"0000000000000000000000000000000000000000\"\n+\"11ea76d6a530a021dc11a273fb5a2a61c1724888\""
+    },
+    {
+      "fault": "candidate-commit",
+      "expected": "returned non-zero",
+      "observed": "Command '['git', 'rev-parse', '0000000000000000000000000000000000000000^{tree}']' returned non-zero exit status 128."
+    },
+    {
+      "fault": "candidate-selection",
+      "expected": "candidate selection",
+      "observed": "reference: candidate selection\n--- expected\n+++ observed\n@@ -1,5 +1,5 @@\n {\n   \"kind\": \"committed\",\n-  \"revision\": \"40d40ff6219aae3d2115dd39eee6ca36f1cd9e61\",\n+  \"revision\": \"0000000000000000000000000000000000000000\",\n   \"tree\": \"11ea76d6a530a021dc11a273fb5a2a61c1724888\"\n }"
+    },
+    {
+      "fault": "fault-parent",
+      "expected": "fault parent",
+      "observed": "reference: fault parent\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"40d40ff6219aae3d2115dd39eee6ca36f1cd9e61\"\n+\"a513d8bb6e6b5433b78595e4b89dc0e7849d8a99\""
+    },
+    {
+      "fault": "fault-unrelated-path",
+      "expected": "fault changed unrelated path",
+      "observed": "reference: fault changed unrelated path\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx\"\n+\"unrelated.txt\""
+    },
+    {
+      "fault": "fault-original-blob",
+      "expected": "fault did not restore original blob",
+      "observed": "reference: fault did not restore original blob\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"4b63816d887531922998d0daac1b0a0a0620c466\"\n+\"e4843dfa5c0073e5fc10508208dd4033664e620c\""
+    },
+    {
+      "fault": "zip-size",
+      "expected": "artifact ZIP size",
+      "observed": "artifact ZIP size\n--- expected\n+++ observed\n@@ -1 +1 @@\n-1\n+161"
+    },
+    {
+      "fault": "zip-digest",
+      "expected": "artifact ZIP digest",
+      "observed": "artifact ZIP digest\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"0000000000000000000000000000000000000000000000000000000000000000\"\n+\"1bbbf84fbfe2b16a76307ddea50590f7680d1423a4d9f97b86ff7e4be78b04ae\""
+    },
+    {
+      "fault": "zip-member",
+      "expected": "successor member absent",
+      "observed": "successor member absent or ambiguous"
+    },
+    {
+      "fault": "package-digest",
+      "expected": "successor package digest",
+      "observed": "successor package digest\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"0000000000000000000000000000000000000000000000000000000000000000\"\n+\"6bef814eede58faa5fccd1028a5d93e007bc40a1f4bc23249163a5f0da0cbada\""
+    },
+    {
+      "fault": "duplicate-package-member",
+      "expected": "successor member absent or ambiguous",
+      "observed": "successor member absent or ambiguous"
+    },
+    {
+      "fault": "altered-compare-surveys.py",
+      "expected": "digest",
+      "observed": "reviewed helper digest: compare-surveys.py\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"6652e594f7d6b7016fa3a38c2cc63ae2d81bc10dbbebdff9827ec3dd9f37716a\"\n+\"bf9ef375c92fd446fc512a83e91f86b258589f142048ba8aa1be13fb478474e3\""
+    },
+    {
+      "fault": "altered-guards/survey-guard.py",
+      "expected": "guard byte length",
+      "observed": "guard byte length\n--- expected\n+++ observed\n@@ -1 +1 @@\n-1954\n+1955"
+    },
+    {
+      "fault": "same-length-guard-drift",
+      "expected": "guard byte digest",
+      "observed": "guard byte digest\n--- expected\n+++ observed\n@@ -1 +1 @@\n-\"72118f728b8abda764a85d07fed79326c098fe71e3b710657fe022a1e98258f7\"\n+\"71373160e51f9da8ef7109b9a3dfeb9b6fae6a48955ff12905bb382002c4e6b8\""
+    },
+    {
+      "fault": "stale-output",
+      "expected": "stale survey output",
+      "observed": "stale survey output: stale.stdout"
+    },
+    {
+      "fault": "guard-child-exit7",
+      "expected": "survey guard process failed",
+      "observed": "survey guard process failed\n--- expected\n+++ observed\n@@ -1 +1 @@\n-0\n+1"
+    },
+    {
+      "fault": "guard-exit-report-mismatch",
+      "expected": "guard child exit",
+      "observed": "guard child exit\n--- expected\n+++ observed\n@@ -1 +1 @@\n-0\n+1"
+    },
+    {
+      "fault": "non-json-guard-output",
+      "expected": "Expecting value",
+      "observed": "Expecting value: line 1 column 1 (char 0)"
+    },
+    {
+      "fault": "non-boolean-allowed",
+      "expected": "report allowed must be boolean",
+      "observed": "report allowed must be boolean"
+    },
+    {
+      "fault": "fixed-hosted-identity-drift",
+      "expected": "installed identity differs from proven hosted archive",
+      "observed": "tiny-identity-fault: installed identity differs from proven hosted archive\n--- expected\n+++ observed\n@@ -8,7 +8,7 @@\n     \"sourceRevision\": \"d7f2129598af7a3cb7ed3c7161e06d504b586891\"\n   },\n   \"descriptorSha256\": \"0e93c2c729566d25bbce45ff1ae1b6bd72d9f6aeb90f58e0bde80cc07bde25c4\",\n-  \"executableSha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\n+  \"executableSha256\": \"c56cca32d0f42b8d3036ffef064a1d3b9a68999eb5131bb65c2da4ee1b023481\",\n   \"manifest\": {\n     \"sourceRevision\": \"d7f2129598af7a3cb7ed3c7161e06d504b586891\",\n     \"toolkitIdentity\": \"0e93c2c729566d25bbce45ff1ae1b6bd72d9f6aeb90f58e0bde80cc07bde25c4\""
+    }
+  ],
+  "notRun": [
+    "RSS/timeout kill",
+    "network errors",
+    "actual hosted imports/install/reports"
+  ]
+}
