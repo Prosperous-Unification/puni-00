@@ -1,0 +1,12 @@
+import json,sys
+from pathlib import Path
+base=json.loads(Path(sys.argv[1]).read_text());candidate=json.loads(Path(sys.argv[2]).read_text())
+for report in [base,candidate]:
+ assert set(report)=={'schemaVersion','candidate','policy','allowed','ruleIds','findings','unevaluated','certifies'},'unexpected report envelope'
+ assert report['schemaVersion']==1 and report['ruleIds']==['F7'] and report['unevaluated']==[] and report['allowed'] is True and report['certifies'] is False,'F7 diagnostic envelope changed'
+assert base['policy']==candidate['policy']=='wbs.plan-export.recovery.full.v1','policy changed'
+selected=lambda finding: finding['ruleId']=='F7' and finding['path']=='apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx'
+assert len([finding for finding in base['findings'] if selected(finding)])==1,'base must report selected field once'
+assert not any(selected(finding) for finding in candidate['findings']),'selected estimates.tsx finding remains'
+assert candidate['findings']==[finding for finding in base['findings'] if not selected(finding)],'unrelated findings changed'
+print(f"Installed F7: only selected finding removed ({len(base['findings'])} -> {len(candidate['findings'])}); unchanged unevaluated []; certifies false")

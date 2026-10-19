@@ -1,0 +1,13 @@
+diff --git a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+index 13b128160..4664f82de 100644
+--- a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+@@ -190,7 +190,7 @@ export function EstimatePresentation({
+ }: EstimatePresentationProps) {
+   return (
+     <>
+-      {showsResult && (
++      {true && (
+         // A distinct step result, and the cell's main reading: the
+         // row's own type and foreground, which it takes by **declaring neither**
+         // and inheriting from the wrapper — so a complaint recolours it for free

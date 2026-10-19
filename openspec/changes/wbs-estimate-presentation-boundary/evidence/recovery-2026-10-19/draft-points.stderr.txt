@@ -1,0 +1,21 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/plan-estimates.test.tsx > assigning from a folded step’s cell with @ > reads the trio off the row, not out of the boxes it was typed into
+AssertionError: expected 'Dev for 010010.s1-fake-1 · DevCopy re…' to contain 'realistic 3'
+
+Expected: "realistic 3"
+Received: "Dev for 010010.s1-fake-1 · DevCopy referenceCopy linkStep blockage unknown — this server omits blockage details.Add dependency from Devoptimistic 2 · realistic — · pessimistic 8Final 4 daysFill all three, or this estimate is not saved.Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it. @ looks somebody up to do it."
+
+ ❯ src/components/wbs/plan-estimates.test.tsx:734:30
+    732|     const card = screen.getByRole('tooltip');
+    733|     expect(card.textContent).toContain('optimistic 2');
+    734|     expect(card.textContent).toContain('realistic 3');
+       |                              ^
+    735|     expect(card.textContent).toContain('pessimistic 8');
+    736|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

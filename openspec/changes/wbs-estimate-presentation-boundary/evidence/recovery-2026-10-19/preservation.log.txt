@@ -1,0 +1,2 @@
+Reading helpers and unfolded columns byte-identical; rolled trio, CellInput and complete result/assignment/list/card fragment AST-identical; no new DOM wrapper.
+All three original public export names preserved.
