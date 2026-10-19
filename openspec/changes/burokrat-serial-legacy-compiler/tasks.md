@@ -24,10 +24,11 @@
 
 - [x] 3.1 Run equivalence, ownership, semantic closure and compound-fault cases; run existing bounded-source exact-fit and admission suites unchanged.
 - [x] 3.2 Run scoped format/lint/typecheck and strict OpenSpec validation; document every omission and dependency symlink honestly.
-- [ ] 3.3 Obtain independent review, preserve unrelated files, and commit using normal hooks.
+- [x] 3.3 Obtain independent review, preserve unrelated files, and commit using normal hooks; reviewed source hashes match `0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5`, whose successful normal-hook receipt is retained.
 
 ## 4. Coordinator acceptance
 
-- [ ] 4.1 Build and install an explicitly identified successor in an authorized hosted lane; retain historical artifact unchanged and compare small fixture reports.
-- [ ] 4.2 Run complete base/candidate all-rule comparisons with identical external policy and committed oversized negative; record every unevaluated rule.
+- [ ] 4.1 Complete the originally planned authorized hosted-lane successor build/install and fixture comparison; the separately authorized local observation in 4.1a does not claim hosted execution.
+- [x] 4.1a Install the separately identified local `0e444bcc4` successor, preserve the historical artifact and compare the bounded REL-EXTRACT fixture: exact positive and missing-public-entrypoint refusal JSON parity is retained.
+- [ ] 4.2 Complete compiler-backed base/candidate all-rule acceptance with identical external policy and committed oversized negative. The initial five-report comparison preserves only evaluated outcomes: ten rules remain unevaluated, including seven compiler-dependent rules. The DNS-only intermediate still refuses the SMTP import; retain these observations without closing full compiler acceptance.
 - [ ] 4.3 Run full CI and canonical exact-SHA h2puni gate. Keep WBS100 blocked until all remaining obligations are evidenced.

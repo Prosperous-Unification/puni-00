@@ -9,7 +9,7 @@
 - [x] 2.1 Add only nodemailer to trusted-modules.ts; pass focused closure tests.
 - [x] 2.2 Build and pack using the existing Nx target; pass the installed vendor oracle with integrity negatives and exact restoration. Bind the dirty build to its source patch.
 - [x] 2.3 Run scoped lint, typecheck, format, strict OpenSpec validation and independent review. Verify dependencies and lockfile unchanged.
-- [ ] 2.4 Commit only owned files through normal hooks, package the exact source commit, and pass the final installed oracle. Hand off distinct artifact hashes and resource receipts.
+- [x] 2.4 Commit only owned files through normal hooks, package the exact source commit, and pass the final installed oracle. Hand off distinct artifact hashes and resource receipts.
 
 ## 3. Coordinator acceptance
 

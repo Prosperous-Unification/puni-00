@@ -1,0 +1,156 @@
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+
+root = Path('/tmp/puni-wbs100-survey-bindings-20261019')
+proof = root / 'oracle-negatives'
+proof.mkdir()
+labels = ('base', 'reference', 'reference-fault', 'estimate', 'estimate-fault')
+original_command = json.loads((root / 'comparison.command.json').read_text())
+evidence = [root / f'full-{label}{suffix}' for label in labels
+            for suffix in ('.stdout', '.stderr', '.receipt.json')]
+evidence += [root / f'{label}.{phase}.json' for label in labels for phase in ('before', 'after')]
+evidence += [root / 'bindings.json', root / 'compare-surveys.py',
+             Path('/tmp/wbs100-reference-consumer-20261019/policy.json')]
+
+def hashes():
+    return {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in evidence}
+
+before = hashes()
+
+def read(directory, name):
+    return json.loads((directory / name).read_text())
+
+
+def write(directory, name, record):
+    (directory / name).write_text(json.dumps(record, indent=2) + '\n')
+
+
+def report(directory, label, mutate):
+    name = f'full-{label}.stdout'
+    record = read(directory, name)
+    mutate(record)
+    write(directory, name, record)
+
+
+def receipt(directory, label, mutate):
+    name = f'full-{label}.receipt.json'
+    record = read(directory, name)
+    mutate(record)
+    write(directory, name, record)
+
+
+def identity(directory, mutate):
+    name = 'reference.after.json'
+    record = read(directory, name)
+    mutate(record)
+    write(directory, name, record)
+
+
+def command_for(directory):
+    command = original_command[:original_command.index('--run')]
+    for label in labels:
+        command.extend(['--run', label, str(directory / f'full-{label}.stdout'),
+                        str(directory / f'full-{label}.receipt.json'),
+                        str(directory / f'{label}.before.json'),
+                        str(directory / f'{label}.after.json')])
+    return command
+
+
+def copy_evidence(directory):
+    directory.mkdir()
+    for path in evidence:
+        if path.parent == root and path.name not in ('bindings.json', 'compare-surveys.py'):
+            shutil.copy2(path, directory / path.name)
+
+
+def selected(finding, label):
+    path = ('apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx' if label == 'reference'
+            else 'apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx')
+    return finding['ruleId'] == 'F7' and finding['path'] == path
+
+
+def change_unrelated(record):
+    finding = next(f for f in record['findings'] if f['ruleId'] == 'MOD-DIRECT-ENTRIES')
+    finding['message'] += ' [injected unrelated drift]'
+
+
+def remove_fault(record, label):
+    record['findings'] = [f for f in record['findings'] if not selected(f, label)]
+
+
+def policy_fault(directory):
+    path = directory / 'policy-mutated.json'
+    path.write_bytes(Path('/tmp/wbs100-reference-consumer-20261019/policy.json').read_bytes() + b'\n')
+
+faults = [
+    ('candidate-identity', lambda d: report(d, 'reference', lambda r: r.update(candidate=read(d, 'full-base.stdout')['candidate'])), 'reference: candidate identity'),
+    ('invocation-revision', lambda d: receipt(d, 'reference', lambda r: r['command'].__setitem__(4, '0' * 40)), 'reference: invocation revision'),
+    ('policy-bytes', policy_fault, 'policy byte digest'),
+    ('policy-id', lambda d: report(d, 'reference', lambda r: r.update(policy='injected-policy')), 'reference: policy identity'),
+    ('selected-rule-omission', lambda d: report(d, 'reference', lambda r: r['ruleIds'].pop()), 'reference: incomplete or changed rule selection'),
+    ('unevaluated-omission', lambda d: report(d, 'reference', lambda r: r['unevaluated'].pop()), 'reference: unevaluated outcomes changed'),
+    ('unevaluated-reason', lambda d: report(d, 'reference', lambda r: r['unevaluated'][0].update(reason='injected changed reason')), 'reference: unevaluated outcomes changed'),
+    ('unrelated-finding', lambda d: report(d, 'reference', change_unrelated), 'reference: findings must remove only the selected F7 record'),
+    ('reference-retained-f7', lambda d: report(d, 'reference', lambda r: r.update(findings=read(d, 'full-base.stdout')['findings'])), 'reference: findings must remove only the selected F7 record'),
+    ('reference-fault-missing-f7', lambda d: report(d, 'reference-fault', lambda r: remove_fault(r, 'reference')), 'reference-fault: must restore exact baseline F7 record with no unrelated changes'),
+    ('estimate-retained-f7', lambda d: report(d, 'estimate', lambda r: r.update(findings=read(d, 'full-base.stdout')['findings'])), 'estimate: findings must remove only the selected F7 record'),
+    ('estimate-fault-missing-f7', lambda d: report(d, 'estimate-fault', lambda r: remove_fault(r, 'estimate')), 'estimate-fault: must restore exact baseline F7 record with no unrelated changes'),
+    ('executable-drift', lambda d: identity(d, lambda r: r.update(executableSha256='a' * 64)), 'reference/after: evaluator or runtime identity changed'),
+    ('validator-drift', lambda d: identity(d, lambda r: r.update(validatorSha256='b' * 64)), 'reference/after: observed validator bytes differ from descriptor'),
+    ('scenario-presence', lambda d: report(d, 'reference', lambda r: r.update(scenarios={})), 'reference: scenarios report accompanies unevaluated SPEC-SCENARIOS'),
+    ('resource-termination', lambda d: receipt(d, 'reference', lambda r: r.update(stopReason='rss_limit')), 'reference: resource guard stopped invocation'),
+    ('cli-status', lambda d: receipt(d, 'reference', lambda r: r.update(exitCode=0)), 'reference: CLI status disagrees with report'),
+    ('unsupported-certification', lambda d: report(d, 'reference', lambda r: r.update(certifies=True)), 'reference: unexpected certification'),
+    ('empty-report', lambda d: (d / 'full-reference.stdout').write_bytes(b''), 'Expecting value'),
+]
+observations = []
+for label, mutate, expected in faults:
+    directory = proof / label
+    copy_evidence(directory)
+    mutate(directory)
+    command = command_for(directory)
+    if label == 'policy-bytes':
+        command[command.index('--policy') + 1] = str(directory / 'policy-mutated.json')
+    with (directory / 'command.json').open('x') as stream:
+        json.dump(command, stream, indent=2)
+    invocation = subprocess.run(command, capture_output=True, text=True)
+    with (directory / 'oracle.stdout').open('x') as stream:
+        stream.write(invocation.stdout)
+    with (directory / 'oracle.stderr').open('x') as stream:
+        stream.write(invocation.stderr)
+    observation = {'fault': label, 'exitCode': invocation.returncode,
+                   'expectedDiagnostic': expected,
+                   'observedNamedFailure': expected in invocation.stderr,
+                   'diagnostic': invocation.stderr.splitlines()[0] if invocation.stderr else '',
+                   'evidence': str(directory)}
+    observations.append(observation)
+    print(json.dumps(observation), flush=True)
+    if invocation.returncode != 1 or expected not in invocation.stderr:
+        raise RuntimeError(f'{label}: intended negative was not observed')
+    if hashes() != before:
+        raise RuntimeError(f'{label}: original evidence changed')
+restored = proof / 'restored-pristine'
+copy_evidence(restored)
+restored_command = command_for(restored)
+with (restored / 'command.json').open('x') as stream:
+    json.dump(restored_command, stream, indent=2)
+invocation = subprocess.run(restored_command, capture_output=True, text=True)
+with (restored / 'oracle.stdout').open('x') as stream:
+    stream.write(invocation.stdout)
+with (restored / 'oracle.stderr').open('x') as stream:
+    stream.write(invocation.stderr)
+if invocation.returncode != 0:
+    raise RuntimeError('restored pristine comparison failed: ' + invocation.stderr)
+after = hashes()
+if after != before:
+    raise RuntimeError('original evidence changed after final restoration check')
+summary = {'negativeCount': len(observations), 'allNamedFailuresObserved': True,
+           'restoredExitCode': invocation.returncode, 'originalEvidenceUnchanged': True,
+           'before': before, 'after': after, 'observations': observations, 'certifies': False}
+with (proof / 'summary.json').open('x') as stream:
+    json.dump(summary, stream, indent=2)
+print(json.dumps({'negativeCount': len(observations), 'restoredExitCode': invocation.returncode,
+                  'originalEvidenceUnchanged': True, 'certifies': False}))

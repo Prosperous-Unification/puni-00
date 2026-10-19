@@ -197,3 +197,26 @@ acceptance, full frontend checks, fresh frozen installation, hosted CI,
 canonical `bin/h2puni-gate.sh <sha>`, trusted activation and WBS100 completion
 remain pending coordinator work. No h1claw build or test ran. No push, PR,
 deployment, certification or WBS completion is claimed.
+
+## Post-merge and successor observations
+
+The earlier sections retain their original pre-merge and resource-boundary
+observations. The coordinator's subsequent [receipt](../burokrat-serial-legacy-compiler/evidence/recovery-postmerge-2026-10-19/receipt.json.txt),
+observed at 2026-10-19 21:14:24 UTC, records completed successful
+[post-merge CI run 39317193294](https://github.com/Prosperous-Unification/puni-00/actions/runs/39317193294)
+on `a82d6fa9b0d87105cdafcaef474ab51a73abebd8`, including workspace, Twilight,
+all four browser shards and their aggregates. Backend `/health` returned HTTP
+200 with `status:ok` and that exact commit; the dev frontend returned HTTP 200.
+These observations supersede the earlier statements that this recovery had not
+merged or reached dev. They do not establish a production deployment, trusted
+activation or the later compiler successor's CI/gate status.
+
+The separately identified initial installed compiler successor `0e444bcc4…`
+subsequently completed a [limited all-rule comparison](../burokrat-serial-legacy-compiler/evidence/initial-installed-surveys/README.md)
+over the original exact base, both recovered sources and their committed faults.
+Estimate findings changed 34 to 33 by removing only its selected F7 record;
+the oversized fault restored the baseline. All ten unevaluated records were
+preserved, including seven DNS-dependent compiler refusals. Thus evaluated
+finding preservation is now observed, while full compiler acceptance and WBS100
+completion remain open. The historical artifact and its original evidence
+remain unchanged.

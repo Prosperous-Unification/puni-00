@@ -1,0 +1,120 @@
+{
+  "installedSourceRevision": "0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5",
+  "executableSha256": "de6591ce7b2c843738309b4d0bb50924866c8c32041e166f720dd6dd4b53cd4c",
+  "toolkitIdentity": "b9598fa37b1485b513f357525404495e26ec430b042c5f3f7ed4b39f33d769f1",
+  "policySha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c",
+  "comparisonPassed": true,
+  "all14RulesSelected": true,
+  "unevaluated": [
+    {
+      "ruleId": "F1",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+    },
+    {
+      "ruleId": "K2",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "K3",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "K4",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "K5",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "K6",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "reason": "Performance config content differs from reviewed authority"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "reason": "TypeScript import unresolved: apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts -> 'dns-packet'"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+    }
+  ],
+  "allowed": false,
+  "certifies": false,
+  "runs": [
+    {
+      "label": "base",
+      "commit": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "exitCode": 1,
+      "seconds": 17.256,
+      "peakProcessTreeKiB": 2621884,
+      "stopReason": null,
+      "findings": 34,
+      "f7Findings": 29,
+      "stderr": "Twilight Burokrat validator exited 1\n"
+    },
+    {
+      "label": "reference",
+      "commit": "40d40ff6219aae3d2115dd39eee6ca36f1cd9e61",
+      "exitCode": 1,
+      "seconds": 17.985,
+      "peakProcessTreeKiB": 2588380,
+      "stopReason": null,
+      "findings": 33,
+      "f7Findings": 28,
+      "stderr": "Twilight Burokrat validator exited 1\n"
+    },
+    {
+      "label": "reference-fault",
+      "commit": "d6026f83be7c0af4c325406961ebc3eacb58363c",
+      "exitCode": 1,
+      "seconds": 17.83,
+      "peakProcessTreeKiB": 2579472,
+      "stopReason": null,
+      "findings": 34,
+      "f7Findings": 29,
+      "stderr": "Twilight Burokrat validator exited 1\n"
+    },
+    {
+      "label": "estimate",
+      "commit": "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+      "exitCode": 1,
+      "seconds": 17.834,
+      "peakProcessTreeKiB": 2621540,
+      "stopReason": null,
+      "findings": 33,
+      "f7Findings": 28,
+      "stderr": "Twilight Burokrat validator exited 1\n"
+    },
+    {
+      "label": "estimate-fault",
+      "commit": "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5",
+      "exitCode": 1,
+      "seconds": 20.813,
+      "peakProcessTreeKiB": 2600940,
+      "stopReason": null,
+      "findings": 34,
+      "f7Findings": 29,
+      "stderr": "Twilight Burokrat validator exited 1\n"
+    }
+  ],
+  "negativeCount": 19,
+  "allNamedNegativeFailures": true,
+  "restoredComparisonExitCode": 0,
+  "originalEvidenceUnchanged": true,
+  "limitations": [
+    "Ten rules remain explicitly unevaluated; selected is not evaluated.",
+    "Same-successor comparison establishes only the selected F7 deltas; it does not establish equivalence to the historical evaluator.",
+    "Sampled RSS is not a hard bound between samples.",
+    "External snapshots are retained local observations, not authenticated execution evidence.",
+    "No host gate, hosted CI, deployment or parent-task completion claimed."
+  ]
+}

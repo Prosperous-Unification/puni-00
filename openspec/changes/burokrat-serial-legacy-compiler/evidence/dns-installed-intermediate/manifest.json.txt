@@ -1,0 +1,58 @@
+{
+  "files": [
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/base.before.json",
+      "path": "base.before.json.txt",
+      "bytes": 10957,
+      "sha256": "bc8bbfeac580abbf40001b4827f46d686094034cc825c51ea864fcd374521e01"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/base.after.json",
+      "path": "base.after.json.txt",
+      "bytes": 10957,
+      "sha256": "bc8bbfeac580abbf40001b4827f46d686094034cc825c51ea864fcd374521e01"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/bindings.json",
+      "path": "bindings.json.txt",
+      "bytes": 7024,
+      "sha256": "eb9cfaf9d6621e59cc6edf528d6f7dc4ab53511d48e1e68af6dc0c0820be8133"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/full-base.receipt.json",
+      "path": "full-base.receipt.json.txt",
+      "bytes": 504,
+      "sha256": "e77537cfc303a946b638b38c6e6b98b72582a2dfaecbcda096111835ac29d65d"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/full-base.stdout",
+      "path": "full-base.stdout.txt",
+      "bytes": 6586,
+      "sha256": "78bde80745acb23df22f9a5b46778bf2a843b842c67bc0ba1c1453d569e20b73"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/full-base.stderr",
+      "path": "full-base.stderr.txt",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/install-successor.receipt.json",
+      "path": "install-successor.receipt.json.txt",
+      "bytes": 368,
+      "sha256": "fbc1e26997e23e257181f572b0a373083471c0ca1544f19078c8fc79c6e78900"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/install-successor.stdout",
+      "path": "install-successor.stdout.txt",
+      "bytes": 99,
+      "sha256": "e1398edb2cba7631583cabd6c5d67c4cba0386f5c1bc7bedbf63a315b7fc89c4"
+    },
+    {
+      "source": "/tmp/puni-wbs100-dns-surveys-20261019/install-successor.stderr",
+      "path": "install-successor.stderr.txt",
+      "bytes": 77,
+      "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206"
+    }
+  ]
+}
