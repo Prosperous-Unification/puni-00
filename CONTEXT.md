@@ -476,28 +476,40 @@ about team membership and predates this term.
 _Avoid_: bot, AI, machine user, automation
 
 **Allotment**:
-The part of a plan one team may start work in: the leaves whose effective team set includes
-that team. A reading of the team labels, never written down; an unlabelled leaf belongs to
-no allotment and is open to any claimant.
-_Avoid_: lane, ownership, territory, scope
+The part of a plan one team is expected to work in: the leaves whose effective team set
+includes that team. A reading of the team labels, advisory only; nothing refuses on it, and
+the startable read filters by it.
+_Avoid_: Scope, territory, ownership
 
 **Claim**:
-The act that assigns an agent to every unassigned step of one ready, unclaimed leaf at
-once, refused when another person already holds a step. Spelled as assignments; there is
-no claim row. Giving it back is a **release**, which keeps the assignments on done steps.
-_Avoid_: lock, lease (which is Twilight Dash's runtime hold), checkout, reservation
+A record that one person, under one run, occupies a step so nobody else picks it up; or, on
+a non-leaf, reserves dispatch of the subtree. Separate from the assignment, which is the plan
+of who does the work. Refused where the step is blocked, held, done or already claimed.
+Giving it back is a **release**, which leaves progress as it is.
+_Avoid_: Lock, lease, reservation, checkout
+
+**Delegated claim**:
+A claim that names a subtree claim as its parent and is written by the same account: how a
+superagent lets its subagents claim leaves inside its subtree. Released with its parent.
+_Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
 
 **Startable**:
-A leaf whose status reads `ready` and none of whose steps has an assignee; startable **for a
-team** when that team is also in its effective team set. Derived from the same folds the
-table uses, never stored.
-_Avoid_: available, free, unblocked (which says nothing about readiness or claims)
+A step whose leaf is not blocked, held or done, whose progress is not done, and that no
+claim holds; startable **for a team** when that team is also in the leaf's effective team
+set. Derived from the folds the table uses, never stored.
+_Avoid_: Available, free, unassigned, ready (which is a readiness value)
 
-**Agent account**:
-The account a directory person of kind `agent` is bound to, so a claim naming that person is
-accepted only from that account or from an organization admin. One account per person; a
-person may have none.
-_Avoid_: service account, bot user, machine user (the IdP's word for the credential)
+**Agent run**:
+The opaque string a harness gives one execution of an agent, recorded on a claim beside the
+person: an OpenClaw session key, a Codex thread, a Claude session id. WBS stores and shows
+it and never parses it.
+_Avoid_: Session, instance, worker id
+
+**Fleet credential**:
+An `(issuer, subject)` linked to a human's account so a headless fleet writes as that
+account, pinned to the one agent person it may claim as. One account, many credentials;
+revoked by unlinking.
+_Avoid_: Agent account, service account, machine identity, bot user
 
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:

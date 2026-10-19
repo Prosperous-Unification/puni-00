@@ -1,52 +1,49 @@
 ## Why
 
 Two agent fleets build puni-00 from one WBS project, and only a branch-prefix convention in a
-note keeps them off each other's items. The plan already records who does what
-(assignments), whose part of the tree is whose (team sets) and what is ready (status), yet a
-fleet cannot claim an item atomically, cannot ask "what may my team start" in one read, and
-one fleet cannot write at all. Claims live in free text and the plan disagrees with the tree
-in both directions (two proven cases, 2026-10-19).
+note keeps them apart. The plan records who does what (assignments) and whose part of the
+tree is whose (team labels), yet nothing records who occupies a step now, a fleet cannot ask
+"what may I start" in one read, and one fleet cannot write at all. Claims live in free text
+and the plan disagrees with the tree (two proven cases, 2026-10-19).
 
 ## What Changes
 
-- **Claiming a leaf**
+- **Claiming**
   - From: a fleet writes "taken" into the notes, or nowhere.
-  - To: `claimWorkItem` assigns an agent to every unassigned step of a ready, unclaimed leaf
-    in one journalled, undoable act; refuses `already_claimed`, `not_startable`,
-    `outside_allotment`, `person_not_bound`. `releaseWorkItem` gives it back.
+  - To: a `claim` record beside the assignment. `claimWorkItem` claims steps (whole leaf by
+    default) or a subtree, refuses when blocked, held, done or already claimed, states the
+    step in progress, and records person, run id and parent claim. A superagent claims a
+    subtree; its subagents claim leaves under it. `releaseWorkItem` gives back and cascades.
 - **Finding work**
   - From: read the whole tree and GitHub, then guess.
-  - To: one read lists the leaves a team may start: status `ready`, no assignment, team in
-    the effective team set. The MCP inherits it.
+  - To: one read lists startable steps, filtered by team, with claims shown apart.
 - **Who is writing**
   - From: both fleets act as one human account; a fleet without a browser cannot write.
-  - To: a person may be bound to an account; a claim on a bound person is accepted only from
-    that account or an organization admin; an operator CLI grants a machine identity
-    organization membership.
+  - To: the account stays the human's; each fleet gets a credential linked to it and pinned
+    to its agent person; a person is bound to the account that may act as it.
 
 ## Non-Goals
 
-- Leases, expiry, reclamation inside WBS: Twilight Dash's runtime facts (A25; the
-  2026-10-17 resource-claim design).
-- Worktrees, disk and other resources.
-- What a team label or a capacity means for the schedule; `setAssignee` is unchanged.
-- GitHub identity per fleet; the Burokrat branch rule that will read these claims.
+- Leases, expiry, reclamation inside WBS: Twilight Dash's runtime facts (A25).
+- Resources other than people; what team labels and capacity mean for the schedule.
+- `setAssignee` and the assignment: unchanged, team labels stay advisory.
+- GitHub identity per fleet; the Burokrat branch rule; the two kinds of blocked.
 
 ## Constraints
 
-- Blue and green share one SQLite file: the one new column is nullable and additive, with a
-  `down.sql` that refuses while any person is bound.
-- A claim is a plan command: all-or-none in its batch, one journal entry, one revision
-  bump, preconditions for undo (ADR 0019).
-- Status is derived, never stored; `startable` reuses `statusOf` and `blockedByProxyOf`.
+- Blue and green share one SQLite file: one table and two nullable columns, additive, with
+  guarded `down.sql` files.
+- A claim is a plan command: all-or-none, one journal entry, one revision bump,
+  preconditions for undo (ADR 0019).
+- Status is derived, never stored; `startable` reuses the table's folds.
 - Every refusal ships with a production-path negative and a `Proof:` comment.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `startable-work`: the leaves one team may start now, in one read.
-- `agent-accounts`: a person bound to an account; membership for a machine identity.
+- `startable-work`: the steps one team may claim now, in one read.
+- `fleet-credentials`: a person bound to an account; a credential linked and pinned.
 
 ### Modified Capabilities
 
@@ -54,12 +51,12 @@ in both directions (two proven cases, 2026-10-19).
 
 ## Domain Terms
 
-Allotment, Claim, Startable, Agent account (in `CONTEXT.md`; Dany's interview still owed).
+Allotment, Claim, Delegated claim, Startable, Agent run, Fleet credential (in `CONTEXT.md`).
 
 ## Decisions Recorded
 
-none yet; design.md D1 to D6 name the candidates.
+design.md D1 to D8, confirmed with Dany on 2026-10-19; three marked assumed.
 
 ## Impact
 
-Domain, contracts, core, store-sqlite (one migration), be-01, mcp-01 by derivation, fe-01.
+Domain, contracts, core, store-sqlite, be-01, mcp-01 by derivation, fe-01.

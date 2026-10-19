@@ -1,30 +1,38 @@
 ## ADDED Requirements
 
-### Requirement: One read answers which leaves a team may start
+### Requirement: One read answers which steps a team may claim
 
-be-01 SHALL offer a project-scoped read of **startable** leaves, filtered by an optional
-team, derived from the same tree the project page reads and the same `statusOf` and
-`blockedByProxyOf` folds it uses. A leaf is startable for a team when its status reads
-`ready`, no step of it has an assignee, and the team is in its effective team set. With no
-team given, the read SHALL list every unclaimed `ready` leaf. Each row SHALL carry the work
-item id, the frozen number or the derived number when none is frozen, the name, the stating
-row of each team in force, and the ids of its predecessors. The read SHALL also list, apart,
-the leaves whose status reads `ready` or `in_progress` and that are claimed, with holder and
-the instant of the last assignment write, so an operator sees silent claims. The read SHALL
-be derived from the shared HTTP descriptor so the MCP server offers it as a tool.
+be-01 SHALL offer a project-scoped read of **startable** work, filtered by an optional team,
+derived from the same tree the project page reads and the same `statusOf`,
+`blockedByProxyOf` and progress folds it uses. A step is startable when its leaf's status is
+none of `blocked`, `on_hold`, `blocked_by_proxy`, `done`, its progress is not `done`, and no
+claim holds it; startable **for a team** when the team is also in the leaf's effective team
+set. With no team given, the read SHALL list every startable step. Rows SHALL be grouped by
+leaf and carry the work item id, the frozen number or the derived number when none is
+frozen, the name, the startable step ids, the assignee of each step when any, the stating
+row of each team in force, the ids of unfinished predecessors, and the subtree claim in force
+above the leaf when any, with its holder. The read SHALL also list, apart, the claimed steps
+of the same leaves with holder person, run id, parent claim and the instant of the claim
+write, so an operator sees silent claims. The read SHALL be derived from the shared HTTP
+descriptor so the MCP server offers it as a tool.
 
 #### Scenario: A team asks what it may start
 
-- **WHEN** the project holds three leaves of status `ready`: one labelled `Platform` and
-  unclaimed, one labelled `Platform` and claimed, one unlabelled
-- **THEN** the startable read for `Platform` lists the unclaimed labelled leaf only, and
-  lists the claimed one under claimed leaves with its holder
+- **WHEN** the project holds three unblocked leaves: one labelled `Platform` with two free
+  steps, one labelled `Platform` with every step claimed, one unlabelled
+- **THEN** the startable read for `Platform` lists the first leaf with its two steps, lists
+  the second under claimed steps with holders, and omits the unlabelled leaf
 
-#### Scenario: Readiness alone is not enough
+#### Scenario: A blocked leaf is not startable whatever its readiness
 
 - **WHEN** a leaf is stated `ready` and an unfinished predecessor makes it read
   `blocked_by_proxy`
-- **THEN** the leaf is absent from the startable read
+- **THEN** the leaf is absent from the startable rows
+
+#### Scenario: A subtree claim is visible but does not hide the steps
+
+- **WHEN** `claire` holds a subtree claim on `080` and `080.25` has free steps
+- **THEN** `080.25` is listed with its steps and the row names the subtree holder `claire`
 
 #### Scenario: Numbers are the frozen ones
 

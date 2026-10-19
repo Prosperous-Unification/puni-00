@@ -1,91 +1,131 @@
 ## ADDED Requirements
 
-### Requirement: A leaf is claimed for an agent as one conditional act
+### Requirement: Steps, leaves and subtrees are claimed as one conditional act
 
-The command registry SHALL offer `claimWorkItem`, addressing a leaf work item by id or ref
-and a directory person by id or ref. Applying it SHALL assign that person to every step of
-the leaf that has no assignee, in the batch's transaction, recorded as one journal entry
-whose undo removes exactly the assignments it wrote and whose preconditions name the leaf's
-revision. It SHALL refuse, with a typed 4xx that names the command's position in the batch,
-when any of these holds, checked in this order:
+The command registry SHALL offer `claimWorkItem`, addressing a work item by id or ref and a
+directory person by id or ref, with optional `steps` (step ids or refs), `runId` (an opaque
+string of at most 256 characters) and `parentClaim` (a claim id). On a leaf it SHALL write
+one claim row per step: the named steps, or every step whose progress is not `done` when
+none is named. On a non-leaf it SHALL write one subtree claim with no step. Every row SHALL
+carry the person, the run id and the parent claim given. For each step it claims it SHALL
+state the step `in_progress` when its progress is unstated. All of this SHALL happen in the
+batch's transaction as one journal entry whose undo removes exactly the rows it wrote and the
+progress it stated, with preconditions naming the work item's revision. The claim SHALL NOT
+read or write assignments.
 
-- `not_a_leaf`: the work item has children;
-- `not_startable`: the leaf's derived status is not `ready`; the refusal carries the status
-  read (`unknown`, `draft`, `in_progress`, `blocked_by_proxy`, `on_hold`, `blocked`, `done`);
-- `already_claimed`: a step of the leaf is assigned to a person other than the claimant; the
-  refusal carries that person's id and name;
-- `outside_allotment`: the leaf's effective team set is non-empty and shares no team with
-  the claimant's teams;
-- `person_not_bound`: the claimant is bound to an account that is not the caller's, and the
-  caller holds neither `admin` nor `super_admin` in the project's organization.
+It SHALL refuse with a typed 4xx naming the command's position in the batch when any of
+these holds, checked in this order:
 
-A claim whose every step is already assigned to the claimant SHALL succeed, write nothing,
-record nothing, and answer `alreadyHeld: true`.
+- `person_not_bound`: the person is not bound to the caller's account and the caller holds
+  neither `admin` nor `super_admin` in the project's organization;
+- `credential_not_for_person`: the caller's credential is pinned to a person other than the
+  claimant, and the claim is not a delegated claim under a claim of the pinned person;
+- `parent_claim_unknown`, `parent_claim_foreign`, `parent_claim_not_ancestor`: the named
+  parent claim is absent or released, was written by another account, or does not sit on a
+  strict ancestor of the work item;
+- `item_done`: the work item's derived status is `done`;
+- `not_startable` (leaf only): the derived status is `blocked`, `on_hold` or
+  `blocked_by_proxy`; the refusal carries the status read;
+- `step_done`: a named step's progress is `done`;
+- `already_claimed`: a step it would take holds a claim; the refusal carries each holder's
+  person id, name and run id;
+- `inside_subtree_claim`: an ancestor holds a subtree claim whose person is not the claimant
+  and which is not the given parent claim; the refusal carries the holder;
+- `overlaps_subtree_claim` (non-leaf only): an ancestor or descendant holds a subtree claim
+  of another person that is not the given parent claim.
 
-#### Scenario: A ready, unlabelled leaf is claimed
+A claim whose every step is already held by the same person and run SHALL succeed, write
+nothing and answer `alreadyHeld: true`.
 
-- **WHEN** a batch applies `claimWorkItem` for a leaf whose status reads `ready`, whose steps
-  have no assignees and whose effective team set is empty
-- **THEN** every step of the leaf is assigned to the claimant, the leaf's revision moves by
-  one, one journal entry exists, and the work-item read shows the claimant on every step
+#### Scenario: A whole leaf is claimed by default
 
-#### Scenario: Two fleets claim the same leaf
+- **WHEN** a batch applies `claimWorkItem` for a leaf whose `Impl` is `done` and whose `Plan`
+  and `Review` are unclaimed and not done, naming no steps
+- **THEN** claims exist on `Plan` and `Review` only, both read `in_progress`, the revision
+  moves by one, one journal entry exists, and `Impl` is untouched
 
-- **WHEN** two batches from two accounts each apply `claimWorkItem` for the same ready leaf
-  naming two different persons, concurrently
-- **THEN** exactly one batch succeeds and the other is refused `already_claimed` naming the
-  winner, whichever order the write coordinator admits them in
+#### Scenario: Two fleets claim the same step
 
-#### Scenario: A leaf nobody has called ready is refused
+- **WHEN** two batches from two accounts each apply `claimWorkItem` for the same step,
+  concurrently
+- **THEN** exactly one succeeds and the other is refused `already_claimed` naming the winner,
+  whichever order the write coordinator admits them in
 
-- **WHEN** `claimWorkItem` addresses a leaf whose status reads `unknown`
-- **THEN** the batch is refused `not_startable` with `status: unknown` and nothing is applied
+#### Scenario: Two agents hold two steps of one leaf
 
-#### Scenario: A leaf of another team's allotment is refused
+- **WHEN** agent A holds `Impl` and agent B applies `claimWorkItem` naming `Review`
+- **THEN** B's claim is applied and both claims show on the leaf
 
-- **WHEN** the leaf's effective team set is `{Platform}` and the claimant belongs only to
-  `Infra`
-- **THEN** the batch is refused `outside_allotment`
+#### Scenario: A blocked leaf is refused
 
-#### Scenario: A claim on behalf of a bound person from a stranger's account
+- **WHEN** `claimWorkItem` addresses a leaf whose status reads `blocked_by_proxy`
+- **THEN** the batch is refused `not_startable` with that status and nothing is applied
 
-- **WHEN** the claimant person is bound to account A, the caller is account B with role
-  `member`
-- **THEN** the batch is refused `person_not_bound`
+#### Scenario: An orphan in-progress step is adopted
 
-#### Scenario: An admin claims on behalf of a bound person
+- **WHEN** a step reads `in_progress`, has no claim and no assignee, and its leaf is not
+  blocked or held
+- **THEN** `claimWorkItem` naming it is applied and the assignment table is unchanged
 
-- **WHEN** the claimant person is bound to account A and the caller holds `admin`
-- **THEN** the claim is applied
+#### Scenario: A superagent claims a subtree and a subagent claims a leaf under it
+
+- **WHEN** account F applies `claimWorkItem` on non-leaf `080` for person `claire`, then
+  applies `claimWorkItem` on leaf `080.25` for person `claire-worker` with run
+  `agent:main:subagent:7f…` and `parentClaim` set to the subtree claim
+- **THEN** both claims exist, the leaf claim names its parent, and the work-item read shows
+  the chain
+
+#### Scenario: A stranger claims inside a claimed subtree
+
+- **WHEN** account G, whose persons hold no claim on `080`, applies `claimWorkItem` on
+  `080.25` without a parent claim
+- **THEN** the batch is refused `inside_subtree_claim` naming `claire`
+
+#### Scenario: A pinned credential claims as another agent
+
+- **WHEN** a credential pinned to person `claire` applies `claimWorkItem` naming person
+  `codex-fleet` and no parent claim
+- **THEN** the batch is refused `credential_not_for_person`
+
+#### Scenario: A person nobody bound
+
+- **WHEN** a caller with role `member` names a person bound to no account
+- **THEN** the batch is refused `person_not_bound`; the same from an `admin` is applied
 
 #### Scenario: A repeated claim by the holder
 
-- **WHEN** the holder applies `claimWorkItem` again for a leaf whose every step it holds
-- **THEN** the command succeeds with `alreadyHeld: true`, the revision does not move and no
-  journal entry is added
+- **WHEN** the holder applies the same `claimWorkItem` again
+- **THEN** it answers `alreadyHeld: true`, the revision does not move and no entry is added
 
 #### Scenario: Undo of a claim
 
-- **WHEN** the claim's journal entry is undone while the leaf's revision is unchanged
-- **THEN** exactly the assignments the claim wrote are removed and no other assignment of
-  the leaf changes
+- **WHEN** the claim's journal entry is undone while the work item's revision is unchanged
+- **THEN** exactly the claim rows it wrote are removed and exactly the progress it stated
+  is unstated
 
-### Requirement: A claim is released step by step, keeping done work attributed
+### Requirement: A release gives steps back and cascades through delegated claims
 
-The command registry SHALL offer `releaseWorkItem`, addressing a leaf and a person. Applying
-it SHALL remove that person's assignments on every step of the leaf whose progress is not
-`done`, in the batch's transaction, as one undoable journal entry. It SHALL refuse
-`not_claimed_by` when the person holds no step of the leaf, and `person_not_bound` under the
-same rule as `claimWorkItem`.
+The command registry SHALL offer `releaseWorkItem`, addressing a work item and a person, with
+optional `steps`. On a leaf it SHALL remove that person's claims on the named steps, or on
+every step when none is named. On a non-leaf it SHALL remove that person's subtree claim and
+every claim that names it as parent, transitively. Progress SHALL NOT change. It SHALL be
+one undoable journal entry. It SHALL refuse `not_claimed_by` when the person holds no claim
+it would remove, and `person_not_bound` and `credential_not_for_person` under the rules of
+`claimWorkItem`.
 
 #### Scenario: A holder releases a half-done leaf
 
-- **WHEN** the holder is assigned to `Impl` (done) and `Review` (not done) and applies
-  `releaseWorkItem`
-- **THEN** the `Review` assignment is removed, the `Impl` assignment remains, and the leaf
-  appears in the startable read again only if its status still reads `ready`
+- **WHEN** the holder claims `Impl` (progress `done`) and `Review` (progress `in_progress`)
+  and applies `releaseWorkItem` naming no steps
+- **THEN** both claim rows are removed and both progress rows stay as they were
 
-#### Scenario: Releasing a leaf one does not hold
+#### Scenario: Releasing a subtree takes the delegated claims with it
 
-- **WHEN** `releaseWorkItem` names a person assigned to no step of the leaf
+- **WHEN** `claire` holds a subtree claim on `080` with delegated claims on `080.25` and
+  `080.26` by two workers, and `releaseWorkItem` on `080` for `claire` is applied
+- **THEN** all three claims are gone in one journal entry and undo restores all three
+
+#### Scenario: Releasing what one does not hold
+
+- **WHEN** `releaseWorkItem` names a person holding no claim on the work item
 - **THEN** the batch is refused `not_claimed_by`
