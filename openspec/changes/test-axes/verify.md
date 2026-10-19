@@ -5535,7 +5535,7 @@ Each guarded invocation required at least 12 GiB MemAvailable and had a 2 GiB
 sampled RSS ceiling and 360-second deadline. No resource stop fired. Sampling
 at 50ms does not establish a hard upper bound between samples. The first Nx
 Unit run accidentally overlapped the final seconds of the focused regression;
-it is not claimed as serial acceptance. A committed run will be performed alone.
+it is not claimed as serial acceptance. The committed run below was performed alone.
 
 | Check                                                            | Observed outcome                                                                                   |
 | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -5577,10 +5577,31 @@ are literal values read from the unchanged source tests. The Node ESM subprocess
 case executes normally. No trusted receipt, certified coverage, admission, target
 name normalization or broader shell whitespace/glob safety is claimed.
 
+### Committed report observation
+
+Normal source-commit hooks passed for
+`6a1853485d4129e4e2ee87b312f8ce747a2c460c`, including lint, formatting, secrets
+and private-nesting. Tool Wiki reported `inactive`, `certified:false`, because
+its external activation root is not provisioned. Migration and doc-cap hooks
+visibly skipped their unmatched file classes.
+
+At that clean committed candidate, the uncached Unit Nx target ran alone and
+passed all twelve cases. The exact external report and authority are preserved
+byte-for-byte as `report.xml` and `authority.json`. Production
+`inspect-bun-test-reports` passed with sampled peak 633500 KiB. Independent
+Python XML/Git/SHA-256 reconciliation checked all twelve outcomes, nested suite
+titles, source mode/blob/content pins, outcome-independent case IDs, selected
+manifest bytes and the complete observation digest. It passed at 16948 KiB.
+The observation digest is
+`1372dc64a4f9963da2b2677706dca165d5b1480653779296c11bf0c23400a6be`.
+The retained observation leaves every case's level/isolation unresolved,
+authentication absent and certification false. Later evidence-only commits do
+not claim the source report was executed at their own SHA.
+
 ### Remaining acceptance
 
-A committed candidate report inspection, independent exact-head review and
-coordinator canonical h2puni/hosted CI acceptance remain pending at this checkpoint.
+Independent exact-head review and coordinator canonical h2puni/hosted CI
+acceptance remain pending at this checkpoint.
 No full local gate, host gate or full tool-devsync test/typecheck/build was run;
 scoped checks above are the local evidence. Task 2.1n remains unchecked until its
-committed inspection and review are recorded.
+independent review is recorded; its implementation and committed observation are complete.
