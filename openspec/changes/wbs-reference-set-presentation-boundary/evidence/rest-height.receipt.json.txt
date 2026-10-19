@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/reference-set-field.test.tsx",
+    "--maxWorkers=1",
+    "-t",
+    "rests every flex container"
+  ],
+  "exitCode": 1,
+  "peakRssBytes": 391716864,
+  "seconds": 1.71
+}

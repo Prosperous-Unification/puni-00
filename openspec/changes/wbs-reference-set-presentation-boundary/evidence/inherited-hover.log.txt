@@ -1,0 +1,46 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/wbs-f7-reference-oct17/apps/wbs/fe-01
+
+ ❯ src/components/wbs/reference-set-field.test.tsx (37 tests | 1 failed | 36 skipped) 11ms
+   ❯ referenceSetLines (3)
+     × adds the overriding dimension’s reading only while the row states none of its own 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/reference-set-field.test.tsx > referenceSetLines > adds the overriding dimension’s reading only while the row states none of its own
+AssertionError: expected [ { key: 'team-1', …(2) }, …(1) ] to deeply equal [ { key: 'team-1', …(2) } ]
+
+- Expected
++ Received
+
+@@ -2,6 +2,11 @@
+    {
+      "key": "team-1",
+      "stated": true,
+      "text": "Platform",
+    },
++   {
++     "key": "(inherited)",
++     "stated": false,
++     "text": "↳ Core",
++   },
+  ]
+
+ ❯ src/components/wbs/reference-set-field.test.tsx:695:81
+    693|       { key: '(inherited)', text: '↳ Core', stated: false },
+    694|     ]);
+    695|     expect(referenceSetLines([{ id: 'team-1', name: 'Platform' }], [],…
+       |                                                                                 ^
+    696|       { key: 'team-1', text: 'Platform', stated: true },
+    697|     ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 36 skipped (37)
+   Start at  22:58:38
+   Duration  998ms (environment 54%, transform 27%, setup 9%, import 8%, tests 1%, worker 1%)
