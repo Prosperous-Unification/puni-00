@@ -1,0 +1,5 @@
+{
+  "sha256": "c8e5061224e875107c15596f32073e9e53ef98d0798371d09c84066a3d49316d",
+  "bytes": 555,
+  "text": "{\n  \"dist/twilight-burokrat-pack/twilight-burokrat-0.1.0.tgz\": \"aa1acc9d8eb4167c321de30df9cf9493c87c466123005632d3c9af4de91c42fb\",\n  \"apps/twilight-structure/twilight-burokrat/cli/dist/bin.mjs\": \"2d156cd6ebcb3d764d5ae220df909c068ecaf3e82ddb1f24339b52f2da9ec731\",\n  \"apps/twilight-structure/twilight-burokrat/cli/dist/package-manifest.json\": \"ff2eea307beadf687f4ddd5e0f48246e0f074d5c0e1049e2df4db5e48b91a437\",\n  \"apps/twilight-structure/twilight-burokrat/cli/dist/toolkit/toolkit.json\": \"a7360896f743a7187d8e07d3f586f211a6305e0f6beecc2bbe909754f7214657\"\n}\n"
+}

@@ -61,6 +61,9 @@ export const trustedDeclarationRoots = [
   '@tanstack/table-core',
   '@testing-library/dom',
   '@testing-library/react',
+  // Proof: rebuilding without this root retained DNS runtime but the installed vendor oracle
+  // refused missing declarations and implicit any (installed-types-omitted receipt).
+  '@types/dns-packet',
   '@types/hast',
   '@types/react',
   '@types/react-dom',
@@ -71,6 +74,8 @@ export const trustedDeclarationRoots = [
   'class-variance-authority',
   'clsx',
   'di-bag',
+  // Proof: the preserved package failed the installed vendor oracle at codec.d.ts -> dns-packet.
+  'dns-packet',
   'drizzle-orm',
   'elysia',
   'jose',
