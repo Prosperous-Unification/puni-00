@@ -1320,6 +1320,18 @@
       "id": "TEST-AXES-156",
       "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
       "title": "Shared test levels refuses collection drift and stale evidence"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-157",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared test evidence executes complete isolated Unit collection"
+    },
+    {
+      "kind": "allocate",
+      "id": "TEST-AXES-158",
+      "source": "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "title": "Shared test evidence refuses collection drift and stale evidence"
     }
   ]
 }

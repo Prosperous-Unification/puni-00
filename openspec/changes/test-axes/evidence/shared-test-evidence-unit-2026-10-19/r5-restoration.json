@@ -1,0 +1,11 @@
+{
+  "before": {
+    "/home/df/.codex/worktrees/e21c/puni-00/tools/tool-devsync/src/test-levels.ts": "ca9336e3d8e763aa5b93b4b9e4af177c2845b535be74c1277de7504854d92fb0",
+    "/home/df/.codex/worktrees/e21c/puni-00/libs/shared/domain/test-evidence/project.json": "d3de4b003a776ffba7077fc578c1e9c733962673ed5cdf8fd6705f62d8edce6a"
+  },
+  "after": {
+    "/home/df/.codex/worktrees/e21c/puni-00/tools/tool-devsync/src/test-levels.ts": "ca9336e3d8e763aa5b93b4b9e4af177c2845b535be74c1277de7504854d92fb0",
+    "/home/df/.codex/worktrees/e21c/puni-00/libs/shared/domain/test-evidence/project.json": "d3de4b003a776ffba7077fc578c1e9c733962673ed5cdf8fd6705f62d8edce6a"
+  },
+  "equal": true
+}

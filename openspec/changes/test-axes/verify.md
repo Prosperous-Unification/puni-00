@@ -5505,3 +5505,114 @@ standalone lint lacked an Nx graph and visibly skipped module-boundary enforceme
 canonical and hosted gates must supply full enforcement. External trusted activation
 remains inactive/uncertified. The superseded h2 run already has a failed Dash target;
 a new exact-head gate and hosted CI remain required after this combined repair.
+
+## WBS080.39 — shared-test-evidence isolated Unit target (2.1n, 2026-10-19)
+
+Prepared worktree `/home/df/.codex/worktrees/e21c/puni-00`, branch
+`integration/wbs08039-evidence-unit-20261019`, starts at main
+`a82d6fa9b0d87105cdafcaef474ab51a73abebd8`. Fresh remote task heads showed only
+Claire's scroll branch. The latest forty PRs and all open PR paths were checked;
+no open PR adds this target. Historical verifier overlaps #419 and #423 have
+exact heads already ancestral to main. The WBS claim was recorded and read back
+by the coordinator before implementation.
+
+The original dependency symlink pointed to the user's checkout, whose lock
+hash differs. Only that symlink was removed; Bun 1.4.2 installed 1296 packages
+frozen into a physical worktree-local directory. The candidate lock SHA-256
+remained `e8d77926f9dac4ba4824486143872bdfb123cafd8bed45cca50c44b2e23298a4`.
+No donor contents, parser behavior, existing twelve cases or legacy runners changed.
+
+OpenSpec apply reported `sdd-lean`, 73/91 completed tasks, ready to implement.
+The bounded addition follows 2.1k/l/m. Production allocation appended only
+TEST-AXES-157 and TEST-AXES-158; every earlier journal event remained equal and
+scenario provenance validation passed. Parent 2.1 and WBS080.39 remain open.
+
+### Checks and resource observations
+
+Commands, output and sampled process-tree measurements are retained in
+[evidence receipts](evidence/shared-test-evidence-unit-2026-10-19/receipts.json).
+Each guarded invocation required at least 12 GiB MemAvailable and had a 2 GiB
+sampled RSS ceiling and 360-second deadline. No resource stop fired. Sampling
+at 50ms does not establish a hard upper bound between samples. The first Nx
+Unit run accidentally overlapped the final seconds of the focused regression;
+it is not claimed as serial acceptance. The committed run below was performed alone.
+
+| Check                                                            | Observed outcome                                                                                   |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| New onboarding suite before registration                         | Exit 1; 0 passed, 10 failed on missing declaration/unclassified legacy runner                      |
+| Restored onboarding suite                                        | Exit 0; 10 passed, 31 assertions; all twelve real report outcomes matched hand-listed expectations |
+| Verifier and four shared onboarding suites                       | Exit 0; 145 passed, 523 assertions                                                                 |
+| Real uncached `shared-test-evidence:test:unit:level`             | Exit 0; twelve passing cases                                                                       |
+| Production `tool-devsync:test-levels:verify`                     | Exit 0; declared collections verified                                                              |
+| ESLint on changed verifier and test files with Nx graph present  | Exit 0; no graph-absence warning                                                                   |
+| Narrow TypeScript config over changed verifier and tests         | Exit 0                                                                                             |
+| Uncached shared-test-evidence Nx typecheck and build, parallel=1 | Both passed                                                                                        |
+| Changed-file formatting                                          | Passed                                                                                             |
+| Pinned OpenSpec 1.12.0 strict test-axes and all validation       | Both exited 0                                                                                      |
+
+### Independent production failure proofs
+
+Each fault ran independently against the new production-boundary suite, produced
+exit 1 at the named assertion, and was restored before the next fault.
+The retained [mutation receipts](evidence/shared-test-evidence-unit-2026-10-19/r5.json)
+and [restoration hashes](evidence/shared-test-evidence-unit-2026-10-19/r5-restoration.json)
+record all nine observations. Adjacent Proof comments identify the new registration
+and production-command failures; existing verifier guards retain their prior proofs.
+
+| Injected fault                          | Named failing assertion                              |
+| --------------------------------------- | ---------------------------------------------------- |
+| Remove new level registration           | Canonical Unit collection lookup                     |
+| Remove required-target guard            | Missing target declaration refusal                   |
+| Remove literal selector `./`            | Nested throwing decoy executes                       |
+| Bypass empty-selection guard            | Expected no-cases diagnostic absent                  |
+| Remove stale-report deletion            | Stale XML remains                                    |
+| Replace selector short circuit with `;` | Partial selector output executes despite failed find |
+| Remove complete-source guard            | Omitted Unit source accepted                         |
+| Remove level-isolation guard            | API source admitted to Unit                          |
+| Remove report-identity guard            | Different clear/write report identity accepted       |
+
+The new suite also checks TSX contamination and unknown target refusal. It uses
+real shell commands, file inventories and reports; the expected twelve case names
+are literal values read from the unchanged source tests. The Node ESM subprocess
+case executes normally. No trusted receipt, certified coverage, admission, target
+name normalization or broader shell whitespace/glob safety is claimed.
+
+### Committed report observation
+
+Normal source-commit hooks passed for
+`6a1853485d4129e4e2ee87b312f8ce747a2c460c`, including lint, formatting, secrets
+and private-nesting. Tool Wiki reported `inactive`, `certified:false`, because
+its external activation root is not provisioned. Migration and doc-cap hooks
+visibly skipped their unmatched file classes.
+
+At that clean committed candidate, the uncached Unit Nx target ran alone and
+passed all twelve cases. The exact external report and authority are preserved
+byte-for-byte as `report.xml` and `authority.json`. Production
+`inspect-bun-test-reports` passed with sampled peak 633500 KiB. Independent
+Python XML/Git/SHA-256 reconciliation checked all twelve outcomes, nested suite
+titles, source mode/blob/content pins, outcome-independent case IDs, selected
+manifest bytes and the complete observation digest. It passed at 16948 KiB.
+The observation digest is
+`1372dc64a4f9963da2b2677706dca165d5b1480653779296c11bf0c23400a6be`.
+The retained observation leaves every case's level/isolation unresolved,
+authentication absent and certification false. Later evidence-only commits do
+not claim the source report was executed at their own SHA.
+
+### Remaining acceptance
+
+Coordinator canonical h2puni/hosted CI acceptance remains pending.
+No full local gate, host gate or full tool-devsync test/typecheck/build was run;
+scoped checks above are the local evidence. Task 2.1n is complete within its
+bounded implementation, committed observation and independent-review scope.
+Parent 2.1 and WBS080.39 remain open; reports remain noncertifying.
+
+### Independent review receipt
+
+The independent `coverage_review` agent reviewed exact head
+`c0ab86142e0f19a6cc57344214017ea5119d080d` and reported no findings.
+Its read-only checks verified all fourteen evidence manifest hashes, selected
+source pins, XML outcomes and observation digests, and confirmed the existing
+library source stayed unchanged. This records review of those committed bytes;
+it does not claim a host gate, hosted CI, authenticated execution or certification.
+The coordinator will obtain review of this documentation-only completion delta
+before publication. No code tests are repeated for this receipt and checkbox edit.

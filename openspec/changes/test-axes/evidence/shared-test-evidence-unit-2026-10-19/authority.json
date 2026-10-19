@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "revision": "6a1853485d4129e4e2ee87b312f8ce747a2c460c",
+  "candidate": "6dc09a7f208eba404de8cea6506d26be24bbe776124d75ce170c90010f70c186",
+  "projectRoot": "libs/shared/domain/test-evidence",
+  "projectManifest": {
+    "path": "libs/shared/domain/test-evidence/project.json",
+    "digest": "d0e0723ec676f8bc6f4403c8b1601c177d69ad347581422fac7b6f79f6e0f69b"
+  },
+  "target": "test:unit:level",
+  "junit": {
+    "path": "/tmp/wbs08039-evidence-unit-20261019/report.xml",
+    "digest": "033705c90fa7029754ceee86c093abcd0a1c14f7673a773e7ac060774c9b06dc"
+  }
+}
