@@ -475,6 +475,30 @@ read, not a rule the engine follows. Not to be confused with **free agent**, whi
 about team membership and predates this term.
 _Avoid_: bot, AI, machine user, automation
 
+**Allotment**:
+The part of a plan one team may start work in: the leaves whose effective team set includes
+that team. A reading of the team labels, never written down; an unlabelled leaf belongs to
+no allotment and is open to any claimant.
+_Avoid_: lane, ownership, territory, scope
+
+**Claim**:
+The act that assigns an agent to every unassigned step of one ready, unclaimed leaf at
+once, refused when another person already holds a step. Spelled as assignments; there is
+no claim row. Giving it back is a **release**, which keeps the assignments on done steps.
+_Avoid_: lock, lease (which is Twilight Dash's runtime hold), checkout, reservation
+
+**Startable**:
+A leaf whose status reads `ready` and none of whose steps has an assignee; startable **for a
+team** when that team is also in its effective team set. Derived from the same folds the
+table uses, never stored.
+_Avoid_: available, free, unblocked (which says nothing about readiness or claims)
+
+**Agent account**:
+The account a directory person of kind `agent` is bound to, so a claim naming that person is
+accepted only from that account or from an organization admin. One account per person; a
+person may have none.
+_Avoid_: service account, bot user, machine user (the IdP's word for the credential)
+
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
 the affected projects with their work items by number and name, each work item's effects,
