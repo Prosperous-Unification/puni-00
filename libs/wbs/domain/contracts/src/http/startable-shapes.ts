@@ -31,6 +31,15 @@ const claimedStep = type({
   stepId: 'string',
   claimId: 'string',
   holder: person,
+  assignee: person.or('null'),
+  runId: 'string | null',
+  parentClaimId: 'string | null',
+  claimedAt: 'number',
+});
+const heldSubtree = type({
+  ...address,
+  claimId: 'string',
+  holder: person,
   runId: 'string | null',
   parentClaimId: 'string | null',
   claimedAt: 'number',
@@ -38,8 +47,9 @@ const claimedStep = type({
 
 /**
  * The **Startable** steps of a project, grouped by leaf in tree order, and apart
- * the claimed steps of the same leaves (`wbs-team-claims`, spec
- * `startable-work`). `team` narrows both to one team's allotment. A caller
+ * the claimed steps of the same leaves, each with its assignee, and every
+ * subtree claim of the project (`wbs-team-claims`, spec `startable-work`).
+ * `team` narrows the first two to one team's allotment. A caller
  * the tree read refuses is refused alike: an organization's viewer reads it,
  * a foreign or absent project is 404 `not_found`.
  */
@@ -54,7 +64,13 @@ export const readStartableWork = defineEndpointShape({
     {
       kind: 'json',
       status: 200,
-      schema: responseSchema(type({ leaves: startableLeaf.array(), claimed: claimedStep.array() })),
+      schema: responseSchema(
+        type({
+          leaves: startableLeaf.array(),
+          claimed: claimedStep.array(),
+          subtreeClaims: heldSubtree.array(),
+        }),
+      ),
     },
   ],
   refusals: [
@@ -73,6 +89,6 @@ export const readStartableWork = defineEndpointShape({
   document: {
     summary: 'List the steps a team may claim now, and the steps already claimed.',
     description:
-      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, run, parent claim and write instant. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
+      'Startable: the leaf is not blocked, on hold, blocked by proxy or done, the step is not done, and no claim holds it. Each leaf carries its id, its frozen number (numberIsFrozen) or else its derived one, the startable step ids with their assignees, the teams in force and the row that states them, unfinished predecessor leaves, and the nearest subtree claim above it. `claimed` lists the claimed steps of the same leaves with holder, assignee, run, parent claim and write instant; `subtreeClaims` lists every subtree claim of the project with its holder and write instant. Give `team` (a team id from getApiTeams) for one team’s allotment; address work items by id, then claim with postApiProjectsByIdCommands kind claimWorkItem.',
   },
 });

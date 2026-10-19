@@ -37,8 +37,8 @@ export interface SubtreeClaimAbove {
   readonly parentClaimId: string | null;
 }
 
-/** How a leaf is addressed: its frozen number, or the derived one when none is frozen. */
-export interface LeafAddress {
+/** How a work item is addressed: its frozen number, or the derived one when none is frozen. */
+export interface WorkItemAddress {
   readonly workItemId: string;
   readonly number: string;
   readonly numberIsFrozen: boolean;
@@ -46,7 +46,7 @@ export interface LeafAddress {
 }
 
 /** One leaf with at least one **Startable** step. */
-export interface StartableLeaf extends LeafAddress {
+export interface StartableLeaf extends WorkItemAddress {
   /** In project step order. */
   readonly stepIds: string[];
   /** The assignee of each startable step that has one, in step order. */
@@ -58,8 +58,20 @@ export interface StartableLeaf extends LeafAddress {
 }
 
 /** A claimed step of a leaf the read covers, so an operator sees silent claims. */
-export interface ClaimedStep extends LeafAddress {
+export interface ClaimedStep extends WorkItemAddress {
   readonly stepId: string;
+  readonly claimId: string;
+  readonly holder: NamedPerson;
+  /** The step's assignee, shown beside the claim and never in its place (D1). */
+  readonly assignee: NamedPerson | null;
+  readonly runId: string | null;
+  readonly parentClaimId: string | null;
+  /** When the claim was written, epoch milliseconds. */
+  readonly claimedAt: number;
+}
+
+/** A subtree claim in force anywhere in the project, so a silent one shows too. */
+export interface HeldSubtree extends WorkItemAddress {
   readonly claimId: string;
   readonly holder: NamedPerson;
   readonly runId: string | null;
@@ -68,10 +80,14 @@ export interface ClaimedStep extends LeafAddress {
   readonly claimedAt: number;
 }
 
-/** The startable read: leaves with startable steps, and apart, the claimed steps. */
+/**
+ * The startable read: leaves with startable steps, and apart the claimed steps
+ * of those leaves and every subtree claim of the project.
+ */
 export interface StartableWork {
   readonly leaves: StartableLeaf[];
   readonly claimed: ClaimedStep[];
+  readonly subtreeClaims: HeldSubtree[];
 }
 
 /** Everything {@link findStartableWork} reads, gathered in one admitted read. */
@@ -103,7 +119,10 @@ export interface StartableReads {
  * read: the team's **Allotment**. Leaves without a startable step are left out
  * of `leaves`; every claimed step of a leaf the filter keeps is in `claimed`,
  * whatever the leaf's status, so a claim on work that has since stopped shows.
- * A subtree claim never hides a step; the nearest one above the leaf is named.
+ * A subtree claim never hides a step; the nearest one above the leaf is named,
+ * and every subtree claim of the project is listed in `subtreeClaims`, team or
+ * not, so one over work that has all stopped still shows. A claimed step carries
+ * its assignee beside its holder.
  *
  * @throws when a status, a person name or a team name is missing: each is
  * read from the same observation as the rows, so a miss is corrupt trusted
@@ -127,7 +146,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     if (name === undefined) throw new Error(`person ${personId} has no name in this read`);
     return { personId, name };
   };
-  const addressOf = (row: LabelledWorkItem): LeafAddress => {
+  const addressOf = (row: LabelledWorkItem): WorkItemAddress => {
     const number = numbers.get(row.id);
     if (number === undefined) throw new Error(`work item ${row.id} has no number`);
     return {
@@ -154,6 +173,10 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     reads.assignments.map((each) => [`${each.workItemId}\u0000${each.stepId}`, each.personId]),
   );
 
+  const assigneeOf = (workItemId: string, stepId: string): NamedPerson | null => {
+    const personId = assignees.get(`${workItemId}\u0000${stepId}`);
+    return personId === undefined ? null : personOf(personId);
+  };
   const placeOf = (id: string): number => {
     const place = order.get(id);
     if (place === undefined) throw new Error(`work item ${id} has no place in tree order`);
@@ -184,11 +207,16 @@ export function findStartableWork(reads: StartableReads): StartableWork {
           stepId,
           claimId: holding.id,
           holder: personOf(holding.personId),
+          // Proof: with `null` here, `shows a claimed step beside its assignee`
+          // failed; watched 2026-10-20.
+          assignee: assigneeOf(leafId, stepId),
           runId: holding.runId,
           parentClaimId: holding.parentClaimId,
           claimedAt: holding.claimedAt,
         });
       } else if (!done.has(key)) {
+        // Proof: with `!done.has(key)` removed (a done step counted free),
+        // `leaves a done step out and keeps the other` failed; watched 2026-10-20.
         free.push(stepId);
       }
     }
@@ -200,8 +228,8 @@ export function findStartableWork(reads: StartableReads): StartableWork {
       ...address,
       stepIds: free,
       assignees: free.flatMap((stepId) => {
-        const personId = assignees.get(`${leafId}\u0000${stepId}`);
-        return personId === undefined ? [] : [{ stepId, ...personOf(personId) }];
+        const assignee = assigneeOf(leafId, stepId);
+        return assignee === null ? [] : [{ stepId, ...assignee }];
       }),
       teams:
         inForce === undefined
@@ -212,13 +240,32 @@ export function findStartableWork(reads: StartableReads): StartableWork {
               return { teamId: each, name, fromId: inForce.fromId };
             }),
       // A leaf with no authored predecessor is absent from the map: none.
+      // Proof: with the `!== 'done'` filter removed, `names the unfinished
+      // predecessors of a startable leaf, and drops finished ones` failed;
+      // watched 2026-10-20.
       unfinishedPredecessorIds: [...(predecessors.get(leafId) ?? [])]
         .filter((each) => statusFor(each) !== 'done')
         .sort(byPlace),
       subtreeClaim: nearestSubtreeClaim(row.parentId, byId, subtreeClaims, personOf),
     });
   }
-  return { leaves, claimed };
+  // Proof: answering `[]` in place of this list failed `lists a silent subtree
+  // claim whose every leaf has stopped` and the subtree-holder case; watched 2026-10-20.
+  const held: HeldSubtree[] = [...subtreeClaims.values()]
+    .sort((left, right) => byPlace(left.workItemId, right.workItemId))
+    .map((holding) => {
+      const row = byId.get(holding.workItemId);
+      if (row === undefined) throw new Error(`claim ${holding.id} is on no row of this read`);
+      return {
+        ...addressOf(row),
+        claimId: holding.id,
+        holder: personOf(holding.personId),
+        runId: holding.runId,
+        parentClaimId: holding.parentClaimId,
+        claimedAt: holding.claimedAt,
+      };
+    });
+  return { leaves, claimed, subtreeClaims: held };
 }
 
 /** The subtree claim on the nearest ancestor holding one, walking up from `parentId`. */
@@ -228,10 +275,11 @@ function nearestSubtreeClaim(
   subtreeClaims: ReadonlyMap<string, StampedClaim>,
   personOf: (personId: string) => NamedPerson,
 ): SubtreeClaimAbove | null {
-  const seen = new Set<string>();
-  for (let at = parentId; at !== null; at = byId.get(at)?.parentId ?? null) {
-    if (seen.has(at)) throw new Error(`work item ${at} sits in a parent cycle`);
-    seen.add(at);
+  // No cycle guard: `deriveNumbers` has already thrown for a parent cycle or an
+  // orphan, so this walk ends at a root.
+  for (let at = parentId; at !== null;) {
+    const row = byId.get(at);
+    if (row === undefined) throw new Error(`work item ${at} is not a row of this read`);
     const holding = subtreeClaims.get(at);
     if (holding !== undefined) {
       return {
@@ -242,6 +290,7 @@ function nearestSubtreeClaim(
         parentClaimId: holding.parentClaimId,
       };
     }
+    at = row.parentId;
   }
   return null;
 }

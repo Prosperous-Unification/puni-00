@@ -114,6 +114,7 @@ describe('the startable read', () => {
         stepId: dev,
         claimId: 'c-dev',
         holder: { personId: 'codex-fleet', name: 'codex-fleet name' },
+        assignee: null,
         runId: 'run-c-dev',
         parentClaimId: null,
         claimedAt: 500,
@@ -126,6 +127,7 @@ describe('the startable read', () => {
         stepId: qa,
         claimId: 'c-qa',
         holder: { personId: 'claire-worker', name: 'claire-worker name' },
+        assignee: null,
         runId: 'run-c-qa',
         parentClaimId: null,
         claimedAt: 600,
@@ -252,6 +254,62 @@ describe('the startable read', () => {
     ]);
     const every = answered(await read(null));
     expect(every.leaves.find(({ workItemId }) => workItemId === '090')?.subtreeClaim).toBeNull();
+    expect(every.subtreeClaims).toEqual([
+      {
+        workItemId: '080',
+        number: '080',
+        numberIsFrozen: true,
+        name: 'Rewire the shed',
+        claimId: 'subtree',
+        holder: { personId: 'claire', name: 'claire name' },
+        runId: 'run-subtree',
+        parentClaimId: null,
+        claimedAt: 700,
+      },
+    ]);
+  });
+
+  it('lists a silent subtree claim whose every leaf has stopped', async () => {
+    const { insert, claim, read } = await seeded();
+    await insert({ id: '080', position: 1, frozenNumber: '080' });
+    await insert({ id: '080.25', parentId: '080', position: 1, hold: 'blocked' });
+    expect(await claim('subtree', '080', null, 'claire', 700)).toBe('written');
+
+    const every = answered(await read(null));
+    expect(every.leaves).toEqual([]);
+    expect(every.claimed).toEqual([]);
+    expect(every.subtreeClaims).toMatchObject([
+      { workItemId: '080', claimId: 'subtree', holder: { personId: 'claire' }, claimedAt: 700 },
+    ]);
+    // Apart from the team filter: the operator sees it whatever team is asked about.
+    expect(answered(await read(PLATFORM)).subtreeClaims).toHaveLength(1);
+  });
+
+  it('shows a claimed step beside its assignee', async () => {
+    const { source, dev, qa, insert, claim, read } = await seeded();
+    await insert({ id: 'taken', position: 1 });
+    expect(await source.stores.directory.assign('taken', dev, 'ada', { at: 1, by: OWNER })).toEqual(
+      { ok: true },
+    );
+    await claim('c-dev', 'taken', dev, 'codex-fleet', 500);
+    await claim('c-qa', 'taken', qa, 'claire-worker', 600);
+
+    const every = answered(await read(null));
+    expect(every.leaves).toEqual([]);
+    expect(
+      every.claimed.map(({ claimId, holder, assignee }) => ({ claimId, holder, assignee })),
+    ).toEqual([
+      {
+        claimId: 'c-dev',
+        holder: { personId: 'codex-fleet', name: 'codex-fleet name' },
+        assignee: { personId: 'ada', name: 'ada name' },
+      },
+      {
+        claimId: 'c-qa',
+        holder: { personId: 'claire-worker', name: 'claire-worker name' },
+        assignee: null,
+      },
+    ]);
   });
 
   it('answers the frozen number, never the derived path', async () => {

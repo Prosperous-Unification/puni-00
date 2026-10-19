@@ -6,11 +6,6 @@ import type { WriteStamp } from './write-stamp';
 export type { Claim } from '@wbs/domain';
 
 /**
- * What {@link ClaimStore.add} answers: written, a claim's step or subtree was
- * already held (a unique index refused it), or a step to state already holds
- * progress. Either refusal writes nothing.
- */
-/**
  * A stored claim with the instant it was written: `created_at`, which an undo
  * of a release writes afresh, so it reads when the claim last came into force.
  */
@@ -26,6 +21,11 @@ export function unstampClaim({
   return claim;
 }
 
+/**
+ * What {@link ClaimStore.add} answers: written, a claim's step or subtree was
+ * already held (a unique index refused it), or a step to state already holds
+ * progress. Either refusal writes nothing.
+ */
 export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated';
 
 /**
