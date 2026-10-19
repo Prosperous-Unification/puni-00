@@ -1137,7 +1137,14 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    expect(migrationLedgerAt(dbPath)).toEqual(ledger);
+    // The empty binding migrations newer than add_claim reverse first.
+    expect(migrationLedgerAt(dbPath)).toEqual(
+      ledger.filter(
+        ({ name }) =>
+          name !== '20261019130000_add_person_account' &&
+          name !== '20261019130100_add_external_identity_person',
+      ),
+    );
     const after = openDatabase(dbPath);
     try {
       expect(after.query<{ id: string }, []>('SELECT id FROM claim').all()).toEqual([{ id: 'c' }]);
