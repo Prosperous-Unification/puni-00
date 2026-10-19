@@ -3871,6 +3871,24 @@
         }
       },
       {
+        "path": "openspec/changes/test-axes/evidence/shared-unit-recovery-2026-10-19/denial-oracle-receipts.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/test-axes/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
+        "path": "openspec/changes/test-axes/evidence/shared-unit-recovery-2026-10-19/receipts.json.gz",
+        "format": "application/gzip",
+        "consumer": "openspec/changes/test-axes/verify.md",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "Historical execution recorded in openspec/changes/test-axes/verify.md; rerunning its commands produces a new receipt."
+        }
+      },
+      {
         "path": "openspec/changes/test-axes/evidence/shared-validation-unit-2026-10-17/allocate-oct17.log.gz",
         "format": "application/gzip",
         "consumer": "openspec/changes/test-axes/verify.md",

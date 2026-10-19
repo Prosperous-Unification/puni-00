@@ -9041,37 +9041,39 @@ test('selected check refuses noncanonical runtime tree bytes even under their fr
   }
 });
 
+function readDescriptorTargets(): Map<string, string> {
+  return new Map(
+    readdirSync('/proc/self/fd').flatMap((entry) => {
+      try {
+        return [[entry, readlinkSync(`/proc/self/fd/${entry}`)] as const];
+      } catch (cause) {
+        // The procfs directory descriptor can close before readlink.
+        if (!(cause instanceof Error && cause.message.includes('ENOENT'))) throw cause;
+        return [];
+      }
+    }),
+  );
+}
+
 test('selected check stages only bytes from trusted complete-tree manifests', async () => {
-  const descriptorTargets = (): Map<string, string> =>
-    new Map(
-      readdirSync('/proc/self/fd').flatMap((entry) => {
-        try {
-          return [[entry, readlinkSync(`/proc/self/fd/${entry}`)] as const];
-        } catch (cause) {
-          // The procfs directory descriptor can close before readlink.
-          if (!(cause instanceof Error && cause.message.includes('ENOENT'))) throw cause;
-          return [];
-        }
-      }),
-    );
   const opened: (readonly [string, string])[] = [];
   let baseline = new Map<string, string>();
   const selected = selectedStageFixture({
     stageDiagnostics: {
       afterRootOpened: () => {
-        for (const [descriptor, target] of descriptorTargets()) {
+        for (const [descriptor, target] of readDescriptorTargets()) {
           if (baseline.get(descriptor) !== target) opened.push([descriptor, target]);
         }
       },
       afterFileOpened: () => {
-        for (const [descriptor, target] of descriptorTargets()) {
+        for (const [descriptor, target] of readDescriptorTargets()) {
           if (baseline.get(descriptor) !== target) opened.push([descriptor, target]);
         }
       },
     },
   });
   try {
-    baseline = descriptorTargets();
+    baseline = readDescriptorTargets();
     // The staging walk opens every ancestor directory of each staged root; derive them from
     // the actual roots so a host whose temporary root is /var/tmp expects /var and /var/tmp.
     const ancestors = (path: string): string[] =>
@@ -9092,7 +9094,7 @@ test('selected check stages only bytes from trusted complete-tree manifests', as
       expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
       const selectedDescriptors = opened.filter(([, target]) => ownedPaths.has(target));
       expect(new Set(selectedDescriptors.map(([, target]) => target))).toEqual(ownedPaths);
-      const after = descriptorTargets();
+      const after = readDescriptorTargets();
       for (const [descriptor, target] of selectedDescriptors)
         expect(after.get(descriptor)).not.toBe(target);
     } finally {
@@ -9510,24 +9512,48 @@ test('selected check never closes a caller descriptor reopened on the same inode
 });
 
 test('selected check closes remaining owned descriptors after a leaf descriptor was closed', async () => {
+  let unrelated: number | undefined;
+  let baseline = new Map<string, string>();
+  const opened: (readonly [string, string])[] = [];
   const selected = selectedStageFixture({
     stageDiagnostics: {
       afterFileOpened: (kind, path, control) => {
-        if (kind === 'candidate' && path === 'main.txt') control.closeOpenedFile();
+        if (kind === 'candidate' && path === 'main.txt') {
+          for (const [descriptor, target] of readDescriptorTargets()) {
+            if (baseline.get(descriptor) !== target) opened.push([descriptor, target]);
+          }
+          control.closeOpenedFile();
+          if (unrelated === undefined) throw new Error('unrelated descriptor absent');
+          closeSync(unrelated);
+          unrelated = undefined;
+        }
       },
     },
   });
   try {
     const before = checkDispatchRows(selected.source.databasePath);
-    const descriptorsBefore = readdirSync('/proc/self/fd').length;
+    unrelated = openSync(selected.source.bootstrapPath, constants.O_RDONLY);
+    baseline = readDescriptorTargets();
     await rejectsWith(
       selected.controller.stageCheckLaunch(selected.lease, 'a'.repeat(64)),
       'check candidate tree source differs from manifest',
     );
-    expect(readdirSync('/proc/self/fd').length).toBe(descriptorsBefore);
+    const ancestors = (path: string): string[] =>
+      dirname(path) === path ? [path] : [...ancestors(dirname(path)), path];
+    const ownedPaths = new Set([
+      ...ancestors(selected.snapshotRoot),
+      join(selected.snapshotRoot, 'main.txt'),
+    ]);
+    const selectedDescriptors = opened.filter(([, target]) => ownedPaths.has(target));
+    expect(new Set(selectedDescriptors.map(([, target]) => target))).toEqual(ownedPaths);
+    const after = readDescriptorTargets();
+    // Proof: skipping ancestor-directory closes leaves an owned target here and fails this test.
+    for (const [descriptor, target] of selectedDescriptors)
+      expect(after.get(descriptor)).not.toBe(target);
     expect(readdirSync(selected.stageBase)).toEqual([]);
     expect(checkDispatchRows(selected.source.databasePath)).toEqual(before);
   } finally {
+    if (unrelated !== undefined) closeSync(unrelated);
     selected.controller.close();
   }
 });

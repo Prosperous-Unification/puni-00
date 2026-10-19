@@ -1,0 +1,19 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-test-levels-level.test.ts:
+1239 | /** One declared level target, by its `project:target` name. */
+1240 | export function levelTargetNamed(qualified: string): LevelTarget {
+1241 |   const found = LEVEL_TARGETS.find(({ project, target }) => `${project}:${target}` === qualified);
+1242 |   // Proof (E-9): naming aggregate target `wbs-core:test` made the coverage command refuse it as
+1243 |   // not a declared level target (2026-09-20).
+1244 |   if (found === undefined) throw new Error(`${qualified} is not a declared level target`);
+                                            ^
+error: shared-test-levels:test:unit:level is not a declared level target
+      at levelTargetNamed (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/test-levels.ts:1244:38)
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/shared-test-levels-level.test.ts:90:20)
+(fail) shared-test-levels isolated Unit level > registers the canonical Unit collection and preserves unreported legacy runners [0.50ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+Ran 1 test across 1 file. [145.00ms]

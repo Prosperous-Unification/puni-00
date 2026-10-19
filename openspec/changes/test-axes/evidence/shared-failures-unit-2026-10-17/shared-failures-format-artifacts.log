@@ -1,0 +1,27 @@
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/manifest.json 28ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-allocate-oct17.log.json 2ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-allocation-prefix-oct17.json 2ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-focused.log.json 23ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-format-final.log.json 1ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-format.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-graph.log.json 1ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-green.log.json 1ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-lint.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-nx-unit.log.json 1ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-openspec.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-provenance-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-complete-collection-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-empty-selection-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-literal-operands-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-oct17.json 3ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-registration-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-report-identity-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-required-target-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-restoration-oct17.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-selector-failure-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-stale-report-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-wrong-level-oct17.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-red.log.json 1ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-restored.log.json 1ms
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-typecheck.log.json 1ms (unchanged)
+openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/tsconfig.scoped.json 1ms (unchanged)

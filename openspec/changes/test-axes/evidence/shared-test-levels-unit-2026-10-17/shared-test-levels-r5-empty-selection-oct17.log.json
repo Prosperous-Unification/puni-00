@@ -1,0 +1,24 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+    "--timeout=30000",
+    "-t",
+    "removes stale reports before refusing an empty selection"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 74360,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "removes stale reports before refusing an empty selection"
+    ]
+  ]
+}

@@ -1,0 +1,8 @@
+libs/shared/domain/test-levels/project.json 19ms
+tools/tool-devsync/src/shared-test-levels-level.test.ts 137ms
+tools/tool-devsync/src/test-levels.ts 124ms (unchanged)
+tools/tool-devsync/src/test-levels.test.ts 137ms (unchanged)
+openspec/changes/test-axes/proposal.md 57ms (unchanged)
+openspec/changes/test-axes/specs/test-axes/spec.md 218ms (unchanged)
+openspec/changes/test-axes/tasks.md 91ms (unchanged)
+openspec/scenario-allocations.json 21ms (unchanged)
