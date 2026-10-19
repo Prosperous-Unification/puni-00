@@ -20,7 +20,8 @@ const USAGE =
 function flagsOf(argv: readonly string[]): Map<Flag, string> {
   const flags = new Map<Flag, string>();
   for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv.at(index) ?? '';
+    const argument = argv.at(index);
+    if (argument === undefined) throw new Error(`argument ${String(index)} vanished`);
     const [name = '', ...inline] = argument.startsWith('--') ? argument.slice(2).split('=') : [];
     const flag = FLAGS.find((known) => known === name);
     if (flag === undefined) throw new Error(`unknown argument ${argument}; ${USAGE}`);
@@ -38,7 +39,7 @@ function flagsOf(argv: readonly string[]): Map<Flag, string> {
   return flags;
 }
 
-function required(flags: ReadonlyMap<Flag, string>, flag: Flag): string {
+function requireFlag(flags: ReadonlyMap<Flag, string>, flag: Flag): string {
   const value = flags.get(flag);
   if (value === undefined) throw new Error(`--${flag} is required; ${USAGE}`);
   return value;
@@ -48,8 +49,8 @@ const flags = flagsOf(process.argv.slice(2));
 const unlink = flags.has('unlink');
 if (unlink && (flags.has('account') || flags.has('person')))
   throw new Error(`--unlink names only the pair; ${USAGE}`);
-const pair = { issuer: required(flags, 'issuer'), subject: required(flags, 'subject') };
-const account = unlink ? '' : required(flags, 'account');
+const pair = { issuer: requireFlag(flags, 'issuer'), subject: requireFlag(flags, 'subject') };
+const account = unlink ? '' : requireFlag(flags, 'account');
 const dbPath = process.env['DB_PATH'];
 if (dbPath === undefined || dbPath === '') throw new Error('DB_PATH must be set');
 
@@ -88,6 +89,10 @@ try {
       case 'already_linked':
         throw new Error(
           `${pair.issuer} ${pair.subject} is already linked to account ${outcome.account.username} (${outcome.account.id}); unlink it first`,
+        );
+      case 'sign_in_pair':
+        throw new Error(
+          `${pair.issuer} ${pair.subject} is the sign-in of account ${outcome.account.username} (${outcome.account.id}); it cannot be linked as a credential`,
         );
       case 'unknown_person':
         throw new Error(`no person has the id ${outcome.personId}`);

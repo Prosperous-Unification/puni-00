@@ -196,6 +196,10 @@ export class MemoryState {
     replaceMap(this.tables.directory.owned, next.tables.directory.owned);
     replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
     replaceMap(this.tables.directory.accountOf, next.tables.directory.accountOf);
+    replaceMap(
+      this.tables.directory.organizationMembers,
+      next.tables.directory.organizationMembers,
+    );
     replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);

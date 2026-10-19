@@ -162,6 +162,18 @@ describe('link-credential-cli', () => {
     expect(storeState()).toEqual(linked);
   }, 30_000);
 
+  it("refuses an account's own unmapped sign-in pair, naming it", async () => {
+    sql(
+      `INSERT INTO users (id, username, password_hash, created_at, idp_issuer, idp_sub)
+       VALUES ('ada-id', 'ada', NULL, 1, '${ISSUER}', 'google-oauth2|ada')`,
+    );
+    const before = storeState();
+    const refused = await cli(`--issuer=${ISSUER}`, '--subject=google-oauth2|ada', '--account=kat');
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('is the sign-in of account ada (ada-id)');
+    expect(storeState()).toEqual(before);
+  }, 30_000);
+
   it('refuses an account nobody holds, writing nothing', async () => {
     const before = storeState();
     const refused = await cli(`--issuer=${ISSUER}`, `--subject=${FLEET}`, '--account=nobody');

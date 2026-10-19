@@ -80,6 +80,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'directory.assign:scope-replace-clear',
   'directory.patchTeam:atomic-refusal',
   'directory.patchPerson:account-binding',
+  'directory.patchPerson:owned-binding',
   'directory.credentialPinOf:unlinked',
   'eventLog.recordEvent',
   'eventLog.rangeSince',

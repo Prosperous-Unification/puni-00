@@ -110,6 +110,29 @@ describe('binding a person to an account', () => {
     expect(bindings().every(({ account_id }) => account_id === null)).toBe(true);
   });
 
+  it('leaves a rename sent beside a refused account unapplied', async () => {
+    const answer = await h.call('dany', 'POST', '/api/directory/commands', {
+      commands: [
+        {
+          kind: 'patchPerson',
+          personId: 'claire',
+          patch: { name: 'Renamed', accountId: 'nobody' },
+        },
+      ],
+    });
+    expect(answer).toEqual({
+      status: 404,
+      body: { error: 'unknown_account', at: 0, kind: 'patchPerson' },
+    });
+    expect(
+      h.sqlite
+        .query<{ name: string }, []>(
+          "SELECT name FROM person_organization WHERE resource_id = 'claire'",
+        )
+        .get(),
+    ).toEqual({ name: 'claire' });
+  });
+
   it('refuses an accountId that is neither an id nor null', async () => {
     const answer = await bind('dany', 'claire', 7);
     expect(answer.status).toBe(400);

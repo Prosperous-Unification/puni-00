@@ -23,6 +23,7 @@ import {
   type FaultRun,
   type HistoryBatchFixture,
   observePlanInput,
+  OWNED_BINDING,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -87,6 +88,7 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
+  ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
@@ -150,6 +152,13 @@ function conformanceMemorySource(
       fixture.routeJournalEventToIndependent(eventId),
     storeDependencyById: (dependency: StoredDependency) => {
       fixture.storeDependencyById(dependency);
+    },
+    ownPersonInOrganization: (
+      personId: string,
+      organizationId: string,
+      memberIds: readonly string[],
+    ) => {
+      fixture.ownPersonInOrganization(personId, organizationId, memberIds);
     },
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
@@ -355,6 +364,17 @@ async function openMemoryCase<Family extends ExistingFamily>(
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
+    if (caseId === 'directory.patchPerson:owned-binding') {
+      const added = await seeded.stores.directory.addPerson(
+        { id: OWNED_BINDING.personId, name: 'Owned person' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the owned person was refused');
+      seeded.ownPersonInOrganization(OWNED_BINDING.personId, OWNED_BINDING.organizationId, [
+        DETERMINISTIC_SEED.ownerIds[0],
+      ]);
+    }
   });
   if (family === 'subtrees') {
     return {

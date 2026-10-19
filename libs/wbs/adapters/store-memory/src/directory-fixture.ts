@@ -75,6 +75,12 @@ export interface MemoryDirectoryTables {
   /** `person.account_id`: the account bound to act as each bound person, by person id. */
   readonly accountOf: Map<string, string>;
   /**
+   * `organization_membership`, as far as binding needs it: the account ids
+   * that are members of each organization, by organization id. An owned person
+   * binds only to a member of its organization, as SQLite's `accountMayBind`.
+   */
+  readonly organizationMembers: Map<string, Set<string>>;
+  /**
    * `external_identity.person_id`: the person each pinned credential may claim
    * as, keyed by {@link credentialKey}. Nothing in this package writes it; a
    * test that needs a pinned credential sets it, as `link-credential-cli.ts`
@@ -107,6 +113,7 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     assignments: new Map(),
     organizationOf: new Map(),
     accountOf: new Map(),
+    organizationMembers: new Map(),
     credentialPins: new Map(),
   };
 }
@@ -133,6 +140,7 @@ export function inMemoryDirectory(
     assignments,
     organizationOf,
     accountOf,
+    organizationMembers,
     credentialPins,
   } = tables;
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
@@ -403,17 +411,21 @@ export function inMemoryDirectory(
         return Promise.resolve({ ok: false, reason: 'unknown_team' });
       }
       if (typeof patch.accountId === 'string') {
-        if (accounts === undefined)
-          return Promise.reject(new Error('this in-memory directory was built without accounts'));
-        // SQLite also requires the account to be a member of the person's
-        // organization; these Maps hold no memberships, so an owned person
-        // cannot be bound here at all rather than bound on a weaker rule.
-        if (organizationOf.has(personId))
-          return Promise.reject(
-            new Error('the in-memory directory has no organization memberships to bind against'),
-          );
-        if (!accounts.has(patch.accountId))
-          return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        const owner = organizationOf.get(personId);
+        // An owned person binds to a member of its organization; an unowned one
+        // to any account, which only a directory built with accounts can tell.
+        // Proof: the membership read replaced with `true` made the conformance
+        // case `directory.patchPerson:owned-binding` bind the non-member
+        // (watched 2026-10-20).
+        if (owner !== undefined) {
+          if (organizationMembers.get(owner)?.has(patch.accountId) !== true)
+            return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        } else {
+          if (accounts === undefined)
+            return Promise.reject(new Error('this in-memory directory was built without accounts'));
+          if (!accounts.has(patch.accountId))
+            return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        }
       }
       if (patch.name !== undefined) {
         const held = [...people.values()].some(

@@ -124,6 +124,7 @@ describe('the migrated existing store kits', () => {
       'directory.assign:scope-replace-clear',
       'directory.patchTeam:atomic-refusal',
       'directory.patchPerson:account-binding',
+      'directory.patchPerson:owned-binding',
       'directory.credentialPinOf:unlinked',
       'eventLog.recordEvent',
       'eventLog.rangeSince',

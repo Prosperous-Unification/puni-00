@@ -36,6 +36,8 @@ export interface LinkedAccount {
  * - `unknown_account`: no account has that id or username.
  * - `ambiguous_account`: the text is one account's id and another's username.
  * - `already_linked`: the pair already maps to an account, named.
+ * - `sign_in_pair`: the pair is an account's own `users.idp_*` sign-in, named;
+ *   linking it elsewhere would make that person's next login throw.
  * - `unknown_person`, `person_not_bound`: the pin names no person, or a person
  *   not bound to this account (`boundTo` is the account it is bound to, or null).
  */
@@ -55,6 +57,7 @@ export type CredentialLinkOutcome =
       readonly matches: readonly LinkedAccount[];
     }
   | { readonly kind: 'already_linked'; readonly account: LinkedAccount }
+  | { readonly kind: 'sign_in_pair'; readonly account: LinkedAccount }
   | { readonly kind: 'unknown_person'; readonly personId: string }
   | {
       readonly kind: 'person_not_bound';
@@ -122,6 +125,15 @@ export function linkCredential(
       // `external_identity_issuer_subject` (watched 2026-10-19). That index,
       // not this check, is what makes stealing a linked pair impossible.
       if (holder !== undefined) return { kind: 'already_linked', account: holder };
+      const signIn = tx
+        .select({ id: users.id, username: users.username })
+        .from(users)
+        .where(and(eq(users.idpIssuer, request.issuer), eq(users.idpSub, request.subject)))
+        .get();
+      // Proof: skipping this made `refuses an account's own unmapped sign-in
+      // pair, naming it` in `link-credential-cli.db.test.ts` write the row
+      // (watched 2026-10-20).
+      if (signIn !== undefined) return { kind: 'sign_in_pair', account: signIn };
       if (request.personId !== null) {
         const pinned = tx
           .select({ accountId: person.accountId })

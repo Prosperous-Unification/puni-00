@@ -46,6 +46,7 @@ export const CASE_MANIFEST = {
     'directory.assign:scope-replace-clear',
     'directory.patchTeam:atomic-refusal',
     'directory.patchPerson:account-binding',
+    'directory.patchPerson:owned-binding',
     'directory.credentialPinOf:unlinked',
   ],
   capacity: [
