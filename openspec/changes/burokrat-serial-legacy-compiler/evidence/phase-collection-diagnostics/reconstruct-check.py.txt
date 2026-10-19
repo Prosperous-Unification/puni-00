@@ -1,0 +1,58 @@
+import argparse
+import hashlib
+import json
+from pathlib import Path
+
+
+def reconstruct(compact_path, delta_path):
+    compact = json.loads(compact_path.read_text())
+    if compact['schemaVersion'] != 1:
+        raise ValueError('unsupported compact snapshot schema')
+    snapshot = {}
+    for directory_index, name, value_index in compact['entries']:
+        directory = compact['directories'][directory_index]
+        path = directory + '/' + name if directory else name
+        if path in snapshot:
+            raise ValueError('duplicate snapshot path: ' + path)
+        snapshot[path] = compact['values'][value_index]
+    if delta_path:
+        delta = json.loads(delta_path.read_text())
+        for path, value in delta.items():
+            if path not in snapshot:
+                raise ValueError('delta path absent from base: ' + path)
+            snapshot[path] = value
+    return (json.dumps(snapshot, indent=2) + '\n').encode('utf-8')
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Reconstruct and verify retained diagnostic snapshots and source copies.')
+    parser.add_argument('--compact', type=Path, help='Override compact input for a watched negative proof.')
+    parser.add_argument('--check-sources', action='store_true', help='Also compare frozen original paths when available.')
+    parser.add_argument('--write-dir', type=Path, help='Write the two reconstructed snapshots here after all checks pass.')
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parent
+    manifest = json.loads((root / 'manifest.json.txt').read_text())
+    outputs = {}
+    for entry in manifest['files']:
+        if 'reconstruct' in entry:
+            recipe = entry['reconstruct']
+            delta_path = root / recipe['delta'] if recipe['delta'] else None
+            content = reconstruct(args.compact or root / recipe['compact'], delta_path)
+            name = 'trace-only-consumer.json' if delta_path else 'original-consumer.json'
+            outputs[name] = content
+        else:
+            content = (root / entry['path']).read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        if len(content) != entry['bytes'] or digest != entry['sha256']:
+            raise ValueError('snapshot/source digest mismatch: ' + entry['source'] + ' expected ' + entry['sha256'] + ' observed ' + digest)
+        if args.check_sources and content != Path(entry['source']).read_bytes():
+            raise ValueError('original source bytes mismatch: ' + entry['source'])
+    if args.write_dir:
+        args.write_dir.mkdir(parents=True, exist_ok=False)
+        for name, content in outputs.items():
+            (args.write_dir / name).write_bytes(content)
+    print('PASS: all ' + str(len(manifest['files'])) + ' source mappings; six snapshot inputs reconstruct to their original bytes/SHA-256')
+
+
+if __name__ == '__main__':
+    main()

@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "a112baef011e938d90a9a5feb71359d6c7e8648eb1e88214d69f73328626d21b",
+    "bytes": 526,
+    "text": "{\n  \"command\": [\n    \"/tmp/wbs100-phase-collection-consumer-20261020/node_modules/.bin/twib\",\n    \"check\",\n    \"committed\",\n    \"/home/df/wd/puni/puni-00\",\n    \"3e8d0742154e90a606b23d305dd6e424bb9c7d06\",\n    \"/tmp/wbs100-reference-consumer-20261019/policy.json\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00\",\n  \"exitCode\": -9,\n  \"peakProcessTreeKiB\": 4208160,\n  \"ceilingKiB\": 4194304,\n  \"timeoutSeconds\": 900,\n  \"seconds\": 356.867,\n  \"availableBeforeKiB\": 23405452,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": \"rss_limit\"\n}\n"
+  },
+  "stdout": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

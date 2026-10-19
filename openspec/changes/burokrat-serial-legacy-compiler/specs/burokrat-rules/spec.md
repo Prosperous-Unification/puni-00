@@ -37,3 +37,27 @@ The bounded-source extractor SHALL retain its existing callback order, repeated-
 - **GIVEN** a source fixture fits its measured probe, read and observation limits exactly
 - **WHEN** the bounded-source extractor evaluates it and each one-unit-short limit
 - **THEN** exact fit succeeds and each insufficient limit retains its refusal
+
+### Requirement: Legacy semantic phases collect preceding compiler work
+
+The filesystem compatibility extractor SHALL retain collection after each compiler-owning helper and SHALL collect again after reconstruction and import observation immediately before semantic diagnostics, including diagnostics replayed for emission/public surfaces. The current project SHALL remain available for all required checks; no config, diagnostic or callback budget SHALL be skipped or weakened.
+
+#### Scenario: Legacy collection boundaries permit the frozen workload
+
+- **GIVEN** the frozen WBS baseline and unchanged all-rule policy recorded in the follow-up evidence
+- **WHEN** the separately identified installed successor evaluates every selected configuration under the recorded 4 GiB process-tree ceiling and 900-second deadline
+- **THEN** the process returns its complete report without a resource stop
+- **AND** existing semantic refusals remain explicit rather than being accepted or hidden
+- **AND** the preserved predecessor without this collection placement demonstrates the production resource failure
+
+### Requirement: Legacy public closure collects preceding semantic work
+
+The filesystem compatibility extractor SHALL collect once after semantic declaration dependency discovery completes and before emitted declaration dependency traversal begins. The current program, declarations and semantic dependency selections SHALL remain available. The bounded-source extractor SHALL retain its existing callback and accounting sequence without this collection callback.
+
+#### Scenario: Public closure completes without changing the full report
+
+- **GIVEN** the frozen WBS baseline and unchanged policy whose two-point candidate exceeded the recorded resource guard during emitted declaration traversal
+- **WHEN** the separately identified installed candidate adds the generic legacy public collection boundary
+- **THEN** its complete report is produced within the same 4 GiB/900-second guard
+- **AND** the complete JSON equals the retained successful targeted diagnostic report, including all findings and explicit unevaluated rules
+- **AND** focused bounded-source exact-fit and insufficient-budget behavior remains unchanged

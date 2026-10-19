@@ -103,6 +103,9 @@ function observeDiagnostics(
 ): string[] {
   const project = reconstructProject(workspace, configuration, system);
   collectImports(workspace, project, extractor);
+  // Proof: a gateway-only pre-diagnostic collection reclaimed preceding work and let gateway
+  // finish; without it the frozen baseline exceeded 4 GiB during gateway diagnostics.
+  Bun.gc(true);
   return ts.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
 }
 
@@ -114,6 +117,8 @@ function prepareEmission(
 ): ParsedProject {
   const project = reconstructProject(workspace, configuration, system);
   collectImports(workspace, project, extractor);
+  // Emission/public replay reaches the same measured live-project diagnostic boundary above.
+  Bun.gc(true);
   const diagnostics = ts.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
   if (diagnostics.length > 0)
     throw new Error(`TypeScript compiler failed: ${diagnostics.join('; ')}`);
@@ -170,7 +175,11 @@ function observePublicDeclaration(
   entrypoint: string,
 ): PublicDeclarationSelector {
   const project = prepareEmission(workspace, configuration, system, extractor);
-  return publicDeclaration(workspace, entrypoint, project, extractor);
+  // Proof: the frozen baseline exceeded 4 GiB during emitted dependency traversal; a targeted
+  // pre-schema collection reclaimed preceding work and completed the diagnostic baseline.
+  return publicDeclaration(workspace, entrypoint, project, extractor, () => {
+    Bun.gc(true);
+  });
 }
 
 function collectReverseEdges(
