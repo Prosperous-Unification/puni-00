@@ -1,0 +1,51 @@
+import { readFileSync } from 'node:fs';
+import ts from 'typescript';
+const folder = 'apps/wbs/fe-01/src/components/wbs/plan-columns/';
+const invocation = Bun.spawnSync(['git','show',`ee750cb7:${folder}estimates.tsx`]);
+if (invocation.exitCode !== 0) throw new Error('Cannot read exact base');
+const parse = (source: string) => ts.createSourceFile('estimate.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const base = parse(invocation.stdout.toString());
+const cell = parse(readFileSync(folder+'estimates.tsx','utf8'));
+const presentation = parse(readFileSync(folder+'estimate-presentation.tsx','utf8'));
+const printer = ts.createPrinter({removeComments:true});
+const printed = (node: ts.Node, source: ts.SourceFile) => printer.printNode(ts.EmitHint.Unspecified,node,source).replace(/\(\s*(<MismatchMark[^>]*\/>)\s*\)/g,'$1').replace(/\s+/g,' ').trim();
+function find(source: ts.SourceFile, predicate: (node: ts.Node)=>boolean): ts.Node {
+ let found: ts.Node | undefined;
+ const visit=(node:ts.Node)=> {if(predicate(node)) found=node; ts.forEachChild(node,visit);}; visit(source);
+ if(!found) throw new Error('Missing selected AST node'); return found;
+}
+function jsx(source:ts.SourceFile, attribute:string) {
+ const found=find(source,node=>ts.isJsxElement(node)&&node.openingElement.attributes.properties.some(property=>ts.isJsxAttribute(property)&&property.name.getText(source)===attribute));
+ if(!ts.isJsxElement(found))throw new Error('Expected JSX element');return found;
+}
+for (const name of ['estimateReading','foldedReading','readStepNode']) {
+ const original=find(base,node=>ts.isFunctionDeclaration(node)&&node.name?.text===name);
+ const current=find(cell,node=>ts.isFunctionDeclaration(node)&&node.name?.text===name);
+ if(original.getText(base)!==current.getText(cell))throw new Error(name+' changed');
+}
+for(const [original,current] of [[jsx(base,'data-rolled-trio'),jsx(presentation,'data-rolled-trio')],[find(base,node=>ts.isJsxSelfClosingElement(node)&&node.tagName.getText(base)==='CellInput'&&node.attributes.properties.some(property=>ts.isJsxAttribute(property)&&property.name.getText(base)==='aria-label'&&property.initializer?.getText(base).includes('estimate for'))),find(cell,node=>ts.isJsxSelfClosingElement(node)&&node.tagName.getText(cell)==='CellInput'&&node.attributes.properties.some(property=>ts.isJsxAttribute(property)&&property.name.getText(cell)==='aria-label'&&property.initializer?.getText(cell).includes('estimate for')))]]) if(printed(original,base)!==printed(current,original===jsx(base,'data-rolled-trio')?presentation:cell)) throw new Error('Selected presentation/editor JSX changed');
+const originalChildren=jsx(base,'data-final').children;
+const first=originalChildren.findIndex(node=>ts.isJsxExpression(node)&&node.expression?.getText(base).startsWith('showsResult &&'));
+if(first<0)throw new Error('Missing original result fragment');
+const expected=originalChildren.slice(first).filter(node=>!ts.isJsxText(node));
+const fragment=find(presentation,node=>ts.isJsxFragment(node));
+if(!ts.isJsxFragment(fragment))throw new Error('No presentation fragment');
+const actual=fragment.children.filter(node=>!ts.isJsxText(node));
+if(JSON.stringify(expected.map(node=>printed(node,base)))!==JSON.stringify(actual.map(node=>printed(node,presentation))))throw new Error('Result/assignment/list/card fragment changed');
+const baseSuffix=base.text.slice(base.text.indexOf('      ...(!unfolded'),base.text.indexOf('/**\n * The words the Columns control uses')).trim();
+const currentSuffix=cell.text.slice(cell.text.indexOf('      ...(!unfolded')).trim();
+if(baseSuffix!==currentSuffix)throw new Error('Unfolded columns changed');
+console.log('Reading helpers and unfolded columns byte-identical; rolled trio, CellInput and complete result/assignment/list/card fragment AST-identical; no new DOM wrapper.');
+
+function exported(source: ts.SourceFile) {
+ const names: string[]=[];
+ for(const statement of source.statements) {
+  if(ts.isExportDeclaration(statement)&&statement.exportClause&&ts.isNamedExports(statement.exportClause))names.push(...statement.exportClause.elements.map(entry=>entry.name.text));
+  if(!ts.canHaveModifiers(statement)||!ts.getModifiers(statement)?.some(modifier=>modifier.kind===ts.SyntaxKind.ExportKeyword))continue;
+  if(ts.isFunctionDeclaration(statement)&&statement.name)names.push(statement.name.text);
+  if(ts.isVariableStatement(statement))names.push(...statement.declarationList.declarations.map(declaration=>declaration.name.getText(source)));
+ }
+ return names.sort();
+}
+if(JSON.stringify(exported(base))!==JSON.stringify(exported(cell)))throw new Error('Original public exports changed');
+console.log('All three original public export names preserved.');
