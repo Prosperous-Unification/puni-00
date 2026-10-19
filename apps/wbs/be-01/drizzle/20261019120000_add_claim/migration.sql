@@ -1,4 +1,6 @@
--- Proof: placeholder, replaced once the negatives below are watched.
+-- Proof: each unique index, the run and own-parent CHECKs, each trigger's
+-- condition, and the work-item and parent cascades removed independently;
+-- the matching case in store-sqlite claim.db.test.ts failed. Watched 2026-10-19.
 CREATE TABLE `claim` (
   `id` text PRIMARY KEY NOT NULL,
   `work_item_id` text NOT NULL REFERENCES `work_item`(`id`) ON DELETE CASCADE,

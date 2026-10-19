@@ -72,6 +72,7 @@ const hostRequirements = () => {
     blockageStore: DiBag.createProvider(() => stores.blockages, {
       factoryReturnKind: 'sync-value',
     }),
+    claimStore: DiBag.createProvider(() => stores.claims, { factoryReturnKind: 'sync-value' }),
     directoryStore: DiBag.createProvider(() => stores.directory, {
       factoryReturnKind: 'sync-value',
     }),

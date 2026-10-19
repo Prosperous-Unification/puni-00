@@ -47,6 +47,9 @@ export function installWorkItem(requirements: WorkItemRequirements): WorkItemExp
       blockageStore: DiBag.createProvider(() => requirements.blockages, {
         factoryReturnKind: 'sync-value',
       }),
+      claimStore: DiBag.createProvider(() => requirements.claims, {
+        factoryReturnKind: 'sync-value',
+      }),
       directoryStore: DiBag.createProvider(() => requirements.directory, {
         factoryReturnKind: 'sync-value',
       }),

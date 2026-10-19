@@ -49,6 +49,7 @@ export interface ExistingStoreOpeners {
   readonly progress: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['progress']>>;
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
+  readonly claims: OpenCase<'claims'>;
   readonly blockages: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['blockages']>>;
   readonly typedDependencies: (
     caseId: CaseId,
@@ -188,6 +189,71 @@ export function existingStoreRegistrations(
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
       },
     ),
+    storeCase(
+      'claims',
+      'claims.add:taken-stated-remove',
+      openers.claims,
+      async ({ port, seed }) => {
+        const [workItemId] = seed.workItemIds[0];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const held = {
+          id: 'claim-one',
+          workItemId,
+          stepId,
+          personId: seed.personIds[0],
+          runId: 'agent:main:subagent:7f',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const stated = [{ workItemId, stepId }];
+        expect(await port.add([held], stated, seed.stamps[0])).toBe('written');
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([held]);
+        expect(await port.findById(seed.projectIds[0], held.id)).toEqual(held);
+        expect(await port.findById(seed.projectIds[1], held.id)).toBeNull();
+        expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
+        const rival = { ...held, id: 'claim-two', personId: seed.personIds[1] };
+        expect(await port.add([rival], [], seed.stamps[1])).toBe('taken');
+        const beside = { ...rival, stepId: otherStepId };
+        expect(await port.add([beside], stated, seed.stamps[1])).toBe('progress_stated');
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([held]);
+        await port.remove([held], stated, seed.stamps[1]);
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+        expect(await port.add([beside], stated, seed.stamps[1])).toBe('written');
+        expect(await failureOf(port.remove([held], [], seed.stamps[1]))).toContain('not stored');
+      },
+    ),
+    storeCase(
+      'claims',
+      'claims.remove:delegated-cascade',
+      openers.claims,
+      async ({ port, seed }) => {
+        const [parentItem, childItem] = seed.workItemIds[0];
+        const subtree = {
+          id: 'claim-subtree',
+          workItemId: parentItem,
+          stepId: null,
+          personId: seed.personIds[0],
+          runId: null,
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const delegated = {
+          ...subtree,
+          id: 'claim-delegated',
+          workItemId: childItem,
+          stepId: seed.stepIds[0][0],
+          personId: seed.personIds[1],
+          parentClaimId: subtree.id,
+        };
+        expect(await port.add([subtree], [], seed.stamps[0])).toBe('written');
+        expect(await port.add([{ ...subtree, id: 'claim-again' }], [], seed.stamps[0])).toBe(
+          'taken',
+        );
+        expect(await port.add([delegated], [], seed.stamps[0])).toBe('written');
+        await port.remove([subtree], [], seed.stamps[1]);
+        expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      },
+    ),
     ...dependencyRegistrations(openers.dependencies),
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),
@@ -209,4 +275,14 @@ export function sourceConformanceRegistrations(
     ...existingStoreRegistrations(openers),
     ...historyBatchRegistrations(declaration.historyAdmission, openers.historyBatch),
   ];
+}
+
+/** What a promise rejected with, as text; throws when it resolved. */
+async function failureOf(pending: Promise<unknown>): Promise<string> {
+  try {
+    await pending;
+  } catch (error) {
+    return String(error);
+  }
+  throw new Error('the promise resolved');
 }

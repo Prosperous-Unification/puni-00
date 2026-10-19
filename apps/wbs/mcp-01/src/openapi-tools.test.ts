@@ -337,6 +337,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'setMeasure',
       'clearMeasure',
       'setAssignee',
+      // `wbs-team-claims`: the batch tool carries both; the tool count does not move.
+      'claimWorkItem',
+      'releaseWorkItem',
       'addDependency',
       'removeDependency',
       'addTypedDependency',

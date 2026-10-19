@@ -11,12 +11,14 @@ import {
   asOptionalIds,
   asOptionalInstant,
   asOptionalPriority,
+  asOptionalRunId,
   asOptionalText,
   asOptionalTypeIds,
   assertRecord,
   asText,
   type CommandInput,
   CommandNormalizationError,
+  MOST_REFS_ON_ONE_ITEM,
   MOST_SERVICES_ON_ONE_ITEM,
   MOST_TAGS_ON_ONE_ITEM,
   MOST_TEAMS_ON_ONE_ITEM,
@@ -216,6 +218,24 @@ export const commandNormalizers = {
       ...normalizeStepAddress(raw),
       personId: asIdOrNull(raw.personId, 'personId'),
       personRef: asOptionalId(raw.personRef, 'personRef'),
+    }),
+  claimWorkItem: (raw: CommandInput<'claimWorkItem'>) =>
+    present({
+      kind: 'claimWorkItem' as const,
+      ...target(raw),
+      personId: asOptionalId(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+      steps: asOptionalIds(raw.steps, 'steps', MOST_REFS_ON_ONE_ITEM),
+      runId: asOptionalRunId(raw.runId),
+      parentClaim: asOptionalId(raw.parentClaim, 'parentClaim'),
+    }),
+  releaseWorkItem: (raw: CommandInput<'releaseWorkItem'>) =>
+    present({
+      kind: 'releaseWorkItem' as const,
+      ...target(raw),
+      personId: asOptionalId(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+      steps: asOptionalIds(raw.steps, 'steps', MOST_REFS_ON_ONE_ITEM),
     }),
   addDependency: (raw: CommandInput<'addDependency'>) =>
     present({

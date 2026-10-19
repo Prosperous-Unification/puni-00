@@ -55,7 +55,16 @@ const appliedResults = type({
       'serviceIds?': 'string[]',
       'teamIds?': 'string[]',
     },
+    // A `claimWorkItem` result: whether it wrote nothing, and the claims holding the steps.
+    'alreadyHeld?': 'boolean',
+    'claimIds?': 'string[]',
   }).array(),
+});
+const claimHolder = type({
+  claimId: 'string',
+  personId: 'string',
+  name: 'string',
+  runId: 'string | null',
 });
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -115,12 +124,24 @@ const batchRefusals = [
       ),
     ),
   },
-  { status: 403, schema: responseSchema(type({ ...context, error: "'forbidden'" })) },
+  {
+    status: 403,
+    schema: responseSchema(
+      type.or(
+        type({ ...context, error: "'forbidden'" }),
+        // `claimWorkItem`/`releaseWorkItem`: the caller may not act as the person named.
+        type({ ...context, error: "'person_not_bound'" }),
+        type({ ...context, error: "'credential_not_for_person'" }),
+        type({ ...context, error: "'parent_claim_foreign'" }),
+      ),
+    ),
+  },
   {
     status: 404,
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'not_found'" }),
+        type({ ...context, error: "'parent_claim_unknown'" }),
         type({ ...context, error: "'unknown_step'" }),
         type({ ...context, error: "'unknown_dependency'" }),
         type({ ...context, error: "'unknown_metric'" }),
@@ -163,6 +184,22 @@ const batchRefusals = [
         type({ ...context, error: "'node_done'" }),
         type({ ...context, error: "'attempt_running'" }),
         type({ ...context, error: "'no_running_attempt'" }),
+        // Claim refusals that carry nothing beside their reason (`wbs-team-claims`).
+        type({ ...context, error: "'parent_claim_not_ancestor'" }),
+        type({ ...context, error: "'item_done'" }),
+        type({ ...context, error: "'not_claimed_by'" }),
+      ),
+    ),
+  },
+  {
+    status: 409,
+    schema: responseSchema(
+      type.or(
+        type({ ...context, error: "'not_startable'", status: 'string' }),
+        type({ ...context, error: "'step_done'", stepIds: 'string[]' }),
+        type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
+        type({ ...context, error: "'inside_subtree_claim'", holder: claimHolder }),
+        type({ ...context, error: "'overlaps_subtree_claim'", holder: claimHolder }),
       ),
     ),
   },

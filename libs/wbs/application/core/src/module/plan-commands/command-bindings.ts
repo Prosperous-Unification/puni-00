@@ -4,6 +4,8 @@ import type { DependencyEndpoint } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
+import type { ClaimRefusalOutcome } from '../work-item/claims';
+import { isClaimAdmin } from '../work-item/claims';
 import type {
   AppliedBase,
   AppliedCommand,
@@ -114,6 +116,37 @@ export class CommandContext {
 
   value<T>(outcome: { ok: true; value: T } | ServiceRefusal): T {
     return outcome.ok ? outcome.value : this.refuseOutcome(outcome);
+  }
+
+  /** {@link value} for a claim or release, whose refusals carry their own detail. */
+  claimValue<T>(outcome: { ok: true; value: T } | ServiceRefusal | ClaimRefusalOutcome): T {
+    if (outcome.ok) return outcome.value;
+    switch (outcome.reason) {
+      case 'not_startable':
+        return this.refuse({ reason: outcome.reason, detail: { status: outcome.status } });
+      case 'step_done':
+        return this.refuse({ reason: outcome.reason, detail: { stepIds: [...outcome.stepIds] } });
+      case 'already_claimed':
+        // Proof: with holders replaced by [], both orders of claim-race.db.test.ts
+        // failed: the loser did not name the winner; watched 2026-10-19.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
+        });
+      case 'inside_subtree_claim':
+      case 'overlaps_subtree_claim':
+        return this.refuse({ reason: outcome.reason, detail: { holder: { ...outcome.holder } } });
+      case 'person_not_bound':
+      case 'credential_not_for_person':
+      case 'parent_claim_unknown':
+      case 'parent_claim_foreign':
+      case 'parent_claim_not_ancestor':
+      case 'item_done':
+      case 'not_claimed_by':
+        return this.refuse({ reason: outcome.reason });
+      default:
+        return this.refuseOutcome(outcome);
+    }
   }
 
   requireValue<T>(value: T | null, refusal: Refusal): T {
@@ -441,6 +474,41 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           command.stepId,
           context.id(command.personId, command.personRef),
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    claimWorkItem: async (command, context) => {
+      const claimed = context.claimValue(
+        await workItems.claim(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          {
+            personId: context.required(command.personId, command.personRef),
+            stepIds: command.steps ?? null,
+            runId: command.runId ?? null,
+            parentClaimId: command.parentClaim ?? null,
+          },
+          isClaimAdmin(context.access),
+        ),
+      );
+      return {
+        ...context.plain(),
+        kind: command.kind,
+        alreadyHeld: claimed.alreadyHeld,
+        claimIds: [...claimed.claimIds],
+      };
+    },
+    releaseWorkItem: async (command, context) => {
+      context.claimValue(
+        await workItems.release(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          {
+            personId: context.required(command.personId, command.personRef),
+            stepIds: command.steps ?? null,
+          },
+          isClaimAdmin(context.access),
         ),
       );
       return { ...context.plain(), kind: command.kind };

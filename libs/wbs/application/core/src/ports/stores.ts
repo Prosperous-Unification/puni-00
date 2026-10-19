@@ -2,6 +2,7 @@ import type { ActualStore } from './actual-store';
 import type { CalendarMarkerStore } from './calendar-marker-store';
 import type { CapacityStore } from './capacity-store';
 import type { LivePlanStore } from './chain-snapshot-store';
+import type { ClaimStore } from './claim-store';
 import type { CommandJournalStore } from './command-journal-store';
 import type { DependencyStore } from './dependency-store';
 import type { DirectoryStore } from './directory-store';
@@ -52,6 +53,8 @@ export interface PlanTransactionalStores {
   stepParallels: StepParallelStore;
   /** The attempts at step nodes; moved with the other step facts at the hand-down. */
   attempts: StepNodeAttemptStore;
+  /** Who occupies a step or reserves a subtree now (`wbs-team-claims`). */
+  claims: ClaimStore;
   dependencies: DependencyStore;
   typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;

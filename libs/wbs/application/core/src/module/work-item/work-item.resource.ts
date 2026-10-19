@@ -12,9 +12,12 @@ import {
   type ChargedEstimate,
   chargedWorkdays,
   chargedWorkdaysOf,
+  type Claim,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  decideClaim,
+  decideRelease,
   type DependencyEndpoint,
   deriveNumbers,
   effectiveTeamsOf,
@@ -83,6 +86,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import type { ClaimStore } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -166,6 +170,15 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import {
+  type Claimed,
+  type ClaimInput,
+  type ClaimRefusalOutcome,
+  claimsAround,
+  lineageOf,
+  refusalOf,
+  type ReleaseInput,
+} from './claims';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -979,6 +992,12 @@ export interface WorkItemServiceOptions {
   attempts: StepNodeAttemptStore;
   /** Direct node blockage facts used only by the live tree projection. */
   blockages: StepBlockageStore;
+  /**
+   * Who occupies a step or reserves a subtree now (`wbs-team-claims`).
+   * Optional only for fixtures that predate claims: without it a claim, a
+   * release, or the replay of either throws rather than answering.
+   */
+  claims?: ClaimStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -2711,6 +2730,198 @@ export class WorkItemService {
       },
     );
     return { ok: true, value: null };
+  }
+
+  /**
+   * Claims a leaf's steps, or a non-leaf's subtree, for one person under one
+   * run: the pure decision is {@link decideClaim}; this reads its inputs, writes
+   * the claims and the `in_progress` statements it asks for in one store call,
+   * and journals one undoable entry whose undo removes exactly those. A claim
+   * neither reads nor writes assignments (D1).
+   *
+   * `unknown_step` and `unknown_person` answer before the decision; everything
+   * else is the decision's one refusal, holders named.
+   */
+  async claim(
+    id: string,
+    actorId: string,
+    input: ClaimInput,
+    isAdmin: boolean,
+  ): Promise<WorkItemOutcome<Claimed> | ClaimRefusalOutcome> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    const { claims, identity } = this.claiming();
+    const projectId = workItem.projectId;
+    const steps = await this.opts.projects.stepsOf(projectId);
+    if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
+      return { ok: false, reason: 'unknown_step' };
+    const nameOf = new Map(
+      (await this.opts.directory.listPeople()).map((person) => [person.id, person.name]),
+    );
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    const lineage = lineageOf(rows, id);
+    const stated = new Map(
+      (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
+        each.stepId,
+        each.state,
+      ]),
+    );
+    const status = (await this.statusesOf(projectId, rows)).get(id);
+    if (status === undefined) throw new Error(`work item ${id} has no derived status`);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const decided = decideClaim({
+      target: {
+        workItemId: id,
+        isLeaf: lineage.isLeaf,
+        status,
+        ancestorIds: lineage.ancestorIds,
+        descendantIds: lineage.descendantIds,
+        steps: lineage.isLeaf
+          ? steps.map((step) => ({ stepId: step.id, progress: stated.get(step.id) ?? 'unknown' }))
+          : [],
+      },
+      caller: {
+        accountId: actorId,
+        isAdmin,
+        pinnedPersonId: await identity.pinnedPersonOf(actorId),
+      },
+      claimant: {
+        personId: input.personId,
+        boundAccountId: await identity.boundAccountOf(input.personId),
+      },
+      stepIds: input.stepIds,
+      runId: input.runId,
+      parentClaimId: input.parentClaimId,
+      parentClaim:
+        input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
+      claims: near,
+    });
+    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    if (decided.kind === 'alreadyHeld') {
+      const held = near.filter(
+        (each) =>
+          each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+      );
+      return { ok: true, value: { alreadyHeld: true, claimIds: held.map((each) => each.id) } };
+    }
+    const stamp = this.clock.stampFor(actorId);
+    const written: Claim[] = decided.drafts.map((draft) => ({
+      ...draft,
+      id: this.clock.newId(),
+      accountId: actorId,
+    }));
+    const statements = decided.stateInProgress.map((stepId) => ({ workItemId: id, stepId }));
+    const outcome = await claims.add(written, statements, stamp);
+    // Read in this same unit of work a moment ago: a refusal here is the
+    // write coordinator failing to serialize, not an outcome to model.
+    if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
+    await this.announceTree(projectId);
+    await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
+      forward: { do: 'add_claims', claims: written, stated: statements },
+      inverse: { do: 'remove_claims', claims: written, cleared: statements },
+      touched: [id],
+      before: rows,
+    });
+    return {
+      ok: true,
+      value: { alreadyHeld: false, claimIds: written.map((each) => each.id) },
+    };
+  }
+
+  /**
+   * Releases one person's claims on a leaf's steps, or their subtree claim on
+   * a non-leaf with every delegated claim under it, transitively
+   * ({@link decideRelease}). Progress stays as it is; one undoable entry
+   * puts every removed claim back verbatim.
+   */
+  async release(
+    id: string,
+    actorId: string,
+    input: ReleaseInput,
+    isAdmin: boolean,
+  ): Promise<WorkItemOutcome<null> | ClaimRefusalOutcome> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    const { claims, identity } = this.claiming();
+    const projectId = workItem.projectId;
+    const steps = await this.opts.projects.stepsOf(projectId);
+    if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
+      return { ok: false, reason: 'unknown_step' };
+    const nameOf = new Map(
+      (await this.opts.directory.listPeople()).map((person) => [person.id, person.name]),
+    );
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    const lineage = lineageOf(rows, id);
+    const decided = decideRelease({
+      target: { workItemId: id, isLeaf: lineage.isLeaf },
+      caller: {
+        accountId: actorId,
+        isAdmin,
+        pinnedPersonId: await identity.pinnedPersonOf(actorId),
+      },
+      claimant: {
+        personId: input.personId,
+        boundAccountId: await identity.boundAccountOf(input.personId),
+      },
+      stepIds: input.stepIds,
+      claims: claimsAround(await claims.listByProject(projectId), id, lineage),
+    });
+    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    const stamp = this.clock.stampFor(actorId);
+    const removed = [...decided.claims];
+    await claims.remove(removed, [], stamp);
+    await this.announceTree(projectId);
+    await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
+      forward: { do: 'remove_claims', claims: removed, cleared: [] },
+      inverse: { do: 'add_claims', claims: removed, stated: [] },
+      touched: [...new Set(removed.map((each) => each.workItemId))],
+      before: rows,
+    });
+    return { ok: true, value: null };
+  }
+
+  /** The claim store and identity reads, or a loud failure in a fixture built without them. */
+  private claiming(): { claims: ClaimStore; identity: ClaimStore } {
+    const { claims } = this.opts;
+    if (claims === undefined)
+      throw new Error('this work-item service was built without a claim store');
+    return { claims, identity: claims };
+  }
+
+  /**
+   * Every work item's derived status, by the folds the plan read uses: progress
+   * rolled up over worked steps and running attempts, then
+   * {@link workItemStatusesOf} over the project's own dependency edges.
+   */
+  private async statusesOf(
+    projectId: string,
+    rows: readonly LabelledWorkItem[],
+  ): Promise<Map<string, WorkItemStatus>> {
+    const stated = await this.opts.progress.listByProject(projectId);
+    const attempted = await this.opts.attempts.listByProject(projectId);
+    const progress = rollUpWorkItemStatuses(
+      rows,
+      rollUpProgress(
+        rows,
+        stated,
+        workedStepsOf(
+          await this.opts.estimates.listByProject(projectId),
+          await this.opts.actuals.listByProject(projectId),
+          stated,
+          attempted,
+        ),
+        attempted.filter((attempt) => attempt.endedAt === null),
+      ),
+    );
+    const rowIds = new Set(rows.map((row) => row.id));
+    return workItemStatusesOf(rows, progress, {
+      edges: (await this.opts.dependencies.listByProject(projectId)).filter(
+        (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
+      ),
+      typed: await this.opts.typedDependencies.listByProject(projectId),
+    });
   }
 
   /**
@@ -5976,6 +6187,24 @@ export class WorkItemService {
       case 'clear_progress':
         await this.opts.progress.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
+      case 'add_claims': {
+        const added = await this.claiming().claims.add(command.claims, command.stated, stamp);
+        // Proof: answering ok here made `refuses a redo of a claim once another
+        // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.
+        if (added === 'taken')
+          return { ok: false, detail: 'that step or subtree has been claimed since.' };
+        if (added === 'progress_stated')
+          return { ok: false, detail: 'that step has been spoken about since.' };
+        return { ok: true, detail: null };
+      }
+      case 'remove_claims': {
+        const { claims } = this.claiming();
+        const held = new Set((await claims.listByProject(projectId)).map(({ id }) => id));
+        if (command.claims.some(({ id }) => !held.has(id)))
+          return { ok: false, detail: 'that claim has been released since.' };
+        await claims.remove(command.claims, command.cleared, stamp);
+        return { ok: true, detail: null };
+      }
       case 'replace_blockage': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (

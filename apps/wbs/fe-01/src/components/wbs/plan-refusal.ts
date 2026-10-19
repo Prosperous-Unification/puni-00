@@ -477,6 +477,25 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // Proof: removing this case failed both sparse command writer cases (2026-10-17).
     case 'referenced_by_step_parallel':
       return refusal.error;
+    // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`): the table sends
+    // neither yet, so these arrive only from a batch another client wrote.
+    case 'runId_must_be_1_to_256_characters':
+    case 'parentClaim_must_be_an_id':
+    case 'steps_must_be_a_list_of_ids':
+    case 'steps_must_be_at_most_50':
+    case 'person_not_bound':
+    case 'credential_not_for_person':
+    case 'parent_claim_unknown':
+    case 'parent_claim_foreign':
+    case 'parent_claim_not_ancestor':
+    case 'item_done':
+    case 'not_startable':
+    case 'step_done':
+    case 'already_claimed':
+    case 'inside_subtree_claim':
+    case 'overlaps_subtree_claim':
+    case 'not_claimed_by':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
