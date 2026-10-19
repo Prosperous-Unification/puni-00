@@ -61,7 +61,7 @@ The optional-chain edit preserves the reference census refusal for undefined or 
 
 Full CI, the exact-SHA h2puni gate, separately identified installed successor parity, and complete WBS all-rule base/candidate/fault surveys are not claimed here. The historical installed archive remains immutable. These coordinator obligations keep full WBS acceptance pending.
 
-Readable logs trim trailing whitespace for the repository whitespace check. Where bytes changed, adjacent `.log.gz` files preserve the exact raw output; [the integrity record](evidence/raw-log-integrity.log) binds both forms. Empty outputs are retained as empty files.
+Readable logs trim trailing whitespace for the repository whitespace check. Exact raw output is preserved in JSON-string text carriers; the [transport map](evidence/gzip-to-utf8-transport.json.txt) binds each carrier and decoded stream to its original compressed Git blob. The historical [integrity record](evidence/raw-log-integrity.log) remains unchanged. Empty outputs are retained as empty files.
 
 Final scoped Prettier check passed on all six TypeScript files and all five OpenSpec documents (exit 0, 162,068 KiB, 0.456 seconds). Git staged whitespace verification is required before the normal-hook commit.
 
