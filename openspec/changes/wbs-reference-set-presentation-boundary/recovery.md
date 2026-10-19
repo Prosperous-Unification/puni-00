@@ -30,8 +30,8 @@ remains separately coordinated with PR566.
 Worktree: `.worktrees/wbs100-reference-recovery-20261019`, branch
 `integration/wbs100-reference-recovery-20261019`. Dependencies use a symlink to
 the existing workspace installation; no fresh frozen install is claimed.
-All observations below ran serially under the retained
-[900 MiB process-tree guard](evidence/recovery-2026-10-19/rss-guard.py.txt).
+The initial mounted, static, hook and direct-size observations ran serially
+under the retained [900 MiB process-tree guard](evidence/recovery-2026-10-19/rss-guard.py.txt).
 The guard samples every 50 ms; reported peaks are sampled, not hard allocation
 limits. Node commands inherit a 640 MiB heap setting from the guard.
 
@@ -127,8 +127,9 @@ This fresh comparison does not reuse the historical **30 to 29** count.
 Full-rule surveys, browser acceptance,
 fresh frozen installation, full frontend checks, hosted CI and canonical
 `bin/h2puni-gate.sh <sha>` remain pending coordinator execution. No h1claw
-build or test was run. This direct production rule proof is not an installed
-CLI proof, certification or full WBS100 evaluation.
+build or test was run. The direct production rule proof is distinct from the successful installed F7
+comparison recorded below. Neither establishes certification or full WBS100
+evaluation.
 
 The original `/tmp/directory-f7-consumer` executable and original `/tmp`
 tarball path are absent. Independent artifact recovery located the exact
