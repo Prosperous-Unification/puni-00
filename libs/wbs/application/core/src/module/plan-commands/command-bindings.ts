@@ -1,8 +1,8 @@
+import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
 import type { DependencyEndpoint } from '@wbs/domain';
 
-import type { CredentialPair } from '../../ports/claim-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type { ClaimRefusalOutcome } from '../work-item/claims';

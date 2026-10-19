@@ -1,6 +1,5 @@
-import type { AuthenticatedUser } from '@wbs/contracts';
+import { type AuthenticatedUser, credentialPairOf } from '@wbs/contracts';
 
-import { credentialPairOf } from '../../ports/claim-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type {

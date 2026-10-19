@@ -1,8 +1,8 @@
+import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import type { WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
-import type { CredentialPair } from '../../ports/claim-store';
 import type {
   Person,
   PersonWithTeams,

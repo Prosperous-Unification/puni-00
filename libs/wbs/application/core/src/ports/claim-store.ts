@@ -1,4 +1,6 @@
-import type { CredentialAuthentication } from '@wbs/contracts';
+import type { CredentialPair } from '@wbs/contracts';
+
+export type { CredentialPair } from '@wbs/contracts';
 import type { Claim } from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
@@ -70,24 +72,6 @@ export interface ClaimIdentity {
    * with no upstream pair (a password or native session) is unpinned: pass null.
    */
   pinnedPersonOf(credential: CredentialPair | null): Promise<string | null>;
-}
-
-/**
- * The verified `(issuer, subject)` a request's credential carries: an upstream
- * token's, or the pair a delegation carries. Absent for a first-party session.
- */
-export interface CredentialPair {
-  readonly issuer: string;
-  readonly subject: string;
-}
-
-/** The pair of `authentication` when it is an upstream one, else null (unpinned). */
-export function credentialPairOf(
-  authentication: CredentialAuthentication | undefined,
-): CredentialPair | null {
-  return authentication?.kind === 'upstream'
-    ? { issuer: authentication.issuer, subject: authentication.subject }
-    : null;
 }
 
 /**
