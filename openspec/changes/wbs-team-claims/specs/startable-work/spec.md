@@ -12,8 +12,10 @@ leaf and carry the work item id, the frozen number or the derived number when no
 frozen, the name, the startable step ids, the assignee of each step when any, the stating
 row of each team in force, the ids of unfinished predecessors, and the subtree claim in force
 above the leaf when any, with its holder. The read SHALL also list, apart, the claimed steps
-of the same leaves with holder person, run id, parent claim and the instant of the claim
-write, so an operator sees silent claims. The read SHALL be derived from the shared HTTP
+of the same leaves with holder person, run id, parent claim, the step's assignee when any,
+and the instant of the claim write, and, apart again, every subtree claim in force in the
+project with its work item, frozen number, holder, run id and write instant, so an operator
+sees silent claims even where no step under them is startable. The read SHALL be derived from the shared HTTP
 descriptor so the MCP server offers it as a tool.
 
 #### Scenario: A team asks what it may start
@@ -33,6 +35,17 @@ descriptor so the MCP server offers it as a tool.
 
 - **WHEN** `claire` holds a subtree claim on `080` and `080.25` has free steps
 - **THEN** `080.25` is listed with its steps and the row names the subtree holder `claire`
+
+#### Scenario: A silent subtree claim is listed
+
+- **WHEN** `claire` holds a subtree claim on `080` and its only leaf `080.25` is held `blocked`
+- **THEN** the read lists no startable step and lists the subtree claim on `080` with its
+  holder and write instant
+
+#### Scenario: A claimed step keeps its assignee in view
+
+- **WHEN** `ada` is assigned `Impl` of a leaf and `codex-fleet` holds a claim on that step
+- **THEN** the claimed-steps list names both `codex-fleet` as holder and `ada` as assignee
 
 #### Scenario: Numbers are the frozen ones
 
