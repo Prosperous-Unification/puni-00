@@ -93,6 +93,7 @@ describe('the closed case manifest', () => {
     expect(CASE_MANIFEST.blockages).toEqual(['blockages.set:read-remove']);
     expect(CASE_MANIFEST.claims).toEqual([
       'claims.add:taken-stated-remove',
+      'claims.listStampedByProject:write-instant',
       'claims.remove:delegated-cascade',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({

@@ -10,6 +10,22 @@ export type { Claim } from '@wbs/domain';
  * already held (a unique index refused it), or a step to state already holds
  * progress. Either refusal writes nothing.
  */
+/**
+ * A stored claim with the instant it was written: `created_at`, which an undo
+ * of a release writes afresh, so it reads when the claim last came into force.
+ */
+export interface StampedClaim extends Claim {
+  readonly claimedAt: number;
+}
+
+/** The claim without its write instant, as {@link ClaimStore.listByProject} answers it. */
+export function unstampClaim({
+  claimedAt: _claimedAt,
+  ...claim
+}: Claim & { readonly claimedAt: number | null }): Claim {
+  return claim;
+}
+
 export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated';
 
 /**
@@ -26,6 +42,14 @@ export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated';
 export interface ClaimStore extends ClaimIdentity {
   /** Every claim on a work item of the project, ordered by work item then step. */
   listByProject(projectId: string): Promise<Claim[]>;
+  /**
+   * {@link listByProject} with each claim's write instant, for the startable
+   * read's list of claimed steps.
+   *
+   * @throws for a stored claim with no write instant: every claim is written
+   * through {@link add}, which stamps it.
+   */
+  listStampedByProject(projectId: string): Promise<StampedClaim[]>;
   /** One claim of the project by id; null when absent, released or another project's. */
   findById(projectId: string, claimId: string): Promise<Claim | null>;
   /**

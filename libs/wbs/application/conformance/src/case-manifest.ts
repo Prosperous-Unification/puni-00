@@ -118,7 +118,11 @@ export const CASE_MANIFEST = {
   blockages: ['blockages.set:read-remove'],
   // Proof: family removed; complete-source inventory assertion failed (source-inventory.txt), 2026-10-15.
   stepParallels: ['stepParallels.set:sparse-replace-remove'],
-  claims: ['claims.add:taken-stated-remove', 'claims.remove:delegated-cascade'],
+  claims: [
+    'claims.add:taken-stated-remove',
+    'claims.listStampedByProject:write-instant',
+    'claims.remove:delegated-cascade',
+  ],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',

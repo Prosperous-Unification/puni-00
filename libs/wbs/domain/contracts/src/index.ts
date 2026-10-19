@@ -37,6 +37,7 @@ export * from './http/smoke-shapes';
 export * from './http/solution-shapes';
 export * from './http/space-shapes';
 export * from './http/sso-connection-shapes';
+export * from './http/startable-shapes';
 export * from './http/step-shapes';
 export * from './http/timezone-shapes';
 export * from './http/work-item-fields';
