@@ -4,7 +4,7 @@ import { decodeJwt, errors } from 'jose';
 import {
   credentialFromHeaders,
   tokenFromHeaders,
-  userFromHeaders,
+  userOrRefusalFromHeaders,
 } from '../middleware/authenticated';
 import { bearerContextCredential } from '../runtime/bearer-context';
 import { declaresDelegation, type DelegationVerifier } from '../runtime/delegation';
@@ -84,6 +84,9 @@ export function identityResolver(
     // Proof: inventing a fallback account returned 200 instead of 401 in the
     // mounted absent/invalid/retired-credential test (elysia/identity.test.ts).
     if (principal === null) return { ok: false, status: 401, body: { error: 'unauthenticated' } };
+    // A verified machine token no account is linked to (`wbs-team-claims` D6b).
+    if (principal === 'unknown_identity')
+      return { ok: false, status: 401, body: { error: 'unknown_identity' } };
     let requestPrincipal = principal;
     if (credentialEvidence !== undefined && principal.delegation === undefined) {
       const credential = bearerContextCredential(request.headers);
@@ -125,7 +128,7 @@ async function delegatedOrSession(
   auth: AuthService,
   delegation: DelegationVerifier,
   headers: Headers,
-): Promise<AuthenticatedUser | null> {
+): Promise<AuthenticatedUser | 'unknown_identity' | null> {
   const flat = Object.fromEntries(headers.entries());
   const bearer = headers.get('authorization');
   const presented = bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null;
@@ -149,7 +152,7 @@ async function delegatedOrSession(
   // cookie` in `delegation.controller.db.test.ts` answer 200; watched
   // 2026-09-28.
   if (session !== null && declaresDelegation(session)) return null;
-  return userFromHeaders(auth, flat);
+  return userOrRefusalFromHeaders(auth, flat);
 }
 
 /** Dispatches a declared direct context only to its fixed verifier audience. */

@@ -43,6 +43,7 @@ export function oidcIdentityFromClaims(
     email,
     emailVerified: claims['email_verified'] === true,
     scopes: SCOPES.filter((scope) => granted.has(scope)),
+    groupsClaimed: Object.hasOwn(claims, options.groupsClaim),
   };
 }
 

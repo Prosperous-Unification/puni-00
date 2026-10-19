@@ -298,6 +298,12 @@ type BareRefusalCode =
   | 'not_a_member'
   | 'invalid_origin'
   | 'unauthorized'
+  /**
+   * A verified machine token (no groups claim) whose `(issuer, subject)` no
+   * account is linked to (`wbs-team-claims` D6b): refused before any account
+   * is minted.
+   */
+  | 'unknown_identity'
   | 'invalid_body'
   | 'invalid_allowance'
   | 'invalid_estimate_unit'

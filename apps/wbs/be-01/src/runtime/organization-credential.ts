@@ -96,7 +96,11 @@ export function organizationCredentialEvidence(
       if (evidence !== null) {
         // The exact verified pair, never an email match, must resolve to the
         // account that authenticated the request.
-        const user = await auth.resolveOidcIdentity(evidence.identity);
+        // A machine token (no groups claim) reads its link and never writes
+        // (`wbs-team-claims` D6b), as `authenticateOrRefuse` does.
+        const user = evidence.identity.groupsClaimed
+          ? await auth.resolveOidcIdentity(evidence.identity)
+          : await auth.readExistingOidcIdentity(evidence.identity);
         if (user?.id !== principal.id) return null;
         return {
           kind: 'oidc',

@@ -54,6 +54,14 @@ export async function userFromHeaders(
   return auth.authenticate(tokenFromHeaders(headers));
 }
 
+/** {@link userFromHeaders}, keeping a verified token linked to nobody apart as `unknown_identity`. */
+export async function userOrRefusalFromHeaders(
+  auth: AuthService,
+  headers: Record<string, string | undefined>,
+): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+  return auth.authenticateOrRefuse(tokenFromHeaders(headers));
+}
+
 /**
  * Every cookie on the request, by name, with values **as sent** — still
  * percent-encoded.

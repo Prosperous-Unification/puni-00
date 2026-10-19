@@ -27,6 +27,7 @@ describe('oidcIdentityFromClaims', () => {
       email: 'dany@puni.show',
       emailVerified: true,
       scopes: ['read', 'write', 'editor'],
+      groupsClaimed: true,
     });
   });
 
@@ -48,6 +49,7 @@ describe('oidcIdentityFromClaims', () => {
       email: null,
       emailVerified: false,
       scopes: [],
+      groupsClaimed: true,
     });
   });
 
@@ -67,5 +69,14 @@ describe('oidcIdentityFromClaims', () => {
         { groupPrefix: 'dev', groupsClaim: 'wbs_groups' },
       ).email,
     ).toBeNull();
+  });
+
+  // Proof: answering true regardless made `refuses an unlinked machine token as
+  // unknown_identity, minting no account` mint an account (watched 2026-10-20).
+  it('tells a token without the groups claim from one with an empty claim', () => {
+    const claims = { iss: 'https://issuer.example', sub: 'claire-m2m@clients' };
+    const options = { groupPrefix: 'dev', groupsClaim: 'wbs_groups' };
+    expect(oidcIdentityFromClaims(claims, options).groupsClaimed).toBe(false);
+    expect(oidcIdentityFromClaims({ ...claims, wbs_groups: [] }, options).groupsClaimed).toBe(true);
   });
 });

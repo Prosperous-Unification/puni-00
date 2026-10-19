@@ -15,6 +15,7 @@ const FLEET = 'claire-m2m@clients';
 let signing: CryptoKeyPair;
 let jwks: ReturnType<typeof Bun.serve>;
 let h: OrganizationHarness;
+let projectId: string;
 
 beforeAll(async () => {
   signing = await generateKeyPair('RS256');
@@ -32,10 +33,11 @@ afterAll(async () => {
 });
 
 /**
- * A fleet credential linked by `link-credential-cli.ts` (`wbs-team-claims`
- * D6, spec `fleet-credentials`): a verified upstream token for the linked
- * `(issuer, subject)` reaches the projects of the account's organizations
- * through the ordinary `resolveOidcIdentity` path, as that account.
+ * A fleet credential linked by `link-credential-cli.ts` (`wbs-team-claims` D6
+ * and D6b, spec `fleet-credentials`): a verified upstream token for the linked
+ * `(issuer, subject)` acts as the linked account and writes nothing to it; one
+ * without a groups claim is scoped from the account's memberships, and refused
+ * `unknown_identity` when nothing is linked, minting no account.
  */
 beforeEach(async () => {
   h = OrganizationHarness.open({
@@ -49,16 +51,24 @@ beforeEach(async () => {
       groupsClaim: 'wbs_groups',
     },
   });
-  await h.register('dany');
+  for (const username of ['dany', 'mem']) await h.register(username);
   h.organization('org-a');
   h.member('org-a', 'dany', 'admin');
+  h.member('org-a', 'mem', 'member');
   h.bind('dany', 'org-a');
+  h.bind('mem', 'org-a');
   h.activate();
+  // A verified address, which `register` does not give: what a machine token
+  // must leave alone.
+  h.sqlite.run("UPDATE users SET email = 'dany@example.com', email_verified = 1 WHERE id = ?", [
+    h.userId('dany'),
+  ]);
   const created = await h.call('dany', 'POST', '/api/projects', { name: 'Fleet plan' });
   if (created.status !== 200) throw new Error(`create refused: ${JSON.stringify(created)}`);
+  projectId = (created.body as { project: { id: string } }).project.id;
   h.sqlite.run(
-    "INSERT INTO person (id, name, kind, account_id) VALUES ('claire', 'Claire', 'agent', ?)",
-    [h.userId('dany')],
+    "INSERT INTO person (id, name, kind, account_id) VALUES ('claire', 'Claire', 'agent', ?), ('mem-agent', 'Mem agent', 'agent', ?)",
+    [h.userId('dany'), h.userId('mem')],
   );
 });
 
@@ -66,10 +76,14 @@ afterEach(() => {
   h.close();
 });
 
-/** A machine-to-machine access token for `subject`: no email, valid for five minutes. */
-function machineToken(subject: string): Promise<string> {
+/**
+ * An access token for `subject`, with no email. `groups` adds `wbs_groups` as a
+ * browser token carries it; a real Auth0 machine-to-machine token carries none
+ * (slice 0), which is the default here.
+ */
+function token(subject: string, groups = false): Promise<string> {
   const seconds = Math.floor(Date.now() / 1000);
-  return new SignJWT({ wbs_groups: ['dev:wbs:read', 'dev:wbs:write'] })
+  return new SignJWT(groups ? { wbs_groups: ['dev:wbs:read', 'dev:wbs:write'] } : {})
     .setProtectedHeader({ alg: 'RS256', kid: 'fleet' })
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -93,51 +107,69 @@ async function linkCli(...args: string[]): Promise<number> {
   return child.exited;
 }
 
-function projectsAs(token: string) {
-  return h.callWith(token, 'GET', '/api/projects', undefined, {
-    'X-WBS-Expected-Organization': 'org-a',
-  });
+const link = (account: string, person: string) =>
+  linkCli(`--issuer=${ISSUER}`, `--subject=${FLEET}`, `--account=${account}`, `--person=${person}`);
+
+function as(bearer: string, method: string, path: string, body?: unknown) {
+  return h.callWith(bearer, method, path, body, { 'X-WBS-Expected-Organization': 'org-a' });
 }
 
-function accountCount(): number {
-  return h.sqlite.query<{ n: number }, []>('SELECT count(*) AS n FROM users').get()?.n ?? -1;
+function usersTable(): unknown[] {
+  return h.sqlite.query('SELECT * FROM users ORDER BY id').all();
 }
 
 describe('a linked fleet credential', () => {
-  it('reaches the account’s organization projects as that account', async () => {
-    expect(
-      await linkCli(
-        `--issuer=${ISSUER}`,
-        `--subject=${FLEET}`,
-        '--account=dany',
-        '--person=claire',
-      ),
-    ).toBe(0);
-    const accounts = accountCount();
+  it('leaves the owner’s row byte for byte under a linked machine token', async () => {
+    expect(await link('dany', 'claire')).toBe(0);
+    const before = usersTable();
 
-    const answer = await projectsAs(await machineToken(FLEET));
-    expect(answer.status).toBe(200);
-    expect(JSON.stringify(answer.body)).toContain('Fleet plan');
-    // Resolved through the link: no account was minted for the machine.
-    expect(accountCount()).toBe(accounts);
+    for (const groups of [true, false]) {
+      const answer = await as(await token(FLEET, groups), 'GET', '/api/projects');
+      expect(answer.status).toBe(200);
+      expect(JSON.stringify(answer.body)).toContain('Fleet plan');
+    }
+    expect(usersTable()).toEqual(before);
   }, 30_000);
 
-  it('stops reaching them once unlinked, while the account’s own credential still works', async () => {
-    expect(
-      await linkCli(
-        `--issuer=${ISSUER}`,
-        `--subject=${FLEET}`,
-        '--account=dany',
-        '--person=claire',
-      ),
-    ).toBe(0);
-    expect(await linkCli('--unlink', `--issuer=${ISSUER}`, `--subject=${FLEET}`)).toBe(0);
+  it('refuses an unlinked machine token as unknown_identity, minting no account', async () => {
+    const before = usersTable();
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
+      status: 401,
+      body: { error: 'unknown_identity' },
+    });
+    expect(usersTable()).toEqual(before);
+  }, 30_000);
 
-    const answer = await projectsAs(await machineToken(FLEET));
-    expect(answer.status).not.toBe(200);
-    expect(JSON.stringify(answer.body)).not.toContain('Fleet plan');
+  it('ends at --unlink: unknown_identity, no new account, and the pair links again', async () => {
+    expect(await link('dany', 'claire')).toBe(0);
+    expect(await linkCli('--unlink', `--issuer=${ISSUER}`, `--subject=${FLEET}`)).toBe(0);
+    const before = usersTable();
+
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
+      status: 401,
+      body: { error: 'unknown_identity' },
+    });
+    expect(usersTable()).toEqual(before);
     const own = await h.call('dany', 'GET', '/api/projects');
     expect(own.status).toBe(200);
-    expect(JSON.stringify(own.body)).toContain('Fleet plan');
+    expect(await link('dany', 'claire')).toBe(0);
+  }, 30_000);
+
+  // Proof: `scopesOfRoles` answering [] for every role made the member's read
+  // answer 403 insufficient_scope (watched 2026-10-20).
+  it('scopes a linked token without groups from its account’s membership: a member', async () => {
+    expect(await link('mem', 'mem-agent')).toBe(0);
+    const bearer = await token(FLEET);
+
+    const read = await as(bearer, 'GET', '/api/projects');
+    expect(read.status).toBe(200);
+    expect(JSON.stringify(read.body)).toContain('Fleet plan');
+    const write = await as(bearer, 'PATCH', `/api/projects/${projectId}`, {
+      name: 'Renamed by the fleet',
+    });
+    expect(write.status).toBe(200);
+    expect(await as(bearer, 'PATCH', '/api/organization', { sharedPeople: true })).toMatchObject({
+      status: 403,
+    });
   }, 30_000);
 });
