@@ -562,7 +562,10 @@ export class OrganizationHarness {
     supportedCapacityModes,
     sessionBinding,
     provider,
+    upstreamCredential,
   }: ComposedHarnessOptions): OrganizationHarness {
+    if (provider !== undefined && upstreamCredential !== undefined)
+      throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -588,6 +591,12 @@ export class OrganizationHarness {
               groupPrefix: 'dev',
               groupsClaim: 'wbs_groups',
             }),
+            passwordSessions: true,
+          }),
+      ...(upstreamCredential === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
             passwordSessions: true,
           }),
       ...(withOptimizer
@@ -910,6 +919,8 @@ export interface ComposedHarnessOptions {
   supportedCapacityModes?: readonly CapacityMode[];
   /** Mounts the browser OIDC routes over this fake provider; see {@link OrganizationHarnessOptions}. */
   provider?: FakeOidcProvider;
+  /** Verifies upstream Bearer tokens; see {@link OrganizationHarnessOptions}. */
+  upstreamCredential?: OrganizationHarnessOptions['upstreamCredential'];
 }
 
 /**

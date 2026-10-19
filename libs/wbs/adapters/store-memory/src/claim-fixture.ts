@@ -1,10 +1,4 @@
-import {
-  type Claim,
-  type ClaimIdentity,
-  type ClaimStore,
-  UNBOUND_CLAIM_IDENTITY,
-  type WorkItemStore,
-} from '@wbs/core';
+import { type Claim, type ClaimIdentity, type ClaimStore, type WorkItemStore } from '@wbs/core';
 
 import type { MemoryProgressTable } from './progress-fixture';
 
@@ -23,8 +17,8 @@ export function memoryClaimTable(): MemoryClaimTable {
  * reference cascades). The `in_progress` statements it makes and clears live
  * in the source's own progress table, so the progress store reads them.
  *
- * `identity` answers the bound-account and credential-pin reads; the default
- * binds nobody and pins nothing, as SQLite does until `person.account_id` lands.
+ * `identity` answers the bound-account and credential-pin reads: the source's
+ * directory, through `claimIdentityOf`, as SQLite's claims read theirs.
  *
  * @throws on a read of a claim whose work item is gone, and on a removal of a
  * claim that is not stored: both are trusted state gone wrong.
@@ -32,8 +26,8 @@ export function memoryClaimTable(): MemoryClaimTable {
 export function inMemoryClaims(
   workItems: Pick<WorkItemStore, 'findById' | 'listByProject'>,
   progress: MemoryProgressTable,
-  table: MemoryClaimTable = memoryClaimTable(),
-  identity: ClaimIdentity = UNBOUND_CLAIM_IDENTITY,
+  table: MemoryClaimTable,
+  identity: ClaimIdentity,
 ): ClaimStore {
   const inProject = async (projectId: string): Promise<Claim[]> => {
     const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
@@ -59,7 +53,7 @@ export function inMemoryClaims(
       return (await inProject(projectId)).find(({ id }) => id === claimId) ?? null;
     },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
-    pinnedPersonOf: (actorId) => identity.pinnedPersonOf(actorId),
+    pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),
     add(claims, stated, stamp) {
       const held = (claim: Claim): boolean =>
         table.rows.some(

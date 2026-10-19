@@ -50,7 +50,7 @@
       guarded `down.sql` — test: forward and back and both refusals; negatives watched.
 - [x] 2.2 `patchPerson.accountId` admin-only; person read shows it; export does not — test:
       directory command tests for admin, member, viewer; export golden unchanged.
-- [ ] 2.3 `person_not_bound` and `credential_not_for_person` in claim and release, with the
+- [x] 2.3 `person_not_bound` and `credential_not_for_person` in claim and release, with the
       admin bypass for the first only — test: the spec's cases; negative: remove the role check
       and the stranger's claim passes; remove the pin check and the cross-fleet claim passes.
 - [x] 2.4 `link-credential-cli.ts` with `--unlink`: one row, pinned when asked; refuses unknown

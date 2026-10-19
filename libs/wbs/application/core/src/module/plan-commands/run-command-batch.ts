@@ -1,5 +1,6 @@
 import type { AuthenticatedUser } from '@wbs/contracts';
 
+import { credentialPairOf } from '../../ports/claim-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type {
@@ -32,7 +33,13 @@ export function runCommandBatch(
   }
   return input.projectId === null
     ? graph.runDirectoryWithin(input.actor.id, input.commands, input.access)
-    : graph.runWithin(input.projectId, input.actor.id, input.commands, input.access);
+    : graph.runWithin(
+        input.projectId,
+        input.actor.id,
+        input.commands,
+        input.access,
+        credentialPairOf(input.actor.authentication),
+      );
 }
 
 /**
@@ -56,5 +63,6 @@ export function runCommandBatchAfter<R>(
     prelude,
     input.commands,
     input.access,
+    credentialPairOf(input.actor.authentication),
   );
 }

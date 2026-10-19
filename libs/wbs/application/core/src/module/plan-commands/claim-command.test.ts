@@ -1,9 +1,10 @@
-import { openMemorySource } from '@wbs/store-memory';
+import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
-import type { ClaimStore } from '../../ports/claim-store';
+import type { CredentialPair } from '../../ports/claim-store';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
@@ -15,10 +16,17 @@ import type { AppliedCommand } from './plan-commands.feature';
 const F = 'account-f';
 const G = 'account-g';
 
-/** Who each person is bound to and whom each account's credential is pinned to. */
+/** The fleet's machine credential, linked to account F. */
+const FLEET: CredentialPair = { issuer: 'https://idp.test', subject: 'claire-m2m@clients' };
+
+/**
+ * Who each person is bound to (`person.account_id`) and the person the fleet
+ * credential is pinned to (`external_identity.person_id`), written through the
+ * memory source's real directory before the batch runs.
+ */
 interface Identities {
   readonly bound: ReadonlyMap<string, string>;
-  readonly pinned: ReadonlyMap<string, string>;
+  readonly pinned: string | null;
 }
 
 const BOUND: Identities = {
@@ -29,7 +37,7 @@ const BOUND: Identities = {
     ['codex-fleet', F],
     ['stranger', G],
   ]),
-  pinned: new Map(),
+  pinned: null,
 };
 
 /**
@@ -37,7 +45,8 @@ const BOUND: Identities = {
  * and `080.26`, and a free leaf `090`, all unrestricted so both accounts write.
  */
 async function seeded(identities: Identities = BOUND) {
-  const source = openMemorySource();
+  const fixture = openMemorySourceFixture();
+  const { source } = fixture;
   const broadcast = recordingBroadcaster();
   const options = {
     admission: CREATOR_ADMISSION,
@@ -80,23 +89,22 @@ async function seeded(identities: Identities = BOUND) {
   ]) {
     await source.stores.directory.addPerson({ id, name, kind: 'agent' }, [], { at: 1, by: F });
   }
-  const withIdentity = (claims: ClaimStore): ClaimStore => ({
-    listByProject: (id) => claims.listByProject(id),
-    findById: (id, claimId) => claims.findById(id, claimId),
-    add: (written, stated, stamp) => claims.add(written, stated, stamp),
-    remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
-    boundAccountOf: (personId) => Promise.resolve(identities.bound.get(personId) ?? null),
-    pinnedPersonOf: (actorId) => Promise.resolve(identities.pinned.get(actorId) ?? null),
-  });
+  for (const [personId, accountId] of identities.bound) {
+    const bound = await source.stores.directory.patchPerson(
+      personId,
+      { accountId },
+      { at: 1, by: F },
+    );
+    if (!bound.ok) throw new Error(`binding ${personId} was refused: ${bound.reason}`);
+  }
+  if (identities.pinned !== null)
+    fixture.pinCredential(FLEET.issuer, FLEET.subject, identities.pinned);
   const runner = createPlanCommandRunner({
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(
-        { ...scope.stores, claims: withIdentity(scope.stores.claims) },
-        { ...options, broadcast: announcements },
-      ),
+      servicesOver(scope.stores, { ...options, broadcast: announcements }),
   });
   const claims = () => source.stores.claims.listByProject(projectId);
   const progress = () => source.stores.progress.listByProject(projectId);
@@ -104,7 +112,7 @@ async function seeded(identities: Identities = BOUND) {
     (await source.stores.workItems.listByProject(projectId)).find((row) => row.id === id)?.revision;
   const entries = async (actor: string) =>
     (await source.stores.journal.entriesFor(projectId, actor)).length;
-  return { source, runner, projectId, steps, claims, progress, revision, entries };
+  return { source, fixture, runner, projectId, steps, claims, progress, revision, entries };
 }
 
 /** The claims one applied `claimWorkItem` answered with. */
@@ -353,16 +361,53 @@ describe('claimWorkItem in a batch', () => {
   // Proof: with decideClaim's pin check replaced by `false`, this case failed
   // through the command path; watched 2026-10-19.
   it('refuses a pinned credential claiming as another agent', async () => {
-    const { source, runner, projectId } = await seeded({
-      bound: BOUND.bound,
-      pinned: new Map([[F, 'claire']]),
-    });
+    const { source, runner, projectId } = await seeded({ bound: BOUND.bound, pinned: 'claire' });
     try {
+      const claimAs = (personId: string, credential: CredentialPair | null) =>
+        runner.runWithin(
+          projectId,
+          F,
+          [{ kind: 'claimWorkItem', workItemId: '090', personId }],
+          LEGACY_ACCESS,
+          credential,
+        );
+      expect(await claimAs('codex-fleet', FLEET)).toMatchObject({
+        ok: false,
+        reason: 'credential_not_for_person',
+      });
+      // The account's own session carries no pair, so nothing pins it.
+      expect(await claimAs('codex-fleet', null)).toMatchObject({ ok: true });
+    } finally {
+      await source.close();
+    }
+  });
+
+  // An organization-owned person binds only to a member (S3-2), and the claim
+  // then reads that binding through the source's real directory.
+  it('claims as an owned person bound to a member of its organization', async () => {
+    const { source, fixture, runner, projectId } = await seeded();
+    try {
+      await source.stores.directory.addPerson({ id: 'owned', name: 'owned', kind: 'agent' }, [], {
+        at: 1,
+        by: F,
+      });
+      fixture.ownPersonInOrganization('owned', 'org-a', [F]);
+      expect(
+        await source.stores.directory.patchPerson('owned', { accountId: G }, { at: 2, by: F }),
+      ).toEqual({ ok: false, reason: 'unknown_account' });
       expect(
         await runner.run(projectId, F, [
-          { kind: 'claimWorkItem', workItemId: '090', personId: 'codex-fleet' },
+          { kind: 'claimWorkItem', workItemId: '090', personId: 'owned' },
         ]),
-      ).toMatchObject({ ok: false, reason: 'credential_not_for_person' });
+      ).toMatchObject({ ok: false, reason: 'person_not_bound' });
+      expect(
+        (await source.stores.directory.patchPerson('owned', { accountId: F }, { at: 2, by: F })).ok,
+      ).toBe(true);
+      expect(
+        await runner.run(projectId, F, [
+          { kind: 'claimWorkItem', workItemId: '090', personId: 'owned' },
+        ]),
+      ).toMatchObject({ ok: true });
     } finally {
       await source.close();
     }

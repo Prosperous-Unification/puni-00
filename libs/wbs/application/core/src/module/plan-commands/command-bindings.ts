@@ -2,6 +2,7 @@ import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
 import type { DependencyEndpoint } from '@wbs/domain';
 
+import type { CredentialPair } from '../../ports/claim-store';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type { ClaimRefusalOutcome } from '../work-item/claims';
@@ -58,6 +59,11 @@ export class CommandContext {
     private readonly refs: Map<string, string>,
     /** The caller's organization access; directory commands write through it. */
     readonly access: ResourceAccess,
+    /**
+     * The request credential's upstream pair, or null for a first-party
+     * session: what `claimWorkItem` reads the credential pin of (D6).
+     */
+    readonly credential: CredentialPair | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.
@@ -492,6 +498,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             parentClaimId: command.parentClaim ?? null,
           },
           isClaimAdmin(context.access),
+          context.credential,
         ),
       );
       return {
@@ -511,6 +518,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             stepIds: command.steps ?? null,
           },
           isClaimAdmin(context.access),
+          context.credential,
         ),
       );
       return { ...context.plain(), kind: command.kind };

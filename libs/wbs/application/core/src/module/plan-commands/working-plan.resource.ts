@@ -529,9 +529,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         assertOpen();
         return scope.stores.claims.boundAccountOf(personId);
       },
-      pinnedPersonOf: (actorId) => {
+      pinnedPersonOf: (credential) => {
         assertOpen();
-        return scope.stores.claims.pinnedPersonOf(actorId);
+        return scope.stores.claims.pinnedPersonOf(credential);
       },
       add: async (claims, stated, stamp) => {
         const owners = [...new Set([...claims, ...stated].map(({ workItemId }) => workItemId))];

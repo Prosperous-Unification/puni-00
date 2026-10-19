@@ -1,4 +1,4 @@
-import type { TransactionalStores } from '@wbs/core';
+import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
 import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
@@ -389,7 +389,12 @@ export function bindStores(
     attempts,
     blockages,
     stepParallels,
-    claims: inMemoryClaims(workItems, state.tables.progress, state.tables.claims),
+    claims: inMemoryClaims(
+      workItems,
+      state.tables.progress,
+      state.tables.claims,
+      claimIdentityOf(directory),
+    ),
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),

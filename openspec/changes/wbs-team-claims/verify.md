@@ -182,6 +182,42 @@ row byte for byte under a linked machine token` (`fleet-credential.controller.db
 - Test doubles that spied on `AuthService.authenticate` for the endpoint path now spy on
   `authenticateOrRefuse`, which the identity resolver calls.
 
+### Task 2.3: the claim reads the real binding and pin (2026-10-20)
+
+Merged `origin/plan/wbs-team-claims` at f49bc99ad (slice 1, PR #579) first. The binding
+migrations moved to `20261019130000_add_person_account` and
+`20261019130100_add_external_identity_person`, because slice 1's `20261019120000_add_claim`
+took the same stamp; the 17 migration-list expectations carry all three.
+
+- `ClaimIdentity.pinnedPersonOf` takes the request credential's pair
+  (`CredentialPair | null`), not the actor id: `credentialPairOf(authentication)` is the pair of
+  an `upstream` authentication (a verified token, or a delegation's carried pair) and null for a
+  first-party session, which is unpinned. `runCommandBatch` passes it through `runWithin` /
+  `runAfterWithin` into each `CommandContext`, and `claim` / `release` read it. Legacy `run`
+  and directory batches pass null (no credential is linked before activation; a directory
+  batch claims nothing).
+- `UNBOUND_CLAIM_IDENTITY` is gone. `claimIdentityOf(directory)` answers both reads from the
+  directory's `boundAccountOf` and `credentialPinOf`; SQLite's `ClaimRepository` and the memory
+  claim store both use it, so a claim reads the rows `patchPerson` and `link-credential-cli.ts`
+  write.
+- `OrganizationHarness.openComposedWith` takes `upstreamCredential`, so a machine token can run
+  a real command batch.
+- Tests: `apps/wbs/be-01/src/controller/claim-identity.controller.db.test.ts` (composed harness,
+  real SQLite, scoped access): a member claims as a person bound to their account (200); a
+  member is refused `person_not_bound` for a person bound to another account and for one bound
+  to nobody, and on release of another account's claim; an admin claims as both (the bypass);
+  a credential linked to `mem` and pinned to `claire` is refused `credential_not_for_person` as
+  `codex` (also bound to `mem`) and accepted as `claire`, while `mem`'s own session is unpinned.
+  `claim-command.test.ts` (memory) now seeds bindings with `patchPerson` and the pin through the
+  fixture seam `pinCredential`, and claims as an organization-owned person once it is bound to a
+  member (refused `person_not_bound` before, `unknown_account` for a non-member).
+  `claim.db.test.ts` reads both from the repository.
+- Proofs, each watched failing then restored: `ClaimRepository.boundAccountOf` answering null
+  (member's own claim and the release case answer 403, `claim.db.test.ts` fails); `isClaimAdmin`
+  answering false (both admin cases 403); `runCommandBatch` passing a null credential (the
+  pinned `codex` claim answers 200); `claimIdentityOf`'s pin read answering null (the memory
+  and SQLite pinned cases accept).
+
 ### Assumptions made in this slice (for Dany's review)
 
 - The bound account must be a member of the person's organization (`unknown_account`

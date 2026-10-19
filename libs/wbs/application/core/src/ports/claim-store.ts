@@ -1,5 +1,7 @@
+import type { CredentialAuthentication } from '@wbs/contracts';
 import type { Claim } from '@wbs/domain';
 
+import type { DirectoryStore } from './directory-store';
 import type { ProgressKey } from './progress-store';
 import type { WriteStamp } from './write-stamp';
 
@@ -55,19 +57,57 @@ export interface ClaimStore extends ClaimIdentity {
  * `person_not_bound` and `credential_not_for_person` need (D5, D6).
  */
 export interface ClaimIdentity {
-  /** The account bound to act as `personId`, or null when none is. */
+  /**
+   * The account bound to act as `personId` (`person.account_id`), or null when
+   * none is.
+   *
+   * @throws when no person has this id; the claim reads the person first.
+   */
   boundAccountOf(personId: string): Promise<string | null>;
-  /** The person the actor's credential is pinned to, or null for an unpinned credential. */
-  pinnedPersonOf(actorId: string): Promise<string | null>;
+  /**
+   * The person the request's credential is pinned to
+   * (`external_identity.person_id`), or null for an unpinned one. A request
+   * with no upstream pair (a password or native session) is unpinned: pass null.
+   */
+  pinnedPersonOf(credential: CredentialPair | null): Promise<string | null>;
 }
 
 /**
- * The identity reads before `person.account_id` and `external_identity.person_id`
- * exist (`wbs-team-claims` task 2.1, branch `feat/wbs-person-account`): no
- * person is bound and no credential is pinned. Until then only an organization
- * admin can claim, through the `person_not_bound` bypass.
+ * The verified `(issuer, subject)` a request's credential carries: an upstream
+ * token's, or the pair a delegation carries. Absent for a first-party session.
  */
-export const UNBOUND_CLAIM_IDENTITY: ClaimIdentity = {
-  boundAccountOf: () => Promise.resolve(null),
-  pinnedPersonOf: () => Promise.resolve(null),
-};
+export interface CredentialPair {
+  readonly issuer: string;
+  readonly subject: string;
+}
+
+/** The pair of `authentication` when it is an upstream one, else null (unpinned). */
+export function credentialPairOf(
+  authentication: CredentialAuthentication | undefined,
+): CredentialPair | null {
+  return authentication?.kind === 'upstream'
+    ? { issuer: authentication.issuer, subject: authentication.subject }
+    : null;
+}
+
+/**
+ * The {@link ClaimIdentity} a directory answers: its binding and its pin reads
+ * (`wbs-team-claims` D5, D6), so a claim reads the same rows `patchPerson`
+ * and `link-credential-cli.ts` write.
+ *
+ * Proof: the pin read answering null made `refuses a pinned credential claiming
+ * as another agent` (`claim-command.test.ts`, memory) and `claims as its
+ * person and is refused as any other …` (`claim-identity.controller.db.test.ts`,
+ * SQLite) accept the claim (watched 2026-10-20).
+ */
+export function claimIdentityOf(
+  directory: Pick<DirectoryStore, 'boundAccountOf' | 'credentialPinOf'>,
+): ClaimIdentity {
+  return {
+    boundAccountOf: (personId) => directory.boundAccountOf(personId),
+    pinnedPersonOf: (credential) =>
+      credential === null
+        ? Promise.resolve(null)
+        : directory.credentialPinOf(credential.issuer, credential.subject),
+  };
+}

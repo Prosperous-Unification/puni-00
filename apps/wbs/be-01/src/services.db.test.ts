@@ -6862,14 +6862,14 @@ describe('buildServices', () => {
         days: { optimistic: 3, realistic: 3, pessimistic: 3 },
       };
       if (direction !== 'execute') {
-        expect((await runner.runWithin(upstream, ownerId, [command], access)).ok).toBe(true);
+        expect((await runner.runWithin(upstream, ownerId, [command], access, null)).ok).toBe(true);
         if (direction === 'redo')
           expect((await runner.undoWithin(upstream, ownerId, access)).ok).toBe(true);
       }
       hold = true;
       const pending =
         direction === 'execute'
-          ? runner.runWithin(upstream, ownerId, [command], access)
+          ? runner.runWithin(upstream, ownerId, [command], access, null)
           : direction === 'undo'
             ? runner.undoWithin(upstream, ownerId, access)
             : runner.redoWithin(upstream, ownerId, access);
