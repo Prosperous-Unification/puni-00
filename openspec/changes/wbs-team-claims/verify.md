@@ -159,9 +159,9 @@ row byte for byte under a linked machine token` (`fleet-credential.controller.db
   (`oidc-identity.test.ts`). Proofs, each watched failing: the groups rule removed (unlinked
   and unlink cases mint and answer 403, member case 403); `scopesOfRoles` answering `[]`
   (member read 403 `insufficient_scope`); the `mount.ts` bypass removed (401 cases answer 500);
-  `groupsClaimed` always true (same three cases). The member case writes through `PATCH
-/api/projects/:id`, not a command batch: the `OrganizationHarness.open` fixture used for the
-  upstream verifier cannot run command batches (its unit of work has no stores).
+  `groupsClaimed` always true (same three cases). The member case now runs a real command
+  batch: the suite moved to `OrganizationHarness.openComposedWith`, which task 2.3 gave
+  `upstreamCredential` (before that it wrote through `PATCH /api/projects/:id`).
   Pre-activation, a groups-less token resolves only a `users.idp_*` pair, so it is refused
   there too rather than minting (stricter than the spec, which speaks of after activation).
 - **S3-1** `link-credential-cli.ts` refuses a pair that is an account's own `users.idp_*`

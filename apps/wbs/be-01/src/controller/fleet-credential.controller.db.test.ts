@@ -40,7 +40,7 @@ afterAll(async () => {
  * `unknown_identity` when nothing is linked, minting no account.
  */
 beforeEach(async () => {
-  h = OrganizationHarness.open({
+  h = OrganizationHarness.openComposedWith({
     upstreamCredential: {
       verifier: new JwksTokenVerifier({
         audience: AUDIENCE,
@@ -164,10 +164,10 @@ describe('a linked fleet credential', () => {
     const read = await as(bearer, 'GET', '/api/projects');
     expect(read.status).toBe(200);
     expect(JSON.stringify(read.body)).toContain('Fleet plan');
-    const write = await as(bearer, 'PATCH', `/api/projects/${projectId}`, {
-      name: 'Renamed by the fleet',
+    const batch = await as(bearer, 'POST', `/api/projects/${projectId}/commands`, {
+      commands: [{ kind: 'createWorkItem', parentId: null, name: 'Written by the fleet' }],
     });
-    expect(write.status).toBe(200);
+    expect(batch.status).toBe(200);
     expect(await as(bearer, 'PATCH', '/api/organization', { sharedPeople: true })).toMatchObject({
       status: 403,
     });
