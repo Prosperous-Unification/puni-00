@@ -223,5 +223,33 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
         ),
       );
     }),
+    storeCase('directory', 'directory.removePerson:claims-in-use', open, async ({ port, seed }) => {
+      const [personId] = seed.personIds;
+      const removal = await port.removePerson(personId, false, seed.stamps[1]);
+      expect(removal).toMatchObject({
+        ok: false,
+        reason: 'in_use',
+        usage: { claims: [{ workItemId: CLAIM_IN_USE.workItemId, stepId: null, personId }] },
+      });
+      expect(await port.removePerson(personId, true, seed.stamps[1])).toMatchObject({
+        ok: true,
+      });
+      expect((await port.listPeople()).map(({ id }) => id)).not.toContain(personId);
+    }),
   ];
 }
+
+/**
+ * The claim both sources seed for `directory.removePerson:claims-in-use`: a
+ * subtree claim of the seed's first person, so removing that person without
+ * `cascade` is refused `in_use` rather than taking the claim silently.
+ */
+export const CLAIM_IN_USE = {
+  id: 'claim-in-use',
+  workItemId: 'work-a-one',
+  stepId: null,
+  personId: 'person-a',
+  runId: null,
+  parentClaimId: null,
+  accountId: 'owner-a',
+} as const;

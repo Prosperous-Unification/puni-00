@@ -80,7 +80,9 @@ export type ParserRefusalCode =
   | 'runId_must_be_1_to_256_characters'
   | 'parentClaim_must_be_an_id'
   | 'steps_must_be_a_list_of_ids'
-  | 'steps_must_be_at_most_50';
+  | 'steps_must_be_at_most_50'
+  /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
+  | 'steps_must_name_a_step';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -172,6 +174,7 @@ export type CommandRefusalCode =
   | 'parent_claim_unknown'
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'
+  | 'steps_on_subtree'
   | 'item_done'
   | 'not_startable'
   | 'step_done'
@@ -202,6 +205,7 @@ type ParserContext = undefined | { at: number; kind?: never } | CommandContext;
 
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; step: { id: string; name: string } }
+  | { kind: 'claim_released'; step: { id: string; name: string } | null }
   | { kind: 'label_nulled' }
   | { kind: 'label_removed' }
   | { kind: 'capacity_released'; size: number; fromId: string }
@@ -231,6 +235,8 @@ export interface StepInUse {
   measures: number;
   /** Optional on the wire: an outgoing be-01 mid-swap counts no attempts. */
   attempts?: number;
+  /** Optional on the wire: an outgoing be-01 mid-swap counts no claims. */
+  claims?: number;
   assignments: number;
   assumedAssignees: {
     workItemId: string;

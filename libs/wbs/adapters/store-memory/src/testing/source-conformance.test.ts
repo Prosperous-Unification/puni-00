@@ -8,6 +8,7 @@ import {
   type CaseFixture,
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
+  CLAIM_IN_USE,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
@@ -355,6 +356,8 @@ async function openMemoryCase<Family extends ExistingFamily>(
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
+    if (caseId === 'directory.removePerson:claims-in-use')
+      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
   });
   if (family === 'subtrees') {
     return {

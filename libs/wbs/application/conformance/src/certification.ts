@@ -81,6 +81,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'directory.assign:unknown_person',
   'directory.assign:scope-replace-clear',
   'directory.patchTeam:atomic-refusal',
+  'directory.removePerson:claims-in-use',
   'eventLog.recordEvent',
   'eventLog.rangeSince',
   'eventLog.pruneBeyond',

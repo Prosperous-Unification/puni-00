@@ -483,6 +483,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'parentClaim_must_be_an_id':
     case 'steps_must_be_a_list_of_ids':
     case 'steps_must_be_at_most_50':
+    case 'steps_must_name_a_step':
+    case 'steps_on_subtree':
     case 'person_not_bound':
     case 'credential_not_for_person':
     case 'parent_claim_unknown':

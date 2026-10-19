@@ -520,6 +520,19 @@ export function asOptionalRunId(value: unknown): string | undefined {
   return value;
 }
 
+/**
+ * A claim's or release's named steps: absent, or 1 to {@link MOST_REFS_ON_ONE_ITEM}
+ * ids. An empty list names nothing to hold, and answered alreadyHeld before
+ * this refused it.
+ */
+export function asOptionalStepIds(value: unknown): readonly string[] | undefined {
+  const stepIds = asOptionalIds(value, 'steps', MOST_REFS_ON_ONE_ITEM);
+  // Proof: with this refusal removed, `refuses an empty step list` (command-normalizers.test.ts)
+  // normalized `steps: []`; watched 2026-10-19.
+  if (stepIds?.length === 0) throw new CommandNormalizationError('steps_must_name_a_step');
+  return stepIds;
+}
+
 /** A boolean or absent, or the field's refusal. */
 export function asOptionalFlag(value: unknown, field: string): boolean | undefined {
   if (value === undefined) return undefined;

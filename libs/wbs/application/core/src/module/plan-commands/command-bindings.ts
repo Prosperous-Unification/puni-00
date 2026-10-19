@@ -142,6 +142,8 @@ export class CommandContext {
       case 'parent_claim_foreign':
       case 'parent_claim_not_ancestor':
       case 'item_done':
+      case 'no_steps':
+      case 'steps_on_subtree':
       case 'not_claimed_by':
         return this.refuse({ reason: outcome.reason });
       default:

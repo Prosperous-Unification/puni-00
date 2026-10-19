@@ -39,6 +39,8 @@ export type PlainClaimReason =
   | 'parent_claim_foreign'
   | 'parent_claim_not_ancestor'
   | 'item_done'
+  | 'no_steps'
+  | 'steps_on_subtree'
   | 'not_claimed_by';
 
 /** Every refusal a claim or release answers beside the work-item service's own. */

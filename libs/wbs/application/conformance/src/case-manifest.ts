@@ -46,6 +46,7 @@ export const CASE_MANIFEST = {
     'directory.assign:unknown_person',
     'directory.assign:scope-replace-clear',
     'directory.patchTeam:atomic-refusal',
+    'directory.removePerson:claims-in-use',
   ],
   capacity: [
     'capacity.set:project-team-key',

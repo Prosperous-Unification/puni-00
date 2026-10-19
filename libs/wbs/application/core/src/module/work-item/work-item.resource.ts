@@ -86,7 +86,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
-import type { ClaimStore } from '../../ports/claim-store';
+import type { ClaimIdentity, ClaimStore } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -2882,8 +2882,12 @@ export class WorkItemService {
     return { ok: true, value: null };
   }
 
-  /** The claim store and identity reads, or a loud failure in a fixture built without them. */
-  private claiming(): { claims: ClaimStore; identity: ClaimStore } {
+  /**
+   * The claim store and the identity reads the claim rules take, or a loud
+   * failure in a fixture built without them. Until `person.account_id` lands
+   * (task 2.1) the claim store itself answers those reads, so both come from it.
+   */
+  private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
     const { claims } = this.opts;
     if (claims === undefined)
       throw new Error('this work-item service was built without a claim store');
@@ -6199,9 +6203,24 @@ export class WorkItemService {
       }
       case 'remove_claims': {
         const { claims } = this.claiming();
-        const held = new Set((await claims.listByProject(projectId)).map(({ id }) => id));
+        const stored = await claims.listByProject(projectId);
+        const held = new Set(stored.map(({ id }) => id));
         if (command.claims.some(({ id }) => !held.has(id)))
           return { ok: false, detail: 'that claim has been released since.' };
+        // A removed claim takes its delegated claims with it (the parent
+        // reference cascades), so a delegated claim this entry did not write
+        // would go with an undo that cannot put it back.
+        // Proof: with this refusal removed, `refuses an undo of a subtree claim
+        // that would take a delegated claim it never wrote` (claim-race.db.test.ts)
+        // answered the second undo ok, taking the worker's delegated claim with
+        // the subtree claim; watched 2026-10-19.
+        const listed = new Set(command.claims.map(({ id }) => id));
+        const delegatedSince = stored.some(
+          ({ id, parentClaimId }) =>
+            !listed.has(id) && parentClaimId !== null && listed.has(parentClaimId),
+        );
+        if (delegatedSince)
+          return { ok: false, detail: 'a claim has been delegated under it since.' };
         await claims.remove(command.claims, command.cleared, stamp);
         return { ok: true, detail: null };
       }

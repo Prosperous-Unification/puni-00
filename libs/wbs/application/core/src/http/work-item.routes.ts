@@ -367,6 +367,7 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     // The plan's state stands in the way; the same claim succeeds once it moves.
     case 'parent_claim_not_ancestor':
+    case 'steps_on_subtree':
     case 'item_done':
     case 'not_claimed_by':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };

@@ -117,21 +117,22 @@ export function inMemoryClaims(
   };
 }
 
-/** Removes every claim on `workItemIds` and every claim delegated under one, as the cascade does. */
-export function cascadeClaims(table: MemoryClaimTable, workItemIds: ReadonlySet<string>): void {
-  const gone = new Set(
-    table.rows.filter(({ workItemId }) => workItemIds.has(workItemId)).map(({ id }) => id),
-  );
+/**
+ * Removes every claim `gone` selects and every claim delegated under one, as the
+ * SQLite cascades do for a deleted work item, person or parent claim.
+ */
+export function cascadeClaims(table: MemoryClaimTable, gone: (claim: Claim) => boolean): void {
+  const removed = new Set(table.rows.filter(gone).map(({ id }) => id));
   for (let grew = true; grew;) {
     grew = false;
     for (const row of table.rows) {
-      if (!gone.has(row.id) && row.parentClaimId !== null && gone.has(row.parentClaimId)) {
-        gone.add(row.id);
+      if (!removed.has(row.id) && row.parentClaimId !== null && removed.has(row.parentClaimId)) {
+        removed.add(row.id);
         grew = true;
       }
     }
   }
-  table.rows.splice(0, table.rows.length, ...table.rows.filter(({ id }) => !gone.has(id)));
+  table.rows.splice(0, table.rows.length, ...table.rows.filter(({ id }) => !removed.has(id)));
 }
 
 function compare(left: string, right: string): number {

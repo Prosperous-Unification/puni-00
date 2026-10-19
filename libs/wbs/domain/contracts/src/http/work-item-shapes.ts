@@ -15,6 +15,7 @@ export { commandParserRefusal } from './command-parser-refusal';
 const context = { at: 'number', kind: commandKindsType } as const;
 const named = type({ id: 'string', name: 'string' });
 const effect = type({ kind: "'assignment_dropped'", step: named })
+  .or({ kind: "'claim_released'", step: named.or('null') })
   .or({ kind: "'label_nulled'" })
   .or({ kind: "'label_removed'" })
   .or({ kind: "'capacity_released'", size: 'number', fromId: 'string' })
@@ -187,6 +188,7 @@ const batchRefusals = [
         // Claim refusals that carry nothing beside their reason (`wbs-team-claims`).
         type({ ...context, error: "'parent_claim_not_ancestor'" }),
         type({ ...context, error: "'item_done'" }),
+        type({ ...context, error: "'steps_on_subtree'" }),
         type({ ...context, error: "'not_claimed_by'" }),
       ),
     ),

@@ -980,6 +980,8 @@ export interface PersonView extends PersonIdentityView {
  */
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; step: { id: string; name: string } }
+  /** The person's claim on a step, or on the row's subtree when `step` is null, is released. */
+  | { kind: 'claim_released'; step: { id: string; name: string } | null }
   | { kind: 'label_nulled' }
   /**
    * The row carries the **tag** being removed, and will stop carrying it.

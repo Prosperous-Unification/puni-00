@@ -33,7 +33,9 @@
       `claim-command.test.ts` on the memory store and SQLite through the conformance suite.
 - [x] 1.5 Red: two concurrent batches from two accounts on one step — test:
       `claim-race.db.test.ts` with the write coordinator, one winner, the loser's refusal names
-      the winner. Negative: bypass the coordinator and both win; watched, then restored.
+      the winner. Negative: bypass the coordinator; watched, then restored. Both cannot win:
+      the queued batch fails `BEGIN IMMEDIATE` ("cannot start a transaction within a
+      transaction"), and the unique index stands behind the coordinator (verify.md).
 - [x] 1.6 Registry entries, descriptions, refusal shapes in `@wbs/contracts`; MCP tool list
       snapshot moves by zero (the batch tool carries the new kinds) — test: the registry shape
       tests plus the OpenAPI emit diff.

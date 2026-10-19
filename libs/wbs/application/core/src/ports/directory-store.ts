@@ -167,6 +167,13 @@ export interface DirectoryUsageRows {
    */
   members: readonly { id: string; name: string }[];
   /**
+   * Every claim on a work item of these projects (`wbs-team-claims`): a
+   * person's removal releases theirs, so it is refused `in_use` without
+   * `cascade` exactly as an assignment refuses it. Empty for a source that
+   * reads none, never absent.
+   */
+  claims: readonly { workItemId: string; stepId: string | null; personId: string }[];
+  /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
    *

@@ -443,6 +443,11 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  steps_must_name_a_step: type({
+    error: "'steps_must_name_a_step'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   steps_must_be_at_most_50: type({
     error: "'steps_must_be_at_most_50'",
     at: 'number',

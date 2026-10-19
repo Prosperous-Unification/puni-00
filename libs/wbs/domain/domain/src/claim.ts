@@ -79,7 +79,9 @@ export type ClaimRefusal =
   | { readonly reason: 'parent_claim_unknown' }
   | { readonly reason: 'parent_claim_foreign' }
   | { readonly reason: 'parent_claim_not_ancestor' }
+  | { readonly reason: 'steps_on_subtree' }
   | { readonly reason: 'item_done' }
+  | { readonly reason: 'no_steps' }
   | { readonly reason: 'not_startable'; readonly status: WorkItemStatus }
   | { readonly reason: 'step_done'; readonly stepIds: readonly string[] }
   | { readonly reason: 'already_claimed'; readonly holders: readonly ClaimHolder[] }
@@ -167,11 +169,18 @@ function refuseIdentity(
  * foreign subtree claim answers the former on a non-leaf as well; the latter
  * fires for descendants.
  *
- * @throws when a named step is not one of the target's steps: the command
- * validates step ids against the project before deciding.
+ * Beyond the spec's list: steps named on a non-leaf answer `steps_on_subtree`
+ * (a subtree claim has no step) and a leaf of a project with no steps answers
+ * `no_steps`. The same holder repeating its claim under another parent answers
+ * `already_claimed` naming itself, as another run does: the chain it asks for
+ * is not the one held.
+ *
+ * @throws when a named step is not one of the target's steps, or no step is
+ * named in an empty list: the command validates both before deciding.
  */
 export function decideClaim(request: ClaimRequest): ClaimDecision {
   const { target, caller, claimant, claims } = request;
+  if (request.stepIds?.length === 0) throw new Error('a claim names no steps');
   const parentChain = chainOf(request.parentClaim, claims);
   const identity = refuseIdentity(caller, claimant, (pinned) =>
     parentChain.some((each) => each.personId === pinned),
@@ -189,13 +198,17 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
     }
   }
 
+  if (!target.isLeaf && request.stepIds !== null) return refused({ reason: 'steps_on_subtree' });
   if (target.status === 'done') return refused({ reason: 'item_done' });
+  if (target.isLeaf && target.steps.length === 0) return refused({ reason: 'no_steps' });
   if (target.isLeaf && NOT_STARTABLE.has(target.status)) {
     return refused({ reason: 'not_startable', status: target.status });
   }
 
   const sameHolder = (each: Claim): boolean =>
-    each.personId === claimant.personId && each.runId === request.runId;
+    each.personId === claimant.personId &&
+    each.runId === request.runId &&
+    each.parentClaimId === request.parentClaimId;
   const onTarget = claims.filter((each) => each.workItemId === target.workItemId);
 
   let wanted: (string | null)[];
@@ -274,6 +287,7 @@ export interface ReleaseRequest {
 }
 
 export type ReleaseRefusal =
+  | { readonly reason: 'steps_on_subtree' }
   | { readonly reason: 'person_not_bound' }
   | { readonly reason: 'credential_not_for_person' }
   | { readonly reason: 'not_claimed_by' };
@@ -322,6 +336,9 @@ export function decideRelease(request: ReleaseRequest): ReleaseDecision {
       removed.every((each) => chainOf(each, claims).some((link) => link.personId === pinned)),
   );
   if (identity !== null) return { kind: 'refused', refusal: identity };
+  if (!target.isLeaf && request.stepIds !== null) {
+    return { kind: 'refused', refusal: { reason: 'steps_on_subtree' } };
+  }
   if (removed.length === 0) return { kind: 'refused', refusal: { reason: 'not_claimed_by' } };
   return { kind: 'release', claims: removed };
 }

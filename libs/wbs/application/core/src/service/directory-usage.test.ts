@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { DirectoryUsageRows, LabelledWorkItem } from '../index';
 import { labelledRow } from '../testing/work-item-fixture';
-import { directoryUsageOfTeam } from './directory-usage';
+import { directoryUsageOfPerson, directoryUsageOfTeam } from './directory-usage';
 
 /**
  * `directoryUsageOfTeam` over rows built by hand — which is the only place a
@@ -32,6 +32,7 @@ function rowsOf(
     steps: [],
     people: [],
     members: [],
+    claims: [],
     capacityOf,
   };
 }
@@ -78,5 +79,30 @@ describe('directoryUsageOfTeam over a set', () => {
         { kind: 'capacity_released', size: 2, fromId: 'parent' },
       ]);
     }
+  });
+});
+
+describe('directoryUsageOfPerson over claims', () => {
+  // Proof: with the claim effects dropped from directoryUsageOfPerson, this
+  // person's usage named no work item; watched 2026-10-19.
+  it('names each claim the removal releases, a subtree claim with no step', () => {
+    const rows: DirectoryUsageRows = {
+      ...rowsOf([labelled('a', null), labelled('b', 'a')]),
+      steps: [{ id: 'dev', name: 'Dev' }],
+      claims: [
+        { workItemId: 'a', stepId: null, personId: 'claire' },
+        { workItemId: 'b', stepId: 'dev', personId: 'claire' },
+        { workItemId: 'b', stepId: 'qa', personId: 'other' },
+      ],
+    };
+    expect(
+      directoryUsageOfPerson(rows, 'claire').projects[0]?.workItems.map(({ id, effects }) => [
+        id,
+        effects,
+      ]),
+    ).toEqual([
+      ['a', [{ kind: 'claim_released', step: null }]],
+      ['b', [{ kind: 'claim_released', step: { id: 'dev', name: 'Dev' } }]],
+    ]);
   });
 });

@@ -20,6 +20,7 @@ const F = 'account-f';
 const G = 'account-g';
 const BOUND = new Map([
   ['claire', F],
+  ['worker', F],
   ['codex', G],
 ]);
 
@@ -64,6 +65,7 @@ async function seeded(hold?: Hold) {
   const projectId = created.project.id;
   for (const [id, name] of [
     ['claire', 'claire'],
+    ['worker', 'worker'],
     ['codex', 'codex'],
   ]) {
     await source.stores.directory.addPerson({ id, name, kind: 'agent' }, [], { at: 1, by: F });
@@ -170,6 +172,43 @@ describe('two fleets claim the same step', () => {
 });
 
 describe('a claim on SQLite', () => {
+  // Proof: with the remove_claims replay's delegated-since refusal removed, the
+  // second undo answered ok and the FK cascade took the worker's delegated
+  // claim with the subtree claim; watched 2026-10-19.
+  it('refuses an undo of a subtree claim that would take a delegated claim it never wrote', async () => {
+    const { runner, projectId, claims, as } = await seeded();
+    const tree = await runner.run(projectId, F, [
+      { kind: 'createWorkItem', ref: 'root', name: 'Root', parentId: null, afterId: null },
+      {
+        kind: 'createWorkItem',
+        ref: 'child',
+        name: 'Child',
+        parentId: null,
+        parentRef: 'root',
+        afterId: null,
+      },
+    ]);
+    if (!tree.ok) throw new Error('the tree was refused');
+    const [rootId, childId] = tree.results.map(({ id }) => id ?? '');
+    const subtree = await as(F, [
+      { kind: 'claimWorkItem', workItemId: rootId, personId: 'claire' },
+    ])();
+    if (!subtree.ok) throw new Error('the subtree claim was refused');
+    const parentClaim = source.db.get<{ id: string }>(
+      sql`SELECT id FROM claim WHERE work_item_id = ${rootId}`,
+    ).id;
+    expect(
+      await as(F, [
+        { kind: 'claimWorkItem', workItemId: childId, personId: 'worker', parentClaim },
+      ])(),
+    ).toMatchObject({ ok: true });
+    await as(G, [{ kind: 'patchWorkItem', workItemId: childId, patch: { name: 'Renamed' } }])();
+    const held = claims();
+    expect(await runner.undo(projectId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(await runner.undo(projectId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
+    expect(claims()).toEqual(held);
+  });
+
   it('moves the revision by one and records one entry for a claim that states progress', async () => {
     const { runner, projectId, leafId, steps, revision, as } = await seeded();
     const [dev, qa] = steps;

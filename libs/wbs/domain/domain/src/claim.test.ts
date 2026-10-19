@@ -360,6 +360,48 @@ describe('decideClaim refusals, one per reason', () => {
   });
 });
 
+describe('decideClaim on what a claim names', () => {
+  // Proof: with the empty-list throw removed, this answered alreadyHeld with no
+  // claim at all; watched 2026-10-19.
+  it('throws on an empty step list: the normalizer refuses it at the boundary', () => {
+    expect(() => decideClaim(leafRequest({ stepIds: [] }))).toThrow('a claim names no steps');
+  });
+
+  // Proof: with parentClaimId left out of the same-holder test, this answered
+  // alreadyHeld and the chain was never recorded; watched 2026-10-19.
+  it('refuses the holder repeating its claim under another parent, naming itself', () => {
+    const runId = 'agent:main:subagent:7f';
+    const own = ['plan', 'review'].map((stepId) =>
+      claim({ id: stepId, workItemId: 'leaf', stepId, personId: 'worker', runId }),
+    );
+    expect(
+      decideClaim(
+        leafRequest({ claims: [subtree, ...own], parentClaim: subtree, parentClaimId: subtree.id }),
+      ),
+    ).toMatchObject({
+      kind: 'refused',
+      refusal: { reason: 'already_claimed', holders: [{ claimId: 'plan' }, { claimId: 'review' }] },
+    });
+  });
+
+  it('answers no_steps on a leaf of a project with no steps', () => {
+    const target = { ...leafRequest().target, steps: [] };
+    expect(decideClaim(leafRequest({ target }))).toEqual({
+      kind: 'refused',
+      refusal: { reason: 'no_steps' },
+    });
+  });
+
+  // Proof: with the subtree steps check removed, this wrote a subtree claim and
+  // ignored the steps; watched 2026-10-19.
+  it('refuses steps named on a non-leaf', () => {
+    expect(decideClaim(parentRequest({ stepIds: ['plan'] }))).toEqual({
+      kind: 'refused',
+      refusal: { reason: 'steps_on_subtree' },
+    });
+  });
+});
+
 describe('decideClaim on a non-leaf', () => {
   it('writes one subtree claim with no step and states nothing', () => {
     expect(decideClaim(parentRequest())).toEqual({
@@ -461,7 +503,7 @@ describe('decideClaim never takes a held step', () => {
         maxLength: steps.length,
       },
     ),
-    named: fc.option(fc.subarray(steps, { minLength: 1 }), { nil: null }),
+    named: fc.option(fc.subarray(steps, { minLength: 0 }), { nil: null }),
     claimant: fc.constantFrom(...people),
     run: fc.constantFrom('r0', 'r1'),
   });
@@ -482,22 +524,29 @@ describe('decideClaim never takes a held step', () => {
                 }),
               ],
         );
-        const decided = decideClaim(
-          leafRequest({
-            target: {
-              ...leafRequest().target,
-              status: drawn.status,
-              steps: steps.map((stepId, index) => ({
-                stepId,
-                progress: drawn.progress[index] ?? 'unknown',
-              })),
-            },
-            claimant: { personId: drawn.claimant, boundAccountId: F },
-            runId: drawn.run,
-            stepIds: drawn.named,
-            claims,
-          }),
-        );
+        const decide = () =>
+          decideClaim(
+            leafRequest({
+              target: {
+                ...leafRequest().target,
+                status: drawn.status,
+                steps: steps.map((stepId, index) => ({
+                  stepId,
+                  progress: drawn.progress[index] ?? 'unknown',
+                })),
+              },
+              claimant: { personId: drawn.claimant, boundAccountId: F },
+              runId: drawn.run,
+              stepIds: drawn.named,
+              claims,
+            }),
+          );
+        // An empty list names nothing to hold: it never answers alreadyHeld.
+        if (drawn.named?.length === 0) {
+          expect(decide).toThrow('a claim names no steps');
+          return;
+        }
+        const decided = decide();
         if (decided.kind !== 'claim') return;
         const heldSteps = new Set(claims.map(({ stepId }) => stepId));
         for (const draft of decided.drafts) expect(heldSteps.has(draft.stepId)).toBe(false);
@@ -572,6 +621,21 @@ describe('decideRelease', () => {
         }),
       ),
     ).toEqual({ kind: 'release', claims: [delegated] });
+  });
+
+  // Proof: with the release steps check removed, this released the subtree claim
+  // and ignored the steps; watched 2026-10-19.
+  it('refuses steps named on a non-leaf release', () => {
+    expect(
+      decideRelease(
+        releaseRequest({
+          target: { workItemId: 'parent', isLeaf: false },
+          claimant: { personId: 'claire', boundAccountId: F },
+          stepIds: ['plan'],
+          claims: [subtree],
+        }),
+      ),
+    ).toEqual({ kind: 'refused', refusal: { reason: 'steps_on_subtree' } });
   });
 
   it('cascades a subtree release through delegated claims, transitively', () => {
