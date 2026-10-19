@@ -135,6 +135,11 @@ Progress rows stay.
   or a cascade release removes it. Accepted: expiry is a runtime fact and Dash's lease
   authority (WBS 080.24) is where the clock lives. The startable read lists claimed steps
   apart, with the last write instant, so an operator sees silent claims.
+- **A leaf whose only worked step is done reads `done`.** The table's status fold counts only
+  steps with an estimate, actual, statement or attempt, so a leaf with `Plan` done and the
+  rest untouched is refused `item_done` (review of PR #579, S3-3). Dispatch of the 42 orphan
+  steps (task 4.2) must estimate the remaining steps first. Changing the fold is out of
+  scope.
 - **A claim on a done-then-reopened step keeps its old holder.** The row survives `done`;
   if progress is reopened the old claim still holds. Release first. Recorded, not solved.
 - **Two fleets, one GitHub account** remains true until a distinct GitHub identity per fleet
