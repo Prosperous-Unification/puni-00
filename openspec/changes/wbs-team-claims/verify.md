@@ -130,6 +130,58 @@ Also failed: `wbs-store-memory`, `wbs-conformance` and `wbs-store-sqlite:typeche
 per-config `tsc -p` runs above had missed it) and `tool-devsync:test` (the new
 `directory-fixture.test.ts` was not in the store-memory module index).
 
+### Review round on 76d1c145 (S1 to S4), 2026-10-20
+
+Merged `origin/plan/wbs-team-claims` first (D6b and the fleet-credentials requirement "A
+machine token is scoped by its linked account and never mints an account").
+
+- **S1** A mapped token without an email claim no longer clears its owner's email and
+  verification (`resolveMappedIdentity` returns the owner untouched). Test: `leaves the owner's
+row byte for byte under a linked machine token` (`fleet-credential.controller.db.test.ts`),
+  which now seeds Dany with `email='dany@example.com', email_verified=1` and compares the whole
+  `users` table after a groups-bearing and a groups-less machine request. Proof: the guard
+  removed, that case failed on `email: null, email_verified: 0`.
+- **S2 / D6b** `OidcIdentity.groupsClaimed` says whether the token carried `wbs_groups` at all.
+  `AuthService.authenticateOrRefuse` sends a token without it through
+  `readExistingOidcIdentity` only (no account minted, nothing written): linked to nothing it is
+  refused `401 unknown_identity`; linked, it is scoped by `scopesOfRoles` from the account's
+  `organization_membership` roles (viewer read; member read, write; admin and super_admin all
+  three), and the per-organization role checks apply as for any session of that account. The
+  organization-credential evidence path does the same. Tokens with the claim are unchanged.
+  `unknown_identity` is answered in `mount.ts` before the endpoint shape, because no endpoint
+  shape declares it: declaring it on all 38 401 shapes made fe-01 fail to compile in 21 files
+  (exhaustive refusal switches for a refusal no browser can receive). Tests:
+  `refuses an unlinked machine token as unknown_identity, minting no account`,
+  `ends at --unlink: unknown_identity, no new account, and the pair links again`,
+  `scopes a linked token without groups from its account's membership: a member` (read 200,
+  project write 200, organization settings write 403), and
+  `tells a token without the groups claim from one with an empty claim`
+  (`oidc-identity.test.ts`). Proofs, each watched failing: the groups rule removed (unlinked
+  and unlink cases mint and answer 403, member case 403); `scopesOfRoles` answering `[]`
+  (member read 403 `insufficient_scope`); the `mount.ts` bypass removed (401 cases answer 500);
+  `groupsClaimed` always true (same three cases). The member case writes through `PATCH
+/api/projects/:id`, not a command batch: the `OrganizationHarness.open` fixture used for the
+  upstream verifier cannot run command batches (its unit of work has no stores).
+  Pre-activation, a groups-less token resolves only a `users.idp_*` pair, so it is refused
+  there too rather than minting (stricter than the spec, which speaks of after activation).
+- **S3-1** `link-credential-cli.ts` refuses a pair that is an account's own `users.idp_*`
+  sign-in, naming that account (`refuses an account's own unmapped sign-in pair, naming it`).
+  Proof: the check removed, the row was written.
+- **S3-2** The memory directory keeps `organizationMembers` and binds an owned person only to a
+  member of its organization; a new shared conformance case
+  `directory.patchPerson:owned-binding` runs on both stores (each source seeds the owned person
+  through its own side tables; memory through the new fixture seam `ownPersonInOrganization`).
+  Proof: either store's membership read answering true failed that case on that store.
+- **S3-3** Before this round, `fleet-credential.controller.db.test.ts` signed its machine
+  token with `wbs_groups`, which a real Auth0 machine-to-machine token does not carry (task
+  0.2). Its default token now carries none, so the groups-less path is what the suite proves.
+- **S4** A patch with `name` and a refused `accountId` leaves the rename unapplied: the batch's
+  unit of work rolls it back (`leaves a rename sent beside a refused account unapplied`); no
+  reorder was needed. The CLI's unreachable `?? ''` and the adjective-named `required` are
+  gone (`requireFlag`).
+- Test doubles that spied on `AuthService.authenticate` for the endpoint path now spy on
+  `authenticateOrRefuse`, which the identity resolver calls.
+
 ### Assumptions made in this slice (for Dany's review)
 
 - The bound account must be a member of the person's organization (`unknown_account`
@@ -146,12 +198,8 @@ per-config `tsc -p` runs above had missed it) and `tool-devsync:test` (the new
 
 ### Found, not changed
 
-- Spec `fleet-credentials` "Unlinking ends the credential" says the next request is refused as
-  an unknown identity. Observed in `fleet-credential.controller.db.test.ts`: after activation an
-  unmapped pair mints a new account through `resolveMappedIdentity` and the request is refused
-  403 `no_active_organization` (users went from 1 to 2). The credential no longer reaches the
-  account's projects, but an account is created. Deciding whether a machine pair may mint an
-  account belongs with task 0.2/2.5.
+- Fixed in the review round (S2): unlinking used to let the next machine request mint a new
+  account; it is now refused `401 unknown_identity` and `users` does not grow.
 - Removing a person that a credential is pinned to is a raw foreign-key failure (500) on SQLite;
   no modeled refusal yet.
 - Not verified by a build: that `link-credential-cli.ts` ships in the production image. The
