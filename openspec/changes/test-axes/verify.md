@@ -5487,3 +5487,21 @@ Hosted CI at `8d6802327` passed workspace and all four browser shards, but Burok
 pilot tests refused the two newly added undeclared gzip archives. That separate
 classification repair is being prepared in an isolated parallel branch. Neither
 host nor hosted full-gate acceptance is claimed for this head.
+
+### Parallel repair integration
+
+Commit `8b02974b6` carries the independently reviewed descriptor-test repair;
+`951575309` integrates the parallel binary-declaration repair from `ccfebf1ba`.
+Both shipped wiki policies now name exactly the two recovery gzip receipts as
+historical evidence consumed by this verification record. No wildcard or fallback
+classification was added. The full pilot suite passed 24 tests / 430 assertions.
+Production `classify-candidate` replay on the combined tree accepted each exact
+archive under each policy; removing its declaration or renaming it to an unlisted
+gzip failed with exit 1 naming the undeclared path (12 invocations, four cases).
+Raw script and receipts are in
+`evidence/shared-unit-recovery-2026-10-19/classification-receipts.json`.
+Normal hooks, scoped lint/format and whitespace checks passed. The parallel lane's
+standalone lint lacked an Nx graph and visibly skipped module-boundary enforcement;
+canonical and hosted gates must supply full enforcement. External trusted activation
+remains inactive/uncertified. The superseded h2 run already has a failed Dash target;
+a new exact-head gate and hosted CI remain required after this combined repair.
