@@ -129,15 +129,35 @@ describe('organization-activation-cli', () => {
     expect(rehearsed.stderr).toBe('');
     expect(rehearsed.exitCode).toBe(0);
     const plan = JSON.parse(rehearsed.stdout) as Record<string, unknown>;
+    expect(Object.keys(plan).toSorted()).toEqual([
+      'activatedAt',
+      'externalIdentities',
+      'mappedRoots',
+      'members',
+      'mode',
+      'organization',
+      'prunedStreams',
+      'solutionLinks',
+      'superAdmin',
+    ]);
     expect(plan).toMatchObject({
       mode: 'dry_run',
       organization: { name: 'default' },
       superAdmin: { id: 'u-dany', username: 'dany' },
-      members: 2,
-      solutionLinks: 1,
-      externalIdentities: 1,
       activatedAt: null,
     });
+    expect(plan['members']).toEqual([
+      { id: 'u-ada', username: 'ada', role: 'member' },
+      { id: 'u-dany', username: 'dany', role: 'super_admin' },
+      { id: 'u-grace', username: 'grace', role: 'member' },
+    ]);
+    expect(plan['externalIdentities']).toEqual([
+      { userId: 'u-dany', issuer: 'https://auth0.test/', subject: 'auth0|dany' },
+    ]);
+    expect(plan['solutionLinks']).toEqual([
+      { projectId: 'p-2', slug: 'billing', url: 'https://solutions.test/billing' },
+    ]);
+    expect(plan['prunedStreams']).toEqual([]);
     expect(plan['mappedRoots']).toEqual(
       Object.fromEntries(OWNED_ROOT_KINDS.map((kind) => [kind, count(kind)])),
     );
@@ -155,7 +175,7 @@ describe('organization-activation-cli', () => {
       organization: { id: string };
       activatedAt: number;
     };
-    expect(report).toMatchObject({ mode: 'applied', members: 2, solutionLinks: 1 });
+    expect(report).toMatchObject({ mode: 'applied', prunedStreams: [] });
     const id = report.organization.id;
     expect(rows('SELECT id, name, legacy FROM organization')).toEqual([
       { id, name: 'default', legacy: 1 },
@@ -311,6 +331,35 @@ describe('organization-activation-cli', () => {
     expect(writable()).toEqual(before);
   });
 
+  it("prunes a deleted project's retained stream only with --apply", () => {
+    sqlite([
+      "INSERT INTO event_sequencer (subscription, next_seq) VALUES ('project:gone', 1)",
+      "INSERT INTO event_log (subscription, seq, message, created_at) VALUES ('project:gone', 0, '{}', 1)",
+    ]);
+    const before = writable();
+    const rehearsed = run(['--name', 'default', '--super-admin', 'dany']);
+    expect(rehearsed.exitCode).toBe(6);
+    expect(JSON.parse(rehearsed.stderr)).toMatchObject({
+      ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
+    });
+
+    const refused = run(['--name', 'default', '--super-admin', 'dany', '--prune-retained-streams']);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stderr).toContain('usage');
+    expect(writable()).toEqual(before);
+
+    const applied = run([...APPLY, '--prune-retained-streams']);
+    expect(applied.stderr).toBe('');
+    expect(applied.exitCode).toBe(0);
+    expect(JSON.parse(applied.stdout)).toMatchObject({ prunedStreams: ['project:gone'] });
+    expect(rows('SELECT subscription FROM event_sequencer ORDER BY subscription')).toEqual([
+      { subscription: 'project:p-1' },
+    ]);
+    expect(rows('SELECT DISTINCT subscription FROM event_log')).toEqual([
+      { subscription: 'project:p-1' },
+    ]);
+  });
+
   for (const [label, args, dbPath] of [
     ['no DB_PATH', APPLY, null],
     ['an empty DB_PATH', APPLY, ''],
@@ -319,6 +368,11 @@ describe('organization-activation-cli', () => {
     ['no --super-admin', ['--name', 'default'], undefined],
     ['a positional argument', [...APPLY, 'extra'], undefined],
     ['an unknown flag', [...APPLY, '--undo'], undefined],
+    [
+      'pruning without --apply',
+      ['--name', 'default', '--super-admin', 'dany', '--prune-retained-streams'],
+      undefined,
+    ],
   ] as const) {
     it(`refuses ${label} before opening the database`, () => {
       const before = writable();

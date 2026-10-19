@@ -1982,3 +1982,37 @@ stream that resolves to no project` both exited 0 and committed the marker.
 
 Not verified: the CLI has not run on dev or prod. Drain/fence of old processes, the MCP epoch,
 trusted policy state and the release fence for `project_solution` remain 7.1B.
+
+### Review round 1 (PR #582 at `419f8fe4`)
+
+The queued gate on `419f8fe4` was cancelled before it started.
+
+- S2-1: Deleting a project through the production drain (`beginOptimizationDrain` and
+  `finishOptimizationDrain`) leaves its event stream behind. `organization-legacy-activation.db.test.ts`
+  shows activation refusing it as an `event_stream` conflict. `--prune-retained-streams` (only
+  with `--apply`) deletes, in the same transaction, the `event_sequencer`/`event_log` rows of
+  `project:<id>` streams whose project row is gone, and lists them in `prunedStreams`.
+  Faults:
+  - With the `NOT EXISTS` project guard removed, both the store test and the CLI's
+    `prunes a deleted project's retained stream only with --apply` also pruned the live
+    project's stream.
+  - With the without-`--apply` usage clause removed, both prune CLI tests exited 0.
+- S3-1: The plan prints `members` as `{id, username, role}` by id, `externalIdentities` as
+  `{userId, issuer, subject}`, and `solutionLinks` as `{projectId, slug, url}`. The dry-run test
+  pins the plan's keys and lists. A mounted parity test shows that a `member` reads a
+  restricted project it does not own and is refused its edit with the same 403 body before
+  and after activation. Fault: granting `super_admin` instead of `member` made that edit answer
+  200 and rename the project.
+- S2-2, S2-3, S3-2: `docs/runbook-organization-activation.md` now has:
+  - a Bearer and MCP loss statement naming tasks 2.5 and 6.4–6.6;
+  - a step 0 that stops on `BROWSER_SESSION_AUTHORITY=disabled`, with what `enabled` changes
+    before activation;
+  - preflight and selection preview run on the backup before the dry run.
+- S4: the `OrganizationRepository.addMember` JSDoc is corrected, and the `c` callback is renamed.
+
+| Command                                                                                                                                                                                                                                                  | Result                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/organization-activation-cli.db.test.ts apps/wbs/be-01/src/organization-activation.boot.db.test.ts`                                                                                                        | 23 pass, 0 fail, 136 expect() calls |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/organization-legacy-activation.db.test.ts src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts src/organization-records.db.test.ts` | 104 pass, 0 fail                    |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts`                                                           | 19 pass, 0 fail                     |
+| `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                                                                                  | succeeded                           |

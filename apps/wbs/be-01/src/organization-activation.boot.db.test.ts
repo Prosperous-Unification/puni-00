@@ -37,11 +37,11 @@ function bearer(process: BootedBrowserProcess, username: string): Record<string,
   return { authorization: `Bearer ${process.token(username)}`, origin: BOOTED_ORIGIN };
 }
 
-/** The project names `username`'s browser session lists after selecting its one membership. */
-async function listAfterSelecting(
+/** `username`'s browser headers after explicitly selecting its one membership. */
+async function selectSession(
   process: BootedBrowserProcess,
   username: string,
-): Promise<string[]> {
+): Promise<Record<string, string>> {
   const memberships = await call(
     process,
     'GET',
@@ -58,17 +58,29 @@ async function listAfterSelecting(
     'POST',
     '/api/organization/active',
     bearer(process, username),
-    {
-      organizationId,
-    },
+    { organizationId },
   );
   const cookie = selected.setCookie?.split(';')[0];
   if (selected.status !== 200 || cookie === undefined)
     throw new Error(`selection refused: ${JSON.stringify(selected)}`);
-  const projects = await call(process, 'GET', '/api/projects', {
+  return {
     cookie: `__Host-wbs_access=${process.token(username)}; ${cookie}`,
     origin: BOOTED_ORIGIN,
-  });
+    'X-WBS-Expected-Organization': organizationId,
+  };
+}
+
+/** The project names `username`'s browser session lists after selecting its one membership. */
+async function listAfterSelecting(
+  process: BootedBrowserProcess,
+  username: string,
+): Promise<string[]> {
+  const projects = await call(
+    process,
+    'GET',
+    '/api/projects',
+    await selectSession(process, username),
+  );
   expect(projects.status).toBe(200);
   return (projects.body as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
 }
@@ -95,7 +107,10 @@ async function activateLegacyStore(process: BootedBrowserProcess): Promise<void>
   );
   expect(activated.stderr.toString()).toBe('');
   expect(activated.exitCode).toBe(0);
-  expect(JSON.parse(activated.stdout.toString())).toMatchObject({ mode: 'applied', members: 2 });
+  expect(JSON.parse(activated.stdout.toString())).toMatchObject({
+    mode: 'applied',
+    prunedStreams: [],
+  });
 }
 
 test('after the CLI activates, the super-admin and a member list the legacy projects and a stranger is refused', async () => {
@@ -141,4 +156,53 @@ test('after activation, the disabled composition binds no organization', async (
   );
   expect(selected.status).not.toBe(200);
   expect(selected.setCookie).toBeNull();
+});
+
+test('a member reads a restricted project it does not own and cannot edit it, before and after', async () => {
+  be = await BootedBrowserProcess.open('enabled');
+  const process = be;
+  for (const username of ['dany', 'ada']) await process.register(username);
+  const created = await call(process, 'POST', '/api/projects', bearer(process, 'dany'), {
+    name: 'Launch',
+  });
+  const projectId = (created.body as { project: { id: string } }).project.id;
+  const restricted = await call(
+    process,
+    'PATCH',
+    `/api/projects/${projectId}`,
+    bearer(process, 'dany'),
+    { restricted: true },
+  );
+  expect(restricted.status).toBe(200);
+  const answers = async (headers: Record<string, string>) => {
+    const read = await call(process, 'GET', `/api/projects/${projectId}`, headers);
+    const edit = await call(process, 'PATCH', `/api/projects/${projectId}`, headers, {
+      name: 'Hijacked',
+    });
+    return { read: read.status, edit: { status: edit.status, body: edit.body } };
+  };
+  const before = await answers(bearer(process, 'ada'));
+  expect(before.read).toBe(200);
+  expect(before.edit.status).toBe(403);
+
+  const activated = Bun.spawnSync(
+    [globalThis.process.execPath, cli, '--name', 'default', '--super-admin', 'dany', '--apply'],
+    {
+      env: { ...globalThis.process.env, DB_PATH: process.databasePath() },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+  );
+  expect(activated.exitCode).toBe(0);
+
+  // Proof: 2026-10-20, granting every other user `super_admin` instead of `member` made this
+  // edit answer 200 and rename the project (an audited recovery) instead of 403 `forbidden`.
+  expect(await answers(await selectSession(process, 'ada'))).toEqual(before);
+  const project = await call(
+    process,
+    'GET',
+    `/api/projects/${projectId}`,
+    await selectSession(process, 'dany'),
+  );
+  expect(project.body).toMatchObject({ project: { name: 'Launch', restricted: true } });
 });

@@ -5,7 +5,11 @@
 // `docs/runbook-organization-activation.md` for the operator procedure.
 //
 //   DB_PATH=/path/plan.db bun run src/organization-activation-cli.ts \
-//     --name default --super-admin <user id or username> [--apply]
+//     --name default --super-admin <user id or username> [--apply [--prune-retained-streams]]
+//
+// `--prune-retained-streams` deletes the event streams of deleted projects that
+// reconciliation would otherwise refuse (exit 6, `event_stream`); it is a usage
+// error without `--apply`, so a rehearsal always reports them first.
 //
 // Without `--apply` it rehearses the whole transaction and rolls it back,
 // printing the plan. Prints one JSON document on stdout; a refusal prints one
@@ -32,7 +36,7 @@ const REFUSAL_EXIT_CODES: Record<LegacyActivationRefusal['refusal'], number> = {
 };
 
 const USAGE =
-  'usage: DB_PATH=/path/plan.db bun organization-activation-cli.ts --name <name> --super-admin <user id or username> [--apply]';
+  'usage: DB_PATH=/path/plan.db bun organization-activation-cli.ts --name <name> --super-admin <user id or username> [--apply [--prune-retained-streams]]';
 
 const dbPath = process.env['DB_PATH'];
 if (dbPath === undefined || dbPath === '') throw new Error('DB_PATH must be set');
@@ -41,6 +45,7 @@ const { values, positionals } = parseArgs({
     name: { type: 'string' },
     'super-admin': { type: 'string' },
     apply: { type: 'boolean', default: false },
+    'prune-retained-streams': { type: 'boolean', default: false },
   },
   strict: true,
   allowPositionals: true,
@@ -52,7 +57,10 @@ if (
   name === undefined ||
   name === '' ||
   superAdmin === undefined ||
-  superAdmin === ''
+  superAdmin === '' ||
+  // Proof: 2026-10-20, without this clause `refuses pruning without --apply before opening the
+  // database` and `prunes a deleted project's retained stream only with --apply` exited 0.
+  (values['prune-retained-streams'] && !values.apply)
 )
   throw new Error(USAGE);
 
@@ -63,6 +71,7 @@ try {
     superAdmin,
     at: Date.now(),
     isApplied: values.apply,
+    isPruningRetainedStreams: values['prune-retained-streams'],
   });
   if (outcome.ok) {
     const { mappedRoots, ...activation } = outcome.activation;
