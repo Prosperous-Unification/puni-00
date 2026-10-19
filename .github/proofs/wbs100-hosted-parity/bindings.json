@@ -1,0 +1,51 @@
+{
+  "fixtureCommit": "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+  "fixtureTree": "7249e1b6914cd3c8a0de3ff36216a8e0e0acc116",
+  "historicalSource": "ac774f0c358db369c2048e537151e263cc29361e",
+  "historicalArchiveSha256": "f287bc11f43f628b70ecd01e11eb6784c55fd4b2fb8cbb9e439dee8e685297fd",
+  "historicalExecutableSha256": "92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c",
+  "historicalToolkitIdentity": "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a",
+  "artifact": {
+    "id": 12029728928,
+    "runId": 38863439207,
+    "zipSha256": "67f6050bcfe58f563a86a3eeb82d560ffc7a1244e5138076d6fe739064e0b7c5",
+    "bytes": 31913057
+  },
+  "inputs": {
+    "fixture.bundle": {
+      "bytes": 205737,
+      "sha256": "3d060307252b0ed220db16edd6de02f14bb0f653740cf69e0ac70be4171150b5"
+    },
+    "historical-negative.json": {
+      "bytes": 389,
+      "sha256": "a8ef568b8d3a639bbc10fcb01bc6cede321c8da9be3a62dfb7aac204554c27cb"
+    },
+    "historical-positive.json": {
+      "bytes": 250,
+      "sha256": "6ba6125b370465ab6e1a16742ef79cb4d81ec847a3d574af8285d53fee4077e9"
+    },
+    "negative-policy.json": {
+      "bytes": 1254,
+      "sha256": "cdf80301a6e0681cc42ebde532560a3a1307b0cccd23553fbe031ca6ace8dbbd"
+    },
+    "positive-policy.json": {
+      "bytes": 1252,
+      "sha256": "869c862087e80dc3a74bfd2e7f27dc949e52f7509482e7cc8a6f9ffdc4ce2729"
+    }
+  },
+  "finalSourceRevision": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "guards": {
+    "60": {
+      "path": "guards/identity-guard.py",
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/identity-guard.py",
+      "sha256": "4df8066c4111c33746c33d5159c4de77a3cac20afdf06165f860f377ad7dbc29",
+      "bytes": 1953
+    },
+    "360": {
+      "path": "guards/preparation-guard.py",
+      "source": "/tmp/wbs100-serial-compiler-20261019/guard.py",
+      "sha256": "291398b1395dcdc5a342f7439f48c2f9f497ceaa83481176110cec1192df974c",
+      "bytes": 1954
+    }
+  }
+}

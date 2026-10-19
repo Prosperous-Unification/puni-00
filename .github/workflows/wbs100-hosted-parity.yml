@@ -1,0 +1,73 @@
+name: wbs100-hosted-parity
+
+on:
+  push:
+    branches: [integration/wbs100-hosted-parity-20261020]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: wbs100-hosted-parity
+  cancel-in-progress: false
+
+jobs:
+  prove:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: proof
+          persist-credentials: false
+      - name: Refuse an unpinned final source
+        id: pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          bindings = json.loads(Path('proof/.github/proofs/wbs100-hosted-parity/bindings.json').read_text())
+          revision = bindings.get('finalSourceRevision')
+          if not isinstance(revision, str) or not re.fullmatch('[0-9a-f]{40}', revision):
+              raise ValueError('finalSourceRevision must be a reviewed full commit SHA')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+              stream.write('source_sha=' + revision + '\n')
+          PY
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ steps.pin.outputs.source_sha }}
+          fetch-depth: 0
+          path: evaluator-source
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: Build and install exact successor; compare historical fixture reports
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NX_DAEMON: 'false'
+          NX_SKIP_NX_CACHE: 'true'
+        run: python3 proof/.github/proofs/wbs100-hosted-parity/run-hosted.py evaluator-source receipts
+      - name: Preserve exact proof inputs and driver
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p receipts
+          cp -R proof/.github/proofs/wbs100-hosted-parity receipts/proof-inputs
+      - name: Preserve hosted package and receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: wbs100-hosted-parity-${{ steps.pin.outputs.source_sha }}-${{ github.run_attempt }}
+          path: |
+            receipts/
+            !receipts/historical-artifact.zip
+            !receipts/historical.tgz
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 1

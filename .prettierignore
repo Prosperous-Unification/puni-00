@@ -57,3 +57,10 @@ openspec/changes/saved-plans/tasks.md
 openspec/changes/dual-optimized-scheduler/tasks.md
 openspec/changes/archive/2026-08-30-token-tracking/tasks.md
 openspec/changes/work-item-deadline/tasks.md
+
+# Historical hosted-proof inputs are immutable bytes bound by bindings.json SHA-256 values.
+# Proof: the initial explicit Prettier check refused all four; normalization would break their pins.
+/.github/proofs/wbs100-hosted-parity/inputs/historical-negative.json
+/.github/proofs/wbs100-hosted-parity/inputs/historical-positive.json
+/.github/proofs/wbs100-hosted-parity/inputs/negative-policy.json
+/.github/proofs/wbs100-hosted-parity/inputs/positive-policy.json
