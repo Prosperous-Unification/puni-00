@@ -849,6 +849,7 @@ describe('the directory client', () => {
     // failure would not say which arm was refused.
     const oneOfEach: Record<DirectoryEffect['kind'], DirectoryEffect> = {
       assignment_dropped: { kind: 'assignment_dropped', step: { id: 'r1', name: 'Dev' } },
+      claim_released: { kind: 'claim_released', step: null },
       label_nulled: { kind: 'label_nulled' },
       label_removed: { kind: 'label_removed' },
       capacity_released: { kind: 'capacity_released', size: 4, fromId: 'w7' },

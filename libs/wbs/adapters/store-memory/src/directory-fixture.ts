@@ -21,6 +21,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   steps: [],
   people: [],
   members: [],
+  claims: [],
   capacityOf: new Map(),
 };
 
@@ -207,6 +208,7 @@ export function inMemoryDirectory(
         assignments: [],
         steps: [],
         people: [],
+        claims: [],
         members: [],
         capacityOf: new Map<string, number>(),
       }),
@@ -261,6 +263,7 @@ export function inMemoryDirectory(
         assignments: [],
         steps: [],
         people: [],
+        claims: [],
         members: [],
         capacityOf: new Map<string, number>(),
       }),

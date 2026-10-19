@@ -3,6 +3,7 @@ import { DiBag } from 'di-bag';
 import type { ActualStore } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import type { ClaimStore } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type { CommandJournalStore } from '../../ports/command-journal-store';
 import type { DependencyStore } from '../../ports/dependency-store';
@@ -54,6 +55,7 @@ export const workItemModule = DiBag.createBuilder()
         progressStore,
         attemptStore,
         blockageStore,
+        claimStore,
         directoryStore,
         capacityStore,
         priorityBandStore,
@@ -77,6 +79,7 @@ export const workItemModule = DiBag.createBuilder()
         progressStore: StepProgressStore;
         attemptStore: StepNodeAttemptStore;
         blockageStore: StepBlockageStore;
+        claimStore: ClaimStore | undefined;
         directoryStore: DirectoryStore;
         capacityStore: CapacityStore;
         priorityBandStore: PriorityBandStore;
@@ -100,6 +103,7 @@ export const workItemModule = DiBag.createBuilder()
         progress: progressStore,
         attempts: attemptStore,
         blockages: blockageStore,
+        ...(claimStore === undefined ? {} : { claims: claimStore }),
         directory: directoryStore,
         capacity: capacityStore,
         priorityBands: priorityBandStore,

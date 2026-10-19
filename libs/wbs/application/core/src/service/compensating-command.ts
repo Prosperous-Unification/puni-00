@@ -1,6 +1,7 @@
 import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
+import type { Claim } from '../ports/claim-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
@@ -81,6 +82,17 @@ export type CompensatingCommand =
       replacementBlockedAt: number | null;
     }
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
+  /**
+   * Claims written back verbatim — id, run, parent and writing account — with
+   * the `in_progress` statements the claim made on steps nobody had spoken
+   * about: the redo of a claim and the undo of a release (`wbs-team-claims`).
+   */
+  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[] }
+  /**
+   * Claims taken off by id, with the statements the claim had made: the undo
+   * of a claim and the redo of a release. A release clears nothing.
+   */
+  | { do: 'remove_claims'; claims: Claim[]; cleared: ProgressKey[] }
   /**
    * One attempt written back **verbatim** under its own number, its instants,
    * outcome, executor, reference and note exactly as carried

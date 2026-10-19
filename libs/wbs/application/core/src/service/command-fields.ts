@@ -504,6 +504,35 @@ export function asOptionalId(value: unknown, field: string): string | undefined 
   return value;
 }
 
+/** The most characters an **Agent run** may carry; the `claim.run_id` CHECK holds the same bound. */
+export const MOST_CHARACTERS_IN_A_RUN_ID = 256;
+
+/**
+ * An opaque agent run of 1 to {@link MOST_CHARACTERS_IN_A_RUN_ID} characters, or
+ * absent. Never parsed: the harness formats it (`wbs-team-claims` D5).
+ */
+export function asOptionalRunId(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  // Proof: with the length bound removed, `bounds a claim’s run to 1 to 256
+  // characters…` (command-normalizers.test.ts) normalized 257; watched 2026-10-19.
+  if (typeof value !== 'string' || value.length === 0 || value.length > MOST_CHARACTERS_IN_A_RUN_ID)
+    throw new CommandNormalizationError('runId_must_be_1_to_256_characters');
+  return value;
+}
+
+/**
+ * A claim's or release's named steps: absent, or 1 to {@link MOST_REFS_ON_ONE_ITEM}
+ * ids. An empty list names nothing to hold, and answered alreadyHeld before
+ * this refused it.
+ */
+export function asOptionalStepIds(value: unknown): readonly string[] | undefined {
+  const stepIds = asOptionalIds(value, 'steps', MOST_REFS_ON_ONE_ITEM);
+  // Proof: with this refusal removed, `refuses an empty step list` (command-normalizers.test.ts)
+  // normalized `steps: []`; watched 2026-10-19.
+  if (stepIds?.length === 0) throw new CommandNormalizationError('steps_must_name_a_step');
+  return stepIds;
+}
+
 /** A boolean or absent, or the field's refusal. */
 export function asOptionalFlag(value: unknown, field: string): boolean | undefined {
   if (value === undefined) return undefined;

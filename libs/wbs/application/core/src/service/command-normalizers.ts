@@ -11,6 +11,8 @@ import {
   asOptionalIds,
   asOptionalInstant,
   asOptionalPriority,
+  asOptionalRunId,
+  asOptionalStepIds,
   asOptionalText,
   asOptionalTypeIds,
   assertRecord,
@@ -216,6 +218,24 @@ export const commandNormalizers = {
       ...normalizeStepAddress(raw),
       personId: asIdOrNull(raw.personId, 'personId'),
       personRef: asOptionalId(raw.personRef, 'personRef'),
+    }),
+  claimWorkItem: (raw: CommandInput<'claimWorkItem'>) =>
+    present({
+      kind: 'claimWorkItem' as const,
+      ...target(raw),
+      personId: asOptionalId(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+      steps: asOptionalStepIds(raw.steps),
+      runId: asOptionalRunId(raw.runId),
+      parentClaim: asOptionalId(raw.parentClaim, 'parentClaim'),
+    }),
+  releaseWorkItem: (raw: CommandInput<'releaseWorkItem'>) =>
+    present({
+      kind: 'releaseWorkItem' as const,
+      ...target(raw),
+      personId: asOptionalId(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+      steps: asOptionalStepIds(raw.steps),
     }),
   addDependency: (raw: CommandInput<'addDependency'>) =>
     present({

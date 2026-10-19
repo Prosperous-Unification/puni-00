@@ -100,6 +100,15 @@ export async function refuseForeignReferences(
   // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
   // 2026-09-27.
   if (
+    (command.kind === 'claimWorkItem' || command.kind === 'releaseWorkItem') &&
+    command.steps !== undefined
+  ) {
+    for (const stepId of command.steps) {
+      if (!(await graph.workItems.hasStepInProject(projectId, stepId)))
+        context.refuse({ reason: 'unknown_step' });
+    }
+  }
+  if (
     'stepId' in command &&
     typeof command.stepId === 'string' &&
     !(await graph.workItems.hasStepInProject(projectId, command.stepId))
@@ -120,6 +129,10 @@ function directoryReferencesOf(
   context: CommandContext,
 ): [DirectoryCatalog, readonly string[], PlainReason][] {
   if (command.kind === 'setAssignee') {
+    const person = context.id(command.personId, command.personRef);
+    return [['people', person === null ? [] : [person], 'unknown_person']];
+  }
+  if (command.kind === 'claimWorkItem' || command.kind === 'releaseWorkItem') {
     const person = context.id(command.personId, command.personRef);
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }

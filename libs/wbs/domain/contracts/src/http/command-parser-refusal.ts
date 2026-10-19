@@ -428,6 +428,31 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  runId_must_be_1_to_256_characters: type({
+    error: "'runId_must_be_1_to_256_characters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  parentClaim_must_be_an_id: type({
+    error: "'parentClaim_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  steps_must_be_a_list_of_ids: type({
+    error: "'steps_must_be_a_list_of_ids'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  steps_must_name_a_step: type({
+    error: "'steps_must_name_a_step'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  steps_must_be_at_most_50: type({
+    error: "'steps_must_be_at_most_50'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
 } satisfies Record<ParserRefusalCode, Type>;
 /** Validates the finite legacy parser vocabulary before any string becomes a wire refusal. */
 // Proof: removing forbidden context fields admitted at:text,400 instead of500 in the mounted parser-refusal case.

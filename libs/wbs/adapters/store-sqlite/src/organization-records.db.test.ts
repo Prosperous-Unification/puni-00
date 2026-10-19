@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261019120000_add_claim',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
@@ -792,6 +793,7 @@ describe('20260927120000_add_organization_records', () => {
           name !== 'step_blockage_activation' &&
           name !== 'step_blockage_activation_receipt' &&
           name !== 'step_parallel' &&
+          name !== 'claim' &&
           name !== 'shared_people_restore_operation' &&
           name !== 'shared_people_restore_receipt' &&
           name !== 'shared_people_restore_consumption' &&
