@@ -1,3 +1,10 @@
+> Current-source note (2026-10-19): historical slice annotations below are not
+> an inventory of current main. PR #565 merged configured authoritative DNS,
+> retained-proof scheduling, verification-only SMTP and read-only ownership
+> preflight. See the [source reconciliation](verify.md#source-and-merge-reconciliation--2026-10-19).
+> Invitation delivery eligibility, operator configuration, activation and attended
+> acceptance remain open; all task checkboxes are preserved.
+
 ## 1. Inventory and paired migrations
 
 - [ ] 1.1 Inventory deployed SHA, sanitized auth mode/issuer, Dany candidates, effective rights, all resource roots, indirect references, MCP families and global uniqueness keys. Red: zero/two Dany candidates or an unmapped allowance/dependency/history/import/event root blocks activation. Fault: omit one inventoried root; observe the production preflight test fail, restore and add adjacent `Proof:`.

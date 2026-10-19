@@ -1895,3 +1895,39 @@ private-nesting. Tool Wiki reported inactive/uncertified without an external act
 Separate typecheck and broader suites were not run for this policy/test-budget repair; exact-head
 CI and canonical host gate remain required. Independent Astra high review of the exact source
 diff found no outstanding P0–P3 findings. Normal commit hooks remain enabled, with no bypass.
+
+## Source and merge reconciliation — 2026-10-19
+
+Read-only source inspection used `origin/main` at
+`3e8d0742154e90a606b23d305dd6e424bb9c7d06`. GitHub reports
+[PR #565](https://github.com/Prosperous-Unification/puni-00/pull/565) merged
+on 2026-10-17 as `53dfef620fa8f065dbddb9a2d9184c3469829475`.
+`git merge-base --is-ancestor <commit> <main-sha>` exited 0 separately for that
+merge and each source checkpoint below:
+
+| Merged checkpoint                                                                                    | Current source evidence                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DNS adapter `0f6f8f279`, classification repair `5bc9c2b55`, terminal recursive negatives `e9fbd7675` | `bootBe01` binds configured `AuthoritativeDnsResolver`; the resolver requires supported terminal discovery evidence. Open PR #562 still points at the older adapter head, already in main. |
+| Retained-proof scheduling `05fb0b0ba`                                                                | `bootBe01` owns configured proof scheduling and its disposal; both entrypoints use the failure supervisor.                                                                                 |
+| Verification SMTP successor `17f83ffde`                                                              | `bootBe01` binds `createEmailDelivery`; its dispatcher admits verification only and refuses invitation/join purposes.                                                                      |
+| Ownership preflight `a0ed2adf9`                                                                      | The read-only `organization-ownership-preflight-cli.ts` and snapshot report are present.                                                                                                   |
+
+Earlier “unpublished”, “binding absent” and “scheduler unwired” annotations
+describe their recorded checkpoints, not current main. Preserve their historical
+commands, failures and proof limits. Source presence and merge ancestry do not
+prove live configuration or activation; this reconciliation did not rerun CI,
+canonical h2 gating, application tests, builds or live operations.
+
+WBS010.5.4 (`cb49f5ad-c547-4e44-af06-d8ba795b9348`) remains in progress.
+DNS resolver/egress authority, disposable-domain acceptance, live scheduler
+observation, SMTP relay/sender/CA authority and inbox evidence remain operator
+obligations. Invitation delivery requires a separate reviewed release under the
+[eligibility prerequisite](../organization-email-delivery/invitation-eligibility.md).
+Organization/browser activation, complete inventory, gateway/MCP cutover and
+attended acceptance remain open. No acceptance checkbox is changed.
+
+Documentation checks: the ancestry checks also passed against the PR #565 merge
+itself. Pinned OpenSpec 1.12.0 `validate <change> --strict --json` passed all six
+affected changes with no issues; changed-file Prettier and `git diff --check`
+passed. Existing installed dependencies supplied formatting/hooks; no frozen
+install or application verification was performed for this documentation slice.
