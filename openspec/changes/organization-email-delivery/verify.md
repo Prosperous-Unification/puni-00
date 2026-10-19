@@ -208,3 +208,18 @@ Restored successor checks, serial:
   `/tmp/smtp-data-commit.log` and the committed handoff. Earlier
   controller/config/startup checks were not repeated because those source paths
   did not change in this correction.
+
+## Source and merge reconciliation — 2026-10-19
+
+[The parent reconciliation](../organization-ownership-and-access/verify.md#source-and-merge-reconciliation--2026-10-19)
+verifies SMTP successor `17f83ffde` is in main through PR #565. Current
+`bootBe01` binds `createEmailDelivery` with explicit configuration; the
+production dispatcher still refuses every invitation/join purpose. The
+verification adapter is implemented, while its historical receipts remain
+scoped to the exact candidates above.
+
+Invitation delivery still requires a separately reviewed release under the
+[eligibility contract](invitation-eligibility.md), including predecessor-binary
+compatibility and rollback. Relay/sender/CA authority, real inbox evidence and
+organization activation remain open. No live SMTP or new runtime/gate result
+is claimed, and task 5.2 remains unchanged.
