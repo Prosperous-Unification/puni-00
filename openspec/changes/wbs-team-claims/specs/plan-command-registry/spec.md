@@ -31,8 +31,9 @@ these holds, checked in this order:
   person id, name and run id;
 - `inside_subtree_claim`: an ancestor holds a subtree claim whose person is not the claimant
   and which is not the given parent claim; the refusal carries the holder;
-- `overlaps_subtree_claim` (non-leaf only): an ancestor or descendant holds a subtree claim
-  of another person that is not the given parent claim.
+- `overlaps_subtree_claim` (non-leaf only): a descendant holds a subtree claim of another
+  person that is not a delegated claim of the claimant's chain. An ancestor's subtree claim
+  is already refused as `inside_subtree_claim` by the previous check.
 
 A claim whose every step is already held by the same person and run SHALL succeed, write
 nothing and answer `alreadyHeld: true`.
