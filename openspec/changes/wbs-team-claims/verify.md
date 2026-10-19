@@ -30,10 +30,18 @@ before slice 2.5: either (a) an M2M application per fleet plus a credentials-exc
 when the token carries no groups claim, keeping the contract independent of the identity
 provider. Recommended: (b), with (a)'s application still needed for the audience.
 
-Task 0.3, read 2026-10-19 in `plan-document-shapes.ts`: plan document v6 carries `people`
+Task 0.3, read 2026-10-19 in `plan-document-shapes.ts`: plan document v9 (the laptop's main
+checkout was stale at v6 when first read; the branch carries 9) carries `people`
 with `teamIds`, `teams` with `serviceIds`, and per-item `assignees` keyed by step reference.
 A Burokrat branch rule can therefore read a person's teams and a step's assignee from v6
-without a v7. Claims are not in v6; showing them in the export needs a v7 field, which is
-not in this change (the export SHALL NOT carry account ids either way).
+without a new version. Claims are not in v9; showing them in the export needs a v10 field,
+which is not in this change (the export SHALL NOT carry account ids either way).
+
+Dev store activation, read 2026-10-20 (read-only): `organization`, `organization_membership`
+and `external_identity` hold 0 rows on dev. Organizations are not activated there, so slice
+2.4's CLI refuses to link (it refuses before activation, because pre-activation logins never
+read `external_identity`) and task 2.5's dev proof is blocked until dev is activated. That is
+an operator decision for Dany: activating organizations on dev changes sign-in for every dev
+user.
 
 `openspec validate --all --json` on this change: run before each push, result in the PR.

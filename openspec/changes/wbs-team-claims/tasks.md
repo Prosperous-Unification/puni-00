@@ -6,9 +6,9 @@
       application and its groups Action is post-login only, so an M2M token would carry no
       `wbs_groups`. Open decision for Dany: Auth0 credentials-exchange Action, or be-01 scopes
       a linked credential from its account (recommended). Blocks 2.5, not 2.1 to 2.4.
-- [x] 0.3 Read 2026-10-19 (verify.md): v6 carries `people.teamIds` and per-item `assignees`
-      keyed by step reference; the branch rule needs no v7; claims would need a v7 field, out
-      of scope here.
+- [x] 0.3 Read 2026-10-19 (verify.md): v9 carries `people.teamIds` and per-item `assignees`
+      keyed by step reference; the branch rule needs no new version; claims would need a v10
+      field, out of scope here.
 
 ## 1. The claim record and its decision
 
@@ -54,7 +54,7 @@
 - [ ] 2.4 `link-credential-cli.ts` with `--unlink`: one row, pinned when asked; refuses unknown
       account, linked pair, unbound person — test: `link-credential-cli.db.test.ts` for each;
       negative: remove the pair check and a second link steals the credential; watched.
-- [ ] 2.5 Dev proof: a request bearing Claire's machine token lists Dany's organizations'
+- [ ] 2.5 (blocked: dev has no activated organization, see verify.md) Dev proof: a request bearing Claire's machine token lists Dany's organizations'
       projects and applies a `claimWorkItem` batch as `claire`; a claim as another person is
       refused; recorded in verify.md with the token redacted.
 
