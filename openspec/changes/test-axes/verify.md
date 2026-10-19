@@ -5428,3 +5428,34 @@ authorized frozen install succeeded. No full local gate was run.
 Canonical exact-SHA h2puni gate, hosted CI and release acceptance remain pending
 at this documentation checkpoint. Tasks 2.1l/2.1m retain bounded implementation
 completion; parent 2.1, wider test axes, trusted activation and WBS080.39 stay open.
+
+### Canonical gate diagnosis and denial oracle repair
+
+The canonical h2puni gate printed the exact head `0458166ba60fbbdd9142101bdc2537b4816a84aa`.
+Frozen install, OpenSpec and full formatting passed. Its devsync test target
+reported 880 pass / 1 fail: `permanent denial converges to bounded refusal`
+rejected a non-`response` observation. The full gate had not terminated at this
+checkpoint; it is not a passing receipt. Both original HTTP observation source
+and test were byte-identical to the main base.
+
+A real loopback reproduction made later denial responses arrive after the request
+deadline. The report retained an initial 403 and subsequent `deadline` failures;
+the original response-only assertion failed. The host log did not print the
+classification, so this reproduction establishes the oracle defect without
+claiming the exact host observation was captured. Remaining-window deadlines are
+already required by the convergence spec and slow-final test.
+
+The repaired test covers immediate and delayed denials. It requires an initial
+403, nonempty retries, only 403-response or deadline failures, and explicit deadline
+coverage in the delayed case. The original production implementation is unchanged.
+The complete HTTP suite passed: 19 tests, 99 assertions. ESLint passed. Injecting
+a successful retry into production `observeConvergence` made both cases fail at
+the refusal assertion (exit 1). After restoring production source, both passed;
+restored SHA-256 is `a29e800009925e9b71b3656dd785c1255650a1f5dbd859e6d0ecc511ce659d55`.
+Independent read-only review found no issues. The initial sandboxed test could not
+open a listening socket (EPERM) and is not counted as a qualifying reproduction.
+
+Four raw reproduction, passing-suite, injected-fault and restored-suite receipts
+are in `evidence/shared-unit-recovery-2026-10-19/denial-oracle-receipts.json.gz`,
+SHA-256 `d4480c7f36a1bbd8336881553b7745644925e4cbb915a1ba0a58d50728ba7c2a`. The updated commit requires fresh canonical gate and hosted CI;
+no full-gate success, certification or parent-item completion is claimed here.
