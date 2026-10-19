@@ -5459,3 +5459,31 @@ Four raw reproduction, passing-suite, injected-fault and restored-suite receipts
 are in `evidence/shared-unit-recovery-2026-10-19/denial-oracle-receipts.json.gz`,
 SHA-256 `d4480c7f36a1bbd8336881553b7745644925e4cbb915a1ba0a58d50728ba7c2a`. The updated commit requires fresh canonical gate and hosted CI;
 no full-gate success, certification or parent-item completion is claimed here.
+
+### Descriptor cleanup oracle repair during parallel reconciliation
+
+The exact-head h2 gate for `8d680232712b02fff570009f5d50861e69d0acd9`
+reached Twilight Dash with 2109 passing tests and one failing test:
+`selected check closes remaining owned descriptors after a leaf descriptor was closed`.
+Its process-wide descriptor count expected 23 but observed 22. A controlled
+unrelated-descriptor close reproduced the same invalid assumption (12 versus 11).
+This proves the count can fail without an owned-descriptor leak; the original host
+run did not capture which unrelated descriptor disappeared.
+
+The repaired test reuses the neighboring successful-stage test's descriptor-target
+snapshot helper. It requires a nonvacuous capture of every expected source ancestor
+and leaf, then checks each owned descriptor/target pair is gone after refusal. An
+unrelated descriptor is intentionally closed during the fixture. Removing owned
+ancestor-directory closes from production made the repaired test fail at the leaked
+`/` target. Production was restored byte-for-byte, SHA-256
+`070a8cca938255208ec6d6a5311a8974254c97dbbfe650a61709e4dda99cc1e6`.
+Both focused tests passed, followed by all 141 selected-check tests (628 assertions).
+Independent read-only review found no blockers. No production cleanup change was
+needed; remaining stage contents and unchanged database rows are still asserted.
+Raw reproduction, positive, negative and restored receipts are in
+`evidence/shared-unit-recovery-2026-10-19/descriptor-oracle-receipts.json`.
+
+Hosted CI at `8d6802327` passed workspace and all four browser shards, but Burokrat
+pilot tests refused the two newly added undeclared gzip archives. That separate
+classification repair is being prepared in an isolated parallel branch. Neither
+host nor hosted full-gate acceptance is claimed for this head.
