@@ -211,6 +211,8 @@ describe('organization activation marker schema', () => {
 
   it('rolls back before activation and reapplies with a fresh seed', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_OWNERSHIP)).toEqual([
+      '20261019120100_add_external_identity_person',
+      '20261019120000_add_person_account',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
@@ -243,7 +245,7 @@ describe('organization activation marker schema', () => {
     ]);
     expect(readAppliedMigrations().at(-1)).toBe(ORGANIZATION_OWNERSHIP);
     runMigrations(path, FOLDER);
-    expect(readAppliedMigrations().at(-1)).toBe('20261015110000_add_step_node_parallelism');
+    expect(readAppliedMigrations().at(-1)).toBe('20261019120100_add_external_identity_person');
     expect(withDb(readOrganizationActivation)).toBe('pre_activation');
   });
 
