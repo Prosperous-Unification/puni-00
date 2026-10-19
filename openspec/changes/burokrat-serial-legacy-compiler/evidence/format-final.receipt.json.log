@@ -1,0 +1,27 @@
+{
+  "command": [
+    "bunx",
+    "prettier",
+    "--check",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-project.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.fixture.ts",
+    "openspec/changes/burokrat-serial-legacy-compiler/proposal.md",
+    "openspec/changes/burokrat-serial-legacy-compiler/design.md",
+    "openspec/changes/burokrat-serial-legacy-compiler/tasks.md",
+    "openspec/changes/burokrat-serial-legacy-compiler/verify.md",
+    "openspec/changes/burokrat-serial-legacy-compiler/specs/burokrat-rules/spec.md"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 162068,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 0.456,
+  "availableBeforeKiB": 23001804,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

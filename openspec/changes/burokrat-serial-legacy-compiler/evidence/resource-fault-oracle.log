@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/wbs100-serial-compiler-20261019/resource-oracle.py", line 6, in <module>
+    assert receipt['stopReason'] is None, 'production extraction exceeded resource boundary'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: production extraction exceeded resource boundary
