@@ -113,8 +113,7 @@ an `external_identity` row, optionally **pinned** to one agent person
 (`external_identity.person_id`). A claim made through a pinned credential must name that
 person or a delegated claim under a claim of that person; otherwise `credential_not_for_person`.
 Browser logins are unpinned credentials of the same account. Revoking a fleet is deleting its
-row. Verification owed in slice 0: that an Auth0 M2M token for the WBS audience carries
-`wbs_groups`, or how be-01 should scope a linked credential when it does not.
+row. Verified in slice 0 (verify.md): the dev tenant has no M2M application and its groups Action is post-login only, so an M2M token carries no `wbs_groups`; the open decision is an Auth0 credentials-exchange Action or be-01 scoping a linked credential from its account.
 
 **D7. A subtree claim reserves dispatch; steps under it are claimed as delegated claims.** A claim
 on a non-leaf has no step and names the subtree. Inside it, a step claim is accepted only
