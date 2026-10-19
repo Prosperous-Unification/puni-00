@@ -58,5 +58,31 @@ host CLIs run. Unlinking SHALL be the same CLI with `--unlink`.
 #### Scenario: Unlinking ends the credential
 
 - **WHEN** the CLI unlinks the pair
-- **THEN** the next request bearing a token for that pair is refused as an unknown identity
-  and the account's other credentials still work
+- **THEN** the next request bearing a token for that pair is refused `401 unknown_identity`,
+  no account is created, and the account's other credentials still work
+
+### Requirement: A machine token is scoped by its linked account and never mints an account
+
+After organization activation, be-01 SHALL refuse `401 unknown_identity`, before creating
+any account, a verified token that carries no groups claim and whose `(issuer, subject)` is
+linked to no account. A token that carries no groups claim and whose pair is linked SHALL be
+scoped from the linked account's memberships: `viewer` reads, `member` reads and writes,
+`admin` and `super_admin` edit. A token that carries the groups claim SHALL keep today's
+mapping, so browser sign-in is unchanged.
+
+#### Scenario: An unlinked machine token
+
+- **WHEN** a verified token with no groups claim arrives for a pair that is linked to nothing
+- **THEN** the request is refused `401 unknown_identity` and the users table is unchanged
+
+#### Scenario: A linked machine token of a member
+
+- **WHEN** a verified token with no groups claim arrives for a pair linked to an account whose
+  role in the project's organization is `member`
+- **THEN** a read and a command batch on that project are accepted, and an organization
+  settings write is refused as a member's would be
+
+#### Scenario: A browser token keeps its groups
+
+- **WHEN** a verified token carries `wbs_groups`
+- **THEN** its scopes come from the groups claim as before, whether or not its pair is linked

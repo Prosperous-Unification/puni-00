@@ -113,8 +113,18 @@ an `external_identity` row, optionally **pinned** to one agent person
 (`external_identity.person_id`). A claim made through a pinned credential must name that
 person or a delegated claim under a claim of that person; otherwise `credential_not_for_person`.
 Browser logins are unpinned credentials of the same account. Revoking a fleet is deleting its
-row. Verification owed in slice 0: that an Auth0 M2M token for the WBS audience carries
-`wbs_groups`, or how be-01 should scope a linked credential when it does not.
+row. Verified in slice 0 (verify.md): the dev tenant has no M2M application and its groups Action is post-login only, so an M2M token carries no `wbs_groups`; the open decision is an Auth0 credentials-exchange Action or be-01 scoping a linked credential from its account.
+
+**D6b. A linked credential without a groups claim is scoped by its account (assumed, for
+Dany's nod).** Slice 0 showed an Auth0 machine-to-machine token carries no `wbs_groups`
+without tenant work. Rather than depend on a credentials-exchange Action, be-01 SHALL, when
+a verified token carries no groups claim and its `(issuer, subject)` is a linked credential,
+derive the request's scopes from the linked account's memberships: `viewer` reads, `member`
+reads and writes, `admin` and `super_admin` edit. A token that carries the groups claim keeps
+today's mapping; a credential that is not linked and carries no groups claim is refused as
+today. An M2M application per fleet is still created in the tenant for the audience, which
+is a dashboard act, not an Action. Alternative rejected: the Action, because it ties the
+contract to one provider (the `enable-public-mcp-client-auth` non-goal).
 
 **D7. A subtree claim reserves dispatch; steps under it are claimed as delegated claims.** A claim
 on a non-leaf has no step and names the subtree. Inside it, a step claim is accepted only
@@ -136,6 +146,11 @@ Progress rows stay.
   or a cascade release removes it. Accepted: expiry is a runtime fact and Dash's lease
   authority (WBS 080.24) is where the clock lives. The startable read lists claimed steps
   apart, with the last write instant, so an operator sees silent claims.
+- **A leaf whose only worked step is done reads `done`.** The table's status fold counts only
+  steps with an estimate, actual, statement or attempt, so a leaf with `Plan` done and the
+  rest untouched is refused `item_done` (review of PR #579, S3-3). Dispatch of the 42 orphan
+  steps (task 4.2) must estimate the remaining steps first. Changing the fold is out of
+  scope.
 - **A claim on a done-then-reopened step keeps its old holder.** The row survives `done`;
   if progress is reopened the old claim still holds. Release first. Recorded, not solved.
 - **Two fleets, one GitHub account** remains true until a distinct GitHub identity per fleet

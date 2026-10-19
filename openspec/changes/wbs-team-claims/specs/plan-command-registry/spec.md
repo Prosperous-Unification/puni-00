@@ -30,9 +30,10 @@ these holds, checked in this order:
 - `already_claimed`: a step it would take holds a claim; the refusal carries each holder's
   person id, name and run id;
 - `inside_subtree_claim`: an ancestor holds a subtree claim whose person is not the claimant
-  and which is not the given parent claim; the refusal carries the holder;
-- `overlaps_subtree_claim` (non-leaf only): an ancestor or descendant holds a subtree claim
-  of another person that is not the given parent claim.
+  and which is not on the given parent claim's chain; the refusal carries the holder;
+- `overlaps_subtree_claim` (non-leaf only): a descendant holds a subtree claim of another
+  person that is not a delegated claim of the claimant's chain. An ancestor's subtree claim
+  is already refused as `inside_subtree_claim` by the previous check.
 
 A claim whose every step is already held by the same person and run SHALL succeed, write
 nothing and answer `alreadyHeld: true`.
@@ -40,7 +41,8 @@ nothing and answer `alreadyHeld: true`.
 #### Scenario: A whole leaf is claimed by default
 
 - **WHEN** a batch applies `claimWorkItem` for a leaf whose `Impl` is `done` and whose `Plan`
-  and `Review` are unclaimed and not done, naming no steps
+  and `Review` are estimated, unclaimed and not done, naming no steps (a leaf whose only
+  worked step is done reads `done` under the table's fold and is refused `item_done`)
 - **THEN** claims exist on `Plan` and `Review` only, both read `in_progress`, the revision
   moves by one, one journal entry exists, and `Impl` is untouched
 
