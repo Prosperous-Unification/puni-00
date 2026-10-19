@@ -174,3 +174,41 @@ Listener proof: the legacy services remained on loopback except vmauth on privat
 `10.1.0.2:9428`. From h2puni, private probes found only 9428 open; 3000, 4318, 5000, 8428,
 10428, 6443, and 10250 were closed. Probing h3mon's public `62.238.112.126` from h2puni found
 all of those ports, including 9428, closed. Nothing new was exposed publicly.
+
+## Post-resize reboot proof, 2026-10-19
+
+Dany resized h3mon, resolving the admission failure above without changing the declared
+observability requests. After the resulting reboot, read-only checks recorded:
+
+```text
+boot                                         2026-10-19 09:08:29 UTC
+capacity                                     8 CPUs; 15,602 MiB RAM
+free -m                                      14,170 MiB available
+Kubernetes allocatable                       8 CPUs; 14273444Ki memory; Ready=True
+/etc/fstab                                   /swap.puni none swap sw 0 0
+swap.puni.swap                               active since 09:08:35 UTC
+swapon --show --bytes                        /swap.puni file 4294963200 bytes
+docker.service                               active since 09:08:43 UTC
+k3s-agent.service                            active since 09:08:39 UTC
+VictoriaMetrics /health                      200
+VictoriaLogs /health                         200
+VictoriaTraces /health                       200
+Grafana /api/health                          200
+MLflow /health                               200
+OTel HTTP receiver /                         404 (listener answered)
+```
+
+The same six service probes had passed on 2026-10-17 before the resize. This closes the
+post-change service and persistent-swap checks without claiming the unrecovered enrollment
+playbook history or a data comparison that was not run. From h2puni after the reboot, only the
+intended private vmauth port 9428 was reachable on `10.1.0.2`; ports 3000, 4318, 5000, 8428,
+10428, 6443 and 10250 were closed. On the public address, SSH was the positive control and all
+eight service/k3s ports were closed.
+
+The production observability graph was not activated. Flux reported `platform=False`
+(`HealthCheckFailed`) and `observability=False` (`DependencyNotReady`), with the registry Pod
+Pending. Each externally provided Secret documented by the runbook was absent:
+`observability/{alertmanager-puni,elastic-s3-credentials}`,
+`puni-backup/{velero-credentials,velero-repo-credentials}`, and
+`puni-registry/{registry-auth,registry-ca}`. The memory prerequisite is now satisfied, but these
+operator-owned credentials remain a separate hard prerequisite.
