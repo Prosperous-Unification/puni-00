@@ -43,15 +43,15 @@
 
 ## 2. Binding and credentials
 
-- [ ] 2.1 Migration `add_person_account` (nullable `account_id`, FK `users.id`, index) and
+- [x] 2.1 Migration `add_person_account` (nullable `account_id`, FK `users.id`, index) and
       `add_external_identity_person` (nullable `person_id`, FK `person.id`), each with a
       guarded `down.sql` — test: forward and back and both refusals; negatives watched.
-- [ ] 2.2 `patchPerson.accountId` admin-only; person read shows it; export does not — test:
+- [x] 2.2 `patchPerson.accountId` admin-only; person read shows it; export does not — test:
       directory command tests for admin, member, viewer; export golden unchanged.
 - [ ] 2.3 `person_not_bound` and `credential_not_for_person` in claim and release, with the
       admin bypass for the first only — test: the spec's cases; negative: remove the role check
       and the stranger's claim passes; remove the pin check and the cross-fleet claim passes.
-- [ ] 2.4 `link-credential-cli.ts` with `--unlink`: one row, pinned when asked; refuses unknown
+- [x] 2.4 `link-credential-cli.ts` with `--unlink`: one row, pinned when asked; refuses unknown
       account, linked pair, unbound person — test: `link-credential-cli.db.test.ts` for each;
       negative: remove the pair check and a second link steals the credential; watched.
 - [ ] 2.5 Dev proof: a request bearing Claire's machine token lists Dany's organizations'
