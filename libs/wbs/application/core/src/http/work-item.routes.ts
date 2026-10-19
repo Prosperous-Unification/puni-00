@@ -286,6 +286,8 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_person':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_account':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_team':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_tag':
@@ -369,7 +371,13 @@ const personEntity = responseSchema(
 );
 // Proof: optional teamIds admitted a patchPerson without memberships,200 instead of500 in the mounted results case.
 const personWithTeamsEntity = responseSchema(
-  type({ id: 'string', name: 'string', kind: "'person' | 'agent'", teamIds: 'string[]' }),
+  type({
+    id: 'string',
+    name: 'string',
+    kind: "'person' | 'agent'",
+    teamIds: 'string[]',
+    accountId: 'string | null',
+  }),
 );
 
 /**

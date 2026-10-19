@@ -195,6 +195,8 @@ export class MemoryState {
     replaceMap(this.tables.directory.memberships, next.tables.directory.memberships);
     replaceMap(this.tables.directory.owned, next.tables.directory.owned);
     replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
+    replaceMap(this.tables.directory.accountOf, next.tables.directory.accountOf);
+    replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`
@@ -233,10 +235,14 @@ export function bindStores(
 ): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
-  const fixtureDirectory = inMemoryDirectory((projectId) => {
-    if (workItems === null) throw new Error('work-item table was read before it was bound');
-    return workItems.listByProject(projectId);
-  }, state.tables.directory);
+  const fixtureDirectory = inMemoryDirectory(
+    (projectId) => {
+      if (workItems === null) throw new Error('work-item table was read before it was bound');
+      return workItems.listByProject(projectId);
+    },
+    state.tables.directory,
+    state.tables.users.byId,
+  );
   const directory: TransactionalStores['directory'] = {
     ...fixtureDirectory,
     async renameTag(tagId, name, stamp) {

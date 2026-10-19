@@ -355,6 +355,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'afterId_must_be_id_or_null':
     case 'personId_must_be_id_or_null':
     case 'serviceTeamId_must_be_id_or_null':
+    case 'accountId_must_be_id_or_null':
     case 'name_must_be_text':
     case 'notes_must_be_text':
     case 'kind_must_be_text':
@@ -424,6 +425,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_dependency':
     case 'unknown_metric':
     case 'unknown_person':
+    case 'unknown_account':
     case 'unknown_team':
     case 'unknown_tag':
     case 'unknown_service':

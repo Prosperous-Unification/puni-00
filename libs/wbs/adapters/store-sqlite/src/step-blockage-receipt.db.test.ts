@@ -174,7 +174,9 @@ for (const retained of [
       const ledger = connection.db.all<AppliedMigration>('SELECT * FROM __drizzle_migrations');
       expect(ledger.some(({ name }) => name === parallelMigration)).toBe(true);
       // Proof: omitting the newer migration's ledger deletion failed the exact post-refusal ledger (2026-10-17).
-      const refusedLedger = ledger.filter(({ name }) => !newerMigrations.includes(name));
+      const refusedLedger = ledger.filter(
+        ({ name }) => name === null || !newerMigrations.includes(name),
+      );
       const receiptState = () => ({
         schema: connection.db.all(
           "SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name IN ('step_blockage_activation', 'step_blockage_activation_receipt') ORDER BY name",

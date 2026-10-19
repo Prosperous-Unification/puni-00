@@ -38,7 +38,7 @@ test('publishes all six existing directory operation names and complete row fiel
   expect(
     document.paths['/api/people']?.['get']?.responses['200']?.content?.['application/json']?.schema,
   ).toMatchObject({
-    properties: { people: { items: { required: ['id', 'kind', 'name', 'teamIds'] } } },
+    properties: { people: { items: { required: ['accountId', 'id', 'kind', 'name', 'teamIds'] } } },
   });
 });
 
@@ -50,10 +50,12 @@ test('validates required memberships and person kind while retaining additive au
     (await validateSchema(team, { teams: [{ id: 't', name: 'Team', serviceIds: [4] }] })).issues,
   ).toBeDefined();
   for (const person of [
-    { id: 'p', name: 'Person', teamIds: [] },
-    { id: 'p', name: 'Person', kind: 'robot', teamIds: [] },
-    { id: 'p', name: 'Person', kind: 'person' },
-    { id: 'p', name: 'Person', kind: 'agent', teamIds: [4] },
+    { id: 'p', name: 'Person', teamIds: [], accountId: null },
+    { id: 'p', name: 'Person', kind: 'robot', teamIds: [], accountId: null },
+    { id: 'p', name: 'Person', kind: 'person', accountId: null },
+    { id: 'p', name: 'Person', kind: 'agent', teamIds: [4], accountId: null },
+    { id: 'p', name: 'Person', kind: 'agent', teamIds: [] },
+    { id: 'p', name: 'Person', kind: 'agent', teamIds: [], accountId: 4 },
   ])
     expect((await validateSchema(people, { people: [person] })).issues).toBeDefined();
   const enriched = {
@@ -63,6 +65,7 @@ test('validates required memberships and person kind while retaining additive au
         name: 'Person',
         kind: 'agent' as const,
         teamIds: ['t'],
+        accountId: 'account-dany',
         createdAt: 42,
         createdBy: 'owner',
       },

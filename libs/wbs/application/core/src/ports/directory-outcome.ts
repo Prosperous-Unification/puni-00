@@ -11,12 +11,19 @@
  * hold — `unknown_team`'s twin, one dimension over.
  */
 export type DirectoryRefusal =
+  /**
+   * `patchPerson` with `accountId` from a caller who is not an organization
+   * admin or super-admin, or under legacy access, which has no organization.
+   */
+  | 'forbidden'
   | 'invalid_kind'
   | 'name_required'
   | 'not_found'
   | 'nothing_to_change'
   | 'unknown_service'
-  | 'unknown_team';
+  | 'unknown_team'
+  /** `accountId` naming no account, or one that is not a member of the person's organization. */
+  | 'unknown_account';
 
 /**
  * What a directory write answered.

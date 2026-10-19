@@ -638,6 +638,7 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
           name: 'Unassigned member',
           kind: 'person',
           teamIds: ['team-a'],
+          accountId: null,
         },
         projectIds: [],
       },
@@ -652,9 +653,10 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
         name: 'Unassigned member',
         kind: 'person',
         teamIds: ['team-a'],
+        accountId: null,
       },
-      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
-      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'], accountId: null },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'], accountId: null },
     ],
   });
   return change;

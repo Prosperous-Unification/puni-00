@@ -112,11 +112,18 @@ export interface PersonPatch {
   name?: string;
   teamIds?: readonly string[];
   kind?: PersonKind;
+  /**
+   * Binds the person to the account that may act as them, or unbinds them
+   * with null (`wbs-team-claims` D5). Who may send it is the resource's rule;
+   * the store refuses `unknown_account` for an account that does not exist or,
+   * when the person belongs to an organization, is not its member.
+   */
+  accountId?: string | null;
 }
 
 export type PersonWritten =
   | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
-  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' };
 
 /**
  * What a create answered.
@@ -414,6 +421,21 @@ export interface DirectoryStore {
    * a team removed after some earlier check cannot slip between them.
    */
   patchPerson(personId: string, patch: PersonPatch, stamp: WriteStamp): Promise<PersonWritten>;
+  /**
+   * The account bound to act as this person, or null when the person is
+   * unbound (`wbs-team-claims` D5).
+   *
+   * @throws when no person has this id: the caller names a person it already
+   * holds, so its absence is a fault, not an unbound person.
+   */
+  boundAccountOf(personId: string): Promise<string | null>;
+  /**
+   * The person a linked credential `(issuer, subject)` is pinned to, or null
+   * when the credential is unpinned or is not linked through
+   * `external_identity` at all (a pre-activation login's pair lives on its
+   * user row and is unpinned) — `wbs-team-claims` D6.
+   */
+  credentialPinOf(issuer: string, subject: string): Promise<string | null>;
   /**
    * What points at this person right now — a **fast path** for the refusal,
    * never the authority for it. Between this answer and any delete, anybody may
