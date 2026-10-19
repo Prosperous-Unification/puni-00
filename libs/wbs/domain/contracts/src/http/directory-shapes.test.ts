@@ -38,7 +38,7 @@ test('publishes all six existing directory operation names and complete row fiel
   expect(
     document.paths['/api/people']?.['get']?.responses['200']?.content?.['application/json']?.schema,
   ).toMatchObject({
-    properties: { people: { items: { required: ['accountId', 'id', 'kind', 'name', 'teamIds'] } } },
+    properties: { people: { items: { required: ['id', 'kind', 'name', 'teamIds'] } } },
   });
 });
 
@@ -54,7 +54,6 @@ test('validates required memberships and person kind while retaining additive au
     { id: 'p', name: 'Person', kind: 'robot', teamIds: [], accountId: null },
     { id: 'p', name: 'Person', kind: 'person', accountId: null },
     { id: 'p', name: 'Person', kind: 'agent', teamIds: [4], accountId: null },
-    { id: 'p', name: 'Person', kind: 'agent', teamIds: [] },
     { id: 'p', name: 'Person', kind: 'agent', teamIds: [], accountId: 4 },
   ])
     expect((await validateSchema(people, { people: [person] })).issues).toBeDefined();
@@ -72,4 +71,13 @@ test('validates required memberships and person kind while retaining additive au
     ],
   };
   expect(await validateSchema(people, enriched)).toEqual({ value: enriched });
+});
+
+// Proof: `accountId` required on this shape made this fail, and with it 111
+// cases of fe-01's `plan-cards.test.tsx` whose people fixtures predate the
+// field (the h2puni gate on 634587486dab, 2026-10-19).
+test('reads people from a release that sends no accountId, as mid-swap', async () => {
+  const people = listPeople.responses[0].schema;
+  const outgoing = { people: [{ id: 'p', name: 'Person', kind: 'agent' as const, teamIds: [] }] };
+  expect(await validateSchema(people, outgoing)).toEqual({ value: outgoing });
 });

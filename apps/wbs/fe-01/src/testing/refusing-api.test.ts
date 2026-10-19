@@ -88,6 +88,27 @@ describe('refusingApi contract boundary', () => {
     await expect(api.listProjects()).rejects.toThrow('fake_invalid_response');
   });
 
+  // Proof: `accountId` required on `listPeople` failed this, as it failed 111
+  // cases of `plan-cards.test.tsx` on the h2puni gate (2026-10-19).
+  it('passes a people fixture with and without the account binding through the client', async () => {
+    const unbound = { id: 'p1', name: 'Kat', kind: 'person' as const, teamIds: [] };
+    const bound = { ...unbound, id: 'p2', name: 'Claire', accountId: 'dany' };
+    const api = refusingApi({ listPeople: () => Promise.resolve([unbound, bound]) });
+
+    await expect(api.listPeople()).resolves.toEqual([unbound, bound]);
+  });
+
+  it('refuses a people answer whose account binding is not an id or null', async () => {
+    const api = refusingApi({
+      listPeople: () =>
+        Promise.resolve([
+          { id: 'p1', name: 'Kat', kind: 'person', teamIds: [], accountId: 4 },
+        ] as never),
+    });
+
+    await expect(api.listPeople()).rejects.toThrow('fake_invalid_response');
+  });
+
   it('does not repair a missing required created-project facade field', async () => {
     const api = refusingApi({
       createProject: () => Promise.resolve({ id: 'project-1', name: 'Plan' } as never),

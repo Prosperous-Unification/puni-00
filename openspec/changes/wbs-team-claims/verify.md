@@ -86,6 +86,24 @@ credential is pinned` exit 0 and drop the column with the pin in it.
   wrote the pin.
 - CLI activation check: removed, `refuses before organization activation …` wrote the row.
 
+### First h2puni gate, and what it caught
+
+`bin/h2puni-gate.sh 634587486dab11e3acf32cfb5521eb04197f505b` printed `h2puni gate: running on
+634587486dab11e3acf32cfb5521eb04197f505b` and exited 1. Failed: `wbs-fe-01:test` (111 cases of
+`plan-cards.test.tsx` plus `plan-filter`, `plan-estimates`, `plan-keyboard`,
+`plan-read-and-write`): fe-01 validates the people read against the same `listPeople` shape,
+its fixtures carry no `accountId`, and every refresh was refused `fake_invalid_response`.
+The same refusal would hit a new fe-01 answered by the outgoing be-01 mid-swap. `accountId` is
+now optional on that wire shape (be-01's own answer is still held to it by
+`person-account.controller.db.test.ts`), `PersonView.accountId` is optional, and
+`refusing-api.test.ts` round-trips a people fixture with and without the binding through the
+client validator. Proof: the field made required again failed that case and
+`directory-shapes.test.ts` `reads people from a release that sends no accountId, as mid-swap`.
+Also failed: `wbs-store-memory`, `wbs-conformance` and `wbs-store-sqlite:typecheck` (`tsc
+--build` over `saved-plan-capture.ts`, a literal `null` where `string | null` was needed; the
+per-config `tsc -p` runs above had missed it) and `tool-devsync:test` (the new
+`directory-fixture.test.ts` was not in the store-memory module index).
+
 ### Assumptions made in this slice (for Dany's review)
 
 - The bound account must be a member of the person's organization (`unknown_account`

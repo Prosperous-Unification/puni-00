@@ -46,6 +46,12 @@ export const listTeams = defineEndpointShape({
 /**
  * Reads people with their kind, complete team memberships and the account
  * bound to act as each (`accountId`, null when unbound; `wbs-team-claims` D5).
+ *
+ * `accountId` is optional on the wire although this release always sends it:
+ * fe-01 reads this shape too, and mid-swap a new fe-01 is answered by the
+ * outgoing be-01, which knows no binding. Required, every people read there
+ * would be refused and the plan would stop refreshing. be-01's own answer is
+ * held to the field by `person-account.controller.db.test.ts`.
  * Proof: optional kind, optional teamIds and unrestricted kind each returned200
  * instead of500 in the mounted damaged-directory case. Using requestSchema
  * rejected additive audit fields,500 instead of200 in the mounted audit case.
@@ -66,7 +72,7 @@ export const listPeople = defineEndpointShape({
             name: 'string',
             kind: "'person' | 'agent'",
             teamIds: 'string[]',
-            accountId: 'string | null',
+            'accountId?': 'string | null',
           }).array(),
         }),
       ),
