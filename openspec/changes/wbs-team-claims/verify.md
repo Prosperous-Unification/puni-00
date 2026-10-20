@@ -602,3 +602,17 @@ else changed. MCP tool count unchanged by the fixes (82).
 49f4bc4ff7c942824112ddb6f48f837498b14765`, `exit=0` (2026-10-20). That SHA is the review fixes
 rebased onto `plan/wbs-team-claims`; the commit recording this paragraph changes this file only.
 Earlier queued runs on `e767ac91d` and `d77c5336f` were cancelled before they started (exit 143).
+
+## Whole-change review (2026-10-20, orchestrator)
+
+Adversarial read-only review of the merged plan head 262ddf52d against `origin/main`: no S1.
+S2-1: a leaf that gains its first child strands its step claims (not handed down with the
+other step facts); fixed in the follow-up branch `feat/wbs-claims-handdown` with the spec
+scenario "A claimed leaf is split". S3-1 (refusal holder names from the root directory, not
+the organization's names, and a full `listPeople` scan), S3-3 (delegated claims under a
+pinned credential proven only in the domain), S3-4 (`deletePerson --cascade` of a superagent
+takes workers' delegated claims without naming them or moving their items' revisions), S3-5
+(mid-swap FK refusals not in the blue/green notes) and the S4s are carried in the same
+follow-up branch; S3-2 (refusal codes the deltas did not state) fixed in the specs. Not yet
+verified: the pre-activation `401 unknown_identity` clause (every fleet-credential test runs
+after activation); a test is owed by the follow-up branch.
