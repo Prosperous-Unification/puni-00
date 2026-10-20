@@ -20,6 +20,7 @@ case "$line" in
 esac
 if [[ $line =~ ^heavy\ lock:\ holder\ pid\ ([0-9]+)\ label\ (.+)$ ]]; then
   pid=${BASH_REMATCH[1]}
+  label=${BASH_REMATCH[2]}
 else
   printf 'Unrecognized holder status; do not infer an owner.\n' >&2
   exit 70
@@ -65,6 +66,13 @@ if [[ $source_known -eq 1 ]] && [[ $(git -C "$checkout" rev-parse --verify HEAD)
   printf 'Checkout HEAD changed during lookup; rerun.\n' >&2
   exit 75
 fi
+if [[ $source_known -eq 1 && $label =~ ^gate:([0-9a-f]{8})$ ]]; then
+  requested_prefix=${BASH_REMATCH[1]}
+  if [[ ${sha:0:8} != "$requested_prefix" ]]; then
+    printf 'Gate label %s disagrees with checkout HEAD %s; checkout may still be moving. Rerun.\n' "$label" "$sha" >&2
+    exit 75
+  fi
+fi
 printf 'Holder recheck: %s\n' "$after_line"
 if [[ $source_known -ne 1 ]]; then
   exit 70
@@ -86,6 +94,7 @@ For a gate, the process arguments name the requested SHA. Its checkout can
 still show a previous HEAD while the gate starts. The gate log's
 `h2puni gate: running on <sha>` line confirms which SHA it actually checked out
 under the lock; do not call the requested SHA tested before that marker appears.
+The lookup refuses a stable `gate:<8sha>` label whose prefix differs from HEAD.
 
 For fleet attribution, `task-*` is Claire's branch namespace. `integration/*`,
 `batch-10/*`, `ui-review/*`, `feat/*`, `refactor/*`, `docs/*`, `wip/*` and `plan/*`
