@@ -7,6 +7,13 @@
 -- one of two claims leaves the other's copy, releasing the last takes the last.
 -- A row goes with its claim and with its resource (`deleteResource` cascade).
 --
+-- Mid-swap and rollback lose occupancy silently, never overcommit WBS's own
+-- check: an outgoing-colour claim acquires nothing, and later claims on that
+-- leaf copy its empty vector; an outgoing-colour redo re-adds claims without
+-- their rows; after a rollback to the older image nothing reads or writes
+-- this table, so claims made there hold nothing (down.sql refuses while rows exist).
+-- See `docs/runbook-prod-deploy.md`, "Team claims swap window and rollback".
+--
 -- Proof: the CHECK, the primary key and each cascade removed alone failed its
 -- own case in store-sqlite `claim-occupancy-schema.db.test.ts`; watched 2026-10-20.
 CREATE TABLE `claim_occupancy` (

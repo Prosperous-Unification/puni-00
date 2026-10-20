@@ -23,9 +23,9 @@ claim cascade, resource_id FK resource cascade, units CHECK >= 1, PK (claim_id, 
 holds one row per claim and resource, and **every** claim row of a leaf carries a copy of the
 leaf's whole vector. A leaf holds the largest copy per resource (`leafOccupancyOf`), never the
 sum; the project's occupancy is the sum over leaves (`occupancyByResource`). A claim on a leaf
-that already holds a claim copies the standing vector and acquires nothing (`acquired: []`),
-whatever its `resources` asks; releasing one of two claims leaves the other's copy, releasing
-the last takes the last copy by cascade. Rows on the first claim alone would have been freed
+that already holds a claim copies the standing vector and acquires nothing (`acquired: []`)
+unless its `resources` asks for more (review round 1, below); releasing one of two claims
+leaves the other's copy, releasing the last takes the last copy by cascade. Rows on the first claim alone would have been freed
 when that claim was released first, against "releasing only A's claim first changed nothing".
 
 - 2.1 `libs/wbs/domain/domain/src/occupancy.ts`: `askedUnitsOf` (declared demand raised by the
@@ -112,6 +112,64 @@ assumed.
 
 Not run: the h2puni gate (the orchestrator gates the plan head), the full Nx suites, fe-01
 tests (fe-01 typechecks; only its refusal switch changed).
+
+### Slice 2, review round 1 (PR #590 at 5d13cdeca)
+
+`origin/plan/wbs-resources` at f3790cdaf (claims hand-down, PR #589) merged in first: 12
+conflicted files, resolved keeping both sides; the claim's name read now also names the
+occupancy holders (`resources_exhausted` names holders on other leaves, beyond the claim's
+lineage).
+
+- S1: `refuseReacquiring` folds leaf by leaf: each admitted leaf's rows join the occupancy
+  snapshot before the next leaf of the same entry is checked. `undo of a cascading release
+re-acquires leaf by leaf, refused once the second leaf no longer fits` (both stores):
+  capacity 8, a subtree claim with delegated claims on X and Y (4 each), release, another
+  account claims a third leaf (4), undo → `stale_undo` `resources_exhausted: …`, occupancy
+  still 4. Watched failing before the fix and again with the admitted rows left out of the
+  snapshot (undo answered ok, over capacity).
+- S2-a: an `add_claims` entry without `occupancy` (claims slice 1, a release's undo, an
+  outgoing colour mid-swap) reads as holding nothing; the field is optional on the command and
+  every new entry writes it. `reads a claim replay written before occupancy as holding
+nothing` (compensating.test.ts) and `undoes a release and redoes a claim journalled before
+claim occupancy` (claim-race.db.test.ts, the field stripped from both journal columns by
+  SQL) both failed with absence refused. Journal vocabulary admission: the swap's replay
+  capability check (`tools/tool-deploy/src/k8s/replay-capability.ts`, runbook "Step blockage
+  rollback") counts only `replace_blockage`, `move_progress_v1` and `delete_state_v1`.
+  `add_claims`, `remove_claims`, `move_claims` and `set_demand` are not admission-checked
+  today: an image older than the claims change fails such an undo or redo at `readCommand`
+  as an unknown command, and an image with claims but not occupancy replays `add_claims`
+  ignoring `occupancy` (the swap rule above covers it). Not added here.
+- S2-b: on a held leaf a later claim's `resources` raises the standing copy: each entry at
+  least what the leaf holds (`below_held_occupancy` otherwise), the larger copy checked by
+  `refuseOccupancy` and written as that claim's copy; `acquired` is the difference. Order:
+  `below_declared_demand`, `below_held_occupancy`, `resources_exhausted`. Tests: three domain
+  cases, and on both stores `expands a held leaf's units on a later claim's ask, or refuses it`
+  (capacity 8: acquired 4, occupancy 8; capacity 6: `resources_exhausted` asked 8 free 6) and
+  `refuses a later claim asking for less than its leaf holds`. The `claimWorkItem` description
+  states the rule and lists `steps_on_subtree`, `resources_on_subtree` and `no_steps` in its
+  first-match order. The spec sentence on second claims is left to the plan branch.
+- S3(1): mid-swap and rollback losses are in the migration header and in the runbook's "Team
+  claims swap window and rollback" with the rule "no claim redo, and no release undo, from the
+  outgoing colour during the swap window": an outgoing-colour claim acquires nothing and later
+  claims on that leaf copy the empty vector; an outgoing-colour redo re-adds claims without
+  rows; after an image rollback nothing reads or writes the table. None overcommits WBS's own
+  check; all are silently missing occupancy.
+- S3(2): a leaf gaining its first child (create) hands its `work_item_resource_demand` rows to
+  the child, journalled as `set_demand` steps (forward: child set, parent cleared; inverse:
+  parent restored before the child's delete); occupancy rows stay on the claims, which move in
+  place. `hands a leaf's demand down to its first child, keeping the occupancy, and back on
+undo` (both stores) failed with the write, the inverse and the redo steps each removed. A
+  move that makes a leaf a parent is not changed here (a move under a claimed leaf is refused
+  `destination_claimed` by PR #589; demands on a move are untouched, as before).
+- Commands (2026-10-20, laptop, `env -u CLAUDECODE`): `bunx tsc --build` on the nine projects
+  (fe-01 included): exit 0. `bun test` over 99 files (the 93 of the first run that remain plus
+  every WBS test file the plan merge or this round changed, and the handoff test): 2101 pass,
+  1 skip (the existing memory stale-undo case), 0 fail. Not run: the non-WBS test files the
+  plan merge carried in (twilight-burokrat packaging and policy, tool-wiki, twilight-dash), 15 of
+  which fail here without their build artifacts (`packed tarball is absent`); not this change's.
+  `openspec validate --all --json`: 263 passed, 0 failed.
+- S3(3): the occupancy read is service-level (`WorkItemService.occupancyOf`) until slice 5's
+  startable fit exposes free units; no route now, so no MCP tool.
 
 ## Slice 4: assignee management (tasks 4.1 to 4.3)
 

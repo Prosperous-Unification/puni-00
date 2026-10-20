@@ -1,5 +1,6 @@
 import type {
   BelowDeclaredDemand,
+  BelowHeldOccupancy,
   Claim,
   ClaimHolder,
   ClaimRefusal,
@@ -76,6 +77,7 @@ export type ClaimRefusalOutcome =
       readonly holder: NamedClaimHolder;
     }
   | ({ readonly ok: false } & BelowDeclaredDemand)
+  | ({ readonly ok: false } & BelowHeldOccupancy)
   | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders'> & {
         readonly holders: readonly NamedOccupancyHolder[];
       });
@@ -88,9 +90,9 @@ export interface Claimed {
   /** The steps the claim made the claimant the assignee of; empty without `assign`. */
   readonly assignedStepIds: readonly string[];
   /**
-   * The units this claim newly acquired (`wbs-resources` R3): the leaf's
-   * occupancy on its first claim, empty on any later claim of the leaf, a
-   * subtree claim and `alreadyHeld`.
+   * The units this claim newly acquired (`wbs-resources` R3, R4): the leaf's
+   * occupancy on its first claim, what a later claim's ask adds above the
+   * standing copy, and empty for a subtree claim and `alreadyHeld`.
    */
   readonly acquired: readonly ResourceUnits[];
 }
@@ -176,6 +178,7 @@ export function refusalOf(
     case 'overlaps_subtree_claim':
       return { ok: false, reason: refusal.reason, holder: named(refusal.holder) };
     case 'below_declared_demand':
+    case 'below_held_occupancy':
       return { ok: false, ...refusal };
     case 'resources_exhausted':
       return { ok: false, ...refusal, holders: refusal.holders.map(occupant) };

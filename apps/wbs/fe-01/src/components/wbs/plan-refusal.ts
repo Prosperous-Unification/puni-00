@@ -510,6 +510,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'resources_must_name_each_resource_once':
     case 'resources_on_subtree':
     case 'below_declared_demand':
+    case 'below_held_occupancy':
     case 'resources_exhausted':
       return refusal.error;
     // Resources (`wbs-resources`): the table sends none of these until 1.5, so

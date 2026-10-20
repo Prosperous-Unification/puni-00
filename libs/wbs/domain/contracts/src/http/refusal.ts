@@ -203,6 +203,7 @@ export type CommandRefusalCode =
   // and inside_subtree_claim in the claim's order.
   | 'resources_on_subtree'
   | 'below_declared_demand'
+  | 'below_held_occupancy'
   | 'resources_exhausted'
   | 'inside_subtree_claim'
   | 'overlaps_subtree_claim'
@@ -348,14 +349,16 @@ export type CommandRefusalDetail = {
                       ? { holder: ClaimRefusalHolder }
                       : C extends 'below_declared_demand'
                         ? { resourceId: string; asked: number; declared: number }
-                        : C extends 'resources_exhausted'
-                          ? {
-                              resourceId: string;
-                              asked: number;
-                              free: number;
-                              holders: OccupancyRefusalHolder[];
-                            }
-                          : Record<never, never>);
+                        : C extends 'below_held_occupancy'
+                          ? { resourceId: string; asked: number; held: number }
+                          : C extends 'resources_exhausted'
+                            ? {
+                                resourceId: string;
+                                asked: number;
+                                free: number;
+                                holders: OccupancyRefusalHolder[];
+                              }
+                            : Record<never, never>);
 };
 
 type BareRefusalCode =

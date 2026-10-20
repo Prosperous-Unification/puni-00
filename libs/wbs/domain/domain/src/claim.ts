@@ -1,6 +1,9 @@
 import {
+  acquiredUnitsOf,
   askedUnitsOf,
   type BelowDeclaredDemand,
+  type BelowHeldOccupancy,
+  expandedUnitsOf,
   leafOccupancyOf,
   type OccupancyRow,
   refuseOccupancy,
@@ -114,6 +117,7 @@ export type ClaimRefusal =
   | { readonly reason: 'step_done'; readonly stepIds: readonly string[] }
   | { readonly reason: 'already_claimed'; readonly holders: readonly ClaimHolder[] }
   | BelowDeclaredDemand
+  | BelowHeldOccupancy
   | ResourcesExhausted
   | { readonly reason: 'inside_subtree_claim'; readonly holder: ClaimHolder }
   | { readonly reason: 'overlaps_subtree_claim'; readonly holder: ClaimHolder };
@@ -318,22 +322,23 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
   if (target.isLeaf) {
     const asked = askedUnitsOf(request.demand, request.resources);
     if (!Array.isArray(asked)) return refused(asked);
+    // A held leaf's later claim starts from the standing copy, not the
+    // declared demand, and acquires only what its ask adds above it.
     // Proof: with `onTarget.length > 0` replaced by `false`, `a second claim on
     // another step of the leaf acquires nothing` (claim-occupancy.test.ts)
     // answered the demand as acquired again; watched 2026-10-20.
-    if (onTarget.length > 0) {
-      occupancy = leafOccupancyOf(request.occupancy, target.workItemId);
-    } else {
-      const exhausted = refuseOccupancy({
-        workItemId: target.workItemId,
-        asked,
-        capacities: request.capacities,
-        occupancy: request.occupancy,
-      });
-      if (exhausted !== null) return refused(exhausted);
-      occupancy = asked;
-      acquired = asked;
-    }
+    const held = onTarget.length > 0 ? leafOccupancyOf(request.occupancy, target.workItemId) : [];
+    const carried = onTarget.length > 0 ? expandedUnitsOf(held, request.resources) : asked;
+    if (!Array.isArray(carried)) return refused(carried);
+    const exhausted = refuseOccupancy({
+      workItemId: target.workItemId,
+      asked: carried,
+      capacities: request.capacities,
+      occupancy: request.occupancy,
+    });
+    if (exhausted !== null) return refused(exhausted);
+    occupancy = carried;
+    acquired = acquiredUnitsOf(held, carried);
   }
 
   const delegatedFrom = new Set(parentChain.map((each) => each.id));

@@ -267,6 +267,63 @@ for (const store of STORES) {
       }
     });
 
+    // R4 on a held leaf: a later claim's larger ask is acquired whole or refused.
+    for (const [capacity, expected] of [
+      [8, 'acquired'],
+      [6, 'refused'],
+    ] as const)
+      it(`expands a held leaf's units on a later claim's ask, or refuses it (capacity ${String(capacity)})`, async () => {
+        const { run, claim, dev, review, leaf, occupied, close } = await seeded(store);
+        try {
+          await run([
+            { kind: 'setResourceCapacity', resourceId: RAM, units: capacity },
+            { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+          ]);
+          expect(await run([claim(0, 'a0', { steps: [dev] })])).toMatchObject({ ok: true });
+          const expanded = await run([
+            claim(0, 'a1', { steps: [review], resources: [{ resourceId: RAM, units: 8 }] }),
+          ]);
+          if (expected === 'acquired') {
+            expect(expanded).toMatchObject({
+              ok: true,
+              results: [{ acquired: [{ resourceId: RAM, units: 4 }] }],
+            });
+            expect(await occupied(RAM)).toBe(8);
+          } else {
+            expect(expanded).toMatchObject({
+              ok: false,
+              reason: 'resources_exhausted',
+              detail: { resourceId: RAM, asked: 8, free: 6 },
+            });
+            expect(await occupied(RAM)).toBe(4);
+          }
+        } finally {
+          await close();
+        }
+      });
+
+    it('refuses a later claim asking for less than its leaf holds', async () => {
+      const { run, claim, dev, review, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([{ kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 }]);
+        await run([claim(0, 'a0', { steps: [dev], resources: [{ resourceId: RAM, units: 6 }] })]);
+        expect(
+          await run([
+            claim(0, 'a1', { steps: [review], resources: [{ resourceId: RAM, units: 5 }] }),
+          ]),
+        ).toEqual({
+          ok: false,
+          at: 0,
+          kind: 'claimWorkItem',
+          reason: 'below_held_occupancy',
+          detail: { resourceId: RAM, asked: 5, held: 6 },
+        });
+        expect(await occupied(RAM)).toBe(6);
+      } finally {
+        await close();
+      }
+    });
+
     // Scenario: Asking for more than declared.
     it('holds what resources asks above the declared demand, and refuses asking less', async () => {
       const { run, claim, leaf, occupied, close } = await seeded(store);
@@ -385,6 +442,88 @@ for (const store of STORES) {
         expect(await occupied(RAM)).toBe(0);
         expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
         expect(await occupied(RAM)).toBe(4);
+      } finally {
+        await close();
+      }
+    });
+
+    it('undo of a cascading release re-acquires leaf by leaf, refused once the second leaf no longer fits', async () => {
+      const { runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      try {
+        const tree = await run([
+          { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
+          {
+            kind: 'createWorkItem',
+            ref: 'X',
+            name: 'X',
+            parentId: null,
+            parentRef: 'P',
+            afterId: null,
+          },
+          {
+            kind: 'createWorkItem',
+            ref: 'Y',
+            name: 'Y',
+            parentId: null,
+            parentRef: 'P',
+            afterId: null,
+          },
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemRef: 'X', resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemRef: 'Y', resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
+        ]);
+        if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
+        const [parent, x, y] = tree.results.map(({ id }) => id ?? '');
+        const subtree = await run([{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }]);
+        if (!subtree.ok)
+          throw new Error(`the subtree claim was refused: ${JSON.stringify(subtree)}`);
+        const applied = subtree.results[0];
+        const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+        if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+        for (const [workItemId, personId] of [
+          [x, 'a1'],
+          [y, 'a2'],
+        ] as const)
+          expect(
+            await run([{ kind: 'claimWorkItem', workItemId, personId, parentClaim }]),
+          ).toMatchObject({ ok: true });
+        expect(await occupied(RAM)).toBe(8);
+        expect(
+          await run([{ kind: 'releaseWorkItem', workItemId: parent, personId: 'a0' }]),
+        ).toMatchObject({ ok: true });
+        expect(await occupied(RAM)).toBe(0);
+        expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
+        const undone = await runner.undo(projectId, F);
+        expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+        expect(undone.ok ? null : undone.detail).toStartWith('resources_exhausted:');
+        expect(await occupied(RAM)).toBe(4);
+      } finally {
+        await close();
+      }
+    });
+
+    it('hands a leaf’s demand down to its first child, keeping the occupancy, and back on undo', async () => {
+      const { source, runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([{ kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 }]);
+        await run([claim(0, 'a0')]);
+        const demands = async () =>
+          (await source.stores.demands.listByProject(projectId)).map(
+            ({ workItemId, units }) =>
+              `${workItemId === leaf(0) ? 'parent' : 'child'}:${String(units)}`,
+          );
+        const split = await run([
+          { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
+        ]);
+        expect(split).toMatchObject({ ok: true });
+        expect(await demands()).toEqual(['child:4']);
+        expect(await occupied(RAM)).toBe(4);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual(['parent:4']);
+        expect(await occupied(RAM)).toBe(4);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual(['child:4']);
       } finally {
         await close();
       }

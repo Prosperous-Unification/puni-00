@@ -895,7 +895,9 @@ function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
   // (a claim of claims slice 1, a release's undo, or an outgoing colour mid-swap):
   // those claims held nothing, so the replay re-adds them holding nothing.
   // Proof: with absence refused, `reads a claim replay written before occupancy
-  // as holding nothing` (compensating.test.ts) threw; watched 2026-10-20.
+  // as holding nothing` (compensating.test.ts) threw, and `undoes a release and
+  // redoes a claim journalled before claim occupancy` (claim-race.db.test.ts)
+  // failed its undo; watched 2026-10-20.
   if (!('occupancy' in value)) return;
   const occupancy: unknown = value.occupancy;
   // Proof: with this check answering early, `refuses a claim replay whose

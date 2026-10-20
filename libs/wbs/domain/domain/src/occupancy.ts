@@ -58,6 +58,56 @@ export interface ResourcesExhausted {
   readonly holders: readonly OccupancyHolder[];
 }
 
+/** A later claim on a held leaf asking for less of a resource than the leaf holds. */
+export interface BelowHeldOccupancy {
+  readonly reason: 'below_held_occupancy';
+  readonly resourceId: string;
+  readonly asked: number;
+  readonly held: number;
+}
+
+/**
+ * What a later claim on a leaf that already holds a claim carries
+ * (`wbs-resources` R4): the standing copy, each entry raised to the claim's
+ * `resources` entry for it, plus any resource the ask adds. An ask below the
+ * standing copy is refused `below_held_occupancy`: an expansion is accepted
+ * whole or refused, and a claim never shrinks what its leaf holds.
+ *
+ * Proof: with this refusal removed, `refuses below_held_occupancy for an ask
+ * under the standing copy` (claim-occupancy.test.ts) claimed with the smaller
+ * ask; watched 2026-10-20.
+ */
+export function expandedUnitsOf(
+  held: readonly ResourceUnits[],
+  asked: readonly ResourceUnits[] | null,
+): ResourceUnits[] | BelowHeldOccupancy {
+  const units = new Map(held.map((each) => [each.resourceId, each.units]));
+  for (const each of [...(asked ?? [])].sort(byResource)) {
+    const floor = units.get(each.resourceId) ?? 0;
+    if (each.units < floor)
+      return {
+        reason: 'below_held_occupancy',
+        resourceId: each.resourceId,
+        asked: each.units,
+        held: floor,
+      };
+    units.set(each.resourceId, each.units);
+  }
+  return [...units].map(([resourceId, each]) => ({ resourceId, units: each })).sort(byResource);
+}
+
+/** What `after` holds above `before`, resource by resource: the units a claim newly acquires. */
+export function acquiredUnitsOf(
+  before: readonly ResourceUnits[],
+  after: readonly ResourceUnits[],
+): ResourceUnits[] {
+  const was = new Map(before.map((each) => [each.resourceId, each.units]));
+  return after
+    .map(({ resourceId, units }) => ({ resourceId, units: units - (was.get(resourceId) ?? 0) }))
+    .filter(({ units }) => units > 0)
+    .sort(byResource);
+}
+
 function byResource(left: ResourceUnits, right: ResourceUnits): number {
   return left.resourceId < right.resourceId ? -1 : left.resourceId > right.resourceId ? 1 : 0;
 }

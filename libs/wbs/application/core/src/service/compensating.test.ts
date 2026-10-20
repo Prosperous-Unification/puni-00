@@ -404,7 +404,7 @@ describe('claim replay vocabulary', () => {
   });
 
   it('reads a claim replay written before occupancy as holding nothing', () => {
-    const legacy = { do: 'add_claims', claims: [claim], stated: [] };
+    const legacy: CompensatingCommand = { do: 'add_claims', claims: [claim], stated: [] };
     expect(readCommand(legacy)).toEqual(legacy);
     expect(referencesOf(readCommand(legacy))).toMatchObject({ resources: [] });
   });
