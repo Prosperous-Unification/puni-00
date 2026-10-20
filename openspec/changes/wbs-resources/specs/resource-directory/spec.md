@@ -25,7 +25,7 @@ capacities and occupancies of that resource are removed in the same transaction.
 
 `setResourceCapacity { resource, units | null }` SHALL record the pair `(project, resource)`
 exactly as `setCapacity` records `(project, team)`: absent or null is unstated and constrains
-nothing; a number stated for a resource no leaf of the plan demands any more is remembered
+nothing; a stated 0 clamps every demand in the schedule (dates are still placed) and refuses every claim that would occupy it; a number stated for a resource no leaf of the plan demands any more is remembered
 and re-applies when a demand returns. The project settings read SHALL list stated pairs.
 
 #### Scenario: Unstated constrains nothing

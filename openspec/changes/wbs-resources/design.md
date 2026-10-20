@@ -91,6 +91,16 @@ lists them.
 
 ## Risks / Trade-offs
 
+- **A stated capacity of zero (assumed, slice 3).** In the schedule a demand is clamped to the
+  stated capacity, as a block's width is clamped to its team, so a stated 0 constrains the
+  dates not at all; a block that may never start has no date. The claim path refuses any units
+  on a stated 0. The two halves say different things on purpose: the plan still shows dates,
+  the swarm cannot start.
+- **Leaves interleave on an exclusive resource (R2 consequence).** Demand is charged on every
+  step's block and each block acquires and frees on its own, so two leaves on one `staging`
+  alternate step by step (080.25 Dev, 090 Dev, 080.25 QA, 090 QA). Blocks never overlap, but a
+  leaf does not keep the environment from its first step to its last. Holding across steps is
+  a later refinement (per-leaf span), not v1.
 - **Per-project occupancy on shared hosts.** Two projects each told "32 GB" can overcommit
   one host. Accepted for v1; the fix is a directory-wide `totalUnits` later.
 - **Declared demand lies.** An agent that declares 2 GB and uses 8 is caught by Dash's
