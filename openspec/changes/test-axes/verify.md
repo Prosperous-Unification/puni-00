@@ -5616,3 +5616,47 @@ library source stayed unchanged. This records review of those committed bytes;
 it does not claim a host gate, hosted CI, authenticated execution or certification.
 The coordinator will obtain review of this documentation-only completion delta
 before publication. No code tests are repeated for this receipt and checkbox edit.
+
+### Coordinator terminal acceptance — PR #580 (reconciled 2026-10-21)
+
+This receipt supersedes the pending coordinator acceptance above for bounded task
+2.1n. [PR #580](https://github.com/Prosperous-Unification/puni-00/pull/580)
+merged reviewed source `8c52394bff2d8dc03b9f1e5d7289a4120619f5b1` as
+`5851eee0c49f03722c77e59d5c4661cf18b20b39` at 2026-10-19 21:45:41 UTC.
+The source gate and merged-revision receipts below retain their distinct identities;
+neither is attributed to this documentation follow-up.
+
+The canonical `bin/h2puni-gate.sh 8c52394bff2d8dc03b9f1e5d7289a4120619f5b1`
+completed with exit 0, observed at 2026-10-19 23:53:50 UTC. Its actual marker is
+`h2puni gate: running on 8c52394bff2d8dc03b9f1e5d7289a4120619f5b1`.
+The full gate log is retained on h2puni at
+`/home/puni1/wbs08039-evidence-unit-gate-8c52394b-20261019.log` and locally at
+`/tmp/puni-pr580-h2-final-20261020.log`: 66,183 bytes, SHA256
+`0b1dd059a3d99c75e8f6569edd8c1de26d2a7bf0deb2e30bec5f794ce5e08d73`.
+Metadata is `/tmp/puni-pr580-h2-final-20261020.json`. This terminal receipt
+supersedes the earlier running-gate snapshot; the source SHA is not the merge SHA.
+
+[Full postmerge CI 39330011791](https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791)
+completed successfully on exact merge `5851eee0c49f03722c77e59d5c4661cf18b20b39`,
+with all ten jobs successful, including workspace, Twilight and four browser shards.
+[CodeQL 39330011938](https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011938)
+also completed successfully on that exact merge. Both terminal workflow states and
+the PR merge identity were rechecked during this reconciliation.
+
+The dev observation at 2026-10-19 22:37:15 UTC records backend HTTP 200 with
+`status:ok` and the exact merge commit, frontend HTTP 200, and matching checkout
+HEAD, origin/main, last-synced and last-proven identities, all
+`5851eee0c49f03722c77e59d5c4661cf18b20b39`. Its retained receipt is
+`/tmp/puni-pr580-dev-gate-20261019T2237.json`, SHA256
+`19c90e35d37b0abcfcf06547629dd284a03d7cda7bcfddf5d8b9c2507c0da6ad`.
+The dev receipt's simultaneous gate observation was still running and supplies no
+terminal gate verdict; the separate final receipt above supplies that verdict.
+The dev receipt and final gate log were rehashed against the recorded identities.
+These raw files remain external receipts, not files embedded in this repository.
+
+This closes the coordinator acceptance recorded as pending for the bounded PR580
+slice. Parent task 2.1 and WBS080.39 remain open. The committed reports remain
+noncertifying, with authentication absent and level/isolation unresolved as recorded
+above; release checks do not promote those report facts. No production deployment,
+trusted activation or parent completion is inferred. This append changes only the
+verification record; it does not rerun code tests, CI, the host gate or live dev checks.
