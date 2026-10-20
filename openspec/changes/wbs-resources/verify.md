@@ -12,6 +12,78 @@ and **Lease** is reserved for runtime, so the live units a claim holds are **Occ
 
 `openspec validate --all --json`: run before each push, result in the PR.
 
+## Slice 5: startable fit (task 5.1)
+
+Implemented 2026-10-20 on `feat/wbs-startable-fit`, stacked on `feat/wbs-resource-occupancy`
+(PR #590 at 6cb0404fa, review fixes included) with `plan/wbs-resources` at e52b0aeae merged.
+
+### What shipped, and the decisions 5.1 had to make
+
+- `GET /api/projects/:id/startable` answers, beside `leaves`, `claimed` and `subtreeClaims`:
+  `doesNotFit` (otherwise startable leaves whose demand does not fit, each with `fits: false`
+  and `exhausted: { resourceId, name, unitLabel, asked, free, shortfall }`), `resources`
+  (`{ resourceId, name, unitLabel, kind, capacity, occupied, free }` per stated capacity, in
+  resource-id order) and `occupancyScope: 'project'`; every row of `leaves` carries
+  `fits: true`. The endpoint description says occupancy is counted within the project only.
+- **Unstated capacity is not listed** (not `capacity: null`): `docs/capacity.md` makes
+  unstated the absence of a pair, constraining nothing, and `freeUnitsOf` already omits it.
+  A stated 0 is listed and excludes any demand on it.
+- **What fits means.** Fit asks `refuseOccupancy` what a `claimWorkItem` with no `resources`
+  ask would carry, as `decideClaim` builds it after the PR #590 review: an unheld leaf its
+  declared demand, a leaf some claim already holds its standing copy
+  (`expandedUnitsOf(held, null)`), so a held leaf always fits, even when its demand was
+  raised past the free units afterwards. `exhausted` is the first refused resource in
+  resource-id order; `free` there excludes the leaf's own copy, the list's `free` does not.
+- **Grouping is per leaf**, as `leaves` is: one leaf's demand covers all its steps (R2), so
+  "steps listed apart" lists the leaf with its startable step ids under `doesNotFit`. The team
+  filter applies to it as to `leaves`; `claimed` and `subtreeClaims` are unchanged.
+- **Wire shape.** The four fit fields are optional on the wire for an outgoing be-01 mid-swap,
+  as `PersonView.accountId` was; be-01's own answer is held to them by
+  `startable-organization.controller.db.test.ts`. No endpoint added: the MCP tool count is
+  unchanged; the OpenAPI document gains fields only.
+- **Reads.** `startableWithin` reads capacities, demands and occupancy once each per project;
+  the resource catalog only when a capacity is stated (the organization's under scoped access,
+  the root `listResources()` under legacy access, the one `SCAN resource` in the plan).
+
+Merge note: the first merge of `origin/plan/wbs-resources` into PR #590's slice had to name
+occupancy holders beyond the near claims (`claimantNamesWithin` read only those), or
+`claim-occupancy-race.db.test.ts` threw `names an absent person`; PR #590's review fixes then
+carried the same resolution, and that merge took its side whole.
+
+### Commands and results (worktree `/home/df/wd/puni/wt-startable-fit`)
+
+- `env -u CLAUDECODE bun test ./libs/wbs/application/core/src/module/work-item/startable.test.ts`:
+  16 pass, 0 fail.
+- `env -u CLAUDECODE bun test ./libs/wbs/adapters/store-sqlite/src/startable-scope.db.test.ts`:
+  3 pass, 0 fail.
+- `env -u CLAUDECODE bun test ./apps/wbs/be-01/src/controller/startable-organization.controller.db.test.ts`:
+  5 pass, 0 fail.
+- `env -u CLAUDECODE bun test ./libs/wbs/domain/contracts/src/http/startable-shapes.test.ts`:
+  2 pass, 0 fail.
+- The four above with `claim-command.test.ts`, `claim-race.db.test.ts`,
+  `claim-occupancy-race.db.test.ts`, `resource-occupancy.db.test.ts`: 93 pass, 0 fail.
+- `env -u CLAUDECODE bun test ./apps/wbs/mcp-01/src/ ./apps/wbs/be-01/src/app.routes.test.ts
+./libs/wbs/domain/contracts/src/`: 581 pass, 0 fail.
+- `bunx tsc -p <config> --noEmit` for the lib and spec configs of contracts, core,
+  conformance, store-memory, store-sqlite, be-01, mcp-01 and fe-01's app and spec: all exit 0.
+- `env -u CLAUDECODE bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`:
+  15 pass, 0 fail (after `git add` of the new test file).
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 263 passed, 0 failed.
+- Not run: the h2puni gate (the brief excludes it) and full Nx suites.
+
+### Proofs (each check broken alone, the named test watched failing, restored)
+
+- Fit check: `exhaustedOf` answering null failed `lists a leaf whose demand exceeds the free
+units apart, with its shortfall`, `excludes any demand on a stated capacity of 0` and `keeps
+the team filter on the leaves that do not fit` (startable.test.ts).
+- Own-occupancy exemption: the declared demand asked of a held leaf too failed `fits a held
+leaf whose demand was raised past the free units` (startable.test.ts).
+- One occupancy read per project: the occupancy read once per row in `startableWithin`
+  counted 32 `claim_occupancy` reads in `reads capacities, demands and occupancy once each,
+whatever the number of leaves` (startable-scope.db.test.ts).
+- Mid-swap wire: the four fit fields made required failed `reads a startable answer from a
+release that knows no fit, as mid-swap` (startable-shapes.test.ts).
+
 ## Slice 2: occupancy on claims (tasks 2.1 to 2.3)
 
 Implemented 2026-10-20 on `feat/wbs-resource-occupancy`, branched from `plan/wbs-resources`

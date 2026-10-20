@@ -238,6 +238,7 @@ describe('the startable read', () => {
         numberIsFrozen: true,
         name: 'Rewire the shed',
         stepIds: [qa],
+        fits: true,
         assignees: [],
         teams: [{ teamId: PLATFORM, name: 'Platform', fromId: '080' }],
         unfinishedPredecessorIds: [],
@@ -347,5 +348,166 @@ describe('the startable read', () => {
     const { graph, read } = await seeded();
     expect(await read('team-nobody')).toEqual({ kind: 'unknown_team' });
     expect(await graph.workItems.startableWithin('missing', LEGACY, null)).toBeNull();
+  });
+});
+
+const RAM = 'resource-ram';
+
+/**
+ * {@link seeded} with `h2puni ram` declared, its capacity stated when `capacity`
+ * is a number, and helpers to state demands and hold units by claim.
+ */
+async function withRam(capacity: number | null) {
+  const seed = await seeded();
+  const { source, projectId } = seed;
+  const stamp = { at: 1, by: OWNER };
+  const added = await source.stores.directory.addResource(
+    { id: RAM, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+    stamp,
+  );
+  if (!added.ok) throw new Error('the resource was refused');
+  if (capacity !== null)
+    expect(await source.stores.resourceCapacity.set(projectId, RAM, capacity, stamp)).toEqual({
+      ok: true,
+    });
+  const demand = async (workItemId: string, units: number) => {
+    expect(await source.stores.demands.set(workItemId, RAM, units, stamp)).toBe('written');
+  };
+  const hold = (id: string, workItemId: string, stepId: string, units: number) =>
+    source.stores.claims.add(
+      [
+        {
+          id,
+          workItemId,
+          stepId,
+          personId: 'claire',
+          runId: null,
+          parentClaimId: null,
+          accountId: OWNER,
+        },
+      ],
+      [],
+      stamp,
+      [{ claimId: id, resourceId: RAM, units }],
+    );
+  return { ...seed, demand, hold };
+}
+
+describe('resource fit in the startable read', () => {
+  it('lists a leaf whose demand exceeds the free units apart, with its shortfall', async () => {
+    const { dev, qa, insert, demand, hold, read } = await withRam(8);
+    await insert({ id: 'busy', position: 1 });
+    await insert({ id: 'a', position: 2 });
+    await insert({ id: 'b', position: 3 });
+    await demand('busy', 4);
+    await demand('a', 4);
+    await demand('b', 8);
+    expect(await hold('c-busy', 'busy', dev, 4)).toBe('written');
+
+    const work = answered(await read(null));
+    expect(work.resources).toEqual([
+      {
+        resourceId: RAM,
+        name: 'h2puni ram',
+        unitLabel: 'GB',
+        kind: 'divisible',
+        capacity: 8,
+        occupied: 4,
+        free: 4,
+      },
+    ]);
+    expect(work.occupancyScope).toBe('project');
+    expect(
+      work.leaves.map(({ workItemId, fits, stepIds }) => ({ workItemId, fits, stepIds })),
+    ).toEqual([
+      { workItemId: 'busy', fits: true, stepIds: [qa] },
+      { workItemId: 'a', fits: true, stepIds: [dev, qa] },
+    ]);
+    expect(
+      work.doesNotFit.map(({ workItemId, fits, stepIds, exhausted }) => ({
+        workItemId,
+        fits,
+        stepIds,
+        exhausted,
+      })),
+    ).toEqual([
+      {
+        workItemId: 'b',
+        fits: false,
+        stepIds: [dev, qa],
+        exhausted: {
+          resourceId: RAM,
+          name: 'h2puni ram',
+          unitLabel: 'GB',
+          asked: 8,
+          free: 4,
+          shortfall: 4,
+        },
+      },
+    ]);
+  });
+
+  it('never excludes on an unstated capacity, and lists no resource for it', async () => {
+    const { insert, demand, read } = await withRam(null);
+    await insert({ id: 'a', position: 1 });
+    await demand('a', 64);
+    const work = answered(await read(null));
+    expect(work.leaves.map(({ workItemId }) => workItemId)).toEqual(['a']);
+    expect(work.doesNotFit).toEqual([]);
+    expect(work.resources).toEqual([]);
+  });
+
+  it('excludes any demand on a stated capacity of 0', async () => {
+    const { insert, demand, read } = await withRam(0);
+    await insert({ id: 'a', position: 1 });
+    await insert({ id: 'undemanding', position: 2 });
+    await demand('a', 1);
+    const work = answered(await read(null));
+    expect(work.leaves.map(({ workItemId }) => workItemId)).toEqual(['undemanding']);
+    expect(work.doesNotFit.map(({ workItemId, exhausted }) => ({ workItemId, exhausted }))).toEqual(
+      [
+        {
+          workItemId: 'a',
+          exhausted: {
+            resourceId: RAM,
+            name: 'h2puni ram',
+            unitLabel: 'GB',
+            asked: 1,
+            free: 0,
+            shortfall: 1,
+          },
+        },
+      ],
+    );
+    expect(
+      work.resources.map(({ capacity, occupied, free }) => ({ capacity, occupied, free })),
+    ).toEqual([{ capacity: 0, occupied: 0, free: 0 }]);
+  });
+
+  it('fits a held leaf whose demand was raised past the free units', async () => {
+    const { dev, qa, insert, demand, hold, read } = await withRam(4);
+    await insert({ id: 'held', position: 1 });
+    await demand('held', 4);
+    expect(await hold('c-held', 'held', dev, 4)).toBe('written');
+    await demand('held', 8);
+    const work = answered(await read(null));
+    expect(work.leaves.map(({ workItemId, stepIds }) => ({ workItemId, stepIds }))).toEqual([
+      { workItemId: 'held', stepIds: [qa] },
+    ]);
+    expect(work.doesNotFit).toEqual([]);
+    expect(work.resources.map(({ occupied, free }) => ({ occupied, free }))).toEqual([
+      { occupied: 4, free: 0 },
+    ]);
+  });
+
+  it('keeps the team filter on the leaves that do not fit', async () => {
+    const { insert, demand, read } = await withRam(2);
+    await insert({ id: 'platform', position: 1 }, [PLATFORM]);
+    await insert({ id: 'ops', position: 2 }, [OPS]);
+    await demand('platform', 4);
+    await demand('ops', 4);
+    const work = answered(await read(PLATFORM));
+    expect(work.leaves).toEqual([]);
+    expect(work.doesNotFit.map(({ workItemId }) => workItemId)).toEqual(['platform']);
   });
 });

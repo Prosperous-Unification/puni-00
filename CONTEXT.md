@@ -498,7 +498,9 @@ _Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
 **Startable**:
 A step whose leaf is not blocked, held or done, whose progress is not done, and that no
 claim holds; startable **for a team** when that team is also in the leaf's effective team
-set. Derived from the folds the table uses, never stored.
+set. Derived from the folds the table uses, never stored. A startable step whose leaf's
+demand the project's free units do not cover is still startable, but listed apart as not
+fitting, with its shortfall.
 _Avoid_: Available, free, unassigned, ready (which is a readiness value)
 
 **Agent run**:

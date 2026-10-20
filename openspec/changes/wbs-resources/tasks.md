@@ -61,8 +61,10 @@
 
 ## 5. Startable fit
 
-- [ ] 5.1 Free units and fit in the startable read; steps apart with shortfall — test: the
-      one-fits-one-does-not scenario.
+- [x] 5.1 Free units and fit in the startable read; steps apart with shortfall — test: the
+      one-fits-one-does-not scenario. Done in `findStartableWork` (`doesNotFit`, `resources`,
+      `occupancyScope`), reusing `refuseOccupancy`; unstated capacities are not listed (see
+      verify.md, slice 5).
 
 ## 6. Operator (not code)
 

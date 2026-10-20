@@ -1781,6 +1781,11 @@ export class WorkItemService {
    * assignees' names come with the project's assignments and every other
    * person or team is read by id (`DirectoryStore.namesOf`).
    *
+   * Fit (`wbs-resources` R6) reads the project's capacities, demands and
+   * occupancy once each, whatever the number of leaves, and the resource
+   * catalog only when a capacity is stated: the organization's under scoped
+   * access, the root list under legacy access.
+   *
    * Null for a project the caller cannot read, refused alike with an absent one;
    * `unknown_team` for a team the caller's directory does not hold.
    */
@@ -1818,6 +1823,13 @@ export class WorkItemService {
     const teamNames = new Map(teams.map((team) => [team.id, team.name] as const));
     if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
     const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
+    const capacities = await this.resourceCapacitiesOf(projectId);
+    const resources =
+      capacities.length === 0
+        ? []
+        : access.kind === 'scoped'
+          ? await directory.listInOrganization('resources', access.scope.organizationId)
+          : await directory.listResources();
     return findStartableWork({
       rows,
       statuses,
@@ -1829,6 +1841,10 @@ export class WorkItemService {
       personNames: new Map(people.map((person) => [person.id, person.name] as const)),
       teamNames,
       teamId,
+      capacities,
+      demands: await this.demanding().listByProject(projectId),
+      occupancy: await this.claiming().claims.occupancyOf(projectId),
+      resources: new Map(resources.map((resource) => [resource.id, resource] as const)),
     });
   }
 
