@@ -143,9 +143,14 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // browser can receive. It is answered here, whole, before any endpoint.
         // Proof: rendering it through the shape made `refuses an unlinked machine
         // token as unknown_identity, minting no account` answer 500 `undeclared
-        // refusal` (watched 2026-10-20).
+        // refusal` (watched 2026-10-20). The shape's default headers still apply.
+        // Proof: answering without them made the same test's `cache-control`
+        // read null on `/api/organization/active` (watched 2026-10-20).
         if (!identity.ok && 'error' in identity.body && identity.body.error === 'unknown_identity')
-          return Response.json(identity.body, { status: 401 });
+          return Response.json(identity.body, {
+            status: 401,
+            headers: responseHeaders(matched.endpoint.shape),
+          });
         if (!identity.ok) return renderReply(matched.endpoint.shape, identity);
         // Proof: deleting this check admits the mismatched-resolver fixture with 200 instead of 500.
         if ((policy.require === 'internal') !== 'kind' in identity.principal) {

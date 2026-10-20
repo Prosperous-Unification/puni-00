@@ -333,6 +333,10 @@ and the store's held check stand behind the coordinator. What was observed is re
 
 ### Interim identity reads (slice 2 owes the real ones)
 
+**Superseded by task 2.3** (slice 2, "Task 2.3: the claim reads the real binding and pin"):
+`UNBOUND_CLAIM_IDENTITY` is gone and the pin is read per credential. Kept as the record of
+slice 1.
+
 `ClaimStore.boundAccountOf(personId)` and `pinnedPersonOf(actorId)` answer `null` in the SQLite
 and memory adapters (`UNBOUND_CLAIM_IDENTITY`) until `person.account_id` and
 `external_identity.person_id` land on `feat/wbs-person-account` (task 2.1). Until then only an

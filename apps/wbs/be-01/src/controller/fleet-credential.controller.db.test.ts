@@ -153,10 +153,19 @@ describe('a linked fleet credential', () => {
 
   it('refuses an unlinked machine token as unknown_identity, minting no account', async () => {
     const before = usersTable();
-    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
+    const bearer = await token(FLEET);
+    expect(await as(bearer, 'GET', '/api/projects')).toEqual({
       status: 401,
       body: { error: 'unknown_identity' },
     });
+    // The refusal keeps the endpoint's own no-store and Vary headers.
+    const raw = await h.request('/api/organization/active', {
+      headers: { authorization: `Bearer ${bearer}` },
+    });
+    expect(raw.status).toBe(401);
+    expect(await raw.json()).toEqual({ error: 'unknown_identity' });
+    expect(raw.headers.get('cache-control')).toBe('no-store');
+    expect(raw.headers.get('vary')).toContain('Authorization');
     expect(usersTable()).toEqual(before);
   }, 30_000);
 

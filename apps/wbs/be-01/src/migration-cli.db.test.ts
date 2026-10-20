@@ -1105,7 +1105,7 @@ describe('migration deploy entrypoints', () => {
     expect((await runCli('migrate-status-cli.ts', dbPath)).stdout.trim()).toBe(baseline);
   }, 60_000);
 
-  it('refuses to reverse add_claim while one claim exists, keeping it and the ledger', async () => {
+  it('refuses to reverse add_claim over a claim after reversing the two binding migrations, each in its own transaction', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-claim-down-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
@@ -1137,7 +1137,8 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    // The empty binding migrations newer than add_claim reverse first.
+    // The empty binding migrations newer than add_claim reverse first, each in
+    // its own transaction, so add_claim's refusal leaves them reversed.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
