@@ -25,8 +25,8 @@ A kit SHALL ship `theme.css` that imports core's vocabulary and assigns every vo
 
 #### Scenario: A primitive without preflight
 
-- **WHEN** `Button` renders in a document with no reset applied
-- **THEN** its computed border width is 0 and its background is the variant's token, not the platform `ButtonFace`
+- **WHEN** the kit's `Button` renders the `ghost` variant
+- **THEN** its class list carries `border-0 bg-transparent`, and `control-edge.spec.ts` measures the painted edge in a browser
 
 ### Requirement: Every app paints from its kit's theme
 
@@ -35,12 +35,12 @@ An app SHALL import exactly one kit's `theme.css` and SHALL NOT redeclare a voca
 #### Scenario: WBS reads the kit's theme
 
 - **WHEN** `styles.test.ts` reads `apps/wbs/fe-01/src/styles.css`
-- **THEN** it imports `@ui/saas-01/theme.css`, names the kit's `src` in `@source`, and redeclares no vocabulary token
+- **THEN** it imports the kit's `theme.css`, names the kit's `src` in `@source`, and redeclares no vocabulary token
 
-#### Scenario: Missing kit source leaves a button unpainted
+#### Scenario: Missing kit source leaves a toggle unpainted
 
 - **WHEN** the kit's `@source` entry is removed from the WBS stylesheet
-- **THEN** `control-edge.spec.ts` fails on the sign-in page's outline button with no painted edge
+- **THEN** `header.spec.ts` fails on a pressed toggle drawn without its primary fill
 
 ### Requirement: A kit publishes a registry
 

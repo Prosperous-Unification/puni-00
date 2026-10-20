@@ -15,7 +15,13 @@
  *
  * The `--layer-*` order is one ordering rather than numbers that happen to
  * agree: a modal, a portalled card over it, the card's wait ring, and the toast
- * stack above everything (UI review F-085, F-131, F-133).
+ * stack above everything. The modal reads `--layer-modal`; a host app's toasts
+ * and cards read the rest. All of them are portalled to `<body>`, so the
+ * z-index is the whole answer: at one shared `z-50` WBS's sheet, later in the
+ * document, painted over a refusal raised while it was open (UI review
+ * F-085). A toast is what happened, so it is above whatever surface the reader
+ * was on; a card for a control on a sheet has to be drawn over that sheet, or
+ * nobody reads it (F-131).
  */
 @import '../../ui-core-01/src/vocabulary.css';
 
@@ -50,7 +56,19 @@
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.704 0.04 256.788);
-  /* The outline control's edge: 3:1 on the page, the card and its own hover fill (F-124). */
+  /*
+   * The edge of an `outline` button: the slate of `--muted-foreground` a few
+   * steps lighter, so the boundary that is the control's only cue clears 3:1
+   * on the page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
+   * `--accent`; WCAG 1.4.11). `--input` stays the hairline a text box draws:
+   * as a button's edge it measured 1.22:1 light and 1.28:1 dark against WBS's
+   * sign-in card (UI review F-124).
+   *
+   * Proof: with the `outline` variant back on `border-input`, WBS's
+   * `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed on
+   * `Continue with SSO: outside · Expected: >= 3 · Received: 1.22…` (light) and
+   * `1.28…` (dark). Watched 2026-10-16.
+   */
   --control-edge: oklch(0.62 0.03 257);
 }
 
