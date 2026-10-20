@@ -202,6 +202,29 @@ describe('a refused claim names its holder', () => {
   });
 });
 
+describe('a move under a claimed leaf', () => {
+  // Proof: with the `destination_claimed` arm removed from the 409 response
+  // schema, this answered 500; watched 2026-10-20.
+  it('answers 409 destination_claimed naming the holder by the organization’s name', async () => {
+    expect((await batch('mem', [claim('claire')])).status).toBe(200);
+    const other = await batch('dany', [
+      { kind: 'createWorkItem', parentId: null, afterId: leaf, name: 'Other' },
+    ]);
+    const otherId = (other.body as { results: { id: string }[] }).results[0]?.id ?? '';
+    const moved = await batch('dany', [
+      { kind: 'moveWorkItem', workItemId: otherId, parentId: leaf, afterId: null },
+    ]);
+    expect(moved.status).toBe(409);
+    const { error, holders } = moved.body as {
+      error: string;
+      holders: { personId: string; name: string }[];
+    };
+    expect(error).toBe('destination_claimed');
+    expect(holders.length).toBeGreaterThan(0);
+    expect(holders.map(({ name }) => name)).toEqual(holders.map(() => 'claire'));
+  });
+});
+
 describe('a credential pinned to one person', () => {
   // Proof: `runCommandBatch` passing a null credential (no pin read) made the
   // claim as `codex` answer 200 (watched 2026-10-20).

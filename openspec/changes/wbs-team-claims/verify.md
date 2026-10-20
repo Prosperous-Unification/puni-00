@@ -632,13 +632,35 @@ Each negative: fault injected, the named test watched failing, fault restored.
 **Blue/green window.** During the window, the outgoing be-01's confirmed `deletePerson` of a
 person green pinned, or `removeStep` of a step green claimed, fails on the foreign key (500,
 nothing written), and an outgoing fe-01 shown green's `claim_released` effect arm fails its
-validator; all fail closed. Taken from the whole-change review; not re-run in a two-colour
-setup here.
+validator; those fail closed. The outgoing be-01's confirmed `deletePerson` of a person who
+holds claims but is not pinned does not: the `claim.person_id` cascade takes the claims with no
+`in_use` refusal and no revision bump, so the runbook rules out person deletions during the
+swap window. Taken from the whole-change review and its PR #589 review; not re-run in a
+two-colour setup here.
 
 **Assumed (for Dany's review).** The hand-down moves the claims rather than refusing the
 create: a split is a planning act and the holder keeps the work. Under scoped access a claim or
 release naming a person outside the caller's organization answers `unknown_person` (it read the
 root directory before). A `claim_released` effect names the row and step, not the holder, so
 the wire shape fe-01 validates is unchanged.
+
+Second round (PR #589 review):
+
+- **S2 a move under a claimed leaf.** `moveWorkItem` whose destination is a leaf holding step
+  claims is refused `destination_claimed` (409, holders by id, name and run; nothing written);
+  the moved row is other work and does not take the claims over. Negative: refusal disabled,
+  `refuses a move under a claimed leaf, naming its holders, until they are released`
+  (`claim-command.test.ts`) answered ok.
+- **S3-1 `remove_claims` replay after a split.** The replay refuses when a recorded claim now
+  sits on another work item. Negative: check disabled, `refuses an undo of a claim once
+another actor split the leaf` (memory, no revisions) answered the undo ok.
+- **S4.** `touchedBy`'s `move_claims` arm is redundant with the create's explicit touched ids
+  (commented; no production negative). The four step-parallel fixtures that build the
+  work-item service without a claim store keep the `claims === undefined` skip: they predate
+  claims, hold none, and requiring the store would change four fixtures for no reachable state.
+- **Known gap, not fixed here.** `delete_subtree` and `restore_subtree` carry no claims, so
+  undoing the deletion of a claimed leaf restores the row without its claims.
+- **Known gap, not fixed here.** A redo of a `move` onto a leaf claimed since relies on the
+  revision gate (SQLite); the replay itself does not re-check `destination_claimed`.
 
 Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the final head.

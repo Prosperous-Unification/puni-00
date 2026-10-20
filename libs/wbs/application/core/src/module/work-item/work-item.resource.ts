@@ -178,6 +178,7 @@ import {
   claimsAround,
   isClaimAdmin,
   lineageOf,
+  type NamedClaimHolder,
   refusalOf,
   type ReleaseInput,
 } from './claims';
@@ -2992,12 +2993,20 @@ export class WorkItemService {
    * organization reads as unknown; under legacy access they are the root
    * names, read by id. Neither scans the whole directory.
    */
-  private async claimantNamesWithin(
+  private claimantNamesWithin(
     access: ResourceAccess,
     claimantId: string,
     near: readonly Claim[],
   ): Promise<Map<string, string>> {
-    const ids = [...new Set([claimantId, ...near.map(({ personId }) => personId)])];
+    return this.personNamesWithin(access, [claimantId, ...near.map(({ personId }) => personId)]);
+  }
+
+  /** {@link claimantNamesWithin} for any set of person ids. */
+  private async personNamesWithin(
+    access: ResourceAccess,
+    personIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(personIds)];
     const { directory } = this.opts;
     // Proof: with the root `listPeople()` read back in place of both branches,
     // `names the holder by the organization's name` (claim-identity.controller.db.test.ts)
@@ -3090,9 +3099,11 @@ export class WorkItemService {
     id: string,
     actorId: string,
     input: MoveWorkItem,
+    access: ResourceAccess,
   ): Promise<
     | WorkItemOutcome<null>
     | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    | { ok: false; reason: 'destination_claimed'; holders: readonly NamedClaimHolder[] }
   > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -3181,6 +3192,40 @@ export class WorkItemService {
           ok: false,
           reason: 'referenced_by_step_parallel',
           nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
+      }
+    }
+
+    // A leaf whose steps are claimed is somebody's work in progress; the moved
+    // row is other work, so it does not take those claims over (they would be
+    // stranded on a parent, where nothing reaches them) and the move is refused
+    // until they are released (`wbs-team-claims` D3: a blocker is resolved, not
+    // worked around). A fixture built without a claim store holds no claims.
+    // Proof: with this refusal disabled, `refuses a move under a claimed leaf,
+    // naming its holders, until they are released` (claim-command.test.ts)
+    // answered ok: the move went through over the claim; watched 2026-10-20.
+    if (
+      input.parentId !== null &&
+      this.opts.claims !== undefined &&
+      !rows.some((row) => row.parentId === input.parentId)
+    ) {
+      const destinationId = input.parentId;
+      const held = (await this.opts.claims.listByProject(workItem.projectId)).filter(
+        (each) => each.workItemId === destinationId && each.stepId !== null,
+      );
+      if (held.length > 0) {
+        const nameOf = await this.personNamesWithin(
+          access,
+          held.map(({ personId }) => personId),
+        );
+        return {
+          ok: false,
+          reason: 'destination_claimed',
+          holders: held.map(({ id: claimId, personId, runId }) => {
+            const name = nameOf.get(personId);
+            if (name === undefined) throw new Error(`claim ${claimId} names an absent person`);
+            return { claimId, personId, name, runId };
+          }),
         };
       }
     }
@@ -6353,6 +6398,14 @@ export class WorkItemService {
         const held = new Set(stored.map(({ id }) => id));
         if (command.claims.some(({ id }) => !held.has(id)))
           return { ok: false, detail: 'that claim has been released since.' };
+        // A claim handed down to a first child since (`move_claims`) is the
+        // child's now; taking it back here would leave the child's statement.
+        // Proof: with this refusal removed, `refuses an undo of a claim once
+        // another actor split the leaf` (claim-command.test.ts, memory, which
+        // keeps no revisions) answered the undo ok; watched 2026-10-20.
+        const placedOn = new Map(stored.map(({ id, workItemId }) => [id, workItemId]));
+        if (command.claims.some(({ id, workItemId }) => placedOn.get(id) !== workItemId))
+          return { ok: false, detail: 'that claim has moved to another work item since.' };
         // A removed claim takes its delegated claims with it (the parent
         // reference cascades), so a delegated claim this entry did not write
         // would go with an undo that cannot put it back.

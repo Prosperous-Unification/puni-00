@@ -387,6 +387,7 @@ function answerBatch(
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
     case 'already_claimed':
+    case 'destination_claimed':
       return {
         ok: false,
         status: 409,

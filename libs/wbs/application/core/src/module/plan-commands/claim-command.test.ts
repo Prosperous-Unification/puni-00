@@ -530,6 +530,73 @@ describe('a claimed leaf that gains its first child', () => {
     }
   });
 
+  it('refuses a move under a claimed leaf, naming its holders, until they are released', async () => {
+    const { source, runner, projectId, steps, claims, revision, entries } = await seeded();
+    const [impl] = steps;
+    try {
+      await runner.run(projectId, F, [
+        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
+      ]);
+      const other = mintedIdOf(
+        await runner.run(projectId, F, [
+          { kind: 'createWorkItem', parentId: null, afterId: '090', name: 'Other' },
+        ]),
+      );
+      const held = await claims();
+      const before = { leaf: await revision('090'), other: await revision(other) };
+      const journal = await entries(F);
+      const move = {
+        kind: 'moveWorkItem' as const,
+        workItemId: other,
+        parentId: '090',
+        afterId: null,
+      };
+      expect(await runner.run(projectId, F, [move])).toEqual({
+        ok: false,
+        at: 0,
+        kind: 'moveWorkItem',
+        reason: 'destination_claimed',
+        detail: {
+          holders: [{ claimId: held[0]?.id, personId: 'claire', name: 'claire', runId: null }],
+        },
+      });
+      expect(await claims()).toEqual(held);
+      expect({ leaf: await revision('090'), other: await revision(other) }).toEqual(before);
+      expect(await entries(F)).toBe(journal);
+      expect(
+        (await source.stores.workItems.listByProject(projectId)).find(({ id }) => id === other)
+          ?.parentId,
+      ).toBeNull();
+
+      await runner.run(projectId, F, [
+        { kind: 'releaseWorkItem', workItemId: '090', personId: 'claire' },
+      ]);
+      expect(await runner.run(projectId, F, [move])).toMatchObject({ ok: true });
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('refuses an undo of a claim once another actor split the leaf', async () => {
+    const { source, runner, projectId, steps, claims, progress } = await seeded();
+    const [impl] = steps;
+    try {
+      await runner.run(projectId, F, [
+        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', steps: [impl] },
+      ]);
+      await runner.run(projectId, G, [
+        { kind: 'createWorkItem', parentId: '090', afterId: null, name: 'Half' },
+      ]);
+      const held = await claims();
+      const stated = await progress();
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+      expect(await claims()).toEqual(held);
+      expect(await progress()).toEqual(stated);
+    } finally {
+      await source.close();
+    }
+  });
+
   // The memory source keeps no revisions, so only the replay's own check stands
   // between this undo and a claim it never wrote.
   it("refuses an undo of a split once the child's claims changed", async () => {

@@ -460,6 +460,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // moved on` (claim-race.db.test.ts) apply the redo; watched 2026-10-19.
       return [...new Set(command.claims.map(({ workItemId }) => workItemId))];
     case 'move_claims':
+      // Redundant today: the one writer, a first child's create, names both
+      // ids in its touched set already, so no production negative can fail here.
       return [command.fromWorkItemId, command.toWorkItemId];
     case 'restore_attempt':
       return [command.attempt.workItemId];

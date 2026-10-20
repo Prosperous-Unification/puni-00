@@ -172,7 +172,11 @@ fleet pins, the outgoing binary does not know either. Its confirmed `deletePerso
 green pinned a credential to fails on the `external_identity.person_id` foreign key, and its
 `removeStep` of a step green claimed fails on `claim.step_id`: both answer 500 and write
 nothing. An outgoing fe-01 shown a green usage carrying a `claim_released` effect fails that
-arm's validator and shows the refusal. All three fail closed; retry after the swap commits.
+arm's validator and shows the refusal. Those three fail closed; retry after the swap commits.
+One does not: the outgoing be-01's confirmed `deletePerson` of a person who holds claims but
+has no pinned credential succeeds, and the `claim.person_id` cascade takes those claims (and
+every claim delegated under them) with no `in_use` refusal naming them and no revision moved
+on their work items. Rule: no person deletions during the swap window.
 
 **Rollback.** `migrate-down-cli.ts --to=<the migration before 20261019120000_add_claim>`
 runs each down in its own transaction, newest first: it reverses the two binding migrations

@@ -179,6 +179,12 @@ export class CommandContext {
         detail: { nodes: outcome.nodes.map(({ workItemId, stepId }) => ({ workItemId, stepId })) },
       });
     }
+    if (outcome.reason === 'destination_claimed') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
+      });
+    }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
@@ -296,6 +302,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             parentId: context.id(command.parentId, command.parentRef),
             afterId: context.id(command.afterId, command.afterRef),
           },
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
