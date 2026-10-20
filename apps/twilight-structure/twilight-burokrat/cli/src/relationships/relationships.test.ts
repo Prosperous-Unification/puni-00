@@ -2013,6 +2013,8 @@ function writeOwnershipConfigs(repository: string): void {
   }
 }
 
+// Four complete CLI extractions replay the serial compiler for owner, order and closure checks.
+// Proof: hosted e00c2a28 attempts 1 and 2 exceeded the inherited 60s at 74.85s and 69.41s.
 test('selects the unique explicit public root among importing programs and retains its closure', async () => {
   const repository = createRepository();
   writeOwnershipConfigs(repository);
@@ -2055,7 +2057,7 @@ test('selects the unique explicit public root among importing programs and retai
   expect(changed.typescript.publicDeclarations[0].configurationIdentity).toBe(
     declaration.configurationIdentity,
   );
-});
+}, 120_000);
 
 test('refuses multiple explicit public roots with the conflicting config paths', async () => {
   const repository = createRepository();
