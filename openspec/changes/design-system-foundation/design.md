@@ -10,6 +10,7 @@ Recorded because the interview was asynchronous; each is reversible until its sl
 - **A4** WBS-only tokens stay in `apps/wbs/fe-01/src/styles.css` under the kit import: status hues, grid surfaces, `--layer-*`, `--highlight`, `--quiet-ink`, `--control-edge`, `--popover-shadow`.
 - **A5** Storybook 10.3 (Vite 8 support, per its release notes) runs as targets on each kit project, not at the root. Its production build is part of the kit's `build` so CI proves stories compile; the dev server is `bunx nx run ui-saas-01:storybook`.
 - **A6** The registry is built and validated in CI and not yet hosted. A later change serves it from puni.dev under `/r/<kit>/` and registers it in each app's `components.json`, which is what the shadcn MCP server reads.
+- **A8** Claude Design is the screen-design canvas, fed by `/design-sync` (a user-started command in Claude Code). In its Storybook shape it imports each kit's story modules and exposes every story as a preview card, so the stories from slice 8 are the input and nothing is authored twice. Each kit carries a `.design-sync/config.json` naming its `src/` and story glob; the sync target is one design-system project per kit on claude.ai/design (`PUNI saas-01`), which moves into Claude when the standalone site closes on 2026-12-14.
 - **A7** The website app and the private Astro site wait for `@ui/agency-site-01`, a later change that copies the website's `--ink`/`--paper`/`--accent` values into a second theme and owns its own primitives.
 
 ## Package shape
