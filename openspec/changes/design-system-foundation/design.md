@@ -61,4 +61,4 @@ Stories use CSF 3 with `argTypes` generated from the cva table so a new variant 
 
 ## Registry
 
-`registry.json` follows the shadcn registry schema with `type: registry:ui` items. The `registry` target runs `bunx shadcn build --output dist/r` then `bunx shadcn validate` where the installed CLI offers it; the item files are a build artifact, ignored by git.
+`registry.json` follows the shadcn registry schema with `type: registry:ui` items, a `registry:lib` item for `control.ts`, and a `registry:lib` item `cn` built from core's `cn.ts`. The `registry` target runs `bunx shadcn build --output dist/registry/ui-saas-01` (shadcn 3.8.5); that CLI has no separate validate command, and its `build` exits 1 on a schema error or a missing item file, which is the validation. The kit's `build` depends on `registry`, so the gate fails with it. The item files are a build artifact, ignored by git.

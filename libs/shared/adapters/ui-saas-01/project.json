@@ -57,9 +57,19 @@
         "cwd": "libs/shared/adapters/ui-saas-01"
       }
     },
+    "registry": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default", "{workspaceRoot}/libs/shared/adapters/ui-core-01/src/cn.ts"],
+      "outputs": ["{workspaceRoot}/dist/registry/ui-saas-01"],
+      "options": {
+        "command": "rm -rf ../../../../dist/registry/ui-saas-01 && bunx shadcn build --output ../../../../dist/registry/ui-saas-01",
+        "cwd": "libs/shared/adapters/ui-saas-01"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
-      "dependsOn": ["^build", "build-storybook"],
+      "dependsOn": ["^build", "build-storybook", "registry"],
       "options": {
         "command": "bunx tsc --build --force libs/shared/adapters/ui-saas-01/tsconfig.lib.json"
       },
