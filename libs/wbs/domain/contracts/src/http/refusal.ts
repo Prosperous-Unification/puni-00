@@ -221,6 +221,11 @@ export interface DirectoryUsage {
     workItems: { id: string; number: string; name: string; effects: DirectoryEffect[] }[];
   }[];
   members: { id: string; name: string }[];
+  /**
+   * Linked credentials pinned to the person, revoked by a confirmed removal.
+   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
+   */
+  pinnedCredentials?: number;
 }
 
 /**

@@ -600,6 +600,7 @@ describe('the directory usage a removal is refused with', () => {
           },
         ],
         members: [],
+        pinnedCredentials: 0,
       },
     });
     expect(await personNamed('Kat')).toBe(kat.id);
@@ -662,6 +663,7 @@ describe('the directory usage a removal is refused with', () => {
           },
         ],
         members: [],
+        pinnedCredentials: 0,
       },
     });
   });
@@ -845,6 +847,7 @@ describe('the directory usage a removal is refused with', () => {
           { id: ada.id, name: 'Ada' },
           { id: kat.id, name: 'Kat' },
         ],
+        pinnedCredentials: 0,
       },
     });
     expect((await store.listTeams()).map((each) => each.name)).toEqual(['Platform']);
@@ -1069,6 +1072,7 @@ describe('removing a tag: what it names, and what it cannot move', () => {
           },
         ],
         members: [],
+        pinnedCredentials: 0,
       },
     });
     expect(await store.listTags()).toEqual([{ id: regulatory.id, name: 'regulatory' }]);
@@ -1234,6 +1238,7 @@ describe('removing a service: what it names, what it takes, and what it cannot m
         },
       ],
       members: [],
+      pinnedCredentials: 0,
     });
 
     expect(await directory.removeService(payments.id, ownerId, true)).toEqual({ ok: true });

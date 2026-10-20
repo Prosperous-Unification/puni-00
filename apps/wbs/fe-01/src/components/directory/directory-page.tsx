@@ -1078,6 +1078,14 @@ export function DirectoryPage({ directory: management, nav, account, loadOf }: D
                   </ul>
                 </div>
               )}
+              {/* Absent from an outgoing be-01 mid-swap, which counts no pins. */}
+              {(confirming.usage.pinnedCredentials ?? 0) > 0 && (
+                <p>
+                  {count(confirming.usage.pinnedCredentials ?? 0, 'fleet credential')} pinned to{' '}
+                  {confirming.name} {confirming.usage.pinnedCredentials === 1 ? 'is' : 'are'}{' '}
+                  revoked.
+                </p>
+              )}
             </div>
             <ModalFooter>
               <Button

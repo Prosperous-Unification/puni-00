@@ -98,6 +98,12 @@ export interface UsedProject {
 export interface DirectoryUsage {
   projects: UsedProject[];
   members: { id: string; name: string }[];
+  /**
+   * The linked credentials pinned to the person being removed, which a
+   * confirmed removal revokes ({@link DirectoryUsageRows.pinnedCredentials});
+   * 0 for every other entry.
+   */
+  pinnedCredentials: number;
 }
 
 /** Who a work item's assignments name, keyed by step. */
@@ -163,7 +169,11 @@ function usageFrom(
       workItems: (byProject.get(each.id) ?? []).sort(byTreeOrder(places)),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { projects, members: rows.members.map((each) => ({ id: each.id, name: each.name })) };
+  return {
+    projects,
+    members: rows.members.map((each) => ({ id: each.id, name: each.name })),
+    pinnedCredentials: rows.pinnedCredentials,
+  };
 }
 
 /**

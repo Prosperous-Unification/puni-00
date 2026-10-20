@@ -133,6 +133,7 @@ describe('the migrated existing store kits', () => {
       'directory.patchPerson:owned-binding',
       'directory.credentialPinOf:unlinked',
       'directory.removePerson:claims-in-use',
+      'directory.removePerson:pinned-credential',
       'eventLog.recordEvent',
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',

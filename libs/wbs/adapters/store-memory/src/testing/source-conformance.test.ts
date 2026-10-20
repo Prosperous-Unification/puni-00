@@ -25,6 +25,7 @@ import {
   type HistoryBatchFixture,
   observePlanInput,
   OWNED_BINDING,
+  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -90,6 +91,7 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
   ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
+  pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
@@ -160,6 +162,9 @@ function conformanceMemorySource(
       memberIds: readonly string[],
     ) => {
       fixture.ownPersonInOrganization(personId, organizationId, memberIds);
+    },
+    pinCredential: (issuer: string, subject: string, personId: string) => {
+      fixture.pinCredential(issuer, subject, personId);
     },
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
@@ -378,6 +383,16 @@ async function openMemoryCase<Family extends ExistingFamily>(
     }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
+    if (caseId === 'directory.removePerson:pinned-credential') {
+      const { personId, issuer, subject } = PINNED_CREDENTIAL;
+      const added = await seeded.stores.directory.addPerson(
+        { id: personId, name: 'Pinned person', kind: 'agent' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the pinned person was refused');
+      seeded.pinCredential(issuer, subject, personId);
+    }
   });
   if (family === 'subtrees') {
     return {

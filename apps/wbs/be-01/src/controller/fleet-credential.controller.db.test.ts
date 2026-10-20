@@ -175,6 +175,35 @@ describe('a linked fleet credential', () => {
     expect(await link('dany', 'claire')).toBe(0);
   }, 30_000);
 
+  it('refuses removing a pinned person in_use, then revokes the credential with it', async () => {
+    expect(await link('dany', 'claire')).toBe(0);
+    h.sqlite.run(
+      "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('claire', 'org-a', 'Claire')",
+    );
+    const remove = (cascade: boolean) =>
+      h.call('dany', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deletePerson', personId: 'claire', cascade }],
+      });
+
+    expect(await remove(false)).toEqual({
+      status: 409,
+      body: {
+        error: 'in_use',
+        at: 0,
+        kind: 'deletePerson',
+        usage: { projects: [], members: [], pinnedCredentials: 1 },
+      },
+    });
+    expect((await remove(true)).status).toBe(200);
+    expect(
+      h.sqlite.query('SELECT count(*) AS n FROM external_identity WHERE subject = ?').get(FLEET),
+    ).toEqual({ n: 0 });
+    expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
+      status: 401,
+      body: { error: 'unknown_identity' },
+    });
+  }, 30_000);
+
   it('scopes a linked token without groups from its account’s membership: a member', async () => {
     expect(await link('mem', 'mem-agent')).toBe(0);
     const bearer = await token(FLEET);

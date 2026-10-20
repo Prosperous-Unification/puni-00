@@ -181,6 +181,15 @@ export interface DirectoryUsageRows {
    */
   claims: readonly { workItemId: string; stepId: string | null; personId: string }[];
   /**
+   * How many linked credentials are pinned to the person being removed
+   * (`external_identity.person_id`, `wbs-team-claims` D6); 0 for a team. A
+   * pin names no project, so it is a count beside the trees, and it refuses an
+   * unconfirmed removal `in_use` as an assignment does. A confirmed removal
+   * revokes those credentials with the person rather than unpinning them: an
+   * unpinned fleet credential could claim as any person of its account.
+   */
+  pinnedCredentials: number;
+  /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
    *
@@ -453,9 +462,11 @@ export interface DirectoryStore {
   usageOfTeam(teamId: string): Promise<DirectoryUsageRows>;
   /**
    * Counts what points at the person, refuses an unconfirmed removal that would
-   * take any of it, and otherwise drops their assignments, their memberships
-   * and the person — all in **one** transaction, moving the revision of every
-   * work item that lost an assignment.
+   * take any of it, and otherwise drops their assignments, their claims, the
+   * credentials pinned to them (revoked, see
+   * {@link DirectoryUsageRows.pinnedCredentials}), their memberships and the
+   * person — all in **one** transaction, moving the revision of every work item
+   * that lost an assignment or a claim.
    *
    * The count lives inside the transaction because it *is* the decision: a
    * caller that asked without `cascade` consented to nothing, so an assignment

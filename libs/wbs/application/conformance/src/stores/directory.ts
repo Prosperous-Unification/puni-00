@@ -74,6 +74,17 @@ async function assignmentState(
  */
 export const OWNED_BINDING = { personId: 'owned-person', organizationId: 'org-binding' } as const;
 
+/**
+ * The credential both sources pin for `directory.removePerson:pinned-credential`:
+ * a fleet's `(issuer, subject)` linked to the seed's first owner and pinned to
+ * `personId`, a person nothing else points at, so the pin alone is its usage.
+ */
+export const PINNED_CREDENTIAL = {
+  personId: 'pinned-person',
+  issuer: 'https://idp.example/',
+  subject: 'fleet-m2m@clients',
+} as const;
+
 /** The original shared directory cases, retaining their stable case IDs. */
 export function directoryRegistrations(open: OpenCase<'directory'>): readonly CaseRegistration[] {
   return [
@@ -316,6 +327,30 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       });
       expect((await port.listPeople()).map(({ id }) => id)).not.toContain(personId);
     }),
+    // A credential pinned to a person is usage: an unconfirmed removal is
+    // refused naming the count, and a confirmed one revokes the credential with
+    // the person, never leaving a pin to a person that is gone (nor unpinning
+    // it, which would let it claim as any person of its account).
+    storeCase(
+      'directory',
+      'directory.removePerson:pinned-credential',
+      open,
+      async ({ port, seed }) => {
+        const { personId, issuer, subject } = PINNED_CREDENTIAL;
+        expect(await port.usageOfPerson(personId)).toMatchObject({ pinnedCredentials: 1 });
+        expect(await port.removePerson(personId, false, seed.stamps[1])).toMatchObject({
+          ok: false,
+          reason: 'in_use',
+          usage: { pinnedCredentials: 1, claims: [], assignments: [] },
+        });
+        expect(await port.credentialPinOf(issuer, subject)).toBe(personId);
+        expect(await port.removePerson(personId, true, seed.stamps[1])).toMatchObject({
+          ok: true,
+        });
+        expect((await port.listPeople()).map(({ id }) => id)).not.toContain(personId);
+        expect(await port.credentialPinOf(issuer, subject)).toBeNull();
+      },
+    ),
   ];
 }
 

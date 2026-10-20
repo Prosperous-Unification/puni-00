@@ -75,6 +75,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   people: [],
   members: [],
   claims: [],
+  pinnedCredentials: 0,
   capacityOf: new Map(),
 };
 
@@ -283,7 +284,30 @@ function usageRowsIn(
     people,
     members,
     claims,
+    pinnedCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
+  };
+}
+
+/** The ids of the linked credentials pinned to one person (`external_identity.person_id`). */
+function credentialsPinnedTo(reader: Reader, personId: string): string[] {
+  return reader
+    .select({ id: externalIdentity.id })
+    .from(externalIdentity)
+    .where(eq(externalIdentity.personId, personId))
+    .all()
+    .map(({ id }) => id);
+}
+
+/** A person's usage: what reaches their projects, and the credentials pinned to them. */
+function personUsageIn(
+  reader: Reader,
+  projectIds: readonly string[],
+  personId: string,
+): DirectoryUsageRows {
+  return {
+    ...usageRowsIn(reader, projectIds, []),
+    pinnedCredentials: credentialsPinnedTo(reader, personId).length,
   };
 }
 
@@ -1172,7 +1196,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfPerson(personId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return usageRowsIn(this.db, this.projectsReaching(this.db, personId), []);
+    return personUsageIn(this.db, this.projectsReaching(this.db, personId), personId);
   }
 
   /**
@@ -1548,19 +1572,30 @@ export class DirectoryRepository implements DirectoryStore {
           .from(claim)
           .where(eq(claim.personId, personId))
           .all();
+        const pinned = credentialsPinnedTo(tx, personId);
         // Proof: with `claimed` left out of this test, the SQLite certification's
         // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
-        if (!cascade && (held.length > 0 || claimed.length > 0)) {
+        // Proof: with `pinned` left out of this test, the SQLite certification's
+        // `directory.removePerson:pinned-credential` case removed the person
+        // unconfirmed; with the revoking delete below removed, the confirmed
+        // removal failed on the `external_identity.person_id` foreign key
+        // (both watched 2026-10-20).
+        if (!cascade && (held.length > 0 || claimed.length > 0 || pinned.length > 0)) {
           return {
             ok: false,
             reason: 'in_use',
-            usage: usageRowsIn(tx, this.projectsReaching(tx, personId), []),
+            usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
           };
         }
         const projectIds = this.projectsReaching(tx, personId);
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
         // Delegated claims under these go with them: `parent_claim_id` cascades.
         tx.delete(claim).where(eq(claim.personId, personId)).run();
+        // Revoked, not unpinned: `person_id` null would let the fleet claim as
+        // any person of its account. `external_identity.person_id` has no
+        // `ON DELETE` action, so without this the person delete fails on it.
+        if (pinned.length > 0)
+          tx.delete(externalIdentity).where(inArray(externalIdentity.id, pinned)).run();
         tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
         const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
         // Nothing was deleted, so there was nothing here to delete: somebody

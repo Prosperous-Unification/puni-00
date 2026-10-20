@@ -685,7 +685,8 @@ export class DirectoryService {
         await this.opts.directory.usageOfPerson(personId),
         personId,
       );
-      if (seen.projects.length > 0) return { ok: false, reason: 'in_use', usage: seen };
+      if (seen.projects.length > 0 || seen.pinnedCredentials > 0)
+        return { ok: false, reason: 'in_use', usage: seen };
     }
     const removed = await this.opts.directory.removePerson(
       personId,
@@ -1255,7 +1256,7 @@ export class DirectoryService {
       removal.usageIn(await this.localUsage(rows, scope), id);
     if (!cascade) {
       const seen = await shown(await removal.usageOf(id));
-      if (seen.projects.length > 0 || seen.members.length > 0) {
+      if (seen.projects.length > 0 || seen.members.length > 0 || seen.pinnedCredentials > 0) {
         return { ok: false, reason: 'in_use', usage: seen };
       }
     }
