@@ -89,6 +89,7 @@ function plan(
     capacity: new Map(),
     demands: [],
     resourceCapacities: [],
+    resources: [],
     priorityBands: [],
     people: people.map((id) => ({ id, name: id, teamIds: [] })),
     teams: [],

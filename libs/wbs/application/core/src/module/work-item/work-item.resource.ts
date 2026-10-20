@@ -1949,6 +1949,22 @@ export class WorkItemService {
         if (name === undefined) throw new Error(`assignee "${person.id}" has no local name`);
         return { ...person, name };
       }),
+      // The resources a bar waited for, under the organization's own names as
+      // its directory shows them; the isolated read knows only the root rows.
+      // Proof: returning the root labels made `levels a demanded resource
+      // (isolated)` (resource-schedule.controller.db.test.ts) read the opaque
+      // root name in place of `staging`; watched 2026-10-20.
+      ...(tree.resourceLabels === undefined
+        ? {}
+        : {
+            resourceLabels: withResourceLabels(
+              tree,
+              await this.opts.directory.listInOrganization(
+                'resources',
+                access.scope.organizationId,
+              ),
+            ).resourceLabels,
+          }),
     };
   }
 
@@ -2257,7 +2273,7 @@ export class WorkItemService {
         scheduling = { kind: 'unavailable', reason: 'calendar_range' };
       else throw failure;
     }
-    return projectTree(
+    const tree = projectTree(
       {
         project,
         rows,
@@ -2285,6 +2301,10 @@ export class WorkItemService {
       },
       scheduling,
     );
+    // The resource labels are read only for a schedule that names a resource,
+    // so a plan stating none reads no catalog and keeps its payload shape.
+    if ('kind' in tree || !namesAResource(tree)) return tree;
+    return withResourceLabels(tree, await this.opts.directory.listResources());
   }
 
   /**
@@ -7912,7 +7932,7 @@ function projectSharedTree(
   if (chain.kind === 'engine_unavailable') return chain;
   const reads = chain.reads;
   const people = new Set(reads.assignments.map((assignment) => assignment.personId));
-  return projectTree(
+  const tree = projectTree(
     {
       project,
       rows,
@@ -7946,6 +7966,45 @@ function projectSharedTree(
     },
     chain.kind === 'scheduled' ? chain.scheduled : { kind: 'unavailable', reason: chain.reason },
   );
+  // Labelled from the snapshot's own catalog, already under the organization's
+  // names, so the label and the bar are one observation.
+  // Proof: returning the tree unlabelled made `levels a demanded resource
+  // (shared)` find no `resourceLabels`; watched 2026-10-20.
+  return 'kind' in tree || !namesAResource(tree) ? tree : withResourceLabels(tree, reads.resources);
+}
+
+/** Whether any bar of the displayed schedule waited for a resource's pool. */
+function namesAResource(tree: PlanTree): boolean {
+  return tree.slices.some((slice) => slice.capacityResource !== undefined);
+}
+
+/**
+ * The tree with one label per resource a bar's `capacityResource` names
+ * (`wbs-resources` R5), so the chart says what a bar waited for in the same
+ * read it draws the bar from — `elsewhereHolders`' shape.
+ *
+ * @throws when a named resource is absent from `catalog`: the schedule was
+ * levelled against a resource this read cannot name, which is two trusted
+ * reads disagreeing.
+ */
+function withResourceLabels(tree: PlanTree, catalog: readonly Resource[]): PlanTree {
+  const byId = new Map(catalog.map((resource) => [resource.id, resource] as const));
+  const named = [
+    ...new Set(
+      tree.slices.flatMap((slice) =>
+        slice.capacityResource === undefined ? [] : [slice.capacityResource.resourceId],
+      ),
+    ),
+  ].sort();
+  return {
+    ...tree,
+    resourceLabels: named.map((resourceId) => {
+      const resource = byId.get(resourceId);
+      if (resource === undefined)
+        throw new Error(`a bar waited for resource "${resourceId}", which this read cannot name`);
+      return { id: resource.id, name: resource.name, unitLabel: resource.unitLabel };
+    }),
+  };
 }
 
 /** Pure live projection shared by isolated reads and coherent shared observations. */

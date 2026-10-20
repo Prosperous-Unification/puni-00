@@ -89,6 +89,7 @@ describe('store ports', () => {
       capacity: new Map(),
       demands: [],
       resourceCapacities: [],
+      resources: [],
       priorityBands: [],
       people: [],
       teams: [],

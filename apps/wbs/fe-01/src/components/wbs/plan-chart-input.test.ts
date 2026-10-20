@@ -159,6 +159,12 @@ describe('the holders a plan read labels, on the chart', () => {
     const outranked = { ...read, elsewhereHolders: undefined } as unknown as PlanRead;
     expect(chartReadOf(outranked, 1).elsewhereHolders).toEqual([]);
   });
+
+  it('carries the resource labels from the read, and none where no bar waited for one', () => {
+    const labels = [{ id: 'res-staging', name: 'staging', unitLabel: 'env' }];
+    expect(chartReadOf({ ...read, resourceLabels: labels }, 1).resourceLabels).toEqual(labels);
+    expect(chartReadOf({ ...read, resourceLabels: undefined }, 1).resourceLabels).toEqual([]);
+  });
 });
 
 it('counts marks as visible leaves times project steps', () => {

@@ -1,3 +1,4 @@
+import { getWorkItems, validateSchema } from '@wbs/contracts';
 import { afterEach, describe, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -75,10 +76,21 @@ for (const mode of ['isolated', 'shared'] as const) {
           })),
         ),
       );
-      const read = async () => {
+      // Through the reader fe-01's client parses this route with, so a field the
+      // chart draws from and the contract does not declare fails here first.
+      const readTree = async () => {
         const answer = await harness.call('ada', 'GET', `/api/projects/${project.id}/work-items`);
         expect(answer.status).toBe(200);
-        return (answer.body as { slices: ReadSlice[] }).slices;
+        const [success] = getWorkItems.responses;
+        const parsed = await validateSchema(success.schema, answer.body);
+        if (parsed.issues !== undefined)
+          throw new Error(
+            `the tree read failed its own contract: ${JSON.stringify(parsed.issues)}`,
+          );
+        return parsed.value as unknown as {
+          slices: ReadSlice[];
+          resourceLabels?: { id: string; name: string; unitLabel: string }[];
+        };
       };
       const overlapping = (slices: readonly ReadSlice[]) =>
         slices.some((left) =>
@@ -89,7 +101,9 @@ for (const mode of ['isolated', 'shared'] as const) {
               right.earliestStart < left.earliestFinish,
           ),
         );
-      expect(overlapping(await read())).toBe(true);
+      const unlevelled = await readTree();
+      expect(overlapping(unlevelled.slices)).toBe(true);
+      expect(unlevelled.resourceLabels).toBeUndefined();
 
       await batch([
         { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
@@ -100,7 +114,12 @@ for (const mode of ['isolated', 'shared'] as const) {
           units: 1,
         })),
       ]);
-      const levelled = await read();
+      const levelledTree = await readTree();
+      const levelled = levelledTree.slices;
+      // The bar's resource, labelled under the organization's own name.
+      expect(levelledTree.resourceLabels).toEqual([
+        { id: staging, name: 'staging', unitLabel: 'env' },
+      ]);
       expect(overlapping(levelled)).toBe(false);
       const waited = levelled.filter((slice) => slice.capacityResource !== undefined);
       expect(waited.length).toBeGreaterThan(0);

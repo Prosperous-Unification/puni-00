@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://wbs.tool/contracts/solver-wire.v4.json",
+  "$id": "https://wbs.tool/contracts/solver-wire.v3.json",
   "title": "wbs solver wire contract, version 3",
   "$comment": "THE single normative definition of the solver request and response (design.md 'Solver wire contract — one versioned schema, four consumers', Sol r6 Critical 1). Prose in tasks.md, design.md and spec.md is descriptive only; where they disagree with this file, this file wins and the prose is the bug. Four consumers read it: the Bun request builder and parseSolverResponse in libs/wbs/domain/contracts/solver/src/, the wbs-solver Python entrypoint validating against the copy installed beside it with the pinned jsonschema dependency, and the shared golden corpus under libs/wbs/domain/contracts/solver/fixtures/ that both suites run. The root asserts `not: {}` on purpose: neither message validates against the document itself, so a consumer that forgets to $ref a branch fails loudly instead of accepting anything. Validate #/$defs/request or #/$defs/response.",
   "not": {},

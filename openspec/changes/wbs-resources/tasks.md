@@ -49,7 +49,10 @@
 - [x] 3.3 CP-SAT: wire bump, one `AddCumulative` per resource, re-validator, fixtures in both
       suites, materialiser proof — test: parity with Fast on the fixtures. Solver wire 4,
       `wbs-solver` 0.3.0.
-- [ ] 3.4 fe-01: hover sentence and facet.
+- [ ] 3.4 fe-01: hover sentence and facet. The sentence half is done on
+      `feat/wbs-resource-levelling` (the chart and the table's start reason name the resource
+      and its units from the tree read's `resourceLabels`); the per-resource facet is open:
+      the tree read carries no demands to filter rows by.
 
 ## 4. Assignee management
 

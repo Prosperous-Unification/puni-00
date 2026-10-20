@@ -175,10 +175,10 @@ interface PoolClaim {
  * units. Acquired together at one instant by {@link capacityProfile}'s joint
  * search, never one at a time.
  */
-// Proof: the resource half replaced by `[]` made five schedule-resources.test.ts
-// cases fail — the staging pair overlapped on both paths, the 32 GB trio and the
-// vector case all started at 0, and the pinned overlap was accepted; watched
-// 2026-10-20.
+// Proof: the resource half replaced by `[]` made seven schedule-resources.test.ts
+// cases fail (7 pass / 7 fail) — the staging pair overlapped on both paths, the
+// 32 GB trio and both vector cases started early, the pinned overlap was
+// accepted, and the no-capacity refusal did not fire; watched 2026-10-20.
 function claimsOf(slice: Slice): PoolClaim[] {
   return [
     ...slice.poolIds.map((poolId) => ({ kind: 'team' as const, poolId, units: slice.width })),

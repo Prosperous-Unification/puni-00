@@ -232,6 +232,9 @@ export const workItemTree = type({
     number: 'string',
     name: 'string',
   }).array(),
+  // Present exactly when a slice's `capacityResource` names a resource
+  // (`wbs-resources` R5): one label per resource named.
+  'resourceLabels?': type({ id: 'string', name: 'string', unitLabel: 'string' }).array(),
   slices: workItemSlice.array(),
   steps: stepShape.array(),
   assignedPeople: named.array(),

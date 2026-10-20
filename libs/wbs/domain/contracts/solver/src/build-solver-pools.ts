@@ -89,6 +89,10 @@ export function buildSolverResources(
     // with no stated capacity before spawn` (resource-wire.test.ts) built the
     // request instead; watched 2026-10-20.
     if (capacity === undefined) throw new Error(`no capacity for resource ${resourceId}`);
+    // Proof: this refusal disabled made `refuses a demanded resource whose
+    // capacity is not a whole number of units from 1` (resource-wire.test.ts)
+    // see the demand check's message instead for 0, and nothing for 1.5;
+    // watched 2026-10-20.
     if (!Number.isInteger(capacity) || capacity < 1) {
       throw new Error(
         `resource ${resourceId} has a capacity that is not a whole number of units from 1: ${String(capacity)}`,
@@ -99,6 +103,8 @@ export function buildSolverResources(
   for (const slice of slices) {
     for (const { resourceId, units } of slice.demands) {
       const capacity = resources[resourceId];
+      // Proof: disabled, `refuses a demand above its resource capacity before
+      // spawn` (resource-wire.test.ts) built the request; watched 2026-10-20.
       if (units > capacity) {
         throw new Error(
           `slice ${slice.key.replace('\u0000', '/')} demands ${String(units)} of resource ${resourceId}, which holds ${String(capacity)}`,

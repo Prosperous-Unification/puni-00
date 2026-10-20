@@ -661,6 +661,7 @@ async function capturePlanInput(
     capacity,
     demands,
     resourceCapacities,
+    resourceCatalog,
     priorityBands,
     people,
     teams,
@@ -685,6 +686,7 @@ async function capturePlanInput(
     stores.capacity.slotsFor(projectId),
     stores.demands.listByProject(projectId),
     stores.resourceCapacity.listFor(projectId),
+    stores.directory.listResources(),
     stores.priorityBands.listFor(projectId),
     stores.directory.listPeople(),
     stores.directory.listTeams(),
@@ -717,6 +719,7 @@ async function capturePlanInput(
     // capture none; watched 2026-10-20.
     demands,
     resourceCapacities,
+    resources: resourceCatalog,
     priorityBands,
     people,
     teams,

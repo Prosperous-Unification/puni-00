@@ -964,6 +964,7 @@ function emptyMissingCapture(): PlanInputReads {
     capacity: new Map(),
     demands: [],
     resourceCapacities: [],
+    resources: [],
     priorityBands: [],
     people: [],
     teams: [],

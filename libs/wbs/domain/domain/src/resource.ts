@@ -89,6 +89,9 @@ export function chargedDemandsOf(
     // demand on an unstated capacity unconstrained` (schedule-resources.test.ts)
     // received the staging demand too; watched 2026-10-20.
     if (capacity === undefined) continue;
+    // Proof: the clamp removed (units charged as stated) made `clamps a demand
+    // to its capacity, and a stated 0 charges nothing` (schedule-resources.test.ts)
+    // receive 48 GB against 32 (13 pass / 1 fail); watched 2026-10-20.
     const charged = Math.min(units, capacity);
     if (charged === 0) continue;
     const vector = byWorkItem.get(workItemId) ?? [];

@@ -283,8 +283,9 @@ contract bump is what evicts rows cached under 16.
   Dev, `080.25` QA, `090` QA in `resource-schedule.test.ts`). Blocks never overlap, which
   is the spec's scenario; a leaf does not keep the resource across its steps.
 - `boundBy` stays `'capacity'`; the resource is named by the new optional
-  `capacityResource`. The HTTP slice contract admits it (additive); fe-01 shows no resource
-  words until 3.4.
+  `capacityResource`. The HTTP slice contract admits it (additive), and the tree read
+  carries `resourceLabels` (one `{ id, name, unitLabel }` per resource a displayed bar
+  names, under the organization's names) so fe-01 can say it; see "Task 3.4" below.
 - The wire keeps `poolIds`/`width`/`pools` for teams and adds `demands`/`resources` beside
   them, rather than Claire's single per-pool demand list: one new cumulative loop, no
   change to the team clause.
@@ -320,26 +321,26 @@ typecheck above is `tsc -p … --noEmit`.
 
 ### Proofs (each fault injected alone, the named test watched failing, restored)
 
-| Check                                               | Fault                        | Failing test (result)                                                                               |
-| --------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
-| resource claims in `claimsOf`                       | resource half `[]`           | five `schedule-resources.test.ts` cases (staging both paths, 32 GB, vector, pinned overlap)         |
-| `capacityResource` absent when unbound              | `null` on every slice        | both corpus byte cases and the staging case                                                         |
-| `capacityResource` named                            | `null` for a resource        | the five cases naming a resource                                                                    |
-| `refuseMalformedDemands`                            | call removed                 | `refuses a demand below one unit, a resource named twice and an unsorted vector`                    |
-| `chargedDemandsOf` unstated skip                    | demand charged unclamped     | `leaves a demand on an unstated capacity unconstrained`                                             |
-| canonical `demands` entry                           | left out                     | `hashes a demand…` (1 key for 5 plans), `moves the key when a demand edit moves a placement` (39/2) |
-| canonical `resourceCapacities` entry                | left out                     | `hashes a resource capacity` (40/1)                                                                 |
-| `slicesOf` vector                                   | `{}`                         | `serialises two leaves on the one staging environment and names it`                                 |
-| `canonicalScheduleParts` capacities                 | left out                     | both levelling cases of `resource-schedule.test.ts` threw `no capacity for resource`                |
-| isolated tree read demands                          | `[]`                         | `levels a demanded resource (isolated)` (resource-schedule.controller.db.test.ts)                   |
-| SQLite capture demands                              | `[]`                         | `levels a demanded resource (shared)`; isolated twin passed                                         |
-| memory capture demands and capacities               | `[]`                         | `captures demands and resource capacities detached from later memory writes`                        |
-| runtime-portable forwards capacities                | `NO_CAPACITIES`              | `hands the resource capacities to Fast`, `forwards all … Fast arguments`                            |
-| builder `demands` / `resources` / no-capacity throw | `[]` / `{}` / skip           | `resource-wire.test.ts` golden bytes, carried vector, no-capacity refusal (3, 2 and 1 fail)         |
-| re-validator resource sweep / capacity presence     | loop emptied / check emptied | staging and divisible overload cases accepted (50/2); unstated resource accepted (51/1)             |
-| supervisor admits wire 4                            | list back to 1 to 3          | `carries resource demands and capacities on solver wire 4 unchanged`                                |
-| `model.py` resource cumulative                      | loop over `{}`               | `test_resources.py`: staging and 32 GB at makespan 10, vector overlap (3/13); parity cases (3 fail) |
-| `validate.py` invariant (10)                        | loop over `[]`               | the four invariant cases, `RequestRejected not raised` (4/13)                                       |
+| Check                                               | Fault                        | Failing test (result)                                                                                                             |
+| --------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| resource claims in `claimsOf`                       | resource half `[]`           | seven `schedule-resources.test.ts` cases (7/7: staging both paths, 32 GB, both vector cases, pinned overlap, no-capacity refusal) |
+| `capacityResource` absent when unbound              | `null` on every slice        | both corpus byte cases and the staging case                                                                                       |
+| `capacityResource` named                            | `null` for a resource        | the five cases naming a resource                                                                                                  |
+| `refuseMalformedDemands`                            | call removed                 | `refuses a demand below one unit, a resource named twice and an unsorted vector`                                                  |
+| `chargedDemandsOf` unstated skip                    | demand charged unclamped     | `leaves a demand on an unstated capacity unconstrained`                                                                           |
+| canonical `demands` entry                           | left out                     | `hashes a demand…` (1 key for 5 plans), `moves the key when a demand edit moves a placement` (39/2)                               |
+| canonical `resourceCapacities` entry                | left out                     | `hashes a resource capacity` (40/1)                                                                                               |
+| `slicesOf` vector                                   | `{}`                         | `serialises two leaves on the one staging environment and names it`                                                               |
+| `canonicalScheduleParts` capacities                 | left out                     | both levelling cases of `resource-schedule.test.ts` threw `no capacity for resource`                                              |
+| isolated tree read demands                          | `[]`                         | `levels a demanded resource (isolated)` (resource-schedule.controller.db.test.ts)                                                 |
+| SQLite capture demands                              | `[]`                         | `levels a demanded resource (shared)`; isolated twin passed                                                                       |
+| memory capture demands and capacities               | `[]`                         | `captures demands and resource capacities detached from later memory writes`                                                      |
+| runtime-portable forwards capacities                | `NO_CAPACITIES`              | `hands the resource capacities to Fast`, `forwards all … Fast arguments`                                                          |
+| builder `demands` / `resources` / no-capacity throw | `[]` / `{}` / skip           | `resource-wire.test.ts` golden bytes, carried vector, no-capacity refusal (3, 2 and 1 fail)                                       |
+| re-validator resource sweep / capacity presence     | loop emptied / check emptied | staging and divisible overload cases accepted (50/2); unstated resource accepted (51/1)                                           |
+| supervisor admits wire 4                            | list back to 1 to 3          | `carries resource demands and capacities on solver wire 4 unchanged`                                                              |
+| `model.py` resource cumulative                      | loop over `{}`               | `test_resources.py`: staging and 32 GB at makespan 10, vector overlap (3/13); parity cases (3 fail)                               |
+| `validate.py` invariant (10)                        | loop over `[]`               | the four invariant cases, `RequestRejected not raised` (4/13)                                                                     |
 
 Not a check, recorded so it is not mistaken for one: `projectSharedTree` hands the snapshot's
 demands to the canonical seam, but the shared schedule was computed on the snapshot; `[]`
@@ -348,8 +349,8 @@ there changed no test.
 ### Not run, and why
 
 - The h2puni gate (the orchestrator gates the plan head), the full Nx suites, the whole
-  be-01 and store-sqlite suites (39 and 9 files instead), fe-01 tests (fe-01 typechecks; no
-  fe-01 source changed; 3.4 is not this slice).
+  be-01 and store-sqlite suites (targeted files instead), the whole fe-01 suite (the files
+  3.4 touches ran; see "Task 3.4").
 
 ### After merging `plan/wbs-resources` 75d6bf61f (claims handdown)
 
@@ -360,3 +361,46 @@ conformance case lists). Two type errors the merge surfaced were fixed: slice 1'
 `assign: false`. Re-run: `tsc -p … --noEmit` over 14 configs clean; domain 1169 pass /
 1 skip, contracts 491, core 1135, store-memory 193, conformance 35, seven store-sqlite
 files 185, six be-01 files 244; 0 fail everywhere.
+
+### Task 3.4 (sentence half) and the review fixes of PR #591
+
+fe-01 refused `boundBy: 'capacity'` with `capacityTeamId: null` as malformed and replaced the
+whole Gantt with its fault banner, so the first plan stating a resource capacity and a demand
+lost its chart. Fixed on this branch:
+
+- be-01's tree read carries `resourceLabels` (`{ id, name, unitLabel }` per resource a
+  displayed bar names): the isolated read labels from the root catalog and `treeWithin`
+  relabels under the organization's names, as it does assignees; the shared read labels from
+  the snapshot's own catalog (`PlanInputReads.resources`, read by both stores' capture under
+  the caller's scope). Absent when no bar names a resource. A named resource the read cannot
+  label throws.
+- fe-01: `SliceView.capacityResource`, `ChartRead.resourceLabels`,
+  `GanttPlan.resourceLabels`. The capacity arm of `floorWordsOf` names a resource's wait
+  ("Waits for staging to free 1 env — after strip (Dev)"), which the chart's hover and the
+  table's start reason (`startFloorByRow`) both read; a capacity floor with neither team nor
+  resource still throws "names no team"; an unlabelled resource throws in the chart and
+  leaves only that row's reason blank in the table. The per-resource facet is open (the
+  tree read carries no demands to filter by).
+- `resource-schedule.controller.db.test.ts` parses the body through `getWorkItems`, the
+  reader fe-01's client parses this route with, and asserts the labels in both modes.
+- The package copies of `solver-wire.v2.json` and `.v3.json` are restored (the wire 4
+  rename had reached v3's `$id` and v2's quantum comment there only); `test_schema_copy.py`
+  now asserts every `solver-wire.v*.json` pair is byte-identical.
+- The builder's capacity-below-1 and demand-above-capacity refusals have tests and Proofs;
+  the clamp in `chargedDemandsOf` has its Proof; the `claimsOf` row above is corrected to
+  seven cases.
+
+Proofs (watched 2026-10-20): the fe resource branch disabled, 217/2 in
+gantt-geometry.test.ts; the unlabelled throw softened to words, 218/1; the scoped relabel
+left as root labels, `levels a demanded resource (isolated)` failed; the shared labels left
+off, its shared twin failed; the builder's two refusals disabled, one case each; the clamp
+removed, 13/1; a package v3 `$id` set to v4, the new schema-pair case failed naming
+`solver-wire.v3.json`.
+
+Runs after the last edit: `tsc -p … --noEmit` over 16 configs, 0 errors. Domain 1169 pass /
+1 skip, contracts 493, core 1135, store-memory 193, conformance 35, runtime-portable 34,
+mcp-01 423, five store-sqlite files 142, eight be-01 files 242; 0 fail everywhere.
+`TZ=UTC bunx vitest run` over ten fe-01 files (gantt-geometry, plan-chart-input,
+gantt-panel, gantt-panel-fill, plan-chart-seam, plan-table, wbs-api, plan-refresh,
+project-page, attempt-actions): 808 pass. `bunx nx run wbs-solver-py:test` with the
+worktree venv on PATH: Ran 259 tests, OK.

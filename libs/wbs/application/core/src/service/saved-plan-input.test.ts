@@ -110,6 +110,7 @@ const reads = {
   capacity: new Map([['team-2', 3]]),
   demands: [],
   resourceCapacities: [],
+  resources: [],
   priorityBands: [{ startsAt: 1, label: 'Critical', defaultValue: 10 }],
   people: [
     { id: 'per-1', name: 'Ada', teamIds: ['team-1'] },

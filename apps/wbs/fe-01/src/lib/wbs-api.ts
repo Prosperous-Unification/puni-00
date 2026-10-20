@@ -222,6 +222,12 @@ export interface SliceView {
   /** The team pool that set a capacity floor, or null for every other floor. */
   capacityTeamId: string | null;
   /**
+   * The resource whose pool set a capacity floor, and the units this slice
+   * held of it (`wbs-resources` R5). Present exactly when `boundBy` is
+   * `capacity` and the pool was a resource's; `capacityTeamId` is then null.
+   */
+  capacityResource?: { resourceId: string; units: number };
+  /**
    * How many of its team's slots this slice held while it ran — the
    * **effective** width be-01 scheduled with.
    *

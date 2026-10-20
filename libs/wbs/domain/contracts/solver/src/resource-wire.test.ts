@@ -97,6 +97,34 @@ describe('the wire 4 request', () => {
     ).toThrow('no capacity for resource staging');
   });
 
+  const spawnFor = {
+    baselineOffsets: { [A]: 0, [B]: 48 },
+    solverVersion: '0.3.0',
+    budgetMs: 30_000,
+  };
+
+  it('refuses a demanded resource whose capacity is not a whole number of units from 1', () => {
+    for (const capacity of [0, 1.5]) {
+      const plan = { ...STAGING_PLAN, resourceCapacities: new Map([['staging', capacity]]) };
+      expect(() => buildSolverRequest(plan, 'pri', spawnFor)).toThrow(
+        `resource staging has a capacity that is not a whole number of units from 1: ${String(capacity)}`,
+      );
+    }
+  });
+
+  it('refuses a demand above its resource capacity before spawn', () => {
+    const plan = {
+      ...STAGING_PLAN,
+      slices: STAGING_PLAN.slices.map((slice) => ({
+        ...slice,
+        demands: [{ resourceId: 'staging', units: 2 }],
+      })),
+    };
+    expect(() => buildSolverRequest(plan, 'pri', spawnFor)).toThrow(
+      'demands 2 of resource staging, which holds 1',
+    );
+  });
+
   it('refuses a solver that does not speak wire 4', () => {
     const built = buildSolverRequest(STAGING_PLAN, 'pri', {
       baselineOffsets: baselineOf(STAGING_PLAN),

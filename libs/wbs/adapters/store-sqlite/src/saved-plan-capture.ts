@@ -226,6 +226,11 @@ export async function readPlanInputIn(
     access?.kind === 'scoped'
       ? await directory.listInOrganization('externalSystems', access.scope.organizationId)
       : await directory.listExternalSystems();
+  // Under the organization's own names, for the label of a bar a resource held.
+  const resourceCatalog =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('resources', access.scope.organizationId)
+      : await directory.listResources();
   return {
     project: { ...project, timezone },
     steps,
@@ -243,6 +248,7 @@ export async function readPlanInputIn(
     capacity,
     demands,
     resourceCapacities,
+    resources: resourceCatalog,
     priorityBands,
     people,
     teams,
