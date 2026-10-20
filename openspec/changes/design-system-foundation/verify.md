@@ -38,3 +38,17 @@ The contrast suites pass unchanged on the kit theme; they assert the 3:1 and 4.5
 | WBS redeclares no kit token  | `--primary: red;` added to WBS's `:root`                             | `styles.test.ts` `redeclares no custom property the kit theme assigns`                                                                                 | failed: `expected [ '--primary' ] to deeply equal []`                                                                                                                                                                                                 |
 | kit `@source`                | `@source '../../../../libs/shared/adapters/ui-saas-01/src';` removed | `e2e/header.spec.ts` `draws a pressed toggle filled and its neighbour plain, 3:1 apart` (light, dark); `e2e/status.spec.ts` done and in-progress cases | failed: `Plan pressed against Board · Expected: >= 3 · Received: 1` both palettes; status cases timed out clicking `Set to Done` / `Set to In progress` in a dialog that never settled. 4 failed, 49 passed                                           |
 | same fault, planned observer | as above                                                             | `e2e/control-edge.spec.ts`                                                                                                                             | **did not fail** (2 passed): without `border-control-edge` the outline's `border` paints `currentColor`, which clears 3:1. A Vite build of `styles.css` alone confirmed the class is gone (`.border-control-edge` absent, present with the line back) |
+
+## Slices 7 to 10
+
+Run 2026-10-21 in `wt-design-system` on `feat/design-system-foundation`, every command with `env -u CLAUDECODE NX_DAEMON=false NX_ISOLATE_PLUGINS=false`. `node_modules` was a symlink to another checkout's; it was replaced by `bun install --frozen-lockfile` (1296 packages) before any dependency was added. Not the gate.
+
+### Slice 7
+
+| Command                                                                        | Result                                   |
+| ------------------------------------------------------------------------------ | ---------------------------------------- |
+| `bunx nx run-many -t typecheck lint test -p shared-ui-saas-01 --skip-nx-cache` | pass; `bun test` 19 pass 0 fail, 5 files |
+
+| Check                        | Fault injected             | Test that observed it                                              | Result                                                             |
+| ---------------------------- | -------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| kit spec total on primitives | `## Label` heading deleted | `design-spec.test.ts` `has a section for every exported primitive` | failed: `expect(received).toEqual(expected)`, received `["Label"]` |
