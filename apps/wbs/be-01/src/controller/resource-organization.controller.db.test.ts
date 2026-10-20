@@ -141,6 +141,33 @@ describe('resources in an organization', () => {
     });
   });
 
+  it('refuses a claim asking for a foreign resource exactly as an absent one', async () => {
+    const theirs = await declare('grace', 'b ram');
+    const person = await h.call('ada', 'POST', '/api/directory/commands', {
+      commands: [{ kind: 'createPerson', name: 'claire' }],
+    });
+    const personId = (person.body as { results: { id?: string }[] }).results.at(0)?.id;
+    if (personId === undefined)
+      throw new Error(`the person was refused: ${JSON.stringify(person)}`);
+    for (const resourceId of [theirs, 'no-such-resource'])
+      expect(
+        await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+          commands: [
+            {
+              kind: 'claimWorkItem',
+              workItemId: 'w-a',
+              personId,
+              resources: [{ resourceId, units: 1 }],
+            },
+          ],
+        }),
+      ).toEqual({
+        status: 404,
+        body: { at: 0, kind: 'claimWorkItem', error: 'unknown_resource' },
+      });
+    expect(h.sqlite.query('SELECT count(*) AS n FROM claim').get()).toEqual({ n: 0 });
+  });
+
   it('refuses removing a demanded resource with the counts, and cascades on confirmation', async () => {
     const ram = await declare('ada', 'h2puni ram');
     await h.call('ada', 'POST', `/api/projects/${own}/commands`, {

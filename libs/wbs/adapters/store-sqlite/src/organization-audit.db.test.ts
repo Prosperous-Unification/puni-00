@@ -90,6 +90,7 @@ describe('the organization audit', () => {
 
   it('rolls back while nothing is recorded', () => {
     expect(rollbackTo(path, FOLDER, FREEZE)).toEqual([
+      '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',

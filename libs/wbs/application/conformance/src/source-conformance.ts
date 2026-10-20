@@ -23,6 +23,7 @@ import { historyBatchRegistrations, type OpenHistoryBatchCase } from './stores/h
 import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
 import {
+  CONFORMANCE_RESOURCES,
   demandRegistrations,
   directoryResourceRegistrations,
   resourceCapacityRegistrations,
@@ -214,19 +215,19 @@ export function existingStoreRegistrations(
           accountId: seed.ownerIds[0],
         };
         const stated = [{ workItemId, stepId }];
-        expect(await port.add([held], stated, seed.stamps[0])).toBe('written');
+        expect(await port.add([held], stated, seed.stamps[0], [])).toBe('written');
         expect(await port.listByProject(seed.projectIds[0])).toEqual([held]);
         expect(await port.findById(seed.projectIds[0], held.id)).toEqual(held);
         expect(await port.findById(seed.projectIds[1], held.id)).toBeNull();
         expect(await port.listByProject(seed.projectIds[1])).toEqual([]);
         const rival = { ...held, id: 'claim-two', personId: seed.personIds[1] };
-        expect(await port.add([rival], [], seed.stamps[1])).toBe('taken');
+        expect(await port.add([rival], [], seed.stamps[1], [])).toBe('taken');
         const beside = { ...rival, stepId: otherStepId };
-        expect(await port.add([beside], stated, seed.stamps[1])).toBe('progress_stated');
+        expect(await port.add([beside], stated, seed.stamps[1], [])).toBe('progress_stated');
         expect(await port.listByProject(seed.projectIds[0])).toEqual([held]);
         await port.remove([held], stated, seed.stamps[1]);
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
-        expect(await port.add([beside], stated, seed.stamps[1])).toBe('written');
+        expect(await port.add([beside], stated, seed.stamps[1], [])).toBe('written');
         expect(await failureOf(port.remove([held], [], seed.stamps[1]))).toContain('not stored');
       },
     ),
@@ -247,8 +248,8 @@ export function existingStoreRegistrations(
           accountId: seed.ownerIds[0],
         };
         const second = { ...first, id: 'claim-second', stepId: otherStepId };
-        expect(await port.add([first], [], seed.stamps[0])).toBe('written');
-        expect(await port.add([second], [], seed.stamps[1])).toBe('written');
+        expect(await port.add([first], [], seed.stamps[0], [])).toBe('written');
+        expect(await port.add([second], [], seed.stamps[1], [])).toBe('written');
         expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
           [
             { ...first, claimedAt: seed.stamps[0].at },
@@ -286,13 +287,68 @@ export function existingStoreRegistrations(
           personId: seed.personIds[1],
           parentClaimId: subtree.id,
         };
-        expect(await port.add([subtree], [], seed.stamps[0])).toBe('written');
-        expect(await port.add([{ ...subtree, id: 'claim-again' }], [], seed.stamps[0])).toBe(
+        expect(await port.add([subtree], [], seed.stamps[0], [])).toBe('written');
+        expect(await port.add([{ ...subtree, id: 'claim-again' }], [], seed.stamps[0], [])).toBe(
           'taken',
         );
-        expect(await port.add([delegated], [], seed.stamps[0])).toBe('written');
+        expect(await port.add([delegated], [], seed.stamps[0], [])).toBe('written');
         await port.remove([subtree], [], seed.stamps[1]);
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+      },
+    ),
+    storeCase(
+      'claims',
+      'claims.occupancy:hold-read-cascade',
+      openers.claims,
+      async ({ port, seed }) => {
+        const [, leaf] = seed.workItemIds[0];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const [ram] = CONFORMANCE_RESOURCES;
+        const first = {
+          id: 'claim-a',
+          workItemId: leaf,
+          stepId,
+          personId: seed.personIds[0],
+          runId: 'run-a',
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const second = {
+          ...first,
+          id: 'claim-b',
+          stepId: otherStepId,
+          personId: seed.personIds[1],
+          runId: null,
+        };
+        const held = (claimId: string) => [{ claimId, resourceId: ram.id, units: 4 }];
+        expect(await port.add([first], [], seed.stamps[0], held(first.id))).toBe('written');
+        expect(await port.add([second], [], seed.stamps[1], held(second.id))).toBe('written');
+        const row = (claim: typeof first | typeof second) => ({
+          claimId: claim.id,
+          workItemId: leaf,
+          personId: claim.personId,
+          runId: claim.runId,
+          resourceId: ram.id,
+          units: 4,
+        });
+        expect(await port.occupancyOf(seed.projectIds[0])).toEqual([row(first), row(second)]);
+        expect(await port.occupancyOf(seed.projectIds[1])).toEqual([]);
+        const third = { ...first, id: 'claim-c', workItemId: seed.workItemIds[0][0] };
+        expect(
+          await port.add([third], [], seed.stamps[1], [
+            { claimId: third.id, resourceId: 'resource-absent', units: 1 },
+          ]),
+        ).toBe('unknown_resource');
+        expect(
+          await failureOf(
+            port.add([third], [], seed.stamps[1], [
+              { claimId: 'claim-elsewhere', resourceId: ram.id, units: 1 },
+            ]),
+          ),
+        ).toContain('not added');
+        expect(await port.listByProject(seed.projectIds[0])).toHaveLength(2);
+        await port.remove([first], [], seed.stamps[1]);
+        expect(await port.occupancyOf(seed.projectIds[0])).toEqual([row(second)]);
       },
     ),
     ...demandRegistrations(openers.demands),

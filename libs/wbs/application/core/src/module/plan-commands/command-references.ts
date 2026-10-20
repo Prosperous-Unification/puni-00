@@ -106,6 +106,18 @@ export async function refuseForeignReferences(
     if (!owned.some((resource) => resource.id === resourceId))
       context.refuse({ reason: 'unknown_resource' });
   }
+  // Proof: skipping this check made `refuses a claim asking for a foreign
+  // resource exactly as an absent one` (resource-organization.controller.db.test.ts)
+  // tell B's resource from an absent one; watched 2026-10-20.
+  if (command.kind === 'claimWorkItem' && command.resources !== undefined) {
+    const owned = new Set(
+      (await graph.directory.listWithin('resources', { kind: 'scoped', scope })).map(
+        (resource) => resource.id,
+      ),
+    );
+    if (command.resources.some(({ resourceId }) => !owned.has(resourceId)))
+      context.refuse({ reason: 'unknown_resource' });
+  }
   // Proof: skipping the step check alone made the same test answer 200 instead
   // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
   // 2026-09-27.
@@ -199,6 +211,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
       return 'unknown_system';
     case 'project_resource_capacity':
     case 'work_item_resource_demand':
+    case 'claim_occupancy_resource':
       return 'unknown_resource';
     case 'work_item_parent':
     case 'dependency_endpoint':

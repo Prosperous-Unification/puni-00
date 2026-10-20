@@ -334,6 +334,7 @@ describe('claim replay vocabulary', () => {
     do: 'add_claims',
     claims: [claim],
     stated: [{ workItemId: 'w1', stepId: 'dev' }],
+    occupancy: [{ claimId: 'c1', resourceId: 'ram', units: 4 }],
   };
   const remove: CompensatingCommand = { do: 'remove_claims', claims: [claim], cleared: [] };
 
@@ -347,6 +348,7 @@ describe('claim replay vocabulary', () => {
       workItems: ['w1', 'w1'],
       steps: ['dev', 'dev'],
       people: ['claire'],
+      resources: ['ram'],
     });
     expect(subjectOf(add)).toEqual({ workItemId: 'w1', stepId: 'dev' });
   });
@@ -358,8 +360,18 @@ describe('claim replay vocabulary', () => {
       { do: 'add_claims', claims: [], stated: [] },
       { do: 'add_claims', claims: [{ ...claim, accountId: null }], stated: [] },
       { do: 'add_claims', claims: [{ ...claim, runId: 7 }], stated: [] },
-      { do: 'add_claims', claims: [claim] },
+      { do: 'add_claims', claims: [claim], occupancy: [] },
       { do: 'remove_claims', claims: [claim], cleared: [{ workItemId: 'w1' }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
+
+  it('refuses a claim replay with no occupancy, or one naming a claim it does not carry', () => {
+    for (const malformed of [
+      { do: 'add_claims', claims: [claim], stated: [] },
+      { ...add, occupancy: [{ claimId: 'other', resourceId: 'ram', units: 4 }] },
+      { ...add, occupancy: [{ claimId: 'c1', resourceId: 'ram', units: 0 }] },
+      { ...add, occupancy: [{ claimId: 'c1', resourceId: '', units: 1 }] },
     ])
       expect(() => readCommand(malformed)).toThrow(/claim replay/);
   });

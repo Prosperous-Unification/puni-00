@@ -42,6 +42,7 @@ import { bumpWorkItems } from './revision';
 import {
   assignment,
   claim,
+  claimOccupancy,
   externalIdentity,
   externalSystem,
   externalSystemOrganization,
@@ -870,7 +871,8 @@ export class DirectoryRepository implements DirectoryStore {
    * it cannot see. The work items that lose a demand are bumped explicitly,
    * because a cascade moves no revision.
    *
-   * Occupancies count 0 until the claim occupancy table exists (task 2.2).
+   * Occupancies go by cascade too (`claim_occupancy.resource_id`); the claims
+   * that held them stand, holding nothing of the removed resource.
    *
    * Proof: with the in-use refusal removed, the conformance case
    * `directory.removeResource:in-use-cascade` failed SQLite certification; with
@@ -936,11 +938,21 @@ export class DirectoryRepository implements DirectoryStore {
       .where(eq(projectResourceCapacity.resourceId, resourceId))
       .orderBy(asc(projectResourceCapacity.projectId))
       .all();
+    const occupying = reader
+      .select({ workItemId: claim.workItemId })
+      .from(claimOccupancy)
+      .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+      .where(eq(claimOccupancy.resourceId, resourceId))
+      .all();
     return {
       rows: usageRowsIn(reader, projectsOf(demands), []),
       demands: demands.map(({ workItemId, units }) => ({ workItemId, resourceId, units })),
       capacities,
-      occupancies: 0,
+      // Proof: with 0 here, the SQLite certification's
+      // `directory.removeResource:in-use-cascade` case read no occupancy and
+      // `refuses deleting a resource a claim holds` (resource-occupancy.db.test.ts)
+      // deleted it; watched 2026-10-20.
+      occupancies: new Set(occupying.map(({ workItemId }) => workItemId)).size,
     };
   }
 

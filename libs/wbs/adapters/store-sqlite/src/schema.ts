@@ -2163,6 +2163,34 @@ export const claim = sqliteTable(
 export type ClaimRow = typeof claim.$inferSelect;
 
 /**
+ * One claim's copy of its leaf's units of one resource (`wbs-resources` R3,
+ * `20261020130000_add_claim_occupancy`). Every claim on a leaf carries the
+ * leaf's whole vector, so a leaf holds the largest copy per resource and the
+ * units stay held until its last claim goes. Cascades from the claim and from
+ * the resource; units are at least 1, as a demand's are.
+ */
+export const claimOccupancy = sqliteTable(
+  'claim_occupancy',
+  {
+    claimId: text('claim_id')
+      .notNull()
+      .references(() => claim.id, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    units: integer('units').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.claimId, t.resourceId] }),
+    index('claim_occupancy_by_resource').on(t.resourceId),
+    check('claim_occupancy_units', sql`typeof(${t.units}) = 'integer' AND ${t.units} >= 1`),
+  ],
+);
+
+export type ClaimOccupancyRow = typeof claimOccupancy.$inferSelect;
+
+/**
  * A finish-to-start dependency: `successor` cannot start until the
  * `predecessor` slice the project's {@link project.depReach} names has
  * finished — its **last** step under `whole-item`, its **anchor slice** under

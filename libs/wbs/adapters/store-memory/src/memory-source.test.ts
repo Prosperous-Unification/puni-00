@@ -246,6 +246,7 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     ],
     [],
     stamp,
+    [],
   );
   await stores.directory.addResource(
     { id: 'resource-1', name: 'Stored resource', kind: 'divisible', unitLabel: 'GB' },

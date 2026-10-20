@@ -1,6 +1,7 @@
 import {
   type Claim,
   type ClaimIdentity,
+  type ClaimOccupancy,
   type ClaimStore,
   type StampedClaim,
   unstampClaim,
@@ -9,12 +10,16 @@ import {
 
 import type { MemoryProgressTable } from './progress-fixture';
 
-/** Cloneable claims owned by the memory source, each with the instant it was written. */
+/**
+ * Cloneable claims owned by the memory source, each with the instant it was
+ * written, and their `claim_occupancy` rows (`wbs-resources` R3).
+ */
 export interface MemoryClaimTable {
   readonly rows: StampedClaim[];
+  readonly occupancy: ClaimOccupancy[];
 }
 export function memoryClaimTable(): MemoryClaimTable {
-  return { rows: [] };
+  return { rows: [], occupancy: [] };
 }
 
 /**
@@ -29,6 +34,8 @@ export function memoryClaimTable(): MemoryClaimTable {
  *
  * `identity` answers the bound-account and credential-pin reads: the source's
  * directory, through `claimIdentityOf`, as SQLite's claims read theirs.
+ * `holdsResource` answers whether the directory still holds a resource, which
+ * SQLite's foreign key on `claim_occupancy.resource_id` answers there.
  *
  * @throws on a read of a claim whose work item is gone, and on a removal of a
  * claim that is not stored: both are trusted state gone wrong.
@@ -38,6 +45,7 @@ export function inMemoryClaims(
   progress: MemoryProgressTable,
   table: MemoryClaimTable,
   identity: ClaimIdentity,
+  holdsResource: (resourceId: string) => boolean,
 ): ClaimStore {
   const inProject = async (projectId: string): Promise<StampedClaim[]> => {
     const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
@@ -64,9 +72,29 @@ export function inMemoryClaims(
       const found = (await inProject(projectId)).find(({ id }) => id === claimId);
       return found === undefined ? null : unstampClaim(found);
     },
+    async occupancyOf(projectId) {
+      const claims = new Map((await inProject(projectId)).map((claim) => [claim.id, claim]));
+      return table.occupancy
+        .flatMap(({ claimId, resourceId, units }) => {
+          const claim = claims.get(claimId);
+          if (claim === undefined) return [];
+          const { workItemId, personId, runId } = claim;
+          return [{ claimId, workItemId, personId, runId, resourceId, units }];
+        })
+        .sort(
+          (left, right) =>
+            compare(left.workItemId, right.workItemId) ||
+            compare(left.resourceId, right.resourceId) ||
+            compare(left.claimId, right.claimId),
+        );
+    },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
     pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),
-    add(claims, stated, stamp) {
+    add(claims, stated, stamp, occupancy) {
+      const ids = new Set(claims.map(({ id }) => id));
+      const stray = occupancy.find(({ claimId }) => !ids.has(claimId));
+      if (stray !== undefined)
+        return Promise.reject(new Error(`occupancy names claim ${stray.claimId} not added`));
       const held = (claim: Claim): boolean =>
         table.rows.some(
           (row) =>
@@ -80,6 +108,12 @@ export function inMemoryClaims(
         progress.rows.some((row) => row.workItemId === workItemId && row.stepId === stepId),
       );
       if (spoken) return Promise.resolve('progress_stated' as const);
+      // Proof: with this check removed, the memory certification's
+      // `claims.occupancy:hold-read-cascade` case answered written for an
+      // absent resource; watched 2026-10-20.
+      if (occupancy.some(({ resourceId }) => !holdsResource(resourceId)))
+        return Promise.resolve('unknown_resource' as const);
+      table.occupancy.push(...occupancy.map((row) => ({ ...row })));
       // The instant stored is this write's, as SQLite's `created_at` is.
       // Proof: storing 0 here failed the memory certification's
       // `claims.listStampedByProject:write-instant` case; watched 2026-10-19.
@@ -110,7 +144,7 @@ export function inMemoryClaims(
           }
         }
       }
-      table.rows.splice(0, table.rows.length, ...table.rows.filter(({ id }) => !gone.has(id)));
+      dropClaims(table, gone);
       progress.rows.splice(
         0,
         progress.rows.length,
@@ -141,7 +175,26 @@ export function cascadeClaims(table: MemoryClaimTable, gone: (claim: Claim) => b
       }
     }
   }
-  table.rows.splice(0, table.rows.length, ...table.rows.filter(({ id }) => !removed.has(id)));
+  dropClaims(table, removed);
+}
+
+/** Removes the claims `gone` names and their occupancy rows, as SQLite's cascade does. */
+function dropClaims(table: MemoryClaimTable, gone: ReadonlySet<string>): void {
+  table.rows.splice(0, table.rows.length, ...table.rows.filter(({ id }) => !gone.has(id)));
+  table.occupancy.splice(
+    0,
+    table.occupancy.length,
+    ...table.occupancy.filter(({ claimId }) => !gone.has(claimId)),
+  );
+}
+
+/** Removes every occupancy row of one resource, as SQLite's resource cascade does. */
+export function cascadeOccupancy(table: MemoryClaimTable, resourceId: string): void {
+  table.occupancy.splice(
+    0,
+    table.occupancy.length,
+    ...table.occupancy.filter((row) => row.resourceId !== resourceId),
+  );
 }
 
 function compare(left: string, right: string): number {

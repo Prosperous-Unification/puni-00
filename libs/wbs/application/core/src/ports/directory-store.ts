@@ -247,8 +247,8 @@ export type ResourceWritten =
 /**
  * What points at one resource (`wbs-resources` R8): every demand on it with the
  * projects they sit in, for naming, and every stated capacity of it.
- * `occupancies` counts the units claims hold of it, and is 0 in every store until
- * the claim occupancy table lands (task 2.2): there is nothing yet to count.
+ * `occupancies` counts the leaves whose claims hold units of it
+ * (`claim_occupancy`, task 2.2): one per leaf, however many claims share it.
  */
 export interface ResourceUsageRows {
   /** The projects holding a demand, read as a removal's usage is, for naming the rows. */

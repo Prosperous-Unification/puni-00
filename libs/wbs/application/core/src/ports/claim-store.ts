@@ -1,13 +1,23 @@
 import type { CredentialPair } from '@wbs/contracts';
 
 export type { CredentialPair } from '@wbs/contracts';
-import type { Claim } from '@wbs/domain';
+import type { Claim, OccupancyRow } from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
 import type { ProgressKey } from './progress-store';
 import type { WriteStamp } from './write-stamp';
 
-export type { Claim } from '@wbs/domain';
+export type { Claim, OccupancyRow, ResourceUnits } from '@wbs/domain';
+
+/**
+ * One stored `claim_occupancy` row: the copy of its leaf's units of one
+ * resource that one claim carries (`wbs-resources` R3, {@link OccupancyRow}).
+ */
+export interface ClaimOccupancy {
+  readonly claimId: string;
+  readonly resourceId: string;
+  readonly units: number;
+}
 
 /**
  * A stored claim with the instant it was written: `created_at`, which an undo
@@ -27,10 +37,11 @@ export function unstampClaim({
 
 /**
  * What {@link ClaimStore.add} answers: written, a claim's step or subtree was
- * already held (a unique index refused it), or a step to state already holds
- * progress. Either refusal writes nothing.
+ * already held (a unique index refused it), a step to state already holds
+ * progress, or an occupancy names a resource the directory no longer holds.
+ * Every refusal writes nothing.
  */
-export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated';
+export type ClaimWriteOutcome = 'written' | 'taken' | 'progress_stated' | 'unknown_resource';
 
 /**
  * The claims of one project (`wbs-team-claims` D1–D8) and the one progress
@@ -57,16 +68,30 @@ export interface ClaimStore extends ClaimIdentity {
   /** One claim of the project by id; null when absent, released or another project's. */
   findById(projectId: string, claimId: string): Promise<Claim | null>;
   /**
+   * Every occupancy row of the project's claims, each with its claim's work
+   * item, person and run, ordered by work item, resource, then claim. The
+   * occupancy a claim reads and the one every per-resource read folds
+   * (`occupancyByResource`).
+   */
+  occupancyOf(projectId: string): Promise<OccupancyRow[]>;
+  /**
    * Inserts `claims` verbatim — id, run, parent and writing account included —
-   * and states each of `stated` `in_progress` at the stamp's instant.
+   * with the `occupancy` rows they carry, and states each of `stated`
+   * `in_progress` at the stamp's instant. The free-units check is not the
+   * store's: the claim decides it inside the batch's transaction
+   * (`refuseOccupancy`), so the store writes what it was given.
+   *
+   * @throws when an occupancy row names a claim not in `claims`.
    */
   add(
     claims: readonly Claim[],
     stated: readonly ProgressKey[],
     stamp: WriteStamp,
+    occupancy: readonly ClaimOccupancy[],
   ): Promise<ClaimWriteOutcome>;
   /**
-   * Removes exactly `claims` by id and the progress statements on `cleared`.
+   * Removes exactly `claims` by id, with their occupancy rows, and the
+   * progress statements on `cleared`.
    *
    * @throws when a claim to remove is no longer stored: every caller read it in
    * the same unit of work, or replays it behind a revision precondition.

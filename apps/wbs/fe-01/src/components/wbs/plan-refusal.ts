@@ -500,6 +500,15 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'overlaps_subtree_claim':
     case 'not_claimed_by':
       return refusal.error;
+    // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
+    case 'resources_must_be_a_list':
+    case 'resources_must_name_a_resource':
+    case 'resources_must_be_at_most_50':
+    case 'resources_must_name_each_resource_once':
+    case 'resources_on_subtree':
+    case 'below_declared_demand':
+    case 'resources_exhausted':
+      return refusal.error;
     // Resources (`wbs-resources`): the table sends none of these until 1.5, so
     // they arrive only from a batch another client wrote.
     case 'kind_is_immutable':

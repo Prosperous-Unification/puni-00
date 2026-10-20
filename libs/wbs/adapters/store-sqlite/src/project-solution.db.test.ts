@@ -142,6 +142,7 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
         '20261019130000_add_person_account',

@@ -406,6 +406,22 @@ function answerBatch(
         status: 409,
         body: { ...context, error: outcome.reason, ...outcome.detail },
       };
+    // The project's free units or the leaf's declared demand stand in the way
+    // (`wbs-resources` R3, R4); a subtree claim acquires nothing to ask for.
+    case 'resources_on_subtree':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'below_declared_demand':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'resources_exhausted':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
   }
 }
 const namedEntity = responseSchema(type({ id: 'string', name: 'string' }));

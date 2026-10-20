@@ -1,6 +1,6 @@
 import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { WorkItemStatus } from '@wbs/domain';
+import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -28,7 +28,7 @@ import type {
   RemoveDirectoryOutcome,
   RemoveResourceOutcome,
 } from '../directory/directory.resource';
-import type { NamedClaimHolder, PlainClaimReason } from '../work-item/claims';
+import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
 import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
@@ -95,6 +95,8 @@ export type AppliedCommand =
       alreadyHeld: boolean;
       claimIds: string[];
       assignedStepIds: string[];
+      /** The units the claim newly acquired (`wbs-resources` R3); empty past a leaf's first claim. */
+      acquired: ResourceUnits[];
     })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
   | {
@@ -126,6 +128,14 @@ export type Refusal =
   | {
       reason: 'inside_subtree_claim' | 'overlaps_subtree_claim';
       detail: { holder: NamedClaimHolder };
+    }
+  | {
+      reason: 'below_declared_demand';
+      detail: { resourceId: string; asked: number; declared: number };
+    }
+  | {
+      reason: 'resources_exhausted';
+      detail: { resourceId: string; asked: number; free: number; holders: NamedOccupancyHolder[] };
     };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;

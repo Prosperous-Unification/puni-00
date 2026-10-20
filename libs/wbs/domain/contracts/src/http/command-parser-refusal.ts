@@ -458,6 +458,26 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  resources_must_be_a_list: type({
+    error: "'resources_must_be_a_list'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_name_a_resource: type({
+    error: "'resources_must_name_a_resource'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_be_at_most_50: type({
+    error: "'resources_must_be_at_most_50'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resources_must_name_each_resource_once: type({
+    error: "'resources_must_name_each_resource_once'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   kind_is_immutable: type({
     error: "'kind_is_immutable'",
     at: 'number',

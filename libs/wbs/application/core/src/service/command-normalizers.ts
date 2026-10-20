@@ -11,6 +11,7 @@ import {
   asOptionalIds,
   asOptionalInstant,
   asOptionalPriority,
+  asOptionalResourceUnits,
   asOptionalRunId,
   asOptionalStepIds,
   asOptionalText,
@@ -241,6 +242,7 @@ export const commandNormalizers = {
       parentClaim: asOptionalId(raw.parentClaim, 'parentClaim'),
       // The schema admits only a boolean; absent stays absent and reads as false.
       assign: raw.assign,
+      resources: asOptionalResourceUnits(raw.resources),
     }),
   releaseWorkItem: (raw: CommandInput<'releaseWorkItem'>) =>
     present({

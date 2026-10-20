@@ -49,6 +49,7 @@ describe('email verification migration', () => {
 
   it('rolls down before activation without evidence', () => {
     expect(rollbackTo(path, FOLDER, PREVIOUS)).toEqual([
+      '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',

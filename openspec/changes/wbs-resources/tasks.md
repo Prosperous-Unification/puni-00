@@ -25,16 +25,20 @@
 
 ## 2. Occupancy on claims (needs slice 1 and the claims change slice 1)
 
-- [ ] 2.1 Domain: extend the claim decision with the demand vector, free units and holders;
+- [x] 2.1 Domain: extend the claim decision with the demand vector, free units and holders;
       `resources_exhausted`, `below_declared_demand`; one occupancy per leaf; subtree claims
       acquire nothing — test: one case per refusal and scenario; property: free units never
-      negative after any sequence of claims and releases (fast-check model run).
-- [ ] 2.2 Store: `claim_occupancy (claim_id, resource_id, units)` or units on the claim row
-      (decide in 2.1 by the one-occupancy-per-leaf rule), reads per project and resource;
-      SQLite and memory; conformance — negative: bypass the in-transaction free-units check
-      and two concurrent claims overcommit; watched through the write coordinator race test.
-- [ ] 2.3 Commands: `claimWorkItem.resources`, release frees on the last claim, undo/redo —
-      test: journal round trips.
+      negative after any sequence of claims and releases (fast-check model run). Done in
+      `occupancy.ts` (`refuseOccupancy` is the one check) and `decideClaim`; "first claim on
+      a leaf" is recorded by copying the leaf's vector onto every claim row (see verify.md).
+- [x] 2.2 Store: `claim_occupancy (claim_id, resource_id, units)` (decided in 2.1: one row per
+      claim and resource, every claim of a leaf carrying the leaf's vector, a leaf holding the
+      largest copy), reads per project and resource; SQLite and memory; conformance —
+      negative: bypass the in-transaction free-units check and two concurrent claims
+      overcommit; watched through the write coordinator race test
+      (`claim-occupancy-race.db.test.ts`).
+- [x] 2.3 Commands: `claimWorkItem.resources`, release frees on the last claim, undo/redo —
+      test: journal round trips (`resource-occupancy.db.test.ts`, both stores).
 
 ## 3. Engines (Claire's items 2 and 3)
 

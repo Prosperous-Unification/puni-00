@@ -536,6 +536,43 @@ export function asOptionalStepIds(value: unknown): readonly string[] | undefined
   return stepIds;
 }
 
+/**
+ * A claim's `resources` (`wbs-resources` R4): absent, or 1 to
+ * {@link MOST_REFS_ON_ONE_ITEM} entries of `{ resourceId, units }`, each naming
+ * a different resource with a whole number of units from 1 to
+ * {@link MOST_RESOURCE_UNITS}. An empty list asks for nothing and is refused as
+ * an empty `steps` is; a resource named twice asks for two answers at once.
+ *
+ * Proof: with the duplicate refusal removed, `refuses resources naming one
+ * resource twice` (command-normalizers.test.ts) normalized both entries;
+ * watched 2026-10-20.
+ */
+export function asOptionalResourceUnits(
+  value: unknown,
+): readonly { resourceId: string; units: number }[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new CommandNormalizationError('resources_must_be_a_list');
+  const entries: readonly unknown[] = value;
+  if (entries.length === 0) throw new CommandNormalizationError('resources_must_name_a_resource');
+  if (entries.length > MOST_REFS_ON_ONE_ITEM)
+    throw new CommandNormalizationError(
+      `resources_must_be_at_most_${String(MOST_REFS_ON_ONE_ITEM)}`,
+    );
+  const asked = entries.map((entry) => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry))
+      throw new CommandNormalizationError('resources_must_be_a_list');
+    const resourceId = 'resourceId' in entry ? entry.resourceId : undefined;
+    if (typeof resourceId !== 'string')
+      throw new CommandNormalizationError('resourceId_must_be_an_id');
+    const units = resourceUnitsOf(entry, 1);
+    if (units === null) throw new CommandNormalizationError('units_must_be_a_whole_number_from_1');
+    return { resourceId, units };
+  });
+  if (new Set(asked.map(({ resourceId }) => resourceId)).size !== asked.length)
+    throw new CommandNormalizationError('resources_must_name_each_resource_once');
+  return asked;
+}
+
 /** A boolean or absent, or the field's refusal. */
 export function asOptionalFlag(value: unknown, field: string): boolean | undefined {
   if (value === undefined) return undefined;

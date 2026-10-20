@@ -71,6 +71,7 @@ async function seeded() {
       [{ id, workItemId, stepId, personId, runId: `run-${id}`, parentClaimId, accountId: OWNER }],
       [],
       { at, by: OWNER },
+      [],
     );
   const link = (predecessorId: string, successorId: string) =>
     source.stores.dependencies.add(

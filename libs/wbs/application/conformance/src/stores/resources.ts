@@ -20,7 +20,8 @@ export function isResourceCase(caseId: string): boolean {
     caseId.startsWith('resourceCapacity.') ||
     caseId.startsWith('demands.') ||
     caseId.startsWith('directory.addResource') ||
-    caseId.startsWith('directory.removeResource')
+    caseId.startsWith('directory.removeResource') ||
+    caseId.startsWith('claims.occupancy')
   );
 }
 
@@ -35,7 +36,7 @@ const [RAM, STAGE] = CONFORMANCE_RESOURCES;
  * source state nobody set up.
  */
 export async function seedResourceCase(
-  stores: Pick<TransactionalStores, 'directory' | 'demands' | 'resourceCapacity'>,
+  stores: Pick<TransactionalStores, 'directory' | 'demands' | 'resourceCapacity' | 'claims'>,
   caseId: string,
   seed: SeededPlan,
 ): Promise<void> {
@@ -49,6 +50,23 @@ export async function seedResourceCase(
     throw new Error('conformance demand was refused');
   const stated = await stores.resourceCapacity.set(seed.projectIds[1], RAM.id, 32, seed.stamps[0]);
   if (!stated.ok) throw new Error('conformance resource capacity was refused');
+  // A claim holding RAM and the stage on the second project's leaf: an
+  // occupancy beside RAM's demand and capacity, and the stage's only use
+  // (`wbs-resources` R8), so the count is read and refuses on its own.
+  const holding = {
+    id: 'claim-holding-ram',
+    workItemId: seed.workItemIds[1][1],
+    stepId: seed.stepIds[1][0],
+    personId: seed.personIds[0],
+    runId: null,
+    parentClaimId: null,
+    accountId: seed.ownerIds[0],
+  };
+  const held = await stores.claims.add([holding], [], seed.stamps[0], [
+    { claimId: holding.id, resourceId: RAM.id, units: 2 },
+    { claimId: holding.id, resourceId: STAGE.id, units: 1 },
+  ]);
+  if (held !== 'written') throw new Error(`conformance occupancy was refused: ${held}`);
 }
 
 /** The shared resource-capacity cases: stated, zero, cleared, per project, and refusals. */
@@ -183,12 +201,19 @@ export function directoryResourceRegistrations(
         }).toEqual({
           demands: [{ workItemId: seed.workItemIds[0][0], resourceId: RAM.id, units: 4 }],
           capacities: [{ projectId: seed.projectIds[1], units: 32 }],
-          occupancies: 0,
+          occupancies: 1,
           projects: [seed.projectIds[0]],
         });
         const refused = await port.removeResource(RAM.id, false, seed.stamps[0]);
         expect(refused.ok).toBe(false);
         expect(await port.listResources()).toEqual([RAM, STAGE]);
+        // Held by a claim and named by nothing else, the stage is in use too.
+        expect((await port.usageOfResource(STAGE.id)).occupancies).toBe(1);
+        expect(await port.removeResource(STAGE.id, false, seed.stamps[0])).toMatchObject({
+          ok: false,
+          reason: 'in_use',
+          usage: { occupancies: 1, demands: [], capacities: [] },
+        });
         const removed = await port.removeResource(RAM.id, true, seed.stamps[1]);
         expect(removed).toEqual({
           ok: true,
@@ -200,6 +225,7 @@ export function directoryResourceRegistrations(
         expect(await port.listResources()).toEqual([STAGE]);
         const after = await port.usageOfResource(STAGE.id);
         expect(after.demands).toEqual([]);
+        expect(after.occupancies).toBe(1);
         expect(await port.removeResource(RAM.id, true, seed.stamps[1])).toEqual({
           ok: false,
           reason: 'not_found',

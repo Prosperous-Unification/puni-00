@@ -97,6 +97,7 @@ describe('the closed case manifest', () => {
       'claims.add:taken-stated-remove',
       'claims.listStampedByProject:write-instant',
       'claims.remove:delegated-cascade',
+      'claims.occupancy:hold-read-cascade',
     ]);
     expect(SUPPLEMENTAL_CASE_MANIFEST).toEqual({
       common: ['history.batch:independent-commit', 'history.batch:independent-rollback'],

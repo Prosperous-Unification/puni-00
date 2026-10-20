@@ -121,6 +121,7 @@ describe('ProjectRepository', () => {
     await repo.create(shed, steps(shed.id, 'Dev'), wrote());
 
     expect(rollbackTo(join(dir, 'test.db'), FOLDER, '20260824010000_add_oidc_identity')).toEqual([
+      '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
@@ -979,7 +980,7 @@ describe('findCrossReferences', () => {
 
   // Proof: with the two resource arms removed from `findCrossReferences`, this
   // answered []; watched 2026-10-20.
-  it('reports a demand and a capacity naming another organization’s resource', async () => {
+  it('reports a demand, a capacity and an occupancy naming another organization’s resource', async () => {
     const raw = openDatabase(join(dir, 'test.db'));
     try {
       raw.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
@@ -1006,10 +1007,26 @@ describe('findCrossReferences', () => {
         "INSERT INTO project_resource_capacity (project_id, resource_id, units) VALUES (?, 'ram-a', 4), (?, 'ram-b', 8)",
         [mine.id, mine.id],
       );
+      const stepId = raw
+        .query<{ id: string }, [string]>('SELECT id FROM step WHERE project_id = ?')
+        .get(mine.id)?.id;
+      if (stepId === undefined) throw new Error('the project has no step');
+      raw.run("INSERT INTO person (id, name) VALUES ('pe-m', 'Mine')");
+      raw.run(
+        "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('pe-m', 'org-a', 'Mine')",
+      );
+      raw.run(
+        "INSERT INTO claim (id, work_item_id, step_id, person_id) VALUES ('c-m', 'w-m', ?, 'pe-m')",
+        [stepId],
+      );
+      raw.run(
+        "INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES ('c-m', 'ram-a', 1), ('c-m', 'ram-b', 2)",
+      );
 
       expect(await repo.findCrossReferences(mine.id, 'org-a')).toEqual([
         { kind: 'project_resource_capacity', id: 'ram-b' },
         { kind: 'work_item_resource_demand', id: 'w-m/ram-b' },
+        { kind: 'claim_occupancy_resource', id: 'c-m/ram-b' },
       ]);
     } finally {
       raw.close();

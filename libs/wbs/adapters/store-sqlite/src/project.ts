@@ -626,6 +626,14 @@ export class ProjectRepository implements ProjectStore {
         'work_item_resource_demand',
         "l.work_item_id || '/' || l.resource_id",
       ),
+      // A claim's occupancy names a resource as a demand does (`wbs-resources` R3).
+      // Proof: with this arm removed, `reports a demand, a capacity and an
+      // occupancy naming another organization’s resource` (project.db.test.ts)
+      // left the occupancy out; watched 2026-10-20.
+      sql`SELECT 'claim_occupancy_resource' AS kind, l.claim_id || '/' || l.resource_id AS id
+        FROM claim_occupancy AS l JOIN claim AS c ON c.id = l.claim_id
+        JOIN work_item AS w ON w.id = c.work_item_id
+        WHERE w.project_id = ${p} AND ${ownerOf('resource_organization', 'l.resource_id')} IS NOT ${o}`,
       // References into the project. Proof: each of the three kinds below
       // disabled alone made `fails closed on a project another project reaches
       // into, changing neither` in `command-organization.controller.db.test.ts`

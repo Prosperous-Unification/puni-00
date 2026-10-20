@@ -92,6 +92,7 @@ beforeEach(async () => {
       ],
       [],
       { at: 9, by: 'owner' },
+      [],
     ),
   ).toBe('written');
   recorded = [];

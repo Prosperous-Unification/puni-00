@@ -652,6 +652,11 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         found.people.push(each.personId);
       }
       [...('stated' in command ? command.stated : command.cleared)].forEach(onStep);
+      // Proof: with this line removed, `reads both directions back and names
+      // their rows, steps, people and progress` (compensating.test.ts) read no
+      // resource off the occupancy; watched 2026-10-20.
+      if (command.do === 'add_claims')
+        found.resources.push(...command.occupancy.map(({ resourceId }) => resourceId));
       return;
     case 'restore_attempt':
       attempted(command.attempt);
@@ -873,5 +878,32 @@ function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
       !text(pair.stepId)
     )
       throw new Error('a journal claim replay holds a malformed progress key');
+  }
+  if (keys === 'cleared') return;
+  const occupancy: unknown = 'occupancy' in value ? value.occupancy : undefined;
+  // Proof: with this check answering early, `refuses a claim replay with no
+  // occupancy, or one naming a claim it does not carry` (compensating.test.ts)
+  // did not throw; watched 2026-10-20.
+  if (!Array.isArray(occupancy)) throw new Error('a journal claim replay has no occupancy');
+  const ids = new Set(
+    claims.map((each) =>
+      typeof each === 'object' && each !== null && 'id' in each ? each.id : null,
+    ),
+  );
+  const rows: readonly unknown[] = occupancy;
+  for (const row of rows) {
+    if (
+      typeof row !== 'object' ||
+      row === null ||
+      !('claimId' in row) ||
+      !ids.has(row.claimId) ||
+      !('resourceId' in row) ||
+      !text(row.resourceId) ||
+      !('units' in row) ||
+      typeof row.units !== 'number' ||
+      !Number.isSafeInteger(row.units) ||
+      row.units < 1
+    )
+      throw new Error('a journal claim replay holds a malformed occupancy');
   }
 }

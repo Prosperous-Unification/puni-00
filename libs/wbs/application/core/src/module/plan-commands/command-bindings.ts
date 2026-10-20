@@ -142,6 +142,29 @@ export class CommandContext {
       case 'inside_subtree_claim':
       case 'overlaps_subtree_claim':
         return this.refuse({ reason: outcome.reason, detail: { holder: { ...outcome.holder } } });
+      case 'below_declared_demand':
+        return this.refuse({
+          reason: outcome.reason,
+          detail: {
+            resourceId: outcome.resourceId,
+            asked: outcome.asked,
+            declared: outcome.declared,
+          },
+        });
+      case 'resources_exhausted':
+        // Proof: with holders replaced by [], `refuses the ninth claim on 32 GB
+        // naming the eight holders` (resource-occupancy.db.test.ts) named
+        // nobody; watched 2026-10-20.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: {
+            resourceId: outcome.resourceId,
+            asked: outcome.asked,
+            free: outcome.free,
+            holders: outcome.holders.map((holder) => ({ ...holder })),
+          },
+        });
+      case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':
       case 'parent_claim_unknown':
@@ -515,6 +538,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
             assign: command.assign ?? false,
+            resources: command.resources ?? null,
           },
           isClaimAdmin(context.access),
           context.credential,
@@ -526,6 +550,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         alreadyHeld: claimed.alreadyHeld,
         claimIds: [...claimed.claimIds],
         assignedStepIds: [...claimed.assignedStepIds],
+        acquired: claimed.acquired.map((each) => ({ ...each })),
       };
     },
     releaseWorkItem: async (command, context) => {

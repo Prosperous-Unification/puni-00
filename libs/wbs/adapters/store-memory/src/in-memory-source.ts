@@ -69,6 +69,7 @@ export function inMemoryStores(): TransactionalStores {
       progressTable,
       memoryClaimTable(),
       claimIdentityOf(directory),
+      (resourceId) => directoryTables.resources.resources.has(resourceId),
     ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {

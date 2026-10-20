@@ -66,6 +66,8 @@ const appliedResults = type({
     'alreadyHeld?': 'boolean',
     'claimIds?': 'string[]',
     'assignedStepIds?': 'string[]',
+    // The units its claim newly acquired (`wbs-resources` R3); empty past a leaf's first claim.
+    'acquired?': type({ resourceId: 'string', units: 'number' }).array(),
   }).array(),
 });
 const claimHolder = type({
@@ -73,6 +75,13 @@ const claimHolder = type({
   personId: 'string',
   name: 'string',
   runId: 'string | null',
+});
+/** Who holds units of an exhausted resource: one claimant and run on one leaf. */
+const occupancyHolder = type({
+  personId: 'string',
+  name: 'string',
+  runId: 'string | null',
+  workItemId: 'string',
 });
 export const commandResults = responseSchema(appliedResults);
 const readPolicies = [{ kind: 'identity', require: 'signed-in' }] as const;
@@ -199,6 +208,7 @@ const batchRefusals = [
         type({ ...context, error: "'parent_claim_not_ancestor'" }),
         type({ ...context, error: "'item_done'" }),
         type({ ...context, error: "'steps_on_subtree'" }),
+        type({ ...context, error: "'resources_on_subtree'" }),
         type({ ...context, error: "'not_claimed_by'" }),
       ),
     ),
@@ -212,6 +222,22 @@ const batchRefusals = [
         type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'inside_subtree_claim'", holder: claimHolder }),
         type({ ...context, error: "'overlaps_subtree_claim'", holder: claimHolder }),
+        // `claimWorkItem` occupancy (`wbs-resources` R3, R4).
+        type({
+          ...context,
+          error: "'below_declared_demand'",
+          resourceId: 'string',
+          asked: 'number',
+          declared: 'number',
+        }),
+        type({
+          ...context,
+          error: "'resources_exhausted'",
+          resourceId: 'string',
+          asked: 'number',
+          free: 'number',
+          holders: occupancyHolder.array(),
+        }),
       ),
     ),
   },

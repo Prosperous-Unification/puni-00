@@ -283,6 +283,7 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
@@ -334,6 +335,7 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',

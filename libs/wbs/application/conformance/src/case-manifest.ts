@@ -134,6 +134,7 @@ export const CASE_MANIFEST = {
     'claims.add:taken-stated-remove',
     'claims.listStampedByProject:write-instant',
     'claims.remove:delegated-cascade',
+    'claims.occupancy:hold-read-cascade',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
   dependencies: [

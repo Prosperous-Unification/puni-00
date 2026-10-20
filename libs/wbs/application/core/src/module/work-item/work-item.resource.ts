@@ -30,6 +30,7 @@ import {
   formatStepNodeId,
   formatStepReference,
   formatTypedDependencyKey,
+  freeUnitsOf,
   haveSameSliceOrder,
   type Hold,
   type IsoDate,
@@ -44,6 +45,7 @@ import {
   nextWorkday,
   type NodeReading,
   nodeResourcesOf,
+  occupancyByResource,
   orderSteps,
   ORDINARY_BAND_RANK,
   parentIndexOf,
@@ -52,9 +54,12 @@ import {
   type PriorityBand,
   type Readiness,
   refuseDemand,
+  refuseOccupancy,
   resolveStepResources,
   type Resource,
   type ResourceCapacity,
+  type ResourceOccupancy,
+  type ResourceUnits,
   rollUp,
   rollUpActuals,
   rollUpCharged,
@@ -91,7 +96,12 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
-import type { ClaimIdentity, ClaimStore, CredentialPair } from '../../ports/claim-store';
+import type {
+  ClaimIdentity,
+  ClaimOccupancy,
+  ClaimStore,
+  CredentialPair,
+} from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -3009,6 +3019,21 @@ export class WorkItemService {
     return this.demanding().listByProject(projectId);
   }
 
+  /**
+   * The project's **Occupancy** (`wbs-resources` R3), per resource: the units
+   * its leaves' claims hold with their holders, and the free units of every
+   * resource it states a capacity for. Nothing that schedules reads it (R5).
+   */
+  async occupancyOf(
+    projectId: string,
+  ): Promise<{ occupied: ResourceOccupancy[]; free: ResourceUnits[] }> {
+    const rows = await this.claiming().claims.occupancyOf(projectId);
+    return {
+      occupied: occupancyByResource(rows),
+      free: freeUnitsOf(await this.resourceCapacitiesOf(projectId), rows),
+    };
+  }
+
   /** The project's stated resource capacities, in resource-id order. */
   resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]> {
     const { resourceCapacity } = this.opts;
@@ -3089,6 +3114,22 @@ export class WorkItemService {
       (await this.opts.directory.listPeople()).map((person) => [person.id, person.name]),
     );
     if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    if (input.resources !== null) {
+      const kindOf = new Map(
+        (await this.opts.directory.listResources()).map((each) => [each.id, each.kind]),
+      );
+      for (const asked of input.resources) {
+        const kind = kindOf.get(asked.resourceId);
+        // The batch refuses a foreign resource first (command-references.ts);
+        // this is the legacy and direct caller's guard and the kind's rule, as
+        // setDemand's. Proof: with both skipped, `refuses resources naming an
+        // absent resource, or more than one unit of an exclusive one`
+        // (resource-occupancy.db.test.ts) failed on both stores; watched 2026-10-20.
+        if (kind === undefined) return { ok: false, reason: 'unknown_resource' };
+        const refusal = refuseDemand(kind, asked.units);
+        if (refusal !== null) return { ok: false, reason: refusal };
+      }
+    }
     const lineage = lineageOf(rows, id);
     const stated = new Map(
       (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
@@ -3126,6 +3167,17 @@ export class WorkItemService {
       parentClaim:
         input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
       claims: near,
+      demand: lineage.isLeaf
+        ? (await this.demanding().listByProject(projectId))
+            .filter((each) => each.workItemId === id)
+            .map(({ resourceId, units }) => ({ resourceId, units }))
+        : [],
+      resources: input.resources,
+      // Read inside the batch's transaction: the write coordinator admits one
+      // batch at a time, so a concurrent claim's units are already here or not
+      // yet written (claim-occupancy-race.db.test.ts).
+      capacities: await this.resourceCapacitiesOf(projectId),
+      occupancy: await claims.occupancyOf(projectId),
     });
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
     if (decided.kind === 'alreadyHeld') {
@@ -3135,7 +3187,12 @@ export class WorkItemService {
       );
       return {
         ok: true,
-        value: { alreadyHeld: true, claimIds: held.map((each) => each.id), assignedStepIds: [] },
+        value: {
+          alreadyHeld: true,
+          claimIds: held.map((each) => each.id),
+          assignedStepIds: [],
+          acquired: [],
+        },
       };
     }
     const stamp = this.clock.stampFor(actorId);
@@ -3145,7 +3202,10 @@ export class WorkItemService {
       accountId: actorId,
     }));
     const statements = decided.stateInProgress.map((stepId) => ({ workItemId: id, stepId }));
-    const outcome = await claims.add(written, statements, stamp);
+    const occupancy = written.flatMap((each) =>
+      decided.occupancy.map(({ resourceId, units }) => ({ claimId: each.id, resourceId, units })),
+    );
+    const outcome = await claims.add(written, statements, stamp, occupancy);
     // Read in this same unit of work a moment ago: a refusal here is the
     // write coordinator failing to serialize, not an outcome to model.
     if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
@@ -3177,7 +3237,7 @@ export class WorkItemService {
     }));
     await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
       forward: oneCommandOf([
-        { do: 'add_claims', claims: written, stated: statements },
+        { do: 'add_claims', claims: written, stated: statements, occupancy },
         ...assigning,
       ]),
       // Proof: with `unassigning` left out, `undo clears both the claim and the
@@ -3195,6 +3255,7 @@ export class WorkItemService {
         alreadyHeld: false,
         claimIds: written.map((each) => each.id),
         assignedStepIds: [...decided.assignStepIds],
+        acquired: [...decided.acquired],
       },
     };
   }
@@ -3242,11 +3303,20 @@ export class WorkItemService {
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
     const stamp = this.clock.stampFor(actorId);
     const removed = [...decided.claims];
+    const ids = new Set(removed.map((each) => each.id));
+    // What the removed claims held, so the undo puts it back with them; the
+    // rows themselves go with their claims.
+    // Proof: with `[]` in place of these rows, `undo of a release re-acquires
+    // the units` (resource-occupancy.db.test.ts) put the claims back holding
+    // nothing, on both stores; watched 2026-10-20.
+    const occupancy = (await claims.occupancyOf(projectId))
+      .filter((row) => ids.has(row.claimId))
+      .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
     await claims.remove(removed, [], stamp);
     await this.announceTree(projectId);
     await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
       forward: { do: 'remove_claims', claims: removed, cleared: [] },
-      inverse: { do: 'add_claims', claims: removed, stated: [] },
+      inverse: { do: 'add_claims', claims: removed, stated: [], occupancy },
       touched: [...new Set(removed.map((each) => each.workItemId))],
       before: rows,
     });
@@ -3258,6 +3328,54 @@ export class WorkItemService {
    * failure in a fixture built without them. Until `person.account_id` lands
    * (task 2.1) the claim store itself answers those reads, so both come from it.
    */
+  /**
+   * Why putting `command`'s claims back would take units the project no longer
+   * has free, as a sentence, or null when it would not: the redo of a claim and
+   * the undo of a release re-acquire, so they pass {@link refuseOccupancy} as a
+   * fresh claim does (`wbs-resources` R3), leaf by leaf. A refusal reads as
+   * `resources_exhausted` would, inside the replay's `stale_undo`.
+   *
+   * Proof: with this answering null, `redo of a claim is refused
+   * resources_exhausted once another leaf took the units`
+   * (resource-occupancy.db.test.ts) redid the claim over capacity, on both
+   * stores; watched 2026-10-20.
+   */
+  private async refuseReacquiring(
+    projectId: string,
+    command: { claims: readonly Claim[]; occupancy: readonly ClaimOccupancy[] },
+  ): Promise<string | null> {
+    if (command.occupancy.length === 0) return null;
+    const leafOf = new Map(command.claims.map((each) => [each.id, each.workItemId]));
+    const askedBy = new Map<string, Map<string, number>>();
+    for (const { claimId, resourceId, units } of command.occupancy) {
+      const leaf = leafOf.get(claimId);
+      // `readCommand` refused an occupancy naming a claim the entry lacks.
+      if (leaf === undefined) throw new Error(`occupancy names claim ${claimId} not replayed`);
+      const asked = askedBy.get(leaf) ?? new Map<string, number>();
+      asked.set(resourceId, Math.max(asked.get(resourceId) ?? 0, units));
+      askedBy.set(leaf, asked);
+    }
+    const capacities = await this.resourceCapacitiesOf(projectId);
+    const occupancy = await this.claiming().claims.occupancyOf(projectId);
+    for (const [workItemId, asked] of askedBy) {
+      const exhausted = refuseOccupancy({
+        workItemId,
+        asked: [...asked].map(([resourceId, units]) => ({ resourceId, units })),
+        capacities,
+        occupancy,
+      });
+      if (exhausted === null) continue;
+      const resource = (await this.opts.directory.listResources()).find(
+        (each) => each.id === exhausted.resourceId,
+      );
+      if (resource === undefined)
+        throw new Error(`a stated capacity names absent resource ${exhausted.resourceId}`);
+      const label = resource.unitLabel === '' ? '' : ` ${resource.unitLabel}`;
+      return `resources_exhausted: that needs ${String(exhausted.asked)}${label} of ${quoteName(resource.name)} and ${String(Math.max(exhausted.free, 0))} are free now.`;
+    }
+    return null;
+  }
+
   private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
     const { claims } = this.opts;
     if (claims === undefined)
@@ -6595,13 +6713,18 @@ export class WorkItemService {
         return { ok: true, detail: null };
       }
       case 'add_claims': {
-        const added = await this.claiming().claims.add(command.claims, command.stated, stamp);
+        const { claims } = this.claiming();
+        const exhausted = await this.refuseReacquiring(projectId, command);
+        if (exhausted !== null) return { ok: false, detail: exhausted };
+        const added = await claims.add(command.claims, command.stated, stamp, command.occupancy);
         // Proof: answering ok here made `refuses a redo of a claim once another
         // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.
         if (added === 'taken')
           return { ok: false, detail: 'that step or subtree has been claimed since.' };
         if (added === 'progress_stated')
           return { ok: false, detail: 'that step has been spoken about since.' };
+        if (added === 'unknown_resource')
+          return { ok: false, detail: 'a resource it held is no longer in the directory.' };
         return { ok: true, detail: null };
       }
       case 'remove_claims': {

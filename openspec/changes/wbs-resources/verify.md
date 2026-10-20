@@ -12,6 +12,107 @@ and **Lease** is reserved for runtime, so the live units a claim holds are **Occ
 
 `openspec validate --all --json`: run before each push, result in the PR.
 
+## Slice 2: occupancy on claims (tasks 2.1 to 2.3)
+
+Implemented 2026-10-20 on `feat/wbs-resource-occupancy`, branched from `plan/wbs-resources`
+(13bc46dbc) with `feat/wbs-resources-declaration` (775a7a7f, slice 1, PR open) merged in.
+R3 and R4 are still assumed; the check lives in one function so either can be overturned there.
+
+How "first claim on a leaf" is recorded: it is not a flag. `claim_occupancy (claim_id FK
+claim cascade, resource_id FK resource cascade, units CHECK >= 1, PK (claim_id, resource_id))`
+holds one row per claim and resource, and **every** claim row of a leaf carries a copy of the
+leaf's whole vector. A leaf holds the largest copy per resource (`leafOccupancyOf`), never the
+sum; the project's occupancy is the sum over leaves (`occupancyByResource`). A claim on a leaf
+that already holds a claim copies the standing vector and acquires nothing (`acquired: []`),
+whatever its `resources` asks; releasing one of two claims leaves the other's copy, releasing
+the last takes the last copy by cascade. Rows on the first claim alone would have been freed
+when that claim was released first, against "releasing only A's claim first changed nothing".
+
+- 2.1 `libs/wbs/domain/domain/src/occupancy.ts`: `askedUnitsOf` (declared demand raised by the
+  claim's `resources`, `below_declared_demand`), `refuseOccupancy` (the one free-units check:
+  stated capacity minus other leaves' units must cover the units asked; a leaf already holding
+  that many is not asked again; unstated never refuses), `freeUnitsOf`, `occupancyByResource`.
+  `decideClaim` places `below_declared_demand` then `resources_exhausted` after
+  `already_claimed` (and `alreadyHeld`) and before `inside_subtree_claim`; a subtree claim
+  acquires nothing and naming `resources` on one is refused `resources_on_subtree`.
+- 2.2 Migration `20261020130000_add_claim_occupancy` (additive) with a `down.sql` refusing while
+  rows exist. `ClaimStore.occupancyOf(projectId)` (rows with claim, leaf, person, run) and
+  `add(claims, stated, stamp, occupancy)` (`unknown_resource` for a resource gone) on SQLite and
+  memory; `WorkItemService.occupancyOf` answers per resource with holders and free units.
+  Resource usage counts occupying leaves (`occupancies`), refusing `deleteResource` in use; the
+  cascade takes the rows. `findCrossReferences` fails closed on `claim_occupancy_resource`.
+- 2.3 `claimWorkItem.resources: { resourceId, units }[]` (boundary: a list of 1 to 50 distinct
+  resources, units 1 to 1e9; foreign resources `unknown_resource` before the claim; kind rule
+  `exclusive_demand_is_one`). The claim reads demand, capacities and occupancy inside the
+  batch's transaction. `add_claims` journals the occupancy rows; the release's inverse carries
+  the removed claims' rows. A redo of a claim and an undo of a release pass `refuseOccupancy`
+  again and, refused, answer `stale_undo` with detail `resources_exhausted: that needs …`.
+  The result gains `acquired`. Contracts: three refusal arms (409), four boundary codes (400),
+  the `claimWorkItem` description, `acquired` on results; fe-01's refusal switch lists them.
+
+Commands and results (2026-10-20, laptop, `env -u CLAUDECODE`, explicit `./` paths):
+
+- `bunx tsc --build` domain, contracts, core, conformance, store-memory, store-sqlite, be-01,
+  mcp-01, fe-01: exit 0.
+- `bun test` over 93 files (every test file this branch changed or added, every file the
+  slice 1 merge touched, the claim, assignee, startable, person-work and resource command and
+  store tests, the 33 migration-pinned tests, both source conformance suites, be-01 claim,
+  startable, person-work and resource controllers, both OpenAPI tests, mcp-01
+  generated-document, openapi-tools and http, tool-devsync repo-namespacing-handoff): 1942 pass,
+  1 skip (the existing memory stale-undo case of `assignee-commands.db.test.ts`), 0 fail.
+  Of these, new: `claim-occupancy.test.ts` 14, `resource-occupancy.db.test.ts` 22 (11 per
+  store), `claim-occupancy-race.db.test.ts` 2, `claim-occupancy-schema.db.test.ts` 7, three
+  normalizer, one replay and one controller case, and the conformance case
+  `claims.occupancy:hold-read-cascade` certified on both stores.
+- `bunx @fission-ai/openspec@1.12.0 validate --all --json`: 258 passed, 0 failed.
+- OpenAPI emit (`emit-openapi-cli.ts`) before and after, compared structurally: nothing
+  removed; added `resources` on the `claimWorkItem` arm, `acquired` on results, the three 409
+  and four 400 arms; changed only the `claimWorkItem` description text. No path added, so the
+  MCP tool list is unchanged by this slice.
+- Merge of slice 1: 52 conflicted files, resolved keeping both sides (migration lists in date
+  order, both routes and reads, module indexes unioned, MCP README now 84 tools since slice 1
+  and slice 4 each added one read); `person-account-migration.db.test.ts` and the memory
+  resource usage (`pinnedCredentials`) needed a fix the merge could not show as a conflict.
+
+R5 proofs, each watched failing with the fault injected and passing with it removed:
+
+- `refuseOccupancy` comparison answering null: the ninth-claim, capacity-0, more-than-declared
+  and ordering cases and the fast-check property failed (claim-occupancy.test.ts), and both
+  orders of the race test stored the second claim over 6 GB (claim-occupancy-race.db.test.ts).
+  The store does not repeat the check: the claim's read inside the coordinator's turn is it.
+- The held-units skip removed: a leaf whose capacity was lowered under its units was refused
+  its own units. `below_declared_demand` removed: 1 GB of a 2 GB demand claimed. The
+  first-claim test (`onTarget.length > 0`) replaced by `false`: a second claim acquired again.
+  `resources_on_subtree` removed: the subtree claim dropped the ask.
+- Migration: the CHECK, the primary key, each cascade and the down guard removed alone each
+  failed its own case of `claim-occupancy-schema.db.test.ts`.
+- Stores: SQLite's `unknown_resource` check and memory's `holdsResource` check removed failed
+  the certification case; SQLite's occupancy count at 0 failed certification and `refuses
+deleting a resource a claim holds`; memory's in-use refusal removed failed certification
+  (the stage only a claim held was removed); memory's commit copy of the rows removed failed
+  ten memory cases of resource-occupancy.db.test.ts.
+- Commands: the release's captured rows replaced by none failed `undo of a release re-acquires
+the units` on both stores; `refuseReacquiring` answering null failed the refused-redo case on
+  both; holders replaced by `[]` in the batch failed the ninth-claim case on both; the
+  service's resource and kind guard skipped failed its case on both; the batch's foreign
+  resource check skipped answered 403 `person_not_bound` instead of 404 `unknown_resource`
+  (resource-organization.controller.db.test.ts); the crossing arm disabled left the
+  occupancy out of `findCrossReferences` (project.db.test.ts); the replay's occupancy parse and
+  resource references removed failed their compensating.test.ts cases; the normalizer's
+  duplicate refusal removed failed its case.
+- Design R5: `leaves the canonical schedule input unchanged by a claim that occupies units`
+  (both stores) compares `canonicalScheduleInput` before and after a claim holding 4 GB.
+
+Spec notes: the refusal order, `resources_on_subtree`, stated-0 and the redo surface are now
+written in `specs/resource-occupancy/spec.md` (the spec was silent). Two observations, not
+changed: `specs/plan-command-registry/spec.md` says the commands add no MCP tool and only the
+by-person read adds one, but slice 1's `GET /api/projects/:id/resources` added one too (84 now);
+and tasks.md 0.1 says slice 2 waits for Dany's R3 and R4, which this slice proceeded under as
+assumed.
+
+Not run: the h2puni gate (the orchestrator gates the plan head), the full Nx suites, fe-01
+tests (fe-01 typechecks; only its refusal switch changed).
+
 ## Slice 4: assignee management (tasks 4.1 to 4.3)
 
 Implemented 2026-10-20 on `feat/wbs-assignee-management`, branched from

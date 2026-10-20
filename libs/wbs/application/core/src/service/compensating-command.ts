@@ -1,7 +1,7 @@
 import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/domain';
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
-import type { Claim } from '../ports/claim-store';
+import type { Claim, ClaimOccupancy } from '../ports/claim-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
@@ -91,8 +91,10 @@ export type CompensatingCommand =
    * Claims written back verbatim — id, run, parent and writing account — with
    * the `in_progress` statements the claim made on steps nobody had spoken
    * about: the redo of a claim and the undo of a release (`wbs-team-claims`).
+   * `occupancy` is every row the claims carried (`wbs-resources` R3); putting
+   * them back re-acquires, so it passes the occupancy check a fresh claim does.
    */
-  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[] }
+  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[]; occupancy: ClaimOccupancy[] }
   /**
    * Claims taken off by id, with the statements the claim had made: the undo
    * of a claim and the redo of a release. A release clears nothing.

@@ -15,6 +15,7 @@ import {
 } from './capacity-fixture';
 import {
   cascadeClaims,
+  cascadeOccupancy,
   inMemoryClaims,
   type MemoryClaimTable,
   memoryClaimTable,
@@ -247,6 +248,10 @@ export class MemoryState {
     // Proof: with this copy removed, eight cases of claim-command.test.ts lost
     // their committed claims; watched 2026-10-19.
     replaceArray(this.tables.claims.rows, next.tables.claims.rows);
+    // Proof: with this copy removed, `acquires the declared demand and reads it
+    // per project and per resource` (resource-occupancy.db.test.ts, memory) read
+    // no occupancy after the batch committed; watched 2026-10-20.
+    replaceArray(this.tables.claims.occupancy, next.tables.claims.occupancy);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
@@ -322,18 +327,33 @@ export function bindStores(
         projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
       };
     },
+    // Occupancies live in the source's claim table, out of the fixture's sight,
+    // and refuse an unconfirmed removal and go with a confirmed one, as SQLite's do.
     async usageOfResource(resourceId) {
       const usage = await fixtureDirectory.usageOfResource(resourceId);
-      return { ...usage, rows: await demandRowsOf(resourceId) };
+      return {
+        ...usage,
+        rows: await demandRowsOf(resourceId),
+        occupancies: occupyingLeavesOf(resourceId),
+      };
     },
     async removeResource(resourceId, cascade, stamp) {
       const projectIds = demandProjectsOf(resourceId);
       const rows = await demandRowsOf(resourceId);
+      const occupancies = occupyingLeavesOf(resourceId);
+      // Proof: with this refusal removed, the memory certification's
+      // `directory.removeResource:in-use-cascade` case removed the stage only
+      // a claim held instead of answering in_use; watched 2026-10-20.
+      if (!cascade && occupancies > 0) {
+        const usage = await fixtureDirectory.usageOfResource(resourceId);
+        return { ok: false, reason: 'in_use', usage: { ...usage, rows, occupancies } };
+      }
       const removed = await fixtureDirectory.removeResource(resourceId, cascade, stamp);
       if (!removed.ok)
         return removed.reason === 'in_use'
-          ? { ...removed, usage: { ...removed.usage, rows } }
+          ? { ...removed, usage: { ...removed.usage, rows, occupancies } }
           : removed;
+      cascadeOccupancy(state.tables.claims, resourceId);
       return {
         ok: true,
         removal: {
@@ -342,6 +362,15 @@ export function bindStores(
         },
       };
     },
+  };
+  /** How many leaves hold units of the resource through their claims. */
+  const occupyingLeavesOf = (resourceId: string): number => {
+    const leafOf = new Map(state.tables.claims.rows.map(({ id, workItemId }) => [id, workItemId]));
+    return new Set(
+      state.tables.claims.occupancy
+        .filter((row) => row.resourceId === resourceId)
+        .map(({ claimId }) => leafOf.get(claimId)),
+    ).size;
   };
   /** The projects whose work items demand the resource. */
   const demandProjectsOf = (resourceId: string): string[] => {
@@ -479,6 +508,7 @@ export function bindStores(
       state.tables.progress,
       state.tables.claims,
       claimIdentityOf(directory),
+      (resourceId) => state.tables.directory.resources.resources.has(resourceId),
     ),
     dependencies,
     typedDependencies,

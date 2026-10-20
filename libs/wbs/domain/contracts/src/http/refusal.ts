@@ -83,6 +83,11 @@ export type ParserRefusalCode =
   | 'steps_must_be_at_most_50'
   /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
   | 'steps_must_name_a_step'
+  /** A `claimWorkItem` whose `resources` is not a list of `{ resourceId, units }` (`wbs-resources` R4). */
+  | 'resources_must_be_a_list'
+  | 'resources_must_name_a_resource'
+  | 'resources_must_be_at_most_50'
+  | 'resources_must_name_each_resource_once'
   // Resources (`wbs-resources`): a `patchResource` naming the kind, a capacity or
   // demand without its units, a capacity below 0, a figure above the product
   // bound, and a unit label too long to sit beside a number.
@@ -194,6 +199,11 @@ export type CommandRefusalCode =
   | 'not_startable'
   | 'step_done'
   | 'already_claimed'
+  // `claimWorkItem` occupancy (`wbs-resources` R3, R4), between already_claimed
+  // and inside_subtree_claim in the claim's order.
+  | 'resources_on_subtree'
+  | 'below_declared_demand'
+  | 'resources_exhausted'
   | 'inside_subtree_claim'
   | 'overlaps_subtree_claim'
   | 'not_claimed_by';
@@ -204,6 +214,14 @@ export interface ClaimRefusalHolder {
   personId: string;
   name: string;
   runId: string | null;
+}
+
+/** One holder `resources_exhausted` names: a claimant and run on one leaf. */
+export interface OccupancyRefusalHolder {
+  personId: string;
+  name: string;
+  runId: string | null;
+  workItemId: string;
 }
 
 /**
@@ -326,7 +344,16 @@ export type CommandRefusalDetail = {
                     ? { holders: ClaimRefusalHolder[] }
                     : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
                       ? { holder: ClaimRefusalHolder }
-                      : Record<never, never>);
+                      : C extends 'below_declared_demand'
+                        ? { resourceId: string; asked: number; declared: number }
+                        : C extends 'resources_exhausted'
+                          ? {
+                              resourceId: string;
+                              asked: number;
+                              free: number;
+                              holders: OccupancyRefusalHolder[];
+                            }
+                          : Record<never, never>);
 };
 
 type BareRefusalCode =

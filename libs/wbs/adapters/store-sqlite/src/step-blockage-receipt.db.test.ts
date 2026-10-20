@@ -24,6 +24,7 @@ const newerMigrations = [
   '20261019130000_add_person_account',
   '20261019130100_add_external_identity_person',
   '20261020120000_add_resources',
+  '20261020130000_add_claim_occupancy',
 ];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',
