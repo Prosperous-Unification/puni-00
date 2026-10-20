@@ -1,0 +1,48 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+sync hooks: ✔️(prepare-commit-msg, commit-msg, pre-commit)
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 3.96 seconds)
+✓ format (0.34 seconds)
+✓ lint (3.58 seconds)
+✓ plaintext-secrets (0.01 seconds)
+✓ private-nesting (0.02 seconds)
+✓ tool-wiki (0.00 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+[proof/wbs100-reference-oversized-20261019 d6026f83b] test(wbs): restore oversized reference field for recovery proof
+ 1 file changed, 390 insertions(+), 46 deletions(-)

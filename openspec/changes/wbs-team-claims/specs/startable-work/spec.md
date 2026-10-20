@@ -15,8 +15,7 @@ above the leaf when any, with its holder. The read SHALL also list, apart, the c
 of the same leaves with holder person, run id, parent claim, the step's assignee when any,
 and the instant of the claim write, and, apart again, every subtree claim in force in the
 project with its work item, frozen number, holder, run id and write instant, so an operator
-sees silent claims even where no step under them is startable. The read SHALL be derived from the shared HTTP
-descriptor so the MCP server offers it as a tool.
+sees silent claims even where no step under them is startable. An unknown team, or one the organization does not hold, SHALL be refused `404 unknown_team`. The read SHALL be derived from the shared HTTP descriptor so the MCP server offers it as a tool.
 
 #### Scenario: A team asks what it may start
 

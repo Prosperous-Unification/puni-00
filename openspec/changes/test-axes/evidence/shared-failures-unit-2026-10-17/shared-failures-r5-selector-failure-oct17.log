@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+248 |         "find ./src -name '*.test.ts' ! -name '*.db.test.ts'",
+249 |         "find ./src ./missing-source -name '*.test.ts'",
+250 |       );
+251 |       expect(failing).not.toBe(command);
+252 |       const execution = runCommand(project, failing);
+253 |       expect(execution.exitCode).not.toBe(0);
+                                           ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:253:38)
+      at withRunnerFixture (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:52:11)
+      at async <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:237:11)
+(fail) shared-failures isolated Unit level > removes stale reports and refuses a failing selector before Bun can discover tests [13.59ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [177.00ms]

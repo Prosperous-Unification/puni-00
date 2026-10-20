@@ -1,0 +1,5 @@
+{
+  "sha256": "22d011404dc6107ff9ec795c5d718a8df2ab8c08d28b0ea39bdffe1df1d755ac",
+  "bytes": 264,
+  "text": "{\n  \"refusedAt\": \"compiler diagnostics\",\n  \"missingDeclaration\": true,\n  \"implicitAnyRefused\": true,\n  \"runtimePresent\": true,\n  \"typesAbsent\": true,\n  \"digestMismatch\": false,\n  \"stderrSha256\": \"49bda2adbfa6c1e87fb55d40df5164ba93de7af19b7f25bdc8abfc0644c55fc8\"\n}\n"
+}

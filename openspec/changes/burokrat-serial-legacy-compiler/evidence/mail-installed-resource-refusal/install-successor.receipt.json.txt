@@ -1,0 +1,17 @@
+{
+  "command": [
+    "bun",
+    "install",
+    "--cache-dir",
+    "/tmp/wbs100-mail-consumer-20261020/cache"
+  ],
+  "cwd": "/tmp/wbs100-mail-consumer-20261020",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 42448,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 60,
+  "seconds": 0.6,
+  "availableBeforeKiB": 22723452,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

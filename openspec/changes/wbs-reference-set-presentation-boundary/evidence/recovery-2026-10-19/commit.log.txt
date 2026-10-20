@@ -1,0 +1,74 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+sync hooks: ✔️(pre-commit, prepare-commit-msg, commit-msg)
+│  doc-caps (skip) no matching staged files
+┃  format ❯
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯
+
+│  migration-lint (skip) no files for inspection
+┃  plaintext-secrets ❯
+
+┃  private-nesting ❯
+
+┃  tool-wiki ❯
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+│  website-migration-lint (skip) no files for inspection
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 9.68 seconds)
+✓ format (0.41 seconds)
+✓ lint (9.23 seconds)
+✓ plaintext-secrets (0.01 seconds)
+✓ private-nesting (0.03 seconds)
+✓ tool-wiki (0.00 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.01 seconds)
+✓ agent-authored-by (0.01 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+[integration/wbs100-reference-recovery-20261019 40d40ff62] Recover reviewed reference presentation extraction for WBS100
+ 30 files changed, 2217 insertions(+), 390 deletions(-)
+ create mode 100644 apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts
+ create mode 100644 apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/commit.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/fault-commit.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/hidden-count.log.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/hidden-count.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/hooks-original.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/hooks-serial.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/inherited-hover.log.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/inherited-hover.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/measure-committed.mjs.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/mounted-final.log.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/mounted-final.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/rest-height.log.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/rest-height.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/single-member.log.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/single-member.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-fault.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-fault.log.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-fault.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-restored.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes-restored.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/sizes.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/evidence/typecheck-final.receipt.json.txt
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/proposal.md
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/specs/reference-set-presentation-boundary/spec.md
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/tasks.md
+ create mode 100644 openspec/changes/wbs-reference-set-presentation-boundary/verify.md

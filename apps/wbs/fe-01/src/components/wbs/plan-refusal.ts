@@ -500,6 +500,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'overlaps_subtree_claim':
     case 'not_claimed_by':
       return refusal.error;
+    // A move under a leaf whose steps are claimed: the table's own drag sends it.
+    case 'destination_claimed':
+      return refusal.error;
     // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
     case 'resources_must_be_a_list':
     case 'resources_must_name_a_resource':
@@ -763,6 +766,8 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',
+    destination_claimed:
+      'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
     node_done:
       'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:

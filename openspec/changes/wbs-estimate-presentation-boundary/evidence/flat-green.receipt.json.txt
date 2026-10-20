@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/plan-estimates.test.tsx",
+    "--maxWorkers=1",
+    "-t",
+    "says a flat trio once"
+  ],
+  "exitCode": -9,
+  "peakRssBytes": 943894528,
+  "seconds": 7.44
+}

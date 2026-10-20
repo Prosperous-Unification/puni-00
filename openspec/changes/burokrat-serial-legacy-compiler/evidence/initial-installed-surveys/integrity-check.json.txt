@@ -1,0 +1,16 @@
+{
+  "transportedFileCount": 70,
+  "allTransportedBytesMatchSource": true,
+  "rawUtf8StreamCount": 64,
+  "allRawStreamsRoundTrip": true,
+  "negativeReceiptCount": 19,
+  "allNamedFailuresMatched": true,
+  "originalEvidenceHashCount": 28,
+  "allOriginalHashesStillMatch": true,
+  "refreshedCompatibilitySummaryRetained": true,
+  "positiveAndRefusalJsonParityVerified": true,
+  "initialSuccessorRevision": "0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5",
+  "explicitUnevaluatedCount": 10,
+  "dnsDependentUnevaluatedCount": 7,
+  "certifies": false
+}

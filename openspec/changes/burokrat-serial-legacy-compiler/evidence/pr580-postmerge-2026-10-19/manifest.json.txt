@@ -1,0 +1,6 @@
+{
+  "source": "/tmp/puni-pr580-postmerge-20261019.json",
+  "path": "receipt.json.txt",
+  "bytes": 6567,
+  "sha256": "69142443a890365d8edc81b39eaac68bdbf0d3944ecdb487bb8b7afe6c506c37"
+}

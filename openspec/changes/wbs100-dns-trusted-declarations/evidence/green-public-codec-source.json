@@ -1,0 +1,5 @@
+{
+  "sha256": "23ccfa7b5251268363b113e749c2806318cf1eb87802b44fc93cffbb192ba082",
+  "bytes": 586,
+  "text": "{\n  \"head\": \"0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5\",\n  \"dirty\": true,\n  \"files\": {\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts\": \"a1a4394a041bd8f96e35b522aadc78e2d392b53d7add88285e816a02e996bb7f\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts\": \"f6aa9a8ff4ed6b531506c45cba6316fd914d091e9be8fb2ae13ebe55b9e189da\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\": \"3822fe95103864d92df75c0c5f77728ffe8cd7b14b2625268bd41f12c3442e91\"\n  },\n  \"artifact\": \"green-artifact.json\"\n}\n"
+}

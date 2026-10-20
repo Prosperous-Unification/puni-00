@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 
 import { ClaimRepository } from './claim';
 import { type Connection, openConnection } from './db';
+import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 
@@ -169,6 +170,26 @@ describe('ClaimRepository', () => {
     expect(await failureOf(store.remove([parent], [], { at: 6, by: 'u' }))).toContain(
       'a claim to remove is not stored',
     );
+  });
+
+  // Proof: with `removePerson` reading the person's own claims alone, the
+  // worker's leaf kept revision 0; watched 2026-10-20.
+  it('moves the revision of a delegated claim’s work item when its superagent is removed', async () => {
+    insert('parent', 'root', null);
+    insert('child', 'leaf', 'dev', { parent: 'parent', person: 'worker' });
+    const revisionOf = (id: string) =>
+      connection.db.get<{ revision: number }>(sql`SELECT revision FROM work_item WHERE id = ${id}`)
+        .revision;
+    const removed = await new DirectoryRepository(connection.db, OPEN).removePerson(
+      'claire',
+      true,
+      { at: 5, by: 'u' },
+    );
+    expect(removed).toMatchObject({ ok: true });
+    expect(ids()).toEqual([]);
+    expect(revisionOf('leaf')).toBe(1);
+    expect(revisionOf('root')).toBe(1);
+    expect(revisionOf('free')).toBe(0);
   });
 
   // Proof: the repository's identity reads answering null (slice 1's interim

@@ -1,0 +1,15 @@
+{
+  "command": [
+    "bun",
+    "/tmp/wbs100-estimate-preservation-20261019.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 91772,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "/tmp/wbs100-estimate-preservation-20261019.ts"
+    ]
+  ]
+}

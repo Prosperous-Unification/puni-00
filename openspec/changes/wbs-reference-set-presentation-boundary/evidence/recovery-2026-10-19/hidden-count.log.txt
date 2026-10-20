@@ -1,0 +1,29 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/wbs/fe-01
+
+ ❯ src/components/wbs/reference-set-field.test.tsx (37 tests | 1 failed | 36 skipped) 60ms
+   ❯ the reference strip on one rest line (12)
+     × clips the rest line, counts what it hid, never fades it, and clips nothing while editing 57ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/reference-set-field.test.tsx > the reference strip on one rest line > clips the rest line, counts what it hid, never fades it, and clips nothing while editing
+TypeError: .toMatch() expects to receive a string, but got undefined
+ ❯ src/components/wbs/reference-set-field.test.tsx:471:36
+    469|         );
+    470|         const count = strip().querySelector('[data-reference-hidden-co…
+    471|         expect(count?.textContent).toMatch(/^\+[1-9]/);
+       |                                    ^
+    472|         expect(count?.getAttribute('title')).toMatch(/^Also: /);
+    473|       } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 36 skipped (37)
+   Start at  14:22:39
+   Duration  805ms (environment 55%, transform 20%, tests 8%, setup 8%, import 8%, worker 1%)

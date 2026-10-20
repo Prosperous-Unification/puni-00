@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "cb007f8417ef727c140a109a3270e97020fa61a459f1d0b63123cfd67e1751b0",
+    "bytes": 523,
+    "text": "{\n  \"command\": [\n    \"env\",\n    \"NX_DAEMON=false\",\n    \"NX_ISOLATE_PLUGINS=false\",\n    \"bunx\",\n    \"eslint\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.ts\",\n    \"--max-warnings=0\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 654028,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 2.433,\n  \"availableBeforeKiB\": 23260896,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

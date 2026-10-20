@@ -92,6 +92,7 @@ const COMMANDS = [
   'set_demand',
   'add_claims',
   'remove_claims',
+  'move_claims',
   'restore_attempt',
   'remove_attempt',
   'add_dependency',
@@ -168,6 +169,11 @@ export function readCommand(value: unknown): CompensatingCommand {
     // Proof: with this call removed, `refuses a malformed claim replay` in
     // compensating.test.ts did not throw; watched 2026-10-19.
     readClaimReplay(value, named === 'add_claims' ? 'stated' : 'cleared');
+  }
+  if (named === 'move_claims') {
+    // Proof: with this call removed, `refuses a malformed claim move` in
+    // compensating.test.ts did not throw; watched 2026-10-20.
+    readClaimMove(value);
   }
   if (named === 'move' && 'expectedProgress' in value) {
     // Proof: removing this boundary admitted a mounted guarded move with no destination; watched 2026-10-14.
@@ -468,6 +474,10 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // Proof: returning [] here made `refuses a redo of a claim after the leaf
       // moved on` (claim-race.db.test.ts) apply the redo; watched 2026-10-19.
       return [...new Set(command.claims.map(({ workItemId }) => workItemId))];
+    case 'move_claims':
+      // Redundant today: the one writer, a first child's create, names both
+      // ids in its touched set already, so no production negative can fail here.
+      return [command.fromWorkItemId, command.toWorkItemId];
     case 'restore_attempt':
       return [command.attempt.workItemId];
     case 'add_dependency':
@@ -656,7 +666,14 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       // their rows, steps, people and progress` (compensating.test.ts) read no
       // resource off the occupancy; watched 2026-10-20.
       if (command.do === 'add_claims')
-        found.resources.push(...command.occupancy.map(({ resourceId }) => resourceId));
+        found.resources.push(...(command.occupancy ?? []).map(({ resourceId }) => resourceId));
+      return;
+    case 'move_claims':
+      rows(command.fromWorkItemId, command.toWorkItemId);
+      for (const each of command.claims) {
+        if (each.stepId !== null) found.steps.push(each.stepId);
+        found.people.push(each.personId);
+      }
       return;
     case 'restore_attempt':
       attempted(command.attempt);
@@ -772,6 +789,9 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
         stepId: command.claims.length === 1 ? (first?.stepId ?? null) : null,
       };
     }
+    case 'move_claims':
+      // Part of a first child's create or its undo; the work item the claims land on.
+      return { workItemId: command.toWorkItemId, stepId: null };
     case 'restore_attempt':
       return { workItemId: command.attempt.workItemId, stepId: command.attempt.stepId };
     case 'patch':
@@ -838,12 +858,77 @@ export function quoteName(name: string): string {
  *
  * @throws for any malformed claim or key.
  */
+function readClaimMove(value: object): void {
+  const text = (field: unknown): field is string => typeof field === 'string' && field.length > 0;
+  if (
+    !('fromWorkItemId' in value) ||
+    !text(value.fromWorkItemId) ||
+    !('toWorkItemId' in value) ||
+    !text(value.toWorkItemId)
+  )
+    throw new Error('a journal claim move names no work items');
+  const from = value.fromWorkItemId;
+  const claims = readClaims(value);
+  if (claims.some((each) => Reflect.get(each, 'workItemId') !== from))
+    throw new Error('a journal claim move holds a claim of another work item');
+}
+
 function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
+  const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
+  const claims = readClaims(value);
+  const pairs: unknown = keys in value ? Reflect.get(value, keys) : undefined;
+  if (!Array.isArray(pairs)) throw new Error(`a journal claim replay has no ${keys} progress`);
+  const listed: readonly unknown[] = pairs;
+  for (const pair of listed) {
+    if (
+      typeof pair !== 'object' ||
+      pair === null ||
+      !('workItemId' in pair) ||
+      !text(pair.workItemId) ||
+      !('stepId' in pair) ||
+      !text(pair.stepId)
+    )
+      throw new Error('a journal claim replay holds a malformed progress key');
+  }
+  if (keys === 'cleared') return;
+  // Absent `occupancy` is the shape written before `20261020130000_add_claim_occupancy`
+  // (a claim of claims slice 1, a release's undo, or an outgoing colour mid-swap):
+  // those claims held nothing, so the replay re-adds them holding nothing.
+  // Proof: with absence refused, `reads a claim replay written before occupancy
+  // as holding nothing` (compensating.test.ts) threw; watched 2026-10-20.
+  if (!('occupancy' in value)) return;
+  const occupancy: unknown = value.occupancy;
+  // Proof: with this check answering early, `refuses a claim replay whose
+  // occupancy is malformed or names a claim it does not carry`
+  // (compensating.test.ts) did not throw; watched 2026-10-20.
+  if (!Array.isArray(occupancy)) throw new Error('a journal claim replay has no occupancy list');
+  const ids = new Set<unknown>(claims.map((each): unknown => Reflect.get(each, 'id')));
+  const rows: readonly unknown[] = occupancy;
+  for (const row of rows) {
+    if (
+      typeof row !== 'object' ||
+      row === null ||
+      !('claimId' in row) ||
+      !ids.has(row.claimId) ||
+      !('resourceId' in row) ||
+      !text(row.resourceId) ||
+      !('units' in row) ||
+      typeof row.units !== 'number' ||
+      !Number.isSafeInteger(row.units) ||
+      row.units < 1
+    )
+      throw new Error('a journal claim replay holds a malformed occupancy');
+  }
+}
+
+/** The non-empty `claims` of a stored claim command, each claim checked field by field. */
+function readClaims(value: object): readonly object[] {
   const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
   const nullableText = (field: unknown): boolean => field === null || text(field);
   if (!('claims' in value) || !Array.isArray(value.claims) || value.claims.length === 0)
     throw new Error('a journal claim replay has no claims');
   const claims: readonly unknown[] = value.claims;
+  const checked: object[] = [];
   for (const each of claims) {
     if (
       typeof each !== 'object' ||
@@ -864,46 +949,7 @@ function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
       !text(each.accountId)
     )
       throw new Error('a journal claim replay holds a malformed claim');
+    checked.push(each);
   }
-  const pairs: unknown = keys in value ? Reflect.get(value, keys) : undefined;
-  if (!Array.isArray(pairs)) throw new Error(`a journal claim replay has no ${keys} progress`);
-  const listed: readonly unknown[] = pairs;
-  for (const pair of listed) {
-    if (
-      typeof pair !== 'object' ||
-      pair === null ||
-      !('workItemId' in pair) ||
-      !text(pair.workItemId) ||
-      !('stepId' in pair) ||
-      !text(pair.stepId)
-    )
-      throw new Error('a journal claim replay holds a malformed progress key');
-  }
-  if (keys === 'cleared') return;
-  const occupancy: unknown = 'occupancy' in value ? value.occupancy : undefined;
-  // Proof: with this check answering early, `refuses a claim replay with no
-  // occupancy, or one naming a claim it does not carry` (compensating.test.ts)
-  // did not throw; watched 2026-10-20.
-  if (!Array.isArray(occupancy)) throw new Error('a journal claim replay has no occupancy');
-  const ids = new Set(
-    claims.map((each) =>
-      typeof each === 'object' && each !== null && 'id' in each ? each.id : null,
-    ),
-  );
-  const rows: readonly unknown[] = occupancy;
-  for (const row of rows) {
-    if (
-      typeof row !== 'object' ||
-      row === null ||
-      !('claimId' in row) ||
-      !ids.has(row.claimId) ||
-      !('resourceId' in row) ||
-      !text(row.resourceId) ||
-      !('units' in row) ||
-      typeof row.units !== 'number' ||
-      !Number.isSafeInteger(row.units) ||
-      row.units < 1
-    )
-      throw new Error('a journal claim replay holds a malformed occupancy');
-  }
+  return checked;
 }

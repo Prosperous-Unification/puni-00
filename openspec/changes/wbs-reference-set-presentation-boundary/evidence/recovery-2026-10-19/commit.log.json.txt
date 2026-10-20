@@ -1,0 +1,121 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "Recover reviewed reference presentation extraction for WBS100",
+    "-m",
+    "Recover exact source and retained historical evidence from 8dc10bcdd, b14503a2e and ee750cb7 on main 3e8d0742. Directory and estimate extractions are excluded. Fresh scoped validation is recorded in the following evidence commit."
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 814532,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-recovery-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/pre-commit"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/prepare-commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-recovery-20261019/COMMIT_EDITMSG",
+      "message"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-recovery-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "pre-commit"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx"
+    ],
+    [
+      "bunx",
+      "prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx",
+      "openspec/changes/wbs-reference-set-presentation-boundary/proposal.md",
+      "openspec/changes/wbs-reference-set-presentation-boundary/specs/reference-set-presentation-boundary/spec.md",
+      "openspec/changes/wbs-reference-set-presentation-boundary/tasks.md",
+      "openspec/changes/wbs-reference-set-presentation-boundary/verify.md"
+    ],
+    [
+      "git",
+      "commit",
+      "-m",
+      "Recover reviewed reference presentation extraction for WBS100",
+      "-m",
+      "Recover exact source and retained historical evidence from 8dc10bcdd, b14503a2e and ee750cb7 on main 3e8d0742. Directory and estimate extractions are excluded. Fresh scoped validation is recorded in the following evidence commit."
+    ],
+    [
+      "git",
+      "status",
+      "--short",
+      "--porcelain",
+      "-z"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx",
+      "openspec/changes/wbs-reference-set-presentation-boundary/proposal.md",
+      "openspec/changes/wbs-reference-set-presentation-boundary/specs/reference-set-presentation-boundary/spec.md",
+      "openspec/changes/wbs-reference-set-presentation-boundary/tasks.md",
+      "openspec/changes/wbs-reference-set-presentation-boundary/verify.md"
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx prettier --check apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx openspec/changes/wbs-reference-set-presentation-boundary/proposal.md openspec/changes/wbs-reference-set-presentation-boundary/specs/reference-set-presentation-boundary/spec.md openspec/changes/wbs-reference-set-presentation-boundary/tasks.md openspec/changes/wbs-reference-set-presentation-boundary/verify.md "
+    ],
+    [
+      "sh",
+      "-c",
+      "for source in apps/wbs/fe-01/src/components/wbs/reference-set-contract.ts apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx; do bunx eslint \"$source\" || exit $?; done "
+    ]
+  ]
+}

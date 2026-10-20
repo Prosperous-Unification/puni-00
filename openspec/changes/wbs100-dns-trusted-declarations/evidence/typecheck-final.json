@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "274b70a120d9754e46d9140c3d48a86e73159c3d87f143f7ba882337c5ef9055",
+    "bytes": 436,
+    "text": "{\n  \"command\": [\n    \"bunx\",\n    \"tsc\",\n    \"--build\",\n    \"--force\",\n    \"apps/twilight-structure/twilight-burokrat/cli/tsconfig.json\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 1317668,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 1.279,\n  \"availableBeforeKiB\": 22388844,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

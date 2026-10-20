@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "originalCommit": "0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5",
+  "historicalIntegrityRecord": {
+    "path": "openspec/changes/burokrat-serial-legacy-compiler/evidence/raw-log-integrity.log",
+    "sha256": "8cadfd41d0d253b4c3916d338a0bdd2bdce5d9a08bc544803bab89c87dc03233",
+    "preservedVerbatim": true
+  },
+  "conversion": "Current text transport only; no command rerun. Exact decompressed UTF-8 is retained as a JSON string, with no whitespace normalization. Historical gzip blobs and original integrity output remain bound to originalCommit.",
+  "reconstruction": "json.loads(Path(carrierPath).read_text(encoding='utf-8')).encode('utf-8')",
+  "files": [
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-ambiguous-owner.stderr.log.gz",
+      "originalGitBlob": "e4711efc7d84100a24e3c2f02f4d6749014f2325",
+      "compressedBytes": 1125,
+      "compressedSha256": "0ce74f012d03e0fb8ca6dc046898705f3f6f0c37c8e1f629ebb80619288a4595",
+      "decodedBytes": 3428,
+      "decodedSha256": "77e3727ac98ac8681422a816bc562a0a2ce8f1348e783ff14e976dfa7ed2caa3",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-ambiguous-owner.stderr.log.json.txt",
+      "carrierBytes": 3670,
+      "carrierSha256": "c04da986e36178ee8a1eb45ccbf3ab5baa7c1c5152877ef60abedb631533bf21"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-diagnostic-refusal.stderr.log.gz",
+      "originalGitBlob": "a6268d2a45f61ec09f04bf28ef9d3fc0ae6e30d0",
+      "compressedBytes": 780,
+      "compressedSha256": "2a98464e3cbc48883b89462881b3756c14b6b35e14516ca52c29cb83476ded77",
+      "decodedBytes": 1792,
+      "decodedSha256": "8041c1da3e3bea7b1f192c9ae73d7a699743d6bcccf4c9904ae8c58a4bfebfb9",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-diagnostic-refusal.stderr.log.json.txt",
+      "carrierBytes": 1842,
+      "carrierSha256": "cc76ea3f6abc81172bdfa5171788750e8e9eadacadcd6972f5fcac5543b16b04"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-missing-owner.stderr.log.gz",
+      "originalGitBlob": "a7960da8d48bcfdf538b79117fce1427f59bb226",
+      "compressedBytes": 560,
+      "compressedSha256": "9569c57f4d88964731a4846223e30815f3a4b3655012aebe82d4f48d01e6ddaf",
+      "decodedBytes": 1287,
+      "decodedSha256": "4ff7b7cb2f3f2047ffb0921be1a9a8d552bb7e50ff8b14d405236f8342ce403f",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-missing-owner.stderr.log.json.txt",
+      "carrierBytes": 1329,
+      "carrierSha256": "053ffd495812d3ae572f56d2022bb6b21c4a680aa11e12ddc773e050cb2cc0f8"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-recensus.stderr.log.gz",
+      "originalGitBlob": "55934711c9362c7323a0ad9c6442c88867bf56f0",
+      "compressedBytes": 1364,
+      "compressedSha256": "287302ed872a44ac69ee41bdc676ad86ff49c2ddbb50b9343a0213234a4fecf9",
+      "decodedBytes": 3782,
+      "decodedSha256": "33c2a76b4cdca2f9d47145bc03f1899a9faa9f41208e5c8536473d25eab61d39",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-recensus.stderr.log.json.txt",
+      "carrierBytes": 3996,
+      "carrierSha256": "78abe4c997f4b039a9640d3d7214f216bc94c00bade3357ec1c43a53e2431d34"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-reference-census.stderr.log.gz",
+      "originalGitBlob": "6c9333ba1d823e4bc3c17d070f36d4a262643a72",
+      "compressedBytes": 1077,
+      "compressedSha256": "a36f0e0f4b5091c322767373e1c02f02999448ab6f3d3b12b0ae2e9ed497c440",
+      "decodedBytes": 3306,
+      "decodedSha256": "e2eaf650fdd8c67afb3fa65fba0924f5ded547d415d1ddf21b97129994808a0e",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-reference-census.stderr.log.json.txt",
+      "carrierBytes": 3548,
+      "carrierSha256": "85498d711d185eee0b96ab6152f36621610d65ec11383ae30d9ec7df74d4775d"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-rootless-owner.stderr.log.gz",
+      "originalGitBlob": "6c14880cd932c4e791faceb30de6e5a750f92227",
+      "compressedBytes": 615,
+      "compressedSha256": "f53353d7d3110c15b9c347d082857b84a473e55841ed1461aa514abccfbb58b5",
+      "decodedBytes": 1318,
+      "decodedSha256": "0b01b8b3f5070c3666ec69a07e32d9692358e969ebdc75147b2b2e8def0939c9",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-rootless-owner.stderr.log.json.txt",
+      "carrierBytes": 1360,
+      "carrierSha256": "16ffff252399f7ae16bc78557b770bd9331f2d3b85c08d97fe8c902c8dab1f39"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/lint-before-fix.stdout.log.gz",
+      "originalGitBlob": "e42396232378935ce1a9e6c1724df51392094574",
+      "compressedBytes": 340,
+      "compressedSha256": "9296d510a27487e3073e6f3084edfb1bc89494473fb9cfe100e51c73c9cdf6e3",
+      "decodedBytes": 550,
+      "decodedSha256": "09a6a36af27c3329c431ec465f310befa6a74d6bcb6fcb3068ccc2c847b6e503",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/lint-before-fix.stdout.log.json.txt",
+      "carrierBytes": 561,
+      "carrierSha256": "cea622896c42f3eafa49a7dfb7e48cc0818bcc1e05ed444d09725fa57a2569a4"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/nx-graph.stdout.log.gz",
+      "originalGitBlob": "4b3290320ad1d174d6d2290859657a51b1b5df07",
+      "compressedBytes": 103,
+      "compressedSha256": "3cdf762dff19678543943f09efb692a4b4287cd9582019496416f9aa6dc1dcf5",
+      "decodedBytes": 117,
+      "decodedSha256": "59256b3d475d9ef8ee118cf20f34fce555493fda27d9b1912dc9f285a6c66053",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/nx-graph.stdout.log.json.txt",
+      "carrierBytes": 125,
+      "carrierSha256": "aab01024b04621e1a6006581ed102078fbdbbcb8f221559c5d54bf4d852b5860"
+    },
+    {
+      "originalPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/request.json.log.gz",
+      "originalGitBlob": "12d0c0303363eebe83e04585431e0bdad554defe",
+      "compressedBytes": 189,
+      "compressedSha256": "b8e980443ad668dab1dbdee38210b82cf156c21e6c7d419fa8cddd2449cb15c6",
+      "decodedBytes": 724,
+      "decodedSha256": "6f6742e51d24a36dc304bed3cd5003ced9750024d05f2dc9f6a4013ff394da69",
+      "carrierPath": "openspec/changes/burokrat-serial-legacy-compiler/evidence/request.json.log.json.txt",
+      "carrierBytes": 787,
+      "carrierSha256": "36721721e2fcac78765a3203b28fa599aad5bbdcdfec52f206dc609103207335"
+    }
+  ]
+}

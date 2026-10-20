@@ -1,0 +1,54 @@
+{
+  "scope": "Finite GitHub Twilight job allocation; compiler acceptance resource guards and every required CI command remain unchanged.",
+  "previousMinutes": 50,
+  "selectedMinutes": 75,
+  "evidence": [
+    {
+      "run": 39330836237,
+      "job": 118328451336,
+      "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39330836237/job/118328451336",
+      "head": "7271931d4d7cb2615a22132b3de8466be43ae07c",
+      "conclusion": "failure",
+      "reason": "Eleven tests refused undeclared compressed evidence; this was not a timeout.",
+      "burokratTestSeconds": 2965.23,
+      "burokratPassed": 2336,
+      "burokratFailed": 11,
+      "packedSuite": "skipped after main phase failed",
+      "rawDiagnosis": "/tmp/puni-pr584-failure-diagnosis-39330836237.json"
+    },
+    {
+      "run": 39330011791,
+      "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791",
+      "head": "5851eee0c49f03722c77e59d5c4661cf18b20b39",
+      "conclusion": "success",
+      "steps": [
+        {
+          "completedAt": "2026-10-19T22:27:36Z",
+          "conclusion": "success",
+          "name": "Twilight \u2014 test, typecheck, build, lint",
+          "number": 5,
+          "startedAt": "2026-10-19T21:46:58Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-19T22:32:30Z",
+          "conclusion": "success",
+          "name": "Twilight Burokrat packed package suite",
+          "number": 8,
+          "startedAt": "2026-10-19T22:27:45Z",
+          "status": "completed"
+        }
+      ]
+    }
+  ],
+  "rationale": "The observed 49m25s test phase plus the separately observed 4m45s package phase exceed the old 50-minute allocation before other steps. Seventy-five minutes provides bounded execution time for all existing checks and runner variation. These timings are observations from separate runs, not a measured repaired-run duration.",
+  "unverified": [
+    "Next final-source CI duration and outcome",
+    "A 75-minute timeout was not deliberately exhausted."
+  ],
+  "compilerAcceptance": {
+    "ceilingKiB": 4194304,
+    "timeoutSeconds": 900,
+    "minimumAvailableKiB": 12582912
+  }
+}

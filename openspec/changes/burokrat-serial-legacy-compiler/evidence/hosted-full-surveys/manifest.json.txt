@@ -1,0 +1,931 @@
+{
+  "proofCommit": "9215cdf312904669b6734917bf66b81a7e1cef89",
+  "runId": "39343674302",
+  "sourceCommit": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "sourceArchiveSha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+  "originalArtifact": {
+    "artifact": {
+      "id": 12232405029,
+      "node_id": "MDg6QXJ0aWZhY3QxMjIzMjQwNTAyOQ==",
+      "name": "wbs100-hosted-full-surveys-d7f2129-1",
+      "size_in_bytes": 211248,
+      "url": "https://api.github.com/repos/Prosperous-Unification/puni-00/actions/artifacts/12232405029",
+      "archive_download_url": "https://api.github.com/repos/Prosperous-Unification/puni-00/actions/artifacts/12232405029/zip",
+      "expired": false,
+      "digest": "sha256:0d342b6e8d3874430f81ceb41a5a13af9f11c274c31f222908f8a3841d05343e",
+      "created_at": "2026-10-20T00:27:39Z",
+      "updated_at": "2026-10-20T00:27:39Z",
+      "expires_at": "2026-11-19T00:27:38Z",
+      "workflow_run": {
+        "id": 39343674302,
+        "repository_id": 1358565134,
+        "head_repository_id": 1358565134,
+        "head_branch": "integration/wbs100-hosted-full-surveys-20261020",
+        "head_sha": "9215cdf312904669b6734917bf66b81a7e1cef89"
+      }
+    },
+    "terminal": {
+      "conclusion": "success",
+      "databaseId": 39343674302,
+      "headSha": "9215cdf312904669b6734917bf66b81a7e1cef89",
+      "jobs": [
+        {
+          "completedAt": "2026-10-20T00:27:42Z",
+          "conclusion": "success",
+          "databaseId": 118371022482,
+          "name": "prove",
+          "startedAt": "2026-10-19T23:46:56Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completedAt": "2026-10-19T23:46:58Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "number": 1,
+              "startedAt": "2026-10-19T23:46:57Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-19T23:47:03Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "number": 2,
+              "startedAt": "2026-10-19T23:46:58Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-19T23:47:10Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "number": 3,
+              "startedAt": "2026-10-19T23:47:03Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-19T23:47:12Z",
+              "conclusion": "success",
+              "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+              "number": 4,
+              "startedAt": "2026-10-19T23:47:10Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:38Z",
+              "conclusion": "success",
+              "name": "Compare five installed full surveys and five standalone F7 runs",
+              "number": 5,
+              "startedAt": "2026-10-19T23:47:12Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:38Z",
+              "conclusion": "success",
+              "name": "Preserve exact proof inputs and driver",
+              "number": 6,
+              "startedAt": "2026-10-20T00:27:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:39Z",
+              "conclusion": "success",
+              "name": "Preserve installed survey evidence",
+              "number": 7,
+              "startedAt": "2026-10-20T00:27:38Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:39Z",
+              "conclusion": "success",
+              "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+              "number": 12,
+              "startedAt": "2026-10-20T00:27:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:39Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "number": 13,
+              "startedAt": "2026-10-20T00:27:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:39Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+              "number": 14,
+              "startedAt": "2026-10-20T00:27:39Z",
+              "status": "completed"
+            },
+            {
+              "completedAt": "2026-10-20T00:27:39Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "number": 15,
+              "startedAt": "2026-10-20T00:27:39Z",
+              "status": "completed"
+            }
+          ],
+          "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39343674302/job/118371022482"
+        }
+      ],
+      "status": "completed",
+      "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39343674302"
+    },
+    "verifiedZipBytes": 211248,
+    "verifiedZipSha256": "0d342b6e8d3874430f81ceb41a5a13af9f11c274c31f222908f8a3841d05343e",
+    "localArchive": "/tmp/puni-wbs100-hosted-full-artifact-12232405029.zip"
+  },
+  "entries": [
+    {
+      "path": "artifact-metadata.json",
+      "bytes": 873,
+      "sha256": "6dfa661462144703a1e1ab674a7f3d42af4b22c455da38ce32445a79dddf599a",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "candidate-bindings-verified.json",
+      "bytes": 7024,
+      "sha256": "eb9cfaf9d6621e59cc6edf528d6f7dc4ab53511d48e1e68af6dc0c0820be8133",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "completion.json",
+      "bytes": 166,
+      "sha256": "f55ef0f9b9980bbec45aa0e22e3bae4f9cd51740e58144f91e26079ab914c0d3",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-frozen.guard-exit.json",
+      "bytes": 312,
+      "sha256": "fec6baf345f8be68c05801612fc08999c2149c8736ecd3f2690b146a05b76bdc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-frozen.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-frozen.guard.stdout",
+      "bytes": 331,
+      "sha256": "de83b5b89fa3e215c25f6ee6ce87471f4e35079dee8eaa0d3571b588d9d406f8",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-frozen.receipt.json",
+      "bytes": 373,
+      "sha256": "b634fe28959e2ec4f7149feffb4d8feb0c54f8370c4bef9cec8f3c64565f7dc6",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-frozen.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-frozen.stdout",
+      "bytes": 141,
+      "sha256": "e4d13b37ef59ef7caaa8be89948f791ed27185ad714d3e76b2ebaa0cd374a9cd",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-install.guard-exit.json",
+      "bytes": 363,
+      "sha256": "6595b7198e46e5b445fe23a3a06ec49af2e416d0eaf3923732972abce58d4a47",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-install.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-install.guard.stdout",
+      "bytes": 377,
+      "sha256": "e0c379e7ec89fc4e4609f2bf85d1db62fb316cdfb1aaf5e8a9c3514ed4b167c2",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-install.receipt.json",
+      "bytes": 423,
+      "sha256": "ca63de224c42dd14f96d38db00ce9206dbd8aa4e47305def00d8f91bd20f30c5",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-install.stderr",
+      "bytes": 77,
+      "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "consumer-install.stdout",
+      "bytes": 190,
+      "sha256": "137eb5deca0b699893326a765920c93b4421f310aea0026f4020d70bda37fbe8",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.guard-exit.json",
+      "bytes": 575,
+      "sha256": "438165ed56b63052792f8dc424c92b02c754a540cb110e13ecd652967c039b97",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.guard.stdout",
+      "bytes": 593,
+      "sha256": "71389712bcb2acc5876d7c0830111f60f9ef27abe2f4fe16e5d1bac8fa96783d",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.receipt.json",
+      "bytes": 651,
+      "sha256": "66727411aa7bab37c7d3643ed24ced8cfde19f59651e0db34994c362432f9231",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-base.stdout",
+      "bytes": 4338,
+      "sha256": "0839dbce2467565a72b6f4da8aeaa15a032f0695fe31efc174b199f88ce22db6",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-comparison.json",
+      "bytes": 31458,
+      "sha256": "982f83da5cca81cfd891f4e342b209d014d92a062afcea533a0155f166483319",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.guard-exit.json",
+      "bytes": 585,
+      "sha256": "05b5bb6ef3a3bb0be91e414b1b18fa1c32dd60c7a8e65c9c3ba3251dafa46f02",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.guard.stdout",
+      "bytes": 593,
+      "sha256": "93697deb80ef604989e54dcaedc467f4ae542958e2e4175647c5c5ff109c6afe",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.receipt.json",
+      "bytes": 651,
+      "sha256": "d8ecd11dd0e19781d74c77bfe210c2016f6404eed89d6400595fd2193a06384a",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate-fault.stdout",
+      "bytes": 4338,
+      "sha256": "860d7b7afbe28bf9ce6f5c8545a0290397fa1b4b70de6baa3a143b00e512bc6b",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.guard-exit.json",
+      "bytes": 579,
+      "sha256": "33d6edecca77f4af0a315ee74d6018832a8c05b594f0e766c5cb77948be0ca92",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.guard.stdout",
+      "bytes": 593,
+      "sha256": "4ca8ce60af3d749aaafda8da7fa7cb1339417b2fec7015b5f47d6d8e605ac76c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.receipt.json",
+      "bytes": 651,
+      "sha256": "bf3aeff33a18111c0140c63998ce4aa483ec067c29e1db84f2bb943bc5b53707",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-estimate.stdout",
+      "bytes": 4189,
+      "sha256": "9a9a0f8d4173761468ca6c2162601547e1ca84000d968a0b03d640046bcf4594",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.guard-exit.json",
+      "bytes": 586,
+      "sha256": "4ad9f218f51e55dcc504de7d68e4fbd8ee0aaf3e1f06cc4de40202278d2a9957",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.guard.stdout",
+      "bytes": 593,
+      "sha256": "875fb172b8e3d72903220895a7333170b287421f058c080cdbd35182d4dd46aa",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.receipt.json",
+      "bytes": 651,
+      "sha256": "11bd7deeec4941d51c872e560cb99eddcd9bfe805bfedade205b18865ecc9724",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference-fault.stdout",
+      "bytes": 4338,
+      "sha256": "0fd6ca5975875fdd403e532478709048fb3ebca8ae92109317d143bdc73b4e58",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.guard-exit.json",
+      "bytes": 580,
+      "sha256": "8f1f36b5c8912da4396d001b329da636cb3f01f9f50dabc9feea07970301649b",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.guard.stdout",
+      "bytes": 593,
+      "sha256": "45e9ce156b398fce152b86990535e7658bed4bba98b4de49813ea36db33cfa16",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.receipt.json",
+      "bytes": 651,
+      "sha256": "747db6fb96f55c95262f2192cdfd37ca001c13f9bfbe367afbd3cd3ab5222d3b",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "f7-reference.stdout",
+      "bytes": 4192,
+      "sha256": "6a0863840e0be6f760c43868ddc5139189cd007de1e8f91f216866123615ed83",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.guard-exit.json",
+      "bytes": 553,
+      "sha256": "8fe0d83abeabab1c52306ee90d461a6db71488294ec12ede78bac053c6159e7f",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.guard.stdout",
+      "bytes": 579,
+      "sha256": "d85c4f644fae526b98354c080b5087af494a172feccc7997e6aebcc8eca22707",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.receipt.json",
+      "bytes": 629,
+      "sha256": "0fd708d7d0ede18172a71b3790e621a3ac6be9d9ec073b48363ed8860c4e09b6",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-base.stdout",
+      "bytes": 7541,
+      "sha256": "eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-comparison.receipt.json",
+      "bytes": 2520,
+      "sha256": "35f9b1336fc853d8d05667e6424e26ea726eb53170f944a15685d4b0649ea9a4",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-comparison.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-comparison.stdout",
+      "bytes": 15892,
+      "sha256": "d122106f9b696bae34f32986a25f570bde902367b1a55873c7cdbc2acec1930e",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.guard-exit.json",
+      "bytes": 563,
+      "sha256": "a772e9a39c498fedc5427cf538bfaee16680a45ac1ae80bfb2de892eddd93973",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.guard.stdout",
+      "bytes": 579,
+      "sha256": "759257a5f1dc9c4129ac0d61b8a36a2298b9be2ccaf7d89f3ac927a9c54f1a69",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.receipt.json",
+      "bytes": 629,
+      "sha256": "c47c0b95d8a7b373b620cf2e6810bd6eb00b61057fae2faa30bef9b7ca385ece",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate-fault.stdout",
+      "bytes": 7541,
+      "sha256": "4b243e644d0827fca041d900a75748a6a435aa5c6a35b2ede2ff088c0306e94a",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.guard-exit.json",
+      "bytes": 557,
+      "sha256": "ed3c15e86f9a0f84ccb32a942d38c3d2bd718a4ccd1c77fab5cb4fc5db8fe9a1",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.guard.stdout",
+      "bytes": 579,
+      "sha256": "6039d2966304e7eaf7e4931c4b2a13ff029ba18542e17dc431d15034913a6a5d",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.receipt.json",
+      "bytes": 629,
+      "sha256": "32aad73830bba45985a0cc5a3629c7fb0f50c38db9277e22d944e112d5410e68",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-estimate.stdout",
+      "bytes": 7392,
+      "sha256": "1aaf4497626f11ebf1e24ffe885e2dcd1a7e45404150f172549116a8b81f97f7",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.guard-exit.json",
+      "bytes": 564,
+      "sha256": "08754a6cb0699a14e96fd78ddbdababf68aef1ea8c820ba8a1166a528151606f",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.guard.stdout",
+      "bytes": 579,
+      "sha256": "a4be4a024327170b6a93d6d9024e77792aba28cb34fce38849d1e3c18f1c98da",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.receipt.json",
+      "bytes": 629,
+      "sha256": "9f425d86a0a84f7829279e5255a42023b2de625abd92589b4876d0267d8c865a",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference-fault.stdout",
+      "bytes": 7541,
+      "sha256": "0a66eeea1f011efc3a9417c64c7163d0bff9bbc9258d13b97684bdebc2b78629",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.guard-exit.json",
+      "bytes": 558,
+      "sha256": "9733ee4af0240585684f356fc86a1f9693f775cf73d6e74d909bc47109b610a7",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.guard.stdout",
+      "bytes": 579,
+      "sha256": "d13fa8d0e19d072997b4817c915e9f9cda31eeef467c2a8e412ac65bd738e5ae",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.receipt.json",
+      "bytes": 629,
+      "sha256": "8d8f665afac6c8ac99b18b8ac7f8bbe19cf449fed8632c2b7668d285d1071612",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "full-reference.stdout",
+      "bytes": 7395,
+      "sha256": "240499a6f9d4d203c5eb31a1bc2a2984590cfed5500635ea03036600370ac72f",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "host.json",
+      "bytes": 258,
+      "sha256": "ae666720b91c8af60fca8afde2b5ab6ed3b97afabd55d878490172b4841cdb47",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/README.md",
+      "bytes": 5146,
+      "sha256": "bfd5899e292ee00727b35911664c05dfd1c9fed758356f74dbcfcdaf9250ab7a",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/acceptance.py",
+      "bytes": 4548,
+      "sha256": "ebb3fb638e1056d643943992cc15558137fdd745635e13db0c6d94478475a980",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/bindings.json",
+      "bytes": 2112,
+      "sha256": "6e9d04c11a1edcc960e40287c3a243f431f0acafc707b929e8ec1740a94bd011",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/capture-installed.py",
+      "bytes": 1003,
+      "sha256": "984f247c8d70cc3795280765e93839f59c835c06b51504d17baceb3955599c50",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/compare-surveys.py",
+      "bytes": 13313,
+      "sha256": "6652e594f7d6b7016fa3a38c2cc63ae2d81bc10dbbebdff9827ec3dd9f37716a",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/guards/preparation-guard.py",
+      "bytes": 1954,
+      "sha256": "291398b1395dcdc5a342f7439f48c2f9f497ceaa83481176110cec1192df974c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/guards/survey-guard.py",
+      "bytes": 1954,
+      "sha256": "72118f728b8abda764a85d07fed79326c098fe71e3b710657fe022a1e98258f7",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/inputs/candidate-bindings.json.txt",
+      "bytes": 7024,
+      "sha256": "eb9cfaf9d6621e59cc6edf528d6f7dc4ab53511d48e1e68af6dc0c0820be8133",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/inputs/expected-base.json.txt",
+      "bytes": 7541,
+      "sha256": "eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/inputs/faults.bundle",
+      "bytes": 42757,
+      "sha256": "f048e6498241ab967ab0554dd768316028fdf3e588b738c1576c3181b2b1e8d2",
+      "transport": "Binary retained in original GitHub artifact and exact proof commit; not duplicated in UTF-8 packet",
+      "proofCommit": "9215cdf312904669b6734917bf66b81a7e1cef89",
+      "proofPath": ".github/proofs/wbs100-hosted-full-surveys/inputs/faults.bundle"
+    },
+    {
+      "path": "proof-inputs/inputs/installed-identity.json.txt",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/inputs/policy.json.txt",
+      "bytes": 69622,
+      "sha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/parity-support.py",
+      "bytes": 12330,
+      "sha256": "99faf6eda9ccb1cc3d333ea72af48df95ec7561d930bdbc7f2ae0bb2e41fa71d",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/prove-adapter.py",
+      "bytes": 18918,
+      "sha256": "d8b5debd1bb9aff8f66ef947bb69498848964fbf7d3e3e4b62b6ca446b57aa8d",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/adapter-guard-raw.json.txt",
+      "bytes": 8675,
+      "sha256": "6bf8b4147f6ff3e4cb4ce73f8f7af1ea20ee8d7dae02c2d19e4395d982af3858",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/adapter-proof.json.txt",
+      "bytes": 17163,
+      "sha256": "e525ab8201df4eea43120ff962633e35cb2b554413e745112fc64befc7a95441",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/expected-base-provenance.json.txt",
+      "bytes": 1086,
+      "sha256": "484c390445b29e6b3fd450a08ca937489a8e07da3cdbde03cf74c1ead1fbe1b5",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/fault-bundle-provenance.json.txt",
+      "bytes": 7599,
+      "sha256": "ced6f20e0de9bc04dfdd7689abd07288feb17dec767d9352e26efc9b7f584bfe",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/preparation.json.txt",
+      "bytes": 430,
+      "sha256": "724cdd6609a99de604c15f464a0b969c73e1bd631c6a3d60d641b222ced2cb6b",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/prior-parity-43-negatives.json.txt",
+      "bytes": 10282,
+      "sha256": "39cdd95a52af4924dc3d706c6ebcd5dc87aa855c5aba2fdba2142fc8b96dc1be",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/review/prior-survey-19-negatives.json.txt",
+      "bytes": 15308,
+      "sha256": "05b4894ef6aa67be1887c754627dab4401deb08349b44514b7490ddb2e286d61",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "proof-inputs/run-hosted.py",
+      "bytes": 10878,
+      "sha256": "b597b36dfd05b962522e26d63d48be62c48c148b86cfbc2df110e45fda641fec",
+      "transport": "raw-streams.json.txt JSON string keyed by original artifact path; encode decoded string as UTF-8"
+    },
+    {
+      "path": "workflow/job.log",
+      "bytes": 199147,
+      "sha256": "236d47e842bc7d21ac2c228d4eb2cd7b53f2191f9d827a4eda551f7cdfb31a39",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-hosted-full-job-20261020.log",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    },
+    {
+      "path": "workflow/terminal.json",
+      "bytes": 2558,
+      "sha256": "bd1cde1db975fdff68d989bb2c16c56de6eb1a60dddc73107a9c7efa1dc00d2f",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-hosted-full-terminal-20261020.json",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    },
+    {
+      "path": "workflow/artifacts.json",
+      "bytes": 799,
+      "sha256": "a54e865669f652e2f3aa79e522731b43c2eb4564db30bc289d40e0ee742301ab",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-hosted-full-artifacts-20261020.json",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    },
+    {
+      "path": "workflow/workflow.yml",
+      "bytes": 1978,
+      "sha256": "2db47d38724aed03bee017e8776102ff97c01b9cb512797b37b66d697571aeaa",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020/.github/workflows/wbs100-hosted-full-surveys.yml",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    },
+    {
+      "path": "audit/negative-receipt.json",
+      "bytes": 2978,
+      "sha256": "ae2136d7f30972112c90e691de4a0c1881b73b4a0a58e4e3f7a4dd25d6681134",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-hosted-full-audit-negatives-20261020.json",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    },
+    {
+      "path": "audit/root-audit.py",
+      "bytes": 4676,
+      "sha256": "574b5b418088280a440356b8cc4f516aaf4b068afb85e1928c300a25ebf6fcb3",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-root-hosted-full-audit-20261020.py",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    },
+    {
+      "path": "audit/root-audit.json",
+      "bytes": 2128,
+      "sha256": "02d9d73e27897a7654a41f0516bf93620e1949b8c1f612ef5bafc57e7e9c6255",
+      "transport": "raw-streams.json.txt JSON string keyed by receipt path; encode decoded string as UTF-8",
+      "source": "/tmp/puni-wbs100-root-hosted-full-audit-20261020.json",
+      "kind": "Supplementary hosted API/log or exact proof workflow/independent audit receipt; not original artifact member"
+    }
+  ]
+}

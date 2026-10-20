@@ -6,14 +6,13 @@ The command registry SHALL offer `createResource`, `patchResource`, `deleteResou
 (directory scope), `setResourceCapacity`, `setDemand`, `assignSubtree` (project scope), and
 `claimWorkItem` SHALL accept `resources?: { resourceId, units }[]` and `assign?: boolean`.
 Each SHALL be an all-or-none member of its batch, one journal entry, undoable with
-preconditions, described for the MCP batch tool. The commands SHALL add no MCP tool; the
-by-person read of `assignee-management` adds exactly one.
+preconditions, described for the MCP batch tool. The commands SHALL add no MCP tool; the reads add exactly two: the by-person work read of `assignee-management` and the project resources read of `resource-directory`.
 
 #### Scenario: The batch tool carries the new kinds
 
 - **WHEN** the MCP tool list is snapshotted after this change
-- **THEN** it has one more tool, the by-person work read, and the batch tool's description
-  names the new kinds
+- **THEN** it has two more tools, the by-person work read and the project resources read, and
+  the batch tool's description names the new kinds
 
 ## MODIFIED Requirements
 

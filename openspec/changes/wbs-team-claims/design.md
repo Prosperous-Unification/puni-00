@@ -134,7 +134,9 @@ another run id). Anything else is refused `inside_subtree_claim` naming the hold
 subtree claim that overlaps another holder's subtree claim on an ancestor or descendant is
 refused `overlaps_subtree_claim`; a nested subtree claim is allowed as a delegated claim. The
 parent claim must exist, be unreleased and sit on a strict ancestor (`parent_claim_unknown`,
-`parent_claim_not_ancestor`, `parent_claim_foreign`).
+`parent_claim_not_ancestor`, `parent_claim_foreign`). Consequence: a claim an admin writes on
+another account's behalf carries the admin's account, so a fleet of another account cannot
+delegate under it (harmless while every fleet is a credential of Dany's account).
 
 **D8. Releasing a subtree claim cascades.** It removes every delegated claim under it in the
 same journal entry. A finished or dead superagent takes its subagents' claims with it.

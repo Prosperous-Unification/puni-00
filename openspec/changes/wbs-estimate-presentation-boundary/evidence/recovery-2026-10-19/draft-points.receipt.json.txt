@@ -1,0 +1,20 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/plan-estimates.test.tsx",
+    "--maxWorkers=1",
+    "-t",
+    "reads the trio off the row"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/apps/wbs/fe-01",
+  "exitCode": 1,
+  "peakProcessTreeKiB": 1223280,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 5.538,
+  "availableBeforeKiB": 23634756,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

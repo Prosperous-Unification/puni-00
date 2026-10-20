@@ -124,7 +124,7 @@ export type Refusal =
   | { reason: PlainClaimReason; detail?: never }
   | { reason: 'not_startable'; detail: { status: WorkItemStatus } }
   | { reason: 'step_done'; detail: { stepIds: string[] } }
-  | { reason: 'already_claimed'; detail: { holders: NamedClaimHolder[] } }
+  | { reason: 'already_claimed' | 'destination_claimed'; detail: { holders: NamedClaimHolder[] } }
   | {
       reason: 'inside_subtree_claim' | 'overlaps_subtree_claim';
       detail: { holder: NamedClaimHolder };
@@ -145,6 +145,7 @@ export type ServiceRefusal =
       reason: 'referenced_by_step_parallel';
       nodes: readonly { workItemId: string; stepId: string }[];
     }
+  | { ok: false; reason: 'destination_claimed'; holders: readonly NamedClaimHolder[] }
   | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {

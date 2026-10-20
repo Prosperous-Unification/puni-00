@@ -797,9 +797,9 @@ jobs:
     needs: gate_mode
     if: ${{ needs.gate_mode.outputs.twilight == 'run' }}
     runs-on: ubuntu-latest
-    # This job took 29m16s in the full-mode run 36473105834 (Nx step with source lint 26m37s,
-    # packed suite 2m8s); fifty leaves over two thirds above it.
-    timeout-minutes: 50
+    # Run 39330836237 spent 49m25s in Nx; the packed suite separately took 4m45s in
+    # run 39330011791. Seventy-five minutes accommodates both phases and runner variation.
+    timeout-minutes: 75
     steps:
       # Full history for parity with the workspace shard: the suites read git state and ran
       # against a depth-0 clone in the single job these came from.

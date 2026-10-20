@@ -1,0 +1,21 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/plan-estimates.test.tsx > assigning from a folded step’s cell with @ > says Final in days, whatever half-typed shorthand the cell is holding
+AssertionError: expected 'Dev for 010010.s1-fake-1 · DevCopy re…' to contain 'Final 4 days'
+
+Expected: "Final 4 days"
+Received: "Dev for 010010.s1-fake-1 · DevCopy referenceCopy linkStep blockage unknown — this server omits blockage details.Add dependency from Devoptimistic 2 · realistic 3 · pessimistic 8Final 8/3/2 daysMust read optimistic ≤ realistic ≤ pessimistic.Days as optimistic/realistic/pessimistic — 2/3/8. One number means all three. Empty clears it. @ looks somebody up to do it."
+
+ ❯ src/components/wbs/plan-estimates.test.tsx:763:53
+    761|     fireEvent.mouseEnter(foldedWrapper());
+    762|
+    763|     expect(screen.getByRole('tooltip').textContent).toContain('Final 4…
+       |                                                     ^
+    764|   });
+    765|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

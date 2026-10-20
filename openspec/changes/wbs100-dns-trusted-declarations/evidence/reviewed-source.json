@@ -1,0 +1,15 @@
+{
+  "head": "0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5",
+  "sourceSha256": {
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts": "e5957be9d5a44c0d904e4ba333c511d27b8ecf0d1d307e2b2ed451ac29ab2619",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts": "f6aa9a8ff4ed6b531506c45cba6316fd914d091e9be8fb2ae13ebe55b9e189da",
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts": "ddee9cb8591828758f16072d8cc11aefaeb1d9d677ea085d951fe99516dd0ea9"
+  },
+  "unchangedComparedWithHead": {
+    "package.json": "afa03fa222e62ed92698e3ce5af9b7638f9975fa510ec84cf81e2949621d38df",
+    "bun.lock": "e8d77926f9dac4ba4824486143872bdfb123cafd8bed45cca50c44b2e23298a4",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-imports.ts": "6586cd51ecb4542155acb290dcb4f3a8a31676a4cec31ac6003e4b637817f42b",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.ts": "92eb292de4a248c2663618ed4d6d584a51381e3d53716235c24f4be84164625f",
+    "apps/twilight-structure/twilight-burokrat/cli/src/packaging/build.ts": "7e4fdfa824c246b2f738499ec509cf545be6fb0e524c398be369a9e75d167b3d"
+  }
+}

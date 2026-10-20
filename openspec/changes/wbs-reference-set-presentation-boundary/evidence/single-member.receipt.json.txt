@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/reference-set-field.test.tsx",
+    "--maxWorkers=1",
+    "-t",
+    "flags a type conflict"
+  ],
+  "exitCode": 1,
+  "peakRssBytes": 385142784,
+  "seconds": 1.51
+}

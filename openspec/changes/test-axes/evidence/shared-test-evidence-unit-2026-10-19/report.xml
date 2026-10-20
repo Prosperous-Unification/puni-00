@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="bun test" tests="12" assertions="49" failures="0" skipped="0" time="0.296916155">
+  <testsuite name="src/index.test.ts" file="src/index.test.ts" tests="12" assertions="49" failures="0" skipped="0" time="0.295082862" hostname="pop-os">
+    <testsuite name="Performance selection environment" file="src/index.test.ts" line="34" tests="1" assertions="13" failures="0" skipped="0" time="0.001" hostname="pop-os">
+      <testcase name="accepts only a canonical non-default shifted CI pair" classname="Performance selection environment" time="0.001174" file="src/index.test.ts" line="35" assertions="13" />
+    </testsuite>
+    <testsuite name="Performance case declaration" file="src/index.test.ts" line="56" tests="7" assertions="22" failures="0" skipped="0" time="0.171" hostname="pop-os">
+      <testcase name="binds the domain-separated declaration with canonical key order" classname="Performance case declaration" time="0.003932" file="src/index.test.ts" line="57" assertions="3" />
+      <testcase name="produces the same canonical SHA-256 vector in Bun and emitted Node ESM" classname="Performance case declaration" time="0.167402" file="src/index.test.ts" line="73" assertions="6" />
+      <testcase name="accepts several distinct cases in one fixture" classname="Performance case declaration" time="0.000116" file="src/index.test.ts" line="114" assertions="1" />
+      <testcase name="refuses duplicate case IDs and runner identities" classname="Performance case declaration" time="0.000235" file="src/index.test.ts" line="126" assertions="2" />
+      <testcase name="refuses paths that are not normalized workspace paths" classname="Performance case declaration" time="0.000149" file="src/index.test.ts" line="138" assertions="4" />
+      <testcase name="distinguishes missing and malformed thresholds" classname="Performance case declaration" time="0.001541" file="src/index.test.ts" line="151" assertions="3" />
+      <testcase name="rejects undeclared fields, unknown units and operators" classname="Performance case declaration" time="0.000559" file="src/index.test.ts" line="165" assertions="3" />
+    </testsuite>
+    <testsuite name="Performance observations" file="src/index.test.ts" line="176" tests="4" assertions="14" failures="0" skipped="0" time="0" hostname="pop-os">
+      <testcase name="decodes a strict one-case attachment and refuses schema or nonfinite values" classname="Performance observations" time="0.00048" file="src/index.test.ts" line="177" assertions="3" />
+      <testcase name="decodes a strict versioned run with finite observations" classname="Performance observations" time="0.000403" file="src/index.test.ts" line="205" assertions="2" />
+      <testcase name="rejects unknown fields, duplicate cases and duplicate observations" classname="Performance observations" time="0.000517" file="src/index.test.ts" line="222" assertions="3" />
+      <testcase name="recomputes both threshold operators and rejects nonfinite comparisons" classname="Performance observations" time="0.000072" file="src/index.test.ts" line="240" assertions="6" />
+    </testsuite>
+  </testsuite>
+</testsuites>

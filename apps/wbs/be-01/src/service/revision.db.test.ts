@@ -244,7 +244,12 @@ describe('what a work item write moves', () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
 
-    const outcome = await workItems.move(cable, ownerId, { parentId: strip, afterId: null });
+    const outcome = await workItems.move(
+      cable,
+      ownerId,
+      { parentId: strip, afterId: null },
+      { kind: 'legacy' },
+    );
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(cable)).toBe(1);

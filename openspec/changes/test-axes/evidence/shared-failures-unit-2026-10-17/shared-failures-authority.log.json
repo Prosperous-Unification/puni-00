@@ -1,0 +1,7 @@
+{
+  "command": ["bun", "/tmp/shared-failures-prepare-authority.ts"],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 154248,
+  "ceilingKiB": 921600,
+  "observedArgv": [["bun", "/tmp/shared-failures-prepare-authority.ts"]]
+}

@@ -482,6 +482,9 @@ describe('reviewed radical-modularity pilot through production CLI', () => {
     // exact path matched 2 classification rules. Both policies also refused an unlisted gzip
     // control. Restored full-policy classification covered 10,476 tuples; bootstrap classification
     // covered the 448 retained artifact tuples. This production pilot passed 60 assertions.
+    // Proof (2026-10-19): this pilot failed on the undeclared shared-unit-recovery denial receipt.
+    // Removing either exact recovery gzip declaration from either shipped policy made production
+    // classify-candidate exit 1 naming that archive; both policies also refused an unlisted gzip.
     expect(invocation.exitCode, output(invocation)).toBe(0);
     expect(JSON.parse(pipeText(invocation.stdout, 'lint stdout'))).toMatchObject({
       mode: 'observe',

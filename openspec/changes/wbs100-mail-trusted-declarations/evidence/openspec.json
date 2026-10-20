@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "0afe30e7597247f58e7745355843ddf2a6d587ea10cb70d15e2ff6c1be0dc00f",
+    "bytes": 510,
+    "text": "{\n  \"command\": [\n    \"env\",\n    \"BUN_TMPDIR=/tmp\",\n    \"OPENSPEC_TELEMETRY=0\",\n    \"bunx\",\n    \"@fission-ai/openspec@1.12.0\",\n    \"validate\",\n    \"wbs100-mail-trusted-declarations\",\n    \"--strict\",\n    \"--json\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 111488,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.307,\n  \"availableBeforeKiB\": 17131492,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "bc5cab87dbfe525d47b0a3a6b7961cebb7597812db6cab20e9819abcafa491a2",
+    "bytes": 523,
+    "text": "{\n  \"items\": [\n    {\n      \"id\": \"wbs100-mail-trusted-declarations\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 18\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n    \"source\": \"nearest\"\n  }\n}\n"
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

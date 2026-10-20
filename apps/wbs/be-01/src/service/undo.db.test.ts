@@ -629,7 +629,7 @@ describe('undoing each kind of change', () => {
     const cable = await root('Cable', strip);
     const test = await root('Test', cable);
 
-    await workItems.move(test, ownerId, { parentId: strip, afterId: null });
+    await workItems.move(test, ownerId, { parentId: strip, afterId: null }, { kind: 'legacy' });
     expect(await namesByPosition(strip)).toEqual(['Test']);
 
     expect(expectDone(await undone())).toBe('move “Test”');
@@ -1302,7 +1302,7 @@ describe('an undo refuses when what it touched has moved', () => {
   it('refuses a move once the moved row has been edited', async () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
-    await workItems.move(cable, ownerId, { parentId: strip, afterId: null });
+    await workItems.move(cable, ownerId, { parentId: strip, afterId: null }, { kind: 'legacy' });
     await workItems.patch(cable, strangerId, { name: 'Cable in' });
 
     expectStale(await undone());
@@ -1314,7 +1314,7 @@ describe('an undo refuses when what it touched has moved', () => {
     const strip = await root('Strip');
     const cable = await root('Cable', strip);
     const test = await root('Test', cable);
-    await workItems.move(test, ownerId, { parentId: strip, afterId: null });
+    await workItems.move(test, ownerId, { parentId: strip, afterId: null }, { kind: 'legacy' });
     // `cable` is what `test` used to sit after. Nothing about `test` moved, so
     // the revisions all still hold — the placement is what cannot be honoured.
     expect((await workItems.remove(cable, strangerId, null)).ok).toBe(true);

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/tmp/wbs100-mail-diagnostic-20261020/node_modules/.bin/twib",
+    "check",
+    "committed",
+    "/home/df/wd/puni/puni-00",
+    "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+    "/tmp/wbs100-reference-consumer-20261019/policy.json"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00",
+  "exitCode": -9,
+  "peakProcessTreeKiB": 4217932,
+  "ceilingKiB": 4194304,
+  "timeoutSeconds": 900,
+  "seconds": 54.316,
+  "availableBeforeKiB": 21781120,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": "rss_limit"
+}

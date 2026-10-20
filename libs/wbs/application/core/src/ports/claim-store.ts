@@ -101,6 +101,18 @@ export interface ClaimStore extends ClaimIdentity {
     cleared: readonly ProgressKey[],
     stamp: WriteStamp,
   ): Promise<void>;
+  /**
+   * Moves every claim on `fromWorkItemId` to `toWorkItemId` in place: ids,
+   * steps, holders, runs, parents, writing account and write instant kept, so
+   * whatever names a claim by id (a delegated claim, a later satellite) moves
+   * with it. Both work items' revisions move. The hand-down of a leaf's claims
+   * to its first child, and back on that child's undo, beside the other step
+   * facts' `moveAll`.
+   *
+   * @throws when `toWorkItemId` already holds a claim on a moved step (the
+   * unique index), and on every store failure.
+   */
+  moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void>;
 }
 
 /**

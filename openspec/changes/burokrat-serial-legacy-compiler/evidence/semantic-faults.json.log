@@ -1,0 +1,37 @@
+[
+  {
+    "fault": "recensus",
+    "observed": "named semantic test failure",
+    "receipt": "fault-recensus.receipt.json"
+  },
+  {
+    "fault": "unselected-reference",
+    "observed": "named semantic test failure",
+    "receipt": "fault-unselected-reference.receipt.json"
+  },
+  {
+    "fault": "reference-census",
+    "observed": "named semantic test failure",
+    "receipt": "fault-reference-census.receipt.json"
+  },
+  {
+    "fault": "missing-owner",
+    "observed": "named semantic test failure",
+    "receipt": "fault-missing-owner.receipt.json"
+  },
+  {
+    "fault": "ambiguous-owner",
+    "observed": "named semantic test failure",
+    "receipt": "fault-ambiguous-owner.receipt.json"
+  },
+  {
+    "fault": "rootless-owner",
+    "observed": "named semantic test failure",
+    "receipt": "fault-rootless-owner.receipt.json"
+  },
+  {
+    "fault": "diagnostic-refusal",
+    "observed": "named semantic test failure",
+    "receipt": "fault-diagnostic-refusal.receipt.json"
+  }
+]

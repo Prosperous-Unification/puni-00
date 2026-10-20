@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "tsc",
+    "-p",
+    ".reference-scope.tsconfig.json",
+    "--noEmit"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 78127104,
+  "seconds": 0.2
+}

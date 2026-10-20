@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "proof(wbs): restore oversized estimate column for size negative"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 800878592,
+  "seconds": 6.65
+}

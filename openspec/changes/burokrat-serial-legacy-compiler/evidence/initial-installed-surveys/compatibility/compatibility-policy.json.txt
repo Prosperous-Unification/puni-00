@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "policyId": "wbs100.serial-compiler.installed-compatibility.v1",
+  "ruleModes": [
+    {"ruleId": "REL-EXTRACT", "mode": "observe"}
+  ],
+  "relationshipRequest": {
+    "schemaVersion": 1,
+    "typescript": {
+      "configPaths": ["config/provider.json", "config/consumer-0.json"],
+      "publicEntrypoints": ["src/index.ts"]
+    }
+  }
+}

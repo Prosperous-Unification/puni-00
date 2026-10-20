@@ -1,0 +1,2202 @@
+{
+  "status": "Declared exact excerpts only; cannot reconstruct complete trace",
+  "sourcePath": "/tmp/wbs100-phase-collection-trace-20261020/trace.jsonl",
+  "sourceSha256": "46388304326fdb6bd00511cacbfd44ef8c1ed8ba858cc0b4d2c5d6e80ebded2a",
+  "sourceBytes": 14799864,
+  "sourceLines": 42691,
+  "selection": {
+    "events": [
+      "after-existing-gc",
+      "before-existing-gc",
+      "diagnostics:return",
+      "emit:return",
+      "helper:start",
+      "public-semantics:return",
+      "public-semantics:start",
+      "relationships:after-materialize",
+      "relationships:before-materialize",
+      "semantic-gc:after",
+      "semantic-gc:before",
+      "serial:start"
+    ],
+    "alsoIncludes": "last line"
+  },
+  "excerpts": [
+    {
+      "line": 1,
+      "text": "{\"time\":1792448460648,\"pid\":16,\"event\":\"relationships:before-materialize\",\"phase\":\"startup\",\"config\":\"\",\"rss\":1627332608,\"heapTotal\":518490112,\"heapUsed\":345433125,\"external\":280877146,\"arrayBuffers\":106969544,\"entries\":10477}\n"
+    },
+    {
+      "line": 2,
+      "text": "{\"time\":1792448460873,\"pid\":16,\"event\":\"relationships:after-materialize\",\"phase\":\"startup\",\"config\":\"\",\"rss\":1700564992,\"heapTotal\":520293376,\"heapUsed\":345433125,\"external\":280877146,\"arrayBuffers\":106969544}\n"
+    },
+    {
+      "line": 3,
+      "text": "{\"time\":1792448460883,\"pid\":16,\"event\":\"serial:start\",\"phase\":\"startup\",\"config\":\"\",\"rss\":1700761600,\"heapTotal\":520310784,\"heapUsed\":345433125,\"external\":280877146,\"arrayBuffers\":106969544,\"configs\":21,\"publicEntrypoints\":21}\n"
+    },
+    {
+      "line": 4,
+      "text": "{\"time\":1792448460884,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1701154816,\"heapTotal\":520343552,\"heapUsed\":345433125,\"external\":280878512,\"arrayBuffers\":106970910}\n"
+    },
+    {
+      "line": 7,
+      "text": "{\"time\":1792448462052,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1895346176,\"heapTotal\":742677504,\"heapUsed\":378441088,\"external\":291592003,\"arrayBuffers\":110513985}\n"
+    },
+    {
+      "line": 8,
+      "text": "{\"time\":1792448462153,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1872101376,\"heapTotal\":103377920,\"heapUsed\":244835015,\"external\":183435303,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9,
+      "text": "{\"time\":1792448462154,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1872101376,\"heapTotal\":103377920,\"heapUsed\":244835015,\"external\":183435303,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 12,
+      "text": "{\"time\":1792448462803,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":940388352,\"heapTotal\":369413120,\"heapUsed\":244835015,\"external\":187373992,\"arrayBuffers\":109159321}\n"
+    },
+    {
+      "line": 13,
+      "text": "{\"time\":1792448462843,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":919228416,\"heapTotal\":103483392,\"heapUsed\":246342944,\"external\":184826528,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 14,
+      "text": "{\"time\":1792448462843,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":919228416,\"heapTotal\":103483392,\"heapUsed\":246342944,\"external\":184826528,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17,
+      "text": "{\"time\":1792448463356,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":949002240,\"heapTotal\":385884160,\"heapUsed\":246342944,\"external\":187993392,\"arrayBuffers\":108387496}\n"
+    },
+    {
+      "line": 18,
+      "text": "{\"time\":1792448463396,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":939089920,\"heapTotal\":104144896,\"heapUsed\":246807737,\"external\":185209241,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 19,
+      "text": "{\"time\":1792448463396,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":939089920,\"heapTotal\":104144896,\"heapUsed\":246807737,\"external\":185209241,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 22,
+      "text": "{\"time\":1792448463920,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":948285440,\"heapTotal\":386691072,\"heapUsed\":246807737,\"external\":188744791,\"arrayBuffers\":108756182}\n"
+    },
+    {
+      "line": 23,
+      "text": "{\"time\":1792448463961,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":938557440,\"heapTotal\":104263680,\"heapUsed\":247085798,\"external\":185466918,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 24,
+      "text": "{\"time\":1792448463961,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":938557440,\"heapTotal\":104263680,\"heapUsed\":247085798,\"external\":185466918,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 27,
+      "text": "{\"time\":1792448464157,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":783818752,\"heapTotal\":217347072,\"heapUsed\":247085798,\"external\":188267755,\"arrayBuffers\":108021469}\n"
+    },
+    {
+      "line": 28,
+      "text": "{\"time\":1792448464186,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":775467008,\"heapTotal\":104281088,\"heapUsed\":247141671,\"external\":185506935,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 29,
+      "text": "{\"time\":1792448464186,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":775467008,\"heapTotal\":104281088,\"heapUsed\":247141671,\"external\":185506935,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 32,
+      "text": "{\"time\":1792448464438,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":812797952,\"heapTotal\":243613696,\"heapUsed\":247141671,\"external\":188308678,\"arrayBuffers\":108022375}\n"
+    },
+    {
+      "line": 33,
+      "text": "{\"time\":1792448464472,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":804057088,\"heapTotal\":104333312,\"heapUsed\":247255126,\"external\":185598086,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 34,
+      "text": "{\"time\":1792448464472,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":804057088,\"heapTotal\":104333312,\"heapUsed\":247255126,\"external\":185598086,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37,
+      "text": "{\"time\":1792448464665,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":784625664,\"heapTotal\":215564288,\"heapUsed\":247255126,\"external\":188398642,\"arrayBuffers\":108021188}\n"
+    },
+    {
+      "line": 38,
+      "text": "{\"time\":1792448464694,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":776294400,\"heapTotal\":104349696,\"heapUsed\":247308226,\"external\":185633362,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 39,
+      "text": "{\"time\":1792448464694,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":776294400,\"heapTotal\":104349696,\"heapUsed\":247308226,\"external\":185633362,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 42,
+      "text": "{\"time\":1792448464924,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":810991616,\"heapTotal\":240748544,\"heapUsed\":247308226,\"external\":188434471,\"arrayBuffers\":108021741}\n"
+    },
+    {
+      "line": 43,
+      "text": "{\"time\":1792448464954,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":802435072,\"heapTotal\":104384512,\"heapUsed\":247394169,\"external\":185701449,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 44,
+      "text": "{\"time\":1792448464954,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":802435072,\"heapTotal\":104384512,\"heapUsed\":247394169,\"external\":185701449,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 47,
+      "text": "{\"time\":1792448465360,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":902291456,\"heapTotal\":338890752,\"heapUsed\":247394169,\"external\":188853479,\"arrayBuffers\":108372662}\n"
+    },
+    {
+      "line": 48,
+      "text": "{\"time\":1792448465399,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":893116416,\"heapTotal\":104435712,\"heapUsed\":247484060,\"external\":185772812,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 49,
+      "text": "{\"time\":1792448465399,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":893116416,\"heapTotal\":104435712,\"heapUsed\":247484060,\"external\":185772812,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 52,
+      "text": "{\"time\":1792448465630,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":814878720,\"heapTotal\":240850944,\"heapUsed\":247484060,\"external\":188574470,\"arrayBuffers\":108022290}\n"
+    },
+    {
+      "line": 53,
+      "text": "{\"time\":1792448465661,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":806338560,\"heapTotal\":104454144,\"heapUsed\":247529732,\"external\":185802788,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 54,
+      "text": "{\"time\":1792448465661,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":806338560,\"heapTotal\":104454144,\"heapUsed\":247529732,\"external\":185802788,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 57,
+      "text": "{\"time\":1792448465956,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":846651392,\"heapTotal\":277847040,\"heapUsed\":247529732,\"external\":188605636,\"arrayBuffers\":108023480}\n"
+    },
+    {
+      "line": 58,
+      "text": "{\"time\":1792448465989,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":837894144,\"heapTotal\":104504320,\"heapUsed\":247655373,\"external\":185911277,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 59,
+      "text": "{\"time\":1792448465989,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":837894144,\"heapTotal\":104504320,\"heapUsed\":247655373,\"external\":185911277,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 62,
+      "text": "{\"time\":1792448466259,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":834383872,\"heapTotal\":265643008,\"heapUsed\":247655373,\"external\":188712408,\"arrayBuffers\":108021763}\n"
+    },
+    {
+      "line": 63,
+      "text": "{\"time\":1792448466294,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":819118080,\"heapTotal\":104539136,\"heapUsed\":247771788,\"external\":186008508,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 64,
+      "text": "{\"time\":1792448466294,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":819118080,\"heapTotal\":104539136,\"heapUsed\":247771788,\"external\":186008508,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 67,
+      "text": "{\"time\":1792448466692,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":888922112,\"heapTotal\":329526272,\"heapUsed\":247771788,\"external\":189159800,\"arrayBuffers\":108371924}\n"
+    },
+    {
+      "line": 68,
+      "text": "{\"time\":1792448466728,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":879603712,\"heapTotal\":104590336,\"heapUsed\":247810903,\"external\":186026951,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 69,
+      "text": "{\"time\":1792448466729,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":879603712,\"heapTotal\":104590336,\"heapUsed\":247810903,\"external\":186026951,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 72,
+      "text": "{\"time\":1792448466922,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":790634496,\"heapTotal\":215919616,\"heapUsed\":247810903,\"external\":188827507,\"arrayBuffers\":108021188}\n"
+    },
+    {
+      "line": 73,
+      "text": "{\"time\":1792448466954,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":782094336,\"heapTotal\":104606720,\"heapUsed\":247840627,\"external\":186040563,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 74,
+      "text": "{\"time\":1792448466954,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":782094336,\"heapTotal\":104606720,\"heapUsed\":247840627,\"external\":186040563,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 77,
+      "text": "{\"time\":1792448467380,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":902537216,\"heapTotal\":336227328,\"heapUsed\":247840627,\"external\":189203388,\"arrayBuffers\":108383457}\n"
+    },
+    {
+      "line": 78,
+      "text": "{\"time\":1792448467423,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":893157376,\"heapTotal\":104655872,\"heapUsed\":247883793,\"external\":186061617,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 79,
+      "text": "{\"time\":1792448467423,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":893157376,\"heapTotal\":104655872,\"heapUsed\":247883793,\"external\":186061617,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 82,
+      "text": "{\"time\":1792448467980,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":994287616,\"heapTotal\":415039488,\"heapUsed\":247883793,\"external\":189540522,\"arrayBuffers\":108699537}\n"
+    },
+    {
+      "line": 83,
+      "text": "{\"time\":1792448468024,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":977281024,\"heapTotal\":104660992,\"heapUsed\":248014713,\"external\":186179177,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 84,
+      "text": "{\"time\":1792448468024,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":977281024,\"heapTotal\":104660992,\"heapUsed\":248014713,\"external\":186179177,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 87,
+      "text": "{\"time\":1792448468441,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":916328448,\"heapTotal\":341049344,\"heapUsed\":248014713,\"external\":189346616,\"arrayBuffers\":108388071}\n"
+    },
+    {
+      "line": 88,
+      "text": "{\"time\":1792448468480,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":906977280,\"heapTotal\":104677376,\"heapUsed\":248116819,\"external\":186263587,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 89,
+      "text": "{\"time\":1792448468480,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":906977280,\"heapTotal\":104677376,\"heapUsed\":248116819,\"external\":186263587,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 92,
+      "text": "{\"time\":1792448468911,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":916639744,\"heapTotal\":346473472,\"heapUsed\":248116819,\"external\":189557358,\"arrayBuffers\":108514403}\n"
+    },
+    {
+      "line": 93,
+      "text": "{\"time\":1792448468961,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":907124736,\"heapTotal\":104711168,\"heapUsed\":248239043,\"external\":186351011,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 94,
+      "text": "{\"time\":1792448468961,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":907124736,\"heapTotal\":104711168,\"heapUsed\":248239043,\"external\":186351011,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 97,
+      "text": "{\"time\":1792448469268,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":860082176,\"heapTotal\":283804672,\"heapUsed\":248239043,\"external\":189185004,\"arrayBuffers\":108054625}\n"
+    },
+    {
+      "line": 98,
+      "text": "{\"time\":1792448469303,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":850939904,\"heapTotal\":105088000,\"heapUsed\":248332798,\"external\":186407054,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 99,
+      "text": "{\"time\":1792448469303,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":850939904,\"heapTotal\":105088000,\"heapUsed\":248332798,\"external\":186407054,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 102,
+      "text": "{\"time\":1792448469568,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":832860160,\"heapTotal\":255591424,\"heapUsed\":248332798,\"external\":189234268,\"arrayBuffers\":108047846}\n"
+    },
+    {
+      "line": 103,
+      "text": "{\"time\":1792448469601,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":824352768,\"heapTotal\":104776704,\"heapUsed\":248362351,\"external\":186436031,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 104,
+      "text": "{\"time\":1792448469601,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":824352768,\"heapTotal\":104776704,\"heapUsed\":248362351,\"external\":186436031,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 107,
+      "text": "{\"time\":1792448469878,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":848756736,\"heapTotal\":274711552,\"heapUsed\":248362351,\"external\":189528800,\"arrayBuffers\":108313401}\n"
+    },
+    {
+      "line": 108,
+      "text": "{\"time\":1792448469912,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"capture\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":840007680,\"heapTotal\":104809472,\"heapUsed\":248399889,\"external\":186457921,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 109,
+      "text": "{\"time\":1792448469912,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":840007680,\"heapTotal\":104809472,\"heapUsed\":248399889,\"external\":186457921,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 114,
+      "text": "{\"time\":1792448471019,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1246531584,\"heapTotal\":523703296,\"heapUsed\":480380731,\"external\":254835393,\"arrayBuffers\":152394753}\n"
+    },
+    {
+      "line": 115,
+      "text": "{\"time\":1792448471086,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1231835136,\"heapTotal\":118233088,\"heapUsed\":249922862,\"external\":187306110,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 116,
+      "text": "{\"time\":1792448471086,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1231835136,\"heapTotal\":118233088,\"heapUsed\":249922862,\"external\":187306110,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 121,
+      "text": "{\"time\":1792448471948,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1115013120,\"heapTotal\":478398464,\"heapUsed\":249922862,\"external\":195339023,\"arrayBuffers\":113253545}\n"
+    },
+    {
+      "line": 122,
+      "text": "{\"time\":1792448472006,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1092337664,\"heapTotal\":125709312,\"heapUsed\":254770088,\"external\":190455208,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 123,
+      "text": "{\"time\":1792448472006,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":1092337664,\"heapTotal\":125709312,\"heapUsed\":254770088,\"external\":190455208,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 128,
+      "text": "{\"time\":1792448472605,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":1027780608,\"heapTotal\":407604224,\"heapUsed\":254770088,\"external\":197425065,\"arrayBuffers\":112190489}\n"
+    },
+    {
+      "line": 129,
+      "text": "{\"time\":1792448472654,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":1011892224,\"heapTotal\":126435328,\"heapUsed\":254788561,\"external\":190463105,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 130,
+      "text": "{\"time\":1792448472654,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":1011892224,\"heapTotal\":126435328,\"heapUsed\":254788561,\"external\":190463105,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 135,
+      "text": "{\"time\":1792448473382,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":1107460096,\"heapTotal\":491183104,\"heapUsed\":254788561,\"external\":197762602,\"arrayBuffers\":112520129}\n"
+    },
+    {
+      "line": 136,
+      "text": "{\"time\":1792448473437,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":1085059072,\"heapTotal\":127108096,\"heapUsed\":255835585,\"external\":190958401,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 137,
+      "text": "{\"time\":1792448473437,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1085059072,\"heapTotal\":127108096,\"heapUsed\":255835585,\"external\":190958401,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 142,
+      "text": "{\"time\":1792448473630,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":997412864,\"heapTotal\":233473024,\"heapUsed\":255835585,\"external\":193663051,\"arrayBuffers\":107925282}\n"
+    },
+    {
+      "line": 143,
+      "text": "{\"time\":1792448473663,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":987078656,\"heapTotal\":125371392,\"heapUsed\":255164156,\"external\":190838204,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 144,
+      "text": "{\"time\":1792448473663,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":987078656,\"heapTotal\":125371392,\"heapUsed\":255164156,\"external\":190838204,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 149,
+      "text": "{\"time\":1792448473901,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1002741760,\"heapTotal\":255379456,\"heapUsed\":255164156,\"external\":193565318,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 150,
+      "text": "{\"time\":1792448473935,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":990650368,\"heapTotal\":125405184,\"heapUsed\":255197106,\"external\":190861314,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 151,
+      "text": "{\"time\":1792448473935,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":990650368,\"heapTotal\":125405184,\"heapUsed\":255197106,\"external\":190861314,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 156,
+      "text": "{\"time\":1792448474124,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":992833536,\"heapTotal\":231065600,\"heapUsed\":255197106,\"external\":193560972,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 157,
+      "text": "{\"time\":1792448474162,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":983293952,\"heapTotal\":125192192,\"heapUsed\":255189676,\"external\":190867756,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 158,
+      "text": "{\"time\":1792448474162,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":983293952,\"heapTotal\":125192192,\"heapUsed\":255189676,\"external\":190867756,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 163,
+      "text": "{\"time\":1792448474481,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":995418112,\"heapTotal\":252693504,\"heapUsed\":255189676,\"external\":193577398,\"arrayBuffers\":107930274}\n"
+    },
+    {
+      "line": 164,
+      "text": "{\"time\":1792448474516,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":983699456,\"heapTotal\":125340672,\"heapUsed\":255207832,\"external\":190882296,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 165,
+      "text": "{\"time\":1792448474517,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":983699456,\"heapTotal\":125340672,\"heapUsed\":255207832,\"external\":190882296,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 170,
+      "text": "{\"time\":1792448475020,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1006600192,\"heapTotal\":358813696,\"heapUsed\":255207832,\"external\":197592569,\"arrayBuffers\":111930905}\n"
+    },
+    {
+      "line": 171,
+      "text": "{\"time\":1792448475072,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":991846400,\"heapTotal\":125308928,\"heapUsed\":255164658,\"external\":190826498,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 172,
+      "text": "{\"time\":1792448475072,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":991846400,\"heapTotal\":125308928,\"heapUsed\":255164658,\"external\":190826498,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 177,
+      "text": "{\"time\":1792448475306,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":988270592,\"heapTotal\":252777472,\"heapUsed\":255164658,\"external\":193553612,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 178,
+      "text": "{\"time\":1792448475350,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":983515136,\"heapTotal\":211833856,\"heapUsed\":335980599,\"external\":201275703,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 179,
+      "text": "{\"time\":1792448475350,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":983515136,\"heapTotal\":211833856,\"heapUsed\":335980599,\"external\":201275703,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 184,
+      "text": "{\"time\":1792448475689,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1003343872,\"heapTotal\":359306240,\"heapUsed\":335980599,\"external\":204654273,\"arrayBuffers\":108599202}\n"
+    },
+    {
+      "line": 185,
+      "text": "{\"time\":1792448475731,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":988868608,\"heapTotal\":125309952,\"heapUsed\":255120327,\"external\":190787111,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 186,
+      "text": "{\"time\":1792448475731,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":988868608,\"heapTotal\":125309952,\"heapUsed\":255120327,\"external\":190787111,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 191,
+      "text": "{\"time\":1792448476025,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":991383552,\"heapTotal\":276517888,\"heapUsed\":255120327,\"external\":194128241,\"arrayBuffers\":108561762}\n"
+    },
+    {
+      "line": 192,
+      "text": "{\"time\":1792448476062,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":977534976,\"heapTotal\":125080576,\"heapUsed\":255113303,\"external\":190786615,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 193,
+      "text": "{\"time\":1792448476062,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":977534976,\"heapTotal\":125080576,\"heapUsed\":255113303,\"external\":190786615,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 198,
+      "text": "{\"time\":1792448476542,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":997908480,\"heapTotal\":349163520,\"heapUsed\":255113303,\"external\":197451960,\"arrayBuffers\":111885977}\n"
+    },
+    {
+      "line": 199,
+      "text": "{\"time\":1792448476587,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":983453696,\"heapTotal\":125130752,\"heapUsed\":255269954,\"external\":190937058,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 200,
+      "text": "{\"time\":1792448476587,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":983453696,\"heapTotal\":125130752,\"heapUsed\":255269954,\"external\":190937058,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 205,
+      "text": "{\"time\":1792448476776,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":983076864,\"heapTotal\":231036928,\"heapUsed\":255269954,\"external\":193636716,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 206,
+      "text": "{\"time\":1792448476817,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":979308544,\"heapTotal\":192649216,\"heapUsed\":321446222,\"external\":200707406,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 207,
+      "text": "{\"time\":1792448476817,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":979308544,\"heapTotal\":192649216,\"heapUsed\":321446222,\"external\":200707406,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 212,
+      "text": "{\"time\":1792448477326,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1044664320,\"heapTotal\":412963840,\"heapUsed\":321446222,\"external\":207712207,\"arrayBuffers\":112225433}\n"
+    },
+    {
+      "line": 213,
+      "text": "{\"time\":1792448477379,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1029754880,\"heapTotal\":125018112,\"heapUsed\":255293296,\"external\":190945888,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 214,
+      "text": "{\"time\":1792448477379,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":1029754880,\"heapTotal\":125018112,\"heapUsed\":255293296,\"external\":190945888,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 219,
+      "text": "{\"time\":1792448478214,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":1173663744,\"heapTotal\":467387392,\"heapUsed\":471283245,\"external\":253378181,\"arrayBuffers\":149520143}\n"
+    },
+    {
+      "line": 220,
+      "text": "{\"time\":1792448478278,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":1155772416,\"heapTotal\":128177152,\"heapUsed\":252700112,\"external\":188593424,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 221,
+      "text": "{\"time\":1792448478278,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":1155772416,\"heapTotal\":128177152,\"heapUsed\":252700112,\"external\":188593424,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 226,
+      "text": "{\"time\":1792448478782,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":1022889984,\"heapTotal\":364154880,\"heapUsed\":252700112,\"external\":195643153,\"arrayBuffers\":112270361}\n"
+    },
+    {
+      "line": 227,
+      "text": "{\"time\":1792448478831,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":1007996928,\"heapTotal\":128195584,\"heapUsed\":247025386,\"external\":183685338,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 228,
+      "text": "{\"time\":1792448478832,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":1007996928,\"heapTotal\":128195584,\"heapUsed\":247025386,\"external\":183685338,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 233,
+      "text": "{\"time\":1792448479369,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":1013903360,\"heapTotal\":370693120,\"heapUsed\":247025386,\"external\":191244251,\"arrayBuffers\":112779545}\n"
+    },
+    {
+      "line": 234,
+      "text": "{\"time\":1792448479415,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":991137792,\"heapTotal\":127784960,\"heapUsed\":245934510,\"external\":182921934,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 235,
+      "text": "{\"time\":1792448479415,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":991137792,\"heapTotal\":127784960,\"heapUsed\":245934510,\"external\":182921934,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 240,
+      "text": "{\"time\":1792448479755,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":1008181248,\"heapTotal\":298014720,\"heapUsed\":245934510,\"external\":186842136,\"arrayBuffers\":109140834}\n"
+    },
+    {
+      "line": 241,
+      "text": "{\"time\":1792448479796,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":994099200,\"heapTotal\":127653888,\"heapUsed\":246459141,\"external\":183520277,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 242,
+      "text": "{\"time\":1792448479796,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":994099200,\"heapTotal\":127653888,\"heapUsed\":246459141,\"external\":183520277,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 247,
+      "text": "{\"time\":1792448480067,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":1005957120,\"heapTotal\":268539904,\"heapUsed\":246459141,\"external\":186691679,\"arrayBuffers\":108392034}\n"
+    },
+    {
+      "line": 248,
+      "text": "{\"time\":1792448480105,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":993079296,\"heapTotal\":127588352,\"heapUsed\":246367019,\"external\":183447195,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 249,
+      "text": "{\"time\":1792448480105,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":993079296,\"heapTotal\":127588352,\"heapUsed\":246367019,\"external\":183447195,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 254,
+      "text": "{\"time\":1792448480396,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":1009410048,\"heapTotal\":285614080,\"heapUsed\":246367019,\"external\":187045035,\"arrayBuffers\":108818472}\n"
+    },
+    {
+      "line": 255,
+      "text": "{\"time\":1792448480437,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"imports\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":995348480,\"heapTotal\":127787008,\"heapUsed\":246781380,\"external\":183613524,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 256,
+      "text": "{\"time\":1792448480459,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":997707776,\"heapTotal\":130605056,\"heapUsed\":246781380,\"external\":194601465,\"arrayBuffers\":116208573}\n"
+    },
+    {
+      "line": 261,
+      "text": "{\"time\":1792448481550,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1271189504,\"heapTotal\":526777344,\"heapUsed\":487487833,\"external\":262638861,\"arrayBuffers\":163403444}\n"
+    },
+    {
+      "line": 262,
+      "text": "{\"time\":1792448481635,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1251803136,\"heapTotal\":443977728,\"heapUsed\":472508590,\"external\":204233470,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 1778,
+      "text": "{\"time\":1792448493558,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3326754816,\"heapTotal\":2389559296,\"heapUsed\":1269025948,\"external\":256200786,\"arrayBuffers\":108413294,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 1779,
+      "text": "{\"time\":1792448493558,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3326754816,\"heapTotal\":2389559296,\"heapUsed\":1269025948,\"external\":256200786,\"arrayBuffers\":108413294}\n"
+    },
+    {
+      "line": 1780,
+      "text": "{\"time\":1792448493868,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3160137728,\"heapTotal\":1705592832,\"heapUsed\":1271404849,\"external\":253612977,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 1781,
+      "text": "{\"time\":1792448493868,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3160137728,\"heapTotal\":1705592832,\"heapUsed\":1271404849,\"external\":253612977,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 1786,
+      "text": "{\"time\":1792448494729,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3187089408,\"heapTotal\":1863031808,\"heapUsed\":1271404849,\"external\":261645890,\"arrayBuffers\":113253545}\n"
+    },
+    {
+      "line": 1787,
+      "text": "{\"time\":1792448494888,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3036377088,\"heapTotal\":558055424,\"heapUsed\":481703969,\"external\":217691185,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 2553,
+      "text": "{\"time\":1792448505450,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3190063104,\"heapTotal\":1985728512,\"heapUsed\":1417427628,\"external\":244870700,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 2554,
+      "text": "{\"time\":1792448505451,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3190063104,\"heapTotal\":1985728512,\"heapUsed\":1417427628,\"external\":244870700,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 2555,
+      "text": "{\"time\":1792448505700,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3019599872,\"heapTotal\":1403604992,\"heapUsed\":1068621146,\"external\":258092746,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 2556,
+      "text": "{\"time\":1792448505700,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":3019599872,\"heapTotal\":1403604992,\"heapUsed\":1068621146,\"external\":258092746,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 2561,
+      "text": "{\"time\":1792448506361,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":3072466944,\"heapTotal\":1511663616,\"heapUsed\":1068621146,\"external\":265062603,\"arrayBuffers\":112190489}\n"
+    },
+    {
+      "line": 2562,
+      "text": "{\"time\":1792448506490,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2940657664,\"heapTotal\":448863232,\"heapUsed\":429983919,\"external\":222880143,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 3328,
+      "text": "{\"time\":1792448513673,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2780622848,\"heapTotal\":1820451840,\"heapUsed\":1295807739,\"external\":240437803,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 3329,
+      "text": "{\"time\":1792448513673,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2780622848,\"heapTotal\":1820451840,\"heapUsed\":1295807739,\"external\":240437803,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 3330,
+      "text": "{\"time\":1792448513902,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2653732864,\"heapTotal\":1268294656,\"heapUsed\":945363903,\"external\":251463871,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 3331,
+      "text": "{\"time\":1792448513902,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2653732864,\"heapTotal\":1268294656,\"heapUsed\":945363903,\"external\":251463871,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 3336,
+      "text": "{\"time\":1792448514744,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2732118016,\"heapTotal\":1427574784,\"heapUsed\":945363903,\"external\":258763368,\"arrayBuffers\":112520129}\n"
+    },
+    {
+      "line": 3337,
+      "text": "{\"time\":1792448514877,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2648989696,\"heapTotal\":557578240,\"heapUsed\":494974291,\"external\":224234755,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4075,
+      "text": "{\"time\":1792448523545,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2812518400,\"heapTotal\":1845477376,\"heapUsed\":1219518864,\"external\":239305844,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4076,
+      "text": "{\"time\":1792448523545,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2812518400,\"heapTotal\":1845477376,\"heapUsed\":1219518864,\"external\":239305844,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 4077,
+      "text": "{\"time\":1792448524044,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2659811328,\"heapTotal\":1341456384,\"heapUsed\":990553399,\"external\":249677831,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4078,
+      "text": "{\"time\":1792448524045,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2659811328,\"heapTotal\":1341456384,\"heapUsed\":990553399,\"external\":249677831,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4083,
+      "text": "{\"time\":1792448524583,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2689601536,\"heapTotal\":1365393408,\"heapUsed\":990553399,\"external\":252382481,\"arrayBuffers\":107925282}\n"
+    },
+    {
+      "line": 4084,
+      "text": "{\"time\":1792448524861,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2595819520,\"heapTotal\":275218432,\"heapUsed\":337212094,\"external\":215171294,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4090,
+      "text": "{\"time\":1792448525044,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2160123904,\"heapTotal\":296714240,\"heapUsed\":337212094,\"external\":215171294,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4091,
+      "text": "{\"time\":1792448525044,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2160123904,\"heapTotal\":296714240,\"heapUsed\":337212094,\"external\":215171294,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4092,
+      "text": "{\"time\":1792448525133,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2157735936,\"heapTotal\":296255488,\"heapUsed\":371155653,\"external\":222403157,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4093,
+      "text": "{\"time\":1792448525133,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":2157735936,\"heapTotal\":296255488,\"heapUsed\":371155653,\"external\":222403157,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4098,
+      "text": "{\"time\":1792448525743,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":2179678208,\"heapTotal\":358384640,\"heapUsed\":371155653,\"external\":225130271,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 4099,
+      "text": "{\"time\":1792448525862,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":2164789248,\"heapTotal\":278447104,\"heapUsed\":353001054,\"external\":216049294,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4109,
+      "text": "{\"time\":1792448526448,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":2092498944,\"heapTotal\":343147520,\"heapUsed\":353001054,\"external\":216339536,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4110,
+      "text": "{\"time\":1792448526448,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":2092498944,\"heapTotal\":343147520,\"heapUsed\":353001054,\"external\":216339536,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 4111,
+      "text": "{\"time\":1792448526530,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":2085068800,\"heapTotal\":322552832,\"heapUsed\":407167792,\"external\":225253040,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4112,
+      "text": "{\"time\":1792448526530,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":2085068800,\"heapTotal\":322552832,\"heapUsed\":407167792,\"external\":225253040,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4117,
+      "text": "{\"time\":1792448526769,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":2099589120,\"heapTotal\":364086272,\"heapUsed\":407167792,\"external\":227952698,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 4118,
+      "text": "{\"time\":1792448526877,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":2087006208,\"heapTotal\":266322944,\"heapUsed\":337206104,\"external\":215853800,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4122,
+      "text": "{\"time\":1792448527152,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":2055806976,\"heapTotal\":287654912,\"heapUsed\":337206104,\"external\":215853800,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4123,
+      "text": "{\"time\":1792448527152,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":2055806976,\"heapTotal\":287654912,\"heapUsed\":337206104,\"external\":215853800,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4124,
+      "text": "{\"time\":1792448527342,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":2051186688,\"heapTotal\":286770176,\"heapUsed\":370417447,\"external\":222976039,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4125,
+      "text": "{\"time\":1792448527342,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":2051186688,\"heapTotal\":286770176,\"heapUsed\":370417447,\"external\":222976039,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4130,
+      "text": "{\"time\":1792448527606,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":2071310336,\"heapTotal\":344015872,\"heapUsed\":370417447,\"external\":225685681,\"arrayBuffers\":107930274}\n"
+    },
+    {
+      "line": 4131,
+      "text": "{\"time\":1792448527683,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":2063982592,\"heapTotal\":276481024,\"heapUsed\":351982578,\"external\":216577346,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4139,
+      "text": "{\"time\":1792448527793,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":2059350016,\"heapTotal\":305923072,\"heapUsed\":351982578,\"external\":216577346,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4140,
+      "text": "{\"time\":1792448527793,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":2059350016,\"heapTotal\":305923072,\"heapUsed\":351982578,\"external\":216577346,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4141,
+      "text": "{\"time\":1792448527880,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":2049789952,\"heapTotal\":130417664,\"heapUsed\":271316374,\"external\":206174374,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4142,
+      "text": "{\"time\":1792448527880,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2049789952,\"heapTotal\":130417664,\"heapUsed\":271316374,\"external\":206174374,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4147,
+      "text": "{\"time\":1792448528426,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1256370176,\"heapTotal\":362924032,\"heapUsed\":271316374,\"external\":212884647,\"arrayBuffers\":111930905}\n"
+    },
+    {
+      "line": 4148,
+      "text": "{\"time\":1792448528498,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1240035328,\"heapTotal\":297715712,\"heapUsed\":407689480,\"external\":221314536,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4840,
+      "text": "{\"time\":1792448535135,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2612625408,\"heapTotal\":1740132352,\"heapUsed\":1247396335,\"external\":236803519,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4841,
+      "text": "{\"time\":1792448535135,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2612625408,\"heapTotal\":1740132352,\"heapUsed\":1247396335,\"external\":236803519,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 4842,
+      "text": "{\"time\":1792448535363,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2491326464,\"heapTotal\":1197838336,\"heapUsed\":899485336,\"external\":247100232,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4843,
+      "text": "{\"time\":1792448535363,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2491326464,\"heapTotal\":1197838336,\"heapUsed\":899485336,\"external\":247100232,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4848,
+      "text": "{\"time\":1792448535626,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2474524672,\"heapTotal\":1256017920,\"heapUsed\":899485336,\"external\":249827346,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 4849,
+      "text": "{\"time\":1792448535734,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2455666688,\"heapTotal\":286281728,\"heapUsed\":352216589,\"external\":216724221,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4867,
+      "text": "{\"time\":1792448535939,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1929703424,\"heapTotal\":326733824,\"heapUsed\":352216589,\"external\":217014463,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 4868,
+      "text": "{\"time\":1792448535939,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1929703424,\"heapTotal\":326733824,\"heapUsed\":352216589,\"external\":217014463,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 4869,
+      "text": "{\"time\":1792448535991,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1921781760,\"heapTotal\":129994752,\"heapUsed\":271595215,\"external\":206496831,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4870,
+      "text": "{\"time\":1792448535991,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1921781760,\"heapTotal\":129994752,\"heapUsed\":271595215,\"external\":206496831,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 4875,
+      "text": "{\"time\":1792448536322,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1237499904,\"heapTotal\":293376000,\"heapUsed\":271595215,\"external\":209875401,\"arrayBuffers\":108599202}\n"
+    },
+    {
+      "line": 4876,
+      "text": "{\"time\":1792448536380,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1231147008,\"heapTotal\":244633600,\"heapUsed\":371279315,\"external\":218161267,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5014,
+      "text": "{\"time\":1792448541310,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2233856000,\"heapTotal\":1378915328,\"heapUsed\":1023785586,\"external\":228971520,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 5015,
+      "text": "{\"time\":1792448541310,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2233856000,\"heapTotal\":1378915328,\"heapUsed\":1023785586,\"external\":228971520,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 5016,
+      "text": "{\"time\":1792448541427,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2191093760,\"heapTotal\":130028544,\"heapUsed\":268366586,\"external\":203611306,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5017,
+      "text": "{\"time\":1792448541427,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2191093760,\"heapTotal\":130028544,\"heapUsed\":268366586,\"external\":203611306,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5022,
+      "text": "{\"time\":1792448541731,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":1240797184,\"heapTotal\":280794112,\"heapUsed\":268366586,\"external\":206952436,\"arrayBuffers\":108561762}\n"
+    },
+    {
+      "line": 5023,
+      "text": "{\"time\":1792448541783,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":1234436096,\"heapTotal\":235164672,\"heapUsed\":362688013,\"external\":214224141,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5151,
+      "text": "{\"time\":1792448546613,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2190721024,\"heapTotal\":1341595648,\"heapUsed\":982452151,\"external\":224769957,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 5152,
+      "text": "{\"time\":1792448546613,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2190721024,\"heapTotal\":1341595648,\"heapUsed\":982452151,\"external\":224769957,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 5153,
+      "text": "{\"time\":1792448546721,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2126475264,\"heapTotal\":130260992,\"heapUsed\":267919522,\"external\":203272114,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5154,
+      "text": "{\"time\":1792448546721,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2126475264,\"heapTotal\":130260992,\"heapUsed\":267919522,\"external\":203272114,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5159,
+      "text": "{\"time\":1792448547289,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":1245745152,\"heapTotal\":353425408,\"heapUsed\":267919522,\"external\":209937459,\"arrayBuffers\":111885977}\n"
+    },
+    {
+      "line": 5160,
+      "text": "{\"time\":1792448547356,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":1237192704,\"heapTotal\":290643968,\"heapUsed\":400461731,\"external\":218042787,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5842,
+      "text": "{\"time\":1792448553881,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2618531840,\"heapTotal\":1760092160,\"heapUsed\":901221822,\"external\":243260350,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 5843,
+      "text": "{\"time\":1792448553881,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2618531840,\"heapTotal\":1760092160,\"heapUsed\":901221822,\"external\":243260350,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5844,
+      "text": "{\"time\":1792448554081,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2504548352,\"heapTotal\":1186357248,\"heapUsed\":888955868,\"external\":243146732,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5845,
+      "text": "{\"time\":1792448554082,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2504548352,\"heapTotal\":1186357248,\"heapUsed\":888955868,\"external\":243146732,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5850,
+      "text": "{\"time\":1792448554297,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2469478400,\"heapTotal\":1232019456,\"heapUsed\":888955868,\"external\":245846390,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 5851,
+      "text": "{\"time\":1792448554388,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2454024192,\"heapTotal\":248569856,\"heapUsed\":333692218,\"external\":212699978,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5855,
+      "text": "{\"time\":1792448554463,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2093424640,\"heapTotal\":270426112,\"heapUsed\":333692218,\"external\":212699978,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 5856,
+      "text": "{\"time\":1792448554463,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2093621248,\"heapTotal\":270426112,\"heapUsed\":333692218,\"external\":212699978,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5857,
+      "text": "{\"time\":1792448554509,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2082533376,\"heapTotal\":129949696,\"heapUsed\":267638977,\"external\":203086049,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5858,
+      "text": "{\"time\":1792448554509,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2082533376,\"heapTotal\":129949696,\"heapUsed\":267638977,\"external\":203086049,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 5863,
+      "text": "{\"time\":1792448555017,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1240375296,\"heapTotal\":360403968,\"heapUsed\":267638977,\"external\":210090850,\"arrayBuffers\":112225433}\n"
+    },
+    {
+      "line": 5864,
+      "text": "{\"time\":1792448555081,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1231831040,\"heapTotal\":296067072,\"heapUsed\":404521726,\"external\":217988286,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 6612,
+      "text": "{\"time\":1792448561813,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2648600576,\"heapTotal\":1785359360,\"heapUsed\":913168585,\"external\":244063609,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 6613,
+      "text": "{\"time\":1792448561813,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2648600576,\"heapTotal\":1785359360,\"heapUsed\":913168585,\"external\":244063609,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 6614,
+      "text": "{\"time\":1792448562029,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2530123776,\"heapTotal\":1207856128,\"heapUsed\":901212968,\"external\":244057656,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 6615,
+      "text": "{\"time\":1792448562029,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2530123776,\"heapTotal\":1207856128,\"heapUsed\":901212968,\"external\":244057656,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 6620,
+      "text": "{\"time\":1792448562920,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2656280576,\"heapTotal\":1391181824,\"heapUsed\":901212968,\"external\":288357167,\"arrayBuffers\":149520143}\n"
+    },
+    {
+      "line": 6621,
+      "text": "{\"time\":1792448563062,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2560614400,\"heapTotal\":468202496,\"heapUsed\":449963387,\"external\":221173915,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 7539,
+      "text": "{\"time\":1792448572111,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3054219264,\"heapTotal\":2089041920,\"heapUsed\":1528192758,\"external\":241865848,\"arrayBuffers\":108413294,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 7540,
+      "text": "{\"time\":1792448572111,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3054219264,\"heapTotal\":2089041920,\"heapUsed\":1528192758,\"external\":241865848,\"arrayBuffers\":108413294}\n"
+    },
+    {
+      "line": 7541,
+      "text": "{\"time\":1792448572385,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2878332928,\"heapTotal\":1532723200,\"heapUsed\":1165983895,\"external\":255332311,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 7542,
+      "text": "{\"time\":1792448572385,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2878332928,\"heapTotal\":1532723200,\"heapUsed\":1165983895,\"external\":255332311,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 7547,
+      "text": "{\"time\":1792448572939,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2871422976,\"heapTotal\":1637020672,\"heapUsed\":1165983895,\"external\":262382040,\"arrayBuffers\":112270361}\n"
+    },
+    {
+      "line": 7548,
+      "text": "{\"time\":1792448573061,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2840891392,\"heapTotal\":425181184,\"heapUsed\":407495281,\"external\":217221953,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 8296,
+      "text": "{\"time\":1792448580658,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2772561920,\"heapTotal\":1852000256,\"heapUsed\":980507136,\"external\":244626720,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 8297,
+      "text": "{\"time\":1792448580658,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2772561920,\"heapTotal\":1852000256,\"heapUsed\":980507136,\"external\":244626720,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 8298,
+      "text": "{\"time\":1792448580930,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2658009088,\"heapTotal\":1257834496,\"heapUsed\":925402101,\"external\":244067797,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 8299,
+      "text": "{\"time\":1792448580930,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2658009088,\"heapTotal\":1257834496,\"heapUsed\":925402101,\"external\":244067797,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 8304,
+      "text": "{\"time\":1792448581538,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2664996864,\"heapTotal\":1351565312,\"heapUsed\":925402101,\"external\":251626710,\"arrayBuffers\":112779545}\n"
+    },
+    {
+      "line": 8305,
+      "text": "{\"time\":1792448581656,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2594398208,\"heapTotal\":420120576,\"heapUsed\":410557073,\"external\":218083937,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9127,
+      "text": "{\"time\":1792448589008,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2761465856,\"heapTotal\":1870399488,\"heapUsed\":1255544893,\"external\":233023743,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 9128,
+      "text": "{\"time\":1792448589008,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2761465856,\"heapTotal\":1870399488,\"heapUsed\":1255544893,\"external\":233023743,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 9129,
+      "text": "{\"time\":1792448589259,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2627035136,\"heapTotal\":1260537856,\"heapUsed\":924281559,\"external\":244670407,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9130,
+      "text": "{\"time\":1792448589259,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2627035136,\"heapTotal\":1260537856,\"heapUsed\":924281559,\"external\":244670407,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9135,
+      "text": "{\"time\":1792448589648,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2625921024,\"heapTotal\":1318864896,\"heapUsed\":924281559,\"external\":248590609,\"arrayBuffers\":109140834}\n"
+    },
+    {
+      "line": 9136,
+      "text": "{\"time\":1792448589769,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2552803328,\"heapTotal\":353716224,\"heapUsed\":372910394,\"external\":215208602,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9444,
+      "text": "{\"time\":1792448595074,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2504122368,\"heapTotal\":1402522624,\"heapUsed\":1007588213,\"external\":226164959,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 9445,
+      "text": "{\"time\":1792448595074,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2504122368,\"heapTotal\":1402522624,\"heapUsed\":1007588213,\"external\":226164959,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 9446,
+      "text": "{\"time\":1792448595263,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2397343744,\"heapTotal\":1033735168,\"heapUsed\":776328671,\"external\":235245071,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9447,
+      "text": "{\"time\":1792448595263,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2397343744,\"heapTotal\":1033735168,\"heapUsed\":776328671,\"external\":235245071,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9452,
+      "text": "{\"time\":1792448595564,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2415919104,\"heapTotal\":1075186688,\"heapUsed\":776328671,\"external\":238416473,\"arrayBuffers\":108392034}\n"
+    },
+    {
+      "line": 9453,
+      "text": "{\"time\":1792448595661,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2396884992,\"heapTotal\":319900672,\"heapUsed\":356981695,\"external\":214657807,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9615,
+      "text": "{\"time\":1792448596053,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2265698304,\"heapTotal\":422038528,\"heapUsed\":356981695,\"external\":214948049,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 9616,
+      "text": "{\"time\":1792448596053,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2265698304,\"heapTotal\":422038528,\"heapUsed\":356981695,\"external\":214948049,\"arrayBuffers\":105510874}\n"
+    },
+    {
+      "line": 9617,
+      "text": "{\"time\":1792448596128,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2264944640,\"heapTotal\":378129408,\"heapUsed\":421715952,\"external\":225380672,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9618,
+      "text": "{\"time\":1792448596128,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2264944640,\"heapTotal\":378129408,\"heapUsed\":421715952,\"external\":225380672,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9623,
+      "text": "{\"time\":1792448596446,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2274299904,\"heapTotal\":448237568,\"heapUsed\":421715952,\"external\":228978512,\"arrayBuffers\":108818472}\n"
+    },
+    {
+      "line": 9624,
+      "text": "{\"time\":1792448596508,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2263191552,\"heapTotal\":317476864,\"heapUsed\":367367913,\"external\":214703561,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9642,
+      "text": "{\"time\":1792448596831,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2177294336,\"heapTotal\":421498880,\"heapUsed\":367367913,\"external\":214703561,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 9643,
+      "text": "{\"time\":1792448596831,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2177294336,\"heapTotal\":421498880,\"heapUsed\":367367913,\"external\":214703561,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9644,
+      "text": "{\"time\":1792448596884,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"diagnostics\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2167369728,\"heapTotal\":130027520,\"heapUsed\":267886212,\"external\":203329972,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9645,
+      "text": "{\"time\":1792448596884,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":2167369728,\"heapTotal\":130027520,\"heapUsed\":267886212,\"external\":203329972,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 9650,
+      "text": "{\"time\":1792448597994,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1415315456,\"heapTotal\":533899264,\"heapUsed\":510984661,\"external\":271825102,\"arrayBuffers\":152415503}\n"
+    },
+    {
+      "line": 9651,
+      "text": "{\"time\":1792448598081,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1397702656,\"heapTotal\":441516032,\"heapUsed\":494245026,\"external\":224404386,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 11167,
+      "text": "{\"time\":1792448608787,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3391954944,\"heapTotal\":2430849024,\"heapUsed\":1281714496,\"external\":263638928,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 12683,
+      "text": "{\"time\":1792448609431,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3406790656,\"heapTotal\":2430996480,\"heapUsed\":1281714496,\"external\":265074780,\"arrayBuffers\":106656484,\"declarations\":758,\"outputBytes\":4326227}\n"
+    },
+    {
+      "line": 12684,
+      "text": "{\"time\":1792448609431,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3406790656,\"heapTotal\":2430996480,\"heapUsed\":1281714496,\"external\":265074780,\"arrayBuffers\":106656484}\n"
+    },
+    {
+      "line": 12685,
+      "text": "{\"time\":1792448609592,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3250032640,\"heapTotal\":130174976,\"heapUsed\":269813808,\"external\":205037568,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 12686,
+      "text": "{\"time\":1792448609592,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3250032640,\"heapTotal\":130174976,\"heapUsed\":269813808,\"external\":205037568,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 12691,
+      "text": "{\"time\":1792448610798,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1315098624,\"heapTotal\":477809664,\"heapUsed\":269813808,\"external\":213070481,\"arrayBuffers\":113253545}\n"
+    },
+    {
+      "line": 12692,
+      "text": "{\"time\":1792448610879,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1299841024,\"heapTotal\":397062144,\"heapUsed\":485500960,\"external\":222353472,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 13458,
+      "text": "{\"time\":1792448620980,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3112755200,\"heapTotal\":2060350464,\"heapUsed\":1398162367,\"external\":241957247,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 14224,
+      "text": "{\"time\":1792448621532,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3127541760,\"heapTotal\":2060383232,\"heapUsed\":1398162367,\"external\":242716795,\"arrayBuffers\":106270422,\"declarations\":382,\"outputBytes\":3319428}\n"
+    },
+    {
+      "line": 14225,
+      "text": "{\"time\":1792448621532,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3127541760,\"heapTotal\":2060383232,\"heapUsed\":1398162367,\"external\":242716795,\"arrayBuffers\":106270422}\n"
+    },
+    {
+      "line": 14226,
+      "text": "{\"time\":1792448621812,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":2939396096,\"heapTotal\":1386212352,\"heapUsed\":1067295740,\"external\":257627628,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 14227,
+      "text": "{\"time\":1792448621812,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2939396096,\"heapTotal\":1386212352,\"heapUsed\":1067295740,\"external\":257627628,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 14232,
+      "text": "{\"time\":1792448622972,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2948472832,\"heapTotal\":1503184896,\"heapUsed\":1067295740,\"external\":264597485,\"arrayBuffers\":112190489}\n"
+    },
+    {
+      "line": 14233,
+      "text": "{\"time\":1792448623117,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2785677312,\"heapTotal\":419511296,\"heapUsed\":428530961,\"external\":222085873,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 14999,
+      "text": "{\"time\":1792448630175,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2788192256,\"heapTotal\":1861550080,\"heapUsed\":942192605,\"external\":249251341,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 15765,
+      "text": "{\"time\":1792448630538,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2781384704,\"heapTotal\":1861599232,\"heapUsed\":942192605,\"external\":249962738,\"arrayBuffers\":105932029,\"declarations\":382,\"outputBytes\":2694937}\n"
+    },
+    {
+      "line": 15766,
+      "text": "{\"time\":1792448630538,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2781384704,\"heapTotal\":1861599232,\"heapUsed\":942192605,\"external\":249962738,\"arrayBuffers\":105932029}\n"
+    },
+    {
+      "line": 15767,
+      "text": "{\"time\":1792448630766,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2658648064,\"heapTotal\":1261453312,\"heapUsed\":943834985,\"external\":250873881,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 15768,
+      "text": "{\"time\":1792448630766,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2658648064,\"heapTotal\":1261453312,\"heapUsed\":943834985,\"external\":250873881,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 15773,
+      "text": "{\"time\":1792448631963,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2682589184,\"heapTotal\":1433196544,\"heapUsed\":943834985,\"external\":258173378,\"arrayBuffers\":112520129}\n"
+    },
+    {
+      "line": 15774,
+      "text": "{\"time\":1792448632100,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2626109440,\"heapTotal\":548847616,\"heapUsed\":492667480,\"external\":222648632,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 16512,
+      "text": "{\"time\":1792448639233,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2801815552,\"heapTotal\":1855504384,\"heapUsed\":1218612471,\"external\":235770373,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 17250,
+      "text": "{\"time\":1792448639561,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2969522176,\"heapTotal\":2037743616,\"heapUsed\":1218612471,\"external\":236437011,\"arrayBuffers\":106177512,\"declarations\":369,\"outputBytes\":2690521}\n"
+    },
+    {
+      "line": 17251,
+      "text": "{\"time\":1792448639561,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2969522176,\"heapTotal\":2037743616,\"heapUsed\":1218612471,\"external\":236437011,\"arrayBuffers\":106177512}\n"
+    },
+    {
+      "line": 17252,
+      "text": "{\"time\":1792448639688,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2895745024,\"heapTotal\":130383872,\"heapUsed\":271052688,\"external\":206135168,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17253,
+      "text": "{\"time\":1792448639688,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2895745024,\"heapTotal\":130383872,\"heapUsed\":271052688,\"external\":206135168,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17258,
+      "text": "{\"time\":1792448640118,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1276772352,\"heapTotal\":237207552,\"heapUsed\":271052688,\"external\":208839818,\"arrayBuffers\":107925282}\n"
+    },
+    {
+      "line": 17259,
+      "text": "{\"time\":1792448640168,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1272782848,\"heapTotal\":198590464,\"heapUsed\":337444562,\"external\":215667394,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17265,
+      "text": "{\"time\":1792448640231,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1270943744,\"heapTotal\":221544448,\"heapUsed\":337444562,\"external\":215667394,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 17271,
+      "text": "{\"time\":1792448640232,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1270943744,\"heapTotal\":221577216,\"heapUsed\":337444562,\"external\":215667675,\"arrayBuffers\":105220913,\"declarations\":2,\"outputBytes\":5435}\n"
+    },
+    {
+      "line": 17272,
+      "text": "{\"time\":1792448640232,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1270943744,\"heapTotal\":221577216,\"heapUsed\":337444562,\"external\":215667675,\"arrayBuffers\":105220913}\n"
+    },
+    {
+      "line": 17273,
+      "text": "{\"time\":1792448640281,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1269157888,\"heapTotal\":220528640,\"heapUsed\":371427356,\"external\":223026492,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17274,
+      "text": "{\"time\":1792448640281,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1269157888,\"heapTotal\":220528640,\"heapUsed\":371427356,\"external\":223026492,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17279,
+      "text": "{\"time\":1792448640792,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1283579904,\"heapTotal\":340657152,\"heapUsed\":371427356,\"external\":225753606,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 17280,
+      "text": "{\"time\":1792448640851,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1274695680,\"heapTotal\":248497152,\"heapUsed\":352952966,\"external\":216258182,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17290,
+      "text": "{\"time\":1792448641079,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1276825600,\"heapTotal\":312230912,\"heapUsed\":352952966,\"external\":216548424,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 17300,
+      "text": "{\"time\":1792448641081,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1276825600,\"heapTotal\":312542208,\"heapUsed\":352952966,\"external\":216550218,\"arrayBuffers\":105512668,\"declarations\":4,\"outputBytes\":7533}\n"
+    },
+    {
+      "line": 17301,
+      "text": "{\"time\":1792448641081,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1276825600,\"heapTotal\":312542208,\"heapUsed\":352952966,\"external\":216550218,\"arrayBuffers\":105512668}\n"
+    },
+    {
+      "line": 17302,
+      "text": "{\"time\":1792448641130,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1262915584,\"heapTotal\":130401280,\"heapUsed\":271050812,\"external\":206148588,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17303,
+      "text": "{\"time\":1792448641130,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1262915584,\"heapTotal\":130401280,\"heapUsed\":271050812,\"external\":206148588,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17308,
+      "text": "{\"time\":1792448641547,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1272324096,\"heapTotal\":235455488,\"heapUsed\":271050812,\"external\":208848246,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 17309,
+      "text": "{\"time\":1792448641595,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1268359168,\"heapTotal\":197379072,\"heapUsed\":336966868,\"external\":215858196,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17313,
+      "text": "{\"time\":1792448641653,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1265979392,\"heapTotal\":219923456,\"heapUsed\":336966868,\"external\":215858196,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 17317,
+      "text": "{\"time\":1792448641654,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1265979392,\"heapTotal\":219939840,\"heapUsed\":336966868,\"external\":215858196,\"arrayBuffers\":105220632,\"declarations\":1,\"outputBytes\":1970}\n"
+    },
+    {
+      "line": 17318,
+      "text": "{\"time\":1792448641654,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1265979392,\"heapTotal\":219939840,\"heapUsed\":336966868,\"external\":215858196,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17319,
+      "text": "{\"time\":1792448641699,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1264398336,\"heapTotal\":218973184,\"heapUsed\":370244475,\"external\":223036683,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17320,
+      "text": "{\"time\":1792448641699,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1264398336,\"heapTotal\":218973184,\"heapUsed\":370244475,\"external\":223036683,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17325,
+      "text": "{\"time\":1792448642201,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1280978944,\"heapTotal\":336858112,\"heapUsed\":370244475,\"external\":225746325,\"arrayBuffers\":107930274}\n"
+    },
+    {
+      "line": 17326,
+      "text": "{\"time\":1792448642254,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1272479744,\"heapTotal\":245255168,\"heapUsed\":351752082,\"external\":216568450,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17334,
+      "text": "{\"time\":1792448642349,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1269981184,\"heapTotal\":274369536,\"heapUsed\":351752082,\"external\":216568450,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 17342,
+      "text": "{\"time\":1792448642350,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1270177792,\"heapTotal\":274385920,\"heapUsed\":351752082,\"external\":216569003,\"arrayBuffers\":105221185,\"declarations\":3,\"outputBytes\":2266}\n"
+    },
+    {
+      "line": 17343,
+      "text": "{\"time\":1792448642350,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1270177792,\"heapTotal\":274385920,\"heapUsed\":351752082,\"external\":216569003,\"arrayBuffers\":105221185}\n"
+    },
+    {
+      "line": 17344,
+      "text": "{\"time\":1792448642404,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1266614272,\"heapTotal\":271977472,\"heapUsed\":392897426,\"external\":224205394,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17345,
+      "text": "{\"time\":1792448642404,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1266614272,\"heapTotal\":271977472,\"heapUsed\":392897426,\"external\":224205394,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 17350,
+      "text": "{\"time\":1792448643285,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1308418048,\"heapTotal\":466422784,\"heapUsed\":392897426,\"external\":230915667,\"arrayBuffers\":111930905}\n"
+    },
+    {
+      "line": 17351,
+      "text": "{\"time\":1792448643361,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1287946240,\"heapTotal\":337054720,\"heapUsed\":407434886,\"external\":221270230,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18043,
+      "text": "{\"time\":1792448650063,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2678878208,\"heapTotal\":1781944320,\"heapUsed\":899243930,\"external\":247338794,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 18735,
+      "text": "{\"time\":1792448650384,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2668294144,\"heapTotal\":1781993472,\"heapUsed\":899243930,\"external\":247968203,\"arrayBuffers\":105850041,\"declarations\":345,\"outputBytes\":2644182}\n"
+    },
+    {
+      "line": 18736,
+      "text": "{\"time\":1792448650384,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2668294144,\"heapTotal\":1781993472,\"heapUsed\":899243930,\"external\":247968203,\"arrayBuffers\":105850041}\n"
+    },
+    {
+      "line": 18737,
+      "text": "{\"time\":1792448650608,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2555842560,\"heapTotal\":1210880000,\"heapUsed\":900924562,\"external\":249014162,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18738,
+      "text": "{\"time\":1792448650608,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2555842560,\"heapTotal\":1210880000,\"heapUsed\":900924562,\"external\":249014162,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18743,
+      "text": "{\"time\":1792448651100,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2498076672,\"heapTotal\":1260589056,\"heapUsed\":900924562,\"external\":251741276,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 18744,
+      "text": "{\"time\":1792448651201,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2475552768,\"heapTotal\":290869248,\"heapUsed\":351796006,\"external\":216525334,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18762,
+      "text": "{\"time\":1792448651366,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1947344896,\"heapTotal\":330895360,\"heapUsed\":351796006,\"external\":216815576,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 18780,
+      "text": "{\"time\":1792448651368,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1947344896,\"heapTotal\":331173888,\"heapUsed\":351796006,\"external\":216818875,\"arrayBuffers\":105514173,\"declarations\":8,\"outputBytes\":3897}\n"
+    },
+    {
+      "line": 18781,
+      "text": "{\"time\":1792448651368,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1947344896,\"heapTotal\":331173888,\"heapUsed\":351796006,\"external\":216818875,\"arrayBuffers\":105514173}\n"
+    },
+    {
+      "line": 18782,
+      "text": "{\"time\":1792448651429,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1941823488,\"heapTotal\":324898816,\"heapUsed\":399377179,\"external\":224837515,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18783,
+      "text": "{\"time\":1792448651429,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1941823488,\"heapTotal\":324898816,\"heapUsed\":399377179,\"external\":224837515,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18788,
+      "text": "{\"time\":1792448652029,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1967276032,\"heapTotal\":417355776,\"heapUsed\":399377179,\"external\":228216085,\"arrayBuffers\":108599202}\n"
+    },
+    {
+      "line": 18789,
+      "text": "{\"time\":1792448652092,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1956773888,\"heapTotal\":304191488,\"heapUsed\":370931477,\"external\":218002677,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 18927,
+      "text": "{\"time\":1792448657073,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2276569088,\"heapTotal\":1374674944,\"heapUsed\":1013029930,\"external\":228605960,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 19065,
+      "text": "{\"time\":1792448657267,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2397175808,\"heapTotal\":1512235008,\"heapUsed\":1013029930,\"external\":228697015,\"arrayBuffers\":105601929,\"declarations\":68,\"outputBytes\":1531129}\n"
+    },
+    {
+      "line": 19066,
+      "text": "{\"time\":1792448657268,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2397175808,\"heapTotal\":1512235008,\"heapUsed\":1013029930,\"external\":228697015,\"arrayBuffers\":105601929}\n"
+    },
+    {
+      "line": 19067,
+      "text": "{\"time\":1792448657456,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2288705536,\"heapTotal\":1009278976,\"heapUsed\":761362054,\"external\":237731526,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 19068,
+      "text": "{\"time\":1792448657456,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2288705536,\"heapTotal\":1009278976,\"heapUsed\":761362054,\"external\":237731526,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 19073,
+      "text": "{\"time\":1792448658074,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2207608832,\"heapTotal\":1067556864,\"heapUsed\":761362054,\"external\":241072656,\"arrayBuffers\":108561762}\n"
+    },
+    {
+      "line": 19074,
+      "text": "{\"time\":1792448658168,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2187182080,\"heapTotal\":328769536,\"heapUsed\":366192240,\"external\":217511648,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 19202,
+      "text": "{\"time\":1792448663221,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2262462464,\"heapTotal\":1363059712,\"heapUsed\":994625737,\"external\":228279079,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 19330,
+      "text": "{\"time\":1792448663427,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2385735680,\"heapTotal\":1498604544,\"heapUsed\":994625737,\"external\":228364559,\"arrayBuffers\":105596354,\"declarations\":63,\"outputBytes\":1520349}\n"
+    },
+    {
+      "line": 19331,
+      "text": "{\"time\":1792448663427,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2385735680,\"heapTotal\":1498604544,\"heapUsed\":994625737,\"external\":228364559,\"arrayBuffers\":105596354}\n"
+    },
+    {
+      "line": 19332,
+      "text": "{\"time\":1792448663552,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2320961536,\"heapTotal\":130704384,\"heapUsed\":271644123,\"external\":206768315,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 19333,
+      "text": "{\"time\":1792448663552,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2320961536,\"heapTotal\":130704384,\"heapUsed\":271644123,\"external\":206768315,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 19338,
+      "text": "{\"time\":1792448664441,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":1286795264,\"heapTotal\":353541120,\"heapUsed\":271644123,\"external\":213433660,\"arrayBuffers\":111885977}\n"
+    },
+    {
+      "line": 19339,
+      "text": "{\"time\":1792448664513,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":1278099456,\"heapTotal\":291054592,\"heapUsed\":403858672,\"external\":221231488,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20021,
+      "text": "{\"time\":1792448671153,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2672435200,\"heapTotal\":1780345856,\"heapUsed\":937390069,\"external\":247463797,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 20703,
+      "text": "{\"time\":1792448671474,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2670891008,\"heapTotal\":1780395008,\"heapUsed\":937390069,\"external\":248089951,\"arrayBuffers\":105846786,\"declarations\":340,\"outputBytes\":2606355}\n"
+    },
+    {
+      "line": 20704,
+      "text": "{\"time\":1792448671474,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2670891008,\"heapTotal\":1780395008,\"heapUsed\":937390069,\"external\":248089951,\"arrayBuffers\":105846786}\n"
+    },
+    {
+      "line": 20705,
+      "text": "{\"time\":1792448671692,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2552012800,\"heapTotal\":1184312320,\"heapUsed\":894861288,\"external\":248671464,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20706,
+      "text": "{\"time\":1792448671692,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2552012800,\"heapTotal\":1184312320,\"heapUsed\":894861288,\"external\":248671464,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20711,
+      "text": "{\"time\":1792448672128,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2501492736,\"heapTotal\":1230269440,\"heapUsed\":894861288,\"external\":251371122,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 20712,
+      "text": "{\"time\":1792448672228,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2482753536,\"heapTotal\":247622656,\"heapUsed\":337400889,\"external\":216158601,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20716,
+      "text": "{\"time\":1792448672303,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2067185664,\"heapTotal\":269249536,\"heapUsed\":337400889,\"external\":216158601,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 20720,
+      "text": "{\"time\":1792448672304,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2067185664,\"heapTotal\":269265920,\"heapUsed\":337400889,\"external\":216158601,\"arrayBuffers\":105220632,\"declarations\":1,\"outputBytes\":2166}\n"
+    },
+    {
+      "line": 20721,
+      "text": "{\"time\":1792448672304,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2067185664,\"heapTotal\":269265920,\"heapUsed\":337400889,\"external\":216158601,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20722,
+      "text": "{\"time\":1792448672358,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2060328960,\"heapTotal\":268708864,\"heapUsed\":371479618,\"external\":223404786,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20723,
+      "text": "{\"time\":1792448672358,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2060328960,\"heapTotal\":268708864,\"heapUsed\":371479618,\"external\":223404786,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 20728,
+      "text": "{\"time\":1792448673246,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2097528832,\"heapTotal\":443293696,\"heapUsed\":371479618,\"external\":230409587,\"arrayBuffers\":112225433}\n"
+    },
+    {
+      "line": 20729,
+      "text": "{\"time\":1792448673320,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2074329088,\"heapTotal\":334064640,\"heapUsed\":408090088,\"external\":221342248,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 21477,
+      "text": "{\"time\":1792448680159,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2678853632,\"heapTotal\":1794274304,\"heapUsed\":916648083,\"external\":247272323,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 22225,
+      "text": "{\"time\":1792448680491,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2692943872,\"heapTotal\":1805988864,\"heapUsed\":916648083,\"external\":247955045,\"arrayBuffers\":105903354,\"declarations\":373,\"outputBytes\":2647015}\n"
+    },
+    {
+      "line": 22226,
+      "text": "{\"time\":1792448680491,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2692943872,\"heapTotal\":1805988864,\"heapUsed\":916648083,\"external\":247955045,\"arrayBuffers\":105903354}\n"
+    },
+    {
+      "line": 22227,
+      "text": "{\"time\":1792448680714,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2575618048,\"heapTotal\":1214313472,\"heapUsed\":906369483,\"external\":248850923,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 22228,
+      "text": "{\"time\":1792448680714,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2575618048,\"heapTotal\":1214313472,\"heapUsed\":906369483,\"external\":248850923,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 22233,
+      "text": "{\"time\":1792448682095,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2692186112,\"heapTotal\":1393116160,\"heapUsed\":906369483,\"external\":293150434,\"arrayBuffers\":149520143}\n"
+    },
+    {
+      "line": 22234,
+      "text": "{\"time\":1792448682233,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2594988032,\"heapTotal\":482539520,\"heapUsed\":450927509,\"external\":222055781,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 23152,
+      "text": "{\"time\":1792448691200,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3059650560,\"heapTotal\":2097216512,\"heapUsed\":1522771816,\"external\":243959466,\"arrayBuffers\":108413294,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 24070,
+      "text": "{\"time\":1792448691730,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3288064000,\"heapTotal\":2325888000,\"heapUsed\":1188599057,\"external\":259969121,\"arrayBuffers\":105220632,\"declarations\":458,\"outputBytes\":3385996}\n"
+    },
+    {
+      "line": 24071,
+      "text": "{\"time\":1792448691731,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3288064000,\"heapTotal\":2325888000,\"heapUsed\":1188599057,\"external\":259969121,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 24072,
+      "text": "{\"time\":1792448692036,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3128188928,\"heapTotal\":1545321472,\"heapUsed\":1170318493,\"external\":260005869,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 24073,
+      "text": "{\"time\":1792448692036,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":3128188928,\"heapTotal\":1545321472,\"heapUsed\":1170318493,\"external\":260005869,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 24078,
+      "text": "{\"time\":1792448692932,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2981658624,\"heapTotal\":1637642240,\"heapUsed\":1170318493,\"external\":267055598,\"arrayBuffers\":112270361}\n"
+    },
+    {
+      "line": 24079,
+      "text": "{\"time\":1792448693067,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2861203456,\"heapTotal\":428866560,\"heapUsed\":410640609,\"external\":220146257,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 24827,
+      "text": "{\"time\":1792448699867,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2822770688,\"heapTotal\":1790672896,\"heapUsed\":1268869630,\"external\":235448110,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 25575,
+      "text": "{\"time\":1792448700204,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2854670336,\"heapTotal\":1923465216,\"heapUsed\":1268869630,\"external\":236130270,\"arrayBuffers\":106193034,\"declarations\":373,\"outputBytes\":2659473}\n"
+    },
+    {
+      "line": 25576,
+      "text": "{\"time\":1792448700204,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2854670336,\"heapTotal\":1923465216,\"heapUsed\":1268869630,\"external\":236130270,\"arrayBuffers\":106193034}\n"
+    },
+    {
+      "line": 25577,
+      "text": "{\"time\":1792448700432,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/conformance/tsconfig.lib.json\",\"rss\":2734632960,\"heapTotal\":1271758848,\"heapUsed\":930320548,\"external\":248628644,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 25578,
+      "text": "{\"time\":1792448700432,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2734632960,\"heapTotal\":1271758848,\"heapUsed\":930320548,\"external\":248628644,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 25583,
+      "text": "{\"time\":1792448701351,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2748792832,\"heapTotal\":1359673344,\"heapUsed\":930320548,\"external\":256187557,\"arrayBuffers\":112779545}\n"
+    },
+    {
+      "line": 25584,
+      "text": "{\"time\":1792448701475,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2654994432,\"heapTotal\":425492480,\"heapUsed\":413648985,\"external\":220960265,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 26406,
+      "text": "{\"time\":1792448708842,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2803425280,\"heapTotal\":1876836352,\"heapUsed\":1258076292,\"external\":235661798,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 27228,
+      "text": "{\"time\":1792448709295,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2995372032,\"heapTotal\":2084061184,\"heapUsed\":1279582716,\"external\":241937420,\"arrayBuffers\":106282200,\"declarations\":410,\"outputBytes\":3280126}\n"
+    },
+    {
+      "line": 27229,
+      "text": "{\"time\":1792448709295,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2995372032,\"heapTotal\":2084061184,\"heapUsed\":1279582716,\"external\":241937420,\"arrayBuffers\":106282200}\n"
+    },
+    {
+      "line": 27230,
+      "text": "{\"time\":1792448709549,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/application/core/tsconfig.lib.json\",\"rss\":2852118528,\"heapTotal\":1284276224,\"heapUsed\":930378480,\"external\":250389456,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 27231,
+      "text": "{\"time\":1792448709549,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2852118528,\"heapTotal\":1284276224,\"heapUsed\":930378480,\"external\":250389456,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 27236,
+      "text": "{\"time\":1792448710607,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2768953344,\"heapTotal\":1334591488,\"heapUsed\":930378480,\"external\":254309658,\"arrayBuffers\":109140834}\n"
+    },
+    {
+      "line": 27237,
+      "text": "{\"time\":1792448710900,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2688831488,\"heapTotal\":358121472,\"heapUsed\":376501499,\"external\":218535515,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 27545,
+      "text": "{\"time\":1792448720088,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2709114880,\"heapTotal\":1423344640,\"heapUsed\":1030555719,\"external\":229276457,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 27853,
+      "text": "{\"time\":1792448720312,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2731134976,\"heapTotal\":1563149312,\"heapUsed\":1030555719,\"external\":229500211,\"arrayBuffers\":105734628,\"declarations\":153,\"outputBytes\":1949301}\n"
+    },
+    {
+      "line": 27854,
+      "text": "{\"time\":1792448720312,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2731134976,\"heapTotal\":1563149312,\"heapUsed\":1030555719,\"external\":229500211,\"arrayBuffers\":105734628}\n"
+    },
+    {
+      "line": 27855,
+      "text": "{\"time\":1792448720509,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/contracts/tsconfig.lib.json\",\"rss\":2613673984,\"heapTotal\":1057719296,\"heapUsed\":781751899,\"external\":240400507,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 27856,
+      "text": "{\"time\":1792448720509,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2613673984,\"heapTotal\":1057719296,\"heapUsed\":781751899,\"external\":240400507,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 27861,
+      "text": "{\"time\":1792448721097,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2626449408,\"heapTotal\":1093043200,\"heapUsed\":781751899,\"external\":243571909,\"arrayBuffers\":108392034}\n"
+    },
+    {
+      "line": 27862,
+      "text": "{\"time\":1792448721190,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2607972352,\"heapTotal\":325223424,\"heapUsed\":360283192,\"external\":217715096,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 28024,
+      "text": "{\"time\":1792448721556,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2451410944,\"heapTotal\":425673728,\"heapUsed\":360283192,\"external\":218005338,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 28186,
+      "text": "{\"time\":1792448721579,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2452983808,\"heapTotal\":430081024,\"heapUsed\":360283192,\"external\":218117029,\"arrayBuffers\":105622565,\"declarations\":80,\"outputBytes\":351610}\n"
+    },
+    {
+      "line": 28187,
+      "text": "{\"time\":1792448721579,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2452983808,\"heapTotal\":430081024,\"heapUsed\":360283192,\"external\":218117029,\"arrayBuffers\":105622565}\n"
+    },
+    {
+      "line": 28188,
+      "text": "{\"time\":1792448721640,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/domain/tsconfig.lib.json\",\"rss\":2439249920,\"heapTotal\":383058944,\"heapUsed\":424443892,\"external\":227822036,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 28189,
+      "text": "{\"time\":1792448721640,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2439249920,\"heapTotal\":383058944,\"heapUsed\":424443892,\"external\":227822036,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 28194,
+      "text": "{\"time\":1792448722218,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2460483584,\"heapTotal\":446613504,\"heapUsed\":424443892,\"external\":231419876,\"arrayBuffers\":108818472}\n"
+    },
+    {
+      "line": 28195,
+      "text": "{\"time\":1792448722284,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2448998400,\"heapTotal\":323405824,\"heapUsed\":370398324,\"external\":217488388,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 28213,
+      "text": "{\"time\":1792448722605,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2361155584,\"heapTotal\":423839744,\"heapUsed\":370398324,\"external\":217488388,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 28231,
+      "text": "{\"time\":1792448722607,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2361155584,\"heapTotal\":424216576,\"heapUsed\":370398324,\"external\":217491467,\"arrayBuffers\":105223711,\"declarations\":8,\"outputBytes\":2926}\n"
+    },
+    {
+      "line": 28232,
+      "text": "{\"time\":1792448722607,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2361155584,\"heapTotal\":424216576,\"heapUsed\":370398324,\"external\":217491467,\"arrayBuffers\":105223711}\n"
+    },
+    {
+      "line": 28233,
+      "text": "{\"time\":1792448722665,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"emission\",\"config\":\"libs/wbs/domain/validation/tsconfig.lib.json\",\"rss\":2351030272,\"heapTotal\":131106816,\"heapUsed\":271160160,\"external\":206377072,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 28234,
+      "text": "{\"time\":1792448722692,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":2351620096,\"heapTotal\":135268352,\"heapUsed\":271160160,\"external\":214064842,\"arrayBuffers\":112908402,\"entrypoint\":\"apps/wbs/be-01/src/main.ts\"}\n"
+    },
+    {
+      "line": 28239,
+      "text": "{\"time\":1792448724357,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1474719744,\"heapTotal\":543048704,\"heapUsed\":517603509,\"external\":282798543,\"arrayBuffers\":160103273}\n"
+    },
+    {
+      "line": 28240,
+      "text": "{\"time\":1792448724461,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":1446604800,\"heapTotal\":447252480,\"heapUsed\":497560854,\"external\":227107094,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 29756,
+      "text": "{\"time\":1792448735654,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3479027712,\"heapTotal\":2481342464,\"heapUsed\":1658195289,\"external\":249373567,\"arrayBuffers\":108413294,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 31272,
+      "text": "{\"time\":1792448736379,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3587010560,\"heapTotal\":2594588672,\"heapUsed\":1383866088,\"external\":271522888,\"arrayBuffers\":105220632,\"declarations\":758,\"outputBytes\":4326227}\n"
+    },
+    {
+      "line": 31273,
+      "text": "{\"time\":1792448736380,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3587207168,\"heapTotal\":2594588672,\"heapUsed\":1383866088,\"external\":271522888,\"arrayBuffers\":105220632,\"entrypoint\":\"apps/wbs/be-01/src/main.ts\"}\n"
+    },
+    {
+      "line": 31274,
+      "text": "{\"time\":1792448736380,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3587207168,\"heapTotal\":2594588672,\"heapUsed\":1383866088,\"external\":271522888,\"arrayBuffers\":105220632,\"entrypoint\":\"apps/wbs/be-01/src/main.ts\",\"paths\":0}\n"
+    },
+    {
+      "line": 31275,
+      "text": "{\"time\":1792448736380,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3587207168,\"heapTotal\":2594588672,\"heapUsed\":1383866088,\"external\":271525235,\"arrayBuffers\":105222979}\n"
+    },
+    {
+      "line": 31276,
+      "text": "{\"time\":1792448736576,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/be-01/tsconfig.lib.json\",\"rss\":3460358144,\"heapTotal\":131270656,\"heapUsed\":271737678,\"external\":206540638,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 31277,
+      "text": "{\"time\":1792448736576,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3460358144,\"heapTotal\":131270656,\"heapUsed\":271737678,\"external\":206540638,\"arrayBuffers\":105220632,\"entrypoint\":\"apps/wbs/fe-01/src/main.tsx\"}\n"
+    },
+    {
+      "line": 31282,
+      "text": "{\"time\":1792448737800,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1339801600,\"heapTotal\":478819328,\"heapUsed\":271737678,\"external\":214573551,\"arrayBuffers\":113253545}\n"
+    },
+    {
+      "line": 31283,
+      "text": "{\"time\":1792448737895,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":1318248448,\"heapTotal\":398350336,\"heapUsed\":489292094,\"external\":225046558,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 32049,
+      "text": "{\"time\":1792448748386,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3148054528,\"heapTotal\":2077661184,\"heapUsed\":1399452392,\"external\":243390936,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 32815,
+      "text": "{\"time\":1792448748893,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3152097280,\"heapTotal\":2077693952,\"heapUsed\":1399452392,\"external\":244150484,\"arrayBuffers\":106270422,\"declarations\":382,\"outputBytes\":3319428}\n"
+    },
+    {
+      "line": 32816,
+      "text": "{\"time\":1792448748893,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3152097280,\"heapTotal\":2077693952,\"heapUsed\":1399452392,\"external\":244150484,\"arrayBuffers\":106270422,\"entrypoint\":\"apps/wbs/fe-01/src/main.tsx\"}\n"
+    },
+    {
+      "line": 32817,
+      "text": "{\"time\":1792448748893,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3152097280,\"heapTotal\":2077693952,\"heapUsed\":1399452392,\"external\":244150484,\"arrayBuffers\":106270422,\"entrypoint\":\"apps/wbs/fe-01/src/main.tsx\",\"paths\":0}\n"
+    },
+    {
+      "line": 32818,
+      "text": "{\"time\":1792448748894,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":3152097280,\"heapTotal\":2077693952,\"heapUsed\":1399452392,\"external\":244152831,\"arrayBuffers\":106272769}\n"
+    },
+    {
+      "line": 32819,
+      "text": "{\"time\":1792448749047,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/fe-01/tsconfig.app.json\",\"rss\":2766934016,\"heapTotal\":131373056,\"heapUsed\":272151775,\"external\":206815711,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 32820,
+      "text": "{\"time\":1792448749048,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2766934016,\"heapTotal\":131373056,\"heapUsed\":272151775,\"external\":206815711,\"arrayBuffers\":105220632,\"entrypoint\":\"apps/wbs/gw-01/src/main.ts\"}\n"
+    },
+    {
+      "line": 32825,
+      "text": "{\"time\":1792448750102,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":1323606016,\"heapTotal\":413689856,\"heapUsed\":272151775,\"external\":213785568,\"arrayBuffers\":112190489}\n"
+    },
+    {
+      "line": 32826,
+      "text": "{\"time\":1792448750187,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":1311875072,\"heapTotal\":338615296,\"heapUsed\":430093192,\"external\":223090552,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 33592,
+      "text": "{\"time\":1792448757586,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2729598976,\"heapTotal\":1813341184,\"heapUsed\":1284086734,\"external\":238197390,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 34358,
+      "text": "{\"time\":1792448757923,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2731761664,\"heapTotal\":1813390336,\"heapUsed\":1284086734,\"external\":238908787,\"arrayBuffers\":106222271,\"declarations\":382,\"outputBytes\":2694937}\n"
+    },
+    {
+      "line": 34359,
+      "text": "{\"time\":1792448757923,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2731761664,\"heapTotal\":1813390336,\"heapUsed\":1284086734,\"external\":238908787,\"arrayBuffers\":106222271,\"entrypoint\":\"apps/wbs/gw-01/src/main.ts\"}\n"
+    },
+    {
+      "line": 34360,
+      "text": "{\"time\":1792448757923,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2731761664,\"heapTotal\":1813390336,\"heapUsed\":1284086734,\"external\":238908787,\"arrayBuffers\":106222271,\"entrypoint\":\"apps/wbs/gw-01/src/main.ts\",\"paths\":0}\n"
+    },
+    {
+      "line": 34361,
+      "text": "{\"time\":1792448757923,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2731761664,\"heapTotal\":1813390336,\"heapUsed\":1284086734,\"external\":238911134,\"arrayBuffers\":106224618}\n"
+    },
+    {
+      "line": 34362,
+      "text": "{\"time\":1792448758203,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/gw-01/tsconfig.lib.json\",\"rss\":2600968192,\"heapTotal\":1245225984,\"heapUsed\":945587367,\"external\":251999127,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 34363,
+      "text": "{\"time\":1792448758203,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2600968192,\"heapTotal\":1245225984,\"heapUsed\":945587367,\"external\":251999127,\"arrayBuffers\":105220632,\"entrypoint\":\"apps/wbs/mcp-01/src/main.ts\"}\n"
+    },
+    {
+      "line": 34368,
+      "text": "{\"time\":1792448759883,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2629218304,\"heapTotal\":1421835264,\"heapUsed\":945587367,\"external\":259298624,\"arrayBuffers\":112520129}\n"
+    },
+    {
+      "line": 34369,
+      "text": "{\"time\":1792448760024,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2543255552,\"heapTotal\":531932160,\"heapUsed\":493479606,\"external\":223151174,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35107,
+      "text": "{\"time\":1792448767379,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2817708032,\"heapTotal\":1858694144,\"heapUsed\":1232899192,\"external\":236804956,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 35845,
+      "text": "{\"time\":1792448767707,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2982825984,\"heapTotal\":2029431808,\"heapUsed\":1232899192,\"external\":237471594,\"arrayBuffers\":106177512,\"declarations\":369,\"outputBytes\":2690521}\n"
+    },
+    {
+      "line": 35846,
+      "text": "{\"time\":1792448767707,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2982825984,\"heapTotal\":2029431808,\"heapUsed\":1232899192,\"external\":237471594,\"arrayBuffers\":106177512,\"entrypoint\":\"apps/wbs/mcp-01/src/main.ts\"}\n"
+    },
+    {
+      "line": 35847,
+      "text": "{\"time\":1792448767713,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2982825984,\"heapTotal\":2029562880,\"heapUsed\":1232899192,\"external\":237471594,\"arrayBuffers\":106177512,\"entrypoint\":\"apps/wbs/mcp-01/src/main.ts\",\"paths\":11}\n"
+    },
+    {
+      "line": 35848,
+      "text": "{\"time\":1792448768046,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":3076456448,\"heapTotal\":2084810752,\"heapUsed\":1232899192,\"external\":238178572,\"arrayBuffers\":106884490}\n"
+    },
+    {
+      "line": 35849,
+      "text": "{\"time\":1792448768191,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"apps/wbs/mcp-01/tsconfig.lib.json\",\"rss\":2971992064,\"heapTotal\":139243520,\"heapUsed\":273199784,\"external\":207814296,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35850,
+      "text": "{\"time\":1792448768192,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":2971992064,\"heapTotal\":139243520,\"heapUsed\":273199784,\"external\":207814296,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/shared/domain/failures/src/index.ts\"}\n"
+    },
+    {
+      "line": 35855,
+      "text": "{\"time\":1792448768641,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1452920832,\"heapTotal\":242855936,\"heapUsed\":273199784,\"external\":210518946,\"arrayBuffers\":107925282}\n"
+    },
+    {
+      "line": 35856,
+      "text": "{\"time\":1792448768697,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1447559168,\"heapTotal\":206958592,\"heapUsed\":344589683,\"external\":222331731,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35862,
+      "text": "{\"time\":1792448768773,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1455149056,\"heapTotal\":230092800,\"heapUsed\":344589683,\"external\":222331731,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 35868,
+      "text": "{\"time\":1792448768774,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1455149056,\"heapTotal\":230092800,\"heapUsed\":344589683,\"external\":222332012,\"arrayBuffers\":105220913,\"declarations\":2,\"outputBytes\":5435}\n"
+    },
+    {
+      "line": 35869,
+      "text": "{\"time\":1792448768774,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1455149056,\"heapTotal\":230092800,\"heapUsed\":344589683,\"external\":222332012,\"arrayBuffers\":105220913,\"entrypoint\":\"libs/shared/domain/failures/src/index.ts\"}\n"
+    },
+    {
+      "line": 35870,
+      "text": "{\"time\":1792448768775,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1455149056,\"heapTotal\":230109184,\"heapUsed\":344589683,\"external\":222332012,\"arrayBuffers\":105220913,\"entrypoint\":\"libs/shared/domain/failures/src/index.ts\",\"paths\":2}\n"
+    },
+    {
+      "line": 35871,
+      "text": "{\"time\":1792448768776,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1455345664,\"heapTotal\":230158336,\"heapUsed\":344589683,\"external\":222335340,\"arrayBuffers\":105224241}\n"
+    },
+    {
+      "line": 35872,
+      "text": "{\"time\":1792448768839,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/failures/tsconfig.lib.json\",\"rss\":1455337472,\"heapTotal\":228962304,\"heapUsed\":378581409,\"external\":229688737,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35873,
+      "text": "{\"time\":1792448768839,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1455337472,\"heapTotal\":228962304,\"heapUsed\":378581409,\"external\":229688737,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/shared/domain/test-evidence/src/index.ts\"}\n"
+    },
+    {
+      "line": 35878,
+      "text": "{\"time\":1792448769365,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1461456896,\"heapTotal\":346484736,\"heapUsed\":378581409,\"external\":232415851,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 35879,
+      "text": "{\"time\":1792448769430,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1452146688,\"heapTotal\":255569920,\"heapUsed\":360437321,\"external\":223213609,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35889,
+      "text": "{\"time\":1792448769657,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1454129152,\"heapTotal\":316993536,\"heapUsed\":360437321,\"external\":223503851,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 35899,
+      "text": "{\"time\":1792448769660,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1454325760,\"heapTotal\":317272064,\"heapUsed\":360437321,\"external\":223505645,\"arrayBuffers\":105512668,\"declarations\":4,\"outputBytes\":7533}\n"
+    },
+    {
+      "line": 35900,
+      "text": "{\"time\":1792448769660,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1454325760,\"heapTotal\":317272064,\"heapUsed\":360437321,\"external\":223505645,\"arrayBuffers\":105512668,\"entrypoint\":\"libs/shared/domain/test-evidence/src/index.ts\"}\n"
+    },
+    {
+      "line": 35901,
+      "text": "{\"time\":1792448769673,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1454522368,\"heapTotal\":321679360,\"heapUsed\":360437321,\"external\":223505645,\"arrayBuffers\":105512668,\"entrypoint\":\"libs/shared/domain/test-evidence/src/index.ts\",\"paths\":4}\n"
+    },
+    {
+      "line": 35902,
+      "text": "{\"time\":1792448769675,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1454718976,\"heapTotal\":321908736,\"heapUsed\":360437321,\"external\":223512222,\"arrayBuffers\":105519245}\n"
+    },
+    {
+      "line": 35903,
+      "text": "{\"time\":1792448769741,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-evidence/tsconfig.lib.json\",\"rss\":1443418112,\"heapTotal\":299806720,\"heapUsed\":415359519,\"external\":231838831,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35904,
+      "text": "{\"time\":1792448769742,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1443418112,\"heapTotal\":299806720,\"heapUsed\":415359519,\"external\":231838831,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/shared/domain/test-levels/src/index.ts\"}\n"
+    },
+    {
+      "line": 35909,
+      "text": "{\"time\":1792448770191,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1459810304,\"heapTotal\":361164800,\"heapUsed\":415359519,\"external\":234538489,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 35910,
+      "text": "{\"time\":1792448770254,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1449873408,\"heapTotal\":240660480,\"heapUsed\":344150428,\"external\":222539852,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35914,
+      "text": "{\"time\":1792448770318,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1450332160,\"heapTotal\":262156288,\"heapUsed\":344150428,\"external\":222539852,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 35918,
+      "text": "{\"time\":1792448770318,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1450332160,\"heapTotal\":262156288,\"heapUsed\":344150428,\"external\":222539852,\"arrayBuffers\":105220632,\"declarations\":1,\"outputBytes\":1970}\n"
+    },
+    {
+      "line": 35919,
+      "text": "{\"time\":1792448770318,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1450332160,\"heapTotal\":262156288,\"heapUsed\":344150428,\"external\":222539852,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/shared/domain/test-levels/src/index.ts\"}\n"
+    },
+    {
+      "line": 35920,
+      "text": "{\"time\":1792448770319,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1450332160,\"heapTotal\":262189056,\"heapUsed\":344150428,\"external\":222539852,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/shared/domain/test-levels/src/index.ts\",\"paths\":1}\n"
+    },
+    {
+      "line": 35921,
+      "text": "{\"time\":1792448770319,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1450332160,\"heapTotal\":262205440,\"heapUsed\":344150428,\"external\":222542199,\"arrayBuffers\":105222979}\n"
+    },
+    {
+      "line": 35922,
+      "text": "{\"time\":1792448770374,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/test-levels/tsconfig.lib.json\",\"rss\":1443713024,\"heapTotal\":261222400,\"heapUsed\":377439240,\"external\":229720184,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35923,
+      "text": "{\"time\":1792448770374,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1443713024,\"heapTotal\":261222400,\"heapUsed\":377439240,\"external\":229720184,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/shared/domain/validation/src/index.ts\"}\n"
+    },
+    {
+      "line": 35928,
+      "text": "{\"time\":1792448771036,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1461669888,\"heapTotal\":342224896,\"heapUsed\":377439240,\"external\":232429826,\"arrayBuffers\":107930274}\n"
+    },
+    {
+      "line": 35929,
+      "text": "{\"time\":1792448771103,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1453314048,\"heapTotal\":261435392,\"heapUsed\":358726110,\"external\":223060414,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35937,
+      "text": "{\"time\":1792448771228,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1451778048,\"heapTotal\":290156544,\"heapUsed\":358726110,\"external\":223060414,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 35945,
+      "text": "{\"time\":1792448771229,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1451778048,\"heapTotal\":290156544,\"heapUsed\":358726110,\"external\":223060967,\"arrayBuffers\":105221185,\"declarations\":3,\"outputBytes\":2266}\n"
+    },
+    {
+      "line": 35946,
+      "text": "{\"time\":1792448771229,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1451778048,\"heapTotal\":290156544,\"heapUsed\":358726110,\"external\":223060967,\"arrayBuffers\":105221185,\"entrypoint\":\"libs/shared/domain/validation/src/index.ts\"}\n"
+    },
+    {
+      "line": 35947,
+      "text": "{\"time\":1792448771230,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1451778048,\"heapTotal\":290222080,\"heapUsed\":358726110,\"external\":223060967,\"arrayBuffers\":105221185,\"entrypoint\":\"libs/shared/domain/validation/src/index.ts\",\"paths\":2}\n"
+    },
+    {
+      "line": 35948,
+      "text": "{\"time\":1792448771232,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1451778048,\"heapTotal\":290254848,\"heapUsed\":358726110,\"external\":223064981,\"arrayBuffers\":105225199}\n"
+    },
+    {
+      "line": 35949,
+      "text": "{\"time\":1792448771284,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/shared/domain/validation/tsconfig.lib.json\",\"rss\":1437908992,\"heapTotal\":139309056,\"heapUsed\":278112552,\"external\":212740968,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 35950,
+      "text": "{\"time\":1792448771284,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1437908992,\"heapTotal\":139309056,\"heapUsed\":278112552,\"external\":212740968,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/auth/src/index.ts\"}\n"
+    },
+    {
+      "line": 35955,
+      "text": "{\"time\":1792448772191,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1455427584,\"heapTotal\":363966464,\"heapUsed\":278112552,\"external\":219451241,\"arrayBuffers\":111930905}\n"
+    },
+    {
+      "line": 35956,
+      "text": "{\"time\":1792448772266,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":1445060608,\"heapTotal\":300888064,\"heapUsed\":414474449,\"external\":227830161,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 36648,
+      "text": "{\"time\":1792448779265,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2668367872,\"heapTotal\":1754099712,\"heapUsed\":1238312282,\"external\":242292362,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 37340,
+      "text": "{\"time\":1792448779582,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2671009792,\"heapTotal\":1754132480,\"heapUsed\":1238312282,\"external\":242921771,\"arrayBuffers\":106140283,\"declarations\":345,\"outputBytes\":2644182}\n"
+    },
+    {
+      "line": 37341,
+      "text": "{\"time\":1792448779582,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2671009792,\"heapTotal\":1754132480,\"heapUsed\":1238312282,\"external\":242921771,\"arrayBuffers\":106140283,\"entrypoint\":\"libs/wbs/adapters/auth/src/index.ts\"}\n"
+    },
+    {
+      "line": 37342,
+      "text": "{\"time\":1792448779585,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2671009792,\"heapTotal\":1754132480,\"heapUsed\":1238312282,\"external\":242921771,\"arrayBuffers\":106140283,\"entrypoint\":\"libs/wbs/adapters/auth/src/index.ts\",\"paths\":12}\n"
+    },
+    {
+      "line": 37343,
+      "text": "{\"time\":1792448779897,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2702151680,\"heapTotal\":1754216448,\"heapUsed\":1238312282,\"external\":243614994,\"arrayBuffers\":106833506}\n"
+    },
+    {
+      "line": 37344,
+      "text": "{\"time\":1792448780020,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/auth/tsconfig.lib.json\",\"rss\":2661855232,\"heapTotal\":143537152,\"heapUsed\":278583270,\"external\":213166518,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37345,
+      "text": "{\"time\":1792448780020,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":2661855232,\"heapTotal\":143537152,\"heapUsed\":278583270,\"external\":213166518,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/config/src/index.ts\"}\n"
+    },
+    {
+      "line": 37350,
+      "text": "{\"time\":1792448780427,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1534406656,\"heapTotal\":265827328,\"heapUsed\":278583270,\"external\":215893632,\"arrayBuffers\":107947746}\n"
+    },
+    {
+      "line": 37351,
+      "text": "{\"time\":1792448780485,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1527693312,\"heapTotal\":229143552,\"heapUsed\":363884618,\"external\":228120410,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37369,
+      "text": "{\"time\":1792448780635,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1530990592,\"heapTotal\":271234048,\"heapUsed\":363884618,\"external\":228410652,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 37387,
+      "text": "{\"time\":1792448780637,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1530990592,\"heapTotal\":271692800,\"heapUsed\":363884618,\"external\":228413951,\"arrayBuffers\":105514173,\"declarations\":8,\"outputBytes\":3897}\n"
+    },
+    {
+      "line": 37388,
+      "text": "{\"time\":1792448780637,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1530990592,\"heapTotal\":271692800,\"heapUsed\":363884618,\"external\":228413951,\"arrayBuffers\":105514173,\"entrypoint\":\"libs/wbs/adapters/config/src/index.ts\"}\n"
+    },
+    {
+      "line": 37389,
+      "text": "{\"time\":1792448780641,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1531187200,\"heapTotal\":272200704,\"heapUsed\":363884618,\"external\":228413951,\"arrayBuffers\":105514173,\"entrypoint\":\"libs/wbs/adapters/config/src/index.ts\",\"paths\":3}\n"
+    },
+    {
+      "line": 37390,
+      "text": "{\"time\":1792448780644,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1531187200,\"heapTotal\":272380928,\"heapUsed\":363884618,\"external\":228424484,\"arrayBuffers\":105524706}\n"
+    },
+    {
+      "line": 37391,
+      "text": "{\"time\":1792448780692,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/config/tsconfig.lib.json\",\"rss\":1516462080,\"heapTotal\":143537152,\"heapUsed\":283207292,\"external\":217800364,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37392,
+      "text": "{\"time\":1792448780693,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1516462080,\"heapTotal\":143537152,\"heapUsed\":283207292,\"external\":217800364,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/observability/src/index.ts\"}\n"
+    },
+    {
+      "line": 37397,
+      "text": "{\"time\":1792448781438,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1531904000,\"heapTotal\":299004928,\"heapUsed\":283207292,\"external\":221178934,\"arrayBuffers\":108599202}\n"
+    },
+    {
+      "line": 37398,
+      "text": "{\"time\":1792448781506,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":1523372032,\"heapTotal\":255374336,\"heapUsed\":382779412,\"external\":229362292,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37536,
+      "text": "{\"time\":1792448786407,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2262925312,\"heapTotal\":1364589568,\"heapUsed\":1035295907,\"external\":239926297,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 37674,
+      "text": "{\"time\":1792448786602,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2384822272,\"heapTotal\":1484127232,\"heapUsed\":1035295907,\"external\":240017352,\"arrayBuffers\":105601929,\"declarations\":68,\"outputBytes\":1531129}\n"
+    },
+    {
+      "line": 37675,
+      "text": "{\"time\":1792448786602,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2384822272,\"heapTotal\":1484127232,\"heapUsed\":1035295907,\"external\":240017352,\"arrayBuffers\":105601929,\"entrypoint\":\"libs/wbs/adapters/observability/src/index.ts\"}\n"
+    },
+    {
+      "line": 37676,
+      "text": "{\"time\":1792448786604,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2384822272,\"heapTotal\":1484291072,\"heapUsed\":1035295907,\"external\":240017352,\"arrayBuffers\":105601929,\"entrypoint\":\"libs/wbs/adapters/observability/src/index.ts\",\"paths\":7}\n"
+    },
+    {
+      "line": 37677,
+      "text": "{\"time\":1792448786754,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2445377536,\"heapTotal\":1521957888,\"heapUsed\":1035295907,\"external\":240128115,\"arrayBuffers\":105712692}\n"
+    },
+    {
+      "line": 37678,
+      "text": "{\"time\":1792448786862,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/observability/tsconfig.lib.json\",\"rss\":2341670912,\"heapTotal\":145243136,\"heapUsed\":283228363,\"external\":217837099,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37679,
+      "text": "{\"time\":1792448786862,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2341146624,\"heapTotal\":145243136,\"heapUsed\":283228363,\"external\":217837099,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/realtime/src/index.ts\"}\n"
+    },
+    {
+      "line": 37684,
+      "text": "{\"time\":1792448787344,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":1571622912,\"heapTotal\":289782784,\"heapUsed\":283228363,\"external\":221178229,\"arrayBuffers\":108561762}\n"
+    },
+    {
+      "line": 37685,
+      "text": "{\"time\":1792448787399,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":1563910144,\"heapTotal\":249019392,\"heapUsed\":380812281,\"external\":231639369,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37813,
+      "text": "{\"time\":1792448792182,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2250104832,\"heapTotal\":1349256192,\"heapUsed\":1030816005,\"external\":242171787,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 37941,
+      "text": "{\"time\":1792448792379,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2369642496,\"heapTotal\":1466680320,\"heapUsed\":1030816005,\"external\":242257267,\"arrayBuffers\":105596354,\"declarations\":63,\"outputBytes\":1520349}\n"
+    },
+    {
+      "line": 37942,
+      "text": "{\"time\":1792448792379,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2369642496,\"heapTotal\":1466680320,\"heapUsed\":1030816005,\"external\":242257267,\"arrayBuffers\":105596354,\"entrypoint\":\"libs/wbs/adapters/realtime/src/index.ts\"}\n"
+    },
+    {
+      "line": 37943,
+      "text": "{\"time\":1792448792381,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2369642496,\"heapTotal\":1466778624,\"heapUsed\":1030816005,\"external\":242257267,\"arrayBuffers\":105596354,\"entrypoint\":\"libs/wbs/adapters/realtime/src/index.ts\",\"paths\":3}\n"
+    },
+    {
+      "line": 37944,
+      "text": "{\"time\":1792448792558,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2431770624,\"heapTotal\":1504216064,\"heapUsed\":1030816005,\"external\":242357213,\"arrayBuffers\":105696300}\n"
+    },
+    {
+      "line": 37945,
+      "text": "{\"time\":1792448792681,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/realtime/tsconfig.lib.json\",\"rss\":2337943552,\"heapTotal\":146801664,\"heapUsed\":286237489,\"external\":220864337,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 37946,
+      "text": "{\"time\":1792448792681,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2337943552,\"heapTotal\":146801664,\"heapUsed\":286237489,\"external\":220864337,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/runtime-portable/src/index.ts\"}\n"
+    },
+    {
+      "line": 37951,
+      "text": "{\"time\":1792448793513,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":1607307264,\"heapTotal\":354238464,\"heapUsed\":286237489,\"external\":227529682,\"arrayBuffers\":111885977}\n"
+    },
+    {
+      "line": 37952,
+      "text": "{\"time\":1792448793586,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":1596407808,\"heapTotal\":298174464,\"heapUsed\":421427417,\"external\":238265001,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 38634,
+      "text": "{\"time\":1792448800622,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2649448448,\"heapTotal\":1725958144,\"heapUsed\":1129508638,\"external\":250378752,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 39316,
+      "text": "{\"time\":1792448801008,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2738737152,\"heapTotal\":1823574016,\"heapUsed\":911543650,\"external\":264169890,\"arrayBuffers\":105220632,\"declarations\":340,\"outputBytes\":2606355}\n"
+    },
+    {
+      "line": 39317,
+      "text": "{\"time\":1792448801008,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2738737152,\"heapTotal\":1823574016,\"heapUsed\":911543650,\"external\":264169890,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/runtime-portable/src/index.ts\"}\n"
+    },
+    {
+      "line": 39318,
+      "text": "{\"time\":1792448801012,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2738737152,\"heapTotal\":1823574016,\"heapUsed\":911543650,\"external\":264169890,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/runtime-portable/src/index.ts\",\"paths\":17}\n"
+    },
+    {
+      "line": 39319,
+      "text": "{\"time\":1792448801308,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2769555456,\"heapTotal\":1823574016,\"heapUsed\":911543650,\"external\":264836619,\"arrayBuffers\":105887361}\n"
+    },
+    {
+      "line": 39320,
+      "text": "{\"time\":1792448801430,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/runtime-portable/tsconfig.lib.json\",\"rss\":2685231104,\"heapTotal\":153765888,\"heapUsed\":289259556,\"external\":223873524,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 39321,
+      "text": "{\"time\":1792448801430,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":2685231104,\"heapTotal\":153765888,\"heapUsed\":289259556,\"external\":223873524,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/solver-supervisor-protocol/src/index.ts\"}\n"
+    },
+    {
+      "line": 39326,
+      "text": "{\"time\":1792448801841,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1671417856,\"heapTotal\":255051776,\"heapUsed\":289259556,\"external\":226573182,\"arrayBuffers\":107920290}\n"
+    },
+    {
+      "line": 39327,
+      "text": "{\"time\":1792448801895,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1665855488,\"heapTotal\":220743680,\"heapUsed\":359888189,\"external\":238110669,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 39331,
+      "text": "{\"time\":1792448801960,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1671557120,\"heapTotal\":243894272,\"heapUsed\":359888189,\"external\":238110669,\"arrayBuffers\":105220632,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 39335,
+      "text": "{\"time\":1792448801961,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1671557120,\"heapTotal\":243910656,\"heapUsed\":359888189,\"external\":238110669,\"arrayBuffers\":105220632,\"declarations\":1,\"outputBytes\":2166}\n"
+    },
+    {
+      "line": 39336,
+      "text": "{\"time\":1792448801961,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1671557120,\"heapTotal\":243910656,\"heapUsed\":359888189,\"external\":238110669,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/solver-supervisor-protocol/src/index.ts\"}\n"
+    },
+    {
+      "line": 39337,
+      "text": "{\"time\":1792448801962,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1668648960,\"heapTotal\":243943424,\"heapUsed\":359888189,\"external\":238110669,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/solver-supervisor-protocol/src/index.ts\",\"paths\":1}\n"
+    },
+    {
+      "line": 39338,
+      "text": "{\"time\":1792448801962,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1666822144,\"heapTotal\":243943424,\"heapUsed\":359888189,\"external\":238113016,\"arrayBuffers\":105222979}\n"
+    },
+    {
+      "line": 39339,
+      "text": "{\"time\":1792448802012,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json\",\"rss\":1665032192,\"heapTotal\":242681856,\"heapUsed\":393941981,\"external\":245307453,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 39340,
+      "text": "{\"time\":1792448802012,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1665032192,\"heapTotal\":242681856,\"heapUsed\":393941981,\"external\":245307453,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/store-memory/src/index.ts\"}\n"
+    },
+    {
+      "line": 39345,
+      "text": "{\"time\":1792448802851,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1695723520,\"heapTotal\":444546048,\"heapUsed\":393941981,\"external\":252312254,\"arrayBuffers\":112225433}\n"
+    },
+    {
+      "line": 39346,
+      "text": "{\"time\":1792448802924,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":1678864384,\"heapTotal\":339380224,\"heapUsed\":430583595,\"external\":243236731,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 40094,
+      "text": "{\"time\":1792448809644,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2697863168,\"heapTotal\":1769555968,\"heapUsed\":1154975189,\"external\":255685767,\"arrayBuffers\":105510874,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 40842,
+      "text": "{\"time\":1792448810049,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2855043072,\"heapTotal\":1924810752,\"heapUsed\":1011266527,\"external\":271457439,\"arrayBuffers\":105220632,\"declarations\":373,\"outputBytes\":2647015}\n"
+    },
+    {
+      "line": 40843,
+      "text": "{\"time\":1792448810049,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2855043072,\"heapTotal\":1924810752,\"heapUsed\":1011266527,\"external\":271457439,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/store-memory/src/index.ts\"}\n"
+    },
+    {
+      "line": 40844,
+      "text": "{\"time\":1792448810067,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2855043072,\"heapTotal\":1924810752,\"heapUsed\":1011266527,\"external\":271457439,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/store-memory/src/index.ts\",\"paths\":87}\n"
+    },
+    {
+      "line": 40845,
+      "text": "{\"time\":1792448810373,\"pid\":16,\"event\":\"before-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2876813312,\"heapTotal\":1924810752,\"heapUsed\":1011266527,\"external\":272289000,\"arrayBuffers\":106052193}\n"
+    },
+    {
+      "line": 40846,
+      "text": "{\"time\":1792448810528,\"pid\":16,\"event\":\"after-existing-gc\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-memory/tsconfig.lib.json\",\"rss\":2789351424,\"heapTotal\":159729664,\"heapUsed\":293742185,\"external\":228369993,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 40847,
+      "text": "{\"time\":1792448810529,\"pid\":16,\"event\":\"helper:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":2789351424,\"heapTotal\":159729664,\"heapUsed\":293742185,\"external\":228369993,\"arrayBuffers\":105220632,\"entrypoint\":\"libs/wbs/adapters/store-sqlite/src/index.ts\"}\n"
+    },
+    {
+      "line": 40852,
+      "text": "{\"time\":1792448811820,\"pid\":16,\"event\":\"semantic-gc:before\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":1883185152,\"heapTotal\":487692288,\"heapUsed\":293742185,\"external\":272669504,\"arrayBuffers\":149520143}\n"
+    },
+    {
+      "line": 40853,
+      "text": "{\"time\":1792448811917,\"pid\":16,\"event\":\"semantic-gc:after\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":1861914624,\"heapTotal\":377637888,\"heapUsed\":480219621,\"external\":250675797,\"arrayBuffers\":105220632}\n"
+    },
+    {
+      "line": 41771,
+      "text": "{\"time\":1792448820820,\"pid\":16,\"event\":\"diagnostics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3130494976,\"heapTotal\":2132184064,\"heapUsed\":1610856334,\"external\":272201284,\"arrayBuffers\":108413294,\"diagnostics\":0}\n"
+    },
+    {
+      "line": 42689,
+      "text": "{\"time\":1792448821233,\"pid\":16,\"event\":\"emit:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3346464768,\"heapTotal\":2343259136,\"heapUsed\":1610856334,\"external\":273061882,\"arrayBuffers\":109273892,\"declarations\":458,\"outputBytes\":3385996}\n"
+    },
+    {
+      "line": 42690,
+      "text": "{\"time\":1792448821233,\"pid\":16,\"event\":\"public-semantics:start\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3346464768,\"heapTotal\":2343259136,\"heapUsed\":1610856334,\"external\":273061882,\"arrayBuffers\":109273892,\"entrypoint\":\"libs/wbs/adapters/store-sqlite/src/index.ts\"}\n"
+    },
+    {
+      "line": 42691,
+      "text": "{\"time\":1792448821286,\"pid\":16,\"event\":\"public-semantics:return\",\"phase\":\"public\",\"config\":\"libs/wbs/adapters/store-sqlite/tsconfig.lib.json\",\"rss\":3352166400,\"heapTotal\":2345683968,\"heapUsed\":1610856334,\"external\":273061882,\"arrayBuffers\":109273892,\"entrypoint\":\"libs/wbs/adapters/store-sqlite/src/index.ts\",\"paths\":164}\n"
+    }
+  ]
+}

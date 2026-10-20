@@ -1,0 +1,48 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "prettier",
+    "--write",
+    "libs/shared/domain/failures/project.json",
+    "openspec/changes/test-axes/proposal.md",
+    "openspec/changes/test-axes/specs/test-axes/spec.md",
+    "openspec/changes/test-axes/tasks.md",
+    "openspec/scenario-allocations.json",
+    "tools/tool-devsync/src/test-levels.ts",
+    "tools/tool-devsync/src/test-levels.test.ts",
+    "tools/tool-devsync/src/shared-failures-level.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 274740,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "prettier",
+      "--write",
+      "libs/shared/domain/failures/project.json",
+      "openspec/changes/test-axes/proposal.md",
+      "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/scenario-allocations.json",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-failures-level.test.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/prettier",
+      "--write",
+      "libs/shared/domain/failures/project.json",
+      "openspec/changes/test-axes/proposal.md",
+      "openspec/changes/test-axes/specs/test-axes/spec.md",
+      "openspec/changes/test-axes/tasks.md",
+      "openspec/scenario-allocations.json",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-failures-level.test.ts"
+    ]
+  ]
+}

@@ -1,5 +1,7 @@
 # LLM_README — read this, then only the doc your task needs
 
+**Active handoff (TASK-568, `task-568-release-rollback`):** private PRs #54–#56 are merged green; the compatible live rollback and final re-pin succeeded, and exact fleet/release evidence is in `openspec/changes/puni-website-funnel/verify.md`.
+
 **puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Burokrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.

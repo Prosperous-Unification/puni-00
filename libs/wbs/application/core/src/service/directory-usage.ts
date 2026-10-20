@@ -197,10 +197,13 @@ export function directoryUsageOfPerson(rows: DirectoryUsageRows, personId: strin
   return usageFrom(rows, (row) => {
     const held = byStepOn(rows.assignments, row.id);
     const dropped = Object.entries(held).filter(([, personOf]) => personOf === personId);
+    // Every claim the removal takes, the person's and those delegated under
+    // them (the rows' `claims` are exactly those), so a worker's delegated
+    // claim shows on its own row.
     // Proof: with this filter answering nothing, `names each claim the removal
     // releases…` (directory-usage.test.ts) named no work item; watched 2026-10-19.
     const released: DirectoryEffect[] = rows.claims
-      .filter((each) => each.workItemId === row.id && each.personId === personId)
+      .filter((each) => each.workItemId === row.id)
       .map((each) => each.stepId)
       .sort((a, b) => (a ?? '').localeCompare(b ?? ''))
       .map((stepId) => ({

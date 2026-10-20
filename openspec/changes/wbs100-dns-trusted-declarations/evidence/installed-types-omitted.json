@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "349e993040181448656bca707722d2c014041e1879838e7789abbda1257ae834",
+    "bytes": 541,
+    "text": "{\n  \"command\": [\n    \"bun\",\n    \"test\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\",\n    \"--test-name-pattern\",\n    \"extracts supported vendor relationships and public declarations outside the checkout\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 1,\n  \"peakProcessTreeKiB\": 1150960,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 4.965,\n  \"availableBeforeKiB\": 22650820,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "6043908c8d26d62698476b88f737f39d5d3e91008d4155a81730902f5a37479c",
+    "bytes": 28,
+    "text": "bun test v1.4.2 (744846f84)\n"
+  },
+  "stderr": {
+    "sha256": "49bda2adbfa6c1e87fb55d40df5164ba93de7af19b7f25bdc8abfc0644c55fc8",
+    "bytes": 1573,
+    "text": "\napps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:\n347 |     const extracted = invokeWithoutWorkspace(\n348 |       executable,\n349 |       ['extract-relationships', 'committed', repository, revision, request],\n350 |       consumer,\n351 |     );\n352 |     expect(extracted.exitCode, extracted.stderr.toString()).toBe(0);\n                                                                  ^\nerror: TypeScript compiler failed: Could not find a declaration file for module 'dns-packet'. '/tmp/twilight-burokrat-consumer-DsPx8E/tool-wiki-candidate-d3GRMr/node_modules/dns-packet/index.js' implicitly has an 'any' type.\n  Try `npm i --save-dev @types/dns-packet` if it exists or add a new declaration (.d.ts) file containing `declare module 'dns-packet';`; Could not find a declaration file for module 'dns-packet'. '/tmp/twilight-burokrat-consumer-DsPx8E/tool-wiki-candidate-d3GRMr/node_modules/dns-packet/index.js' implicitly has an 'any' type.\n  Try `npm i --save-dev @types/dns-packet` if it exists or add a new declaration (.d.ts) file containing `declare module 'dns-packet';`\nTwilight Burokrat validator exited 1\n\n\nExpected: 0\nReceived: 1\n\n      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:352:61)\n(fail) packed Twilight Burokrat installation > extracts supported vendor relationships and public declarations outside the checkout [4360.24ms]\n\n 0 pass\n 9 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [4.95s]\n"
+  }
+}

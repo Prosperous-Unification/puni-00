@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "revision": "4b318f48125b99ce13fd6e10c60ece66b49487dd",
+  "candidate": "0aa4824c805e2ad0314c7d79910a2f39e308c11f58a75c880226cfcb810f19ae",
+  "projectRoot": "libs/shared/domain/failures",
+  "projectManifest": {
+    "path": "libs/shared/domain/failures/project.json",
+    "digest": "7df8eb0f7e07fd405a1a921e8323e19242a062313ff59841d17d345a44dec09d"
+  },
+  "target": "test:unit:level",
+  "junit": {
+    "path": "/tmp/shared-failures-real-unit-oct17/report.xml",
+    "digest": "8938e13480430117dfcff37acfc13ee42ed7180ffc2cd0230db9df193f4e84ba"
+  }
+}

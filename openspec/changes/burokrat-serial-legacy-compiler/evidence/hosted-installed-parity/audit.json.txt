@@ -1,0 +1,343 @@
+{
+  "status": "pass",
+  "scope": "Hosted build/install and bounded four-report REL-EXTRACT parity only; no all-rule acceptance or certification.",
+  "workflowRun": 39340870682,
+  "workflowUrl": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39340870682",
+  "job": 118361805274,
+  "host": {
+    "runId": "39340870682",
+    "runAttempt": "1",
+    "workflowCommit": "f4d74e1fbd6ac64e047e0e10d6462396be58a55e",
+    "sourceCommit": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+    "sourceTree": "f14468ac26ca00ee4652a5afc93b8fe1c36d7ba5",
+    "runnerName": "GitHub Actions 1000016202",
+    "runnerOS": "Linux",
+    "bunVersion": "1.4.2"
+  },
+  "artifact": {
+    "id": 12228379062,
+    "node_id": "MDg6QXJ0aWZhY3QxMjIyODM3OTA2Mg==",
+    "name": "wbs100-hosted-parity-d7f2129598af7a3cb7ed3c7161e06d504b586891-1",
+    "size_in_bytes": 32569755,
+    "url": "https://api.github.com/repos/Prosperous-Unification/puni-00/actions/artifacts/12228379062",
+    "archive_download_url": "https://api.github.com/repos/Prosperous-Unification/puni-00/actions/artifacts/12228379062/zip",
+    "expired": false,
+    "digest": "sha256:7c2941538885bdb2836ae4225272c3bf7dce79c00ba7a67cc54a340ca91fc126",
+    "created_at": "2026-10-19T23:20:54Z",
+    "updated_at": "2026-10-19T23:20:54Z",
+    "expires_at": "2026-11-18T23:20:52Z",
+    "workflow_run": {
+      "id": 39340870682,
+      "repository_id": 1358565134,
+      "head_repository_id": 1358565134,
+      "head_branch": "integration/wbs100-hosted-parity-20261020",
+      "head_sha": "f4d74e1fbd6ac64e047e0e10d6462396be58a55e"
+    }
+  },
+  "archives": {
+    "historicalSha256": "f287bc11f43f628b70ecd01e11eb6784c55fd4b2fb8cbb9e439dee8e685297fd",
+    "successorSha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+    "successorSource": "d7f2129598af7a3cb7ed3c7161e06d504b586891"
+  },
+  "fixture": {
+    "commit": "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+    "tree": "7249e1b6914cd3c8a0de3ff36216a8e0e0acc116"
+  },
+  "reports": {
+    "historical-positive": {
+      "schemaVersion": 1,
+      "candidate": "ca980e3404e3c66e40475dac5176711acde0f619ac17cb03a07635497b01712c",
+      "policy": "wbs100.serial-compiler.installed-compatibility.v1",
+      "allowed": true,
+      "ruleIds": [
+        "REL-EXTRACT"
+      ],
+      "findings": [],
+      "unevaluated": [],
+      "certifies": false
+    },
+    "historical-negative": {
+      "schemaVersion": 1,
+      "candidate": "ca980e3404e3c66e40475dac5176711acde0f619ac17cb03a07635497b01712c",
+      "policy": "wbs100.serial-compiler.installed-compatibility.v1",
+      "allowed": false,
+      "ruleIds": [
+        "REL-EXTRACT"
+      ],
+      "findings": [],
+      "unevaluated": [
+        {
+          "ruleId": "REL-EXTRACT",
+          "reason": "TypeScript public entrypoint src/missing.ts resolved by 0 configs; expected exactly one emitting owner"
+        }
+      ],
+      "certifies": false
+    },
+    "successor-positive": {
+      "schemaVersion": 1,
+      "candidate": "ca980e3404e3c66e40475dac5176711acde0f619ac17cb03a07635497b01712c",
+      "policy": "wbs100.serial-compiler.installed-compatibility.v1",
+      "allowed": true,
+      "ruleIds": [
+        "REL-EXTRACT"
+      ],
+      "findings": [],
+      "unevaluated": [],
+      "certifies": false
+    },
+    "successor-negative": {
+      "schemaVersion": 1,
+      "candidate": "ca980e3404e3c66e40475dac5176711acde0f619ac17cb03a07635497b01712c",
+      "policy": "wbs100.serial-compiler.installed-compatibility.v1",
+      "allowed": false,
+      "ruleIds": [
+        "REL-EXTRACT"
+      ],
+      "findings": [],
+      "unevaluated": [
+        {
+          "ruleId": "REL-EXTRACT",
+          "reason": "TypeScript public entrypoint src/missing.ts resolved by 0 configs; expected exactly one emitting owner"
+        }
+      ],
+      "certifies": false
+    }
+  },
+  "eightIdentitySnapshots": {
+    "historical-positive": {
+      "before": "historical-positive.before.json",
+      "after": "historical-positive.after.json",
+      "equal": true,
+      "sourceRevision": "ac774f0c358db369c2048e537151e263cc29361e",
+      "executableSha256": "92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c",
+      "toolkitIdentity": "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a"
+    },
+    "historical-negative": {
+      "before": "historical-negative.before.json",
+      "after": "historical-negative.after.json",
+      "equal": true,
+      "sourceRevision": "ac774f0c358db369c2048e537151e263cc29361e",
+      "executableSha256": "92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c",
+      "toolkitIdentity": "2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a"
+    },
+    "successor-positive": {
+      "before": "successor-positive.before.json",
+      "after": "successor-positive.after.json",
+      "equal": true,
+      "sourceRevision": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+      "executableSha256": "4728518d039d7b9d72980b8857463c54a0ed62f300e913ae4bb0699ba479c9de",
+      "toolkitIdentity": "50ef592c8e98878f75c2268dd50d11d1b6e56c22faa18880602745efbefb55f9"
+    },
+    "successor-negative": {
+      "before": "successor-negative.before.json",
+      "after": "successor-negative.after.json",
+      "equal": true,
+      "sourceRevision": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+      "executableSha256": "4728518d039d7b9d72980b8857463c54a0ed62f300e913ae4bb0699ba479c9de",
+      "toolkitIdentity": "50ef592c8e98878f75c2268dd50d11d1b6e56c22faa18880602745efbefb55f9"
+    }
+  },
+  "guardReceipts": {
+    "successor-positive": {
+      "command": [
+        "/home/runner/work/puni-00/puni-00/parity-work/successor/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/home/runner/work/puni-00/puni-00/parity-work/fixture",
+        "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+        "/home/runner/work/puni-00/puni-00/proof/.github/proofs/wbs100-hosted-parity/inputs/positive-policy.json",
+        "--rule",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/successor",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 986360,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 60,
+      "seconds": 8.187,
+      "availableBeforeKiB": 14436284,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "successor-pack": {
+      "command": [
+        "bunx",
+        "nx",
+        "run",
+        "twilight-burokrat:pack",
+        "--skip-nx-cache",
+        "--output-style=stream"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/evaluator-source",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 620064,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 13.272,
+      "availableBeforeKiB": 14775268,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "historical-positive": {
+      "command": [
+        "/home/runner/work/puni-00/puni-00/parity-work/historical/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/home/runner/work/puni-00/puni-00/parity-work/fixture",
+        "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+        "/home/runner/work/puni-00/puni-00/proof/.github/proofs/wbs100-hosted-parity/inputs/positive-policy.json",
+        "--rule",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/historical",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 1237176,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 60,
+      "seconds": 5.411,
+      "availableBeforeKiB": 14921220,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "successor-negative": {
+      "command": [
+        "/home/runner/work/puni-00/puni-00/parity-work/successor/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/home/runner/work/puni-00/puni-00/parity-work/fixture",
+        "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+        "/home/runner/work/puni-00/puni-00/proof/.github/proofs/wbs100-hosted-parity/inputs/negative-policy.json",
+        "--rule",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/successor",
+      "exitCode": 1,
+      "peakProcessTreeKiB": 1060984,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 60,
+      "seconds": 7.343,
+      "availableBeforeKiB": 14507548,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "historical-frozen": {
+      "command": [
+        "bun",
+        "install",
+        "--frozen-lockfile",
+        "--ignore-scripts"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/historical",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 15768,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 0.27,
+      "availableBeforeKiB": 14912024,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "successor-install": {
+      "command": [
+        "bun",
+        "add",
+        "--exact",
+        "--ignore-scripts",
+        "/home/runner/work/puni-00/puni-00/receipts/successor.tgz"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/successor",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 48732,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 1.29,
+      "availableBeforeKiB": 14450456,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "successor-frozen": {
+      "command": [
+        "bun",
+        "install",
+        "--frozen-lockfile",
+        "--ignore-scripts"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/successor",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 15760,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 0.325,
+      "availableBeforeKiB": 14445952,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "historical-negative": {
+      "command": [
+        "/home/runner/work/puni-00/puni-00/parity-work/historical/node_modules/.bin/twib",
+        "check",
+        "committed",
+        "/home/runner/work/puni-00/puni-00/parity-work/fixture",
+        "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+        "/home/runner/work/puni-00/puni-00/proof/.github/proofs/wbs100-hosted-parity/inputs/negative-policy.json",
+        "--rule",
+        "REL-EXTRACT"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/historical",
+      "exitCode": 1,
+      "peakProcessTreeKiB": 1299852,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 60,
+      "seconds": 4.874,
+      "availableBeforeKiB": 14650116,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "historical-install": {
+      "command": [
+        "bun",
+        "add",
+        "--exact",
+        "--ignore-scripts",
+        "/home/runner/work/puni-00/puni-00/receipts/historical.tgz"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/parity-work/historical",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 48100,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 1.113,
+      "availableBeforeKiB": 14898728,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "source-install": {
+      "command": [
+        "bun",
+        "install",
+        "--frozen-lockfile"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/evaluator-source",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 463040,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 7.231,
+      "availableBeforeKiB": 15046332,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    }
+  },
+  "successorArchiveMatchesInstalledManifestDescriptorExecutableAndAllRoles": true,
+  "rawTransport": {
+    "files": 87,
+    "rawBytes": 3052717,
+    "allRoundTripDigestsPass": true,
+    "watchedFault": "Appending one space in memory to successor-positive.stdout changes expected raw digest; untouched carrier roundtrip still passes."
+  },
+  "limitations": [
+    "Historical installed role files are not separately uploaded; original identity hashes and hosted driver role checks bind historical snapshots.",
+    "No full-survey acceptance, package-isolation suite, full CI or canonical h2 gate is implied.",
+    "No hosted executable was run during this independent audit; only retained bytes and receipts were inspected."
+  ]
+}
