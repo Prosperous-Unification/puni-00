@@ -310,6 +310,49 @@ adds the new method from that session (`POST /api/auth/link/auth0` with a
 `method`). One WBS user may hold several verified `(issuer, subject)` pairs; the
 rules are in `openspec/changes/social-sign-in/design.md`.
 
+## Fleet credentials
+
+A fleet (an agent harness such as Claire's) calls be-01 with an Auth0
+machine-to-machine access token for the WBS audience. Such a token carries no
+`wbs_groups` claim: the groups Action runs only at login. be-01 treats any
+verified token **without** that claim as a machine credential
+(`openspec/changes/wbs-team-claims/design.md` D6, D6b):
+
+- It acts only as the account a host operator linked its `(issuer, subject)`
+  to, and it never creates or changes an account (no email refresh either).
+- Its scopes come from that account's organization roles: `viewer` reads,
+  `member` reads and writes, `admin` and `super_admin` also edit. The
+  per-organization role checks then apply as for any session of the account.
+- An unlinked token is refused `401 unknown_identity`, and no account is
+  minted. A token that carries the claim keeps the browser login path.
+
+Link a credential with `link-credential-cli.ts`, inside the live be-01
+container like the other host CLIs ([prod runbook](runbook-prod-deploy.md#fleet-credential-links)):
+
+```sh
+docker exec be-01-<colour> bun run src/link-credential-cli.ts \
+  --issuer=https://<tenant>/ --subject=<client id>@clients \
+  --account=<account id or username> [--person=<agent person id>]
+docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
+  --issuer=https://<tenant>/ --subject=<client id>@clients
+```
+
+- `--issuer` is the exact token issuer, trailing slash included; an Auth0
+  machine-to-machine `sub` is `<client id>@clients`.
+- `--person` pins the credential to one agent person, which must already be
+  bound to the same account (`patchPerson` with `accountId`, an organization
+  admin's act). A pinned credential claims only as that person or under its
+  claims; anything else is `credential_not_for_person`.
+- The CLI writes one `external_identity` row and prints it. It refuses before
+  organization activation (logins do not read `external_identity` yet), an
+  unknown or ambiguous account, a pair already linked, an account's own sign-in
+  pair, and a person bound to another account or to none.
+- `--unlink` deletes the row: the next token for the pair is
+  `401 unknown_identity`, and the account's other credentials keep working.
+- Removing a person a credential is pinned to is refused `in_use` naming the
+  count; the confirmed removal revokes (deletes) those credentials with the
+  person rather than unpinning them.
+
 ## Historical Okta mapping
 
 No code change is needed to reproduce the prior Okta configuration. Its mapping

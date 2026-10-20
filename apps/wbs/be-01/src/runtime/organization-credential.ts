@@ -98,6 +98,10 @@ export function organizationCredentialEvidence(
         // account that authenticated the request.
         // A machine token (no groups claim) reads its link and never writes
         // (`wbs-team-claims` D6b), as `authenticateOrRefuse` does.
+        // Proof: `resolveOidcIdentity` on both branches made `leaves the
+        // owner's email alone under a groups-less token carrying an email`
+        // (`fleet-credential.controller.db.test.ts`) store the token's
+        // `fleet@elsewhere.example` on Dany's row (watched 2026-10-20).
         const user = evidence.identity.groupsClaimed
           ? await auth.resolveOidcIdentity(evidence.identity)
           : await auth.readExistingOidcIdentity(evidence.identity);

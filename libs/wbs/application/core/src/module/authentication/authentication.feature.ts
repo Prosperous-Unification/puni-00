@@ -219,7 +219,9 @@ export class AuthService {
         // Proof: resolving this through `resolveOidcIdentity` made `refuses an
         // unlinked machine token as unknown_identity, minting no account` in
         // `fleet-credential.controller.db.test.ts` mint a second account and
-        // answer 403 instead of 401 (watched 2026-10-20).
+        // answer 403 instead of 401 (watched 2026-10-20), and made `leaves the
+        // owner's email alone under a groups-less token carrying an email`
+        // write the token's address over Dany's (watched 2026-10-20).
         const linked = await this.readExistingOidcIdentity(identity);
         if (linked === null) return 'unknown_identity';
         return {
@@ -292,6 +294,11 @@ export class AuthService {
  * (`wbs-team-claims` D6b): the strongest of its account's organization roles.
  * `viewer` reads, `member` reads and writes, `admin` and `super_admin` edit;
  * no membership grants nothing.
+ *
+ * Proof: answering [] for every role made `scopes a linked token without
+ * groups from its account's membership: a member`
+ * (`fleet-credential.controller.db.test.ts`) answer the member's read 403
+ * insufficient_scope (watched 2026-10-20).
  */
 export function scopesOfRoles(roles: readonly OrganizationRole[]): WbsScope[] {
   if (roles.some((role) => role === 'admin' || role === 'super_admin'))

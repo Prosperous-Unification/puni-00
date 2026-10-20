@@ -947,6 +947,18 @@ describe('removing from the directory', () => {
     expect(within(dialog).getByText('Ada')).toBeDefined();
   });
 
+  itDom('names the fleet credentials a pinned person’s removal revokes', async () => {
+    const api = fakeDirectory([KAT], [PLATFORM]);
+    api.refuseRemovalWith({ projects: [], members: [], pinnedCredentials: 2 });
+    pageWith(api);
+    await drawn('Kat');
+
+    fireEvent.click(screen.getByLabelText('Remove Kat'));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('2 fleet credentials pinned to Kat are revoked.');
+  });
+
   itDom('sends the cascade only from the confirmation', async () => {
     const api = fakeDirectory([KAT], [PLATFORM]);
     api.refuseRemovalWith(PERSON_USAGE);

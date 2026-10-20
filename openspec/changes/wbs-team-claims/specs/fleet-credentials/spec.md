@@ -61,6 +61,14 @@ host CLIs run. Unlinking SHALL be the same CLI with `--unlink`.
 - **THEN** the next request bearing a token for that pair is refused `401 unknown_identity`,
   no account is created, and the account's other credentials still work
 
+#### Scenario: Removing a person a credential is pinned to
+
+- **WHEN** `deletePerson` names a person a linked credential is pinned to
+- **THEN** without `cascade` it is refused `in_use` with the usage's `pinnedCredentials`
+  count and changes nothing; with `cascade` the person and every credential pinned to it
+  are removed in one transaction (the credential is revoked, never left unpinned), and the
+  next request bearing a token for that pair is refused `401 unknown_identity`
+
 ### Requirement: A machine token is scoped by its linked account and never mints an account
 
 be-01 SHALL refuse `401 unknown_identity`, before creating any account and whether or not

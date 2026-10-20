@@ -56,14 +56,14 @@
 - [x] 2.4 `link-credential-cli.ts` with `--unlink`: one row, pinned when asked; refuses unknown
       account, linked pair, unbound person — test: `link-credential-cli.db.test.ts` for each;
       negative: remove the pair check and a second link steals the credential; watched.
+- [ ] 2.5 (blocked: dev has no activated organization, see verify.md) Dev proof: a request bearing Claire's machine token lists Dany's organizations'
+      projects and applies a `claimWorkItem` batch as `claire`; a claim as another person is
+      refused; recorded in verify.md with the token redacted.
 - [x] 2.6 D6b: a verified token with no groups claim never mints an account; linked to
       nothing it is refused `401 unknown_identity`, linked it is scoped from the account's
       organization roles; a mapped token without an email claim leaves its owner's email alone
       — test: `fleet-credential.controller.db.test.ts` (unlinked, unlink then relink, member
       scope, owner row byte for byte); negatives watched (verify.md, review round).
-- [ ] 2.5 (blocked: dev has no activated organization, see verify.md) Dev proof: a request bearing Claire's machine token lists Dany's organizations'
-      projects and applies a `claimWorkItem` batch as `claire`; a claim as another person is
-      refused; recorded in verify.md with the token redacted.
 
 ## 3. Startable read
 

@@ -86,6 +86,7 @@ export const SOURCE_CONFORMANCE_CASES = [
   'directory.patchPerson:owned-binding',
   'directory.credentialPinOf:unlinked',
   'directory.removePerson:claims-in-use',
+  'directory.removePerson:pinned-credential',
   'eventLog.recordEvent',
   'eventLog.rangeSince',
   'eventLog.pruneBeyond',

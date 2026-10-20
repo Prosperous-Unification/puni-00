@@ -50,6 +50,7 @@ export const CASE_MANIFEST = {
     'directory.patchPerson:owned-binding',
     'directory.credentialPinOf:unlinked',
     'directory.removePerson:claims-in-use',
+    'directory.removePerson:pinned-credential',
   ],
   capacity: [
     'capacity.set:project-team-key',

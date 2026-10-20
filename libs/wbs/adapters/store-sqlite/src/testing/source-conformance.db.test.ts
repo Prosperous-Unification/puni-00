@@ -27,6 +27,7 @@ import {
   type HistoryBatchFixture,
   observePlanInput,
   OWNED_BINDING,
+  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -378,6 +379,19 @@ async function openSqliteCase<Family extends ExistingFamily>(
     }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
+    if (caseId === 'directory.removePerson:pinned-credential') {
+      const { personId, issuer, subject } = PINNED_CREDENTIAL;
+      const added = await seeded.stores.directory.addPerson(
+        { id: personId, name: 'Pinned person', kind: 'agent' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the pinned person was refused');
+      // The row `link-credential-cli.ts` writes, its only writer.
+      seeded.db.run(
+        sql`INSERT INTO external_identity (id, user_id, issuer, subject, person_id, created_at) VALUES ('pinned-credential', ${DETERMINISTIC_SEED.ownerIds[0]}, ${issuer}, ${subject}, ${personId}, 1)`,
+      );
+    }
   });
   if (family === 'subtrees') {
     return {
