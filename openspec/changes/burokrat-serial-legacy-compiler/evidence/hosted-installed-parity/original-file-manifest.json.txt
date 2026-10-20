@@ -1,0 +1,540 @@
+{
+  "utf8Files": [
+    {
+      "source": "artifact/archive-identities.json",
+      "bytes": 247,
+      "sha256": "79815796c3ddf1c6db571520cdfbb7264a7bf75422e5bd08da25da3d33a517fe",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/bindings.json",
+      "bytes": 1956,
+      "sha256": "08933c1f5e68005b745a73378b6284c5e121332bd37c44a09da88ec7625e80bd",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/comparison.json",
+      "bytes": 1990,
+      "sha256": "8de0f7413a01c6cc2c0f347410cf9616bec6cba4753037a38c14027ec070f9cf",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-artifact.json",
+      "bytes": 838,
+      "sha256": "0144b4ab46e40a61f4bd130ad5e1c535b8ad30361110d200241a6555645d4572",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-frozen.guard-exit.json",
+      "bytes": 308,
+      "sha256": "02d6bb07a365e37e11187a7db7524fa4824c530800c591450bb81a9c43a4906a",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-frozen.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-frozen.guard.stdout",
+      "bytes": 332,
+      "sha256": "8be8de86599083f003616d562535df0c03a6339789a857e4b1495178672177fd",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-frozen.receipt.json",
+      "bytes": 374,
+      "sha256": "64a10807ed95298faae8087b97e014a8aaef4e93cbee1af7b0d70244108ee4e2",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-frozen.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-frozen.stdout",
+      "bytes": 142,
+      "sha256": "2cf966d0684c9e8ba7b7bb3f6671738cc60e605a0f6e513a47bfe0d50bf71f24",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-install.guard-exit.json",
+      "bytes": 360,
+      "sha256": "d53acbef4bceba5d039f994f63e584c65226c12a7813a848aaefe53236ff49f0",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-install.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-install.guard.stdout",
+      "bytes": 380,
+      "sha256": "60b137860dfea1dab474cbed48d7c653b8b29160056e50d864d920f1509b9ed8",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-install.receipt.json",
+      "bytes": 426,
+      "sha256": "ba27286a0bcfc69eb31880e46d08f5e3059056cd71d31d23ead28f506da86eb7",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-install.stderr",
+      "bytes": 77,
+      "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-install.stdout",
+      "bytes": 191,
+      "sha256": "c605940c76da33b115257cc9da7f3e9b29a9f84fbc1461b3ebb626c92e44df53",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.after.json",
+      "bytes": 10863,
+      "sha256": "d59200ddb0e5ed02c3138d6f7fa1d26c3e71869977140aaadf50740754c7650e",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.before.json",
+      "bytes": 10863,
+      "sha256": "d59200ddb0e5ed02c3138d6f7fa1d26c3e71869977140aaadf50740754c7650e",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.guard-exit.json",
+      "bytes": 602,
+      "sha256": "7d85dcd594a6e9e229d7a58816d9d38ff39396841e4602a6e08f7872dfce320c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.guard.stdout",
+      "bytes": 613,
+      "sha256": "204e9459d62f212d90dde867f29927c6717bb79c12a8a5f760196c4fbc2925bb",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.receipt.json",
+      "bytes": 671,
+      "sha256": "2c9981649ce038a2c84f281a56673406fd10d945b593577d7e22d327610b451c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-negative.stdout",
+      "bytes": 389,
+      "sha256": "a8ef568b8d3a639bbc10fcb01bc6cede321c8da9be3a62dfb7aac204554c27cb",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.after.json",
+      "bytes": 10863,
+      "sha256": "d59200ddb0e5ed02c3138d6f7fa1d26c3e71869977140aaadf50740754c7650e",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.before.json",
+      "bytes": 10863,
+      "sha256": "d59200ddb0e5ed02c3138d6f7fa1d26c3e71869977140aaadf50740754c7650e",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.guard-exit.json",
+      "bytes": 602,
+      "sha256": "5f8f68f149537323e3c3c87f66e9af25687366b5a74ba881be6ba6ec6b603837",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.guard.stdout",
+      "bytes": 613,
+      "sha256": "020a8c8bdc3a93378f4a9474f91860dec45ee3acbcbbf2153765b50ea780f313",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.receipt.json",
+      "bytes": 671,
+      "sha256": "795767c1de49ca42b5a70a81e34798fac10fe9fd56182d8e640b07788ed4ab1b",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/historical-positive.stdout",
+      "bytes": 250,
+      "sha256": "6ba6125b370465ab6e1a16742ef79cb4d81ec847a3d574af8285d53fee4077e9",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/host.json",
+      "bytes": 329,
+      "sha256": "49f59cb0fb3637d37d13389af68d842acb797f3a395efc5b3d4ffd64bec12df3",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/README.md",
+      "bytes": 2233,
+      "sha256": "d0788b4340d67c2e47110a05081ab876d1332909142c137c950d5674c6bbef6c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/bindings.json",
+      "bytes": 1956,
+      "sha256": "08933c1f5e68005b745a73378b6284c5e121332bd37c44a09da88ec7625e80bd",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/capture-installed.py",
+      "bytes": 1003,
+      "sha256": "984f247c8d70cc3795280765e93839f59c835c06b51504d17baceb3955599c50",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/guards/identity-guard.py",
+      "bytes": 1953,
+      "sha256": "4df8066c4111c33746c33d5159c4de77a3cac20afdf06165f860f377ad7dbc29",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/guards/preparation-guard.py",
+      "bytes": 1954,
+      "sha256": "291398b1395dcdc5a342f7439f48c2f9f497ceaa83481176110cec1192df974c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/inputs/historical-negative.json",
+      "bytes": 389,
+      "sha256": "a8ef568b8d3a639bbc10fcb01bc6cede321c8da9be3a62dfb7aac204554c27cb",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/inputs/historical-positive.json",
+      "bytes": 250,
+      "sha256": "6ba6125b370465ab6e1a16742ef79cb4d81ec847a3d574af8285d53fee4077e9",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/inputs/negative-policy.json",
+      "bytes": 1254,
+      "sha256": "cdf80301a6e0681cc42ebde532560a3a1307b0cccd23553fbe031ca6ace8dbbd",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/inputs/positive-policy.json",
+      "bytes": 1252,
+      "sha256": "869c862087e80dc3a74bfd2e7f27dc949e52f7509482e7cc8a6f9ffdc4ce2729",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/proof-inputs/run-hosted.py",
+      "bytes": 12330,
+      "sha256": "99faf6eda9ccb1cc3d333ea72af48df95ec7561d930bdbc7f2ae0bb2e41fa71d",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/source-install.guard-exit.json",
+      "bytes": 281,
+      "sha256": "da781a04d89bf7e53470968f5c12b690b95ab49856296b8f5cbdbbc1fe4548c7",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/source-install.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/source-install.guard.stdout",
+      "bytes": 308,
+      "sha256": "752a3726d151fc8477892a29e9534ba188cc9fef45ee75f3f3f95d0baa5a064a",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/source-install.receipt.json",
+      "bytes": 346,
+      "sha256": "31be922b81e825fe9a356f93f41b87f388a7164c7344b73d567fe5576df16a38",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/source-install.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/source-install.stdout",
+      "bytes": 2452,
+      "sha256": "16ac6c6013d669f256ca3358b62d89e7426b2514ff02cfb14eb0ccae0b0ec2d0",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-frozen.guard-exit.json",
+      "bytes": 307,
+      "sha256": "32edd734be6b73ddfd0eefe6df89a7e827ffe843f29dd5a570c6e3c3016c4521",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-frozen.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-frozen.guard.stdout",
+      "bytes": 332,
+      "sha256": "6e13b7cf22f16c88c17d2b8acce1cef59e409da8646c121c78bc4bf4435d79db",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-frozen.receipt.json",
+      "bytes": 374,
+      "sha256": "e3f29c069f548f7cc63114983e09edba8a63fcd321427203460c58c5d7d02a6b",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-frozen.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-frozen.stdout",
+      "bytes": 141,
+      "sha256": "2e16887160e1adb2bbf0274a494e37e7f4bc77899f77a24c090ab738b92eca57",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-install.guard-exit.json",
+      "bytes": 358,
+      "sha256": "c42a59fdd3ba1ca777113ba65ae3a081832121f643708d0892f35d4445f8cbcc",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-install.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-install.guard.stdout",
+      "bytes": 377,
+      "sha256": "2fdc5c75e5f90e6e4d78d3577a324926d0fda333817553ccba36e50497496cd3",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-install.receipt.json",
+      "bytes": 423,
+      "sha256": "44aecaa54dd520a1a88d7e973eca5e16918c7be5f905df9894bbafa811a18082",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-install.stderr",
+      "bytes": 77,
+      "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-install.stdout",
+      "bytes": 190,
+      "sha256": "74401ffa69478a847dd7d9efed425e9b0726d28ac3d32b247c3951dca308cc1d",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.guard-exit.json",
+      "bytes": 600,
+      "sha256": "54d5f316311867b192fb8a85e59e6d285458412d6ffff586b1c4eb245b09775c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.guard.stdout",
+      "bytes": 611,
+      "sha256": "01ab2212c4daf160f8dc18cdf950a98b95dfcd1e2f1ef3f399ddd760431f684c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.receipt.json",
+      "bytes": 669,
+      "sha256": "dcf9631ab1bb92c6a119afa64294d5e14c29ee51f866e71e9ee17505f9c630dd",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.stderr",
+      "bytes": 37,
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-negative.stdout",
+      "bytes": 389,
+      "sha256": "a8ef568b8d3a639bbc10fcb01bc6cede321c8da9be3a62dfb7aac204554c27cb",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-pack.guard-exit.json",
+      "bytes": 345,
+      "sha256": "555a2530aff99e04bc588beef2872d5cc900ed4bb45942b6f16d4408249a645b",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-pack.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-pack.guard.stdout",
+      "bytes": 361,
+      "sha256": "10fdc519539e3a017fd7029b87172b5b18b5fb0d2a19ebc2364b48a134097f42",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-pack.receipt.json",
+      "bytes": 411,
+      "sha256": "a9cd774eee8ed748d68cd100a801019c980b217045eca1286d551f6f213c4208",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-pack.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-pack.stdout",
+      "bytes": 2713734,
+      "sha256": "d133150da1748c35657707dbd8fde50a3d2aad4d3695f0eaeb10f9bace58e598",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.after.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.before.json",
+      "bytes": 10977,
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.guard-exit.json",
+      "bytes": 600,
+      "sha256": "8579c5ecee720ceb15e32a31f22f62462d1be69e405f114f61784460494850d2",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.guard.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.guard.stdout",
+      "bytes": 610,
+      "sha256": "fb3a9cc4a8b79c3ce8a9788975ea27f155a3e760c03e80271ea027b5b5926901",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.receipt.json",
+      "bytes": 668,
+      "sha256": "c3f268c40c781ddc954195643922df851a08e7dfee56f55cf72c25f40caec154",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact/successor-positive.stdout",
+      "bytes": 250,
+      "sha256": "6ba6125b370465ab6e1a16742ef79cb4d81ec847a3d574af8285d53fee4077e9",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "workflow.yml",
+      "bytes": 2540,
+      "sha256": "dd4f06a502877ae253108167ae78d3d230fcc026373a8bdb07804650c594c38d",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "artifact-metadata.json",
+      "bytes": 822,
+      "sha256": "e49e154263c85bdaffa4ae6bd62ef1381934c21108b086c39014b0d7d5223eb7",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "workflow-run.log",
+      "bytes": 197036,
+      "sha256": "090ce604cff988ac86aaf48c300e4855b732712e6c2c75f021cd67010792acdb",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    },
+    {
+      "source": "terminal-run.json",
+      "bytes": 2736,
+      "sha256": "dd0f3fa4e7fd11890827405f77711864e6be3c9327d293d3387153fefece832e",
+      "transport": "raw-streams.json.txt JSON object value encoded as UTF-8"
+    }
+  ],
+  "binaryArtifactMembersNotDuplicated": [
+    {
+      "source": "artifact/proof-inputs/inputs/fixture.bundle",
+      "bytes": 205737,
+      "sha256": "3d060307252b0ed220db16edd6de02f14bb0f653740cf69e0ac70be4171150b5",
+      "transport": "not duplicated; retained in immutable artifact12228379062 and downloaded ZIP"
+    },
+    {
+      "source": "artifact/successor.tgz",
+      "bytes": 32352550,
+      "sha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+      "transport": "not duplicated; retained in immutable artifact12228379062 and downloaded ZIP"
+    }
+  ]
+}

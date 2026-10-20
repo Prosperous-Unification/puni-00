@@ -1,0 +1,32 @@
+import subprocess,json
+from pathlib import Path
+base=Path('/tmp/wbs100-serial-compiler-20261019')
+root=Path('apps/twilight-structure/twilight-burokrat/cli/src/relationships')
+project=root/'typescript-project.ts'; serial=root/'typescript-serial.ts'
+saved={path:path.read_text() for path in [project,serial]}
+faults=[
+ ('recensus',project,'  const host = createCompilerHost(configuration.options, system);','  return parseProject(workspace, configuration.configPath, system);\n  const host = createCompilerHost(configuration.options, system);','wildcard','Expected'),
+ ('unselected-reference',project,"    if (!configuration.commands.has(path))\n      throw new Error(`TypeScript project reference was not selected: ${path}`);",'', 'reconstruction preserves','toThrow'),
+ ('reference-census',project,'visit(project.program.getProjectReferences(), project.program.getResolvedProjectReferences());','visit(project.program.getProjectReferences(), undefined);','serial preserves nested','TypeScript project reference census is incomplete'),
+ ('missing-owner',serial,'if (emitters.length === 0)','if (false)','serial refuses missing emitter','TypeScript public entrypoint'),
+ ('ambiguous-owner',serial,'if (roots.length !== 1)','if (roots.length < 1)','serial refuses ambiguous explicit roots','expected exactly one'),
+ ('rootless-owner',serial,'if (roots.length !== 1)','if (roots.length > 1)','serial refuses shared emissions','expected exactly one'),
+ ('diagnostic-refusal',serial,'if (diagnostics.length > 0)','if (false)','later diagnostics precede','TypeScript compiler failed:'),
+]
+receipts=[]
+try:
+ for label,path,before,after,pattern,expected in faults:
+  assert before in saved[path],label
+  path.write_text(saved[path].replace(before,after))
+  prefix=base/('fault-'+label)
+  subprocess.run(['python3',str(base/'guard.py'),str(prefix),'bun','test',str(root/'typescript-serial.test.ts'),'-t',pattern,'--timeout=60000'],check=True)
+  receipt=json.loads(Path(str(prefix)+'.receipt.json').read_text())
+  log=Path(str(prefix)+'.stderr').read_text()
+  assert receipt['stopReason'] is None and receipt['exitCode']==1,(label,receipt,log)
+  assert '(fail)' in log and expected in log,(label,log)
+  receipts.append({'fault':label,'observed':'named semantic test failure','receipt':str(prefix.name)+'.receipt.json'})
+  path.write_text(saved[path])
+finally:
+ for path,content in saved.items(): path.write_text(content)
+(base/'semantic-faults.json').write_text(json.dumps(receipts,indent=2)+'\n')
+print('All seven semantic faults failed and source restored')

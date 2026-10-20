@@ -1,0 +1,5 @@
+{
+  "sha256": "2b648b5d019da763d3ec685deeaf5428fdfb7a297f01db491a4079023a1fdfc6",
+  "bytes": 233,
+  "text": "{\n  \"head\": \"0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5\",\n  \"dirty\": true,\n  \"trustedModulesSha256\": \"7343904728febd393e73691326d35cd754c3d3ae143dcfd065724339b5aca85a\",\n  \"fault\": \"only @types/dns-packet removed from explicit roots\"\n}\n"
+}

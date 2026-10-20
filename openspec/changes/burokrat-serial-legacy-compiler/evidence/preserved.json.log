@@ -1,0 +1,6 @@
+{
+  "typescript-core.ts": "988782269168521ac5749d35a8668df45f00de7597f20bab080be8b31de1f12a",
+  "typescript-compiler.ts": "02ed634d74b826b20a6e204e763edbf5f2c7e73f2d04b4de879eabc9d6796e5a",
+  "typescript-imports.ts": "6586cd51ecb4542155acb290dcb4f3a8a31676a4cec31ac6003e4b637817f42b",
+  "typescript-declarations.ts": "7eb52e6cd3190e8020ebee44243c0c239b6190bc6d4b711e6a0372b713bd8250"
+}

@@ -83,3 +83,25 @@ The Tool Wiki shard is now the critical path.
 - **Next step, if needed.** After the split, `twilight-burokrat:test` alone bounds the gate
   at about 26 minutes. Sharding that suite, or moving `wbs-fe-01:test` into its own job, is
   the next split.
+
+## Twilight allowance, 2026-10-20
+
+The current Twilight job keeps a finite 75-minute allowance. In PR584 run
+[39330836237](https://github.com/Prosperous-Unification/puni-00/actions/runs/39330836237),
+the Burokrat test task alone took 49m25s. That run failed assertions; it was not a
+timeout observation. The separately successful packed-package step in post-merge
+run [39330011791](https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791)
+took 4m45s. Together those observations exceed the former 50-minute allowance
+before setup and other work. They come from different runs and do not establish
+an exact required minimum. The chosen 75 minutes leaves bounded scheduling
+headroom while retaining every check, uncached execution and parallelism of two.
+The independent installed-survey 4 GiB/900-second resource guard is unchanged.
+
+Run [39340424241](https://github.com/Prosperous-Unification/puni-00/actions/runs/39340424241)
+then passed 2,346 Burokrat tests and failed only the stale assertion that still
+expected 50 minutes. Its main test task took 42m44s; the packed suite was skipped
+after the failure. The focused allowance test now expects 75. Temporarily
+restoring the production workflow to 50 made that test fail with
+`Expected: 75 · Received: 50`; restoring 75 passed. The raw focused outcomes and
+unchanged guard are retained in the
+[allowance evidence](../../openspec/changes/burokrat-serial-legacy-compiler/evidence/ci-allowance/README.md).

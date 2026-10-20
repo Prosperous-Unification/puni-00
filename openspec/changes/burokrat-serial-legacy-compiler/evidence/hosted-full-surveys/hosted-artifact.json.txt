@@ -1,0 +1,133 @@
+{
+  "artifact": {
+    "id": 12232405029,
+    "node_id": "MDg6QXJ0aWZhY3QxMjIzMjQwNTAyOQ==",
+    "name": "wbs100-hosted-full-surveys-d7f2129-1",
+    "size_in_bytes": 211248,
+    "url": "https://api.github.com/repos/Prosperous-Unification/puni-00/actions/artifacts/12232405029",
+    "archive_download_url": "https://api.github.com/repos/Prosperous-Unification/puni-00/actions/artifacts/12232405029/zip",
+    "expired": false,
+    "digest": "sha256:0d342b6e8d3874430f81ceb41a5a13af9f11c274c31f222908f8a3841d05343e",
+    "created_at": "2026-10-20T00:27:39Z",
+    "updated_at": "2026-10-20T00:27:39Z",
+    "expires_at": "2026-11-19T00:27:38Z",
+    "workflow_run": {
+      "id": 39343674302,
+      "repository_id": 1358565134,
+      "head_repository_id": 1358565134,
+      "head_branch": "integration/wbs100-hosted-full-surveys-20261020",
+      "head_sha": "9215cdf312904669b6734917bf66b81a7e1cef89"
+    }
+  },
+  "terminal": {
+    "conclusion": "success",
+    "databaseId": 39343674302,
+    "headSha": "9215cdf312904669b6734917bf66b81a7e1cef89",
+    "jobs": [
+      {
+        "completedAt": "2026-10-20T00:27:42Z",
+        "conclusion": "success",
+        "databaseId": 118371022482,
+        "name": "prove",
+        "startedAt": "2026-10-19T23:46:56Z",
+        "status": "completed",
+        "steps": [
+          {
+            "completedAt": "2026-10-19T23:46:58Z",
+            "conclusion": "success",
+            "name": "Set up job",
+            "number": 1,
+            "startedAt": "2026-10-19T23:46:57Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-19T23:47:03Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 2,
+            "startedAt": "2026-10-19T23:46:58Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-19T23:47:10Z",
+            "conclusion": "success",
+            "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 3,
+            "startedAt": "2026-10-19T23:47:03Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-19T23:47:12Z",
+            "conclusion": "success",
+            "name": "Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+            "number": 4,
+            "startedAt": "2026-10-19T23:47:10Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:38Z",
+            "conclusion": "success",
+            "name": "Compare five installed full surveys and five standalone F7 runs",
+            "number": 5,
+            "startedAt": "2026-10-19T23:47:12Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:38Z",
+            "conclusion": "success",
+            "name": "Preserve exact proof inputs and driver",
+            "number": 6,
+            "startedAt": "2026-10-20T00:27:38Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:39Z",
+            "conclusion": "success",
+            "name": "Preserve installed survey evidence",
+            "number": 7,
+            "startedAt": "2026-10-20T00:27:38Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:39Z",
+            "conclusion": "success",
+            "name": "Post Run oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+            "number": 12,
+            "startedAt": "2026-10-20T00:27:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:39Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 13,
+            "startedAt": "2026-10-20T00:27:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:39Z",
+            "conclusion": "success",
+            "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+            "number": 14,
+            "startedAt": "2026-10-20T00:27:39Z",
+            "status": "completed"
+          },
+          {
+            "completedAt": "2026-10-20T00:27:39Z",
+            "conclusion": "success",
+            "name": "Complete job",
+            "number": 15,
+            "startedAt": "2026-10-20T00:27:39Z",
+            "status": "completed"
+          }
+        ],
+        "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39343674302/job/118371022482"
+      }
+    ],
+    "status": "completed",
+    "url": "https://github.com/Prosperous-Unification/puni-00/actions/runs/39343674302"
+  },
+  "verifiedZipBytes": 211248,
+  "verifiedZipSha256": "0d342b6e8d3874430f81ceb41a5a13af9f11c274c31f222908f8a3841d05343e",
+  "localArchive": "/tmp/puni-wbs100-hosted-full-artifact-12232405029.zip"
+}

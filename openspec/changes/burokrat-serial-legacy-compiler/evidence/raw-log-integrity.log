@@ -1,0 +1,56 @@
+[
+  {
+    "readable": "fault-ambiguous-owner.stderr.log",
+    "rawGzip": "fault-ambiguous-owner.stderr.log.gz",
+    "rawSha256": "77e3727ac98ac8681422a816bc562a0a2ce8f1348e783ff14e976dfa7ed2caa3",
+    "readableSha256": "0977fc277e1bf453f8af278f37b811a910833f60e0ced330c22f70e849355dd2"
+  },
+  {
+    "readable": "fault-diagnostic-refusal.stderr.log",
+    "rawGzip": "fault-diagnostic-refusal.stderr.log.gz",
+    "rawSha256": "8041c1da3e3bea7b1f192c9ae73d7a699743d6bcccf4c9904ae8c58a4bfebfb9",
+    "readableSha256": "b87e895aedd58efe13cf6c441b874cf5a8eb01c178eb82fa5b92a0740c139462"
+  },
+  {
+    "readable": "fault-missing-owner.stderr.log",
+    "rawGzip": "fault-missing-owner.stderr.log.gz",
+    "rawSha256": "4ff7b7cb2f3f2047ffb0921be1a9a8d552bb7e50ff8b14d405236f8342ce403f",
+    "readableSha256": "661f56768c0b308e5812c39cf785c4539784fd9efd79a6a1bcc4bae06d399a47"
+  },
+  {
+    "readable": "fault-recensus.stderr.log",
+    "rawGzip": "fault-recensus.stderr.log.gz",
+    "rawSha256": "33c2a76b4cdca2f9d47145bc03f1899a9faa9f41208e5c8536473d25eab61d39",
+    "readableSha256": "47b87298e8da26a46db5a0f38d4d16f37fa20fffca3f4c479b53c2e743f2e993"
+  },
+  {
+    "readable": "fault-reference-census.stderr.log",
+    "rawGzip": "fault-reference-census.stderr.log.gz",
+    "rawSha256": "e2eaf650fdd8c67afb3fa65fba0924f5ded547d415d1ddf21b97129994808a0e",
+    "readableSha256": "36ece51693014ff7e2a5464853348c7baadc1c569b490ab20e8e2ea13069ebb9"
+  },
+  {
+    "readable": "fault-rootless-owner.stderr.log",
+    "rawGzip": "fault-rootless-owner.stderr.log.gz",
+    "rawSha256": "0b01b8b3f5070c3666ec69a07e32d9692358e969ebdc75147b2b2e8def0939c9",
+    "readableSha256": "0d068f7377f415314e296a98180664cd7a4626eba70ff61a70e69f0a86b8d712"
+  },
+  {
+    "readable": "lint-before-fix.stdout.log",
+    "rawGzip": "lint-before-fix.stdout.log.gz",
+    "rawSha256": "09a6a36af27c3329c431ec465f310befa6a74d6bcb6fcb3068ccc2c847b6e503",
+    "readableSha256": "a37cb568512481765b99d6ce9ba661ab06796cef26e145e805820579671b3baa"
+  },
+  {
+    "readable": "nx-graph.stdout.log",
+    "rawGzip": "nx-graph.stdout.log.gz",
+    "rawSha256": "59256b3d475d9ef8ee118cf20f34fce555493fda27d9b1912dc9f285a6c66053",
+    "readableSha256": "e0df16a8108d3bd8c0daecad21b414709e08802ba811e232224c7b34309e158b"
+  },
+  {
+    "readable": "request.json.log",
+    "rawGzip": "request.json.log.gz",
+    "rawSha256": "6f6742e51d24a36dc304bed3cd5003ced9750024d05f2dc9f6a4013ff394da69",
+    "readableSha256": "bfe29d7f166957d82b82374410ced3b6fc596346c4da0aeb15b159fda5110cc4"
+  }
+]

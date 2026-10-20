@@ -1,0 +1,5 @@
+{
+  "sha256": "cbb67bd1db0ebd9988c117f4df085b694cf8f29e88325675c3dfdd50bcfeae71",
+  "bytes": 978,
+  "text": "{\n  \"comparison\": \"entire parsed JSON equals targeted diagnostic report\",\n  \"equal\": true,\n  \"rawBytesEqual\": true,\n  \"expectedSha256\": \"eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2\",\n  \"actualSha256\": \"eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2\",\n  \"findings\": 41,\n  \"unevaluated\": [\n    {\n      \"ruleId\": \"INV-CLASSIFY\",\n      \"reason\": \"undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz\"\n    },\n    {\n      \"ruleId\": \"PERF-THRESHOLD\",\n      \"reason\": \"Performance config content differs from reviewed authority\"\n    },\n    {\n      \"ruleId\": \"SPEC-SCENARIOS\",\n      \"reason\": \"competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors\"\n    }\n  ],\n  \"candidate\": \"41209f0f0de8e2a17976910ce32656802fcb054c3c9abc04d86ead3aaa311134\",\n  \"policy\": \"wbs.plan-export.recovery.full.v1\"\n}\n"
+}

@@ -1,0 +1,68 @@
+{
+  "targetCommit": "5851eee0c49f03722c77e59d5c4661cf18b20b39",
+  "pullRequest": 580,
+  "generatedAt": "2026-10-19T21:47:22.264Z",
+  "initialSnapshot": {
+    "observedAt": "2026-10-19T21:46:17.967Z",
+    "workflows": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "eeb9fa",
+        "wall_time_seconds": 0.678538409,
+        "exit_code": 0,
+        "original_token_count": 147,
+        "output": "[{\"conclusion\":\"\",\"createdAt\":\"2026-10-19T21:45:44Z\",\"databaseId\":39330011791,\"headSha\":\"5851eee0c49f03722c77e59d5c4661cf18b20b39\",\"status\":\"queued\",\"updatedAt\":\"2026-10-19T21:45:44Z\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791\",\"workflowName\":\"ci\"},{\"conclusion\":\"\",\"createdAt\":\"2026-10-19T21:45:44Z\",\"databaseId\":39330011938,\"headSha\":\"5851eee0c49f03722c77e59d5c4661cf18b20b39\",\"status\":\"in_progress\",\"updatedAt\":\"2026-10-19T21:45:48Z\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011938\",\"workflowName\":\"CodeQL\"}]\n"
+      }
+    },
+    "dev": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "72e09e",
+        "wall_time_seconds": 1.652981491,
+        "exit_code": 0,
+        "original_token_count": 125,
+        "output": "2026-10-19T21:46:16Z\n/home/puni1/wbs-dev/state/last-synced 2026-10-19 20:12:04.453637337 +0000\n/home/puni1/wbs-dev/state/last-proven 2026-10-19 20:12:04.580638098 +0000\na82d6fa9b0d87105cdafcaef474ab51a73abebd8\na82d6fa9b0d87105cdafcaef474ab51a73abebd8\n5851eee0c49f03722c77e59d5c4661cf18b20b39\n5851eee0c49f03722c77e59d5c4661cf18b20b39\ncurl: (7) Failed to connect to 127.0.0.1 port 3100 after 1 ms: Could not connect to server\n\nbackend_http=000\nfrontend_http=200 url=https://dev.wbs.bulletpoints.club/\n"
+      }
+    },
+    "localCheckout": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "c0893d",
+        "wall_time_seconds": 0.00001057,
+        "exit_code": 0,
+        "original_token_count": 11,
+        "output": "d5ab46d17b2e3844a30d883dae75495c706a1f62\n"
+      }
+    }
+  },
+  "finalSnapshot": {
+    "observedAt": "2026-10-19T21:47:07.525Z",
+    "ci": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "1cabc5",
+        "wall_time_seconds": 1.057753994,
+        "exit_code": 0,
+        "original_token_count": 606,
+        "output": "{\"conclusion\":\"\",\"createdAt\":\"2026-10-19T21:45:44Z\",\"headSha\":\"5851eee0c49f03722c77e59d5c4661cf18b20b39\",\"jobs\":[{\"activeSteps\":[],\"completedAt\":\"2026-10-19T21:46:47Z\",\"conclusion\":\"success\",\"name\":\"pixels_mode\",\"startedAt\":\"2026-10-19T21:46:32Z\",\"status\":\"completed\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325511604\"},{\"activeSteps\":[],\"completedAt\":\"2026-10-19T21:46:40Z\",\"conclusion\":\"success\",\"name\":\"gate_mode\",\"startedAt\":\"2026-10-19T21:45:46Z\",\"status\":\"completed\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325512033\"},{\"activeSteps\":[\"Twilight — test, typecheck, build, lint\"],\"completedAt\":\"0001-01-01T00:00:00Z\",\"conclusion\":\"\",\"name\":\"gate twilight\",\"startedAt\":\"2026-10-19T21:46:43Z\",\"status\":\"in_progress\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325911514\"},{\"activeSteps\":[\"Install\"],\"completedAt\":\"0001-01-01T00:00:00Z\",\"conclusion\":\"\",\"name\":\"gate workspace\",\"startedAt\":\"2026-10-19T21:46:43Z\",\"status\":\"in_progress\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325911603\"},{\"activeSteps\":[\"Install chromium\"],\"completedAt\":\"0001-01-01T00:00:00Z\",\"conclusion\":\"\",\"name\":\"pixels shard 3/4\",\"startedAt\":\"2026-10-19T21:46:49Z\",\"status\":\"in_progress\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325962089\"},{\"activeSteps\":[\"Install chromium\"],\"completedAt\":\"0001-01-01T00:00:00Z\",\"conclusion\":\"\",\"name\":\"pixels shard 2/4\",\"startedAt\":\"2026-10-19T21:46:49Z\",\"status\":\"in_progress\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325962105\"},{\"activeSteps\":[\"Install chromium\"],\"completedAt\":\"0001-01-01T00:00:00Z\",\"conclusion\":\"\",\"name\":\"pixels shard 4/4\",\"startedAt\":\"2026-10-19T21:46:50Z\",\"status\":\"in_progress\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325962145\"},{\"activeSteps\":[\"Install chromium\"],\"completedAt\":\"0001-01-01T00:00:00Z\",\"conclusion\":\"\",\"name\":\"pixels shard 1/4\",\"startedAt\":\"2026-10-19T21:46:50Z\",\"status\":\"in_progress\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791/job/118325962198\"}],\"status\":\"in_progress\",\"updatedAt\":\"2026-10-19T21:46:50Z\",\"url\":\"https://github.com/Prosperous-Unification/puni-00/actions/runs/39330011791\"}\n"
+      }
+    },
+    "dev": {
+      "status": "fulfilled",
+      "value": {
+        "chunk_id": "f4f0fe",
+        "wall_time_seconds": 0.722592398,
+        "exit_code": 0,
+        "original_token_count": 119,
+        "output": "2026-10-19T21:47:06Z\n/home/puni1/wbs-dev/state/last-synced 2026-10-19 21:46:22.457956806 +0000\n/home/puni1/wbs-dev/state/last-proven 2026-10-19 21:46:22.718958326 +0000\n5851eee0c49f03722c77e59d5c4661cf18b20b39\n5851eee0c49f03722c77e59d5c4661cf18b20b39\n5851eee0c49f03722c77e59d5c4661cf18b20b39\n5851eee0c49f03722c77e59d5c4661cf18b20b39\n{\"status\":\"ok\",\"commit\":\"5851eee0c49f03722c77e59d5c4661cf18b20b39\"}\nbackend_http=200\nfrontend_http=200 url=https://dev.wbs.bulletpoints.club/\n"
+      }
+    }
+  },
+  "conclusions": {
+    "dev": "Observed backend HTTP 200 with status ok and exact target commit at 2026-10-19T21:47:06Z; frontend HTTP 200. HEAD, origin/main, last-synced and last-proven all match target.",
+    "transient": "At 21:46:16Z initial backend connection was refused while checkout had advanced and proof markers had not. Followup confirmed recovery and exact served commit.",
+    "ci": "Post-merge CI 39330011791 in_progress, gate_mode and pixels_mode success; workspace, Twilight and four browser shards running. Final CI conclusion pending.",
+    "codeql": "39330011938 in_progress at initial observation; completion unverified.",
+    "mutations": "Only this /tmp receipt written. No host deployment changes, WBS writes, builds, tests, or gate PID operations."
+  }
+}

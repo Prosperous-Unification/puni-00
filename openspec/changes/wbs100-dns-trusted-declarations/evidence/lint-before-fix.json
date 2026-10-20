@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "2f4bc91139312329f7d85a31226555445da8d56b1fb97c62d4f60f1e4a9209b6",
+    "bytes": 684,
+    "text": "{\n  \"command\": [\n    \"env\",\n    \"NX_DAEMON=false\",\n    \"NX_ISOLATE_PLUGINS=false\",\n    \"bunx\",\n    \"eslint\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\",\n    \"--max-warnings=0\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 1,\n  \"peakProcessTreeKiB\": 777084,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 2.94,\n  \"availableBeforeKiB\": 22847512,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "fdf1beff590c6c96bbb11d7040fcec9aaa31acabde7adba9b222f79e5e4dd50b",
+    "bytes": 315,
+    "text": "\n/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\n  376:15  error  Unsafe argument of type `any` assigned to a parameter of type `string[]`  @typescript-eslint/no-unsafe-argument\n\n\u2716 1 problem (1 error, 0 warnings)\n\n"
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

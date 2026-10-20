@@ -1,0 +1,28 @@
+from pathlib import Path
+import json,hashlib,collections
+root=Path('/tmp/wbs100-mail-memory-diagnostic-20261020');rows=[json.loads(line) for line in (root/'trace.jsonl').read_text().splitlines()]
+receipt=json.loads((root/'full-base.receipt.json').read_text())
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+original=Path('/tmp/wbs100-mail-consumer-20261020')
+after={str(p.relative_to(original)):({'symlink':str(p.readlink())} if p.is_symlink() else {'sha256':sha(p)}) for p in sorted(original.rglob('*')) if p.is_file() or p.is_symlink()}
+assert after==json.loads((root/'original-before.json').read_text())
+(root/'original-after.json').write_text(json.dumps(after,indent=2)+'\n')
+phases={}
+for phase in ['capture','imports','diagnostics','emission','public']:
+ selected=[r for r in rows if r['phase']==phase]
+ phases[phase]={'startedConfigs':[r['config'] for r in selected if r['event']=='helper:start'],'completedHelpers':sum(r['event']=='after-existing-gc' for r in selected),'maxRecordedRssBytes':max((r['rss'] for r in selected),default=None),'afterGc':[r for r in selected if r['event']=='after-existing-gc']}
+keys=['time','pid','event','phase','config','rss','heapTotal','heapUsed','external','arrayBuffers','sources','diagnostics','path']
+compact=lambda r:{k:r[k] for k in keys if k in r}
+important=[compact(r) for r in rows if r['phase']=='diagnostics' and r['event'] in ['helper:start','construct:return','collect-imports:return','diagnostics:start','diagnostics:return','before-existing-gc','after-existing-gc']]
+starts={};deltas=[]
+for r in rows:
+ if r['event']=='semantic-file:start':starts[(r['config'],r['path'])]=r
+ if r['event']=='semantic-file:return':
+  start=starts.pop((r['config'],r['path']))
+  deltas.append({'config':r['config'],'path':r['path'],'rssIncreaseBytes':r['rss']-start['rss'],'milliseconds':r['time']-start['time'],'before':compact(start),'after':compact(r)})
+summary={'diagnosticOnly':True,'receipt':receipt,'traceSha256':sha(root/'trace.jsonl'),'traceRows':len(rows),'phases':phases,'diagnosticMilestones':important,'largestSemanticRssIncreases':sorted(deltas,key=lambda d:d['rssIncreaseBytes'],reverse=True)[:10],'unfinishedSemanticFiles':[compact(r) for r in starts.values()],'lastTrace':compact(rows[-1]),'maxRecordedValidatorRss':compact(max(rows,key=lambda r:r['rss'])),'measurementLimits':['Trace records validator self-RSS at synchronous boundaries, guard records asynchronously sampled process-tree peak; their maxima are not simultaneous and cannot isolate exact parent overhead.','Bun process.memoryUsage reports are runtime estimates; heapTotal is observed below heapUsed at some points and is not a reliable live-object census.','One instrumented run does not prove which references survive or bound later configurations.','Per-source emitted output counter excludes bundled/local declaration bytes; emission was not reached.'],'originalPreservation':{'allFileSnapshotIdentical':True,'beforeSha256':sha(root/'original-before.json'),'afterSha256':sha(root/'original-after.json'),'archiveSha256':sha(original/'artifact.tgz'),'policySha256':sha(Path('/tmp/wbs100-reference-consumer-20261019/policy.json'))}}
+(root/'analysis.json').write_text(json.dumps(summary,indent=2)+'\n')
+print('original before/after identical',summary['originalPreservation'])
+print('phases', {k:{'started':len(v['startedConfigs']),'completed':v['completedHelpers'],'maxRSSMiB':round(v['maxRecordedRssBytes']/2**20,1) if v['maxRecordedRssBytes'] else None} for k,v in phases.items()})
+for d in summary['largestSemanticRssIncreases'][:5]:print('largest file RSS increase',d['config'],d['path'],round(d['rssIncreaseBytes']/2**20,1),'MiB')
+print('unfinished',summary['unfinishedSemanticFiles'])

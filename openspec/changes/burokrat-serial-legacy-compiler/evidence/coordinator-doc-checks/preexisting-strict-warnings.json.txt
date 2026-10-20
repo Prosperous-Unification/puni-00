@@ -1,0 +1,94 @@
+[
+  {
+    "path": "openspec/specs/dev-deploy/spec.md",
+    "sha256": "1d89390f6b3146493557cbd8cb0a84f6b932e3c0f7bcf863dfe5429045e3b276",
+    "issues": [
+      {
+        "level": "WARNING",
+        "path": "overview",
+        "line": 5,
+        "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+      }
+    ]
+  },
+  {
+    "path": "openspec/specs/live-plan-snapshot/spec.md",
+    "sha256": "6a647e3e7fb24f0586d7d8777feeb7a3396f65fdbfa991c7e1a19ec05de7cf31",
+    "issues": [
+      {
+        "level": "WARNING",
+        "path": "overview",
+        "line": 5,
+        "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+      }
+    ]
+  },
+  {
+    "path": "openspec/specs/plan-command-registry/spec.md",
+    "sha256": "2902742403fa7f24cd9ec7ce2a48f5fa7c9cdb77dcb63396394cdc6e413f6b6e",
+    "issues": [
+      {
+        "level": "WARNING",
+        "path": "overview",
+        "line": 5,
+        "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+      },
+      {
+        "level": "INFO",
+        "path": "requirements[0]",
+        "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+      }
+    ]
+  },
+  {
+    "path": "openspec/specs/plan-import/spec.md",
+    "sha256": "77be88410c388268e2dc5a2e6d6c7e9e8e9e6a7ce55fc96ac5349c450b44e251",
+    "issues": [
+      {
+        "level": "WARNING",
+        "path": "overview",
+        "line": 5,
+        "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+      },
+      {
+        "level": "INFO",
+        "path": "requirements[0]",
+        "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+      }
+    ]
+  },
+  {
+    "path": "openspec/specs/saved-plans/spec.md",
+    "sha256": "3d945c1b89b07ecb944cb9aa424a2978136c1ab08b139daca619ad55d5ed62a1",
+    "issues": [
+      {
+        "level": "WARNING",
+        "path": "overview",
+        "line": 5,
+        "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+      },
+      {
+        "level": "INFO",
+        "path": "requirements[1]",
+        "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+      }
+    ]
+  },
+  {
+    "path": "openspec/specs/scheduler-optimization/spec.md",
+    "sha256": "7d3602797aa694b0b3c28829b1e43b6004b17cf76fcca73609a2764295f495d1",
+    "issues": [
+      {
+        "level": "WARNING",
+        "path": "overview",
+        "line": 5,
+        "message": "Purpose section is still a placeholder rather than a Purpose anyone wrote (the sentence `openspec archive` writes for a new capability, or a `TBD`/`TODO` marker left in its place). Replace it with what this capability is for, editing the main spec directly: a `## Purpose` in a delta is read only when the capability is created, so it cannot replace this one."
+      },
+      {
+        "level": "INFO",
+        "path": "requirements[0]",
+        "message": "Requirement text is very long (>500 characters). Consider breaking it down."
+      }
+    ]
+  }
+]

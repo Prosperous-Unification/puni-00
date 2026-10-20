@@ -111,7 +111,11 @@ test('the release closure includes the reviewed supported declaration roots and 
     'arktype',
     'elysia',
     'drizzle-orm',
+    'dns-packet',
+    '@types/dns-packet',
+    '@leichtgewicht/ip-codec',
     'yaml',
+    'nodemailer',
     'bun-types',
     '@types/react',
     '@types/react-dom',
@@ -158,4 +162,28 @@ test('refuses a scoped dependency directory symlink to ambient packages', () => 
   manifest(outside, 'vendor');
   symlinkSync(outside, join(root, '@external'));
   expect(() => trustedModuleNames(root)).toThrow('trusted node module is absent or a symlink');
+});
+
+test('DNS declaration roots retain only their declared transitive dependency instances', () => {
+  expect(trustedDeclarationRoots).toContain('dns-packet');
+  expect(trustedDeclarationRoots).toContain('@types/dns-packet');
+  expect(trustedDeclarationRoots).not.toContain('@leichtgewicht/ip-codec');
+  const root = fixture();
+  manifest(root, 'dns-packet', { '@leichtgewicht/ip-codec': '2.0.3' });
+  manifest(root, '@types/dns-packet', { '@types/node': '*' });
+  manifest(root, '@leichtgewicht/ip-codec');
+  manifest(root, '@types/node');
+  manifest(root, 'unreviewed-candidate-package');
+  expect(trustedModuleNames(root)).toEqual(
+    [...trustedDeclarationRoots, '@leichtgewicht/ip-codec', '@types/node'].sort(),
+  );
+});
+
+test('SMTP bundled declarations enroll only the reviewed root', () => {
+  expect(trustedDeclarationRoots).toContain('nodemailer');
+  expect(trustedDeclarationRoots).not.toContain('@types/nodemailer');
+  const root = fixture();
+  manifest(root, 'nodemailer');
+  manifest(root, 'unreviewed-mail-package');
+  expect(trustedModuleNames(root)).toEqual([...trustedDeclarationRoots].sort());
 });

@@ -246,3 +246,42 @@ stdout and stderr were empty. No candidate full survey, timeout extension,
 further memory increase or additional evaluation followed. Full-rule
 preservation remains unverified. The immutable reference source and successful
 installed F7 comparison remain unchanged.
+
+## Post-merge and successor observations
+
+The earlier sections retain their original pre-merge and resource-boundary
+observations. The coordinator's subsequent [receipt](../burokrat-serial-legacy-compiler/evidence/recovery-postmerge-2026-10-19/receipt.json.txt),
+observed at 2026-10-19 21:14:24 UTC, records completed successful
+[post-merge CI run 39317193294](https://github.com/Prosperous-Unification/puni-00/actions/runs/39317193294)
+on `a82d6fa9b0d87105cdafcaef474ab51a73abebd8`, including workspace, Twilight,
+all four browser shards and their aggregates. Backend `/health` returned HTTP
+200 with `status:ok` and that exact commit; the dev frontend returned HTTP 200.
+These observations supersede the earlier statements that this recovery had not
+merged or reached dev. They do not establish a production deployment, trusted
+activation or the later compiler successor's CI/gate status.
+
+The separately identified initial installed compiler successor `0e444bcc4…`
+subsequently completed a [limited all-rule comparison](../burokrat-serial-legacy-compiler/evidence/initial-installed-surveys/README.md)
+over the original exact base, both recovered sources and their committed faults.
+Reference findings changed 34 to 33 by removing only its selected F7 record;
+the oversized fault restored the baseline. All ten unevaluated records were
+preserved, including seven DNS-dependent compiler refusals. Thus evaluated
+finding preservation is now observed, while full compiler acceptance and WBS100
+completion remain open. The historical artifact, its failed resource attempts
+and their original claims are unchanged.
+
+## Exact-successor local full comparison
+
+The [final local installed survey packet](../burokrat-serial-legacy-compiler/evidence/final-installed-surveys/README.md) supersedes the earlier lack of complete local compiler-backed evidence for this separately identified successor. Exact evaluator source `d7f2129598af7a3cb7ed3c7161e06d504b586891`, local archive `5dfc97149a59511d843f5f39e39c57e731c4b898cfbe2aa43920f05e5f088dee`, and unchanged policy `3cff7523…` evaluated the original base `3e8d0742…`, reference `40d40ff6…` and committed oversized fault `d6026f83…`, alongside the estimate pair. All fourteen selected rules are present; the seven compiler-dependent rules no longer refuse DNS/SMTP resolution.
+
+The unchanged strict five-report comparison passed. Reference whole findings changed 41→40 only by removing the F7 record for the 1125-line `reference-set-field.tsx`; the actual fault restored all 41 baseline findings exactly. Reference and fault completed in 437.390/414.951 seconds at 4,141,452/4,123,484 KiB under the unchanged 4 GiB/900-second guard, with identical before/after evaluator snapshots. The unchanged equality helper rejected the real fault report and passed when reselecting the good report; that last comparison did not rerun evaluation.
+
+All reports retain the same three explicit INV-CLASSIFY/PERF-THRESHOLD/SPEC-SCENARIOS unevaluated records, `allowed:false` and `certifies:false`. This is local full-rule preservation, not hosted full-survey or final WBS100 acceptance. Hosted bounded-parity archive `761fb162…` has a separate identity from the local `5dfc9714…` archive, despite the same source revision. Hosted full comparison and required gates remain pending coordinator evidence. The historical installed artifact, its failed resource attempts and earlier proof scope remain unchanged.
+
+## Hosted full comparison acceptance
+
+The later [hosted full-survey packet](../burokrat-serial-legacy-compiler/evidence/hosted-full-surveys/README.md) supplies historical task 2.3's independent hosted full-F7 and all-rule comparison component. Run 39343674302 succeeded at proof `9215cdf312904669b6734917bf66b81a7e1cef89`, independently pinning evaluator source `d7f2129598af7a3cb7ed3c7161e06d504b586891`, hosted archive `761fb162…`, original policy `3cff7523…` and all five original candidate/fault bindings. Artifact 12232405029 has ZIP SHA256 `0d342b6e8d3874430f81ceb41a5a13af9f11c274c31f222908f8a3841d05343e`.
+
+All five full reports are byte-identical to the corresponding final local reports. The unchanged strict comparator proves only the addressed F7 finding disappears and the actual committed oversized fault restores every baseline finding. Five separate installed F7 commands independently prove 29→28→29 with empty unevaluated arrays. All twenty installed snapshots are byte-identical; all ten commands completed under the unchanged 4 GiB/900-second guard without a resource stop. Root and peer independently audited the actual artifact and command/report identities.
+
+This supersedes the pending hosted-survey statements above. The earlier recovered-source browser and immutable hosted CI observations remain recorded in the post-merge section. Final compiler-successor CI/canonical gates remain separate coordinator obligations. All three unrelated full-survey refusals remain explicit, all reports retain `certifies:false`, and WBS100 stays open. The original task and historical packet bytes are preserved rather than relabelled as this new execution.

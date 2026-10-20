@@ -1,0 +1,7 @@
+{
+  "reason": "Preserve the exact hash-bound Markdown bytes outside mutable Markdown formatting. The original manifest remains unchanged.",
+  "renames": {
+    "acceptance.md": "acceptance.md.txt",
+    "transport.md": "transport.md.txt"
+  }
+}

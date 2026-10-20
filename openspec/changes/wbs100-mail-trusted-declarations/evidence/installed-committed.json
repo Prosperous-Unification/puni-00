@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "4cf5511ede7d25878ab6dfb8c94d39b5574ffd60f77be2362a7599e75bf8bcc8",
+    "bytes": 542,
+    "text": "{\n  \"command\": [\n    \"bun\",\n    \"test\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\",\n    \"--test-name-pattern\",\n    \"extracts supported vendor relationships and public declarations outside the checkout\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 1438144,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 38.429,\n  \"availableBeforeKiB\": 22786120,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "6043908c8d26d62698476b88f737f39d5d3e91008d4155a81730902f5a37479c",
+    "bytes": 28,
+    "text": "bun test v1.4.2 (744846f84)\n"
+  },
+  "stderr": {
+    "sha256": "a7b518cb66fe322d0acf8aa8abe457d117a3bc8c37a71638e012292c34bdce22",
+    "bytes": 310,
+    "text": "\napps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:\n(pass) packed Twilight Burokrat installation > extracts supported vendor relationships and public declarations outside the checkout [37740.88ms]\n\n 1 pass\n 9 filtered out\n 0 fail\n 57 expect() calls\nRan 1 test across 1 file. [38.37s]\n"
+  }
+}

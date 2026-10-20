@@ -1,0 +1,19 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts",
+    "--test-name-pattern",
+    "project references",
+    "--timeout=60000"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 190056,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 0.761,
+  "availableBeforeKiB": 22455060,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}
