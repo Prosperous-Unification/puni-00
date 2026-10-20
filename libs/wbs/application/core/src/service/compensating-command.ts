@@ -2,6 +2,7 @@ import type { AllowancePercent, Days, MeasureMetric, StepState } from '@wbs/doma
 
 import type { ActualKey, StoredActual } from '../ports/actual-store';
 import type { Claim, ClaimOccupancy } from '../ports/claim-store';
+import type { Demand } from '../ports/demand-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
@@ -337,6 +338,13 @@ export interface RestoreSubtree {
    */
   issuedAttemptNumbers?: IssuedAttemptNumber[];
   assignments: Assignment[];
+  /**
+   * The restored rows' resource demands, put back with them
+   * ({@link SubtreeCopy.demands}): every demand a delete's cascade took, or a
+   * duplicate's copies. Absent from journals written before demands travelled
+   * with a subtree, which restore none, as they recorded none.
+   */
+  demands?: Demand[];
   /** New journals carry the parent-to-child node IDs; old journals omit them because older creates recorded no mapping. */
   stepNodeMapping?: { from: string; to: string }[];
   /** Edges with both ends inside the branch: restored with it, in the same write. */

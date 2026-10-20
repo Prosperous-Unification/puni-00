@@ -906,6 +906,7 @@ describe('targeted working-plan refreshes', () => {
               recordedAt: 3,
             },
           ],
+          demands: [],
           assignments: [],
           dependencies: [
             {

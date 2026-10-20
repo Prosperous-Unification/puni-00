@@ -53,6 +53,7 @@ export function inMemoryStores(): TransactionalStores {
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
   const projects = inMemoryProjects(users);
   const dependencies = inMemoryDependencies([], undefined, workItems);
+  const demands = inMemoryDemands(directoryTables.resources, workItems);
   return {
     users,
     projects,
@@ -91,7 +92,7 @@ export function inMemoryStores(): TransactionalStores {
       directoryTables.resources,
       async (projectId) => (await projects.findById(projectId)) !== null,
     ),
-    demands: inMemoryDemands(directoryTables.resources, workItems),
+    demands,
     priorityBands: inMemoryPriorityBands(),
     calendarMarkers: inMemoryCalendarMarkers(),
     steps,
@@ -106,6 +107,7 @@ export function inMemoryStores(): TransactionalStores {
       progress,
       dependencies,
       directory,
+      demands,
     }),
   };
 }

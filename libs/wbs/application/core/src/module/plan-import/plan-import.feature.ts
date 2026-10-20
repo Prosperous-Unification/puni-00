@@ -470,6 +470,8 @@ export class ImportService {
                 recordedAt: stamp.at,
               })),
             ),
+            // Written below through `setDemand`, which answers the file's resource ids.
+            demands: [],
             assignments: prepared.workItems.flatMap((row) =>
               row.assignments.map((assignment) => ({
                 workItemId: resolvedId(rowsByFileId, row.fileId, 'assigned work item'),

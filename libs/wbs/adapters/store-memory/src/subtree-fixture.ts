@@ -1,5 +1,6 @@
 import type {
   ActualStore,
+  DemandStore,
   DependencyStore,
   DirectoryStore,
   EstimateStore,
@@ -10,7 +11,7 @@ import type {
 } from '@wbs/core';
 
 /**
- * A SubtreeStore that writes a copy through the six in-memory stores it is
+ * A SubtreeStore that writes a copy through the eight in-memory stores it is
  * given, in the order the real foreign keys force.
  *
  * **It is not atomic, and cannot be.** Maps have no transaction to roll back,
@@ -32,6 +33,7 @@ export function inMemorySubtrees(
     measures: MeasureStore;
     dependencies: DependencyStore;
     directory: DirectoryStore;
+    demands: DemandStore;
   },
   afterFinalSatellite: (satelliteKeys: readonly string[]) => void = () => undefined,
 ): SubtreeStore {
@@ -80,6 +82,20 @@ export function inMemorySubtrees(
           assigned.personId,
           stamp,
         );
+      }
+      // Proof: with this loop skipped, `undo of a delete puts the demands back
+      // exactly` and `duplicate copies the demands with the subtree`
+      // (resource-occupancy.db.test.ts) failed on memory only; watched 2026-10-20.
+      for (const demand of copy.demands) {
+        const written = await stores.demands.set(
+          demand.workItemId,
+          demand.resourceId,
+          demand.units,
+          stamp,
+        );
+        // The caller checked every resource; SQLite's foreign key throws here too.
+        if (written !== 'written')
+          throw new Error(`cannot write the demand of ${demand.workItemId}: ${written}`);
       }
       for (const edge of copy.dependencies) await stores.dependencies.add(edge, stamp);
       for (const taken of copy.removedEstimates) {

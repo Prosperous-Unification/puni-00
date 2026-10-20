@@ -452,12 +452,97 @@ null, through the command boundary and the runner).
 
 ### What slice 1 leaves open
 
-- **Undo of a delete and a duplicate do not carry demands.** A work item's demands go with it
-  (both stores), but the delete's journal entry does not capture them, so an undo restores the
-  row without its demands, and `duplicateWorkItem` copies none. Restoring them needs
-  `SubtreeCopy`/`restore_subtree` to carry demands; not in this slice.
+- ~~**Undo of a delete and a duplicate do not carry demands.**~~ Closed by the follow-up below.
 - Saved plans and the canonical schedule input carry no demands (slice 3.1); the tree read
   carries none (the resource read does); fe-01 is task 1.5.
+
+## Slice 1 follow-up: demands and claims through delete, undo and duplicate
+
+Branch `feat/wbs-demand-journal` (worktree `/home/df/wd/puni/wt-demand-journal`), on
+`feat/wbs-startable-fit` with `feat/wbs-resource-levelling` and `plan/wbs-resources` merged.
+Closes the gap PR #585's review found and the claims change's whole-change review recorded.
+
+### What shipped, and the decisions it had to make
+
+- **`SubtreeCopy.demands`** (required, so every writer states it) and
+  **`RestoreSubtree.demands`** (optional: an older journal recorded none and restores none).
+  Both stores write them inside the subtree write: SQLite inserts `work_item_resource_demand`
+  rows in the same transaction; memory writes through its demand store and throws on any answer
+  but `written`.
+- **Delete** reads the project's demands before the cascade and the inverse `restore_subtree`
+  carries the removed rows' demands (the whole branch on a cascade, the one row on a
+  promotion). **Redo** needs nothing new: the delete's cascade takes them again on both stores.
+- **Duplicate** copies the subtree's demands to the copies (same resources, same units), in
+  the `SubtreeCopy` and in the journalled `restore_subtree`, so redo of a duplicate brings
+  them back and undo takes them with the copies.
+- **A restore whose demanded resource was deleted since** is refused before writing, as
+  `stale_undo` with `a resource it demanded is no longer in the directory.`.
+- **The journal decoder** validates a restore's `demands` (whole units from 1, a non-empty
+  resource id, a row the restore writes), and `referencesOf` names their resources, so an
+  organization-scoped replay checks them like a `set_demand`'s.
+- **Claims are carried, but not through `SubtreeCopy`.** The delete's inverse becomes
+  `batch [restore_subtree, add_claims { claims, stated: [], occupancy }]`. `add_claims` is the
+  vocabulary the undo of a release already uses: `ClaimStore.add` writes claims and occupancy
+  in one transaction and answers `taken` / `unknown_resource`, and its replay already runs
+  `refuseReacquiring`, so a restored claim that no longer fits answers `stale_undo` with
+  `resources_exhausted:` detail. Copying that into both stores' subtree writes would have been
+  a second claim writer with its own refusals. The batch runs inside the replay's outer
+  transaction, so a refused `add_claims` rolls the restore back too (ADR 0007).
+- **Which claims a delete takes:** every claim on a removed row, and every claim delegated
+  under one of those, transitively (the parent reference cascades), so a promoting delete's
+  children get back the claims delegated under the removed parent's subtree claim. Ordered
+  parents first, the order the parent reference needs.
+- **Two new `add_claims` replay guards** (they also cover the existing undo of a release and
+  redo of a claim): a delegated claim goes back only under a parent claim still held, and only
+  for a person the directory still holds. Both were foreign-key 500s on SQLite and silent
+  successes on memory.
+- **The core harness** (`inMemoryServices`) now cascades demands when a row is removed, as
+  `bindStores` and SQLite do.
+- **Pin:** `writeRoots` in `organization-bridge.db.test.ts` is asserted to write one root per
+  `OWNED_ROOT_KINDS` entry, in order, including `resource`.
+
+### Commands and results (fresh, after the last edit)
+
+COMMANDS_TABLE
+
+### Proofs (each fault injected alone, the named test watched failing on the stores named, restored)
+
+| Check                                              | Fault injected                            | Failing test                                                                                                                                                                                 |
+| -------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| delete's restore carries the removed rows' demands | list emptied                              | `undo of a delete puts the demands back exactly…`, `undo of a cascading delete puts every row’s demands back` (memory, SQLite)                                                               |
+| duplicate copies demands                           | the copy's list emptied                   | `duplicate copies the demands with the subtree…` (memory, SQLite)                                                                                                                            |
+| `applyRestore` passes demands to the subtree write | `[]` passed                               | the delete-undo and duplicate cases (memory, SQLite)                                                                                                                                         |
+| SQLite subtree write inserts demands               | insert skipped                            | the same two cases, SQLite only                                                                                                                                                              |
+| memory subtree write writes demands                | loop skipped                              | the same two cases, memory only                                                                                                                                                              |
+| restore refuses a deleted resource                 | refusal off                               | `refuses an undo of a delete whose demanded resource was deleted since` (SQLite: FOREIGN KEY failure; memory: `unknown_resource` thrown)                                                     |
+| claims carried by the delete's inverse             | `restore` answered alone                  | `undo of a delete puts the claims and their occupancy back…`, `refuses an undo of a delete resources_exhausted…`, `undo of a promoting delete puts back the subtree claim…` (memory, SQLite) |
+| delegation closure                                 | closure skipped                           | `undo of a promoting delete puts back the subtree claim and the claims delegated under it` (memory, SQLite)                                                                                  |
+| parent-claim guard on `add_claims`                 | guard off                                 | `refuses an undo of a delete once the claim it was delegated under was released` (SQLite: FOREIGN KEY failure; memory: answered ok)                                                          |
+| claimant guard on `add_claims`                     | guard off                                 | `refuses an undo of a delete once the claimant was removed from the directory` (SQLite: FOREIGN KEY failure; memory: answered ok)                                                            |
+| decoder: restored demands                          | call removed                              | `refuses a malformed restored demand` (compensating.test.ts)                                                                                                                                 |
+| `referencesOf`: restored demands' resources        | loop removed                              | `names the resources a restore’s demands name` (compensating.test.ts)                                                                                                                        |
+| harness demand cascade                             | cascade removed                           | `takes a removed row’s demands, so a row put back without them reads none` (harness.test.ts)                                                                                                 |
+| root-kind pin                                      | resource insert dropped from `writeRoots` | `writes one root of every owned kind…` (organization-bridge.db.test.ts, length 8 vs 9)                                                                                                       |
+
+The `resources_exhausted` path is `refuseReacquiring`, reused, not new; its existing proof
+stands, and the new case watched it answer the undo of a delete.
+
+### What it leaves open
+
+- **A restored claim on a step removed since** has no replay guard of its own: once the
+  delete took the claims, nothing holds the step, so its removal may succeed and the undo then
+  meets the claim's step foreign key. Unverified here, and the same holds for the existing undo
+  of a release.
+- **The conformance suite's `subtrees.insertSubtree:complete-copy` case carries no demand**
+  (its seed declares no resource); both stores' demand writes are proved through the runner
+  cases above instead.
+- **`inMemoryStores` (`in-memory-source.ts`)** passes its demand store to the subtree write but,
+  like before, does not cascade demands or claims on removal; only `bindStores` (the memory
+  source) and the core harness do.
+- **PR #582's activation test** iterates `OWNED_ROOT_KINDS`, but its fixture seeds no
+  `resource` (nor `saved_plan`) row, so those iterations compare 0 with 0. When it lands beside
+  this change it should seed one row of each kind and assert a non-zero mapped count per kind;
+  the constant itself is pinned here.
 
 ## Slice 3: the engines level demands (tasks 3.1 to 3.3)
 

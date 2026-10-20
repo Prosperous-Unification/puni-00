@@ -15,6 +15,7 @@ import { describe, expect, it } from 'bun:test';
 
 import { runMigrations } from './migrate';
 import { openSqliteSource } from './source';
+import { activateTestStepBlockages } from './testing/step-blockage-activation';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
@@ -47,6 +48,9 @@ const STORES: readonly {
       const folder = mkdtempSync(join(tmpdir(), 'resource-occupancy-'));
       const dbPath = join(folder, 'plan.db');
       runMigrations(dbPath, MIGRATIONS);
+      // A delete journals its blockage facts, which a migrated database
+      // refuses until the authority is enabled; the memory store has none.
+      activateTestStepBlockages(dbPath);
       return {
         source: openSqliteSource({ dbPath }),
         isMemory: false,
@@ -573,6 +577,285 @@ for (const store of STORES) {
         expect(await run([claim(0, 'a0')])).toMatchObject({ ok: true });
         expect(await occupied(RAM)).toBe(4);
         expect(await input()).toBe(before);
+      } finally {
+        await close();
+      }
+    });
+  });
+
+  // `wbs-resources` slice 1 follow-up: a demand "SHALL … be undoable through
+  // the journal … and be removed when the work item is deleted", and a claim's
+  // occupancy goes and comes back with its leaf.
+  describe(`demands and claims through delete, undo and duplicate on the ${store.name} store`, () => {
+    /** A parent `P` with leaves `X` and `Y`, created through the runner. */
+    const branch = async (run: Awaited<ReturnType<typeof seeded>>['run']) => {
+      const tree = await run([
+        { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
+        {
+          kind: 'createWorkItem',
+          ref: 'X',
+          name: 'X',
+          parentId: null,
+          parentRef: 'P',
+          afterId: null,
+        },
+        {
+          kind: 'createWorkItem',
+          ref: 'Y',
+          name: 'Y',
+          parentId: null,
+          parentRef: 'P',
+          afterId: null,
+        },
+      ]);
+      if (!tree.ok) throw new Error(`the branch was refused: ${JSON.stringify(tree)}`);
+      const [parent, x, y] = tree.results.map(({ id }) => id ?? '');
+      return { parent, x, y };
+    };
+
+    it('undo of a delete puts the demands back exactly; redo takes them again', async () => {
+      const { source, runner, projectId, run, leaf, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: WORKTREE, units: 1 },
+          { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
+        ]);
+        const demands = () => source.stores.demands.listByProject(projectId);
+        const before = await demands();
+        expect(before.filter(({ workItemId }) => workItemId === leaf(0))).toHaveLength(2);
+        expect(await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }])).toMatchObject({
+          ok: true,
+        });
+        expect(await demands()).toEqual(before.filter(({ workItemId }) => workItemId !== leaf(0)));
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual(before);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual(before.filter(({ workItemId }) => workItemId !== leaf(0)));
+      } finally {
+        await close();
+      }
+    });
+
+    it('undo of a cascading delete puts every row’s demands back', async () => {
+      const { source, runner, projectId, run, close } = await seeded(store);
+      try {
+        const { parent, x, y } = await branch(run);
+        await run([
+          { kind: 'setDemand', workItemId: x, resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: y, resourceId: DISK, units: 3 },
+        ]);
+        const before = await source.stores.demands.listByProject(projectId);
+        expect(
+          await run([{ kind: 'deleteWorkItem', workItemId: parent, strategy: 'cascade' }]),
+        ).toMatchObject({ ok: true });
+        expect(await source.stores.demands.listByProject(projectId)).toEqual([]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await source.stores.demands.listByProject(projectId)).toEqual(before);
+      } finally {
+        await close();
+      }
+    });
+
+    it('refuses an undo of a delete whose demanded resource was deleted since', async () => {
+      const { source, runner, projectId, run, leaf, close } = await seeded(store);
+      try {
+        await run([{ kind: 'setDemand', workItemId: leaf(0), resourceId: DISK, units: 2 }]);
+        await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+        expect(
+          await runner.runDirectory(F, [{ kind: 'deleteResource', resourceId: DISK }]),
+        ).toMatchObject({ ok: true });
+        const undone = await runner.undo(projectId, F);
+        expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+        expect(undone.ok ? null : undone.detail).toBe(
+          'a resource it demanded is no longer in the directory.',
+        );
+        const rows = await source.stores.workItems.listByProject(projectId);
+        expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
+      } finally {
+        await close();
+      }
+    });
+
+    it('duplicate copies the demands with the subtree; undo takes the copies, redo brings them back', async () => {
+      const { source, runner, projectId, run, close } = await seeded(store);
+      try {
+        const { parent, x, y } = await branch(run);
+        await run([
+          { kind: 'setDemand', workItemId: x, resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: y, resourceId: WORKTREE, units: 1 },
+        ]);
+        const originals = await source.stores.demands.listByProject(projectId);
+        const copied = await run([{ kind: 'duplicateWorkItem', workItemId: parent }]);
+        if (!copied.ok) throw new Error(`the duplicate was refused: ${JSON.stringify(copied)}`);
+        const copyId = copied.results[0]?.id;
+        if (copyId === undefined) throw new Error('the duplicate wrote no row');
+        const rows = await source.stores.workItems.listByProject(projectId);
+        const nameOf = new Map(rows.map(({ id, name }) => [id, name]));
+        const copyChildren = new Set(
+          rows.filter(({ parentId }) => parentId === copyId).map(({ id }) => id),
+        );
+        /** The copies' demands, named by their row's name rather than its new id. */
+        const copiedDemands = async () =>
+          (await source.stores.demands.listByProject(projectId))
+            .filter(({ workItemId }) => copyChildren.has(workItemId))
+            .map(({ workItemId, resourceId, units }) => ({
+              name: nameOf.get(workItemId),
+              resourceId,
+              units,
+            }))
+            .sort((left, right) => String(left.name).localeCompare(String(right.name)));
+        const expected = [
+          { name: 'X', resourceId: RAM, units: 4 },
+          { name: 'Y', resourceId: WORKTREE, units: 1 },
+        ];
+        expect(await copiedDemands()).toEqual(expected);
+        expect(
+          (await source.stores.demands.listByProject(projectId)).filter(
+            ({ workItemId }) => !copyChildren.has(workItemId),
+          ),
+        ).toEqual(originals);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await copiedDemands()).toEqual([]);
+        expect(await source.stores.demands.listByProject(projectId)).toEqual(originals);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await copiedDemands()).toEqual(expected);
+      } finally {
+        await close();
+      }
+    });
+
+    it('undo of a delete puts the claims and their occupancy back; redo takes them again', async () => {
+      const { source, runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+        ]);
+        expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+        const claims = () => source.stores.claims.listByProject(projectId);
+        const before = await claims();
+        expect(before).toHaveLength(2);
+        expect(await occupied(RAM)).toBe(4);
+        expect(await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }])).toMatchObject({
+          ok: true,
+        });
+        expect(await claims()).toEqual([]);
+        expect(await occupied(RAM)).toBe(0);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await claims()).toEqual(before);
+        expect(await occupied(RAM)).toBe(4);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await claims()).toEqual([]);
+        expect(await occupied(RAM)).toBe(0);
+      } finally {
+        await close();
+      }
+    });
+
+    it('refuses an undo of a delete resources_exhausted once another leaf took the units', async () => {
+      const { source, runner, projectId, run, claim, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 4 },
+        ]);
+        await run([claim(0, 'a0')]);
+        await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+        expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
+        const undone = await runner.undo(projectId, F);
+        expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+        expect(undone.ok ? null : undone.detail).toBe(
+          'resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.',
+        );
+        const rows = await source.stores.workItems.listByProject(projectId);
+        expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
+        expect(await occupied(RAM)).toBe(4);
+      } finally {
+        await close();
+      }
+    });
+
+    it('undo of a promoting delete puts back the subtree claim and the claims delegated under it', async () => {
+      const { source, runner, projectId, run, close } = await seeded(store);
+      try {
+        const { parent, x } = await branch(run);
+        const subtree = await run([{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }]);
+        if (!subtree.ok)
+          throw new Error(`the subtree claim was refused: ${JSON.stringify(subtree)}`);
+        const applied = subtree.results[0];
+        const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+        if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+        expect(
+          await run([{ kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim }]),
+        ).toMatchObject({ ok: true });
+        const claims = () => source.stores.claims.listByProject(projectId);
+        const before = await claims();
+        expect(
+          await run([{ kind: 'deleteWorkItem', workItemId: parent, strategy: 'promote' }]),
+        ).toMatchObject({ ok: true });
+        // The delegated claims went with their parent claim; `X` stayed.
+        expect(await claims()).toEqual([]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await claims()).toEqual(before);
+      } finally {
+        await close();
+      }
+    });
+
+    it('refuses an undo of a delete once the claim it was delegated under was released', async () => {
+      const { source, runner, projectId, run, close } = await seeded(store);
+      try {
+        const { parent, x } = await branch(run);
+        // A grandchild, so the subtree claim sits above the deleted leaf's
+        // parent: the delete's revision preconditions name the parent `X`, never
+        // `P`, and only the claim guard can refuse the undo.
+        const nested = await run([
+          { kind: 'createWorkItem', ref: 'Z', name: 'Z', parentId: x, afterId: null },
+        ]);
+        const z = nested.ok ? nested.results[0]?.id : undefined;
+        if (z === undefined) throw new Error('the grandchild was refused');
+        const subtree = await run([{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }]);
+        if (!subtree.ok)
+          throw new Error(`the subtree claim was refused: ${JSON.stringify(subtree)}`);
+        const applied = subtree.results[0];
+        const parentClaim = applied.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+        if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+        expect(
+          await run([{ kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim }]),
+        ).toMatchObject({ ok: true });
+        await run([{ kind: 'deleteWorkItem', workItemId: z }]);
+        // Released outside this account's stack, so the delete stays its newest entry.
+        const held = await source.stores.claims.listByProject(projectId);
+        expect(held.map(({ id }) => id)).toEqual([parentClaim]);
+        await source.stores.claims.remove(held, [], { at: 9, by: G });
+        const undone = await runner.undo(projectId, F);
+        expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+        expect(undone.ok ? null : undone.detail).toBe(
+          'the claim it was delegated under has been released since.',
+        );
+        const rows = await source.stores.workItems.listByProject(projectId);
+        expect(rows.some(({ id }) => id === z)).toBe(false);
+      } finally {
+        await close();
+      }
+    });
+
+    it('refuses an undo of a delete once the claimant was removed from the directory', async () => {
+      const { source, runner, projectId, run, claim, leaf, close } = await seeded(store);
+      try {
+        await run([claim(0, 'a0')]);
+        await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+        const removed = await source.stores.directory.removePerson('a0', false, { at: 9, by: F });
+        expect(removed).toMatchObject({ ok: true });
+        const undone = await runner.undo(projectId, F);
+        expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+        expect(undone.ok ? null : undone.detail).toBe(
+          'a person who held it is no longer in the directory.',
+        );
+        const rows = await source.stores.workItems.listByProject(projectId);
+        expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
       } finally {
         await close();
       }

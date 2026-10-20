@@ -11,6 +11,7 @@ import { inMemoryPriorityBands } from '@wbs/store-memory/priority-band-fixture';
 import { inMemoryProgress } from '@wbs/store-memory/progress-fixture';
 import { inMemoryProjects } from '@wbs/store-memory/project-fixture';
 import {
+  cascadeDemands,
   inMemoryDemands,
   inMemoryResourceCapacity,
   memoryResourceTables,
@@ -104,7 +105,21 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
       (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
       directoryTables,
     );
-  const workItems = overrides.workItems ?? inMemoryWorkItems(directory);
+  const rowsOnlyWorkItems = overrides.workItems ?? inMemoryWorkItems(directory);
+  // A removed row takes its demands, as `bindStores` and SQLite's cascade do:
+  // left behind, they would come back with the row on an undo that wrote none,
+  // and a test here would pass where production loses them.
+  // Proof: with this cascade removed, `takes a removed row's demands, so a row
+  // put back without them reads none` (harness.test.ts) read the demand back
+  // after the reinsert; watched 2026-10-20.
+  const workItems: typeof rowsOnlyWorkItems = {
+    ...rowsOnlyWorkItems,
+    async remove(ids, promoted, stamp) {
+      await rowsOnlyWorkItems.remove(ids, promoted, stamp);
+      const removed = new Set(ids);
+      cascadeDemands(resourceTables, (workItemId) => removed.has(workItemId));
+    },
+  };
   const estimates = overrides.estimates ?? inMemoryEstimates(workItems);
   const actuals = overrides.actuals ?? inMemoryActuals(workItems);
   const measures = overrides.measures ?? inMemoryMeasures(workItems);
@@ -158,6 +173,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
       progress,
       dependencies,
       directory,
+      demands,
     });
   // `recordingBroadcaster` unless the caller brought one, and the return type
   // says which: a suite that passes its own gets it back as the type it passed,

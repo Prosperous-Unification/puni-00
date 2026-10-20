@@ -498,6 +498,7 @@ export function bindStores(
       cascadeDemands(state.tables.directory.resources, (workItemId) => removed.has(workItemId));
     },
   };
+  const demands = inMemoryDemands(state.tables.directory.resources, workItems);
   const stores: TransactionalStores = {
     users,
     projects,
@@ -524,7 +525,7 @@ export function bindStores(
     resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (projectId) =>
       Promise.resolve(state.tables.projects.projects.has(projectId)),
     ),
-    demands: inMemoryDemands(state.tables.directory.resources, workItems),
+    demands,
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
     planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
@@ -543,6 +544,7 @@ export function bindStores(
         measures,
         dependencies,
         directory,
+        demands,
       },
       (satelliteKeys) => {
         // Proof: omitting this forwarding failed `runs every subtree case` at

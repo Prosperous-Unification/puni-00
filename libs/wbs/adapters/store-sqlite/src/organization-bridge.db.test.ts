@@ -126,6 +126,19 @@ function owners(suffix: string): Record<string, unknown> {
   );
 }
 
+// Every root-kind loop below, and the activation CLI's (`backfillLegacyOwnership`
+// over the constant), covers a kind only if a root of it is written: the
+// `refuses a %s insert` cases pair `writeRoots` with `OWNED_ROOT_KINDS` by
+// position. Pinned so `resource`, the ninth kind, cannot fall out of either.
+// Proof: with the resource insert dropped from `writeRoots`, this case failed
+// on the missing `resource`; watched 2026-10-20.
+it('writes one root of every owned kind, in the order OWNED_ROOT_KINDS lists them', () => {
+  const tables = writeRoots('9').map((insert) => /^INSERT INTO (\w+) /.exec(insert)?.[1]);
+  expect(tables).toHaveLength(OWNED_ROOT_KINDS.length);
+  expect(tables).toEqual([...OWNED_ROOT_KINDS]);
+  expect(OWNED_ROOT_KINDS).toContain('resource');
+});
+
 describe('the legacy bridge before activation', () => {
   it('maps nothing and refuses backfill while no legacy organization exists', async () => {
     run([

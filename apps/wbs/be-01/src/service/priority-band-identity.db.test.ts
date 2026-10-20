@@ -298,6 +298,7 @@ describe('a priority ladder moves no date', () => {
     const measures = inMemoryMeasures(workItems);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
+    const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
@@ -315,7 +316,7 @@ describe('a priority ladder moves no date', () => {
       typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity(),
-      ...testResourceStores(workItems),
+      ...resourceStores,
       priorityBands: inMemoryPriorityBands({ contended: bands }),
       subtrees: inMemorySubtrees({
         workItems,
@@ -325,6 +326,7 @@ describe('a priority ladder moves no date', () => {
         progress,
         dependencies,
         directory,
+        demands: resourceStores.demands,
       }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
@@ -777,6 +779,7 @@ describe('a priority ladder moves no date', () => {
     const measures = inMemoryMeasures(workItems);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
+    const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
@@ -796,7 +799,7 @@ describe('a priority ladder moves no date', () => {
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.
       capacity: inMemoryCapacity({ [plan.projectId]: CAPACITIES }),
-      ...testResourceStores(workItems),
+      ...resourceStores,
       priorityBands: inMemoryPriorityBands({ [plan.projectId]: bands }),
       subtrees: inMemorySubtrees({
         workItems,
@@ -806,6 +809,7 @@ describe('a priority ladder moves no date', () => {
         progress,
         dependencies,
         directory,
+        demands: resourceStores.demands,
       }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),

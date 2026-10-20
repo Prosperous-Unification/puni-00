@@ -654,6 +654,7 @@ describe('the team set beside the column', () => {
         actuals: [],
         progress: [],
         measures: [],
+        demands: [],
         assignments: [],
         dependencies: [],
         removedEstimates: [],
@@ -692,6 +693,7 @@ describe('the team set beside the column', () => {
         actuals: [],
         progress: [],
         measures: [],
+        demands: [],
         assignments: [],
         dependencies: [],
         removedEstimates: [],
@@ -794,6 +796,7 @@ describe('WorkItemRepository', () => {
         actuals: [],
         progress: [],
         measures: [],
+        demands: [],
         assignments: [],
         dependencies: [],
         removedEstimates: [],
@@ -831,6 +834,7 @@ describe('WorkItemRepository', () => {
         actuals: [],
         progress: [],
         measures: [],
+        demands: [],
         assignments: [{ workItemId: copiedSecond.id, stepId, personId }],
         dependencies: [
           {
@@ -921,6 +925,7 @@ describe('WorkItemRepository', () => {
         actuals: [],
         progress: [],
         measures: [],
+        demands: [],
         assignments: [],
         dependencies: [],
         removedEstimates: [],
@@ -966,6 +971,7 @@ describe('WorkItemRepository', () => {
       actuals: [],
       progress: [],
       measures: [],
+      demands: [],
       assignments: [{ workItemId: copiedChild.id, stepId, personId }],
       dependencies: [
         {

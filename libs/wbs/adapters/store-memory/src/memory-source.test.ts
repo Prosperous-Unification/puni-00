@@ -711,6 +711,7 @@ describe('the staged memory source', () => {
           actuals: [],
           progress: [],
           measures: [],
+          demands: [],
           assignments: [],
           dependencies: [
             { id: 'dep-1', projectId: 'p1', predecessorId: 'wi-1', successorId: 'wi-2' },

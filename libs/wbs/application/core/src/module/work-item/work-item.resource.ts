@@ -963,6 +963,34 @@ function withRemovedTyped(
 }
 
 /**
+ * The claims a delete took, as the step that puts them back after `restore`:
+ * an `add_claims` stating nothing (the restore puts the statements back with
+ * the rows) and carrying the occupancy, so the replay re-acquires the units as
+ * the undo of a release does. `restore` alone when the delete took none.
+ *
+ * Proof: answering `restore` alone, `undo of a delete puts the claims and their
+ * occupancy back`, `… resources_exhausted once another leaf took the units`
+ * and `undo of a promoting delete puts back the subtree claim …`
+ * (resource-occupancy.db.test.ts) failed on both stores; watched 2026-10-20.
+ */
+function withClaimsRestored(restore: CompensatingCommand, taken: ClaimsTaken): CompensatingCommand {
+  if (taken.claims.length === 0) return restore;
+  return {
+    do: 'batch',
+    steps: [
+      restore,
+      { do: 'add_claims', claims: taken.claims, stated: [], occupancy: taken.occupancy },
+    ],
+  };
+}
+
+/** The claims a delete takes, parents before the claims delegated under them, and their occupancy. */
+interface ClaimsTaken {
+  claims: Claim[];
+  occupancy: ClaimOccupancy[];
+}
+
+/**
  * Whether this release keeps figures in the unit a caller named.
  *
  * A function rather than an inline `includes`, because both write methods ask
@@ -3579,6 +3607,57 @@ export class WorkItemService {
     return null;
   }
 
+  /**
+   * The claims removing `removed` takes with it: every claim on one of those
+   * work items, and every claim delegated under one of those, transitively
+   * (the parent reference cascades). Ordered parents first, the order
+   * {@link ClaimStore.add} must write them in. A service built without a claim
+   * store holds no claims to take.
+   */
+  private async claimsGoingWith(
+    projectId: string,
+    removed: readonly string[],
+  ): Promise<ClaimsTaken> {
+    const { claims } = this.opts;
+    if (claims === undefined) return { claims: [], occupancy: [] };
+    const stored = await claims.listByProject(projectId);
+    const owners = new Set(removed);
+    const going = new Set(
+      stored.filter(({ workItemId }) => owners.has(workItemId)).map(({ id }) => id),
+    );
+    // Proof: with this closure skipped, `undo of a promoting delete puts back
+    // the subtree claim and the claims delegated under it`
+    // (resource-occupancy.db.test.ts) lost the delegated claim on both stores;
+    // watched 2026-10-20.
+    let grew = true;
+    while (grew) {
+      grew = false;
+      for (const each of stored) {
+        if (going.has(each.id) || each.parentClaimId === null || !going.has(each.parentClaimId))
+          continue;
+        going.add(each.id);
+        grew = true;
+      }
+    }
+    const ordered: Claim[] = [];
+    const placed = new Set<string>();
+    const pending = stored.filter(({ id }) => going.has(id));
+    while (pending.length > 0) {
+      const ready = pending.findIndex(
+        ({ parentClaimId }) =>
+          parentClaimId === null || !going.has(parentClaimId) || placed.has(parentClaimId),
+      );
+      if (ready === -1) throw new Error('the stored claims delegate in a cycle');
+      const [next] = pending.splice(ready, 1);
+      ordered.push(next);
+      placed.add(next.id);
+    }
+    const occupancy = (await claims.occupancyOf(projectId))
+      .filter(({ claimId }) => going.has(claimId))
+      .map(({ claimId, resourceId, units }) => ({ claimId, resourceId, units }));
+    return { claims: ordered, occupancy };
+  }
+
   private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
     const { claims } = this.opts;
     if (claims === undefined)
@@ -4125,6 +4204,15 @@ export class WorkItemService {
       ...each,
       workItemId: copyOf(each.workItemId),
     }));
+    // A demand describes the work, so it copies for the estimates' reason: same
+    // resources, same units. A claim and its occupancy do not: they are who is
+    // doing the original, and nobody is doing the copy yet.
+    // Proof: with the copy's list emptied, `duplicate copies the demands with
+    // the subtree` (resource-occupancy.db.test.ts) read no copied demand on
+    // both stores; watched 2026-10-20.
+    const copiedDemands = (await this.opts.demands.listByProject(workItem.projectId))
+      .filter((each) => inside.has(each.workItemId))
+      .map((each) => ({ ...each, workItemId: copyOf(each.workItemId) }));
     const copiedEdges = edges
       .filter((edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId))
       .map((edge) => ({
@@ -4180,6 +4268,7 @@ export class WorkItemService {
         // The token plan and neither record — see {@link copiedMeasures} above.
         measures: copiedMeasures,
         assignments: copiedAssignments,
+        demands: copiedDemands,
         dependencies: copiedEdges,
         removedEstimates: [],
         removedActuals: [],
@@ -4206,6 +4295,7 @@ export class WorkItemService {
       progress: [],
       measures: copiedMeasures,
       assignments: copiedAssignments,
+      demands: copiedDemands,
       internalDependencies: copiedEdges,
       externalDependencies: [],
       removedEstimates: [],
@@ -4330,6 +4420,15 @@ export class WorkItemService {
     // `step_node_attempt.work_item_id` cascades, and an undo must put the
     // branch back with the history of every attempt at it.
     const storedAttempts = await this.opts.attempts.listByProject(workItem.projectId);
+    // Read before anything is deleted, for the same cascade:
+    // `work_item_resource_demand.work_item_id` cascades, and an undo must put
+    // the branch back with the units it states it needs.
+    const storedDemands = await this.opts.demands.listByProject(workItem.projectId);
+    // And the claims the delete takes, with their occupancy: those on the
+    // removed rows and every claim delegated under one of them, which the
+    // parent reference cascades (a promotion's children keep their rows and
+    // lose theirs).
+    const removedClaims = await this.claimsGoingWith(workItem.projectId, doomed);
     const allEdges = await this.opts.dependencies.listByProject(workItem.projectId);
     const authored = await this.opts.typedDependencies.listByProject(workItem.projectId);
     const survivor = workItem.parentId;
@@ -4566,59 +4665,70 @@ export class WorkItemService {
         ),
         inverse: withPatchStep(
           withRemovedTyped(
-            {
-              do: 'restore_subtree',
-              deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
-              rows: doomed.map((each) => rowOf(rows, each)),
-              rootPosition: workItem.position,
-              reparented: [],
-              estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-              // Every day recorded anywhere in the branch, put back where it was
-              // recorded. Without this an undo of a delete answers `ok` and returns
-              // the branch with its estimates and none of its actuals — the plan
-              // looks whole and a week of somebody's record is gone.
-              actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-              // Every statement made anywhere in the branch, put back where it was
-              // made. Without this an undo of a delete answers `ok` and returns the
-              // branch reading as work nobody has started — the plan looks whole and
-              // a fortnight of finished work is unfinished again.
-              progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-              // Every token and hour recorded anywhere in the branch, put back where
-              // it was recorded. Without this an undo of a delete answers `ok` and
-              // returns the branch with its days and none of its tokens — the plan
-              // looks whole and the record of what the work cost to run is gone.
-              measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-              // Every attempt at the branch's nodes, verbatim with its number.
-              attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
-              // Proof: left out, `puts a deleted leaf back still skipping its removed
-              // highest number` in `step-node-attempt.controller.db.test.ts` numbered
-              // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
-              issuedAttemptNumbers: storedIssued,
-              assignments: doomedAssignments,
-              internalDependencies: cut.filter(
-                (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
-              ),
-              externalDependencies: cut.filter(
-                (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
-              ),
-              removedEstimates: handedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-              })),
-              removedActuals: recordedHandedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-              })),
-              removedProgress: statedHandedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-              })),
-              removedMeasures: measuredHandedUp.map((each) => ({
-                workItemId: each.workItemId,
-                stepId: each.stepId,
-                metric: each.metric,
-              })),
-            },
+            withClaimsRestored(
+              {
+                do: 'restore_subtree',
+                deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
+                rows: doomed.map((each) => rowOf(rows, each)),
+                rootPosition: workItem.position,
+                reparented: [],
+                estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+                // Every day recorded anywhere in the branch, put back where it was
+                // recorded. Without this an undo of a delete answers `ok` and returns
+                // the branch with its estimates and none of its actuals — the plan
+                // looks whole and a week of somebody's record is gone.
+                actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+                // Every statement made anywhere in the branch, put back where it was
+                // made. Without this an undo of a delete answers `ok` and returns the
+                // branch reading as work nobody has started — the plan looks whole and
+                // a fortnight of finished work is unfinished again.
+                progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+                // Every token and hour recorded anywhere in the branch, put back where
+                // it was recorded. Without this an undo of a delete answers `ok` and
+                // returns the branch with its days and none of its tokens — the plan
+                // looks whole and the record of what the work cost to run is gone.
+                measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+                // Every attempt at the branch's nodes, verbatim with its number.
+                attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
+                // Proof: left out, `puts a deleted leaf back still skipping its removed
+                // highest number` in `step-node-attempt.controller.db.test.ts` numbered
+                // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+                issuedAttemptNumbers: storedIssued,
+                assignments: doomedAssignments,
+                // Every demand stated anywhere in the branch, put back where it was
+                // stated. Without this an undo of a delete answers `ok` and returns
+                // the branch needing nothing, and the engines level it as free.
+                // Proof: with this list emptied, `undo of a delete puts the demands
+                // back exactly` and `undo of a cascading delete puts every row’s
+                // demands back` (resource-occupancy.db.test.ts) read [] on both
+                // stores; watched 2026-10-20.
+                demands: storedDemands.filter((each) => inside.has(each.workItemId)),
+                internalDependencies: cut.filter(
+                  (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+                ),
+                externalDependencies: cut.filter(
+                  (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+                ),
+                removedEstimates: handedUp.map((each) => ({
+                  workItemId: each.workItemId,
+                  stepId: each.stepId,
+                })),
+                removedActuals: recordedHandedUp.map((each) => ({
+                  workItemId: each.workItemId,
+                  stepId: each.stepId,
+                })),
+                removedProgress: statedHandedUp.map((each) => ({
+                  workItemId: each.workItemId,
+                  stepId: each.stepId,
+                })),
+                removedMeasures: measuredHandedUp.map((each) => ({
+                  workItemId: each.workItemId,
+                  stepId: each.stepId,
+                  metric: each.metric,
+                })),
+              },
+              removedClaims,
+            ),
             removedTyped,
             true,
           ),
@@ -4689,48 +4799,53 @@ export class WorkItemService {
         false,
       ),
       inverse: withRemovedTyped(
-        {
-          do: 'restore_subtree',
-          deletionState,
-          rows: [workItem],
-          rootPosition: workItem.position,
-          // Everyone the promotion rewrote, back where they were: the children
-          // under the row coming back, and the former siblings at the positions
-          // the promotion took from them. Restoring only the children would
-          // leave the group respaced around a gap that is no longer there.
-          reparented: promoted.map((each) => {
-            const was = rowOf(rows, each.id);
-            return { id: was.id, parentId: was.parentId, position: was.position };
-          }),
-          estimates: storedEstimates.filter((each) => each.workItemId === id),
-          // The promoted row's own recorded days — it had children, so it holds
-          // none, and this is the empty list every time until a promotion of a
-          // leaf becomes representable. Written from the same source as the
-          // estimates beside it rather than hard-coded, so it stays true if that
-          // ever changes.
-          actuals: storedActuals.filter((each) => each.workItemId === id),
-          // The promoted row's own statements — it had children, so it holds none,
-          // and this is the empty list every time until a promotion of a leaf
-          // becomes representable. Written from the same source as the two figures
-          // beside it rather than hard-coded, so it stays true if that ever changes.
-          progress: storedProgress.filter((each) => each.workItemId === id),
-          // The promoted row's own tokens and hours — it had children, so it holds
-          // none, and this is the empty list every time until a promotion of a
-          // leaf becomes representable. Written from the same source as the three
-          // beside it rather than hard-coded, so it stays true if that changes.
-          measures: storedMeasures.filter((each) => each.workItemId === id),
-          // The promoted row's own attempts: none on a row with children, read
-          // from the same source for the figures' reason.
-          attempts: storedAttempts.filter((each) => each.workItemId === id),
-          issuedAttemptNumbers: storedIssued.filter((each) => each.workItemId === id),
-          assignments: deletedAssignments,
-          internalDependencies: [],
-          externalDependencies: cut,
-          removedEstimates: [],
-          removedActuals: [],
-          removedProgress: [],
-          removedMeasures: [],
-        },
+        withClaimsRestored(
+          {
+            do: 'restore_subtree',
+            deletionState,
+            rows: [workItem],
+            rootPosition: workItem.position,
+            // Everyone the promotion rewrote, back where they were: the children
+            // under the row coming back, and the former siblings at the positions
+            // the promotion took from them. Restoring only the children would
+            // leave the group respaced around a gap that is no longer there.
+            reparented: promoted.map((each) => {
+              const was = rowOf(rows, each.id);
+              return { id: was.id, parentId: was.parentId, position: was.position };
+            }),
+            estimates: storedEstimates.filter((each) => each.workItemId === id),
+            // The promoted row's own recorded days — it had children, so it holds
+            // none, and this is the empty list every time until a promotion of a
+            // leaf becomes representable. Written from the same source as the
+            // estimates beside it rather than hard-coded, so it stays true if that
+            // ever changes.
+            actuals: storedActuals.filter((each) => each.workItemId === id),
+            // The promoted row's own statements — it had children, so it holds none,
+            // and this is the empty list every time until a promotion of a leaf
+            // becomes representable. Written from the same source as the two figures
+            // beside it rather than hard-coded, so it stays true if that ever changes.
+            progress: storedProgress.filter((each) => each.workItemId === id),
+            // The promoted row's own tokens and hours — it had children, so it holds
+            // none, and this is the empty list every time until a promotion of a
+            // leaf becomes representable. Written from the same source as the three
+            // beside it rather than hard-coded, so it stays true if that changes.
+            measures: storedMeasures.filter((each) => each.workItemId === id),
+            // The promoted row's own attempts: none on a row with children, read
+            // from the same source for the figures' reason.
+            attempts: storedAttempts.filter((each) => each.workItemId === id),
+            issuedAttemptNumbers: storedIssued.filter((each) => each.workItemId === id),
+            assignments: deletedAssignments,
+            // The promoted row's own demands, for the cascade's reason above.
+            demands: storedDemands.filter((each) => each.workItemId === id),
+            internalDependencies: [],
+            externalDependencies: cut,
+            removedEstimates: [],
+            removedActuals: [],
+            removedProgress: [],
+            removedMeasures: [],
+          },
+          removedClaims,
+        ),
         removedTyped,
         true,
       ),
@@ -6955,6 +7070,28 @@ export class WorkItemService {
       }
       case 'add_claims': {
         const { claims } = this.claiming();
+        // A delegated claim goes back only under a parent that is still held:
+        // the parent reference would otherwise name nothing.
+        // Proof: with this refusal removed, `refuses an undo of a delete once the
+        // claim it was delegated under was released` (resource-occupancy.db.test.ts)
+        // threw a foreign key failure on SQLite and answered ok on memory;
+        // watched 2026-10-20.
+        const replayed = new Set(command.claims.map(({ id }) => id));
+        const held = new Set((await claims.listByProject(projectId)).map(({ id }) => id));
+        if (
+          command.claims.some(
+            ({ parentClaimId }) =>
+              parentClaimId !== null && !replayed.has(parentClaimId) && !held.has(parentClaimId),
+          )
+        )
+          return { ok: false, detail: 'the claim it was delegated under has been released since.' };
+        // Proof: with this refusal removed, `refuses an undo of a delete once the
+        // claimant was removed from the directory` (resource-occupancy.db.test.ts)
+        // threw a foreign key failure on SQLite and answered ok on memory;
+        // watched 2026-10-20.
+        for (const personId of new Set(command.claims.map((each) => each.personId)))
+          if (!(await this.holdsPerson(personId)))
+            return { ok: false, detail: 'a person who held it is no longer in the directory.' };
         const exhausted = await this.refuseReacquiring(projectId, command);
         if (exhausted !== null) return { ok: false, detail: exhausted };
         const added = await claims.add(
@@ -7561,6 +7698,16 @@ export class WorkItemService {
     const placed = placeAfter(projected, wasAfter?.id ?? null);
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
+    const demands = command.demands ?? [];
+    if (demands.length > 0) {
+      const held = new Set((await this.opts.directory.listResources()).map(({ id }) => id));
+      // Proof: with this refusal removed, `refuses an undo of a delete whose
+      // demanded resource was deleted since` (resource-occupancy.db.test.ts)
+      // threw a foreign key failure on SQLite and `unknown_resource` from the
+      // memory subtree write; watched 2026-10-20.
+      if (demands.some(({ resourceId }) => !held.has(resourceId)))
+        return { ok: false, detail: 'a resource it demanded is no longer in the directory.' };
+    }
 
     if (command.deletionState !== undefined) {
       const refused = await this.deletionRefusal(projectId, command.deletionState);
@@ -7607,6 +7754,10 @@ export class WorkItemService {
         progress: command.progress,
         measures: command.measures,
         assignments: command.assignments,
+        // Proof: with `[]` here, `undo of a delete puts the demands back exactly`
+        // and the duplicate's redo (resource-occupancy.db.test.ts) read no
+        // demands on both stores; watched 2026-10-20.
+        demands,
         dependencies: command.internalDependencies,
         removedEstimates: command.removedEstimates,
         removedActuals: command.removedActuals,

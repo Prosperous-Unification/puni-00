@@ -830,6 +830,7 @@ export function importServiceSourceContract(
             actuals: [],
             progress: [],
             measures: [],
+            demands: [],
             assignments: [],
             dependencies: [],
             removedEstimates: [],

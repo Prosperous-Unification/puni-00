@@ -165,6 +165,11 @@ export function readCommand(value: unknown): CompensatingCommand {
     )
       throw new Error('a journal demand replay is malformed');
   }
+  if (named === 'restore_subtree' && 'demands' in value) {
+    // Proof: with this call removed, `refuses a malformed restored demand` in
+    // compensating.test.ts did not throw; watched 2026-10-20.
+    readRestoredDemands(value);
+  }
   if (named === 'add_claims' || named === 'remove_claims') {
     // Proof: with this call removed, `refuses a malformed claim replay` in
     // compensating.test.ts did not throw; watched 2026-10-19.
@@ -738,6 +743,12 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
         onStep(assignment);
         found.people.push(assignment.personId);
       }
+      // Proof: with this loop removed, `names the resources a restore's demands
+      // name` (compensating.test.ts) read no resource; watched 2026-10-20.
+      for (const demand of command.demands ?? []) {
+        rows(demand.workItemId);
+        found.resources.push(demand.resourceId);
+      }
       for (const edge of [...command.internalDependencies, ...command.externalDependencies]) {
         rows(edge.predecessorId, edge.successorId);
         found.projects.push(edge.projectId);
@@ -858,6 +869,41 @@ export function quoteName(name: string): string {
  *
  * @throws for any malformed claim or key.
  */
+/**
+ * A restore's `demands`: each a whole number of units from 1 on a resource, on
+ * one of the rows the restore writes. A demand on any other row would be
+ * written onto work the entry does not put back.
+ */
+function readRestoredDemands(value: object): void {
+  const demands: unknown = Reflect.get(value, 'demands');
+  const rows: unknown = Reflect.get(value, 'rows');
+  if (!Array.isArray(demands) || !Array.isArray(rows))
+    throw new Error('a journal restore holds demands that are not a list');
+  const listedRows: readonly unknown[] = rows;
+  const owners = new Set<unknown>();
+  for (const row of listedRows)
+    if (typeof row === 'object' && row !== null && 'id' in row) owners.add(row.id);
+  const listed: readonly unknown[] = demands;
+  for (const demand of listed) {
+    const units: unknown =
+      typeof demand === 'object' && demand !== null ? Reflect.get(demand, 'units') : undefined;
+    if (
+      typeof demand !== 'object' ||
+      demand === null ||
+      !('workItemId' in demand) ||
+      typeof demand.workItemId !== 'string' ||
+      !owners.has(demand.workItemId) ||
+      !('resourceId' in demand) ||
+      typeof demand.resourceId !== 'string' ||
+      demand.resourceId.length === 0 ||
+      typeof units !== 'number' ||
+      !Number.isSafeInteger(units) ||
+      units < 1
+    )
+      throw new Error('a journal restore holds a malformed demand');
+  }
+}
+
 function readClaimMove(value: object): void {
   const text = (field: unknown): field is string => typeof field === 'string' && field.length > 0;
   if (

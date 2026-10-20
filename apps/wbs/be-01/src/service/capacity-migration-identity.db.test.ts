@@ -636,6 +636,7 @@ describe('every plan schedules identically across the migration', () => {
     const measures = inMemoryMeasures(workItems);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
+    const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
@@ -655,7 +656,7 @@ describe('every plan schedules identically across the migration', () => {
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
       }),
-      ...testResourceStores(workItems),
+      ...resourceStores,
       priorityBands: inMemoryPriorityBands(),
       subtrees: inMemorySubtrees({
         workItems,
@@ -665,6 +666,7 @@ describe('every plan schedules identically across the migration', () => {
         progress,
         dependencies,
         directory,
+        demands: resourceStores.demands,
       }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),

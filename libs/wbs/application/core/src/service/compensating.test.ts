@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
+import { workItemRow } from '../testing/work-item-fixture';
 import {
   boundEstimateUnits,
   type CompensatingCommand,
@@ -448,5 +449,42 @@ describe('demand replay vocabulary', () => {
       { do: 'set_demand', resourceId: 'ram', units: 2 },
     ])
       expect(() => readCommand(malformed)).toThrow(/demand replay/);
+  });
+
+  const restore: CompensatingCommand = {
+    do: 'restore_subtree',
+    rows: [workItemRow({ id: 'w1', projectId: 'p', parentId: null, position: 1, name: 'Build' })],
+    rootPosition: 1,
+    reparented: [],
+    estimates: [],
+    actuals: [],
+    progress: [],
+    measures: [],
+    assignments: [],
+    demands: [{ workItemId: 'w1', resourceId: 'ram', units: 4 }],
+    internalDependencies: [],
+    externalDependencies: [],
+    removedEstimates: [],
+    removedActuals: [],
+    removedProgress: [],
+    removedMeasures: [],
+  };
+
+  it('names the resources a restore’s demands name', () => {
+    expect(readCommand(restore)).toEqual(restore);
+    expect(referencesOf(restore).resources).toEqual(['ram']);
+  });
+
+  it('refuses a malformed restored demand', () => {
+    const demand = { workItemId: 'w1', resourceId: 'ram', units: 4 };
+    for (const demands of [
+      null,
+      [{ ...demand, units: 0 }],
+      [{ ...demand, units: 1.5 }],
+      [{ ...demand, resourceId: '' }],
+      [{ ...demand, workItemId: 'not-restored' }],
+      [{ workItemId: 'w1', resourceId: 'ram' }],
+    ])
+      expect(() => readCommand({ ...restore, demands })).toThrow(/restore holds/);
   });
 });
