@@ -219,6 +219,14 @@ export const commandNormalizers = {
       personId: asIdOrNull(raw.personId, 'personId'),
       personRef: asOptionalId(raw.personRef, 'personRef'),
     }),
+  assignSubtree: (raw: CommandInput<'assignSubtree'>) =>
+    present({
+      kind: 'assignSubtree' as const,
+      ...target(raw),
+      stepId: asText(raw.stepId, 'stepId'),
+      personId: asIdOrNull(raw.personId, 'personId'),
+      personRef: asOptionalId(raw.personRef, 'personRef'),
+    }),
   claimWorkItem: (raw: CommandInput<'claimWorkItem'>) =>
     present({
       kind: 'claimWorkItem' as const,
@@ -228,6 +236,8 @@ export const commandNormalizers = {
       steps: asOptionalStepIds(raw.steps),
       runId: asOptionalRunId(raw.runId),
       parentClaim: asOptionalId(raw.parentClaim, 'parentClaim'),
+      // The schema admits only a boolean; absent stays absent and reads as false.
+      assign: raw.assign,
     }),
   releaseWorkItem: (raw: CommandInput<'releaseWorkItem'>) =>
     present({

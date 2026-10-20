@@ -128,7 +128,7 @@ function directoryReferencesOf(
   command: PlanCommand,
   context: CommandContext,
 ): [DirectoryCatalog, readonly string[], PlainReason][] {
-  if (command.kind === 'setAssignee') {
+  if (command.kind === 'setAssignee' || command.kind === 'assignSubtree') {
     const person = context.id(command.personId, command.personRef);
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }

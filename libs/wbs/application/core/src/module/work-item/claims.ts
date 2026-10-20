@@ -17,6 +17,8 @@ export interface ClaimInput {
   readonly stepIds: readonly string[] | null;
   readonly runId: string | null;
   readonly parentClaimId: string | null;
+  /** Also assign the claimant to every step the claim writes (`wbs-resources` R7). */
+  readonly assign: boolean;
 }
 
 /** What `releaseWorkItem` asks of one work item once its refs are resolved. */

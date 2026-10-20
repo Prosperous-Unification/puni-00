@@ -225,6 +225,18 @@ export const commandDefinitions = {
     description:
       'Name who does one step of a work item, or null to unassign. Accepts stepNodeId in place of the work-item and step pair.',
   }),
+  assignSubtree: defineCommand('assignSubtree', {
+    schema: type({
+      kind: "'assignSubtree'",
+      ...target,
+      stepId: 'string',
+      'personId?': 'string | null',
+      'personRef?': 'string',
+    }),
+    scope: 'project',
+    description:
+      'Name who does one step on every leaf under a work item (the item itself when it is a leaf), or null to unassign them all. One undo restores each leaf’s previous assignee. Team labels and claims are not read. Refused unknown_step and unknown_person as for setAssignee.',
+  }),
   claimWorkItem: defineCommand('claimWorkItem', {
     schema: type({
       kind: "'claimWorkItem'",
@@ -233,10 +245,11 @@ export const commandDefinitions = {
       'steps?': 'string[]',
       'runId?': 'string',
       'parentClaim?': 'string',
+      'assign?': 'boolean',
     }),
     scope: 'project',
     description:
-      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, item_done, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), inside_subtree_claim, overlaps_subtree_claim.',
+      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched unless assign is true, which also makes the person the assignee of every step this claim writes (a subtree claim writes no step), undone with the claim. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, item_done, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), inside_subtree_claim, overlaps_subtree_claim.',
   }),
   releaseWorkItem: defineCommand('releaseWorkItem', {
     schema: type({ kind: "'releaseWorkItem'", ...target, ...person, 'steps?': 'string[]' }),

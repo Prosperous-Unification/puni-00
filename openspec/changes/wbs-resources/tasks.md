@@ -46,11 +46,11 @@
 
 ## 4. Assignee management
 
-- [ ] 4.1 `assignSubtree` with undo — test: the five-leaf scenario; negative: drop the
+- [x] 4.1 `assignSubtree` with undo — test: the five-leaf scenario; negative: drop the
       previous-assignee capture and undo loses them.
-- [ ] 4.2 By-person read, descriptor, route, viewer policy, MCP by derivation — test: route
+- [x] 4.2 By-person read, descriptor, route, viewer policy, MCP by derivation — test: route
       tests; tool count moves by one.
-- [ ] 4.3 `claimWorkItem.assign` — test: claim-and-assign and its undo.
+- [x] 4.3 `claimWorkItem.assign` — test: claim-and-assign and its undo.
 
 ## 5. Startable fit
 

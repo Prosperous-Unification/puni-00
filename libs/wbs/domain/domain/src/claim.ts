@@ -57,6 +57,11 @@ export interface ClaimRequest {
   readonly stepIds: readonly string[] | null;
   readonly runId: string | null;
   readonly parentClaimId: string | null;
+  /**
+   * Also make the claimant the assignee of every step the claim writes
+   * (`wbs-resources` R7): "claim = assign" is this flag, never a rule.
+   */
+  readonly assign: boolean;
   /** The claim `parentClaimId` names, read by id; null when absent or released. */
   readonly parentClaim: Claim | null;
   /**
@@ -94,6 +99,12 @@ export type ClaimDecision =
       readonly drafts: readonly ClaimDraft[];
       /** Claimed steps whose progress is unstated, to be stated `in_progress`. */
       readonly stateInProgress: readonly string[];
+      /**
+       * The steps to assign the claimant to: with `assign`, exactly the steps
+       * the drafts write, else none. A subtree claim writes no step, so it
+       * assigns nothing.
+       */
+      readonly assignStepIds: readonly string[];
     }
   | { readonly kind: 'alreadyHeld' }
   | { readonly kind: 'refused'; readonly refusal: ClaimRefusal };
@@ -172,7 +183,8 @@ function refuseIdentity(
  * A leaf claims the named steps, or every step that is not done; a non-leaf
  * writes one subtree claim with no step and is refused on `done` alone (D3).
  * Steps the same person and run already hold are skipped, and a claim whose
- * every step is so held answers `alreadyHeld`. All or none otherwise: one step
+ * every step is so held answers `alreadyHeld` (and so assigns nothing, even
+ * with `assign`). All or none otherwise: one step
  * held by anybody else refuses the whole claim.
  *
  * `inside_subtree_claim` precedes `overlaps_subtree_claim`, so an ancestor's
@@ -283,6 +295,9 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
     stateInProgress: free.filter(
       (stepId): stepId is string => stepId !== null && progressOf.get(stepId) === 'unknown',
     ),
+    // Proof: with `free` replaced by `[]` here, `assigns exactly the steps it
+    // claims` and the claim-and-assign property in claim.test.ts failed; watched 2026-10-20.
+    assignStepIds: request.assign ? free.filter((stepId): stepId is string => stepId !== null) : [],
   };
 }
 

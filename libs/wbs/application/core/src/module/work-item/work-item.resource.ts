@@ -180,6 +180,7 @@ import {
   refusalOf,
   type ReleaseInput,
 } from './claims';
+import { findPersonWork, type PersonWork } from './person-work';
 import { findStartableWork, type StartableWork } from './startable';
 
 /**
@@ -510,6 +511,13 @@ function canonicalScheduleParts(
     assigneesOf,
     rule,
   };
+}
+
+/** One compensating command, or a `batch` of them when there are several. */
+function oneCommandOf(steps: readonly CompensatingCommand[]): CompensatingCommand {
+  const [only] = steps;
+  if (steps.length === 0) throw new Error('a journal entry needs at least one command');
+  return steps.length === 1 ? only : { do: 'batch', steps: [...steps] };
 }
 
 /**
@@ -1786,6 +1794,46 @@ export class WorkItemService {
     });
   }
 
+  /**
+   * One person's assignments and claims in one project
+   * (`wbs-resources` R7, {@link findPersonWork}), admitted as the tree read is:
+   * `null` for a project the caller may not read, `unknown_person` for a
+   * person the caller's organization does not hold.
+   *
+   * Bounded (spec `project-assignment-reads`): the project's own assignments
+   * and claims, and the one person's name — by primary key under legacy
+   * access, from the caller's organization under scoped access, as
+   * {@link startableWithin} reads its names.
+   */
+  async personWorkWithin(
+    projectId: string,
+    access: ResourceAccess,
+    personId: string,
+  ): Promise<PersonWork | { readonly kind: 'unknown_person' } | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    const { directory } = this.opts;
+    // Proof: with `namesOf` replaced by `listPeople()`, `materializes only the
+    // person read during a tiny by-person read` (person-work-scope.db.test.ts)
+    // failed on a `SCAN person`; watched 2026-10-20.
+    const named =
+      access.kind === 'scoped'
+        ? await directory.listInOrganization('people', access.scope.organizationId)
+        : await directory.namesOf('people', [personId]);
+    const found = named.find((each) => each.id === personId);
+    // Proof: with this refusal removed, `refuses a person the caller's
+    // organization does not hold` (person-work-organization.controller.db.test.ts)
+    // answered 500 instead of 404; watched 2026-10-20.
+    if (found === undefined) return { kind: 'unknown_person' };
+    const { assignments } = await directory.assignmentsInProject(projectId);
+    return findPersonWork({
+      person: { personId, name: found.name },
+      rows: await this.opts.workItems.listByProject(projectId),
+      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      assignments,
+      claims: await this.claiming().claims.listStampedByProject(projectId),
+    });
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(
     projectId: string,
@@ -2796,11 +2844,86 @@ export class WorkItemService {
   }
 
   /**
+   * {@link assign} for one step on every leaf under `id` — `id` itself when it
+   * is a leaf — journalled as one entry whose undo puts back exactly the
+   * assignee each leaf had, `null` where it had none (`wbs-resources` R7).
+   *
+   * Like {@link assign} it reads neither team labels nor claims: labelling is
+   * not assigning (Dany, 2026-08-06), and a claim is beside an assignment (D1).
+   * `unknown_step` answers before any write; `unknown_person` comes from the
+   * first write, inside its transaction, so nothing is written when it fires.
+   */
+  async assignSubtree(
+    id: string,
+    actorId: string,
+    stepId: string,
+    personId: string | null,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    if (!(await this.holdsStep(workItem.projectId, stepId)))
+      return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const below = new Set(lineage.descendantIds);
+    const leafIds = lineage.isLeaf
+      ? [id]
+      : rows
+          .filter((row) => below.has(row.id) && !rows.some((each) => each.parentId === row.id))
+          .map((row) => row.id);
+    const previous = new Map(
+      (await this.opts.directory.assignmentsOf(leafIds))
+        .filter((each) => each.stepId === stepId)
+        .map((each) => [each.workItemId, each.personId] as const),
+    );
+    const stamp = this.clock.stampFor(actorId);
+    for (const leafId of leafIds) {
+      const assigned = await this.opts.directory.assign(leafId, stepId, personId, stamp);
+      // Every leaf names the same person and step, so only the first write can
+      // refuse; the batch's unit of work rolls back anything before a refusal.
+      if (!assigned.ok) return { ok: false, reason: assigned.reason };
+    }
+    await this.announceTree(workItem.projectId);
+    const forward: CompensatingCommand[] = leafIds.map((leafId) => ({
+      do: 'assign',
+      workItemId: leafId,
+      stepId,
+      personId,
+    }));
+    const inverse: CompensatingCommand[] = leafIds.map((leafId) => ({
+      do: 'assign',
+      workItemId: leafId,
+      stepId,
+      // Proof: with `null` in place of the captured assignee, the three undo
+      // cases of assignee-commands.db.test.ts failed on both stores: undo
+      // cleared the leaves that had an assignee; watched 2026-10-20.
+      personId: previous.get(leafId) ?? null,
+    }));
+    await this.record(
+      workItem.projectId,
+      stamp,
+      personId === null ? 'unassign' : 'assign',
+      personId === null
+        ? `clear who does every leaf of ${quoteName(workItem.name)}`
+        : `assign every leaf of ${quoteName(workItem.name)}`,
+      {
+        forward: oneCommandOf(forward),
+        inverse: oneCommandOf(inverse),
+        touched: leafIds,
+        before: rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /**
    * Claims a leaf's steps, or a non-leaf's subtree, for one person under one
    * run: the pure decision is {@link decideClaim}; this reads its inputs, writes
    * the claims and the `in_progress` statements it asks for in one store call,
    * and journals one undoable entry whose undo removes exactly those. A claim
-   * neither reads nor writes assignments (D1).
+   * neither reads nor writes assignments (D1) unless `assign` asks it to
+   * (`wbs-resources` R7): then the claimant becomes the assignee of every step
+   * it writes, in the same entry, and undo puts the previous assignees back.
    *
    * `unknown_step` and `unknown_person` answer before the decision; everything
    * else is the decision's one refusal, holders named.
@@ -2857,6 +2980,7 @@ export class WorkItemService {
       stepIds: input.stepIds,
       runId: input.runId,
       parentClaimId: input.parentClaimId,
+      assign: input.assign,
       parentClaim:
         input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
       claims: near,
@@ -2880,10 +3004,43 @@ export class WorkItemService {
     // Read in this same unit of work a moment ago: a refusal here is the
     // write coordinator failing to serialize, not an outcome to model.
     if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
+    const previous = new Map(
+      decided.assignStepIds.length === 0
+        ? []
+        : (await this.opts.directory.assignmentsFor(id)).map(
+            (each) => [each.stepId, each.personId] as const,
+          ),
+    );
+    for (const stepId of decided.assignStepIds) {
+      const assigned = await this.opts.directory.assign(id, stepId, input.personId, stamp);
+      // The person and the steps were read in this unit of work above.
+      if (!assigned.ok)
+        throw new Error(`claim of ${id} could not assign ${stepId}: ${assigned.reason}`);
+    }
     await this.announceTree(projectId);
+    const assigning: CompensatingCommand[] = decided.assignStepIds.map((stepId) => ({
+      do: 'assign',
+      workItemId: id,
+      stepId,
+      personId: input.personId,
+    }));
+    const unassigning: CompensatingCommand[] = decided.assignStepIds.map((stepId) => ({
+      do: 'assign',
+      workItemId: id,
+      stepId,
+      personId: previous.get(stepId) ?? null,
+    }));
     await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
-      forward: { do: 'add_claims', claims: written, stated: statements },
-      inverse: { do: 'remove_claims', claims: written, cleared: statements },
+      forward: oneCommandOf([
+        { do: 'add_claims', claims: written, stated: statements },
+        ...assigning,
+      ]),
+      // Proof: with `unassigning` left out, `undo clears both the claim and the
+      // assignment` (claim-command.test.ts) kept the claimant assigned; watched 2026-10-20.
+      inverse: oneCommandOf([
+        ...unassigning,
+        { do: 'remove_claims', claims: written, cleared: statements },
+      ]),
       touched: [id],
       before: rows,
     });
