@@ -39,7 +39,7 @@ that work item, null removing it; `exclusive` resources SHALL refuse any units o
 with `exclusive_demand_is_one`. A demand SHALL move the work item's revision, be undoable
 through the journal with preconditions, be carried by the plan export and the plan document
 as an additive field, and be removed when the work item is deleted. Demands SHALL NOT be
-inherited down the tree. When a leaf gains its first child by `createWorkItem`, its demand moves to that child; when a delete promotes the parent back to a leaf, the child's demand moves back up (from a deleted branch, per resource the largest units any of its former leaves demanded, replacing what the parent stated while it was one); when `moveWorkItem` turns an unclaimed demanded leaf into a parent, the parent's demand is cleared with its other statements and the moved child keeps only its own; each of these is journalled and undone exactly.
+inherited down the tree. When a leaf gains its first child by `createWorkItem`, its demand moves to that child; when a delete promotes the parent back to a leaf, the child's demand moves back up (from a deleted branch, per resource the largest units any of its former leaves demanded, replacing what the parent stated while it was one); the child's step claims move back up with their occupancy in the same journal entry, and a promoting delete of a branch in which more than one former leaf holds claims is refused `children_claimed` naming the holders, since two leaves' claims cannot merge into one; when `moveWorkItem` turns an unclaimed demanded leaf into a parent, the parent's demand is cleared with its other statements and the moved child keeps only its own; each of these is journalled and undone exactly.
 
 #### Scenario: A demand on a parent does not reach its leaves
 
@@ -52,6 +52,13 @@ inherited down the tree. When a leaf gains its first child by `createWorkItem`, 
 - **WHEN** leaf `L` demands 4 GB, a first child `C` is created under it, and later `C` is deleted
 - **THEN** after the create `C` demands 4 GB and `L` none; after the delete `L` demands 4 GB again
   and a claim on `L` acquires 4 GB; undo and redo of each step restore the previous state
+
+#### Scenario: A claimed child is promoted back
+
+- **WHEN** `claire` holds `Impl` of `C`, the only child of `L`, with 4 GB occupied, and `C` is
+  deleted
+- **THEN** `L` holds `claire`'s claim on `Impl` and the 4 GB, `releaseWorkItem` on `L` frees
+  them, and undo of the delete moves the claim back to `C`
 
 #### Scenario: A move under a demanded leaf clears its demand
 
