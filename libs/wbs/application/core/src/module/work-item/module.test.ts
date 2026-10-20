@@ -36,6 +36,10 @@ async function seeded() {
       progress: stores.progress,
       attempts: stores.attempts,
       blockages: stores.blockages,
+      // Every plan read levels demands now (`wbs-resources` R5), so a write that
+      // announces and re-reads the plan needs both.
+      demands: stores.demands,
+      resourceCapacity: stores.resourceCapacity,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,
@@ -73,6 +77,10 @@ const hostRequirements = () => {
       factoryReturnKind: 'sync-value',
     }),
     claimStore: DiBag.createProvider(() => stores.claims, { factoryReturnKind: 'sync-value' }),
+    demandStore: DiBag.createProvider(() => stores.demands, { factoryReturnKind: 'sync-value' }),
+    resourceCapacityStore: DiBag.createProvider(() => stores.resourceCapacity, {
+      factoryReturnKind: 'sync-value',
+    }),
     directoryStore: DiBag.createProvider(() => stores.directory, {
       factoryReturnKind: 'sync-value',
     }),

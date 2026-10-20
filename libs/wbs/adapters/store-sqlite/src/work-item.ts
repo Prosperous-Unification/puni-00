@@ -33,6 +33,7 @@ import {
   tag,
   workItem,
   workItemExternalRef,
+  workItemResourceDemand,
   workItemService,
   workItemTag,
   workItemTeam,
@@ -1152,6 +1153,18 @@ export class SubtreeRepository implements SubtreeStore {
         if (copy.assignments.length > 0)
           tx.insert(assignment)
             .values(copy.assignments.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
+            .run();
+        // The rows' demands, beside the assignments and for the same reason: a
+        // copied branch needs what the original needs, and a restored one comes
+        // back needing what it needed — the delete's cascade took the rows. See
+        // {@link SubtreeCopy.demands}.
+        //
+        // Proof: with this write skipped, `undo of a delete puts the demands back
+        // exactly` and `duplicate copies the demands with the subtree`
+        // (resource-occupancy.db.test.ts) failed on SQLite only; watched 2026-10-20.
+        if (copy.demands.length > 0)
+          tx.insert(workItemResourceDemand)
+            .values(copy.demands.map((each) => ({ ...each, ...auditOnCreate(stamp) })))
             .run();
         // Plain inserts, never `onConflictDoNothing`: every id here was generated
         // for this copy, so a conflict is an id collision and swallowing it would

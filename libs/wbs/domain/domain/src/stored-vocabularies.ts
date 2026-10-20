@@ -61,6 +61,15 @@ export const PERSON_KINDS = ['person', 'agent'] as const;
 export type PersonKind = (typeof PERSON_KINDS)[number];
 
 /**
+ * The closed set of scheduling problems a resource row can be (`wbs-resources` R1):
+ * `exclusive` units are identical and demanded one at a time, `divisible` units are
+ * demanded k at a time. `renewable` is deliberately absent; neither engine can level it.
+ */
+export const RESOURCE_KINDS = ['exclusive', 'divisible'] as const;
+
+export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+/**
  * `#/$defs/request.properties.objective` — the two independently solved runs,
  * and a key column of three of the four tables below.
  */

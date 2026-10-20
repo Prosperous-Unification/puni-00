@@ -11,6 +11,7 @@ import { EstimateRepository } from './estimate';
 import { OPEN } from './gate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
 import { StepParallelRepository } from './step-parallel';
@@ -191,6 +192,12 @@ export async function readPlanInputIn(
   const { assignments } = await directory.assignmentsInProject(projectId);
   const steps = await projects.stepsOf(projectId);
   const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);
+  // Plan data both engines level, read on this snapshot (`wbs-resources` R5).
+  // Proof: the demand read replaced with `[]` made `levels a demanded resource
+  // (shared)` (resource-schedule.controller.db.test.ts) schedule overlapping
+  // blocks while its isolated twin passed; watched 2026-10-20.
+  const demands = await new DemandRepository(db, OPEN).listByProject(projectId);
+  const resourceCapacities = await new ResourceCapacityRepository(db, OPEN).listFor(projectId);
   const priorityBands = await new PriorityBandRepository(db, OPEN).listFor(projectId);
   // Capture the directory whole for independent saved-plan history;
   // the live tree's assigned-name projection cannot replace these reads.
@@ -219,6 +226,11 @@ export async function readPlanInputIn(
     access?.kind === 'scoped'
       ? await directory.listInOrganization('externalSystems', access.scope.organizationId)
       : await directory.listExternalSystems();
+  // Under the organization's own names, for the label of a bar a resource held.
+  const resourceCatalog =
+    access?.kind === 'scoped'
+      ? await directory.listInOrganization('resources', access.scope.organizationId)
+      : await directory.listResources();
   return {
     project: { ...project, timezone },
     steps,
@@ -234,6 +246,9 @@ export async function readPlanInputIn(
     typedDependencies,
     assignments,
     capacity,
+    demands,
+    resourceCapacities,
+    resources: resourceCatalog,
     priorityBands,
     people,
     teams,

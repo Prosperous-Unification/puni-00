@@ -48,6 +48,7 @@ export * from './priority-band';
 export * from './project';
 export * from './project-rank';
 export * from './provisioning-token';
+export * from './resource';
 export * from './revision';
 export * from './saved-plan';
 export * from './saved-plan-capture';

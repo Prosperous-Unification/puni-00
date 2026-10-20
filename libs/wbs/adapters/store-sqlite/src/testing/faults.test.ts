@@ -59,6 +59,7 @@ const subtree = (id: string): SubtreeCopy => ({
   actuals: [],
   progress: [],
   measures: [],
+  demands: [],
   assignments: [],
   dependencies: [],
   removedEstimates: [],

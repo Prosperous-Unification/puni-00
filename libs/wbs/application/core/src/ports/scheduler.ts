@@ -101,7 +101,8 @@ export type ScheduleRead =
 /**
  * Synchronous Fast scheduling over the canonical input's fields: the eight it
  * always carried, then the bookings elsewhere (empty for every plan nothing
- * outranks). `schedule()` itself takes pinned starts between the two, which a
+ * outranks), then the stated resource capacities (empty for every plan that
+ * states none). `schedule()` itself takes pinned starts between the two, which a
  * Fast read never supplies, so this is the adapted shape rather than
  * `schedule` verbatim — `optimizer-wiring.ts` adapts it.
  */
@@ -115,6 +116,7 @@ export type FastScheduler = (
   deadlines: ReadonlyMap<string, number>,
   typed: readonly TypedDependency[],
   elsewhere: Elsewhere,
+  resourceCapacities: PoolSizes,
 ) => Schedule;
 
 /** Installed scheduling capabilities and their non-waiting read. */

@@ -765,3 +765,98 @@ test('refuses direct blockage on a parent', () => {
     detail: null,
   });
 });
+
+/** The fixture with two resources, a capacity of each and a demand on the one row. */
+function withResources(): PlanFixture {
+  const body = planDocumentFixture();
+  body.directory.resources = [
+    { id: 'res-ram', name: ' h2puni ram ', kind: 'divisible', unitLabel: 'GB' },
+    { id: 'res-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+  ];
+  body.resourceCapacities = [
+    { resourceId: 'res-ram', units: 32 },
+    { resourceId: 'res-stage', units: 0 },
+  ];
+  body.demands = [
+    { workItemId: 'row-1', resourceId: 'res-ram', units: 4 },
+    { workItemId: 'row-1', resourceId: 'res-stage', units: 1 },
+  ];
+  return body;
+}
+
+test('prepares resources by file id, their capacities and demands (wbs-resources)', () => {
+  const prepared = prepareImport(withResources(), supportsAll);
+  if (!prepared.ok) throw new Error(`refused at ${prepared.path}`);
+  expect([...prepared.value.resourceByFileId.values()]).toEqual([
+    { fileId: 'res-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+    { fileId: 'res-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+  ]);
+  expect(prepared.value.resourceCapacities).toEqual([
+    { resourceFileId: 'res-ram', units: 32 },
+    { resourceFileId: 'res-stage', units: 0 },
+  ]);
+  expect(prepared.value.demands).toEqual([
+    { workItemFileId: 'row-1', resourceFileId: 'res-ram', units: 4 },
+    { workItemFileId: 'row-1', resourceFileId: 'res-stage', units: 1 },
+  ]);
+});
+
+for (const [name, fault, expected] of [
+  [
+    'a capacity naming no resource of the file',
+    (body: PlanFixture) => {
+      at(body.resourceCapacities).resourceId = 'res-missing';
+    },
+    { code: 'unknown_ref', path: 'resourceCapacities[0].resourceId', detail: 'res-missing' },
+  ],
+  [
+    'a resource stated twice',
+    (body: PlanFixture) => {
+      at(body.resourceCapacities, 1).resourceId = 'res-ram';
+    },
+    { code: 'invalid_body', path: 'resourceCapacities[1].resourceId', detail: 'res-ram' },
+  ],
+  [
+    'a demand naming no resource of the file',
+    (body: PlanFixture) => {
+      at(body.demands).resourceId = 'res-missing';
+    },
+    { code: 'unknown_ref', path: 'demands[0].resourceId', detail: 'res-missing' },
+  ],
+  [
+    'a demand naming no row of the file',
+    (body: PlanFixture) => {
+      at(body.demands).workItemId = 'row-missing';
+    },
+    { code: 'unknown_ref', path: 'demands[0].workItemId', detail: 'row-missing' },
+  ],
+  [
+    'one pair demanded twice',
+    (body: PlanFixture) => {
+      at(body.demands, 1).resourceId = 'res-ram';
+    },
+    { code: 'invalid_body', path: 'demands[1]', detail: null },
+  ],
+  [
+    'two units of an exclusive resource',
+    (body: PlanFixture) => {
+      at(body.demands, 1).units = 2;
+    },
+    { code: 'invalid_body', path: 'demands[1].units', detail: 'exclusive_demand_is_one' },
+  ],
+  [
+    'two resources of one name',
+    (body: PlanFixture) => {
+      at(body.directory.resources, 1).name = 'h2puni ram';
+    },
+    { code: 'invalid_body', path: 'directory.resources[1].name', detail: 'h2puni ram' },
+  ],
+] as const satisfies readonly (readonly [string, Fault, object])[]) {
+  // Proof: with each refusal in `prepareResources` bypassed alone, its case here
+  // answered ok; watched 2026-10-20.
+  test(`refuses a version-10 file whose resources do not resolve: ${name}`, () => {
+    const body = withResources();
+    fault(body);
+    expect(prepareImport(body, supportsAll)).toEqual({ ok: false, ...expected });
+  });
+}

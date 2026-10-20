@@ -8,6 +8,7 @@ import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
 import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
+import { testResourceStores } from '@wbs/store-memory/testing/service-fixtures';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -297,6 +298,7 @@ describe('a priority ladder moves no date', () => {
     const measures = inMemoryMeasures(workItems);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
+    const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
@@ -314,6 +316,7 @@ describe('a priority ladder moves no date', () => {
       typedDependencies: inMemoryTypedDependencies(),
       directory,
       capacity: inMemoryCapacity(),
+      ...resourceStores,
       priorityBands: inMemoryPriorityBands({ contended: bands }),
       subtrees: inMemorySubtrees({
         workItems,
@@ -323,6 +326,7 @@ describe('a priority ladder moves no date', () => {
         progress,
         dependencies,
         directory,
+        demands: resourceStores.demands,
       }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),
@@ -775,6 +779,7 @@ describe('a priority ladder moves no date', () => {
     const measures = inMemoryMeasures(workItems);
     const progress = inMemoryProgress(workItems);
     const dependencies = inMemoryDependencies();
+    const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
@@ -794,6 +799,7 @@ describe('a priority ladder moves no date', () => {
       // The pools the capture was taken under — see {@link CAPACITIES}. Identical
       // across both replays, so the ladder is the only thing that differs.
       capacity: inMemoryCapacity({ [plan.projectId]: CAPACITIES }),
+      ...resourceStores,
       priorityBands: inMemoryPriorityBands({ [plan.projectId]: bands }),
       subtrees: inMemorySubtrees({
         workItems,
@@ -803,6 +809,7 @@ describe('a priority ladder moves no date', () => {
         progress,
         dependencies,
         directory,
+        demands: resourceStores.demands,
       }),
       journal: inMemoryCommandJournal(),
       broadcast: recordingBroadcaster(),

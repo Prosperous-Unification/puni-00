@@ -23,6 +23,9 @@ export function installCapacity(requirements: CapacityRequirements): CapacityExp
       capacityStore: DiBag.createProvider(() => requirements.capacity, {
         factoryReturnKind: 'sync-value',
       }),
+      resourceCapacityStore: DiBag.createProvider(() => requirements.resourceCapacity, {
+        factoryReturnKind: 'sync-value',
+      }),
       broadcast: DiBag.createProvider(() => requirements.broadcast, {
         factoryReturnKind: 'sync-value',
       }),

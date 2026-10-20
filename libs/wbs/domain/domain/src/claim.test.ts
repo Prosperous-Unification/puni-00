@@ -47,6 +47,10 @@ function leafRequest(over: Partial<ClaimRequest> = {}): ClaimRequest {
     parentClaimId: null,
     assign: false,
     claims: [],
+    demand: [],
+    resources: null,
+    capacities: [],
+    occupancy: [],
     ...over,
   };
 }
@@ -91,6 +95,8 @@ describe('decideClaim on a leaf', () => {
       ],
       stateInProgress: ['plan'],
       assignStepIds: [],
+      occupancy: [],
+      acquired: [],
     });
   });
 
@@ -441,6 +447,8 @@ describe('decideClaim on a non-leaf', () => {
       ],
       stateInProgress: [],
       assignStepIds: [],
+      occupancy: [],
+      acquired: [],
     });
   });
 

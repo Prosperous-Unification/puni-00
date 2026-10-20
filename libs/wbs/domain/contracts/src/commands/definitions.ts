@@ -54,6 +54,7 @@ const person = { 'personId?': 'string', 'personRef?': 'string' } as const;
 const tag = { 'tagId?': 'string', 'tagRef?': 'string' } as const;
 const service = { 'serviceId?': 'string', 'serviceRef?': 'string' } as const;
 const workItemType = { 'typeId?': 'string', 'typeRef?': 'string' } as const;
+const resource = { 'resourceId?': 'string', 'resourceRef?': 'string' } as const;
 // Proof: admitting frozenNumber failed nested structural validation and made its type fixture report TS2578.
 const workItemPatch = type({
   'name?': 'string',
@@ -247,10 +248,11 @@ export const commandDefinitions = {
       'runId?': 'string',
       'parentClaim?': 'string',
       'assign?': 'boolean',
+      'resources?': type({ resourceId: 'string', units: 'number' }).array(),
     }),
     scope: 'project',
     description:
-      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched unless assign is true, which also makes the person the assignee of every step this claim writes (a subtree claim writes no step), undone with the claim; the result lists them as assignedStepIds. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, item_done, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), inside_subtree_claim, overlaps_subtree_claim.',
+      'Claim steps of a leaf, or a whole subtree of a non-leaf, for a person so nobody else picks them up. steps are step ids; absent claims every step not done. runId is the agent run (at most 256 characters); parentClaim names the subtree claim this is delegated under. All or none; a claimed step with no progress becomes in_progress; assignments are untouched unless assign is true, which also makes the person the assignee of every step this claim writes (a subtree claim writes no step), undone with the claim; the result lists them as assignedStepIds. The first claim on a leaf holds the leaf’s declared resource demand, or resources [{ resourceId, units }] when given (each at least the declared units; may add a resource), against the project’s stated capacity minus what other leaves’ claims hold; an unstated capacity never refuses; a later claim on a held leaf holds the same units, or raises them to its resources (never below what the leaf holds), acquiring only the difference against the same free units; the last release frees them, and the result lists what was acquired. Repeating a held claim answers alreadyHeld. Refused, first match: person_not_bound, credential_not_for_person, parent_claim_unknown, parent_claim_foreign, parent_claim_not_ancestor, steps_on_subtree, resources_on_subtree, item_done, no_steps, not_startable (blocked, on_hold, blocked_by_proxy), step_done, already_claimed (names holders), below_declared_demand, below_held_occupancy, resources_exhausted (names the resource, asked, free and holders), inside_subtree_claim, overlaps_subtree_claim.',
   }),
   releaseWorkItem: defineCommand('releaseWorkItem', {
     schema: type({ kind: "'releaseWorkItem'", ...target, ...person, 'steps?': 'string[]' }),
@@ -324,6 +326,18 @@ export const commandDefinitions = {
     schema: type({ kind: "'setCapacity'", ...team, size: 'number | null' }),
     scope: 'project',
     description: 'How many of a team may be at work at once on this project; null means unstated.',
+  }),
+  setResourceCapacity: defineCommand('setResourceCapacity', {
+    schema: type({ kind: "'setResourceCapacity'", ...resource, units: 'number | null' }),
+    scope: 'project',
+    description:
+      'How many units of a resource this project’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity.',
+  }),
+  setDemand: defineCommand('setDemand', {
+    schema: type({ kind: "'setDemand'", ...target, ...resource, units: 'number | null' }),
+    scope: 'project',
+    description:
+      'State the units of a resource one work item needs while any of its steps runs: a whole number from 1, exactly 1 on an exclusive resource (else exclusive_demand_is_one); null removes the demand. Not inherited down the tree. One undo.',
   }),
   setStepAllowance: defineCommand('setStepAllowance', {
     schema: type({ kind: "'setStepAllowance'", stepId: 'string', allowancePercent: 'number' }),
@@ -433,6 +447,33 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteWorkItemType'", ...workItemType, 'cascade?': 'boolean' }),
     scope: 'directory',
     description: 'Remove a work item type from the directory.',
+  }),
+  createResource: defineCommand('createResource', {
+    schema: type({
+      kind: "'createResource'",
+      ...named,
+      resourceKind: "'exclusive' | 'divisible'",
+      unitLabel: 'string',
+    }),
+    scope: 'directory',
+    description:
+      'Add a resource to the directory: a host’s RAM, a staging environment, agent slots. resourceKind is exclusive (identical units, demanded one at a time) or divisible (demanded k at a time) and never changes; unitLabel is shown beside every number of it. A name the directory already holds is refused taken.',
+  }),
+  patchResource: defineCommand('patchResource', {
+    schema: type({
+      kind: "'patchResource'",
+      ...resource,
+      patch: { 'name?': 'string', 'unitLabel?': 'string', 'resourceKind?': 'unknown' },
+    }),
+    scope: 'directory',
+    description:
+      'Rename a resource or change its unit label. Its kind is immutable: a patch naming resourceKind is refused kind_is_immutable.',
+  }),
+  deleteResource: defineCommand('deleteResource', {
+    schema: type({ kind: "'deleteResource'", ...resource, 'cascade?': 'boolean' }),
+    scope: 'directory',
+    description:
+      'Remove a resource from the directory. Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
   }),
 } as const;
 

@@ -155,6 +155,7 @@ const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   personNames: new Map([['kat', 'Kat']]),
   elsewhereHolders: new Map(),
   teamNames: new Map([['team-platform', 'Platform']]),
+  resourceLabels: new Map(),
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise. The `anchor-slice`
   // fixtures below name it, so a test written for one rule cannot be read under
@@ -907,6 +908,48 @@ describe('a bar held by a team’s capacity', () => {
 
     expect(() => layOutGantt(noPool)).toThrow(GanttDataError);
     expect(() => layOutGantt(noPool)).toThrow('names no team');
+  });
+
+  /**
+   * `wbs-resources` R5: a bar a resource's pool held back arrives with
+   * `capacityTeamId: null` and `capacityResource` naming the resource, and the
+   * read labels it in `resourceLabels`. The shape below is be-01's own, the
+   * extra key included, so a payload the engine sends is a chart drawn.
+   */
+  const resourceHeld = (labels: GanttPlan['resourceLabels']): GanttPlan =>
+    pooled({
+      rows: [rowAt('strip', 0, 3), rowAt('sand', 3, 5)],
+      resourceLabels: labels,
+      slices: [
+        sliceAt('strip-dev', 'strip', 0, 3),
+        sliceAt('sand-dev', 'sand', 3, 5, {
+          boundBy: 'capacity',
+          capacityTeamId: null,
+          capacityResource: { resourceId: 'res-staging', units: 1 },
+          resourcePredecessorId: 'strip-dev',
+          capacityPredecessorIds: ['strip-dev'],
+          width: 1,
+        }),
+      ],
+    });
+
+  it('draws a bar a resource held back and names the resource', () => {
+    const plan = resourceHeld(new Map([['res-staging', { name: 'staging', unitLabel: 'env' }]]));
+    expect(wordsFor(layOutGantt(plan), 'sand-dev')).toBe(
+      'Waits for staging to free 1 env — after strip (Dev)',
+    );
+    // The table's hover reads the same sentence off the same payload.
+    expect(startFloorByRow(plan, null).get('sand')).toBe(
+      'Waits for staging to free 1 env — after strip (Dev)',
+    );
+  });
+
+  it('throws when a resource-held bar names a resource the read does not label', () => {
+    const unlabelled = resourceHeld(new Map());
+    expect(() => layOutGantt(unlabelled)).toThrow(GanttDataError);
+    expect(() => layOutGantt(unlabelled)).toThrow('which this read does not label');
+    // The table keeps its forty columns and leaves only this row's reason blank.
+    expect(startFloorByRow(unlabelled, null).has('sand')).toBe(false);
   });
 
   /**

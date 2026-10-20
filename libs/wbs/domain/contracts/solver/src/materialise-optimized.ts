@@ -100,6 +100,11 @@ export function materialiseOptimized(
   typed: readonly TypedDependency[],
   offsets: SolverOffsetMap,
   elsewhere: Elsewhere = new Map(),
+  /**
+   * The project's stated resource capacities (`wbs-resources` R5): the replay
+   * reserves every slice's demand beside its team slots, as Fast does.
+   */
+  resourceCapacities: PoolSizes = new Map(),
 ): Schedule {
   const pinnedStarts = new Map<string, number>();
   for (const [key, offset] of Object.entries(offsets)) {
@@ -133,6 +138,7 @@ export function materialiseOptimized(
     // Proof: dropping original bookings lost the holder in the production
     // publication case (0 pass / 1 fail in solver-exit-outcome.test.ts).
     elsewhere,
+    resourceCapacities,
   );
 
   for (const key of pinnedStarts.keys()) {

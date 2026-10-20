@@ -524,6 +524,11 @@ export interface GanttSlice {
   /** The team pool that set a capacity floor, or null for every other floor. */
   capacityTeamId: string | null;
   /**
+   * The resource whose pool set a capacity floor and the units held of it,
+   * in place of a team (`wbs-resources` R5); absent on every other slice.
+   */
+  capacityResource?: { resourceId: string; units: number };
+  /**
    * How many of the team's slots this slice holds while it runs — 1 unless the
    * plan says otherwise.
    *
@@ -606,6 +611,12 @@ export interface ElsewhereHolderLabel {
  * steps in. `personNames` is a lookup because nothing about the drawing
  * depends on the order people are in.
  */
+/** A resource as a bar's wait names it: its name and the unit its numbers are in. */
+export interface ResourceLabel {
+  readonly name: string;
+  readonly unitLabel: string;
+}
+
 export interface GanttPlan {
   /** Calendar inputs from the same read; legacy absence disables only the overlay. */
   startDate?: string | null;
@@ -673,6 +684,12 @@ export interface GanttPlan {
   elsewhereHolders: ReadonlyMap<string, ElsewhereHolderLabel>;
   /** Team names by id, used to name the pool that actually bound a slice. */
   teamNames: ReadonlyMap<string, string>;
+  /**
+   * Every resource a slice's {@link GanttSlice.capacityResource} can name, by
+   * id, off the same read as the slices (`resourceLabels`); empty for a plan
+   * whose bars no resource held.
+   */
+  resourceLabels: ReadonlyMap<string, ResourceLabel>;
   /**
    * What this plan calls its priority numbers — five rungs, most important first.
    *
@@ -2118,6 +2135,33 @@ function capacityFloorWords(
   stepsById: ReadonlyMap<string, GanttStepPlace>,
 ): string {
   const people = width === 1 ? 'a person' : `${String(width)} people`;
+  return `Waits for ${team} to free ${people} — ${afterWords(referent, otherBlockers, rowNames, stepsById)}`;
+}
+
+/**
+ * The sentence a bar a **resource** held back shows (`wbs-resources` R5): which
+ * resource ran out, how many of its units this slice holds, and the slice whose
+ * finish let it in — {@link capacityFloorWords}' sentence with the resource in
+ * the team's place, so the two waits read alike.
+ */
+function resourceFloorWords(
+  resource: ResourceLabel,
+  units: number,
+  referent: GanttSlice,
+  otherBlockers: number,
+  rowNames: ReadonlyMap<string, string>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
+): string {
+  return `Waits for ${resource.name} to free ${String(units)} ${resource.unitLabel} — ${afterWords(referent, otherBlockers, rowNames, stepsById)}`;
+}
+
+/** `after strip (Dev) and 2 others`: the display referent named, the rest of the blocking set counted. */
+function afterWords(
+  referent: GanttSlice,
+  otherBlockers: number,
+  rowNames: ReadonlyMap<string, string>,
+  stepsById: ReadonlyMap<string, GanttStepPlace>,
+): string {
   const workItemName = rowNames.get(referent.workItemId);
   const stepName = referent.stepId === null ? undefined : stepsById.get(referent.stepId)?.name;
   const after =
@@ -2138,7 +2182,7 @@ function capacityFloorWords(
     otherBlockers === 0
       ? ''
       : ` and ${String(otherBlockers)} other${otherBlockers === 1 ? '' : 's'}`;
-  return `Waits for ${team} to free ${people} — after ${after}${others}`;
+  return `after ${after}${others}`;
 }
 
 /**
@@ -2376,6 +2420,7 @@ export function layOutGantt(plan: GanttPlan, rung: AxisRung = AXIS_RUNGS[0]): Ga
           null,
           null,
           plan.elsewhereHolders,
+          plan.resourceLabels,
         ),
         team: row.team,
         // Straight off the row and into words. Deliberately **not** passed to
@@ -2722,6 +2767,7 @@ function floorWordsOf(
   clearsOn: string | null,
   startsOn: string | null,
   elsewhereHolders: ReadonlyMap<string, ElsewhereHolderLabel>,
+  resourceLabels: ReadonlyMap<string, ResourceLabel>,
 ): string {
   switch (slice.boundBy) {
     // `optimizer` sits beside the two that need nothing from the caller, and
@@ -2772,6 +2818,33 @@ function floorWordsOf(
       if (slice.capacityPredecessorIds.length === 0) {
         throw new GanttDataError(
           `slice ${slice.id} is floored by a team's capacity but nothing was holding the pool`,
+        );
+      }
+      // A resource's pool, not a team's (`wbs-resources` R5): be-01 names it in
+      // `capacityResource` with `capacityTeamId` null, and labels it in the
+      // same read. A resource the read does not label is the wire having lost
+      // half of what it sent, as an unlabelled holder elsewhere is.
+      //
+      // Proof: the throw below replaced by `return 'Waits for a resource'`
+      // made `throws when a resource-held bar names a resource the read does
+      // not label` (gantt-geometry.test.ts) not throw (218/1); the branch
+      // disabled made it and `draws a bar a resource held back and names the
+      // resource` fail on the no-team refusal (217/2). Watched 2026-10-20.
+      if (slice.capacityResource !== undefined) {
+        const label = resourceLabels.get(slice.capacityResource.resourceId);
+        if (label === undefined) {
+          throw new GanttDataError(
+            `slice ${slice.id} waited for resource ${slice.capacityResource.resourceId}, ` +
+              `which this read does not label`,
+          );
+        }
+        return resourceFloorWords(
+          label,
+          slice.capacityResource.units,
+          predecessor,
+          slice.capacityPredecessorIds.length - 1,
+          rowNames,
+          stepsById,
         );
       }
       // `null` here is `none` alone — the label the pool was keyed on is gone
@@ -3004,6 +3077,7 @@ export function startFloorByRow(
           dependencyAnchor === undefined ? null : clearsOnOf(dependencyAnchor.slice),
           startsOnOf(anchor.slice),
           plan.elsewhereHolders,
+          plan.resourceLabels,
         ),
       );
     } catch (error) {

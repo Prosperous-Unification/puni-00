@@ -859,3 +859,96 @@ describe('bookings elsewhere in the canonical input', () => {
     ).toThrow(/out of order/);
   });
 });
+
+/**
+ * Demands and resource capacities (`wbs-resources` R5). A demand edit that
+ * moves a placement must move the cache key, or the plan read serves a cached
+ * optimized schedule computed for demands nobody holds any more — the stale
+ * cache the header's correctness rule names.
+ */
+describe('resource demands and capacities', () => {
+  const runResources = (input: ScheduleInput): unknown =>
+    serializeSchedule(
+      schedule(
+        input.rows,
+        input.edges,
+        input.slices,
+        input.notBefore,
+        input.poolSizes,
+        input.reach,
+        input.deadlines,
+        input.typed,
+        undefined,
+        input.elsewhere,
+        input.resourceCapacities,
+      ),
+    );
+  /** `a` and `c` run in parallel today; a shared one-unit resource serialises them. */
+  const demanding = (
+    demands: Readonly<Record<string, readonly { resourceId: string; units: number }[]>>,
+    capacities: ReadonlyMap<string, number>,
+  ): ScheduleInput => ({
+    ...BASE,
+    poolSizes: new Map(),
+    slices: BASE.slices.map((slice) => {
+      const vector = demands[slice.workItemId] ?? [];
+      return { ...slice, poolIds: [], ...(vector.length === 0 ? {} : { demands: vector }) };
+    }),
+    resourceCapacities: capacities,
+  });
+  const CAPACITIES = new Map([
+    ['r1', 2],
+    ['r2', 2],
+  ]);
+
+  it('hashes a demand, its units and its resource', () => {
+    const hashes = [
+      demanding({}, CAPACITIES),
+      demanding({ c: [{ resourceId: 'r1', units: 1 }] }, CAPACITIES),
+      demanding({ c: [{ resourceId: 'r1', units: 2 }] }, CAPACITIES),
+      demanding({ c: [{ resourceId: 'r2', units: 1 }] }, CAPACITIES),
+      demanding({ a: [{ resourceId: 'r1', units: 1 }] }, CAPACITIES),
+    ].map(canonicalScheduleInput);
+    expect(new Set(hashes).size).toBe(5);
+  });
+
+  it('moves the key when a demand edit moves a placement', () => {
+    const one = [{ resourceId: 'r1', units: 1 }];
+    const before = demanding({ a: one }, new Map([['r1', 1]]));
+    const after = demanding({ a: one, c: one }, new Map([['r1', 1]]));
+    expect(runResources(after)).not.toEqual(runResources(before));
+    expect(canonicalScheduleInput(after)).not.toBe(canonicalScheduleInput(before));
+  });
+
+  it('hashes a resource capacity', () => {
+    const one = [{ resourceId: 'r1', units: 1 }];
+    const narrow = demanding({ a: one, c: one }, new Map([['r1', 1]]));
+    const wide = demanding({ a: one, c: one }, new Map([['r1', 2]]));
+    expect(runResources(narrow)).not.toEqual(runResources(wide));
+    expect(canonicalScheduleInput(narrow)).not.toBe(canonicalScheduleInput(wide));
+  });
+
+  it('keeps the bytes of a plan that states no demand and no capacity', () => {
+    const stated = {
+      ...BASE,
+      slices: BASE.slices.map((slice) => ({ ...slice, demands: [] })),
+      resourceCapacities: new Map<string, number>(),
+    };
+    expect(canonicalScheduleInput(stated)).toBe(canonicalScheduleInput(BASE));
+    expect(canonicalScheduleInput(BASE)).not.toContain('demands');
+    expect(canonicalScheduleInput(BASE)).not.toContain('resourceCapacities');
+  });
+
+  it('refuses a demand vector the engine refuses', () => {
+    const unsorted = demanding(
+      {
+        c: [
+          { resourceId: 'r2', units: 1 },
+          { resourceId: 'r1', units: 1 },
+        ],
+      },
+      CAPACITIES,
+    );
+    expect(() => canonicalScheduleInput(unsorted)).toThrow(/each resource once, in id order/);
+  });
+});

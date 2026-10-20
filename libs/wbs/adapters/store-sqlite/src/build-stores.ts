@@ -16,6 +16,7 @@ import { PlanEventRepository } from './plan-event';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
 import { StepMeasureRepository } from './step-measure';
@@ -40,6 +41,7 @@ export function buildStores(
     users: new UserRepository(db, gate),
     directory: new DirectoryRepository(db, gate),
     capacity: new CapacityRepository(db, gate),
+    resourceCapacity: new ResourceCapacityRepository(db, gate),
     priorityBands: new PriorityBandRepository(db, gate),
     calendarMarkers: new CalendarMarkerRepository(db, gate),
     eventLog: new DrizzleEventLogStore(db, gate),
@@ -53,6 +55,7 @@ export function buildStores(
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),
     claims: new ClaimRepository(db, gate),
+    demands: new DemandRepository(db, gate),
     attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
     typedDependencies: new TypedDependencyRepository(db, gate),

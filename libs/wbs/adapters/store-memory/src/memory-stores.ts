@@ -15,6 +15,7 @@ import {
 } from './capacity-fixture';
 import {
   cascadeClaims,
+  cascadeOccupancy,
   claimsTakenWith,
   inMemoryClaims,
   type MemoryClaimTable,
@@ -64,6 +65,7 @@ import {
   type MemoryEventLogTables,
   memoryEventLogTables,
 } from './replay-fixture';
+import { cascadeDemands, inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import {
   inMemoryStepBlockages,
   type MemoryStepBlockageTable,
@@ -210,6 +212,18 @@ export class MemoryState {
       next.tables.directory.organizationMembers,
     );
     replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
+    // Proof: with the resource copy removed, ten of resource-command.test.ts's
+    // thirteen cases read no resource after the batch that declared it had
+    // committed; watched 2026-10-20.
+    replaceMap(
+      this.tables.directory.resources.resources,
+      next.tables.directory.resources.resources,
+    );
+    replaceMap(
+      this.tables.directory.resources.capacities,
+      next.tables.directory.resources.capacities,
+    );
+    replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`
@@ -235,6 +249,10 @@ export class MemoryState {
     // Proof: with this copy removed, eight cases of claim-command.test.ts lost
     // their committed claims; watched 2026-10-19.
     replaceArray(this.tables.claims.rows, next.tables.claims.rows);
+    // Proof: with this copy removed, `acquires the declared demand and reads it
+    // per project and per resource` (resource-occupancy.db.test.ts, memory) read
+    // no occupancy after the batch committed; watched 2026-10-20.
+    replaceArray(this.tables.claims.occupancy, next.tables.claims.occupancy);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
@@ -307,15 +325,130 @@ export function bindStores(
       ];
       return { ...removed, removal: { ...removed.removal, workItemIds } };
     },
+    // The fixture's resource answers, with the projects a demand sits in read
+    // off the source's own work items, which the fixture cannot see.
+    async patchResource(resourceId, patch, stamp) {
+      const written = await fixtureDirectory.patchResource(resourceId, patch, stamp);
+      if (!written.ok) return written;
+      return {
+        ...written,
+        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+      };
+    },
+    // Occupancies live in the source's claim table, out of the fixture's sight,
+    // and refuse an unconfirmed removal and go with a confirmed one, as SQLite's do.
+    async usageOfResource(resourceId) {
+      const usage = await fixtureDirectory.usageOfResource(resourceId);
+      return {
+        ...usage,
+        rows: await demandRowsOf(resourceId),
+        occupancies: occupyingLeavesOf(resourceId),
+      };
+    },
+    async removeResource(resourceId, cascade, stamp) {
+      const projectIds = demandProjectsOf(resourceId);
+      const rows = await demandRowsOf(resourceId);
+      const occupancies = occupyingLeavesOf(resourceId);
+      // Proof: with this refusal removed, the memory certification's
+      // `directory.removeResource:in-use-cascade` case removed the stage only
+      // a claim held instead of answering in_use; watched 2026-10-20.
+      if (!cascade && occupancies > 0) {
+        const usage = await fixtureDirectory.usageOfResource(resourceId);
+        return { ok: false, reason: 'in_use', usage: { ...usage, rows, occupancies } };
+      }
+      const removed = await fixtureDirectory.removeResource(resourceId, cascade, stamp);
+      if (!removed.ok)
+        return removed.reason === 'in_use'
+          ? { ...removed, usage: { ...removed.usage, rows, occupancies } }
+          : removed;
+      cascadeOccupancy(state.tables.claims, resourceId);
+      return {
+        ok: true,
+        removal: {
+          ...removed.removal,
+          projectIds: [...new Set([...removed.removal.projectIds, ...projectIds])].sort(),
+        },
+      };
+    },
+  };
+  /** How many leaves hold units of the resource through their claims. */
+  const occupyingLeavesOf = (resourceId: string): number => {
+    const leafOf = new Map(state.tables.claims.rows.map(({ id, workItemId }) => [id, workItemId]));
+    return new Set(
+      state.tables.claims.occupancy
+        .filter((row) => row.resourceId === resourceId)
+        .map(({ claimId }) => leafOf.get(claimId)),
+    ).size;
+  };
+  /** The projects whose work items demand the resource. */
+  const demandProjectsOf = (resourceId: string): string[] => {
+    const projectOf = new Map(
+      [...state.tables.workItems.byId.values()].map((row) => [row.id, row.projectId]),
+    );
+    return [
+      ...new Set(
+        [...state.tables.directory.resources.demands.values()]
+          .filter((each) => each.resourceId === resourceId)
+          .flatMap((each) => {
+            const projectId = projectOf.get(each.workItemId);
+            if (projectId === undefined)
+              throw new Error(`demand names absent work item ${each.workItemId}`);
+            return [projectId];
+          }),
+      ),
+    ].sort();
+  };
+  /** A usage's rows for the demanding projects: their labelled work items and names. */
+  const demandRowsOf = async (resourceId: string) => {
+    if (workItems === null) throw new Error('work-item table was read before it was bound');
+    const bound = workItems;
+    const projectIds = demandProjectsOf(resourceId);
+    const rows = await Promise.all(projectIds.map((projectId) => bound.listByProject(projectId)));
+    return {
+      assignments: [],
+      steps: [],
+      people: [],
+      members: [],
+      claims: [],
+      pinnedCredentials: 0,
+      capacityOf: new Map<string, number>(),
+      workItems: rows.flat(),
+      projects: projectIds.map((id) => {
+        const project = state.tables.projects.projects.get(id);
+        if (project === undefined) throw new Error(`demand names absent project ${id}`);
+        return { id, name: project.name };
+      }),
+    };
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
   const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
   // Proof: a separate parallel table let source removal erase the step; mixed rollback tests failed, 2026-10-17.
-  const steps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
+  const tableSteps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
     table: state.tables.stepParallels,
     workItems,
   });
+  // A removed step leaves the project's own step list too, as SQLite's one
+  // `step` table does: the work-item service reads `projects.stepsOf`, and a
+  // step still listed there after its removal let a replay restore rows onto it.
+  // Proof: with this removal skipped, `refuses an undo of a delete once a step
+  // its claims and progress name was removed` (resource-occupancy.db.test.ts)
+  // answered the undo ok on memory; watched 2026-10-20.
+  const steps: typeof tableSteps = {
+    ...tableSteps,
+    async remove(projectId, stepId, cascade, stamp) {
+      const removed = await tableSteps.remove(projectId, stepId, cascade, stamp);
+      if (removed.ok) {
+        const listed = state.tables.projects.steps.get(projectId);
+        if (listed !== undefined)
+          state.tables.projects.steps.set(
+            projectId,
+            listed.filter(({ id }) => id !== stepId),
+          );
+      }
+      return removed;
+    },
+  };
   const projects = inMemoryProjects(users, state.tables.projects);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
@@ -382,8 +515,11 @@ export function bindStores(
       removeSatelliteRows(state.tables.attempts.issued);
       // SQLite cascades claims with their work item and delegated claims with their parent.
       cascadeClaims(state.tables.claims, ({ workItemId }) => removed.has(workItemId));
+      // And a work item's demands with it (`work_item_resource_demand`).
+      cascadeDemands(state.tables.directory.resources, (workItemId) => removed.has(workItemId));
     },
   };
+  const demands = inMemoryDemands(state.tables.directory.resources, workItems);
   const stores: TransactionalStores = {
     users,
     projects,
@@ -402,10 +538,15 @@ export function bindStores(
       state.tables.progress,
       state.tables.claims,
       claimIdentityOf(directory),
+      (resourceId) => state.tables.directory.resources.resources.has(resourceId),
     ),
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
+    resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (projectId) =>
+      Promise.resolve(state.tables.projects.projects.has(projectId)),
+    ),
+    demands,
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
     planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
@@ -424,6 +565,7 @@ export function bindStores(
         measures,
         dependencies,
         directory,
+        demands,
       },
       (satelliteKeys) => {
         // Proof: omitting this forwarding failed `runs every subtree case` at

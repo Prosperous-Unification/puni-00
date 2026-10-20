@@ -503,6 +503,31 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // A move under a leaf whose steps are claimed: the table's own drag sends it.
     case 'destination_claimed':
       return refusal.error;
+    // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
+    case 'resources_must_be_a_list':
+    case 'resources_must_name_a_resource':
+    case 'resources_must_be_at_most_50':
+    case 'resources_must_name_each_resource_once':
+    case 'resources_on_subtree':
+    case 'below_declared_demand':
+    case 'below_held_occupancy':
+    case 'resources_exhausted':
+      return refusal.error;
+    // Resources (`wbs-resources`): the table sends none of these until 1.5, so
+    // they arrive only from a batch another client wrote.
+    case 'kind_is_immutable':
+    case 'resourceKind_must_be_exclusive_or_divisible':
+    case 'units_required':
+    case 'units_must_be_a_whole_number_from_0':
+    case 'units_must_be_a_whole_number_from_1':
+    case 'units_must_be_at_most_1000000000':
+    case 'unitLabel_must_be_text':
+    case 'unitLabel_must_be_at_most_40_characters':
+    case 'resourceId_must_be_an_id':
+    case 'resourceRef_must_be_an_id':
+    case 'unknown_resource':
+    case 'exclusive_demand_is_one':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }

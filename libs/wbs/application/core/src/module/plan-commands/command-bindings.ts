@@ -141,6 +141,37 @@ export class CommandContext {
       case 'inside_subtree_claim':
       case 'overlaps_subtree_claim':
         return this.refuse({ reason: outcome.reason, detail: { holder: { ...outcome.holder } } });
+      case 'below_declared_demand':
+        return this.refuse({
+          reason: outcome.reason,
+          detail: {
+            resourceId: outcome.resourceId,
+            asked: outcome.asked,
+            declared: outcome.declared,
+          },
+        });
+      case 'below_held_occupancy':
+        // Proof: with `held` replaced by 0, `refuses a later claim asking for
+        // less than its leaf holds` (resource-occupancy.db.test.ts) failed on
+        // both stores; watched 2026-10-20.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { resourceId: outcome.resourceId, asked: outcome.asked, held: outcome.held },
+        });
+      case 'resources_exhausted':
+        // Proof: with holders replaced by [], `refuses the ninth claim on 32 GB
+        // naming the eight holders` (resource-occupancy.db.test.ts) named
+        // nobody; watched 2026-10-20.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: {
+            resourceId: outcome.resourceId,
+            asked: outcome.asked,
+            free: outcome.free,
+            holders: outcome.holders.map((holder) => ({ ...holder })),
+          },
+        });
+      case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':
       case 'parent_claim_unknown':
@@ -189,7 +220,14 @@ export class CommandContext {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
     if (outcome.reason === 'in_use') {
-      return this.refuse({ reason: 'in_use', detail: { usage: outcome.usage } });
+      // Proof: with the counts dropped here, `refuses removing a demanded resource,
+      // naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)
+      // received no counts; watched 2026-10-20.
+      return this.refuse(
+        'counts' in outcome
+          ? { reason: 'in_use', detail: { usage: outcome.usage, counts: outcome.counts } }
+          : { reason: 'in_use', detail: { usage: outcome.usage } },
+      );
     }
     if (outcome.reason === 'deadline_before_project_start') {
       // Proof: deleting this guard threw Malformed deadline refusal resolved in the runner negative.
@@ -514,6 +552,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
             assign: command.assign ?? false,
+            resources: command.resources ?? null,
           },
           context.access,
           context.credential,
@@ -525,6 +564,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         alreadyHeld: claimed.alreadyHeld,
         claimIds: [...claimed.claimIds],
         assignedStepIds: [...claimed.assignedStepIds],
+        acquired: claimed.acquired.map((each) => ({ ...each })),
       };
     },
     releaseWorkItem: async (command, context) => {
@@ -627,6 +667,28 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           context.required(command.teamId, command.teamRef),
           command.size,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setResourceCapacity: async (command, context) => {
+      context.value(
+        await capacity.setForResource(
+          context.requireProjectId(),
+          context.actorId,
+          context.required(command.resourceId, command.resourceRef),
+          command.units,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setDemand: async (command, context) => {
+      context.value(
+        await workItems.setDemand(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          context.required(command.resourceId, command.resourceRef),
+          command.units,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -778,6 +840,39 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         (id, actorId, cascade) =>
           directory.removeWithin('services', id, actorId, cascade, context.access),
       ),
+    createResource: async (command, context) => {
+      context.assertRefAvailable(command.ref);
+      const resource = context.value(
+        await directory.addResourceWithin(
+          context.actorId,
+          { name: command.name, kind: command.resourceKind, unitLabel: command.unitLabel },
+          context.access,
+        ),
+      );
+      return { ...context.mint(command.ref, resource.id), kind: command.kind, entity: resource };
+    },
+    patchResource: async (command, context) => {
+      const resource = context.value(
+        await directory.patchResourceWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.patch,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind, entity: resource };
+    },
+    deleteResource: async (command, context) => {
+      context.accept(
+        await directory.removeResourceWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.cascade ?? false,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
   };
 }
 

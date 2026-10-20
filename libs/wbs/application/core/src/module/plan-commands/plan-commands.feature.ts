@@ -1,11 +1,12 @@
 import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
-import type { WorkItemStatus } from '@wbs/domain';
+import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
   Person,
   PersonWithTeams,
+  Resource,
   ServiceTeam,
   TeamWithServices,
 } from '../../ports/directory-values';
@@ -19,10 +20,15 @@ import {
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
-import type { DirectoryUsage } from '../../service/directory-usage';
+import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
-import type { DirectoryOutcome, RemoveDirectoryOutcome } from '../directory/directory.resource';
-import type { NamedClaimHolder, PlainClaimReason } from '../work-item/claims';
+import type { ResourceCapacityOutcome } from '../capacity/capacity.resource';
+import type {
+  DirectoryOutcome,
+  RemoveDirectoryOutcome,
+  RemoveResourceOutcome,
+} from '../directory/directory.resource';
+import type { NamedClaimHolder, NamedOccupancyHolder, PlainClaimReason } from '../work-item/claims';
 import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
@@ -63,6 +69,8 @@ interface CommandEntities {
   patchService: Service;
   createWorkItemType: WorkItemType;
   patchWorkItemType: WorkItemType;
+  createResource: Resource;
+  patchResource: Resource;
 }
 type EntityKind = keyof CommandEntities;
 type PlainKind = Exclude<PlanCommandKind, EntityKind>;
@@ -87,6 +95,8 @@ export type AppliedCommand =
       alreadyHeld: boolean;
       claimIds: string[];
       assignedStepIds: string[];
+      /** The units the claim newly acquired (`wbs-resources` R3, R4): past a leaf's first claim, only what its ask adds. */
+      acquired: ResourceUnits[];
     })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
   | {
@@ -109,6 +119,8 @@ export type Refusal =
     }
   | { reason: 'taken'; detail: { name: string } }
   | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
+  /** A resource removal's refusal also counts what names it (`wbs-resources` R8). */
+  | { reason: 'in_use'; detail: { usage: DirectoryUsage; counts: ResourceUsageCounts } }
   | { reason: PlainClaimReason; detail?: never }
   | { reason: 'not_startable'; detail: { status: WorkItemStatus } }
   | { reason: 'step_done'; detail: { stepIds: string[] } }
@@ -116,6 +128,18 @@ export type Refusal =
   | {
       reason: 'inside_subtree_claim' | 'overlaps_subtree_claim';
       detail: { holder: NamedClaimHolder };
+    }
+  | {
+      reason: 'below_declared_demand';
+      detail: { resourceId: string; asked: number; declared: number };
+    }
+  | {
+      reason: 'below_held_occupancy';
+      detail: { resourceId: string; asked: number; held: number };
+    }
+  | {
+      reason: 'resources_exhausted';
+      detail: { resourceId: string; asked: number; free: number; holders: NamedOccupancyHolder[] };
     };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
@@ -134,7 +158,13 @@ export type ServiceRefusal =
       workItemId?: string;
       projectDayZero?: string;
     }
-  | Extract<DirectoryOutcome<never> | RemoveDirectoryOutcome, { ok: false }>;
+  | Extract<
+      | DirectoryOutcome<never>
+      | RemoveDirectoryOutcome
+      | RemoveResourceOutcome
+      | ResourceCapacityOutcome,
+      { ok: false }
+    >;
 
 export type BatchOutcome =
   { ok: true; results: AppliedCommand[]; undoable: boolean; redoable: boolean } | BatchRefusal;
