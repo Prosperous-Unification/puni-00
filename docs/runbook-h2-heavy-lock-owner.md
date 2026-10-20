@@ -47,9 +47,9 @@ if root=$(git -C "$checkout" rev-parse --show-toplevel 2>/dev/null) &&
    refs=$(git -C "$checkout" for-each-ref --points-at="$sha" --format='%(refname:short)' refs/heads refs/remotes); then
   printf 'Repository: %s\nHEAD: %s\n' "$root" "$sha"
   if [[ -n $refs ]]; then
-    printf 'Local refs at HEAD:\n%s\n' "$refs"
+    printf 'Refs at HEAD (branch hints, not launch identity):\n%s\n' "$refs"
   else
-    printf 'Local refs at HEAD: none (a detached or unfetched branch is possible)\n'
+    printf 'Refs at HEAD: none (launch branch unknown)\n'
   fi
   source_known=1
 else
@@ -96,13 +96,16 @@ still show a previous HEAD while the gate starts. The gate log's
 under the lock; do not call the requested SHA tested before that marker appears.
 The lookup refuses a stable `gate:<8sha>` label whose prefix differs from HEAD.
 
-For fleet attribution, `task-*` is Claire's branch namespace. `integration/*`,
-`batch-10/*`, `ui-review/*`, `feat/*`, `refactor/*`, `docs/*`, `wip/*` and `plan/*`
-belong to the other fleet under the current coordination contract. A detached
-HEAD, no matching ref, multiple conflicting refs or an unrecognized prefix leave
-fleet attribution unknown. The `puni1` Unix account and `dany-fedorov` GitHub
-author are shared; neither identifies a human or an agent. The queue's label
-names the run, not an individual.
+Refs pointing at HEAD are branch hints: a detached gate can show none, and even
+one matching remote ref may be incidental or stale. They do not prove which
+branch launched the process. The current coordination contract reserves
+`task-*` for Claire; `integration/*`, `batch-10/*`, `ui-review/*`, `feat/*`,
+`refactor/*`, `docs/*`, `wip/*` and `plan/*` belong to the other fleet. Apply
+that mapping only to a launch branch established by separate lane or launcher
+evidence. Without that context, report the process and SHA but leave fleet
+attribution unknown. The queue's label names the run, not an individual. The
+`puni1` Unix account and `dany-fedorov` GitHub author are shared; neither
+identifies a human or an agent.
 
 You may look up a branch's PR with:
 
