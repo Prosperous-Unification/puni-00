@@ -325,3 +325,12 @@ Commands after the fixes, laptop, `env -u CLAUDECODE`:
 
 OpenAPI emit diff against `origin/feat/wbs-claim-record` re-run: still one path added, nothing
 else changed. MCP tool count unchanged by the fixes (82).
+
+### Gate for slice 3
+
+`bin/h2puni-gate.sh 49f4bc4ff7c942824112ddb6f48f837498b14765` on h2puni (tree
+`/home/puni1/puni-00-gate-tbf`, `HEAVY_LOCK_WAIT_SECONDS=10800`, log
+`~/gate-startable-49f4bc4f.log`): printed `h2puni gate: running on
+49f4bc4ff7c942824112ddb6f48f837498b14765`, `exit=0` (2026-10-20). That SHA is the review fixes
+rebased onto `plan/wbs-team-claims`; the commit recording this paragraph changes this file only.
+Earlier queued runs on `e767ac91d` and `d77c5336f` were cancelled before they started (exit 143).
