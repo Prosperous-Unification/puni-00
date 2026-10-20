@@ -844,3 +844,44 @@ the delete/undo/duplicate follow-up (PR #593), the whole-change follow-ups (PR #
 `origin/main` at 0e8909294. An earlier run on fb4442286 failed six store-sqlite scope tests on a
 test-harness spread that dropped prototype methods, fixed in PR #594. This commit changes only
 verify.md.
+
+## Swarm rehearsal (2026-10-20)
+
+`env -u CLAUDECODE bun test ./apps/wbs/be-01/src/swarm-rehearsal.boot.db.test.ts` runs both
+changes together for two fleets on be-01's production composition (cookie organization binding,
+JWKS-verified machine tokens with no `wbs_groups` and no email) over one fresh SQLite file
+migrated from empty by `migrate-cli.ts`, activated by `organization-activation-cli.ts` (dry run
+writes nothing, apply leaves `readOrganizationActivation` = `activated`; the CLI is PR #582,
+merged into the rehearsal branch) and credentialed by `link-credential-cli.ts`: two superagents
+claim their subtrees, seven delegated worker claims race through the held write coordinator for
+16 GB of RAM and one `staging` slot (in every admission order two 6 GB leaves and one staging leaf
+win, the other four are refused `resources_exhausted` naming real holders), the fences
+(`inside_subtree_claim`, `credential_not_for_person`) hold, the startable read agrees with the
+store for both teams, `assignSubtree`, the by-person read and `claim { assign: true }` with its
+undo work, a subtree release cascades and frees the units, its undo is refused `stale_undo`
+`resources_exhausted:` once another account took them, a second round claims again, a claimed
+demanded leaf's split and undo move claim and demand, a move under it is refused
+`destination_claimed`, and an unlinked credential answers `401 unknown_identity` minting no
+account. Result: 7 pass, 1 todo, 0 fail, 195 to 197 `expect()` calls (the count follows which
+leaves win), about 7.4 s (4.6 s of it the activation and CLI spawns); 15 consecutive runs green. Proofs: with `decideClaim` ignoring
+`refuseOccupancy`, four staging leaves were admitted in the race; an organization row inserted
+between the dry run's snapshots failed step 1.
+
+Findings, each with the exact response:
+
+- **Delete-promotion drops claims (todo 5b).** Deleting the only child of a claimed, demanded leaf
+  answers `200 {"results":[{"index":0}],"undoable":true,"redoable":false}` and returns the
+  demand to the parent, but the child's claim rows are removed rather than moved back: the
+  parent holds no claim and its RAM, disk and staging occupancy is freed without a release.
+  `wbs-team-claims` specifies only that undoing the first child moves claims back; compare its
+  known gap that `delete_subtree` carries no claims.
+- **A freed leaf taken again refuses the undo before the occupancy check.** When another agent
+  claims one of the leaves a subtree release freed, undoing the release answers `409 stale_undo`
+  with detail `“Leaf A2” has changed since then.`, not `resources_exhausted:`. The
+  `resources_exhausted:` detail appears only when the units are taken on a leaf the release did
+  not touch (the rehearsal's hotfix leaf).
+- **Not a break, by the specified order:** a stranger claiming an unclaimed leaf inside a claimed
+  subtree while its demand does not fit is told `resources_exhausted`, since the occupancy
+  refusals precede `inside_subtree_claim`; and a fleet A worker claiming inside fleet B's subtree
+  through fleet A's credential without a parent claim is refused `credential_not_for_person`
+  before the fence. The fence is shown on a held leaf's free step, which acquires nothing.
