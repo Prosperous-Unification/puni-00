@@ -12,7 +12,7 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 82 tools in all: the reads (the timezone list among them), the work-item page and single work-item reads, the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are claimed), the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the shared people restore-approval route, the two batches,
+`postApiDirectoryCommands`. 83 tools in all: the reads (the timezone list among them), the work-item page and single work-item reads, the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are claimed), the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and claims in a project), the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the shared people restore-approval route, the two batches,
 undo, redo, the project and step routes, the export, the import, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two

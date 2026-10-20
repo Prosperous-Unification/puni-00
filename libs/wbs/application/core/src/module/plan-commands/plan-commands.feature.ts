@@ -86,6 +86,7 @@ export type AppliedCommand =
       entity?: never;
       alreadyHeld: boolean;
       claimIds: string[];
+      assignedStepIds: string[];
     })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
   | {
@@ -192,6 +193,9 @@ const CALENDAR_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
   'duplicateWorkItem',
   'setEstimate',
   'setAssignee',
+  // Proof: left out, `refuses assignSubtree with calendar_range and writes
+  // nothing` (assignee-calendar.test.ts) applied the batch; watched 2026-10-20.
+  'assignSubtree',
   'addDependency',
   'setCapacity',
   'setStepAllowance',
@@ -413,8 +417,15 @@ export class PlanCommandRunner {
               this.applyAll(graph, scope, projectId, actorId, commands, access, credential),
             );
             if (projectId !== null) {
-              const needsCalendarPreflight = commands.some(({ kind }) =>
-                CALENDAR_AFFECTING_KINDS.has(kind),
+              // A claim that also assigns changes assignments as setAssignee
+              // does; one that does not leaves the calendar alone.
+              // Proof: with the claim arm replaced by `false`, `refuses a claim
+              // that assigns past the calendar` (assignee-calendar.test.ts)
+              // applied the claim; watched 2026-10-20.
+              const needsCalendarPreflight = commands.some(
+                (command) =>
+                  CALENDAR_AFFECTING_KINDS.has(command.kind) ||
+                  (command.kind === 'claimWorkItem' && command.assign === true),
               );
               const tree = needsCalendarPreflight ? await graph.workItems.tree(projectId) : null;
               if (needsCalendarPreflight && tree === null)

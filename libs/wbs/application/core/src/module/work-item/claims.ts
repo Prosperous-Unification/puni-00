@@ -17,6 +17,8 @@ export interface ClaimInput {
   readonly stepIds: readonly string[] | null;
   readonly runId: string | null;
   readonly parentClaimId: string | null;
+  /** Also assign the claimant to every step the claim writes (`wbs-resources` R7). */
+  readonly assign: boolean;
 }
 
 /** What `releaseWorkItem` asks of one work item once its refs are resolved. */
@@ -64,6 +66,8 @@ export interface Claimed {
   readonly alreadyHeld: boolean;
   /** The claims written, or for `alreadyHeld` the ones already holding every step. */
   readonly claimIds: readonly string[];
+  /** The steps the claim made the claimant the assignee of; empty without `assign`. */
+  readonly assignedStepIds: readonly string[];
 }
 
 const ADMIN_ROLES: ReadonlySet<OrganizationRole> = new Set(['admin', 'super_admin']);

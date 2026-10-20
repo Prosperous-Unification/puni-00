@@ -128,7 +128,12 @@ function directoryReferencesOf(
   command: PlanCommand,
   context: CommandContext,
 ): [DirectoryCatalog, readonly string[], PlainReason][] {
-  if (command.kind === 'setAssignee') {
+  // Proof: with `assignSubtree` dropped here and the batch's crossing check
+  // also skipping `assignment_person`, the `assignSubtree` row of `refuses a
+  // foreign service, team, tag, type, person and predecessor, all or none`
+  // (command-organization.controller.db.test.ts) answered 200 instead of 404;
+  // either guard alone keeps it 404 (two layers); watched 2026-10-20.
+  if (command.kind === 'setAssignee' || command.kind === 'assignSubtree') {
     const person = context.id(command.personId, command.personRef);
     return [['people', person === null ? [] : [person], 'unknown_person']];
   }

@@ -337,6 +337,8 @@ describe('toolsFromDocument, on the generated document', () => {
       'setMeasure',
       'clearMeasure',
       'setAssignee',
+      // `wbs-resources` R7: one more batch kind; the tool count does not move for it.
+      'assignSubtree',
       // `wbs-team-claims`: the batch tool carries both; the tool count does not move.
       'claimWorkItem',
       'releaseWorkItem',

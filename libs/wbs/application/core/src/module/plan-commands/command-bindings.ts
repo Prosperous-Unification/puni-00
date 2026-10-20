@@ -486,6 +486,17 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    assignSubtree: async (command, context) => {
+      context.value(
+        await workItems.assignSubtree(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          command.stepId,
+          context.id(command.personId, command.personRef),
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     claimWorkItem: async (command, context) => {
       const claimed = context.claimValue(
         await workItems.claim(
@@ -496,6 +507,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             stepIds: command.steps ?? null,
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
+            assign: command.assign ?? false,
           },
           isClaimAdmin(context.access),
           context.credential,
@@ -506,6 +518,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         kind: command.kind,
         alreadyHeld: claimed.alreadyHeld,
         claimIds: [...claimed.claimIds],
+        assignedStepIds: [...claimed.assignedStepIds],
       };
     },
     releaseWorkItem: async (command, context) => {

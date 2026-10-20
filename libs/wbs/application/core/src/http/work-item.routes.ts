@@ -8,6 +8,7 @@ import {
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readPersonWork,
   readStartableWork,
   redoProject,
   responseSchema,
@@ -686,6 +687,17 @@ export function workItemRoutes(
         if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
         return { ok: true, status: 200, body: startable };
+      },
+    ),
+    bind(
+      readPersonWork,
+      async ({ params, principal }): Promise<HttpReply<typeof readPersonWork>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const work = await workItems.personWorkWithin(params.id, resolved.access, params.personId);
+        if (work === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in work) return { ok: false, status: 404, body: { error: work.kind } };
+        return { ok: true, status: 200, body: work };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {
