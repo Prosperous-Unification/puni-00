@@ -182,8 +182,12 @@ sharing no table or lock with them (the pattern of ADR 0051). One coordinator pe
 | `cancelled`          | an operator cancelled                               | terminal; claim released                             |
 
 Attempt identity is (claim id, step node id, ordinal); a retry is a new attempt and the
-claim stays held across retries of one step. Restart resume: on boot every `running` row
-becomes `interrupted` before any new admission. The walk over a leaf is today's step order
+claim stays held across retries of one step. The coordinator is a reconcile loop, level
+triggered like a Kubernetes controller: every tick, and every restart, rebuilds the walk from
+WBS (step graph, progress, claims) and the attempt table, seeds done steps as complete, takes
+the frontier and admits up to the cap. Nothing about the walk is persisted; the walker holds
+no journal. Restart resume: on boot every `running` row becomes `interrupted` before any new
+admission, and that is the only reconciliation. The walk over a leaf is today's step order
 read from WBS; the interface takes an ordered list of step nodes, so the parked DAG replaces
 the list without touching the states. The walker is `configurable-tree-traversal`: its
 unreleased 0.8.0 (`main`, 2026-09-13) has DAG mode with explicit identity, `dependsOn`,
