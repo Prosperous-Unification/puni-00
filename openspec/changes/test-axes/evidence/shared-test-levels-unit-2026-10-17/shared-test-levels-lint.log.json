@@ -1,0 +1,33 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "libs/shared/domain/test-levels/src",
+    "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+    "tools/tool-devsync/src/test-levels.ts",
+    "tools/tool-devsync/src/test-levels.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 827560,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "eslint",
+      "libs/shared/domain/test-levels/src",
+      "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/node_modules/.bin/eslint",
+      "libs/shared/domain/test-levels/src",
+      "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts"
+    ]
+  ]
+}

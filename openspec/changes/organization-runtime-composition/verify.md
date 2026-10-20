@@ -191,3 +191,16 @@ its exact source audit, declaration repairs, watched negatives and bounded
 verification limits are recorded in the
 [composition receipt](../wbs-burokrat-evaluation/evidence/org-f7-composition/verify.md).
 Full host, installed Tool Wiki and live organization acceptance remain pending.
+
+## Source and merge reconciliation — 2026-10-19
+
+[The parent reconciliation](../organization-ownership-and-access/verify.md#source-and-merge-reconciliation--2026-10-19)
+verifies that the DNS, scheduling and verification SMTP checkpoints are in
+main through PR #565. Current `bootBe01` composes the configured resolver,
+proof worker, verification-only mail dispatcher and failure supervisor.
+Earlier publication refusals and pending aggregate checks remain historical
+receipts; they no longer mean these sources are unpublished.
+
+This reconciliation makes no new exact-review, CI or h2 gate claim. External
+SMTP/DNS authority, organization activation, invitation eligibility and
+attended acceptance remain separate. Tasks 3.1 and 4.3 remain unchanged.

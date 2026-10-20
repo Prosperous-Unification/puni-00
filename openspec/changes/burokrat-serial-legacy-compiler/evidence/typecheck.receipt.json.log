@@ -1,0 +1,18 @@
+{
+  "command": [
+    "bunx",
+    "tsc",
+    "--build",
+    "--force",
+    "apps/twilight-structure/twilight-burokrat/cli/tsconfig.json"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 1370100,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 1.229,
+  "availableBeforeKiB": 22796088,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

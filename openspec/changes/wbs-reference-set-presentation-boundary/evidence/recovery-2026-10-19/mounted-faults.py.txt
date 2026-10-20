@@ -1,0 +1,23 @@
+import os, subprocess, json
+from pathlib import Path
+root=Path('/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019')
+source=root/'apps/wbs/fe-01/src/components/wbs'
+faults=[
+('hidden-count','reference-set-presentation.tsx','if (hidden.length === 0) return null;','if (hidden.length >= 0) return null;','clips the rest line'),
+('rest-height','reference-set-presentation.tsx','    ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),\n','','rests every flex container'),
+('inherited-hover','reference-set-presentation.tsx','own.length === 0 && inheritedLabel !== undefined','inheritedLabel !== undefined','adds the overriding'),
+('single-member','reference-set-contract.ts',"kind === 'type'",'false','flags a type conflict'),
+]
+for label,name,before,after,case in faults:
+ path=source/name; original=path.read_text(); assert original.count(before)==1,(label,'ambiguous fault')
+ try:
+  path.write_text(original.replace(before,after))
+  log=f'/tmp/wbs100-reference-{label}-20261019.log'
+  command=['python3','/tmp/wbs08039-recovery-guard-20261019.py',log,'bunx','vitest','run','src/components/wbs/reference-set-field.test.tsx','--maxWorkers=1','-t',case]
+  completed=subprocess.run(command,cwd=root/'apps/wbs/fe-01',env=dict(os.environ,TZ='UTC'),check=False)
+  receipt=json.loads(Path(log+'.json').read_text()); output=Path(log).read_text()
+  assert completed.returncode==1 and receipt['exitCode']==1 and '1 failed' in output and case in output,(label,receipt,output[-1000:])
+  print(label,'watched assertion failure',flush=True)
+ finally:
+  path.write_text(original)
+subprocess.run(['python3','/tmp/wbs08039-recovery-guard-20261019.py','/tmp/wbs100-reference-restored-20261019.log','bunx','vitest','run','src/components/wbs/reference-set-field.test.tsx','src/components/wbs/depends-card.test.tsx','--maxWorkers=1'],cwd=root/'apps/wbs/fe-01',env=dict(os.environ,TZ='UTC'),check=True)

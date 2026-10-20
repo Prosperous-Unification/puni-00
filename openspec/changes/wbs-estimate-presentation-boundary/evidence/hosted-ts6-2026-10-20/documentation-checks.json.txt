@@ -1,0 +1,61 @@
+{
+  "checks": [
+    {
+      "command": [
+        "bunx",
+        "--no-install",
+        "prettier",
+        "--check",
+        "openspec/changes/wbs-estimate-presentation-boundary/recovery.md",
+        "openspec/changes/wbs-estimate-presentation-boundary/evidence/hosted-ts6-2026-10-20/README.md"
+      ],
+      "exitCode": 0,
+      "stdout": "Checking formatting...\nAll matched files use Prettier code style!\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/wbs-estimate-presentation-boundary/evidence/hosted-ts6-2026-10-20/verify-packet.py.txt",
+        "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/wbs-estimate-presentation-boundary/evidence/hosted-ts6-2026-10-20",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "links": [
+    {
+      "file": "openspec/changes/wbs-estimate-presentation-boundary/evidence/hosted-ts6-2026-10-20/README.md",
+      "link": "manifest.json.txt",
+      "exists": true
+    },
+    {
+      "file": "openspec/changes/wbs-estimate-presentation-boundary/evidence/hosted-ts6-2026-10-20/README.md",
+      "link": "raw-streams.json.txt",
+      "exists": true
+    },
+    {
+      "file": "openspec/changes/wbs-estimate-presentation-boundary/evidence/hosted-ts6-2026-10-20/README.md",
+      "link": "transport-integrity.json.txt",
+      "exists": true
+    },
+    {
+      "file": "openspec/changes/wbs-estimate-presentation-boundary/recovery.md",
+      "link": "evidence/hosted-ts6-2026-10-20/README.md",
+      "exists": true
+    }
+  ],
+  "anchor": "dedicated-hosted-ts6-acceptance exists"
+}

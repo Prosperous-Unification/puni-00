@@ -1,0 +1,29 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/wbs-f7-reference-oct17/apps/wbs/fe-01
+
+ ❯ src/components/wbs/reference-set-field.test.tsx (37 tests | 1 failed | 36 skipped) 57ms
+   ❯ the Type cell selects one type (7)
+     × flags a type conflict, shows every type, and keeps the one picked 53ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/reference-set-field.test.tsx > the Type cell selects one type > flags a type conflict, shows every type, and keeps the one picked
+TypeError: .toMatch() expects to receive a string, but got undefined
+ ❯ src/components/wbs/reference-set-field.test.tsx:769:45
+    767|     expect(screen.getByText('Spike')).toBeInTheDocument();
+    768|     const flag = document.querySelector('[data-type-conflict]');
+    769|     expect(flag?.getAttribute('data-fact')).toMatch(/type conflict/i);
+       |                                             ^
+    770|     expect(model.replace).not.toHaveBeenCalled();
+    771|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 36 skipped (37)
+   Start at  22:58:40
+   Duration  1.08s (environment 48%, transform 30%, import 8%, setup 7%, tests 6%, worker 1%)

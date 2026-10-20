@@ -1,0 +1,206 @@
+--- exact72/validator.mjs
++++ diagnostic/validator.mjs
+@@ -1,3 +1,6 @@
++import { appendFileSync as _wbsTraceAppend } from "node:fs";
++var _wbsTracePhase = "startup", _wbsTraceConfig = "", _wbsTraceEmissionBytes = 0;
++function _wbsTrace(event, extra = {}) { _wbsTraceAppend("/tmp/wbs100-mail-memory-diagnostic-20261020/trace.jsonl", JSON.stringify({time:Date.now(),pid:process.pid,event,phase:_wbsTracePhase,config:_wbsTraceConfig,...process.memoryUsage(),...extra})+"\n"); }
+ // @bun
+ var __create = Object.create;
+ var __getProtoOf = Object.getPrototypeOf;
+@@ -138249,6 +138252,7 @@
+           if (skipTypeChecking(sourceFile, options, program)) {
+             return emptyArray;
+           }
++          _wbsTrace("semantic-file:start", {path:sourceFile.fileName});
+           const typeChecker2 = getTypeChecker();
+           Debug.assert(!!sourceFile.bindDiagnostics);
+           const isJs = sourceFile.scriptKind === 1 || sourceFile.scriptKind === 2;
+@@ -138256,6 +138260,7 @@
+           const isCheckJs = isJs && isCheckJsEnabledForFile(sourceFile, options);
+           let bindDiagnostics = sourceFile.bindDiagnostics;
+           let checkDiagnostics = typeChecker2.getDiagnostics(sourceFile, cancellationToken, nodesToCheck);
++          _wbsTrace("semantic-file:return", {path:sourceFile.fileName,diagnostics:checkDiagnostics.length});
+           if (isPlainJs) {
+             bindDiagnostics = filter(bindDiagnostics, (d) => plainJSErrors.has(d.code));
+             checkDiagnostics = filter(checkDiagnostics, (d) => plainJSErrors.has(d.code));
+@@ -206999,12 +207004,14 @@
+     noEmit: false
+   };
+   const host = createCompilerHost(options, system);
++  _wbsTrace("construct:start", {roots:parsed.fileNames.length});
+   const program = import_typescript3.default.createProgram({
+     host,
+     rootNames: parsed.fileNames,
+     options,
+     projectReferences: parsed.projectReferences
+   });
++  _wbsTrace("construct:return", {sources:program.getSourceFiles().length});
+   assertProgramSources(workspace, program, system);
+   const configurationIdentity = hashCanonical({
+     configPath,
+@@ -207221,6 +207228,7 @@
+   if (sourcePath === undefined)
+     return;
+   let output;
++  _wbsTrace("emit-source:start", {path:sourceFile.fileName,outputBytes:_wbsTraceEmissionBytes});
+   const emission = project.program.emit(sourceFile, (emittedPath, text) => {
+     const normalizedEmitted = workspacePath(workspace, emittedPath) ?? `${sourcePath.slice(0, sourcePath.length - extname(sourcePath).length)}.d.ts`;
+     project.system.chargeOutput(text);
+@@ -207233,6 +207241,7 @@
+     throw new Error(`TypeScript declaration output missing for ${project.configPath}: ${sourcePath}`);
+   }
+   emitted.set(sourcePath, output);
++  _wbsTraceEmissionBytes+=Buffer.byteLength(output.text); _wbsTrace("emit-source:return", {path:sourceFile.fileName,outputBytes:_wbsTraceEmissionBytes});
+ }
+ function emitBundledDeclarations(workspace, project, emitted) {
+   const emission = project.program.emit(undefined, (emittedPath, text, _writeByteOrderMark, _onError, sourceFiles) => {
+@@ -207253,6 +207262,7 @@
+   }
+ }
+ function emitDeclarations(workspace, project) {
++  _wbsTraceEmissionBytes=0; _wbsTrace("emit:start");
+   const emitted = new Map;
+   if (project.options.outFile === undefined) {
+     const sources = project.program.getSourceFiles().map((sourceFile) => ({
+@@ -207278,6 +207288,7 @@
+     emitted.set(sourcePath, { sourcePath, emittedPath: sourcePath, text: sourceFile.text });
+   }
+   project.declarations = emitted;
++  _wbsTrace("emit:return", {declarations:emitted.size,outputBytes:_wbsTraceEmissionBytes});
+ }
+ function declarationDependencies(workspace, project, declaration) {
+   const sourceFile = project.program.getSourceFile(resolve4(workspace, declaration.sourcePath));
+@@ -207309,6 +207320,7 @@
+   });
+ }
+ function semanticDeclarationDependencies(workspace, project, entrypoint) {
++  _wbsTrace("public-semantics:start", {entrypoint});
+   const sourceFile = project.program.getSourceFile(resolve4(workspace, entrypoint));
+   if (sourceFile === undefined) {
+     throw new Error(`TypeScript compiler lost public entrypoint ${entrypoint}`);
+@@ -207404,6 +207416,7 @@
+   };
+   for (const exported of checker.getExportsOfModule(moduleSymbol))
+     visitSymbol(exported);
++  _wbsTrace("public-semantics:return", {entrypoint,paths:paths.size});
+   return [...paths].sort(compareText6);
+ }
+ function publicDeclaration(workspace, entrypoint, project, extractor) {
+@@ -207483,12 +207496,14 @@
+       throw new Error(`TypeScript project reference was not selected: ${path}`);
+     return configuration.commands.get(path);
+   };
++  _wbsTrace("construct:start", {roots:configuration.roots.length});
+   const program = import_typescript6.default.createProgram({
+     host,
+     rootNames: configuration.roots,
+     options: configuration.options,
+     projectReferences: configuration.references
+   });
++  _wbsTrace("construct:return", {sources:program.getSourceFiles().length});
+   assertProgramSources(workspace, program, system);
+   return {
+     system,
+@@ -207531,6 +207546,7 @@
+   };
+ }
+ function collectImports(workspace, project, extractor) {
++  _wbsTrace("collect-imports:start", {sources:project.program.getSourceFiles().length});
+   const imports = [];
+   for (const sourceFile of project.program.getSourceFiles()) {
+     const source = workspacePath(workspace, sourceFile.fileName);
+@@ -207550,6 +207566,7 @@
+       imports.push({ ...selector, identity: hashCanonical(selector) });
+     }
+   }
++  _wbsTrace("collect-imports:return", {imports:imports.length});
+   return imports;
+ }
+ function observeImports(workspace, configuration, system, extractor) {
+@@ -207558,12 +207575,17 @@
+ function observeDiagnostics(workspace, configuration, system, extractor) {
+   const project = reconstructProject(workspace, configuration, system);
+   collectImports(workspace, project, extractor);
+-  return import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
++  _wbsTrace("diagnostics:start");
++  const messages = import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
++  _wbsTrace("diagnostics:return", {diagnostics:messages.length});
++  return messages;
+ }
+ function prepareEmission(workspace, configuration, system, extractor) {
+   const project = reconstructProject(workspace, configuration, system);
+   collectImports(workspace, project, extractor);
++  _wbsTrace("diagnostics:start");
+   const diagnostics = import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
++  _wbsTrace("diagnostics:return", {diagnostics:diagnostics.length});
+   if (diagnostics.length > 0)
+     throw new Error(`TypeScript compiler failed: ${diagnostics.join("; ")}`);
+   emitDeclarations(workspace, project);
+@@ -207610,45 +207632,51 @@
+   });
+ }
+ function extractSerialRelationships(workspace, request, source) {
++  _wbsTrace("serial:start", {configs:request.configPaths.length,publicEntrypoints:request.publicEntrypoints.length});
+   const system = boundSource(workspace, source, { kind: "legacy" });
+   const extractor = readCompilerIdentity(workspace, system);
+   try {
+     const configurations = [];
+     for (const configPath of request.configPaths) {
++      _wbsTracePhase="capture"; _wbsTraceConfig=configPath; _wbsTrace("helper:start");
+       configurations.push(captureProject(workspace, configPath, system));
+-      Bun.gc(true);
++      _wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");
+     }
+     const importsByIdentity = new Map;
+     for (const configuration of configurations) {
++      _wbsTracePhase="imports"; _wbsTraceConfig=configuration.configPath; _wbsTrace("helper:start");
+       for (const selector of observeImports(workspace, configuration, system, extractor))
+         importsByIdentity.set(selector.identity, selector);
+-      Bun.gc(true);
++      _wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");
+     }
+     const imports = [...importsByIdentity.values()].sort((left, right) => compareText6(`${left.source}\x00${left.specifier}\x00${left.importKind}`, `${right.source}\x00${right.specifier}\x00${right.importKind}`));
+     const diagnostics = [];
+     for (const configuration of configurations) {
++      _wbsTracePhase="diagnostics"; _wbsTraceConfig=configuration.configPath; _wbsTrace("helper:start");
+       for (const message of observeDiagnostics(workspace, configuration, system, extractor))
+         diagnostics.push(message);
+-      Bun.gc(true);
++      _wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");
+     }
+     if (diagnostics.length > 0)
+       throw new Error(`TypeScript compiler failed: ${diagnostics.join("; ")}`);
+     const emitters = [];
+     for (const configuration of configurations) {
++      _wbsTracePhase="emission"; _wbsTraceConfig=configuration.configPath; _wbsTrace("helper:start");
+       emitters.push(observeEmission(workspace, configuration, system, extractor, request.publicEntrypoints));
+-      Bun.gc(true);
++      _wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");
+     }
+     const reverseEdges = collectReverseEdges(imports, extractor);
+     const publicDeclarations = [];
+     for (const entrypoint of request.publicEntrypoints) {
+       const owner = selectOwner(entrypoint, emitters);
++      _wbsTracePhase="public"; _wbsTraceConfig=owner.configPath; _wbsTrace("helper:start", {entrypoint});
+       publicDeclarations.push(observePublicDeclaration(workspace, owner, system, extractor, entrypoint));
+-      Bun.gc(true);
++      _wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");
+     }
+     publicDeclarations.sort((left, right) => compareText6(left.entrypoint, right.entrypoint));
+     return { extractor, relationships: { imports, reverseEdges, publicDeclarations } };
+   } finally {
+-    Bun.gc(true);
++    _wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");
+   }
+ }
+ var import_typescript7;
+@@ -207799,7 +207827,9 @@
+   return selectors.map((selector) => selector.identity).sort(compareText7);
+ }
+ function extractRelationships(repository, candidate, request) {
++  _wbsTrace("relationships:before-materialize", {entries:candidate.entries.length});
+   const { workspace, installedModules } = materializeCandidate(repository, candidate);
++  _wbsTrace("relationships:after-materialize");
+   try {
+     const typescript = extractTypeScriptRelationships(workspace, request.typescript, installedModules);
+     const nx = extractNxRelationships(workspace);

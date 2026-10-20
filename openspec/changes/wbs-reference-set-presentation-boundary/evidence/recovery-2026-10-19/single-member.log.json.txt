@@ -1,0 +1,45 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/reference-set-field.test.tsx",
+    "--maxWorkers=1",
+    "-t",
+    "flags a type conflict"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 428296,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/home/df/.volta/tools/image/node/24.20.0/bin/node",
+      "--experimental-import-meta-resolve",
+      "--require",
+      "/home/df/wd/puni/puni-00/node_modules/vitest/suppress-warnings.cjs",
+      "--conditions",
+      "node",
+      "--conditions",
+      "development",
+      "/home/df/wd/puni/puni-00/node_modules/vitest/dist/workers/forks.js"
+    ],
+    [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/reference-set-field.test.tsx",
+      "--maxWorkers=1",
+      "-t",
+      "flags a type conflict"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/vitest",
+      "run",
+      "src/components/wbs/reference-set-field.test.tsx",
+      "--maxWorkers=1",
+      "-t",
+      "flags a type conflict"
+    ]
+  ]
+}

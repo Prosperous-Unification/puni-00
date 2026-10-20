@@ -1,0 +1,19 @@
+{
+  "command": [
+    "bun",
+    "install",
+    "--offline",
+    "--ignore-scripts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 41136,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "install",
+      "--offline",
+      "--ignore-scripts"
+    ]
+  ]
+}

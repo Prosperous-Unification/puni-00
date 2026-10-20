@@ -1,0 +1,17 @@
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:
+(pass) serial reports preserve every selector and the unique explicit owner [134.00ms]
+(pass) serial reports preserve transitive and ambient semantic closure after config reordering [76.10ms]
+(pass) serial reports preserve sole transitive emitter ownership and empty public families [120.29ms]
+(pass) serial refuses missing emitter with predecessor provenance [61.26ms]
+(pass) serial refuses shared emissions without explicit root with predecessor provenance [60.78ms]
+(pass) serial refuses ambiguous explicit roots with predecessor provenance [68.03ms]
+(pass) later config parse failure precedes an earlier unresolved import [55.86ms]
+(pass) later unresolved import precedes an earlier semantic diagnostic [54.07ms]
+(pass) later diagnostics precede an earlier unsupported bundled emission [62.04ms]
+(pass) public entrypoint request order precedes later ownership ambiguity [66.26ms]
+
+ 10 pass
+ 0 fail
+ 35 expect() calls
+Ran 10 tests across 1 file. [1228.00ms]

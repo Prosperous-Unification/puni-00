@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "/tmp/reference-measure.mjs",
+    "/tmp/wbs-f7-reference-oct17",
+    "8ceba735235b431a237f3ee3aacc06053d4bbabf",
+    "HEAD",
+    "/tmp/directory-f7-consumer/policy.json"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 405929984,
+  "seconds": 2.01
+}

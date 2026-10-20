@@ -1,0 +1,20 @@
+{
+  "command": [
+    "bun",
+    "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "extract-relationships",
+    "committed",
+    "/tmp/burokrat-serial-workload-GPtR91",
+    "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+    "/tmp/wbs100-serial-compiler-20261019/request.json"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": -9,
+  "peakProcessTreeKiB": 2098832,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 2.88,
+  "availableBeforeKiB": 23063736,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": "rss_limit"
+}

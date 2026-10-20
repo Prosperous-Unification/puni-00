@@ -1,0 +1,11 @@
+
+ RUN  v5.0.0 /home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/apps/wbs/fe-01
+
+ ❯ src/components/wbs/plan-estimates.test.tsx (78 tests | 1 failed | 77 skipped) 477ms
+   ❯ one cell for the whole trio (34)
+     × says a flat trio once 474ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 77 skipped (78)
+   Start at  14:42:46
+   Duration  5.31s (import 48%, transform 34%, tests 9%, environment 8%, setup 1%)

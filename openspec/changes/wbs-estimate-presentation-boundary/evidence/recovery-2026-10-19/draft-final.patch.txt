@@ -1,0 +1,13 @@
+diff --git a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+index 13b128160..723eaa462 100644
+--- a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+@@ -372,7 +372,7 @@ export function EstimatePresentation({
+           // The same read as the figure beside the box, and the
+           // same local: a card that computed its own would be a
+           // second opinion about one number, one element away.
+-          final={final}
++          final={reading.layout === 'folded' ? reading.combinedValue : final}
+           // A leaf's own trio only: a parent's is a sum of trios, and
+           // its charged figure is the sum of its leaves' charges, not
+           // the allowance applied to that sum.

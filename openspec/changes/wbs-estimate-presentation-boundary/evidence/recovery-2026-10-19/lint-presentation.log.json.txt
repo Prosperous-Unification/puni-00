@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 806156,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx"
+    ]
+  ]
+}

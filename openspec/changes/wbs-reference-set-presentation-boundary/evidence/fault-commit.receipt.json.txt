@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "proof(wbs): restore oversized reference field for size negative"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 877232128,
+  "seconds": 5.24
+}

@@ -1,0 +1,8 @@
+bun install v1.4.2 (744846f84)
+Resolving dependencies
+Resolved, downloaded and extracted [1]
+Saved lockfile
+
++ twilight-burokrat@/home/df/wd/puni/puni-00/.worktrees/wbs-column-resize-hosted-proof/tmp/hosted-proof-attempt-3/artifact/twilight-burokrat-0.1.0.tgz
+
+1 package installed [525.00ms]

@@ -1,0 +1,279 @@
+{
+  "sourceRevision": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "localArchiveSha256": "5dfc97149a59511d843f5f39e39c57e731c4b898cfbe2aa43920f05e5f088dee",
+  "hostedParityArchiveSha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+  "scope": "Five local exact-installed full-rule surveys; separate historical comparator proofs and hosted bounded-parity identity are labeled, not rerun or relabelled",
+  "payloadFileSha256": "a41ea875c716211b7d4c11d84e7c05514c55edf35eebc3898067d83464ef8548",
+  "files": {
+    "runs/actual-fault-assertions.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/actual-fault-assertions.json",
+      "sha256": "e2b77b1dbedb16c7c9462ca2b1ec921e32b02065584506b5fe1a3e4985e99e36",
+      "bytes": 1650
+    },
+    "runs/artifact.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/artifact.json",
+      "sha256": "348ae0386b4a2c9e12d7b557c1af2dd62eef1d8a9615ec4ed41544d5c08d9092",
+      "bytes": 11542
+    },
+    "runs/base.after.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/base.after.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/base.before.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/base.before.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/baseline-acceptance.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/baseline-acceptance.json",
+      "sha256": "29a630ba06dcbd61ece47ff8338b65f3e6e130ef31ed67d79d9e1aff87989d72",
+      "bytes": 1427
+    },
+    "runs/comparison.command.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/comparison.command.json",
+      "sha256": "fd79e545353445eb7ef014636af57a5dad02c3cebf6da2a7680bc93dd4e679bc",
+      "bytes": 2209
+    },
+    "runs/comparison.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/comparison.receipt.json",
+      "sha256": "1db4cf6ebc97d5ef37b352f2e516b905fc8631131f9b917a465192ac15194fea",
+      "bytes": 2329
+    },
+    "runs/comparison.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/comparison.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "runs/comparison.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/comparison.stdout",
+      "sha256": "27f78dd0bd643fc10561d439a3afaa1524cde4ca87937f8099b295c0d7f425bc",
+      "bytes": 15892
+    },
+    "runs/estimate-fault.after.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/estimate-fault.after.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/estimate-fault.before.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/estimate-fault.before.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/estimate.after.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/estimate.after.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/estimate.before.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/estimate.before.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/full-base.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-base.receipt.json",
+      "sha256": "631ecf57d12355b22474697599a4114afb8756a0fec84a8e7fc7f89b3f186a78",
+      "bytes": 517
+    },
+    "runs/full-base.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-base.stderr",
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "bytes": 37
+    },
+    "runs/full-base.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-base.stdout",
+      "sha256": "eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2",
+      "bytes": 7541
+    },
+    "runs/full-estimate-fault.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-estimate-fault.receipt.json",
+      "sha256": "051f53f12a98bae0a90c04d179914fa6750835622383b0e3cc1f70b18e9a1ff5",
+      "bytes": 517
+    },
+    "runs/full-estimate-fault.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-estimate-fault.stderr",
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "bytes": 37
+    },
+    "runs/full-estimate-fault.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-estimate-fault.stdout",
+      "sha256": "4b243e644d0827fca041d900a75748a6a435aa5c6a35b2ede2ff088c0306e94a",
+      "bytes": 7541
+    },
+    "runs/full-estimate.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-estimate.receipt.json",
+      "sha256": "9968a29013dfad9b52e55451087b240cf4b59399bd227a049c7765ed14147e41",
+      "bytes": 517
+    },
+    "runs/full-estimate.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-estimate.stderr",
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "bytes": 37
+    },
+    "runs/full-estimate.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-estimate.stdout",
+      "sha256": "1aaf4497626f11ebf1e24ffe885e2dcd1a7e45404150f172549116a8b81f97f7",
+      "bytes": 7392
+    },
+    "runs/full-reference-fault.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-reference-fault.receipt.json",
+      "sha256": "9c42bc2e4c3e789261c3a8c9094bd41f48b1aea20a8e86c3138d202ae1adf6d6",
+      "bytes": 517
+    },
+    "runs/full-reference-fault.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-reference-fault.stderr",
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "bytes": 37
+    },
+    "runs/full-reference-fault.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-reference-fault.stdout",
+      "sha256": "0a66eeea1f011efc3a9417c64c7163d0bff9bbc9258d13b97684bdebc2b78629",
+      "bytes": 7541
+    },
+    "runs/full-reference.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-reference.receipt.json",
+      "sha256": "669f7d72c7092f2e6447d53e57b68337139f05be2099304cb7a1d7c70bf23c6a",
+      "bytes": 516
+    },
+    "runs/full-reference.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-reference.stderr",
+      "sha256": "f5de1594610591e05b93b1baccd7637642cb4e3f720bdd78a9fbc68f1129646c",
+      "bytes": 37
+    },
+    "runs/full-reference.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/full-reference.stdout",
+      "sha256": "240499a6f9d4d203c5eb31a1bc2a2984590cfed5500635ea03036600370ac72f",
+      "bytes": 7395
+    },
+    "runs/install-frozen.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/install-frozen.receipt.json",
+      "sha256": "5cb6c80e530e19f29944383ed436a33043a5d125abef4c7d95531a8388bdcd35",
+      "bytes": 442
+    },
+    "runs/install-frozen.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/install-frozen.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "runs/install-frozen.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/install-frozen.stdout",
+      "sha256": "c01ba9922ab17808907aca9177b846dba1ee04430f3f7a498a9eb2927303b112",
+      "bytes": 99
+    },
+    "runs/install.receipt.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/install.receipt.json",
+      "sha256": "ad342bad8d3d2c5abe0435e2d85db8743e12182a152e008fd25e9dcb43b5fae3",
+      "bytes": 416
+    },
+    "runs/install.stderr": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/install.stderr",
+      "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206",
+      "bytes": 77
+    },
+    "runs/install.stdout": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/install.stdout",
+      "sha256": "171d35cbc848ad10d2c108b7c546114a902502de427715305f7d325e08a6de6b",
+      "bytes": 99
+    },
+    "runs/plan.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/plan.json",
+      "sha256": "bfb3e344772a545ba1b3907322d610e72cc620f26d27f7f73b035b2350510933",
+      "bytes": 1287
+    },
+    "runs/reference-fault-validation.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/reference-fault-validation.json",
+      "sha256": "0067c7e706390d1e333cd9aec58438ae0e6f5f53054c4b5ef1adea716ec88571",
+      "bytes": 1727
+    },
+    "runs/reference-fault.after.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/reference-fault.after.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/reference-fault.before.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/reference-fault.before.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/reference-validation.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/reference-validation.json",
+      "sha256": "6103e83cbf9a79cb73112d66dc50a246f83d82ee2a6f18cd931913c8b5b20e60",
+      "bytes": 1678
+    },
+    "runs/reference.after.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/reference.after.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "runs/reference.before.json": {
+      "source": "/tmp/wbs100-final-surveys-d7f212959-20261020/reference.before.json",
+      "sha256": "2ca9d2dba56d0c9c273586a991078e7e1c6832d0e8e09479f437c9a71f200579",
+      "bytes": 10977
+    },
+    "authority/bindings.json": {
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/bindings.json",
+      "sha256": "eb9cfaf9d6621e59cc6edf528d6f7dc4ab53511d48e1e68af6dc0c0820be8133",
+      "bytes": 7024
+    },
+    "authority/survey-guard.py": {
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/survey-guard.py",
+      "sha256": "72118f728b8abda764a85d07fed79326c098fe71e3b710657fe022a1e98258f7",
+      "bytes": 1954
+    },
+    "authority/compare-surveys.py": {
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/compare-surveys.py",
+      "sha256": "6652e594f7d6b7016fa3a38c2cc63ae2d81bc10dbbebdff9827ec3dd9f37716a",
+      "bytes": 13313
+    },
+    "authority/capture-installed.py": {
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/capture-installed.py",
+      "sha256": "984f247c8d70cc3795280765e93839f59c835c06b51504d17baceb3955599c50",
+      "bytes": 1003
+    },
+    "authority/policy.json": {
+      "source": "/tmp/wbs100-reference-consumer-20261019/policy.json",
+      "sha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c",
+      "bytes": 69622
+    },
+    "authority/capture-installed-mail-path.py": {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/capture-installed.py",
+      "sha256": "984f247c8d70cc3795280765e93839f59c835c06b51504d17baceb3955599c50",
+      "bytes": 1003
+    },
+    "installed/package-manifest.json": {
+      "source": "/tmp/wbs100-final-consumer-d7f212959-20261020/node_modules/twilight-burokrat/dist/package-manifest.json",
+      "sha256": "b473c4f125061dfef31f9834ceb956fa701d2de7d9355645eb1d86574b21932d",
+      "bytes": 190
+    },
+    "installed/toolkit.json": {
+      "source": "/tmp/wbs100-final-consumer-d7f212959-20261020/node_modules/twilight-burokrat/dist/toolkit/toolkit.json",
+      "sha256": "d7fa64d79790bae6e40aa77f48994e28d5b2288919b3e0124565611267502309",
+      "bytes": 7865
+    },
+    "historical/negative-summary.json": {
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/oracle-negatives/summary.json",
+      "sha256": "05b4894ef6aa67be1887c754627dab4401deb08349b44514b7490ddb2e286d61",
+      "bytes": 15308
+    },
+    "historical/prove-comparator.py": {
+      "source": "/tmp/puni-wbs100-survey-bindings-20261019/prove-comparator.py",
+      "sha256": "42a48ad30a3848570969f1efa05bb16ea1e9369af25874b403c9f32bdc8c7be9",
+      "bytes": 8411
+    },
+    "historical/acceptance.md": {
+      "source": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/initial-installed-surveys/acceptance.md.txt",
+      "sha256": "521318c6314f3f93774ffbedb75d3e6f5f1c9087e2f25e84b104fb2595542603",
+      "bytes": 2878
+    },
+    "hosted-parity/archive-identities.json": {
+      "source": "/tmp/puni-wbs100-hosted-publication-20261020/hosted-artifact/archive-identities.json",
+      "sha256": "79815796c3ddf1c6db571520cdfbb7264a7bf75422e5bd08da25da3d33a517fe",
+      "bytes": 247
+    },
+    "hosted-parity/audit.json": {
+      "source": "/tmp/puni-wbs100-hosted-parity-evidence-20261020/audit.json.txt",
+      "sha256": "d07ee071d2f2cae9b5217718ec40fe8a73803754a91a306f8ec71027296a0733",
+      "bytes": 12262
+    }
+  }
+}

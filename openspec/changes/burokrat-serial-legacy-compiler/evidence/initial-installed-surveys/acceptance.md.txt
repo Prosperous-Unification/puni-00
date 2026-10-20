@@ -1,0 +1,46 @@
+# Initial successor survey receipt
+
+This packet records preservation evidence for installed successor source
+`0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5`. It is **not full compiler acceptance
+or certification**. All five surveys select fourteen rules, but ten remain
+explicitly unevaluated and every report has `allowed:false`, `certifies:false`.
+A later DNS-capable successor requires its own artifact identity and evidence;
+these initial observations must retain their original identity.
+
+| Exact committed selection | Findings | F7 |
+| --- | ---: | ---: |
+| Base `3e8d0742154e90a606b23d305dd6e424bb9c7d06` | 34 | 29 |
+| Reference `40d40ff6219aae3d2115dd39eee6ca36f1cd9e61` | 33 | 28 |
+| Reference fault `d6026f83be7c0af4c325406961ebc3eacb58363c` | 34 | 29 |
+| Estimate `4a98e8092fe4af14ffd5ceefac5d27dd42998ba0` | 33 | 28 |
+| Estimate fault `1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5` | 34 | 29 |
+
+The [strict comparison](comparison.stdout.txt) observed only each selected F7
+removal and its exact reintroduction. Unrelated findings and all ten unevaluated
+records remained identical. Seven rules—F1, K2–K6 and REL-EXTRACT—could not evaluate
+because `dns-packet` was unresolved. INV-CLASSIFY stopped on undeclared gzip
+content; PERF-THRESHOLD on changed reviewed config content; SPEC-SCENARIOS on a
+competing overlay. Their full reasons remain in every report.
+
+Runs were sequential under the 4 GiB sampled-RSS/900-second guard. Maximum sampled
+RSS was 2,621,884 KiB; longest duration 20.813 seconds. No guard stopped a run.
+All ten fresh before/after snapshots matched. [Nineteen independent oracle faults](negatives/failure-receipts.json.txt)
+produced their intended failures; the pristine comparison passed afterward.
+Original evidence hashes remained unchanged.
+
+The [bounded compatibility check](compatibility/compatibility-summary.json.txt)
+compared historical source `ac774f0c358db369c2048e537151e263cc29361e` with this
+initial successor on the same committed REL-EXTRACT fixture. Both returned the
+same positive JSON (exit 0) and missing-public-entrypoint refusal JSON (exit 1).
+Earlier incomplete-policy preparation refusals are retained separately. This
+fixture parity does not establish complete evaluator equivalence.
+
+| Artifact identity | Historical | Initial successor |
+| --- | --- | --- |
+| Executable SHA-256 | `92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c` | `de6591ce7b2c843738309b4d0bb50924866c8c32041e166f720dd6dd4b53cd4c` |
+| Toolkit identity | `2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a` | `b9598fa37b1485b513f357525404495e26ec430b042c5f3f7ed4b39f33d769f1` |
+
+Both identify package 0.1.0/Bun 1.4.2. The unchanged survey policy SHA-256 is
+`3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c`.
+No host gate, hosted CI, authenticated execution, deployment or parent completion
+is claimed here.

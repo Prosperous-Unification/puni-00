@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 747696,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-presentation.tsx"
+    ]
+  ]
+}

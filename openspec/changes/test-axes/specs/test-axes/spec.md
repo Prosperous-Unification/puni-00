@@ -1161,3 +1161,45 @@ The system SHALL provide `inspect-browser-t2 <repository> <full-committed-sha> <
 - **GIVEN** reordered cases changed outcomes duplicate identities or parser dependency faults
 - **WHEN** source and installed production dispatch inspect the report
 - **THEN** ordering preserves identity outcome and provenance changes alter the observation digest and duplicate or lost-outcome observations are refused or detected by production assertions
+
+### Requirement: Shared failures isolated Unit runner
+
+`shared-failures:test:unit:level` SHALL collect exactly shared-failures Unit test files under `src`, use literal `./` operands, preserve the 10000ms timeout and write `tmp/junit/shared-failures.unit.xml`. It SHALL clear that report before selection and refuse empty or failed selection before Bun runs. Production verification SHALL audit registration, complete Unit collection, target inventory and report identity. Existing `test` and `test:unit` commands SHALL remain classified as unreported legacy runners without evidence credit.
+
+#### Scenario: [TEST-AXES-153] Shared failures executes complete isolated Unit collection
+
+- **WHEN** the isolated target runs against shared-failures
+- **THEN** only `src/report-failure.test.ts` is collected and a fresh parseable JUnit report records all twenty passing cases, excluding database and TSX files and nested matching decoys
+
+#### Scenario: [TEST-AXES-154] Shared failures refuses collection drift and stale evidence
+
+- **WHEN** registration or a target is missing, a target is unknown, selection omits a Unit file or admits another level, report identity differs, or selection is empty or fails
+- **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report and preserved legacy commands gain no report credit
+
+### Requirement: Shared test levels isolated Unit runner
+
+`shared-test-levels:test:unit:level` SHALL collect exactly shared-test-levels Unit test files under `src`, use literal `./` operands, preserve the 10000ms timeout and write `tmp/junit/shared-test-levels.unit.xml`. It SHALL clear that report before selection and refuse empty or failed selection before Bun runs. Production verification SHALL audit registration, complete Unit collection, target inventory and report identity. Existing `test` and `test:unit` commands SHALL remain classified as unreported legacy runners without evidence credit.
+
+#### Scenario: [TEST-AXES-155] Shared test levels executes complete isolated Unit collection
+
+- **WHEN** the isolated target runs against shared-test-levels
+- **THEN** only `src/index.test.ts` is collected and a fresh parseable JUnit report records all five passing cases, excluding database and TSX files and nested matching decoys
+
+#### Scenario: [TEST-AXES-156] Shared test levels refuses collection drift and stale evidence
+
+- **WHEN** registration or a target is missing, a target is unknown, selection omits a Unit file or admits another level, report identity differs, or selection is empty or fails
+- **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report and preserved legacy commands gain no report credit
+
+### Requirement: Shared test evidence isolated Unit runner
+
+`shared-test-evidence:test:unit:level` SHALL collect exactly shared-test-evidence Unit test files under `src`, use literal `./` operands, preserve the 10000ms timeout and write `tmp/junit/shared-test-evidence.unit.xml`. It SHALL clear that report before selection and refuse empty or failed selection before Bun runs. Production verification SHALL audit registration, complete Unit collection, target inventory and report identity. Existing `test` and `test:unit` commands, parser behavior and the twelve existing test cases SHALL remain unchanged. Legacy runners SHALL remain classified as unreported without evidence credit.
+
+#### Scenario: [TEST-AXES-157] Shared test evidence executes complete isolated Unit collection
+
+- **WHEN** the isolated target runs against shared-test-evidence
+- **THEN** only `src/index.test.ts` is collected and a fresh parseable JUnit report records all twelve passing cases, excluding database and TSX files and nested matching decoys
+
+#### Scenario: [TEST-AXES-158] Shared test evidence refuses collection drift and stale evidence
+
+- **WHEN** registration or a target is missing, a target is unknown, selection omits a Unit file or admits another level, report identity differs, or selection is empty or fails
+- **THEN** production verification or execution refuses with a named diagnostic, empty or failed selection leaves no stale report and preserved legacy commands gain no report credit

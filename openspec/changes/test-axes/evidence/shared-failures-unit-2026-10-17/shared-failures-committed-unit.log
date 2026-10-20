@@ -1,0 +1,43 @@
+
+> nx run shared-failures:"test:unit:level"
+
+> mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-failures.unit.xml && files=$(find ./src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z "$files" ]; then echo 'no-cases: shared-failures:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-failures.unit.xml --timeout=10000
+
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+src/report-failure.test.ts:
+[0m[32m✓[0m[0m[1m bounds the whole report and refuses to run the caught value[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m names every property both reports skip[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m skips a sensitive property whatever its capitalisation[0m [0m[2m[5.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m scrubs a caller-owned secret from message and stack, not only from its property[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m treats a secret as literal text, not as a pattern[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m an empty secret list leaves the key rules in force[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m correlates a primitive failure without publishing its contents[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a cause that cannot be inspected is reported as reporting loss, not as a throw[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m two losses in one process do not share a handle[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m redacts a secret the disclosure policy selected into the public report[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reports a cause chain by path and redacts a key nested inside it[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps the order of an aggregate failure and reports a circular value[0m [0m[2m[1.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m stops the cause walk at the depth limit and says so on the deepest child[0m [0m[2m[1.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m stops at the child limit and says so on the root[0m [0m[2m[2.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reports a thrown undefined, null and BigInt rather than losing them[0m [0m[2m[0.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not run a throwing getter while reporting[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m bounds a very long Unicode message and marks it truncated[0m [0m[2m[[1m22.69ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m drops the context whole when the report is over budget[0m [0m[2m[1.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m drops the reporting errors after the context when both cannot fit[0m [0m[2m[[1m10.79ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m both reports validate against the installed schemas after redaction and truncation[0m [0m[2m[[1m14.23ms[0m[2m][0m
+
+[0m[32m 20 pass[0m
+[0m[2m 0 fail[0m
+ 57 expect() calls
+Ran 20 tests across 1 file. [0m[2m[[1m145.00ms[0m[2m][0m
+
+
+
+ NX   Successfully ran target test:unit:level for project shared-failures
+
+
+  Run duration:      176ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     165ms (1 task)
+  Recoverable time:  <1ms

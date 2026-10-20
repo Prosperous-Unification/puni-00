@@ -1,0 +1,24 @@
+from pathlib import Path
+import hashlib
+import json
+import sys
+
+packet = Path(sys.argv[1])
+check_sources = '--check-sources' in sys.argv[2:]
+manifest = json.loads((packet / 'manifest.json.txt').read_text())
+carrier = (packet / 'raw-streams.json.txt').read_bytes()
+
+def require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+# Proof: transport-integrity.json.txt records carrier/payload/length/source faults and restoration.
+require(hashlib.sha256(carrier).hexdigest() == manifest['payloadFileSha256'], 'carrier digest mismatch')
+payloads = json.loads(carrier)['payloads']
+for name, entry in manifest['files'].items():
+    raw = payloads[entry['sha256']].encode('utf-8')
+    require(hashlib.sha256(raw).hexdigest() == entry['sha256'], 'payload digest mismatch: ' + name)
+    require(len(raw) == entry['bytes'], 'byte count mismatch: ' + name)
+    if check_sources:
+        require(raw == Path(entry['source']).read_bytes(), 'source bytes mismatch: ' + name)
+print(json.dumps({'files': len(manifest['files']), 'payloads': len(payloads), 'sourceBytesChecked': check_sources, 'status': 'passed'}))

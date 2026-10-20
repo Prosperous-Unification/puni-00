@@ -1,0 +1,12 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/plan-estimates.test.tsx",
+    "--maxWorkers=1"
+  ],
+  "exitCode": -9,
+  "peakRssBytes": 944459776,
+  "seconds": 8.05
+}

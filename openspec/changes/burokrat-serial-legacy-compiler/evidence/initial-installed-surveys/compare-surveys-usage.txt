@@ -1,0 +1,115 @@
+Standalone survey comparison (preparation only)
+
+compare-surveys.py has been syntax-parsed, not executed against reports. No
+acceptance or negative-proof result is claimed. It creates no files and invokes
+no evaluator, tests, builds, package installer or Git command.
+
+Inputs
+------
+--bindings bindings.json
+--policy /absolute/path/to/unchanged/policy.json
+--executable /absolute/path/to/installed/node_modules/.bin/twib
+--package-manifest /absolute/path/to/installed/dist/package-manifest.json
+--toolkit-descriptor /absolute/path/to/installed/dist/toolkit/toolkit.json
+--run LABEL REPORT GUARD_RECEIPT BEFORE_IDENTITY AFTER_IDENTITY
+
+Supply --run exactly once for each label:
+base, reference, reference-fault, estimate, estimate-fault.
+The report may be the guard's .stdout file or a byte-identical retained copy.
+GUARD_RECEIPT must end in .receipt.json; matching .stdout and .stderr companions
+must remain available. Empty stdout is refused by JSON parsing. Exit 1 is normal
+only when a complete report has allowed:false. Guard resource stops are refused.
+
+Example structure (replace paths with actual retained runs):
+python3 compare-surveys.py \
+  --bindings bindings.json --policy /consumer/policy.json \
+  --executable /consumer/node_modules/.bin/twib \
+  --package-manifest /consumer/node_modules/twilight-burokrat/dist/package-manifest.json \
+  --toolkit-descriptor /consumer/node_modules/twilight-burokrat/dist/toolkit/toolkit.json \
+  --run base full-base.stdout full-base.receipt.json base.before.json base.after.json \
+  --run reference full-reference.stdout full-reference.receipt.json reference.before.json reference.after.json \
+  --run reference-fault full-reference-fault.stdout full-reference-fault.receipt.json reference-fault.before.json reference-fault.after.json \
+  --run estimate full-estimate.stdout full-estimate.receipt.json estimate.before.json estimate.after.json \
+  --run estimate-fault full-estimate-fault.stdout full-estimate-fault.receipt.json estimate-fault.before.json estimate-fault.after.json
+
+Identity capture
+----------------
+Capture ten distinct files immediately before/after the corresponding real run.
+Each JSON object must contain exactly these fields:
+{
+  "manifest": <parsed installed package-manifest.json>,
+  "executableSha256": <SHA-256 of actual installed executable bytes>,
+  "descriptor": <parsed installed toolkit/toolkit.json>,
+  "descriptorSha256": <SHA-256 of raw toolkit/toolkit.json bytes>,
+  "validatorSha256": <SHA-256 of actual toolkit/validator.mjs bytes>,
+  "bunVersion": <observed bun --version output, stripped>
+}
+
+The capture must read files afresh each time; never copy an earlier snapshot or
+substitute descriptor.roles["validator.mjs"] for hashing actual validator bytes.
+All snapshots must be exactly equal as JSON values and match installed files at
+comparison time. The package manifest must bind descriptorSha256, source
+revisions must agree, actual validatorSha256 must match its descriptor role,
+and observed Bun must match descriptor.bunVersion. The comparator independently
+hashes every current toolkit role file against the descriptor.
+
+The descriptor's trustedNodeModulesIdentity is retained and compared across
+snapshots, but this Python script does NOT independently rehash the installed
+runtime dependency closure. Retain installed-toolkit validation evidence as well.
+The guard does not timestamp snapshots or embed hashes of stdout, stderr, policy
+or executable. The script checks retained associations and bytes; it cannot
+prove capture chronology or authenticate execution. These remain coordinator
+capture obligations. This is never certification.
+
+Invocation contract and choices
+-------------------------------
+The receipt command must have exactly six entries:
+[installedExecutable, "check", "committed", repository, fullCommit, policyPath].
+Invoke the executable directly, setting environment in the process launcher,
+not via an env/shell wrapper. All five runs must use the same resolved repository
+and policy paths. If separate repository paths are necessary, review this narrow
+assumption before editing it; do not silently weaken commit/digest binding.
+Resource receipt schema matches survey-guard.py: 4 GiB sampled RSS ceiling,
+12 GiB initial MemAvailable minimum, 900-second deadline. One second of duration
+slack permits the guard's final sampling/wait overhead, never a non-null stopReason.
+
+Comparison contract
+-------------------
+The oracle never imports historical counts or unevaluated reasons. It requires
+all 14 rules and explicit findings/unevaluated arrays. Every finding must be debt
+under the pinned all-observe policy. Unevaluated reasons must be nonempty and
+unique per rule; a rule cannot simultaneously have findings and be unevaluated.
+allowed and the CLI status must agree with these outcomes; certifies stays false.
+
+Fresh successor baseline must contain one F7 record for each selected source:
+reference: apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx
+estimate: apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx
+Each repaired candidate removes only its own complete F7 record. Its fault must
+restore the complete baseline findings array. Ordered findings, all fields and
+unevaluated reasons compare exactly, preserving duplicates rather than reducing
+them to a set. Optional scenarios must have identical presence and full content
+across all five reports; a mismatch stops for explanation, even if benign.
+
+No selected-rule report, zero exit code alone or matching counts can satisfy this.
+An unexplained change is printed as an expected/observed unified JSON diff.
+A passing output records observed counts/digests and certifies:false; it does not
+close parent work or supply host/CI acceptance.
+
+Required watched negatives, once actual reports exist
+----------------------------------------------------
+Use isolated copies of actual reports, receipt companions and snapshots. Preserve
+originals and restore copies between faults. When mutating a copied report, also
+use it as its copied guard .stdout so semantic checks are reached. Each should
+exit 1 at the intended named comparison; afterward rerun the untouched set.
+- Swap candidate digests or invocation commits.
+- Alter policy bytes, omit a selected rule, or substitute an F7-only report.
+- Remove an unevaluated entry/change its reason, keeping allowed consistent so
+  the cross-report comparison is exercised.
+- Change an unrelated finding while retaining the total count.
+- Retain the selected F7 finding in a repaired candidate.
+- Remove or alter its reintroduced record in the fault.
+- Change a before/after executable hash or observed validator hash.
+- Introduce optional scenarios presence/content drift.
+- Set a guard stopReason or mismatch CLI exit status and allowed.
+
+The script's checks have NOT yet undergone these watched negatives.

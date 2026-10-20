@@ -1,0 +1,23 @@
+import hashlib
+import json
+from pathlib import Path
+import sys
+root = Path(__file__).resolve().parent
+manifest = json.loads((root / "manifest.json.txt").read_text())
+streams = json.loads((root / "raw-streams.json.txt").read_text())
+expected = {entry["path"] for entry in manifest["entries"] if entry["path"] != "proof-inputs/inputs/faults.bundle"}
+if set(streams) != expected:
+    raise ValueError("raw stream inventory differs")
+for entry in manifest["entries"]:
+    if entry["path"] not in expected:
+        continue
+    content = streams[entry["path"]].encode("utf-8")
+    # Proof: transport-proof.json.txt records same-length baseline corruption refusal and restored byte-identical reconstruction.
+    if len(content) != entry["bytes"] or hashlib.sha256(content).hexdigest() != entry["sha256"]:
+        raise ValueError("raw stream digest mismatch: " + entry["path"])
+    if len(sys.argv) == 2:
+        destination = Path(sys.argv[1]) / entry["path"]
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as stream:
+            stream.write(content)
+print(json.dumps({"validatedUtf8Streams": len(expected), "binaryBundle": "retained in referenced original artifact/proof commit"}))

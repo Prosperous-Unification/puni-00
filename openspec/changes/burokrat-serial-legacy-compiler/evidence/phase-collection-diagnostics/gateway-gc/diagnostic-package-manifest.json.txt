@@ -1,0 +1,6 @@
+{
+  "packageVersion": "0.1.0",
+  "schemaVersion": 1,
+  "sourceRevision": "72a7e82d2e8ccf4546cb6fee0c49742d0b42fd06",
+  "toolkitIdentity": "5b8548166e84150a8123ce85fe4468ab7afe48d7acdd24b0b9a49beed4eb800c"
+}
