@@ -1,29 +1,29 @@
 ## ADDED Requirements
 
-### Requirement: A written design spec
+### Requirement: Written design specs
 
-`libs/shared/adapters/ui/DESIGN.md` SHALL state the system's principles, the meaning of every token group, the type and spacing scales, and for each primitive its purpose, variants, states and anti-patterns. `LLM_README.md` SHALL link it as the document to read before generating or reviewing UI.
+Core SHALL carry `DESIGN.md` stating the principles, the meaning of every vocabulary token group and the list of kits with their purpose. Each kit SHALL carry `DESIGN.md` stating its values, its type and spacing scales, and for each primitive its purpose, variants, states and anti-patterns. `LLM_README.md` SHALL link core's as the document to read before generating or reviewing UI.
 
-#### Scenario: Spec is total over primitives
+#### Scenario: Kit spec is total over primitives
 
-- **WHEN** `design-spec.test.ts` lists the primitives `@shared/ui` exports
-- **THEN** each has a section in `DESIGN.md`, and a primitive without one fails the test by name
+- **WHEN** `design-spec.test.ts` lists the primitives `@ui/saas-01` exports
+- **THEN** each has a `## <Name>` section in the kit's `DESIGN.md`, and a primitive without one fails by name
 
-### Requirement: Storybook renders the whole system
+#### Scenario: Core spec lists every kit
 
-The lib SHALL carry a Storybook with one story file per primitive covering every variant, every size, the pressed and disabled states, in light and dark. `bunx nx run shared-ui:build-storybook` SHALL be part of the lib's `build` target so the gate proves the stories compile.
+- **WHEN** `design-spec.test.ts` lists the `ui-*-01` projects other than core
+- **THEN** each is named in core's `DESIGN.md`, and a kit without a line fails by name
+
+### Requirement: Storybook renders a whole kit
+
+Each kit SHALL carry a Storybook with one story file per primitive covering every variant, every size and the pressed and disabled states, with a light and dark toolbar that toggles `.dark` on the same stylesheet. `build-storybook` SHALL be part of the kit's `build` target.
 
 #### Scenario: Stories are total
 
-- **WHEN** `stories.test.ts` lists the primitives and each cva variant key
-- **THEN** every primitive has a story file and every variant key appears in it, and a missing story or variant fails the test by name
-
-#### Scenario: Both palettes
-
-- **WHEN** any story is opened
-- **THEN** the toolbar offers light and dark, and switching re-points the same tokens rather than loading a second stylesheet
+- **WHEN** `stories.test.ts` lists the kit's primitives and each cva variant key
+- **THEN** every primitive has a story file and every variant key appears in it, and a missing story or variant fails by name
 
 #### Scenario: Story build failure blocks
 
 - **WHEN** a story imports a primitive export that no longer exists
-- **THEN** `build-storybook` exits non-zero and the lib's `build` target fails
+- **THEN** `build-storybook` exits non-zero and the kit's `build` target fails
