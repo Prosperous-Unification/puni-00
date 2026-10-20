@@ -25,13 +25,31 @@ import { compactVerify, decodeProtectedHeader, type JWTPayload, jwtVerify, SignJ
 
 import type { McpConfig } from './config';
 import type { McpOAuthHandler } from './http';
+import {
+  type ConsentOrganizations,
+  type OrganizationAuthority,
+  organizationAuthority,
+  type OrganizationChoice,
+} from './organization-authority';
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
 import { matchesRefreshAuthority, type McpRefreshAuthorityReader } from './refresh-authority';
-import { type FamilyRecord, McpRefreshFamilyCorrupt, McpSessionStore } from './session-store';
-import { EdgeGate, SessionRefreshRefused } from './wbs-client';
+import {
+  type CredentialBinding,
+  type FamilyRecord,
+  McpRefreshFamilyCorrupt,
+  McpSessionStore,
+} from './session-store';
+import {
+  DelegationRefused,
+  EdgeGate,
+  type FetchLike,
+  SessionRefreshRefused,
+  UpstreamRejected,
+} from './wbs-client';
 
 const SCOPES = new Set(['wbs:read', 'wbs:write', 'wbs:editor']);
 const COOKIE = '__Host-wbs_mcp_oauth';
+const SELECT_COOKIE = '__Host-wbs_mcp_select';
 const REAUTH_COOKIE = '__Host-wbs_mcp_reauth';
 const GRANT_TTL_MS = 300_000;
 const DEFAULT_ACCESS_TTL_MS = 3_600_000;
@@ -89,6 +107,30 @@ export interface McpAuthorizationGrant {
   upstreamAccessToken: string;
   upstreamRefreshToken?: string;
   upstreamExpiresAt: number;
+  /** The organization, local user and upstream issuer a consent after activation selected. */
+  binding?: CredentialBinding;
+}
+
+/** What a completed upstream login contributes to a grant, before any organization is chosen. */
+type GrantFields = Pick<
+  McpAuthorizationGrant,
+  | 'scope'
+  | 'scopes'
+  | 'subject'
+  | 'upstreamAccessToken'
+  | 'upstreamRefreshToken'
+  | 'upstreamExpiresAt'
+  | 'binding'
+>;
+
+/** A consent waiting for its user to choose one of several organizations. */
+interface PendingSelection {
+  readonly authorization: AuthorizationContext;
+  readonly fields: GrantFields;
+  readonly userId: string;
+  readonly issuer: string;
+  readonly memberships: readonly OrganizationChoice[];
+  readonly expiresAt: number;
 }
 
 interface Options {
@@ -100,6 +142,12 @@ interface Options {
   accessTtlMs?: number;
   store?: McpSessionStore;
   readRefreshAuthority?: McpRefreshAuthorityReader;
+  /**
+   * be-01's MCP delegation routes. Present, a consent after activation binds
+   * one organization, a bound session's be-01 calls carry signed delegations,
+   * and {@link readRefreshAuthority} defaults to its family authority read.
+   */
+  organizations?: OrganizationAuthority;
   verifyUpstream?: TokenVerifier['verify'];
   clientLimit?: number;
   clientSourceLimit?: number;
@@ -137,6 +185,8 @@ export interface OAuthRouteEvidence {
 export class InMemoryMcpOAuth implements McpOAuthHandler {
   private readonly clients = new Map<string, ClientRecord>();
   private readonly grants = new Map<string, McpAuthorizationGrant>();
+  private readonly selections = new Map<string, PendingSelection>();
+  private readonly organizations: OrganizationAuthority | undefined;
   private readonly store: McpSessionStore;
   private readonly reauthMarkers = new Map<string, number>();
   private readonly pendingAuthorizations: PendingAuthorizations;
@@ -204,7 +254,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     this.grantLimit = Math.max(1, options.grantLimit ?? 1_000);
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
-    this.readRefreshAuthority = options.readRefreshAuthority;
+    this.organizations = options.organizations;
+    this.readRefreshAuthority =
+      options.readRefreshAuthority ?? options.organizations?.readRefreshAuthority;
     this.pendingAuthorizations = new PendingAuthorizations({
       globalLimit: Math.max(1, options.transactionLimit ?? 1_000),
       now: this.now,
@@ -226,6 +278,11 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
       response = await this.authorize(request, url);
     } else if (url.pathname === new URL(this.callbackUrl).pathname && request.method === 'GET') {
       response = await this.callback(request, url);
+    } else if (
+      url.pathname === new URL(`${this.issuer}/organization`).pathname &&
+      request.method === 'POST'
+    ) {
+      response = await this.selectOrganization(request);
     } else if (
       url.pathname === new URL(`${this.issuer}/token`).pathname &&
       request.method === 'POST'
@@ -309,6 +366,69 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           'The identity provider is temporarily unavailable. Retry this tool call.',
         );
       throw cause;
+    }
+  }
+
+  /**
+   * The credential one be-01 call for this MCP request carries.
+   *
+   * A session whose family was bound to an organization at consent gets a
+   * fresh single-use delegation from be-01 for exactly this call, naming the
+   * family's organization, user, client and grant and the access token's
+   * `scopes`; nothing from the tool call or its headers reaches it. An
+   * unbound (pre-activation) family and a direct upstream token keep
+   * forwarding the upstream token, which be-01 refuses for organization
+   * resources after activation (task 6.6).
+   *
+   * @throws {UpstreamRejected} when the session is gone or be-01 refused the
+   *   upstream token: the caller refreshes and retries, which asks again.
+   * @throws {DelegationRefused} when be-01 refuses the organization; a removed
+   *   membership or changed identity has already revoked the family.
+   */
+  async bearerFor(
+    mcpSessionId: string | null,
+    upstreamToken: string,
+    scopes: readonly string[],
+  ): Promise<string> {
+    if (mcpSessionId === null) return upstreamToken;
+    const family = this.store.familyForSession(mcpSessionId, this.now());
+    if (family === null)
+      throw new UpstreamRejected('MCP OAuth session is missing, expired, or revoked');
+    // Proof: forwarding the upstream token for a bound family too (dropping the
+    // organization delegation) made `a session bound at consent lists projects
+    // and runs a command batch` in `organization-delegation.boot.test.ts` answer
+    // be-01's 403 no_active_organization; watched 2026-10-21.
+    if (family.binding === undefined) return upstreamToken;
+    if (this.organizations === undefined)
+      throw new Error('an organization-bound MCP family needs INTERNAL_AUTH_SECRET to reach be-01');
+    const outcome = await this.organizations.delegationFor(upstreamToken, {
+      organizationId: family.binding.organizationId,
+      userId: family.binding.userId,
+      client: family.clientId,
+      grant: family.familyId,
+      scopes: scopes.filter(
+        (scope): scope is 'read' | 'write' | 'editor' =>
+          scope === 'read' || scope === 'write' || scope === 'editor',
+      ),
+    });
+    switch (outcome.kind) {
+      case 'issued':
+        return outcome.token;
+      case 'upstream_rejected':
+        throw new UpstreamRejected('be-01 refused the upstream credential behind this MCP session');
+      case 'membership_ended':
+        // Proof: keeping the family here made `ends a removed member's session`
+        // in `organization-delegation.test.ts` still resolve it; watched 2026-10-21.
+        this.store.revokeFamily(family.familyId, this.now());
+        throw new DelegationRefused(
+          'this MCP authorization is bound to an organization its account no longer belongs to, so the MCP session ended. Reauthorize and select an organization.',
+          true,
+        );
+      case 'refused':
+        throw new DelegationRefused(
+          `the organization this MCP authorization is bound to refused it: HTTP ${String(outcome.status)}\n${outcome.body}`,
+          false,
+        );
     }
   }
 
@@ -531,31 +651,135 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     if (!scopes.includes('wbs:read')) {
       return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
     }
-    this.cleanup();
-    if (this.grants.size >= this.grantLimit) {
-      await this.revokeRefreshToken(tokens.refreshToken);
-      return oauthError('temporarily_unavailable', clearCookie(), 429);
-    }
-    const code = this.random();
-    this.grants.set(code, {
-      clientId: pending.authorization.clientId,
-      codeChallenge: pending.authorization.codeChallenge,
-      expiresAt: this.now() + GRANT_TTL_MS,
-      redirectUri: pending.authorization.redirectUri,
+    const fields: GrantFields = {
       scope: scopes.join(' '),
       scopes,
       subject: identity.subject,
       upstreamAccessToken: tokens.accessToken,
       upstreamRefreshToken: tokens.refreshToken,
       upstreamExpiresAt,
+    };
+    if (this.organizations === undefined)
+      return await this.issueCode(pending.authorization, fields);
+    let consent: ConsentOrganizations;
+    try {
+      consent = await this.organizations.organizationsFor(tokens.accessToken);
+    } catch (cause) {
+      // The provider grant will never be used; the failure itself stays unexpected.
+      await this.revokeRefreshToken(tokens.refreshToken);
+      throw cause;
+    }
+    // Before activation a consent binds nothing and behaves exactly as it always has.
+    if (consent.kind === 'pre_activation')
+      return await this.issueCode(pending.authorization, fields);
+    // Proof: issuing an unbound code here made `refuses consent for a user with no
+    // current membership` in `organization-delegation.test.ts` redirect with a code
+    // instead of access_denied; watched 2026-10-21.
+    if (consent.kind === 'refused' || consent.memberships.length === 0)
+      return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
+    const only = consent.memberships.length === 1 ? consent.memberships[0] : undefined;
+    if (only !== undefined)
+      return await this.issueCode(pending.authorization, {
+        ...fields,
+        binding: {
+          organizationId: only.organizationId,
+          userId: consent.userId,
+          issuer: identity.issuer,
+        },
+      });
+    this.cleanup();
+    if (this.selections.size >= this.grantLimit) {
+      await this.revokeRefreshToken(tokens.refreshToken);
+      return oauthError('temporarily_unavailable', clearCookie(), 429);
+    }
+    const selectionId = this.random();
+    this.selections.set(selectionId, {
+      authorization: pending.authorization,
+      fields,
+      userId: consent.userId,
+      issuer: identity.issuer,
+      memberships: consent.memberships,
+      expiresAt: this.now() + GRANT_TTL_MS,
     });
-    const target = new URL(pending.authorization.redirectUri);
+    return selectionPage(`${this.issuer}/organization`, selectionId, consent.memberships);
+  }
+
+  /**
+   * Completes a consent paused on {@link selectionPage}: the browser that
+   * received the page posts back its own selection id, carried in a SameSite
+   * cookie as well as the form, and one organization from the list be-01
+   * gave. The selection is consumed whatever the outcome; a forged or stale
+   * organization fails the login rather than binding anything.
+   */
+  private async selectOrganization(request: Request): Promise<Response> {
+    const form = await request.formData();
+    const selectionId = stringField(form, 'selection');
+    const organizationId = stringField(form, 'organizationId');
+    const presented = cookieOf(request, SELECT_COOKIE);
+    this.cleanup();
+    const selection = selectionId === undefined ? undefined : this.selections.get(selectionId);
+    // Proof: dropping the cookie comparison made `refuses a selection posted
+    // without its browser cookie` in `organization-delegation.test.ts` redirect
+    // with a code; watched 2026-10-21.
+    if (
+      selection === undefined ||
+      selectionId === undefined ||
+      presented === undefined ||
+      !equalSecrets(presented, selectionId)
+    )
+      return oauthError('invalid_request', clearSelectCookie());
+    this.selections.delete(selectionId);
+    const chosen = selection.memberships.find(
+      (membership) => membership.organizationId === organizationId,
+    );
+    // Proof: binding the posted organization unchecked made `refuses a forged
+    // organization in the selection` in `organization-delegation.test.ts`
+    // issue a code bound to org-c; watched 2026-10-21.
+    if (chosen === undefined)
+      return await this.failLogin(
+        selection.authorization,
+        'access_denied',
+        selection.fields.upstreamRefreshToken,
+      );
+    return await this.issueCode(
+      selection.authorization,
+      {
+        ...selection.fields,
+        binding: {
+          organizationId: chosen.organizationId,
+          userId: selection.userId,
+          issuer: selection.issuer,
+        },
+      },
+      clearSelectCookie(),
+    );
+  }
+
+  private async issueCode(
+    authorization: AuthorizationContext,
+    fields: GrantFields,
+    clearing: string = clearCookie(),
+  ): Promise<Response> {
+    this.cleanup();
+    if (this.grants.size >= this.grantLimit) {
+      await this.revokeRefreshToken(fields.upstreamRefreshToken);
+      return oauthError('temporarily_unavailable', clearing, 429);
+    }
+    const code = this.random();
+    this.grants.set(code, {
+      clientId: authorization.clientId,
+      codeChallenge: authorization.codeChallenge,
+      expiresAt: this.now() + GRANT_TTL_MS,
+      redirectUri: authorization.redirectUri,
+      ...fields,
+    });
+    const target = new URL(authorization.redirectUri);
     target.searchParams.set('code', code);
     target.searchParams.set('iss', this.issuer);
-    if (pending.authorization.state !== undefined) {
-      target.searchParams.set('state', pending.authorization.state);
+    if (authorization.state !== undefined) {
+      target.searchParams.set('state', authorization.state);
     }
-    return redirect(target.href, clearCookie());
+    return redirect(target.href, clearing);
   }
 
   private async failLogin(
@@ -679,6 +903,10 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
           upstreamExpiresAt: grant.upstreamExpiresAt,
           idleExpiresAt: Math.min(now + REFRESH_IDLE_MS, absoluteExpiresAt),
           absoluteExpiresAt,
+          // Proof: dropping the binding here made `binds the consent's organization
+          // through code, family and session` in `organization-delegation.test.ts`
+          // record no delegation (the family looked pre-activation); watched 2026-10-21.
+          ...(grant.binding === undefined ? {} : { binding: grant.binding }),
         },
         jti,
         expiresAt,
@@ -1094,6 +1322,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
     for (const [code, grant] of this.grants) {
       if (grant.expiresAt <= now) this.grants.delete(code);
     }
+    for (const [selectionId, selection] of this.selections) {
+      if (selection.expiresAt <= now) this.selections.delete(selectionId);
+    }
     for (const [markerId, expiresAt] of this.reauthMarkers) {
       if (expiresAt <= now) this.reauthMarkers.delete(markerId);
     }
@@ -1101,10 +1332,12 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
 }
 
 export function mcpOAuthFromEnv(
-  config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
+  config: McpConfig,
   env: Readonly<Record<string, string | undefined>>,
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
+  fetchImpl?: FetchLike,
 ): InMemoryMcpOAuth {
+  const secret = config.INTERNAL_AUTH_SECRET;
   let client: BrowserOidcClient | undefined;
   const get = () => (client ??= browserOidcClientFromEnv(env, { allowMissingAccessExpiry: true }));
   let upstreamVerifier: TokenVerifier | undefined;
@@ -1123,6 +1356,14 @@ export function mcpOAuthFromEnv(
       groupPrefix: env['NODE_ENV'] === 'production' ? 'prod' : 'dev',
       routeEvidence,
       verifyUpstream,
+      ...(secret === undefined
+        ? {}
+        : {
+            organizations: organizationAuthority(
+              { ...config, INTERNAL_AUTH_SECRET: secret },
+              fetchImpl,
+            ),
+          }),
       ...oauthPersistenceFromEnv(env),
     },
   );
@@ -1371,6 +1612,58 @@ function cookieOf(request: Request, name: string): string | undefined {
     ?.split(';')
     .map((part) => part.trim().split('='))
     .find(([key]) => key === name)?.[1];
+}
+
+/**
+ * The organization choice a consent after activation pauses on when its user
+ * belongs to several. One form, one button per organization; the page may not
+ * be framed, cached or load anything.
+ */
+function selectionPage(
+  action: string,
+  selectionId: string,
+  memberships: readonly OrganizationChoice[],
+): Response {
+  const buttons = memberships
+    .map(
+      (membership) =>
+        `<button name="organizationId" value="${escapeHtml(membership.organizationId)}">${escapeHtml(membership.name)} <small>${escapeHtml(membership.role.replace('_', ' '))}</small></button>`,
+    )
+    .join('');
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose an organization</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#111}main{max-width:28rem;margin:10vh auto}button{display:block;width:100%;margin:8px 0;padding:12px;text-align:left;font:inherit;border:1px solid #888;border-radius:6px;background:#f6f6f6;cursor:pointer}small{color:#555}@media (prefers-color-scheme:dark){body{background:#111;color:#eee}button{background:#222;color:#eee;border-color:#555}small{color:#aaa}}</style></head><body><main><h1>Choose an organization</h1><p>This connection will act in one organization. To use another, connect again.</p><form method="post" action="${escapeHtml(action)}"><input type="hidden" name="selection" value="${escapeHtml(selectionId)}">${buttons}</form></main></body></html>`;
+  const headers = new Headers({
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+    'content-security-policy':
+      "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    'referrer-policy': 'no-referrer',
+    'x-frame-options': 'DENY',
+  });
+  headers.append('set-cookie', clearCookie());
+  headers.append(
+    'set-cookie',
+    `${SELECT_COOKIE}=${selectionId}; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax`,
+  );
+  return new Response(html, { status: 200, headers });
+}
+
+function clearSelectCookie(): string {
+  return `${SELECT_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function equalSecrets(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function cookie(value: string): string {

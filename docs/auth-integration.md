@@ -273,6 +273,38 @@ Cut over in this order:
    move the marker out of the state path, verify the original app/API/WS routes,
    and remove the added Auth0 callback.
 
+### MCP organization delegation
+
+After organization activation be-01 refuses a raw upstream Bearer for
+organization resources (`403 no_active_organization`): it binds no
+organization. mcp-01 therefore binds every consent to one organization and
+calls be-01 with a WBS-signed delegation instead
+(`openspec/changes/organization-ownership-and-access`, tasks 2.5, 6.4, 6.6).
+
+- mcp-01 needs be-01's `INTERNAL_AUTH_SECRET` in its own environment, and be-01
+  needs the dedicated RSA pair `WBS_DELEGATION_SIGNING_KEY` (PKCS#8 PEM) and
+  `WBS_DELEGATION_VERIFY_KEY` (SPKI PEM). Without the secret mcp-01 keeps
+  forwarding the upstream token; without the pair be-01 answers
+  `403 delegation_inactive` after activation, and consent fails. Before
+  activation neither changes anything.
+- Consent asks be-01 (`POST /internal/mcp/organizations`, service secret plus
+  the user's upstream token) for the user's admitted memberships. One is bound
+  implicitly; several show a choice page. The organization, local user and
+  upstream issuer are stored on the code, refresh family and session. Changing
+  organization means connecting again.
+- Each tool call asks `POST /internal/mcp/delegation` for a single-use,
+  at most five-minute `wbs-be-01/via-mcp-01` token naming that user,
+  organization, OAuth client, family and narrowed scopes, bound to the
+  upstream pair; be-01 rechecks membership and credential rules when it issues
+  and again when the token is used. On a be-01 401 mcp-01 refreshes upstream
+  and asks again; it never forwards the raw token for a bound session.
+- Every MCP request rereads the family's authority
+  (`POST /internal/mcp/authority`); a removed member is refused with 401 and
+  cannot refresh. Organizations with an enforced SSO connection or a session
+  policy refuse MCP delegations until trusted grant-lifecycle evidence exists.
+- Sessions consented before activation stay unbound and are refused after it
+  (task 6.5 will revoke them at the cutover).
+
 ## Sign-in methods
 
 WBS offers named sign-in buttons for a closed catalogue (`AUTH_METHODS` in

@@ -13,6 +13,11 @@ import type { FetchLike } from './wbs-client';
 interface ApplicationOAuth extends McpOAuthHandler, TokenVerifier {
   endSession(mcpSessionId: string): void | Promise<void>;
   refreshSession(mcpSessionId: string): Promise<string>;
+  bearerFor(
+    mcpSessionId: string | null,
+    upstreamToken: string,
+    scopes: readonly string[],
+  ): Promise<string>;
 }
 
 interface HttpStartup {
@@ -24,9 +29,10 @@ export interface McpApplicationDeps {
   readonly readDocument: () => OpenApiDocument;
   readonly toolsFromDocument: typeof toolsFromDocument;
   readonly mcpOAuthFromEnv: (
-    config: Pick<McpConfig, 'MCP_PUBLIC_URL'>,
+    config: McpConfig,
     env: Readonly<Record<string, string | undefined>>,
     routeEvidence?: (evidence: OAuthRouteEvidence) => void,
+    fetchImpl?: FetchLike,
   ) => ApplicationOAuth;
   readonly startHttpServer: (
     makeServer: () => ReturnType<typeof createServer>,
@@ -55,16 +61,21 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
 } {
   const config = deps.loadConfig();
   const tools = deps.toolsFromDocument(deps.readDocument());
-  const secrets = [config.WBS_BASIC_AUTH].filter(
+  const secrets = [config.WBS_BASIC_AUTH, config.INTERNAL_AUTH_SECRET].filter(
     (secret): secret is string => secret !== undefined && secret.length > 0,
   );
   const logger = deps.createLogger({ service: 'mcp-01', secrets });
   // Proof: on 2026-09-21, passing `[]` here exposed the owned Basic credential in the production
   // diagnostic line while the public MCP envelope remained generic.
   const reportUnexpectedToolFailure = createUnexpectedToolFailureReporter(logger, secrets);
-  const oauth = deps.mcpOAuthFromEnv(config, process.env, (evidence) => {
-    logger.info({ event: 'mcp_oauth_route', ...evidence }, 'MCP OAuth route');
-  });
+  const oauth = deps.mcpOAuthFromEnv(
+    config,
+    process.env,
+    (evidence) => {
+      logger.info({ event: 'mcp_oauth_route', ...evidence }, 'MCP OAuth route');
+    },
+    deps.fetchImpl,
+  );
   const verifier =
     config.MCP_AUTH_MODE === 'standalone'
       ? oauth
@@ -80,6 +91,8 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
         reportUnexpectedToolFailure,
         endSession: (sessionId) => oauth.endSession(sessionId),
         refreshSession: (sessionId) => oauth.refreshSession(sessionId),
+        bearerFor: (sessionId, upstreamToken, scopes) =>
+          oauth.bearerFor(sessionId, upstreamToken, scopes),
       }),
     config,
     verifier,
@@ -91,6 +104,7 @@ export function startMcpApplication(deps: McpApplicationDeps = productionDeps): 
     {
       tool_count: tools.length,
       wbs_api_url: config.WBS_API_URL,
+      organization_delegation: config.INTERNAL_AUTH_SECRET === undefined ? 'off' : 'on',
       port: http.port,
       path: '/mcp',
     },

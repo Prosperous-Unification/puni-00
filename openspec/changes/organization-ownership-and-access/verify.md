@@ -2030,3 +2030,100 @@ through `process.stdout.write`. The test runs the CLI with `FORCE_COLOR=1` and r
 stderr to be exactly one JSON object line. Fault: restoring `console.error` failed the same
 7 tests locally, with 13 passing. Fixed run: the CLI and boot files gave 23 pass, 0 fail,
 154 expect() calls.
+
+## MCP delegation (2.5, 6.4, 6.6)
+
+2026-10-21, branch `feat/mcp-organization-delegation`. be-01 issues single-use
+`wbs-be-01/via-mcp-01` delegations to mcp-01 through three internal routes and, with a key
+pair configured, boot composes the live verifier. mcp-01 binds each consent after activation
+to one organization and calls be-01 only with delegations for that binding. Design:
+`design.md`, "HTTP, gateway and MCP enforcement"; operator view:
+`docs/auth-integration.md`, "MCP organization delegation".
+
+### Observed R5 faults
+
+Each fault was injected into production code, the named test was run and failed, and the
+code was restored (`fault.py`-style exact replacement, then the same test passing again).
+
+| Check (file)                                                       | Injected fault                                                                 | Failing test and observation                                                                                                                                       |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Marker before listing (`runtime/mcp-delegation.ts`)                | Answer an empty `listed` for the inactive marker                               | `lists nothing and issues nothing before activation`: received `activated`                                                                                         |
+| Bound user still owns the token (`runtime/mcp-delegation.ts`)      | Drop the `principal.id !== request.userId` refusal                             | `refuses a token that now maps to another account`: 200 instead of 403 `binding_changed`                                                                           |
+| Organization access at issue (`runtime/mcp-delegation.ts`)         | Drop the refusal of a failed resolution                                        | `refuses a delegation the organization's credential rules refuse`: issued under a session policy                                                                   |
+| Scope narrowing (`runtime/mcp-delegation.ts`)                      | Request the grant's scopes unnarrowed; separately drop the empty refusal       | `narrows scopes to the token and refuses none in common` failed both ways (signer refusal; `not_a_member` instead of `insufficient_scope`)                         |
+| Upstream expiry (`runtime/mcp-delegation.ts`)                      | Drop `expiresAt <= now()`; separately drop the numeric `exp` check             | `mcp-delegation.test.ts`: answered `refused` (`not_a_member`) instead of `unauthenticated`; threw `Invalid setExpirationTime input`                                |
+| Upstream identity only (`runtime/mcp-delegation.ts`)               | Admit any authentication kind                                                  | `refuses an unlinked token, a native session and an expired upstream token`: the native session was not refused                                                    |
+| Authority pair mapping (`runtime/mcp-delegation.ts`)               | Drop the mapped-user comparison                                                | `denies a family whose upstream pair maps to another account`: admitted                                                                                            |
+| Authority membership (`runtime/mcp-delegation.ts`)                 | Admit with empty facts when not a member                                       | `denies a removed member's family and refuses its next delegation`: admitted                                                                                       |
+| Organization from the body (`controller/mcp-delegation.routes.ts`) | Take `x-wbs-organization` before the body (trust a caller header)              | `issues an MCP delegation only for the bound organization`: issuance for org-b refused, test failed                                                                |
+| Live verifier with keys (`boot.ts`)                                | Wire `REFUSE_DELEGATIONS` when keys are configured                             | `lists, issues and verifies an MCP delegation only after activation` and every issuing test: 401 instead of 200                                                    |
+| Bound family uses a delegation (`oauth.ts` `bearerFor`)            | Forward the upstream token for every family (drop the organization delegation) | `organization-delegation.boot.test.ts`: `a session bound at consent lists projects and runs a command batch` and two later tests answered `no_active_organization` |
+| Retry keeps the delegation (`server.ts`)                           | Forward `refreshedToken` itself on the retry                                   | `keeps the signed delegation through an upstream refresh retry`: tool error instead of the list                                                                    |
+| Binding reaches the family (`oauth.ts` token exchange)             | Drop `binding` from `createFamily`                                             | `binds the consent's organization through code, family and session` and three more unit tests                                                                      |
+| No membership, no code (`oauth.ts` callback)                       | Drop the refusal for `refused` or zero memberships                             | `refuses consent for a user with no current membership`: redirected with a code                                                                                    |
+| Selection cookie (`oauth.ts` `selectOrganization`)                 | Drop the cookie comparison                                                     | `refuses a selection posted without its browser cookie`: 302 instead of 400                                                                                        |
+| Selection list (`oauth.ts` `selectOrganization`)                   | Bind the posted organization unchecked                                         | `refuses a forged organization in the selection`: code issued                                                                                                      |
+| Removed member's family (`oauth.ts` `bearerFor`)                   | Keep the family on `membership_ended`                                          | `ends a removed member's session`: the session still resolved                                                                                                      |
+| Authority denial (`organization-authority.ts`)                     | Answer admitted for be-01's `denied`                                           | `a removed member's session is refused on its next call and cannot refresh`: 200 instead of 401                                                                    |
+
+One check was removed rather than kept: refusing a token that declares itself a delegation
+before authenticating it as upstream. No fault in it could be observed, because a WBS
+delegation verifies neither as an upstream nor as a session token and is refused as
+`unauthenticated` anyway (`refuses a delegation presented as the upstream token`).
+
+`boot.db.test.ts`'s configured-key case is renamed `... and keeps generic issuance inactive`:
+it now asserts the live verifier and `mcpDelegation` are composed. The generic
+`RunningBe.delegationIssuer` stays refusing, and the signed delegation it sends before
+activation is still refused with 401. The table row above under Slice 25 that names the old
+test describes the earlier composition.
+
+### Commands and results
+
+| Command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Result                                |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test ./src/mcp-delegation.boot.db.test.ts ./src/runtime/mcp-delegation.test.ts ./src/app.routes.test.ts ./src/boot.db.test.ts ./src/runtime/delegation-issuer.test.ts ./src/controller/delegation.controller.db.test.ts ./src/controller/bearer-context.controller.db.test.ts ./src/organization-activation.boot.db.test.ts ./src/controller/organization-context.controller.db.test.ts ./src/test-tiers.test.ts ./src/module-boundaries.test.ts` | 99 pass, 0 fail, 1787 expect() calls  |
+| `cd apps/wbs/mcp-01 && env -u CLAUDECODE bun test` (includes `organization-delegation.boot.test.ts`, which boots be-01 in its own process)                                                                                                                                                                                                                                                                                                                                                    | 442 pass, 0 fail, 1930 expect() calls |
+| `cd libs/wbs/domain/contracts && env -u CLAUDECODE bun test ./src/http`                                                                                                                                                                                                                                                                                                                                                                                                                       | 133 pass, 0 fail                      |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test ./src/organization-credential-rules.db.test.ts`                                                                                                                                                                                                                                                                                                                                                                              | 3 pass, 0 fail                        |
+| `bunx tsc -p <config> --noEmit` for be-01 lib and spec, core, auth, store-sqlite and contracts; `bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json`                                                                                                                                                                                                                                                                                                                                      | each exit 0, no output                |
+
+The booted proof (`apps/wbs/mcp-01/src/organization-delegation.boot.test.ts`) runs mcp-01's
+OAuth front, tool surface and authority client over real HTTP against
+`apps/wbs/be-01/src/testing/mcp-delegation-backend.ts`, which is `bootBe01`'s composition
+activated by `organization-activation-cli.ts`. In order:
+
+1. Before activation an MCP session creates and lists a project exactly as before.
+2. After activation the pre-activation session is refused with `no_active_organization`.
+3. A new consent binds the one membership; the session lists the legacy project and runs a
+   two-command batch.
+4. Another organization's member creates a project; the first session reads it as 404, and an
+   `organizationId` tool argument is refused as undeclared.
+5. A raw upstream Bearer is refused through mcp-01 and directly at be-01.
+6. An upstream token that expires under mcp-01 is refreshed once and the call succeeds with a
+   new delegation.
+7. A removed member's next request answers 401, and its refresh answers `invalid_grant`.
+
+### What 6.5 still needs
+
+- An epoch-advance operation: one MCP-store transaction that raises `mcp_credential_epoch`
+  and revokes every epoch-0 family and session, with a durable acknowledgment the activation
+  CLI waits for before committing the WBS marker. Today the CLI does not check it.
+- Proof that every organization-unaware mcp-01 process has drained and is fenced from restart
+  before that advance (deploy executor evidence, 7.1B).
+- mcp-01 that runs at the new epoch: `SUPPORTED_CREDENTIAL_EPOCH` and `readFamilyAuthority`
+  still accept only epoch 0, so this release cannot start after an advance. This change binds
+  families at epoch 0, which the store CHECK allows.
+- A durable epoch read before code exchange, tool calls and refresh in every process, and an
+  epoch stamp on in-memory consents, codes and selections so that old ones are refused at
+  exchange.
+- The pre-activation down-migration preflight that refuses while new-format credentials live.
+
+Until then, sessions consented before activation are refused by be-01 rather than revoked.
+
+### Not done here
+
+- Deployment wiring: no dev or prod environment, k8s overlay or `.env` sets mcp-01's
+  `INTERNAL_AUTH_SECRET` or be-01's delegation key pair yet. Without them mcp-01 keeps
+  forwarding and be-01 answers `delegation_inactive` after activation.
+- Gateway signed-bearer issuance (rest of 2.5). Organizations with enforced SSO or a session
+  policy refuse MCP delegations, because no trusted grant-lifecycle evidence exists.

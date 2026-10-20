@@ -12,6 +12,7 @@ import type { UnexpectedToolFailureReporter } from './unexpected-tool-failure';
 import type { FetchLike, ToolTextResult } from './wbs-client';
 import {
   callTool,
+  DelegationRefused,
   EdgeGate,
   SessionRefreshRefused,
   ToolInputRefused,
@@ -74,6 +75,16 @@ export interface ServerDeps {
   readonly callerTokenOf?: (authInfo: { readonly token: string } | undefined) => string;
   readonly endSession?: (mcpSessionId: string) => void | Promise<void>;
   readonly refreshSession?: (mcpSessionId: string) => Promise<string>;
+  /**
+   * The credential one be-01 call carries for this session: a fresh signed
+   * organization delegation for a bound session, else the upstream token.
+   * Absent, the upstream token is forwarded as it is.
+   */
+  readonly bearerFor?: (
+    mcpSessionId: string | null,
+    upstreamToken: string,
+    scopes: readonly string[],
+  ) => Promise<string>;
   readonly reportUnexpectedToolFailure: UnexpectedToolFailureReporter;
 }
 
@@ -121,6 +132,7 @@ export function createServer(deps: ServerDeps): Server {
     callerTokenOf,
     endSession,
     refreshSession,
+    bearerFor,
     reportUnexpectedToolFailure,
   } = deps;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
@@ -176,15 +188,23 @@ export function createServer(deps: ServerDeps): Server {
       );
     }
 
+    const authInfo = extra.authInfo;
+    const sessionOfCall = extraSessionId(authInfo);
+    // One be-01 call with the credential `upstreamToken` stands behind: asked
+    // afresh each time, because a delegation is good for exactly one call.
+    const callWith = async (upstreamToken: string) =>
+      callTool(
+        tool,
+        request.params.arguments ?? {},
+        config,
+        fetchImpl,
+        bearerFor === undefined
+          ? upstreamToken
+          : await bearerFor(sessionOfCall, upstreamToken, authInfo.scopes),
+      );
     try {
       return asCallToolResult(
-        await callTool(
-          tool,
-          request.params.arguments ?? {},
-          config,
-          fetchImpl,
-          callerTokenOf === undefined ? extra.authInfo.token : callerTokenOf(extra.authInfo),
-        ),
+        await callWith(callerTokenOf === undefined ? authInfo.token : callerTokenOf(authInfo)),
       );
     } catch (firstCause) {
       let cause = firstCause;
@@ -210,15 +230,11 @@ export function createServer(deps: ServerDeps): Server {
         }
         if (refreshedToken !== null) {
           try {
-            return asCallToolResult(
-              await callTool(
-                tool,
-                request.params.arguments ?? {},
-                config,
-                fetchImpl,
-                refreshedToken,
-              ),
-            );
+            // Proof: forwarding `refreshedToken` itself here made `keeps the signed
+            // delegation through an upstream refresh retry` in
+            // `organization-delegation.boot.test.ts` answer be-01's 403
+            // no_active_organization; watched 2026-10-21.
+            return asCallToolResult(await callWith(refreshedToken));
           } catch (retryCause) {
             // Only a second be-01 refusal is a session outcome. Anything else the retry throws is
             // classified below exactly as the first call's failure would be, so a transport or
@@ -247,6 +263,17 @@ export function createServer(deps: ServerDeps): Server {
             ),
           );
         }
+      }
+      if (cause instanceof DelegationRefused) {
+        const sessionId = extraSessionId(extra.authInfo);
+        if (cause.endsSession && sessionId !== null) {
+          try {
+            await endSession?.(sessionId);
+          } catch (endCause) {
+            return reportToolFailure(tool.name, endCause);
+          }
+        }
+        return asCallToolResult(errorText(`${tool.name} could not be called: ${cause.message}`));
       }
       if (cause instanceof EdgeGate) return asCallToolResult(errorText(cause.message));
       // Deliberately not a throw. A modeled input refusal names what the caller can correct — as

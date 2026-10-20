@@ -59,9 +59,9 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
       )
         return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
       // Proof: taking the organization from an `x-wbs-organization` header
-      // instead of this body made `issues an MCP delegation only for the
-      // bound organization` in `mcp-delegation.boot.db.test.ts` issue
-      // for org-b; watched 2026-10-21.
+      // before this body made `issues an MCP delegation only for the bound
+      // organization` in `mcp-delegation.boot.db.test.ts` ask for org-b and
+      // fail; watched 2026-10-21.
       const outcome = await authority.issue(token, {
         organizationId: body.organizationId,
         userId: body.userId,

@@ -84,8 +84,8 @@ async function boot(withKeys = true): Promise<BootedBrowserProcess> {
   );
   for (const name of ['ada', 'grace', 'eve']) {
     process.sqlite.run(
-      'INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, NULL, 1)',
-      [`u-${name}`, name],
+      'INSERT INTO users (id, username, password_hash, created_at, idp_issuer, idp_sub) VALUES (?, ?, NULL, 1, ?, ?)',
+      [`u-${name}`, name, ISSUER, `auth0|${name}`],
     );
     process.sqlite.run(
       'INSERT INTO external_identity (id, user_id, issuer, subject, created_at) VALUES (?, ?, ?, ?, 1)',
