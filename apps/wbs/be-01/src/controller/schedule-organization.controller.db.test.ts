@@ -129,6 +129,7 @@ function crossings(): Record<string, string> {
     step_node_attempt_person: `INSERT INTO step_node_attempt (work_item_id, step_id, attempt_number, started_at, executor_person_id) VALUES ('w2-a', '${ownStep}', 1, 1, 'pe-b')`,
     assignment_step: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${foreignStep}', 'pe-a')`,
     assignment_person: `INSERT INTO assignment (work_item_id, step_id, person_id) VALUES ('w-a', '${ownStep}', 'pe-b')`,
+    claim_person: `INSERT INTO claim (id, work_item_id, step_id, person_id) VALUES ('c-x', 'w2-a', '${ownStep}', 'pe-b')`,
     work_item_tag: "INSERT INTO work_item_tag (work_item_id, tag_id) VALUES ('w-a', 'tg-b')",
     work_item_team: "INSERT INTO work_item_team (work_item_id, team_id) VALUES ('w-a', 'tm-b')",
     work_item_type:

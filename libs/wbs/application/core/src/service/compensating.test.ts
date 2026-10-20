@@ -319,3 +319,85 @@ describe('deletion state boundary', () => {
     ).toThrow(/wrong restoration parent/);
   });
 });
+
+describe('claim replay vocabulary', () => {
+  const claim = {
+    id: 'c1',
+    workItemId: 'w1',
+    stepId: 'dev',
+    personId: 'claire',
+    runId: 'agent:main:subagent:7f',
+    parentClaimId: 'c0',
+    accountId: 'account-f',
+  };
+  const add: CompensatingCommand = {
+    do: 'add_claims',
+    claims: [claim],
+    stated: [{ workItemId: 'w1', stepId: 'dev' }],
+  };
+  const remove: CompensatingCommand = { do: 'remove_claims', claims: [claim], cleared: [] };
+
+  it('reads both directions back and names their rows, steps, people and progress', () => {
+    expect(readCommand(add)).toEqual(add);
+    expect(readCommand(remove)).toEqual(remove);
+    expect(touchedBy(add)).toEqual(['w1']);
+    expect(progressKeysOf(add)).toEqual([{ workItemId: 'w1', stepId: 'dev' }]);
+    expect(progressKeysOf(remove)).toEqual([]);
+    expect(referencesOf(add)).toMatchObject({
+      workItems: ['w1', 'w1'],
+      steps: ['dev', 'dev'],
+      people: ['claire'],
+    });
+    expect(subjectOf(add)).toEqual({ workItemId: 'w1', stepId: 'dev' });
+  });
+
+  // Proof: with the readClaimReplay call removed from readCommand, every
+  // malformed shape below read back without throwing; watched 2026-10-19.
+  it('refuses a malformed claim replay', () => {
+    for (const malformed of [
+      { do: 'add_claims', claims: [], stated: [] },
+      { do: 'add_claims', claims: [{ ...claim, accountId: null }], stated: [] },
+      { do: 'add_claims', claims: [{ ...claim, runId: 7 }], stated: [] },
+      { do: 'add_claims', claims: [claim] },
+      { do: 'remove_claims', claims: [claim], cleared: [{ workItemId: 'w1' }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
+
+  const move: CompensatingCommand = {
+    do: 'move_claims',
+    fromWorkItemId: 'w1',
+    toWorkItemId: 'w2',
+    claims: [claim],
+  };
+
+  it('reads a claim move back and names both work items', () => {
+    expect(readCommand(move)).toEqual(move);
+    expect(touchedBy(move)).toEqual(['w1', 'w2']);
+    expect(progressKeysOf(move)).toEqual([]);
+    expect(referencesOf(move)).toMatchObject({
+      workItems: ['w1', 'w2'],
+      steps: ['dev'],
+      people: ['claire'],
+    });
+    expect(subjectOf(move)).toEqual({ workItemId: 'w2', stepId: null });
+  });
+
+  // Proof: with the readClaimMove call removed from readCommand, the first
+  // malformed shape below read back without throwing; watched 2026-10-20.
+  it('refuses a malformed claim move', () => {
+    for (const malformed of [
+      { do: 'move_claims', fromWorkItemId: 'w1', claims: [claim] },
+      { do: 'move_claims', fromWorkItemId: 'w1', toWorkItemId: '', claims: [claim] },
+      { do: 'move_claims', fromWorkItemId: 'w1', toWorkItemId: 'w2', claims: [] },
+      {
+        do: 'move_claims',
+        fromWorkItemId: 'w1',
+        toWorkItemId: 'w2',
+        claims: [{ ...claim, accountId: null }],
+      },
+      { do: 'move_claims', fromWorkItemId: 'w3', toWorkItemId: 'w2', claims: [claim] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim (move|replay)/);
+  });
+});

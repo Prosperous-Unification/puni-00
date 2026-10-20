@@ -40,7 +40,11 @@ export interface RequestMetadata {
 
 export type IdentityResolution =
   | { ok: true; principal: Identity }
-  | { ok: false; status: 401; body: { error: 'unauthenticated' | 'unauthorized' } }
+  | {
+      ok: false;
+      status: 401;
+      body: { error: 'unauthenticated' | 'unauthorized' | 'unknown_identity' };
+    }
   | { ok: false; status: 403; body: { error: 'insufficient_scope' } };
 
 /** Credential failures are modeled; unexpected account-store failures reject. */

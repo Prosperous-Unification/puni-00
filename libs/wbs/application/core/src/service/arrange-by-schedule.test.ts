@@ -142,7 +142,7 @@ describe('arrangeBySchedule', () => {
     const late = await addUnder(branch, 'Late');
     await waitOn(late, early);
     // Written late-first so the group starts out of order.
-    await service.move(early, OWNER, { parentId: branch, afterId: late });
+    await service.move(early, OWNER, { parentId: branch, afterId: late }, { kind: 'legacy' });
 
     await service.arrangeBySchedule(projectId, OWNER);
 

@@ -158,6 +158,8 @@ export type * from './step-values';
 // groupings would disagree about which work item is second, and the first two
 // of those are drawn on the same screen.
 export * from './step-blockage';
+// Claims and releases of steps and subtrees (wbs-team-claims D1-D8).
+export * from './claim';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

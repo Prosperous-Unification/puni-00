@@ -30,6 +30,8 @@ const PINNED_COMMAND_KINDS = [
   'setMeasure',
   'clearMeasure',
   'setAssignee',
+  'claimWorkItem',
+  'releaseWorkItem',
   'addDependency',
   'removeDependency',
   'addTypedDependency',

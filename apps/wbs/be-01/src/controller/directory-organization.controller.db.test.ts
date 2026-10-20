@@ -65,7 +65,13 @@ afterEach(() => {
 function ownEntry(organization: 'a' | 'b', root: string): Record<string, unknown> {
   const id = `${organization}-${root}`;
   if (root === 'person') {
-    return { id, name: 'urgent', kind: 'person', teamIds: [`${organization}-service_team`] };
+    return {
+      id,
+      name: 'urgent',
+      kind: 'person',
+      teamIds: [`${organization}-service_team`],
+      accountId: null,
+    };
   }
   if (root === 'service_team') {
     return { id, name: 'urgent', serviceIds: [`${organization}-service`] };

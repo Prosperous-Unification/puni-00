@@ -506,7 +506,14 @@ describe('moving work items', () => {
         },
       });
       expect(
-        (await observed.move(incoming, OWNER, { parentId: destination, afterId: null })).ok,
+        (
+          await observed.move(
+            incoming,
+            OWNER,
+            { parentId: destination, afterId: null },
+            { kind: 'legacy' },
+          )
+        ).ok,
       ).toBe(true);
       expect(await serviceOptions.blockages.listByProject(projectId)).toEqual(
         isBlocked ? [{ workItemId: incoming, stepId, blockedAt: -10 }] : [],
@@ -543,7 +550,7 @@ describe('moving work items', () => {
       },
     });
     const refusal = await refused
-      .move(incoming, OWNER, { parentId: destination, afterId: null })
+      .move(incoming, OWNER, { parentId: destination, afterId: null }, { kind: 'legacy' })
       .then(
         () => '(resolved without throwing)',
         (cause: unknown) => String(cause),
@@ -560,10 +567,12 @@ describe('moving work items', () => {
       ...serviceOptions,
       blockages: { ...serviceOptions.blockages, set: () => Promise.resolve('unknown_step') },
     });
-    const refusal = await refused.move(incoming, OWNER, { parentId: null, afterId: parent }).then(
-      () => '(resolved without throwing)',
-      (cause: unknown) => String(cause),
-    );
+    const refusal = await refused
+      .move(incoming, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' })
+      .then(
+        () => '(resolved without throwing)',
+        (cause: unknown) => String(cause),
+      );
     expect(refusal).toContain('cannot hand move blockage up');
   });
 
@@ -576,7 +585,10 @@ describe('moving work items', () => {
     await serviceOptions.blockages.set({ workItemId: second, stepId, blockedAt: -10 }, WROTE);
     await progress.set({ workItemId: first, stepId, state: 'done', statedAt: 10 }, WROTE);
     await progress.set({ workItemId: second, stepId, state: 'done', statedAt: 11 }, WROTE);
-    expect((await service.move(moving, OWNER, { parentId: null, afterId: parent })).ok).toBe(true);
+    expect(
+      (await service.move(moving, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' }))
+        .ok,
+    ).toBe(true);
     expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([
       { workItemId: parent, stepId, blockedAt: -10 },
     ]);
@@ -595,7 +607,10 @@ describe('moving work items', () => {
     const first = await add('First', moving);
     await add('Second', moving);
     await serviceOptions.blockages.set({ workItemId: first, stepId, blockedAt: 123 }, WROTE);
-    expect((await service.move(moving, OWNER, { parentId: null, afterId: parent })).ok).toBe(true);
+    expect(
+      (await service.move(moving, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' }))
+        .ok,
+    ).toBe(true);
     expect(await serviceOptions.blockages.listByWorkItems(projectId, [parent])).toEqual([]);
   });
 
@@ -604,7 +619,10 @@ describe('moving work items', () => {
     const child = await add('Child', parent);
     const historical = { workItemId: parent, stepId, state: 'done' as const, statedAt: 123 };
     await progress.set(historical, WROTE);
-    expect((await service.move(child, OWNER, { parentId: null, afterId: parent })).ok).toBe(true);
+    expect(
+      (await service.move(child, OWNER, { parentId: null, afterId: parent }, { kind: 'legacy' }))
+        .ok,
+    ).toBe(true);
     expect(await progress.listByProject(projectId)).toEqual([historical]);
     expect((await service.undo(projectId, OWNER)).ok).toBe(true);
     expect((await workItems.findById(child))?.parentId).toBe(parent);
@@ -620,10 +638,20 @@ describe('moving work items', () => {
     const child = await add('Child', parent);
     const incoming = await add('Incoming');
     await progress.set({ workItemId: parent, stepId, state: 'done', statedAt: 10 }, WROTE);
-    expect((await service.move(child, OWNER, { parentId: parent, afterId: null })).ok).toBe(true);
-    expect((await service.move(incoming, OWNER, { parentId: parent, afterId: child })).ok).toBe(
-      true,
-    );
+    expect(
+      (await service.move(child, OWNER, { parentId: parent, afterId: null }, { kind: 'legacy' }))
+        .ok,
+    ).toBe(true);
+    expect(
+      (
+        await service.move(
+          incoming,
+          OWNER,
+          { parentId: parent, afterId: child },
+          { kind: 'legacy' },
+        )
+      ).ok,
+    ).toBe(true);
     expect(await progress.listByWorkItems(projectId, [parent])).toEqual([
       { workItemId: parent, stepId, state: 'done', statedAt: 10 },
     ]);
@@ -645,7 +673,12 @@ describe('moving work items', () => {
     const strip = await add('Strip');
     const cable = await add('Cable', null, strip);
 
-    const outcome = await service.move(cable, OWNER, { parentId: null, afterId: null });
+    const outcome = await service.move(
+      cable,
+      OWNER,
+      { parentId: null, afterId: null },
+      { kind: 'legacy' },
+    );
 
     expect(outcome.ok).toBe(true);
     expect(await numbered()).toEqual({ '010': 'Cable', '020': 'Strip' });
@@ -655,7 +688,7 @@ describe('moving work items', () => {
     const strip = await add('Strip');
     const cable = await add('Cable', null, strip);
 
-    await service.move(cable, OWNER, { parentId: strip, afterId: null });
+    await service.move(cable, OWNER, { parentId: strip, afterId: null }, { kind: 'legacy' });
 
     expect(await numbered()).toEqual({ '010': 'Strip', '010.1': 'Cable' });
   });
@@ -667,7 +700,12 @@ describe('moving work items', () => {
     const strip = await add('Strip');
     const sockets = await add('Sockets', strip);
 
-    const outcome = await service.move(strip, OWNER, { parentId: sockets, afterId: null });
+    const outcome = await service.move(
+      strip,
+      OWNER,
+      { parentId: sockets, afterId: null },
+      { kind: 'legacy' },
+    );
 
     expect(outcome).toEqual({ ok: false, reason: 'cycle' });
     expect(await numbered()).toEqual({ '010': 'Strip', '010.1': 'Sockets' });

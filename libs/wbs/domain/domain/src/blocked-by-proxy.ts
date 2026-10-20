@@ -42,6 +42,28 @@ function successorLeavesOf(
 }
 
 /**
+ * Each leaf's predecessor leaves over the same graph {@link blockedByProxyOf}
+ * spreads along: every legacy and typed dependency, endpoints taken down to
+ * the leaves under them, a leaf never its own predecessor.
+ *
+ * Throws for a dependency naming a work item the tree does not hold.
+ */
+export function predecessorLeavesOf(
+  index: TreeIndex,
+  dependencies: AuthoredDependencyGraph,
+): Map<string, Set<string>> {
+  const predecessors = new Map<string, Set<string>>();
+  for (const [from, successors] of successorLeavesOf(index, dependencies)) {
+    for (const to of successors) {
+      const found = predecessors.get(to);
+      if (found === undefined) predecessors.set(to, new Set([from]));
+      else found.add(from);
+    }
+  }
+  return predecessors;
+}
+
+/**
  * Every leaf's status with `blocked_by_proxy` applied: an unstarted leaf
  * (`unknown`, `draft`, `ready`) any of whose predecessor leaves reads
  * `on_hold`, `blocked` or `blocked_by_proxy` reads `blocked_by_proxy`.

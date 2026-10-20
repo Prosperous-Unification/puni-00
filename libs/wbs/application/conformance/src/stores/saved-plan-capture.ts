@@ -757,6 +757,7 @@ export function savedPlanCaptureRegistrations(
                   name: 'Unassigned member',
                   kind: 'person',
                   teamIds: ['team-a'] as readonly string[],
+                  accountId: null as string | null,
                 },
                 projectIds: [] as readonly string[],
               },

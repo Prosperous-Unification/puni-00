@@ -50,6 +50,7 @@ import {
   userBoundOrganizationOf,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
+import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -410,6 +411,7 @@ export class OrganizationHarness {
         progress: new StepProgressRepository(db, OPEN),
         attempts: new StepNodeAttemptRepository(db, OPEN),
         blockages: new StepBlockageRepository(db, OPEN),
+        claims: new ClaimRepository(db, OPEN),
         stepParallels: new StepParallelRepository(db, OPEN),
         dependencies: new DependencyRepository(db, OPEN),
         typedDependencies: new TypedDependencyRepository(db, OPEN),
@@ -562,7 +564,10 @@ export class OrganizationHarness {
     supportedCapacityModes,
     sessionBinding,
     provider,
+    upstreamCredential,
   }: ComposedHarnessOptions): OrganizationHarness {
+    if (provider !== undefined && upstreamCredential !== undefined)
+      throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
     runMigrations(path, FOLDER);
@@ -588,6 +593,12 @@ export class OrganizationHarness {
               groupPrefix: 'dev',
               groupsClaim: 'wbs_groups',
             }),
+            passwordSessions: true,
+          }),
+      ...(upstreamCredential === undefined
+        ? {}
+        : {
+            oidc: buildOidcVerifier(upstreamCredential.verifier, upstreamCredential),
             passwordSessions: true,
           }),
       ...(withOptimizer
@@ -630,11 +641,19 @@ export class OrganizationHarness {
           return access;
         },
       },
-      ...(selection === undefined
+      ...(selection === undefined ? {} : { organizationSelection: selection.endpoints }),
+      // As `boot.ts` wires it: an upstream Bearer is judged as evidence on
+      // every request, so a machine token reaches that path here too.
+      ...(selection === undefined && upstreamCredential === undefined
         ? {}
         : {
-            organizationSelection: selection.endpoints,
-            credentialEvidence: organizationCredentialEvidence(services.auth, TEST_JWT_KEY),
+            credentialEvidence: organizationCredentialEvidence(
+              services.auth,
+              TEST_JWT_KEY,
+              upstreamCredential === undefined
+                ? undefined
+                : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
+            ),
           }),
       memberships: new OrganizationRepository(source.db, services.gate),
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
@@ -910,6 +929,8 @@ export interface ComposedHarnessOptions {
   supportedCapacityModes?: readonly CapacityMode[];
   /** Mounts the browser OIDC routes over this fake provider; see {@link OrganizationHarnessOptions}. */
   provider?: FakeOidcProvider;
+  /** Verifies upstream Bearer tokens; see {@link OrganizationHarnessOptions}. */
+  upstreamCredential?: OrganizationHarnessOptions['upstreamCredential'];
 }
 
 /**

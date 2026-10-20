@@ -312,8 +312,22 @@ function buildDocument(
       name,
       color,
     })),
-    directory: closure,
+    // Proof: `closure` written whole put `accountId` into the document and
+    // failed `capacity-only team is named …` and `v9 zero-fact export retains
+    // canonical bytes` in `plan-document.resource.test.ts`, and `exports the
+    // referenced directory closure …` in `project.controller.test.ts` (watched 2026-10-19).
+    directory: { ...closure, people: closure.people.map(exportedPerson) },
   };
+}
+
+/**
+ * A person as the plan document carries them: never `accountId`. Which account
+ * may act as a person is this deployment's fact about its accounts, not part
+ * of the plan, and an import elsewhere has no such account (`wbs-team-claims`
+ * spec `fleet-credentials`).
+ */
+function exportedPerson({ id, name, kind, teamIds }: PersonWithTeams) {
+  return { id, name, kind, teamIds };
 }
 
 /**

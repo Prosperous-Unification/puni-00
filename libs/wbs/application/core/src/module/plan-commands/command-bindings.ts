@@ -1,9 +1,11 @@
+import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
 import type { DependencyEndpoint } from '@wbs/domain';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
+import type { ClaimRefusalOutcome } from '../work-item/claims';
 import type {
   AppliedBase,
   AppliedCommand,
@@ -56,6 +58,11 @@ export class CommandContext {
     private readonly refs: Map<string, string>,
     /** The caller's organization access; directory commands write through it. */
     readonly access: ResourceAccess,
+    /**
+     * The request credential's upstream pair, or null for a first-party
+     * session: what `claimWorkItem` reads the credential pin of (D6).
+     */
+    readonly credential: CredentialPair | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.
@@ -116,6 +123,39 @@ export class CommandContext {
     return outcome.ok ? outcome.value : this.refuseOutcome(outcome);
   }
 
+  /** {@link value} for a claim or release, whose refusals carry their own detail. */
+  claimValue<T>(outcome: { ok: true; value: T } | ServiceRefusal | ClaimRefusalOutcome): T {
+    if (outcome.ok) return outcome.value;
+    switch (outcome.reason) {
+      case 'not_startable':
+        return this.refuse({ reason: outcome.reason, detail: { status: outcome.status } });
+      case 'step_done':
+        return this.refuse({ reason: outcome.reason, detail: { stepIds: [...outcome.stepIds] } });
+      case 'already_claimed':
+        // Proof: with holders replaced by [], both orders of claim-race.db.test.ts
+        // failed: the loser did not name the winner; watched 2026-10-19.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
+        });
+      case 'inside_subtree_claim':
+      case 'overlaps_subtree_claim':
+        return this.refuse({ reason: outcome.reason, detail: { holder: { ...outcome.holder } } });
+      case 'person_not_bound':
+      case 'credential_not_for_person':
+      case 'parent_claim_unknown':
+      case 'parent_claim_foreign':
+      case 'parent_claim_not_ancestor':
+      case 'item_done':
+      case 'no_steps':
+      case 'steps_on_subtree':
+      case 'not_claimed_by':
+        return this.refuse({ reason: outcome.reason });
+      default:
+        return this.refuseOutcome(outcome);
+    }
+  }
+
   requireValue<T>(value: T | null, refusal: Refusal): T {
     if (value === null) this.refuse(refusal);
     return value;
@@ -137,6 +177,12 @@ export class CommandContext {
       return this.refuse({
         reason: outcome.reason,
         detail: { nodes: outcome.nodes.map(({ workItemId, stepId }) => ({ workItemId, stepId })) },
+      });
+    }
+    if (outcome.reason === 'destination_claimed') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
       });
     }
     if (outcome.reason === 'taken') {
@@ -256,6 +302,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             parentId: context.id(command.parentId, command.parentRef),
             afterId: context.id(command.afterId, command.afterRef),
           },
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -441,6 +488,43 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           command.stepId,
           context.id(command.personId, command.personRef),
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    claimWorkItem: async (command, context) => {
+      const claimed = context.claimValue(
+        await workItems.claim(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          {
+            personId: context.required(command.personId, command.personRef),
+            stepIds: command.steps ?? null,
+            runId: command.runId ?? null,
+            parentClaimId: command.parentClaim ?? null,
+          },
+          context.access,
+          context.credential,
+        ),
+      );
+      return {
+        ...context.plain(),
+        kind: command.kind,
+        alreadyHeld: claimed.alreadyHeld,
+        claimIds: [...claimed.claimIds],
+      };
+    },
+    releaseWorkItem: async (command, context) => {
+      context.claimValue(
+        await workItems.release(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          {
+            personId: context.required(command.personId, command.personRef),
+            stepIds: command.steps ?? null,
+          },
+          context.access,
+          context.credential,
         ),
       );
       return { ...context.plain(), kind: command.kind };

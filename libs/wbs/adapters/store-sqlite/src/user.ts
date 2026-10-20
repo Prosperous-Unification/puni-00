@@ -11,7 +11,7 @@ import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import { assertOwnPairMapped, ExternalIdentityRepository } from './external-identity';
 import type { Gate } from './gate';
 import { readOrganizationActivation } from './organization-activation';
-import { externalIdentity, users } from './schema';
+import { externalIdentity, organizationMembership, type OrganizationRole, users } from './schema';
 
 /**
  * SQLite reports a uniqueness violation as a message, not a typed error, so
@@ -53,6 +53,18 @@ export class UserRepository implements UserStore {
   /** The activation marker is read afresh for each explicit link start. */
   isLinkActive(): Promise<boolean> {
     return new ExternalIdentityRepository(this.db, this.gate).isLinkActive();
+  }
+
+  /** `OidcIdentityStore.membershipRolesOf`: the user's `organization_membership` roles. */
+  membershipRolesOf(userId: string): Promise<readonly OrganizationRole[]> {
+    return Promise.resolve(
+      this.db
+        .select({ role: organizationMembership.role })
+        .from(organizationMembership)
+        .where(eq(organizationMembership.userId, userId))
+        .all()
+        .map(({ role }) => role),
+    );
   }
 
   /** Every pair mapped to the user. */
@@ -366,6 +378,13 @@ function resolveMappedIdentity(
     // 2026-09-28.
     if (legacyOwners.some(({ id }) => id !== owner.id))
       throw new Error(`external identity ${issuer} ${subject} is another user's legacy pair`);
+    // A token that carries no email claim says nothing about the owner's
+    // address, so it must not clear it: a linked machine credential would
+    // otherwise wipe the human's email and its verification on every request.
+    // Proof: skipping this made `leaves the owner's row byte for byte under a
+    // linked machine token` in `fleet-credential.controller.db.test.ts` read
+    // `email: null, email_verified: 0` (watched 2026-10-20).
+    if (identity.email === null) return owner;
     const claimed = canonicalOidcEmail(identity.email);
     const heldElsewhere =
       claimed !== null &&

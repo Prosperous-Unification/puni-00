@@ -21,6 +21,7 @@ export const PORT_NAMES = [
   'attempts',
   'blockages',
   'stepParallels',
+  'claims',
   'dependencies',
   'typedDependencies',
   'subtrees',
@@ -45,6 +46,12 @@ export const CASE_MANIFEST = {
     'directory.assign:unknown_person',
     'directory.assign:scope-replace-clear',
     'directory.patchTeam:atomic-refusal',
+    'directory.patchPerson:account-binding',
+    'directory.patchPerson:owned-binding',
+    'directory.credentialPinOf:unlinked',
+    'directory.removePerson:claims-in-use',
+    'directory.removePerson:delegated-claims',
+    'directory.removePerson:pinned-credential',
   ],
   capacity: [
     'capacity.set:project-team-key',
@@ -116,6 +123,12 @@ export const CASE_MANIFEST = {
   blockages: ['blockages.set:read-remove'],
   // Proof: family removed; complete-source inventory assertion failed (source-inventory.txt), 2026-10-15.
   stepParallels: ['stepParallels.set:sparse-replace-remove'],
+  claims: [
+    'claims.add:taken-stated-remove',
+    'claims.listStampedByProject:write-instant',
+    'claims.remove:delegated-cascade',
+    'claims.moveAll:in-place',
+  ],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',

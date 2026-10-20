@@ -35,8 +35,11 @@ import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
 import {
   assignment,
+  claim,
+  externalIdentity,
   externalSystem,
   externalSystemOrganization,
+  organizationMembership,
   person,
   personOrganization,
   personTeam,
@@ -50,6 +53,7 @@ import {
   tag,
   tagOrganization,
   teamService,
+  users,
   workItem,
   workItemExternalRef,
   workItemService,
@@ -70,6 +74,8 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   steps: [],
   people: [],
   members: [],
+  claims: [],
+  pinnedCredentials: 0,
   capacityOf: new Map(),
 };
 
@@ -270,8 +276,78 @@ function usageRowsIn(
     steps,
     people,
     members,
+    claims: [],
+    pinnedCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
+}
+
+/** The ids of the linked credentials pinned to one person (`external_identity.person_id`). */
+function credentialsPinnedTo(reader: Reader, personId: string): string[] {
+  return reader
+    .select({ id: externalIdentity.id })
+    .from(externalIdentity)
+    .where(eq(externalIdentity.personId, personId))
+    .all()
+    .map(({ id }) => id);
+}
+
+/**
+ * A person's usage: what reaches their projects, every claim their removal
+ * takes, and the credentials pinned to them.
+ */
+function personUsageIn(
+  reader: Reader,
+  projectIds: readonly string[],
+  personId: string,
+): DirectoryUsageRows {
+  return {
+    ...usageRowsIn(reader, projectIds, []),
+    claims: claimsTakenWith(reader, personId),
+    pinnedCredentials: credentialsPinnedTo(reader, personId).length,
+  };
+}
+
+/**
+ * Every claim deleting `personId` takes: their own, and every claim delegated
+ * under one of those, transitively (`parent_claim_id ON DELETE CASCADE`).
+ * Ordered by work item, then step. A chain is as deep as the tree, and each
+ * round reads one level by the `claim_by_parent` index.
+ *
+ * Proof: with the loop never entered, the SQLite certification's
+ * `directory.removePerson:delegated-claims` case read the superagent's claim
+ * alone in the usage; watched 2026-10-20.
+ */
+function claimsTakenWith(
+  reader: Reader,
+  personId: string,
+): { workItemId: string; stepId: string | null; personId: string }[] {
+  const columns = {
+    id: claim.id,
+    workItemId: claim.workItemId,
+    stepId: claim.stepId,
+    personId: claim.personId,
+  };
+  const taken = reader.select(columns).from(claim).where(eq(claim.personId, personId)).all();
+  const seen = new Set(taken.map(({ id }) => id));
+  for (let frontier = [...seen]; frontier.length > 0;) {
+    const under = reader
+      .select(columns)
+      .from(claim)
+      .where(inArray(claim.parentClaimId, frontier))
+      .all()
+      .filter(({ id }) => !seen.has(id));
+    for (const each of under) seen.add(each.id);
+    taken.push(...under);
+    frontier = under.map(({ id }) => id);
+  }
+  return taken
+    .map(({ workItemId, stepId, personId: holder }) => ({ workItemId, stepId, personId: holder }))
+    .sort(
+      (left, right) =>
+        left.workItemId.localeCompare(right.workItemId) ||
+        (left.stepId ?? '').localeCompare(right.stepId ?? ''),
+    );
 }
 
 /**
@@ -453,6 +529,7 @@ export class DirectoryRepository implements DirectoryStore {
         id: personOrganization.resourceId,
         name: personOrganization.name,
         kind: person.kind,
+        accountId: person.accountId,
       })
       .from(personOrganization)
       .innerJoin(person, eq(person.id, personOrganization.resourceId))
@@ -588,7 +665,7 @@ export class DirectoryRepository implements DirectoryStore {
           sql`UPDATE ${sql.raw(root)} SET updated_at = ${auditOnUpdate(stamp).updatedAt} WHERE id = ${resourceId}`,
         );
         const touched: Record<NamedCatalog, () => string[]> = {
-          people: () => this.projectsAssigning(tx, resourceId),
+          people: () => this.projectsReaching(tx, resourceId),
           teams: () => this.projectsLabelled(tx, resourceId),
           services: () => this.projectsServiced(tx, resourceId),
           tags: () => this.projectsTagged(tx, resourceId),
@@ -932,7 +1009,7 @@ export class DirectoryRepository implements DirectoryStore {
     // are recorded and not published, and a bare `select()` would put three
     // fields nobody asked for into `Person` and from there into the payload.
     const people = await this.db
-      .select({ id: person.id, name: person.name, kind: person.kind })
+      .select({ id: person.id, name: person.name, kind: person.kind, accountId: person.accountId })
       .from(person)
       .orderBy(asc(person.name));
     const memberships = await this.db
@@ -1057,12 +1134,15 @@ export class DirectoryRepository implements DirectoryStore {
               .all();
             if (found.length !== wanted.length) return { ok: false, reason: 'unknown_team' };
           }
+          if (typeof patch.accountId === 'string' && !accountMayBind(tx, personId, patch.accountId))
+            return { ok: false, reason: 'unknown_account' };
           // One `set`, not one per field: two updates would be two revisions of
           // the same row for a patch the caller sent as one thing, and the second
           // would have to be skipped when only the first field was named anyway.
           const columns = {
             ...(patch.name === undefined ? {} : { name: patch.name }),
             ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+            ...(patch.accountId === undefined ? {} : { accountId: patch.accountId }),
           };
           if (Object.keys(columns).length > 0) {
             // The stamp rides inside the guard, not outside it: this row's
@@ -1088,7 +1168,12 @@ export class DirectoryRepository implements DirectoryStore {
             }
           }
           const rows = tx
-            .select({ id: person.id, name: person.name, kind: person.kind })
+            .select({
+              id: person.id,
+              name: person.name,
+              kind: person.kind,
+              accountId: person.accountId,
+            })
             .from(person)
             .where(eq(person.id, personId))
             .all();
@@ -1102,7 +1187,7 @@ export class DirectoryRepository implements DirectoryStore {
           return {
             ok: true,
             person: { ...patched, teamIds: teamIds.map((row) => row.serviceTeamId) },
-            projectIds: this.projectsAssigning(tx, personId),
+            projectIds: this.projectsReaching(tx, personId),
           };
         });
       } catch (err) {
@@ -1111,6 +1196,33 @@ export class DirectoryRepository implements DirectoryStore {
         throw err;
       }
     });
+  }
+
+  /**
+   * {@link DirectoryStore.boundAccountOf}: `person.account_id`.
+   *
+   * @throws when no person has this id.
+   */
+  async boundAccountOf(personId: string): Promise<string | null> {
+    await Promise.resolve();
+    const row = this.db
+      .select({ accountId: person.accountId })
+      .from(person)
+      .where(eq(person.id, personId))
+      .get();
+    if (row === undefined) throw new Error(`no person "${personId}" to read the binding of`);
+    return row.accountId;
+  }
+
+  /** {@link DirectoryStore.credentialPinOf}: `external_identity.person_id` of the pair. */
+  async credentialPinOf(issuer: string, subject: string): Promise<string | null> {
+    await Promise.resolve();
+    const row = this.db
+      .select({ personId: externalIdentity.personId })
+      .from(externalIdentity)
+      .where(and(eq(externalIdentity.issuer, issuer), eq(externalIdentity.subject, subject)))
+      .get();
+    return row?.personId ?? null;
   }
 
   /**
@@ -1123,7 +1235,7 @@ export class DirectoryRepository implements DirectoryStore {
    */
   async usageOfPerson(personId: string): Promise<DirectoryUsageRows> {
     await Promise.resolve();
-    return usageRowsIn(this.db, this.projectsAssigning(this.db, personId), []);
+    return personUsageIn(this.db, this.projectsReaching(this.db, personId), personId);
   }
 
   /**
@@ -1494,15 +1606,33 @@ export class DirectoryRepository implements DirectoryStore {
           .from(assignment)
           .where(eq(assignment.personId, personId))
           .all();
-        if (!cascade && held.length > 0) {
+        // Own and delegated: the delegated go by the parent cascade, and their
+        // work items' revisions move with the rest.
+        const claimed = claimsTakenWith(tx, personId);
+        const pinned = credentialsPinnedTo(tx, personId);
+        // Proof: with `claimed` left out of this test, the SQLite certification's
+        // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
+        // Proof: with `pinned` left out of this test, the SQLite certification's
+        // `directory.removePerson:pinned-credential` case removed the person
+        // unconfirmed; with the revoking delete below removed, the confirmed
+        // removal failed on the `external_identity.person_id` foreign key
+        // (both watched 2026-10-20).
+        if (!cascade && (held.length > 0 || claimed.length > 0 || pinned.length > 0)) {
           return {
             ok: false,
             reason: 'in_use',
-            usage: usageRowsIn(tx, this.projectsAssigning(tx, personId), []),
+            usage: personUsageIn(tx, this.projectsReaching(tx, personId), personId),
           };
         }
-        const projectIds = this.projectsAssigning(tx, personId);
+        const projectIds = this.projectsReaching(tx, personId);
         tx.delete(assignment).where(eq(assignment.personId, personId)).run();
+        // Delegated claims under these go with them: `parent_claim_id` cascades.
+        tx.delete(claim).where(eq(claim.personId, personId)).run();
+        // Revoked, not unpinned: `person_id` null would let the fleet claim as
+        // any person of its account. `external_identity.person_id` has no
+        // `ON DELETE` action, so without this the person delete fails on it.
+        if (pinned.length > 0)
+          tx.delete(externalIdentity).where(inArray(externalIdentity.id, pinned)).run();
         tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
         const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
         // Nothing was deleted, so there was nothing here to delete: somebody
@@ -1510,7 +1640,10 @@ export class DirectoryRepository implements DirectoryStore {
         // move no revision — the two deletes above touched nothing for the same
         // reason.
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
-        const workItemIds = [...new Set(held.map((each) => each.workItemId))];
+        // Proof: with `claimed` read as the person's own claims alone, the
+        // SQLite `directory.removePerson:delegated-claims` case found the
+        // worker's work item missing from the removal; watched 2026-10-20.
+        const workItemIds = [...new Set([...held, ...claimed].map((each) => each.workItemId))];
         bumpWorkItems(tx, workItemIds, stamp);
         return { ok: true, removal: { workItemIds, projectIds } };
       });
@@ -1595,16 +1728,22 @@ export class DirectoryRepository implements DirectoryStore {
     });
   }
 
-  /** Every project holding a work item this person is assigned on. */
-  private projectsAssigning(reader: Reader, personId: string): string[] {
-    return projectsOf(
-      reader
+  /** Every project holding a work item this person is assigned on or holds a claim on. */
+  private projectsReaching(reader: Reader, personId: string): string[] {
+    return projectsOf([
+      ...reader
         .select({ projectId: workItem.projectId })
         .from(assignment)
         .innerJoin(workItem, eq(assignment.workItemId, workItem.id))
         .where(eq(assignment.personId, personId))
         .all(),
-    );
+      ...reader
+        .select({ projectId: workItem.projectId })
+        .from(claim)
+        .innerJoin(workItem, eq(claim.workItemId, workItem.id))
+        .where(eq(claim.personId, personId))
+        .all(),
+    ]);
   }
 
   /**
@@ -1733,6 +1872,30 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
+   * One primary-key read per distinct id, never a directory scan nor an
+   * unbounded IN list.
+   *
+   * Proof: reading `listPeople()` here and filtering made `materializes only
+   * the assignee and the claim holder during a tiny startable read`
+   * (startable-scope.db.test.ts) fail on a `SCAN person`; watched 2026-10-20.
+   */
+  async namesOf(
+    catalog: 'people' | 'teams',
+    ids: readonly string[],
+  ): ReturnType<DirectoryStore['namesOf']> {
+    const table = catalog === 'people' ? person : serviceTeam;
+    const named: { id: string; name: string }[] = [];
+    for (const id of new Set(ids)) {
+      const found = await this.db
+        .select({ id: table.id, name: table.name })
+        .from(table)
+        .where(eq(table.id, id));
+      named.push(...found);
+    }
+    return named;
+  }
+
+  /**
    * Reads through the leading work-item column of the assignment primary key.
    *
    * Proof: removing the predicate made `uses an indexed prior assignment read
@@ -1828,4 +1991,40 @@ export class DirectoryRepository implements DirectoryStore {
     if (written === 'unknown_step') return { ok: false, reason: 'unknown_step' };
     return refusal;
   }
+}
+
+type Transaction = Parameters<Parameters<SQLiteBunDatabase['transaction']>[0]>[0];
+
+/**
+ * Whether `accountId` may be bound to act as `personId`: the account exists
+ * and, when the person belongs to an organization, is a member of it. Read in
+ * the patch's own transaction, so a membership removed after a preflight
+ * cannot slip between the check and the write.
+ *
+ * Proof: answering true made `directory.patchPerson:account-binding` in the
+ * SQLite certification fail on the raw `Failed query: update "person" set
+ * "account_id"` foreign-key error instead of `unknown_account` (watched 2026-10-19).
+ */
+function accountMayBind(tx: Transaction, personId: string, accountId: string): boolean {
+  const owner = tx
+    .select({ organizationId: personOrganization.organizationId })
+    .from(personOrganization)
+    .where(eq(personOrganization.resourceId, personId))
+    .get();
+  if (owner === undefined)
+    return (
+      tx.select({ id: users.id }).from(users).where(eq(users.id, accountId)).get() !== undefined
+    );
+  return (
+    tx
+      .select({ userId: organizationMembership.userId })
+      .from(organizationMembership)
+      .where(
+        and(
+          eq(organizationMembership.organizationId, owner.organizationId),
+          eq(organizationMembership.userId, accountId),
+        ),
+      )
+      .get() !== undefined
+  );
 }

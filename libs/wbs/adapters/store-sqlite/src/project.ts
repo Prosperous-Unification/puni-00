@@ -561,6 +561,11 @@ export class ProjectRepository implements ProjectStore {
         'assignment_person',
         "l.work_item_id || '/' || l.step_id || '/' || l.person_id",
       ),
+      // A claim names a person as an assignment does, and fails closed alike.
+      // Proof: with this arm removed, `fails the schedule read closed over a
+      // crossing claim_person` (schedule-organization.controller.db.test.ts)
+      // answered 200 where 500 was owed; watched 2026-10-20.
+      catalogLink('claim', 'person_id', 'person_organization', 'claim_person', 'l.id'),
       catalogLink(
         'work_item_tag',
         'tag_id',

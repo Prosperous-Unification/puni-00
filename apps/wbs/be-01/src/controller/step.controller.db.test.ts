@@ -625,6 +625,7 @@ describe('DELETE /api/projects/:id/steps/:stepId', () => {
         blockages: 0,
         measures: 0,
         attempts: 0,
+        claims: 0,
         assignments: 1,
         assumedAssignees: [{ workItemId: 'strip', assumedNow: ada.id, assumedAfter: null }],
       },
@@ -894,7 +895,7 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
   const token = await register('owner');
   const project = await newProject(token);
   const path = `http://localhost/api/projects/${project.id}/steps`;
-  const authenticate = spyOn(auth, 'authenticate');
+  const authenticate = spyOn(auth, 'authenticateOrRefuse');
   try {
     const wrongOrigin = await app.handle(
       new Request(path, {
@@ -919,10 +920,12 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
   } finally {
     authenticate.mockRestore();
   }
-  const actualAuthenticate = auth.authenticate.bind(auth);
-  const readScope = spyOn(auth, 'authenticate').mockImplementation(async (credential) => {
+  const actualAuthenticate = auth.authenticateOrRefuse.bind(auth);
+  const readScope = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (credential) => {
     const account = await actualAuthenticate(credential);
-    return account === null ? null : { ...account, scopes: ['read'] };
+    return account === null || account === 'unknown_identity'
+      ? account
+      : { ...account, scopes: ['read'] };
   });
   try {
     const refused = await send(`/api/projects/${project.id}/steps`, token, {
