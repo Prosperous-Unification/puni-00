@@ -250,11 +250,65 @@ again.
 
 - Fixed in the review round (S2): unlinking used to let the next machine request mint a new
   account; it is now refused `401 unknown_identity` and `users` does not grow.
-- Removing a person that a credential is pinned to is a raw foreign-key failure (500) on SQLite;
-  no modeled refusal yet.
+- Removing a person that a credential is pinned to was a raw foreign-key failure (500) on
+  SQLite; modeled in "Slice 2 follow-ups" below.
 - Not verified by a build: that `link-credential-cli.ts` ships in the production image. The
   be-01 Dockerfile copies `apps/wbs/be-01` whole (`COPY apps/wbs/be-01 ./apps/wbs/be-01`), as
   for the other `src/*-cli.ts`; no image was built here.
+
+### Slice 2 follow-ups (PR #578 second review, 2026-10-20)
+
+Branch `feat/wbs-claims-followups`, laptop, every test under `env -u CLAUDECODE`. No h2puni
+gate was run here (the orchestrator gates the merged plan head).
+
+| Finding                                         | Change                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 groups-less token with an email claim      | Test `leaves the owner's email alone under a groups-less token carrying an email` (`fleet-credential.controller.db.test.ts`). It could not fail at first: the composed harness wired credential evidence only with `sessionBinding` and without the upstream verifier, unlike `boot.ts`. `openComposedWith` now wires it whenever `upstreamCredential` is given.      |
+| S3-2 deleting a person with a pinned credential | `DirectoryUsageRows.pinnedCredentials` / `DirectoryUsage.pinnedCredentials` (wire: optional, mid-swap). `removePerson` without cascade is refused `in_use` naming the count; with cascade the pinned `external_identity` rows are **deleted** in the same transaction (see decision below). Both stores; conformance case `directory.removePerson:pinned-credential`. |
+| S3-3 runbook home                               | `docs/auth-integration.md` "Fleet credentials"; `docs/runbook-prod-deploy.md` "Fleet credential links" with the `docker exec` line.                                                                                                                                                                                                                                   |
+| S4 `unknown_identity` headers                   | `mount.ts` answers it with `responseHeaders(matched.endpoint.shape)`; the unlinked-token test asserts `cache-control: no-store` and `Vary` on `/api/organization/active`.                                                                                                                                                                                             |
+| S4 test name, Proof placement, verify and tasks | The add_claim rollback test is named for what it proves; the `scopesOfRoles` and `groupsClaimed` proofs sit beside the symbols; "Interim identity reads" marked superseded by 2.3; 2.5 listed before 2.6.                                                                                                                                                             |
+
+**Cascade decision for a pinned person (assumed, for Dany's review).** A confirmed removal
+revokes the credentials pinned to the person (deletes their `external_identity` rows, as
+`--unlink` does) rather than setting `person_id` null. Unpinning would widen the credential: an
+unpinned credential may claim as any person bound to its account, so deleting an agent person
+would silently promote its fleet. Revoking narrows instead; the operator relinks with
+`link-credential-cli.ts`. The fe-01 confirmation names the count ("N fleet credentials pinned to
+X are revoked."); it was checked by a component test, not reviewed by eye in a browser.
+
+R5 proofs (fault injected, test observed, restored):
+
+| Check                                                            | Injected fault                                   | Observed                                                                                          |
+| ---------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| evidence path reads the link only (`organization-credential.ts`) | groups-less branch through `resolveOidcIdentity` | the email case failed: Dany's row took `fleet@elsewhere.example`                                  |
+| bearer path reads the link only (`authenticateOrRefuse`)         | linked read through `resolveOidcIdentity`        | the email case, the unlinked case and the unlink case failed                                      |
+| `scopesOfRoles` (re-watched)                                     | answers `[]`                                     | the member case failed (read 403)                                                                 |
+| `groupsClaimed` (re-watched)                                     | always `true`                                    | four fleet cases and `tells a token without the groups claim from one with an empty claim` failed |
+| SQLite pin usage                                                 | `pinned` left out of the refusal                 | SQLite certification failed `directory.removePerson:pinned-credential` (removed unconfirmed)      |
+| SQLite revocation                                                | the `external_identity` delete removed           | the same case failed on the `person` delete (foreign key)                                         |
+| memory pin usage                                                 | refusal disabled                                 | memory certification failed the same case                                                         |
+| memory revocation                                                | the pin loop removed                             | the same case failed: `credentialPinOf` still named the removed person                            |
+| HTTP removal of a pinned person                                  | `directory.ts` as before this change             | `refuses removing a pinned person in_use, then revokes the credential with it` answered 500       |
+| `unknown_identity` headers (`mount.ts`)                          | before the fix                                   | the unlinked case read `cache-control` null                                                       |
+| fe-01 confirmation line                                          | the block disabled                               | `names the fleet credentials a pinned person's removal revokes` failed                            |
+
+Commands:
+
+| Command (cwd repo root unless named)                                                                                                                                                                                                 | Result           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| `bun test` be-01: directory controller, fleet-credential, migration-cli, directory service, claim-identity, organization-credential-rules, organization-selection, directory-command-organization, every `src/http/elysia/*.test.ts` | 325 pass, 0 fail |
+| `bun test` memory and SQLite source conformance, SQLite `directory.db.test.ts`, core `directory-usage.test.ts`, auth `oidc-identity.test.ts`                                                                                         | 172 pass, 0 fail |
+| `bun test` (conformance)                                                                                                                                                                                                             | 35 pass, 0 fail  |
+| `bun test` (store-memory)                                                                                                                                                                                                            | 190 pass, 0 fail |
+| `bun test` core `src/module/directory`, `src/module/authentication`, `directory-usage.test.ts`, `claim-command.test.ts`                                                                                                              | 41 pass, 0 fail  |
+| `bunx vitest run` fe-01 `directory-page`, `wbs-api`, `refusing-api`, `directory.resource` tests                                                                                                                                      | 160 pass, 0 fail |
+| `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                                                                                                                                                                   | 15 pass, 0 fail  |
+| `bunx tsc --build --force` in be-01, store-sqlite, store-memory, conformance, core, contracts, fe-01, mcp-01                                                                                                                         | no diagnostics   |
+| `bunx @fission-ai/openspec@1.12.0 validate wbs-team-claims`                                                                                                                                                                          | valid            |
+
+Not run: the h2puni gate, the whole be-01 and store-sqlite suites, and a browser review of the
+fe-01 confirmation.
 
 ## Slice 1: the claim record and its decision (tasks 1.1 to 1.6)
 
