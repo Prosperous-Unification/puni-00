@@ -63,9 +63,9 @@ host CLIs run. Unlinking SHALL be the same CLI with `--unlink`.
 
 ### Requirement: A machine token is scoped by its linked account and never mints an account
 
-After organization activation, be-01 SHALL refuse `401 unknown_identity`, before creating
-any account, a verified token that carries no groups claim and whose `(issuer, subject)` is
-linked to no account. A token that carries no groups claim and whose pair is linked SHALL be
+be-01 SHALL refuse `401 unknown_identity`, before creating any account and whether or not
+organizations are activated, a verified token that carries no groups claim and whose
+`(issuer, subject)` is linked to no account. A token that carries no groups claim and whose pair is linked SHALL be
 scoped from the linked account's memberships: `viewer` reads, `member` reads and writes,
 `admin` and `super_admin` edit. A token that carries the groups claim SHALL keep today's
 mapping, so browser sign-in is unchanged.
