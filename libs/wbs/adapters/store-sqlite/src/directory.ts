@@ -1758,6 +1758,30 @@ export class DirectoryRepository implements DirectoryStore {
   }
 
   /**
+   * One primary-key read per distinct id, never a directory scan nor an
+   * unbounded IN list.
+   *
+   * Proof: reading `listPeople()` here and filtering made `materializes only
+   * the assignee and the claim holder during a tiny startable read`
+   * (startable-scope.db.test.ts) fail on a `SCAN person`; watched 2026-10-20.
+   */
+  async namesOf(
+    catalog: 'people' | 'teams',
+    ids: readonly string[],
+  ): ReturnType<DirectoryStore['namesOf']> {
+    const table = catalog === 'people' ? person : serviceTeam;
+    const named: { id: string; name: string }[] = [];
+    for (const id of new Set(ids)) {
+      const found = await this.db
+        .select({ id: table.id, name: table.name })
+        .from(table)
+        .where(eq(table.id, id));
+      named.push(...found);
+    }
+    return named;
+  }
+
+  /**
    * Reads through the leading work-item column of the assignment primary key.
    *
    * Proof: removing the predicate made `uses an indexed prior assignment read

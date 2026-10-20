@@ -452,6 +452,15 @@ export function inMemoryDirectory(
         people: named.sort((left, right) => left.name.localeCompare(right.name)),
       };
     },
+    namesOf(catalog, ids) {
+      const held = catalog === 'people' ? people : teams;
+      return Promise.resolve(
+        [...new Set(ids)].flatMap((id) => {
+          const found = held.get(id);
+          return found === undefined ? [] : [{ id, name: found.name }];
+        }),
+      );
+    },
     assignmentsFor(workItemId) {
       return Promise.resolve(
         [...assignments.values()].filter((each) => each.workItemId === workItemId),

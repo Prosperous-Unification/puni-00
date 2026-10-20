@@ -195,3 +195,142 @@ eslint-boundary failures that did not repeat, the "No cached ProjectGraph" condi
 and Dash suites passed, `exit=0` (2026-10-20). The earlier run on the same SHA was refused with
 exit 75 after its 30-minute queue budget behind another gate; the rerun used
 `HEAVY_LOCK_WAIT_SECONDS=10800`.
+
+## Slice 3: the startable read (tasks 3.1 and 3.2)
+
+Run on the laptop 2026-10-19/20 on `feat/wbs-startable-read` (branched from
+`feat/wbs-claim-record`), every test under `env -u CLAUDECODE`, targeted suites only.
+
+What was built: `findStartableWork` (`libs/wbs/application/core/src/module/work-item/startable.ts`),
+`WorkItemService.startableWithin`, the descriptor `readStartableWork`
+(`GET /api/projects/:id/startable?team=`, `getApiProjectsByIdStartable`), and its route. It
+reuses `isStartableStatus` (now exported from `claim.ts` and used by `decideClaim`), the
+`statusesOf` fold the claim command uses, and a new `predecessorLeavesOf` beside
+`blockedByProxyOf`. The claim write instant comes from a new port read
+`ClaimStore.listStampedByProject` (SQLite `created_at`; the memory source stores the write's
+stamp), certified by the new case `claims.listStampedByProject:write-instant`.
+
+Choices the spec left open, recorded here:
+
+- `team` is a team id. A team the caller's directory does not hold (under scoped access, one the
+  organization does not own) answers 404 `unknown_team`; `unknown_team` became a shared refusal
+  code (bare here, with command context in a batch).
+- `number` is the frozen number when one is frozen, else the derived one; `numberIsFrozen` says
+  which.
+- `claimed` lists every claimed step of every leaf the team filter keeps, whatever the leaf's
+  status, so a claim on work that has since stopped still shows. `leaves` holds only leaves with
+  at least one startable step.
+- The subtree claim named is the nearest one above the leaf; with nested delegated subtree claims,
+  `parentClaimId` leads up the chain.
+- Unfinished predecessors are predecessor leaves (legacy and typed dependencies taken down to
+  leaves, as `blockedByProxyOf` reads them) whose derived status is not `done`.
+- Names are the organization's own under scoped access, as the tree read names assignees.
+- The organization harness's `WorkItemService` now carries a claim store; production already
+  did through `servicesOver`.
+
+### Commands and results
+
+| Command (cwd)                                                                                                                                               | Result                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `bun test src/module/work-item/startable.test.ts` (libs/wbs/application/core)                                                                               | 9 pass, 0 fail                                          |
+| `bun test src --timeout=10000` (libs/wbs/application/core)                                                                                                  | 1081 pass, 0 fail                                       |
+| `bun test src/blocked-by-proxy.test.ts src/blocked-by-proxy.property.test.ts src/claim.test.ts` (libs/wbs/domain/domain)                                    | 66 pass, 0 fail                                         |
+| `bun test` (libs/wbs/application/conformance)                                                                                                               | 35 pass, 0 fail                                         |
+| `bun test` (libs/wbs/adapters/store-memory)                                                                                                                 | 188 pass, 0 fail                                        |
+| `bun test src/claim.db.test.ts src/claim-race.db.test.ts src/testing/source-conformance.db.test.ts` (libs/wbs/adapters/store-sqlite)                        | 94 pass, 0 fail                                         |
+| `bun test` (libs/wbs/domain/contracts)                                                                                                                      | 475 pass, 0 fail                                        |
+| `bun test` (apps/wbs/mcp-01)                                                                                                                                | 423 pass, 0 fail                                        |
+| `bun test src/app.routes.test.ts src/openapi/ organization-context, startable-organization, schedule-organization, work-item-rows controller tests` (be-01) | 106 pass, 0 fail                                        |
+| `bun test` command-organization, membership-organization, directory-command-organization controller tests (be-01)                                           | 74 pass, 0 fail                                         |
+| `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts` (root)                                                                                   | 15 pass, 0 fail (with the new files staged and indexed) |
+| `bunx tsc --build --force` domain, contracts, core, conformance, store-sqlite, store-memory, be-01, mcp-01, fe-01                                           | no diagnostics                                          |
+| `bunx eslint` on every changed TypeScript file                                                                                                              | no errors                                               |
+| `bunx @fission-ai/openspec@1.12.0 validate wbs-team-claims --json`                                                                                          | 1 passed, 0 failed                                      |
+
+MCP: the generated tool list moves by exactly one, 81 to 82 (`getApiProjectsByIdStartable`);
+the pinned list in `apps/wbs/mcp-01/src/generated-document.test.ts` and the README count were
+updated.
+
+OpenAPI emit diff (`bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts` on
+`origin/feat/wbs-claim-record` and on this branch): one path added,
+`/api/projects/{id}/startable` (GET, responses 200, 400, 401, 403, 404, 409); no path removed or
+changed; every non-path key (components included) identical.
+
+### R5 proofs (fault injected, test observed, all restored and re-run green)
+
+| Check                                            | Injected fault                                               | Observed                                                                                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| startable status (the brief's negative)          | `statusFor(leafId)` replaced by `row.readiness ?? 'unknown'` | `leaves a ready leaf behind an unfinished held predecessor out` failed (the blocked-by-proxy leaf was listed)                                |
+| team filter                                      | condition replaced by `false`                                | the allotment, no-team and subtree cases failed                                                                                              |
+| claimed step not startable                       | a held step also counted free                                | the same three cases failed                                                                                                                  |
+| scoped names and teams                           | root catalogs read under scoped access                       | `answers a member and a viewer alike, with the organization's own names` and `refuses a team the caller's organization does not hold` failed |
+| repeated query key                               | `hasRepeatedKey` check removed                               | `refuses a repeated team and an undeclared key` failed                                                                                       |
+| SQLite stamped read                              | null-instant check made unreachable                          | `refuses a stamped read of a claim with no write instant` failed                                                                             |
+| memory write instant                             | stored `claimedAt: 0`                                        | memory certification failed on `claims.listStampedByProject:write-instant`                                                                   |
+| `unknown_team` as a bare refusal (type boundary) | registry change reverted                                     | `readStartableWork` failed TS2345 (`not assignable to parameter of type 'never'`)                                                            |
+
+### Not run, and known gaps
+
+- The be-01 and store-sqlite suites were run per affected file, not whole; the h2puni gate
+  carries them (below).
+- The read does not go through the shared live-plan capture the tree read uses when shared
+  people mode is on; it reads the stores through `admits`, as `updateInstantsWithin` does beside
+  the tree. A stranger is refused alike (404, and 403 before any lookup for an unbound session),
+  but a live-plan `access_refused` the tree read can answer is not reproduced here.
+- No pagination: the read answers the whole project. The dev store's 211 work items make that
+  small; a large project would want a page.
+
+### Review fixes (PR #581 review, 2026-10-20)
+
+| Finding                                       | Fix                                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S3-1 a claimed step lacked its assignee (D1)  | `ClaimedStep.assignee: NamedPerson \| null` (and on the wire); test `shows a claimed step beside its assignee`                                                                                                                                                      |
+| S3-2 silent subtree claims were invisible     | `subtreeClaims`: every subtree claim of the project, team filter or not, with address, holder, run, parent and write instant; test `lists a silent subtree claim whose every leaf has stopped`                                                                      |
+| S3-3 directory-wide scans under legacy access | new `DirectoryStore.namesOf(catalog, ids)` (one primary-key read per id; SQLite, memory, the batch wrapper); assignee names come with `assignmentsInProject`, holders and teams through `namesOf`; test `startable-scope.db.test.ts` (40 unrelated assigned people) |
+| S3-4 two reddening checks without `Proof:`    | both watched and commented (rows below)                                                                                                                                                                                                                             |
+| S4 orphaned `ClaimWriteOutcome` JSDoc         | moved back beside its type                                                                                                                                                                                                                                          |
+| S4 claim person outside the organization      | `claim_person` arm in `findCrossReferences` (and in `PROJECT_CROSS_REFERENCE_KINDS`, mapped to `unknown_person` in command references); crossing case added to `schedule-organization.controller.db.test.ts`                                                        |
+| S4 duplicated progress and dependency reads   | `statusReadsOf` returns the statuses with the progress statements and edges it read; `statusesOf` and `startableWithin` share it                                                                                                                                    |
+| S4 unreachable cycle guard                    | dropped: `deriveNumbers` has already thrown for a cycle or an orphan; the walk now throws on a parent that is not a row                                                                                                                                             |
+
+`organization-ownership.ts` (activation reconciliation) has no `claim` arm; activation of an
+organization over claims whose person it does not own is not covered by this fix.
+
+R5 proofs added (fault injected, test observed, restored):
+
+| Check                                   | Injected fault                                       | Observed                                                                                                   |
+| --------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| done step left out (`startable.ts`)     | `!done.has(key)` replaced by `true`                  | `leaves a done step out and keeps the other` failed                                                        |
+| finished predecessors dropped           | `!== 'done'` filter made always true                 | `names the unfinished predecessors of a startable leaf, and drops finished ones` failed                    |
+| claimed step's assignee                 | `assignee: null`                                     | `shows a claimed step beside its assignee` failed                                                          |
+| subtree claims listed                   | `subtreeClaims: []`                                  | `lists a silent subtree claim whose every leaf has stopped` and the subtree-holder case failed             |
+| legacy names bounded (service)          | `directory.listPeople()` in place of `namesOf`       | `materializes only the assignee and the claim holder during a tiny startable read` failed on `SCAN person` |
+| legacy names bounded (SQLite `namesOf`) | `listPeople()` filtered in place of the per-id reads | the same case failed on `SCAN person`                                                                      |
+| `claim_person` cross reference          | arm removed                                          | `fails the schedule read closed over a crossing claim_person` answered 200, 500 owed                       |
+
+Commands after the fixes, laptop, `env -u CLAUDECODE`:
+
+| Command (cwd)                                                                                                                                       | Result            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| `bun test src --timeout=10000` (core; `startable.test.ts` alone: 11 pass)                                                                           | 1083 pass, 0 fail |
+| `bun test` blocked-by-proxy, its property test, claim (domain)                                                                                      | 66 pass, 0 fail   |
+| `bun test` (conformance)                                                                                                                            | 35 pass, 0 fail   |
+| `bun test` (store-memory)                                                                                                                           | 188 pass, 0 fail  |
+| `bun test` (contracts)                                                                                                                              | 475 pass, 0 fail  |
+| `bun test` claim, claim-race, source-conformance, startable-scope, assignment-scope, project, organization-reconciliation, directory (store-sqlite) | 168 pass, 0 fail  |
+| `bun test` (mcp-01)                                                                                                                                 | 423 pass, 0 fail  |
+| `bun test` app.routes, openapi, organization-context, startable-organization, schedule-organization, work-item-rows, command-organization (be-01)   | 136 pass, 0 fail  |
+| `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                                                                                  | 15 pass, 0 fail   |
+| `bunx tsc --build --force` domain, contracts, core, conformance, both adapters, be-01, mcp-01, fe-01                                                | no diagnostics    |
+
+OpenAPI emit diff against `origin/feat/wbs-claim-record` re-run: still one path added, nothing
+else changed. MCP tool count unchanged by the fixes (82).
+
+### Gate for slice 3
+
+`bin/h2puni-gate.sh 49f4bc4ff7c942824112ddb6f48f837498b14765` on h2puni (tree
+`/home/puni1/puni-00-gate-tbf`, `HEAVY_LOCK_WAIT_SECONDS=10800`, log
+`~/gate-startable-49f4bc4f.log`): printed `h2puni gate: running on
+49f4bc4ff7c942824112ddb6f48f837498b14765`, `exit=0` (2026-10-20). That SHA is the review fixes
+rebased onto `plan/wbs-team-claims`; the commit recording this paragraph changes this file only.
+Earlier queued runs on `e767ac91d` and `d77c5336f` were cancelled before they started (exit 143).

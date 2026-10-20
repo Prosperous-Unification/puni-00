@@ -82,6 +82,7 @@ async function seeded(identities: Identities = BOUND) {
   }
   const withIdentity = (claims: ClaimStore): ClaimStore => ({
     listByProject: (id) => claims.listByProject(id),
+    listStampedByProject: (id) => claims.listStampedByProject(id),
     findById: (id, claimId) => claims.findById(id, claimId),
     add: (written, stated, stamp) => claims.add(written, stated, stamp),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),

@@ -166,6 +166,7 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
     case 'assignment_step':
       return 'unknown_step';
     case 'assignment_person':
+    case 'claim_person':
     case 'step_node_attempt_person':
       return 'unknown_person';
     case 'work_item_tag':

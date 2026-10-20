@@ -62,12 +62,13 @@
 
 ## 3. Startable read
 
-- [ ] 3.1 Red: `startable.test.ts` in core: filter by team, no team, claimed-apart list,
+- [x] 3.1 Red: `startable.test.ts` in core: filter by team, no team, claimed-apart list,
       subtree holder shown, frozen number over derived, unfinished predecessors — test: the
       spec's scenarios on the memory store; negative: swap `statusOf` for the stored readiness
-      and the blocked-by-proxy scenario reddens.
-- [ ] 3.2 Descriptor, route, policy (viewer may read), MCP tool by derivation — test: route
-      tests for viewer, member, stranger; the MCP tool count moves by one.
+      and the blocked-by-proxy scenario reddens; watched (verify.md, slice 3).
+- [x] 3.2 Descriptor, route, policy (viewer may read), MCP tool by derivation — test: route
+      tests for viewer, member, stranger; the MCP tool count moves by one (81 to 82,
+      `getApiProjectsByIdStartable`).
 
 ## 4. Dispatch of the live plan (operator, not code)
 
