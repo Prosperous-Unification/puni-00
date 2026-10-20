@@ -918,3 +918,12 @@ refuses `409 step_blockage_inactive` whatever the claims do; the step enables it
 `activateTestStepBlockages` as the attended activation would. `refuses an undo of a delete once
 the claim it was delegated under was released` gained a sibling `W` so its delete no longer
 promotes (it would now hand the claim up rather than take it).
+
+## Final gate on the merged head with the rehearsal (2026-10-21)
+
+`bin/h2puni-gate.sh f3b55a106d2081fb0393e1a33e34600f5c409553` from `/home/puni1/puni-00-gate-tbf`
+(log `~/gate-resources-plan-final3.log`): printed
+`h2puni gate: running on f3b55a106d2081fb0393e1a33e34600f5c409553`, 47 projects passed, Burokrat
+and Dash suites passed, solver image smoke passed, `GATE_EXIT=0`. That head adds the swarm rehearsal
+(PR #596), the promotion-claims fix (PR #598) and the activation CLI commits of PR #582 to 8759e4dc.
+This commit changes only verify.md.
