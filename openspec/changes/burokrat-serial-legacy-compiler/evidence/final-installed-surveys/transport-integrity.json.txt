@@ -1,0 +1,134 @@
+{
+  "scope": "Transport integrity only; no evaluator or rule comparator rerun",
+  "checkerSha256": "7d5144d2cd1276829f3be75c5ad3e371c1f8fd31c9c3ebe889df410d8df4c0b0",
+  "manifestSha256": "445673d8d14fd2994b624845130edcb65831285d0c92e4f88f5e6ee0b291ac83",
+  "carrierSha256": "a41ea875c716211b7d4c11d84e7c05514c55edf35eebc3898067d83464ef8548",
+  "positive": {
+    "command": [
+      "python3",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys",
+      "--check-sources"
+    ],
+    "exitCode": 0,
+    "stdout": "{\"files\": 54, \"payloads\": 39, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+    "stderr": ""
+  },
+  "cases": [
+    {
+      "fault": "carrier",
+      "expected": "carrier digest mismatch",
+      "negative": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/carrier",
+          "--check-sources"
+        ],
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Traceback (most recent call last):\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 16, in <module>\n    require(hashlib.sha256(carrier).hexdigest() == manifest['payloadFileSha256'], 'carrier digest mismatch')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: carrier digest mismatch\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/carrier",
+          "--check-sources"
+        ],
+        "exitCode": 0,
+        "stdout": "{\"files\": 54, \"payloads\": 39, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+        "stderr": ""
+      }
+    },
+    {
+      "fault": "payload",
+      "expected": "payload digest mismatch",
+      "negative": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/payload",
+          "--check-sources"
+        ],
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Traceback (most recent call last):\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 20, in <module>\n    require(hashlib.sha256(raw).hexdigest() == entry['sha256'], 'payload digest mismatch: ' + name)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: payload digest mismatch: authority/policy.json\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/payload",
+          "--check-sources"
+        ],
+        "exitCode": 0,
+        "stdout": "{\"files\": 54, \"payloads\": 39, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+        "stderr": ""
+      }
+    },
+    {
+      "fault": "length",
+      "expected": "byte count mismatch",
+      "negative": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/length",
+          "--check-sources"
+        ],
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Traceback (most recent call last):\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 21, in <module>\n    require(len(raw) == entry['bytes'], 'byte count mismatch: ' + name)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: byte count mismatch: authority/policy.json\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/length",
+          "--check-sources"
+        ],
+        "exitCode": 0,
+        "stdout": "{\"files\": 54, \"payloads\": 39, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+        "stderr": ""
+      }
+    },
+    {
+      "fault": "source",
+      "expected": "source bytes mismatch",
+      "negative": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/source",
+          "--check-sources"
+        ],
+        "exitCode": 1,
+        "stdout": "",
+        "stderr": "Traceback (most recent call last):\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 23, in <module>\n    require(raw == Path(entry['source']).read_bytes(), 'source bytes mismatch: ' + name)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: source bytes mismatch: authority/policy.json\n"
+      },
+      "restored": {
+        "command": [
+          "python3",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+          "/tmp/wbs100-final-surveys-transport-proof-20261020/source",
+          "--check-sources"
+        ],
+        "exitCode": 0,
+        "stdout": "{\"files\": 54, \"payloads\": 39, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "final": {
+    "command": [
+      "python3",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys/verify-packet.py.txt",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/openspec/changes/burokrat-serial-legacy-compiler/evidence/final-installed-surveys",
+      "--check-sources"
+    ],
+    "exitCode": 0,
+    "stdout": "{\"files\": 54, \"payloads\": 39, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+    "stderr": ""
+  }
+}

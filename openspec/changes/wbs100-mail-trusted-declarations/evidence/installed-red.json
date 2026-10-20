@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "8edaf0c34bc13625085f8383d7a401e4faaf3c6884829c2713f3bfaa518ccc15",
+    "bytes": 541,
+    "text": "{\n  \"command\": [\n    \"bun\",\n    \"test\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\",\n    \"--test-name-pattern\",\n    \"extracts supported vendor relationships and public declarations outside the checkout\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 1,\n  \"peakProcessTreeKiB\": 1137480,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 4.781,\n  \"availableBeforeKiB\": 22381260,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "6043908c8d26d62698476b88f737f39d5d3e91008d4155a81730902f5a37479c",
+    "bytes": 28,
+    "text": "bun test v1.4.2 (744846f84)\n"
+  },
+  "stderr": {
+    "sha256": "104fe737e2963afffe498871956f56fe8fd741d39ec108c8d024a9e868da8fa1",
+    "bytes": 971,
+    "text": "\napps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:\n350 |     const extracted = invokeWithoutWorkspace(\n351 |       executable,\n352 |       ['extract-relationships', 'committed', repository, revision, request],\n353 |       consumer,\n354 |     );\n355 |     expect(extracted.exitCode, extracted.stderr.toString()).toBe(0);\n                                                                  ^\nerror: TypeScript import unresolved: src/index.ts -> 'nodemailer/lib/smtp-connection'\nTwilight Burokrat validator exited 1\n\n\nExpected: 0\nReceived: 1\n\n      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts:355:61)\n(fail) packed Twilight Burokrat installation > extracts supported vendor relationships and public declarations outside the checkout [4089.49ms]\n\n 0 pass\n 9 filtered out\n 1 fail\n 4 expect() calls\nRan 1 test across 1 file. [4.72s]\n"
+  }
+}

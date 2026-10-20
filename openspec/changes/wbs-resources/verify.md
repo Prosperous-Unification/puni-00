@@ -350,3 +350,13 @@ there changed no test.
 - The h2puni gate (the orchestrator gates the plan head), the full Nx suites, the whole
   be-01 and store-sqlite suites (39 and 9 files instead), fe-01 tests (fe-01 typechecks; no
   fe-01 source changed; 3.4 is not this slice).
+
+### After merging `plan/wbs-resources` 75d6bf61f (claims handdown)
+
+Four conflicts, each two additions kept side by side (fe-01 refusal cases, the
+conformance case lists). Two type errors the merge surfaced were fixed: slice 1's
+`resource-command.test.ts` claim-store wrapper gained `moveAll`, and
+`startable-scope.db.test.ts` (already failing to typecheck on the plan head) states
+`assign: false`. Re-run: `tsc -p … --noEmit` over 14 configs clean; domain 1169 pass /
+1 skip, contracts 491, core 1135, store-memory 193, conformance 35, seven store-sqlite
+files 185, six be-01 files 244; 0 fail everywhere.

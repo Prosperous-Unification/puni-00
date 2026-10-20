@@ -1,0 +1,37 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "tsc",
+    "--noEmit",
+    "--project",
+    "tmp/tsconfig.shared-failures-level.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 127024,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+      "--noEmit",
+      "--project",
+      "tmp/tsconfig.shared-failures-level.json"
+    ],
+    [
+      "bunx",
+      "--no-install",
+      "tsc",
+      "--noEmit",
+      "--project",
+      "tmp/tsconfig.shared-failures-level.json"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/tsc",
+      "--noEmit",
+      "--project",
+      "tmp/tsconfig.shared-failures-level.json"
+    ]
+  ]
+}

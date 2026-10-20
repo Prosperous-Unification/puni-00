@@ -1,0 +1,20 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "nx",
+    "graph",
+    "--file=/tmp/wbs100-serial-compiler-20261019/graph.json"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 212560,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 0.562,
+  "availableBeforeKiB": 22957272,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

@@ -1,0 +1,25 @@
+diff --git a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+index 13b128160..679d4f906 100644
+--- a/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx
+@@ -367,7 +367,7 @@ export function EstimatePresentation({
+             // half-typed shorthand the cell is holding` failed on
+             // `expected 'Dev…Final 8/3/2 days' to contain 'Final
+             // 3.7 days'`.
+-            days: showDays(row.original.estimates[step.id], point),
++            days: reading.estimateValues[point],
+           }))}
+           // The same read as the figure beside the box, and the
+           // same local: a card that computed its own would be a
+diff --git a/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx b/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+index df42ec682..3159833a1 100644
+--- a/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
++++ b/apps/wbs/fe-01/src/components/wbs/wbs-table.tsx
+@@ -1556,6 +1556,7 @@ export function WbsTable({
+           anyAssignee,
+           combinedProblem: combinedProblem(row, step.id),
+           combinedValue: combinedValue(row, step.id),
++          estimateValues: { optimistic: estimateValue(row, step.id, 'optimistic'), realistic: estimateValue(row, step.id, 'realistic'), pessimistic: estimateValue(row, step.id, 'pessimistic') },
+           doing,
+           mentionOptions: mentionOptions(row, step.id),
+           mentioning: mention?.rowId === row.id && mention.stepId === step.id,

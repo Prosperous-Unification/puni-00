@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "657a720d762eeb6d7adf65c8fdfec37e77ac43420732eb277aacc4f965504921",
+    "bytes": 395,
+    "text": "{\n  \"command\": [\n    \"bun\",\n    \"install\",\n    \"--cache-dir\",\n    \"/tmp/wbs100-phase-collection-consumer-20261020/cache\"\n  ],\n  \"cwd\": \"/tmp/wbs100-phase-collection-consumer-20261020\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 42572,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.607,\n  \"availableBeforeKiB\": 23389516,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "8c9e079c1423db190400cd3435307eb95c321e31d30939a6d55488e03a0316c7",
+    "bytes": 99,
+    "text": "bun install v1.4.2 (744846f84)\n\n+ twilight-burokrat@./artifact.tgz\n\n1 package installed [566.00ms]\n"
+  },
+  "stderr": {
+    "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206",
+    "bytes": 77,
+    "text": "Resolving dependencies\nResolved, downloaded and extracted [1]\nSaved lockfile\n"
+  }
+}

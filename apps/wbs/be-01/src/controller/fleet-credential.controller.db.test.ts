@@ -40,17 +40,7 @@ afterAll(async () => {
  * `unknown_identity` when nothing is linked, minting no account.
  */
 beforeEach(async () => {
-  h = OrganizationHarness.openComposedWith({
-    upstreamCredential: {
-      verifier: new JwksTokenVerifier({
-        audience: AUDIENCE,
-        issuer: ISSUER,
-        jwksUri: new URL(`http://127.0.0.1:${String(jwks.port)}/jwks`),
-      }),
-      groupPrefix: 'dev',
-      groupsClaim: 'wbs_groups',
-    },
-  });
+  h = openHarness();
   for (const username of ['dany', 'mem']) await h.register(username);
   h.organization('org-a');
   h.member('org-a', 'dany', 'admin');
@@ -75,6 +65,21 @@ beforeEach(async () => {
 afterEach(() => {
   h.close();
 });
+
+/** be-01's production composition over a fresh store, verifying tokens against the test JWKS. */
+function openHarness(): OrganizationHarness {
+  return OrganizationHarness.openComposedWith({
+    upstreamCredential: {
+      verifier: new JwksTokenVerifier({
+        audience: AUDIENCE,
+        issuer: ISSUER,
+        jwksUri: new URL(`http://127.0.0.1:${String(jwks.port)}/jwks`),
+      }),
+      groupPrefix: 'dev',
+      groupsClaim: 'wbs_groups',
+    },
+  });
+}
 
 /**
  * An access token for `subject`, with no email unless `claims` adds one.
@@ -166,6 +171,21 @@ describe('a linked fleet credential', () => {
     expect(await raw.json()).toEqual({ error: 'unknown_identity' });
     expect(raw.headers.get('cache-control')).toBe('no-store');
     expect(raw.headers.get('vary')).toContain('Authorization');
+    expect(usersTable()).toEqual(before);
+  }, 30_000);
+
+  // Proof: with `authenticateOrRefuse`'s groups-less branch disabled (the
+  // token resolved through `resolveOidcIdentity`), this answered 200 with an
+  // empty project list instead of 401; watched 2026-10-20.
+  it('refuses an unlinked groups-less token before activation, minting no account', async () => {
+    h.close();
+    h = openHarness();
+    await h.register('dany');
+    const before = usersTable();
+    expect(await h.callWith(await token(FLEET), 'GET', '/api/projects')).toEqual({
+      status: 401,
+      body: { error: 'unknown_identity' },
+    });
     expect(usersTable()).toEqual(before);
   }, 30_000);
 

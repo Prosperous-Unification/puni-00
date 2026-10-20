@@ -123,7 +123,60 @@ export function inMemoryClaims(
       );
       return Promise.resolve();
     },
+    moveAll(fromWorkItemId, toWorkItemId, _stamp) {
+      const moving = table.rows.filter(({ workItemId }) => workItemId === fromWorkItemId);
+      const clash = moving.find((claim) =>
+        table.rows.some((row) => row.workItemId === toWorkItemId && row.stepId === claim.stepId),
+      );
+      // The SQLite unique index `claim_step` / `claim_subtree` refuses the same.
+      // Proof: with this refusal disabled, the memory certification's
+      // `claims.moveAll:in-place` case failed (`the promise resolved`); watched 2026-10-20.
+      if (clash !== undefined) {
+        return Promise.reject(
+          new Error(`work item ${toWorkItemId} already holds a claim on ${String(clash.stepId)}`),
+        );
+      }
+      table.rows.splice(
+        0,
+        table.rows.length,
+        ...table.rows.map((row) =>
+          row.workItemId === fromWorkItemId ? { ...row, workItemId: toWorkItemId } : row,
+        ),
+      );
+      return Promise.resolve();
+    },
   };
+}
+
+/**
+ * Every claim deleting `personId` would take: their own and every claim
+ * delegated under one, transitively, ordered by work item then step.
+ *
+ * Proof: with the loop never entered, the memory certification's
+ * `directory.removePerson:delegated-claims` case read the superagent's claim
+ * alone in the usage; watched 2026-10-20.
+ */
+export function claimsTakenWith(table: MemoryClaimTable, personId: string): Claim[] {
+  const taken = new Set(
+    table.rows.filter((each) => each.personId === personId).map(({ id }) => id),
+  );
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const row of table.rows) {
+      if (!taken.has(row.id) && row.parentClaimId !== null && taken.has(row.parentClaimId)) {
+        taken.add(row.id);
+        grew = true;
+      }
+    }
+  }
+  return table.rows
+    .filter(({ id }) => taken.has(id))
+    .map(unstampClaim)
+    .sort(
+      (left, right) =>
+        compare(left.workItemId, right.workItemId) ||
+        compare(left.stepId ?? '', right.stepId ?? ''),
+    );
 }
 
 /**

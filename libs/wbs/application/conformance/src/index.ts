@@ -5,7 +5,12 @@ export * from './source-conformance';
 export * from './source-declaration';
 export * from './space-store-conformance';
 export * from './step-parallel-conformance';
-export { CLAIM_IN_USE, OWNED_BINDING, PINNED_CREDENTIAL } from './stores/directory';
+export {
+  CLAIM_IN_USE,
+  DELEGATED_CLAIMS,
+  OWNED_BINDING,
+  PINNED_CREDENTIAL,
+} from './stores/directory';
 export * from './stores/history-batch';
 export { CONFORMANCE_RESOURCES, seedResourceCase } from './stores/resources';
 export * from './stores/saved-plan-capture';

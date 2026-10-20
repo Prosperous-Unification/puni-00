@@ -1,0 +1,19 @@
+{
+  "command": [
+    "env",
+    "TOOL_WIKI_TRUSTED_NODE_MODULES=/home/df/.codex/worktrees/e21c/puni-00/node_modules",
+    "bun",
+    "test",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/relationships.test.ts",
+    "--timeout=60000"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 2031804,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 235.958,
+  "availableBeforeKiB": 23069288,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

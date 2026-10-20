@@ -1,0 +1,23 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/plan-estimates.test.tsx > one cell for the whole trio > quiets a parent’s rolled-up trio exactly as a leaf’s
+AssertionError: expected '' to be '10px' // Object.is equality
+
+- Expected
++ Received
+
+- 10px
+
+ ❯ src/components/wbs/plan-estimates.test.tsx:1405:47
+    1403|     });
+    1404|
+    1405|     expect(rolledTrio('010')?.style.fontSize).toBe(quiet);
+       |                                               ^
+    1406|     expect(rolledTrio('010')?.style.fontWeight).toBe('400');
+    1407|     expect(rolledTrio('010')?.style.color).toBe('var(--muted-foregroun…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

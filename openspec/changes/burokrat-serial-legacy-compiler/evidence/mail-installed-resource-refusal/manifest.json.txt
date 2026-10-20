@@ -1,0 +1,82 @@
+{
+  "files": [
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/base.before.json",
+      "path": "base.before.json.txt",
+      "bytes": 10977,
+      "sha256": "a66340ec7f177cf69d7f59c35513c39dcf7b78dcbe75ff74649e845cfe65a674"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/base.after.json",
+      "path": "base.after.json.txt",
+      "bytes": 10977,
+      "sha256": "a66340ec7f177cf69d7f59c35513c39dcf7b78dcbe75ff74649e845cfe65a674"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/bindings.json",
+      "path": "bindings.json.txt",
+      "bytes": 7024,
+      "sha256": "eb9cfaf9d6621e59cc6edf528d6f7dc4ab53511d48e1e68af6dc0c0820be8133"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/capture-installed.py",
+      "path": "capture-installed.py.txt",
+      "bytes": 1003,
+      "sha256": "984f247c8d70cc3795280765e93839f59c835c06b51504d17baceb3955599c50"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/compare-surveys.py",
+      "path": "compare-surveys.py.txt",
+      "bytes": 13313,
+      "sha256": "6652e594f7d6b7016fa3a38c2cc63ae2d81bc10dbbebdff9827ec3dd9f37716a"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/survey-guard.py",
+      "path": "survey-guard.py.txt",
+      "bytes": 1954,
+      "sha256": "72118f728b8abda764a85d07fed79326c098fe71e3b710657fe022a1e98258f7"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/full-base.receipt.json",
+      "path": "full-base.receipt.json.txt",
+      "bytes": 513,
+      "sha256": "7f65b557f454acbb7c8473bdd001b3558721173c216c7517b06872e283e5690f"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/full-base.stdout",
+      "path": "full-base.stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/full-base.stderr",
+      "path": "full-base.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/install-successor.receipt.json",
+      "path": "install-successor.receipt.json.txt",
+      "bytes": 368,
+      "sha256": "2a2ced613c0d74303569d56bf3cf92358db57a0c7bdff9f92a322820b5db4193"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/install-successor.stdout",
+      "path": "install-successor.stdout.txt",
+      "bytes": 99,
+      "sha256": "939e277b784db68284e574357d1e893d182585b128a4cfd87ea9cf73f65701d2"
+    },
+    {
+      "source": "/tmp/puni-wbs100-mail-surveys-20261020/install-successor.stderr",
+      "path": "install-successor.stderr.txt",
+      "bytes": 77,
+      "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206"
+    },
+    {
+      "source": "openspec/changes/wbs100-mail-trusted-declarations/evidence/committed-artifact.json",
+      "path": "committed-artifact.json.txt",
+      "bytes": 12518,
+      "sha256": "c00a9f1c5f8072b88a06271a52fed411b61926d735040fb580824eb4f8b6d0aa"
+    }
+  ]
+}

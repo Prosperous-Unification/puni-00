@@ -1,0 +1,76 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "nx",
+    "run-many",
+    "-t",
+    "typecheck",
+    "build",
+    "-p",
+    "shared-test-levels",
+    "--parallel=1",
+    "--skip-nx-cache"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 365280,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    ["/bin/sh", "-c", "bunx tsc --build --force libs/shared/domain/test-levels/tsconfig.json"],
+    ["/bin/sh", "-c", "bunx tsc --build --force libs/shared/domain/test-levels/tsconfig.lib.json"],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+      "--build",
+      "--force",
+      "libs/shared/domain/test-levels/tsconfig.json"
+    ],
+    [
+      "/home/df/wd/puni/puni-00/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+      "--build",
+      "--force",
+      "libs/shared/domain/test-levels/tsconfig.lib.json"
+    ],
+    [
+      "bunx",
+      "--no-install",
+      "nx",
+      "run-many",
+      "-t",
+      "typecheck",
+      "build",
+      "-p",
+      "shared-test-levels",
+      "--parallel=1",
+      "--skip-nx-cache"
+    ],
+    ["bunx", "tsc", "--build", "--force", "libs/shared/domain/test-levels/tsconfig.json"],
+    ["bunx", "tsc", "--build", "--force", "libs/shared/domain/test-levels/tsconfig.lib.json"],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/node_modules/.bin/nx",
+      "run-many",
+      "-t",
+      "typecheck",
+      "build",
+      "-p",
+      "shared-test-levels",
+      "--parallel=1",
+      "--skip-nx-cache"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/node_modules/.bin/tsc",
+      "--build",
+      "--force",
+      "libs/shared/domain/test-levels/tsconfig.json"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/node_modules/.bin/tsc",
+      "--build",
+      "--force",
+      "libs/shared/domain/test-levels/tsconfig.lib.json"
+    ]
+  ]
+}

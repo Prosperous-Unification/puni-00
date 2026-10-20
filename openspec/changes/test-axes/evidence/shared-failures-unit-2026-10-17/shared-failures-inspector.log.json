@@ -1,0 +1,34 @@
+{
+  "command": [
+    "bun",
+    "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "inspect-bun-test-reports",
+    "/tmp/puni-shared-failures-unit-oct17",
+    "4b318f48125b99ce13fd6e10c60ece66b49487dd",
+    "/tmp/shared-failures-real-unit-oct17/authority.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 698004,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+      "inspect-bun-test-reports",
+      "/tmp/puni-shared-failures-unit-oct17",
+      "4b318f48125b99ce13fd6e10c60ece66b49487dd",
+      "/tmp/shared-failures-real-unit-oct17/authority.json"
+    ],
+    ["git", "-C", "/tmp/puni-shared-failures-unit-oct17", "cat-file", "--batch"],
+    [
+      "git",
+      "-C",
+      "/tmp/puni-shared-failures-unit-oct17",
+      "rev-parse",
+      "--verify",
+      "--end-of-options",
+      "4b318f48125b99ce13fd6e10c60ece66b49487dd^{commit}"
+    ]
+  ]
+}

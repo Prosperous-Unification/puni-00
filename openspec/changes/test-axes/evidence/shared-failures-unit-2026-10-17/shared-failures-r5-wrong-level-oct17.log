@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+188 |               },
+189 |             },
+190 |           },
+191 |         };
+192 |         const audit = auditProject(project, expanded);
+193 |         expect(audit.exitCode).toBe(1);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:193:32)
+      at withRunnerFixture (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:52:11)
+      at async <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:175:13)
+(fail) shared-failures isolated Unit level > refuses api files in the Unit collection [245.21ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [423.00ms]

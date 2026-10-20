@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+210 |       writeFileSync(
+211 |         join(project, 'nested/src/report-failure.test.ts'),
+212 |         "import { test } from 'bun:test'; test('matching decoy', () => { throw new Error('decoy executed'); });\n",
+213 |       );
+214 |       const execution = runCommand(project, command);
+215 |       expect(execution.exitCode).toBe(0);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:215:34)
+      at withRunnerFixture (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:52:11)
+      at async <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:204:11)
+(fail) shared-failures isolated Unit level > executes literal operands without running a nested matching decoy [13.21ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [170.00ms]

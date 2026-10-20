@@ -1,0 +1,11 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "refactor(wbs): extract estimate column presentation"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 814891008,
+  "seconds": 12.99
+}

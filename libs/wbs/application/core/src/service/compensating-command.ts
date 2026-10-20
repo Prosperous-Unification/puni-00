@@ -99,6 +99,13 @@ export type CompensatingCommand =
    */
   | { do: 'remove_claims'; claims: Claim[]; cleared: ProgressKey[] }
   /**
+   * Every claim on `fromWorkItemId` moved in place to `toWorkItemId`, ids
+   * kept: the hand-down of a leaf's claims to its first child and back on that
+   * child's undo. `claims` are the claims as they stood on `fromWorkItemId`
+   * before the move; a replay that finds any other set there refuses.
+   */
+  | { do: 'move_claims'; fromWorkItemId: string; toWorkItemId: string; claims: Claim[] }
+  /**
    * One attempt written back **verbatim** under its own number, its instants,
    * outcome, executor, reference and note exactly as carried
    * (`step-node-attempts` D2): the redo of a start or an end, and the undo of

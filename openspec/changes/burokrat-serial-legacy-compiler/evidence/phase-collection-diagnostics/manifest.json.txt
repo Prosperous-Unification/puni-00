@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "transport": "Non-snapshot sources remain exact UTF-8 copies. Snapshot sources reconstruct via ordered directory/value/entry tables, optional three-entry delta, and json.dumps(snapshot, indent=2) plus one newline; verify original bytes/SHA-256 for every mapping.",
+  "files": [
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/analysis.json",
+      "path": "trace-only/analysis.json.txt",
+      "bytes": 40752,
+      "sha256": "f635b3124e4a62f2c3b40efadebe2b5fd105124f4356c954e09bcee63c8a453a"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/analyze.py",
+      "path": "trace-only/analyze.py.txt",
+      "bytes": 3724,
+      "sha256": "25ab71078d63f8cbc242023a42891eb7aa9e4c62cc325fc33749e163445a30a0"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/diagnostic-package-manifest.json",
+      "path": "trace-only/diagnostic-package-manifest.json.txt",
+      "bytes": 207,
+      "sha256": "f447e25c0aa11b7f891169abd690dc365c9dcfb9fcb84c35a537dc73110163be"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/diagnostic-toolkit.json",
+      "path": "trace-only/diagnostic-toolkit.json.txt",
+      "bytes": 9695,
+      "sha256": "8e1a2a3395084a54a0c6ee42c29b873cb4cba7a87161ebe210e435f1abd9705e"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/findings.md",
+      "path": "trace-only/findings.md.txt",
+      "bytes": 3123,
+      "sha256": "e405453f34b76caa2c79a70615dcd0684034e20cd61c98277211172082bd7824"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/full-base.receipt.json",
+      "path": "trace-only/full-base.receipt.json.txt",
+      "bytes": 515,
+      "sha256": "238f00808563ca2cf338294698b952465b939847b57f77b4676bca7287702b51"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/full-base.stderr",
+      "path": "trace-only/full-base.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/full-base.stdout",
+      "path": "trace-only/full-base.stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/identity.json",
+      "path": "trace-only/identity.json.txt",
+      "bytes": 1744,
+      "sha256": "e19130d060ebbba096285b78aabf99213a146ecc5c972496b457812ae800d3f8"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/original-after.json",
+      "bytes": 7449721,
+      "sha256": "0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff",
+      "reconstruct": {
+        "compact": "snapshots/original.compact.json.txt",
+        "delta": null
+      }
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/original-before.json",
+      "bytes": 7449721,
+      "sha256": "0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff",
+      "reconstruct": {
+        "compact": "snapshots/original.compact.json.txt",
+        "delta": null
+      }
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/original-package-manifest.json",
+      "path": "trace-only/original-package-manifest.json.txt",
+      "bytes": 190,
+      "sha256": "009d4a7644a0e3d74712495ebb8746672a0aa04db5dc50c89cc5f743aaf6336b"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/original-toolkit.json",
+      "path": "trace-only/original-toolkit.json.txt",
+      "bytes": 7865,
+      "sha256": "a20180f6343959d85142f461f9b4aa6505957a9ea38dda12782c60a68c3b8f7f"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/prepare.py",
+      "path": "trace-only/prepare.py.txt",
+      "bytes": 9960,
+      "sha256": "7f1ff78e5948f4caa2e4c7f14bad9186d6680442cf787b9851e786d6aba162c8"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/trace.jsonl",
+      "path": "trace-only/trace.jsonl.txt",
+      "bytes": 867330,
+      "sha256": "7d805dcb0b605e45a91aa727b3ddf3f22a56a3dd2b794c92356cf79260d36d27"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-diagnostic-20261020/validator-trace.patch",
+      "path": "trace-only/validator-trace.patch.txt",
+      "bytes": 10579,
+      "sha256": "30450161d000752c8ffae0a4a98954a1cd45c64dc70c2034be78f55b551c4c8c"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/analysis.json",
+      "path": "gateway-gc/analysis.json.txt",
+      "bytes": 5227,
+      "sha256": "07e0da77219a7f9e3d3756d5fef7498473e1c57919b9b1c9305129c19e7b0fa9"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/diagnostic-package-manifest.json",
+      "path": "gateway-gc/diagnostic-package-manifest.json.txt",
+      "bytes": 207,
+      "sha256": "8ee91ad78648133efd0fa7dd489ec038bca58627e734d93414d104d21eecbc55"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/diagnostic-toolkit.json",
+      "path": "gateway-gc/diagnostic-toolkit.json.txt",
+      "bytes": 9695,
+      "sha256": "5b8548166e84150a8123ce85fe4468ab7afe48d7acdd24b0b9a49beed4eb800c"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/full-base.receipt.json",
+      "path": "gateway-gc/full-base.receipt.json.txt",
+      "bytes": 518,
+      "sha256": "7d4a4928e51e32565599d0f13aae8eea5ee8f6a1c634287ae337e47a8e9049d3"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/full-base.stderr",
+      "path": "gateway-gc/full-base.stderr.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/full-base.stdout",
+      "path": "gateway-gc/full-base.stdout.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/gateway-gc.patch",
+      "path": "gateway-gc/gateway-gc.patch.txt",
+      "bytes": 1460,
+      "sha256": "2b8a6c9e80ff88856dae66262babc02c20bcbb7dc24cae3bcce16efa64210ffc"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/identity.json",
+      "path": "gateway-gc/identity.json.txt",
+      "bytes": 1700,
+      "sha256": "b0a570bdabbca8065c362b3e6e242b577df5d9d6666f519e514158d679424489"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/original-after.json",
+      "bytes": 7449721,
+      "sha256": "0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff",
+      "reconstruct": {
+        "compact": "snapshots/original.compact.json.txt",
+        "delta": null
+      }
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/original-before.json",
+      "bytes": 7449721,
+      "sha256": "0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff",
+      "reconstruct": {
+        "compact": "snapshots/original.compact.json.txt",
+        "delta": null
+      }
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/prepare.py",
+      "path": "gateway-gc/prepare.py.txt",
+      "bytes": 4129,
+      "sha256": "5113dcb89bc709fc1286038aab96d913383d04bafbae74ae4acccc2738bb08e1"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/prior-after.json",
+      "bytes": 7449721,
+      "sha256": "096bb81dc9bb4e179a61f59f3333f14ddc644a10f715e07605cada2f0187d3e4",
+      "reconstruct": {
+        "compact": "snapshots/original.compact.json.txt",
+        "delta": "snapshots/trace-only.delta.json.txt"
+      }
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/prior-before.json",
+      "bytes": 7449721,
+      "sha256": "096bb81dc9bb4e179a61f59f3333f14ddc644a10f715e07605cada2f0187d3e4",
+      "reconstruct": {
+        "compact": "snapshots/original.compact.json.txt",
+        "delta": "snapshots/trace-only.delta.json.txt"
+      }
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/prior-package-manifest.json",
+      "path": "gateway-gc/prior-package-manifest.json.txt",
+      "bytes": 207,
+      "sha256": "f447e25c0aa11b7f891169abd690dc365c9dcfb9fcb84c35a537dc73110163be"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/prior-toolkit.json",
+      "path": "gateway-gc/prior-toolkit.json.txt",
+      "bytes": 9695,
+      "sha256": "8e1a2a3395084a54a0c6ee42c29b873cb4cba7a87161ebe210e435f1abd9705e"
+    },
+    {
+      "source": "/tmp/wbs100-mail-memory-gc-diagnostic-20261020/trace.jsonl",
+      "path": "gateway-gc/trace.jsonl.txt",
+      "bytes": 1347208,
+      "sha256": "282846c5d6e7f1235b5629e51dca797274fa2af4ef95ae053bf1478fcacd69f9"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+import os,subprocess,json,hashlib
+from pathlib import Path
+root=Path('/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019')
+presentation=root/'apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx'
+table=root/'apps/wbs/fe-01/src/components/wbs/wbs-table.tsx'
+faults=[
+('duplicate-final','plan-estimates.test.tsx','says a flat trio once',[(presentation,'{showsResult && (','{true && (')]),
+('quiet-parent','plan-estimates.test.tsx','quiets a parent',[(presentation,'        fontSize: QUIET_TRIO_PX,\n','')]),
+('draft-points','plan-estimates.test.tsx','reads the trio off the row',[(table,'          combinedValue: combinedValue(row, step.id),','          combinedValue: combinedValue(row, step.id),\n          estimateValues: { optimistic: estimateValue(row, step.id, \'optimistic\'), realistic: estimateValue(row, step.id, \'realistic\'), pessimistic: estimateValue(row, step.id, \'pessimistic\') },'),(presentation,'days: showDays(row.original.estimates[step.id], point),','days: reading.estimateValues[point],')]),
+('draft-final','plan-estimates.test.tsx','says Final in days',[(presentation,'          final={final}','          final={reading.layout === \'folded\' ? reading.combinedValue : final}')]),
+('detail-focus','plan-cells.test.tsx','walks into both copy actions',[(presentation,'            cell.focus();','')]),
+]
+restoration=[]
+for label,suite,case,changes in faults:
+ originals={path:path.read_bytes() for path,_,_ in changes}
+ try:
+  for path,before,after in changes:
+   text=path.read_text();assert text.count(before)==1,(label,'ambiguous fault');path.write_text(text.replace(before,after))
+  Path(f'/tmp/wbs100-estimate-{label}-20261019.patch').write_bytes(subprocess.check_output(['git','diff','--',*[str(path.relative_to(root)) for path in originals]],cwd=root))
+  log=f'/tmp/wbs100-estimate-{label}-20261019'
+  subprocess.run(['python3','/tmp/wbs100-estimate-guard-20261019.py',log,'bunx','vitest','run','src/components/wbs/'+suite,'--maxWorkers=1','-t',case],cwd=root/'apps/wbs/fe-01',env=dict(os.environ,TZ='UTC'),check=True)
+  receipt=json.loads(Path(log+'.receipt.json').read_text()); output=Path(log+'.stdout').read_text()+Path(log+'.stderr').read_text()
+  assert receipt['exitCode']==1 and receipt['stopReason'] is None and '1 failed' in output and case in output,(label,receipt,output[-2000:])
+  assert all(name not in output for name in ['ReferenceError:','TypeError:','SyntaxError:']),(label,'unexpected tool/runtime error')
+  print(label,'watched existing assertion failure',flush=True)
+ finally:
+  for path,original in originals.items():
+   path.write_bytes(original);assert path.read_bytes()==original
+   restoration.append({'fault':label,'path':str(path.relative_to(root)),'sha256':hashlib.sha256(original).hexdigest(),'restored':True})
+  Path('/tmp/wbs100-estimate-fault-restoration-20261019.json').write_text(json.dumps(restoration,indent=2)+'\n')
+subprocess.run(['python3','/tmp/wbs100-estimate-guard-20261019.py','/tmp/wbs100-estimate-restored-20261019','bunx','vitest','run','src/components/wbs/plan-estimates.test.tsx','src/components/wbs/plan-cells.test.tsx','--maxWorkers=1'],cwd=root/'apps/wbs/fe-01',env=dict(os.environ,TZ='UTC'),check=True)
+receipt=json.loads(Path('/tmp/wbs100-estimate-restored-20261019.receipt.json').read_text());assert receipt['exitCode']==0 and receipt['stopReason'] is None

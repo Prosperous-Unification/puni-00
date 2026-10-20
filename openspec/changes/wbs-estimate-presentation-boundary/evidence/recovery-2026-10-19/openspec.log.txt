@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "id": "wbs-estimate-presentation-boundary",
+      "type": "change",
+      "valid": true,
+      "issues": [],
+      "durationMs": 10
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 1,
+      "failed": 0
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 1,
+        "failed": 0
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019",
+    "source": "nearest"
+  }
+}

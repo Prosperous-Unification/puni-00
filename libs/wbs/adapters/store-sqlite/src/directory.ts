@@ -251,13 +251,6 @@ function usageRowsIn(
     .from(step)
     .where(inArray(step.projectId, ids))
     .all();
-  const claims = reader
-    .select({ workItemId: claim.workItemId, stepId: claim.stepId, personId: claim.personId })
-    .from(claim)
-    .innerJoin(workItem, eq(claim.workItemId, workItem.id))
-    .where(inArray(workItem.projectId, ids))
-    .orderBy(asc(claim.workItemId), asc(claim.stepId))
-    .all();
   const named = [...new Set(assignments.map((each) => each.personId))];
   const people =
     named.length === 0
@@ -293,7 +286,7 @@ function usageRowsIn(
     steps,
     people,
     members,
-    claims,
+    claims: [],
     pinnedCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
@@ -309,7 +302,10 @@ function credentialsPinnedTo(reader: Reader, personId: string): string[] {
     .map(({ id }) => id);
 }
 
-/** A person's usage: what reaches their projects, and the credentials pinned to them. */
+/**
+ * A person's usage: what reaches their projects, every claim their removal
+ * takes, and the credentials pinned to them.
+ */
 function personUsageIn(
   reader: Reader,
   projectIds: readonly string[],
@@ -317,8 +313,51 @@ function personUsageIn(
 ): DirectoryUsageRows {
   return {
     ...usageRowsIn(reader, projectIds, []),
+    claims: claimsTakenWith(reader, personId),
     pinnedCredentials: credentialsPinnedTo(reader, personId).length,
   };
+}
+
+/**
+ * Every claim deleting `personId` takes: their own, and every claim delegated
+ * under one of those, transitively (`parent_claim_id ON DELETE CASCADE`).
+ * Ordered by work item, then step. A chain is as deep as the tree, and each
+ * round reads one level by the `claim_by_parent` index.
+ *
+ * Proof: with the loop never entered, the SQLite certification's
+ * `directory.removePerson:delegated-claims` case read the superagent's claim
+ * alone in the usage; watched 2026-10-20.
+ */
+function claimsTakenWith(
+  reader: Reader,
+  personId: string,
+): { workItemId: string; stepId: string | null; personId: string }[] {
+  const columns = {
+    id: claim.id,
+    workItemId: claim.workItemId,
+    stepId: claim.stepId,
+    personId: claim.personId,
+  };
+  const taken = reader.select(columns).from(claim).where(eq(claim.personId, personId)).all();
+  const seen = new Set(taken.map(({ id }) => id));
+  for (let frontier = [...seen]; frontier.length > 0;) {
+    const under = reader
+      .select(columns)
+      .from(claim)
+      .where(inArray(claim.parentClaimId, frontier))
+      .all()
+      .filter(({ id }) => !seen.has(id));
+    for (const each of under) seen.add(each.id);
+    taken.push(...under);
+    frontier = under.map(({ id }) => id);
+  }
+  return taken
+    .map(({ workItemId, stepId, personId: holder }) => ({ workItemId, stepId, personId: holder }))
+    .sort(
+      (left, right) =>
+        left.workItemId.localeCompare(right.workItemId) ||
+        (left.stepId ?? '').localeCompare(right.stepId ?? ''),
+    );
 }
 
 /**
@@ -1789,11 +1828,9 @@ export class DirectoryRepository implements DirectoryStore {
           .from(assignment)
           .where(eq(assignment.personId, personId))
           .all();
-        const claimed = tx
-          .select({ workItemId: claim.workItemId })
-          .from(claim)
-          .where(eq(claim.personId, personId))
-          .all();
+        // Own and delegated: the delegated go by the parent cascade, and their
+        // work items' revisions move with the rest.
+        const claimed = claimsTakenWith(tx, personId);
         const pinned = credentialsPinnedTo(tx, personId);
         // Proof: with `claimed` left out of this test, the SQLite certification's
         // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
@@ -1825,6 +1862,9 @@ export class DirectoryRepository implements DirectoryStore {
         // move no revision — the two deletes above touched nothing for the same
         // reason.
         if (removed.length === 0) return { ok: false, reason: 'not_found' };
+        // Proof: with `claimed` read as the person's own claims alone, the
+        // SQLite `directory.removePerson:delegated-claims` case found the
+        // worker's work item missing from the removal; watched 2026-10-20.
         const workItemIds = [...new Set([...held, ...claimed].map((each) => each.workItemId))];
         bumpWorkItems(tx, workItemIds, stamp);
         return { ok: true, removal: { workItemIds, projectIds } };

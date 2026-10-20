@@ -101,6 +101,69 @@ afterEach(() => {
   rmSync(folder, { recursive: true, force: true });
 });
 
+/** Every person read the last call recorded, run again: the rows it materialized and its plan. */
+function personReadsSince(): { materialized: number; scans: string[] } {
+  const reads = recorded.filter(
+    ({ sql }) =>
+      /^select /i.test(sql) && /(?:from|join) "(?:person|person_team|service_team)"/.test(sql),
+  );
+  expect(reads.length).toBeGreaterThan(0);
+  const connection = openDatabase(path);
+  try {
+    let materialized = 0;
+    const scans: string[] = [];
+    for (const read of reads) {
+      // Drizzle's logger exposes unknown[]; this test boundary only receives
+      // SQLite-supported scalar parameters from the production query builder.
+      const bindings = read.bindings as (string | number | null)[];
+      materialized += connection.query(read.sql).all(...bindings).length;
+      scans.push(
+        ...connection
+          .query<{ detail: string }, (string | number | null)[]>(`EXPLAIN QUERY PLAN ${read.sql}`)
+          .all(...bindings)
+          .map(({ detail }) => detail)
+          .filter((detail) => /SCAN (?:person|person_team|service_team)(?:\s|$)/.test(detail)),
+      );
+    }
+    return { materialized, scans };
+  } finally {
+    connection.close();
+  }
+}
+
+describe('a refused claim under legacy access', () => {
+  // Proof: with the root `listPeople()` in place of `namesOf`, this saw a
+  // `SCAN person` and materialized 85 rows; watched 2026-10-20.
+  it('reads only the people a refused claim names', async () => {
+    const connection = openDatabase(path);
+    connection.run("UPDATE person SET account_id = 'owner' WHERE id = 'holder'");
+    connection.close();
+    recorded = [];
+    const refused = await service.claim(
+      'claimed',
+      'owner',
+      {
+        personId: 'holder',
+        stepIds: ['step-0'],
+        runId: 'another-run',
+        parentClaimId: null,
+        assign: false,
+      },
+      { kind: 'legacy' },
+      null,
+    );
+    expect(refused).toMatchObject({
+      ok: false,
+      reason: 'already_claimed',
+      holders: [{ personId: 'holder', name: 'Holder' }],
+    });
+    // The holder's name, and the holder again as the claimant's bound account.
+    const { materialized, scans } = personReadsSince();
+    expect(scans).toEqual([]);
+    expect(materialized).toBeLessThanOrEqual(2);
+  });
+});
+
 describe('the startable read under legacy access', () => {
   it('materializes only the assignee and the claim holder during a tiny startable read', async () => {
     const startable = await service.startableWithin('project-0', { kind: 'legacy' }, null);

@@ -1,0 +1,31 @@
+{
+  "command": [
+    "bun",
+    "/tmp/wbs100-estimate-measure-20261019.mjs",
+    ".",
+    "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+    "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5",
+    "/tmp/wbs100-reference-consumer-20261019/policy.json"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 618688,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "/tmp/wbs100-estimate-measure-20261019.mjs",
+      ".",
+      "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5",
+      "/tmp/wbs100-reference-consumer-20261019/policy.json"
+    ],
+    [
+      "git",
+      "-C",
+      ".",
+      "cat-file",
+      "--batch"
+    ]
+  ]
+}

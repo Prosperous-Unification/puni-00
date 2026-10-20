@@ -1293,6 +1293,9 @@ LIST_JSON="$listing" LIST_PHASE="$phase" "$REAL_BUN" -e 'const path=process.env.
   it('refuses empty or failed selection before Bun runs and clears stale JUnit', async () => {
     const guarded = LEVEL_TARGETS;
     expect(guarded.map(({ project, target }) => `${project}:${target}`).sort()).toEqual([
+      'shared-failures:test:unit:level',
+      'shared-test-evidence:test:unit:level',
+      'shared-test-levels:test:unit:level',
       'shared-validation:test:unit:level',
       'wbs-core:test:unit',
       'wbs-store-memory:test:conformance:level',

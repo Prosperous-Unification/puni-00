@@ -6,7 +6,10 @@ The directory SHALL allow a person to carry at most one account, through `patchP
 `accountId`, accepted only from a caller holding `admin` or `super_admin` in the active
 organization. One account MAY be bound to many persons. The binding SHALL be an additive
 nullable column with a `down.sql` that refuses while any person is bound. The person read
-SHALL show the binding; the plan export SHALL NOT carry account ids.
+SHALL show the binding; the plan export SHALL NOT carry account ids. An account that does
+not exist or is not a member of the person's organization SHALL be refused `404
+unknown_account`; a value that is neither an id nor null SHALL be refused `400
+accountId_must_be_id_or_null`.
 
 #### Scenario: An admin binds two agents to one account
 
@@ -32,8 +35,11 @@ SHALL show the binding; the plan export SHALL NOT carry account ids.
 be-01 SHALL ship a CLI that, given an issuer, a subject, an existing account (by id or
 username) and optionally a person, writes one `external_identity` row for that account,
 pinned to that person when given, in one transaction, printing what it wrote. It SHALL refuse
-an unknown account, a `(issuer, subject)` already linked to any account, and a person not
-bound to that account. It SHALL NOT create accounts or memberships: the account's
+an unknown or ambiguous account (`unknown_account`, `ambiguous_account`), a `(issuer,
+subject)` already linked to any account or that is an account's own sign-in pair
+(`already_linked`, `sign_in_pair`), a person not bound to that account, and a store whose
+organizations are not activated (`inactive`); `--unlink` SHALL refuse the account's own
+sign-in pair (`own_sign_in`). It SHALL NOT create accounts or memberships: the account's
 memberships apply to every request the credential makes. It SHALL run only where the other
 host CLIs run. Unlinking SHALL be the same CLI with `--unlink`.
 

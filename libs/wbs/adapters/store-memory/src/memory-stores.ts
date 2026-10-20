@@ -15,6 +15,7 @@ import {
 } from './capacity-fixture';
 import {
   cascadeClaims,
+  claimsTakenWith,
   inMemoryClaims,
   type MemoryClaimTable,
   memoryClaimTable,
@@ -272,9 +273,9 @@ export function bindStores(
     state.tables.users.byId,
   );
   const claimsOf = (personId: string) =>
-    state.tables.claims.rows
-      .filter((each) => each.personId === personId)
-      .map(({ workItemId, stepId }) => ({ workItemId, stepId, personId }));
+    claimsTakenWith(state.tables.claims, personId).map(
+      ({ workItemId, stepId, personId: holder }) => ({ workItemId, stepId, personId: holder }),
+    );
   const directory: TransactionalStores['directory'] = {
     ...fixtureDirectory,
     async renameTag(tagId, name, stamp) {
@@ -309,8 +310,15 @@ export function bindStores(
         };
       }
       const removed = await fixtureDirectory.removePerson(personId, cascade, stamp);
-      if (removed.ok) cascadeClaims(state.tables.claims, (each) => each.personId === personId);
-      return removed;
+      if (!removed.ok) return removed;
+      cascadeClaims(state.tables.claims, (each) => each.personId === personId);
+      // Proof: without the claims' work items here, the memory
+      // `directory.removePerson:delegated-claims` case found the worker's work
+      // item missing from the removal; watched 2026-10-20.
+      const workItemIds = [
+        ...new Set([...removed.removal.workItemIds, ...claimed.map((each) => each.workItemId)]),
+      ];
+      return { ...removed, removal: { ...removed.removal, workItemIds } };
     },
     // The fixture's resource answers, with the projects a demand sits in read
     // off the source's own work items, which the fixture cannot see.

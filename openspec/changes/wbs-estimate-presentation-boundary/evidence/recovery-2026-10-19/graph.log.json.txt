@@ -1,0 +1,37 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "nx",
+    "graph",
+    "--file=/tmp/wbs100-estimate-graph-20261019.json"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 290240,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "nx",
+      "graph",
+      "--file=/tmp/wbs100-estimate-graph-20261019.json"
+    ],
+    [
+      "env",
+      "NX_DAEMON=false",
+      "NX_ISOLATE_PLUGINS=false",
+      "bunx",
+      "nx",
+      "graph",
+      "--file=/tmp/wbs100-estimate-graph-20261019.json"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/node_modules/.bin/nx",
+      "graph",
+      "--file=/tmp/wbs100-estimate-graph-20261019.json"
+    ]
+  ]
+}

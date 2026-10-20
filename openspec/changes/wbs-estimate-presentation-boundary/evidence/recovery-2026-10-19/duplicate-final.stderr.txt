@@ -1,0 +1,29 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/plan-estimates.test.tsx > one cell for the whole trio > says a flat trio once
+AssertionError: expected <span …(2)></span> to be null
+
+- Expected:
+null
+
++ Received:
+<span
+  data-folded-final="step-dev"
+  style="margin-left: 4px; flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums;"
+>
+  5
+</span>
+
+ ❯ src/components/wbs/plan-estimates.test.tsx:976:32
+    974|     expect(combinedCell('010').value).toBe('5');
+    975|     expect(combinedCell('010').style.color).toBe('var(--muted-foregrou…
+    976|     expect(foldedFinal('010')).toBeNull();
+       |                                ^
+    977|   });
+    978|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

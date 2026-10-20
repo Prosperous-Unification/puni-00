@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "0b938cb342512fb8e7ea7f8a7a76fc58c85c5ee31cb1c565342841eaabe37e34",
+    "bytes": 724,
+    "text": "{\n  \"command\": [\n    \"bunx\",\n    \"prettier\",\n    \"--check\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.ts\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/packaging/install.test.ts\",\n    \"openspec/changes/wbs100-mail-trusted-declarations\",\n    \"openspec/changes/wbs100-dns-trusted-declarations\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 248860,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.76,\n  \"availableBeforeKiB\": 23455484,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+    "bytes": 66,
+    "text": "Checking formatting...\nAll matched files use Prettier code style!\n"
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

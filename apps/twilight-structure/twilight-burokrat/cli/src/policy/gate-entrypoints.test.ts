@@ -1864,8 +1864,11 @@ await import(${JSON.stringify(productionSnapshotter)});
     // Proof (2026-10-16): hosted run 38864988637 failed the stale 60-minute expectation
     // against the restored 90-minute workflow. Regressing that production value to 60
     // failed this focused test with `Expected: 90 · Received: 60`; restoring 90 passed.
+    // Proof (2026-10-20): run 39340424241 exposed the stale Twilight expectation.
+    // Restoring its production allowance to 50 failed this focused test with
+    // `Expected: 75 · Received: 50`; restoring the chosen 75 minutes passed.
     expect(ci.jobs?.gate_workspace?.['timeout-minutes']).toBe(90);
-    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(50);
+    expect(ci.jobs?.gate_twilight?.['timeout-minutes']).toBe(75);
   });
 
   test('committed entrypoint certifies the exact external-trust fixture', () => {

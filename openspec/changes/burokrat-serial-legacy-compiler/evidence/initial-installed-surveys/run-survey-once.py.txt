@@ -1,0 +1,37 @@
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+root = Path('/tmp/puni-wbs100-survey-bindings-20261019')
+label = sys.argv[1]
+if label not in ('reference', 'reference-fault', 'estimate', 'estimate-fault'):
+    raise RuntimeError('unexpected run label')
+bindings = json.loads((root / 'bindings.json').read_text())
+executable = Path('/tmp/wbs100-serial-consumer-20261019/node_modules/.bin/twib')
+dist = Path('/tmp/wbs100-serial-consumer-20261019/node_modules/twilight-burokrat/dist')
+prefix = root / ('full-' + label)
+for path in [root / (label + '.before.json'), root / (label + '.after.json'),
+             *[Path(str(prefix) + suffix) for suffix in ('.stdout', '.stderr', '.receipt.json')]]:
+    if path.exists():
+        raise RuntimeError(f'refusing to overwrite {path}')
+capture = ['python3', str(root / 'capture-installed.py'), str(executable),
+           str(dist / 'package-manifest.json'), str(dist / 'toolkit/toolkit.json')]
+subprocess.run([*capture, str(root / (label + '.before.json'))], check=True)
+command = ['python3', str(root / 'survey-guard.py'), str(prefix), str(executable),
+           'check', 'committed', '/home/df/wd/puni/puni-00',
+           bindings['bindings'][label]['commit'], '/tmp/wbs100-reference-consumer-20261019/policy.json']
+try:
+    invocation = subprocess.run(command, cwd='/home/df/wd/puni/puni-00')
+finally:
+    subprocess.run([*capture, str(root / (label + '.after.json'))], check=True)
+receipt = json.loads(Path(str(prefix) + '.receipt.json').read_text())
+if invocation.returncode != 0 or receipt['stopReason'] is not None:
+    raise RuntimeError(f'{label}: guard refused/stopped; inspect retained evidence')
+report = json.loads(Path(str(prefix) + '.stdout').read_text())
+if not isinstance(report, dict) or 'unevaluated' not in report:
+    raise RuntimeError(f'{label}: absent complete JSON report')
+print(json.dumps({'label': label, 'reportCandidate': report['candidate'],
+                  'ruleCount': len(report['ruleIds']), 'findings': len(report['findings']),
+                  'unevaluatedCount': len(report['unevaluated']), 'allowed': report['allowed'],
+                  'seconds': receipt['seconds'], 'peakProcessTreeKiB': receipt['peakProcessTreeKiB']}))

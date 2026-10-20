@@ -1,0 +1,22 @@
+--- first-diagnostic/validator.mjs
++++ gateway-gc-diagnostic/validator.mjs
+@@ -1,6 +1,6 @@
+ import { appendFileSync as _wbsTraceAppend } from "node:fs";
+ var _wbsTracePhase = "startup", _wbsTraceConfig = "", _wbsTraceEmissionBytes = 0;
+-function _wbsTrace(event, extra = {}) { _wbsTraceAppend("/tmp/wbs100-mail-memory-diagnostic-20261020/trace.jsonl", JSON.stringify({time:Date.now(),pid:process.pid,event,phase:_wbsTracePhase,config:_wbsTraceConfig,...process.memoryUsage(),...extra})+"\n"); }
++function _wbsTrace(event, extra = {}) { _wbsTraceAppend("/tmp/wbs100-mail-memory-gc-diagnostic-20261020/trace.jsonl", JSON.stringify({time:Date.now(),pid:process.pid,event,phase:_wbsTracePhase,config:_wbsTraceConfig,...process.memoryUsage(),...extra})+"\n"); }
+ // @bun
+ var __create = Object.create;
+ var __getProtoOf = Object.getPrototypeOf;
+@@ -207575,6 +207575,11 @@
+ function observeDiagnostics(workspace, configuration, system, extractor) {
+   const project = reconstructProject(workspace, configuration, system);
+   collectImports(workspace, project, extractor);
++  if (configuration.configPath === "apps/wbs/gw-01/tsconfig.lib.json") {
++    _wbsTrace("gateway-extra-gc:before");
++    Bun.gc(true);
++    _wbsTrace("gateway-extra-gc:after");
++  }
+   _wbsTrace("diagnostics:start");
+   const messages = import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);
+   _wbsTrace("diagnostics:return", {diagnostics:messages.length});

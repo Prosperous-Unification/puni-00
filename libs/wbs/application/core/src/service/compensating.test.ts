@@ -363,6 +363,43 @@ describe('claim replay vocabulary', () => {
     ])
       expect(() => readCommand(malformed)).toThrow(/claim replay/);
   });
+
+  const move: CompensatingCommand = {
+    do: 'move_claims',
+    fromWorkItemId: 'w1',
+    toWorkItemId: 'w2',
+    claims: [claim],
+  };
+
+  it('reads a claim move back and names both work items', () => {
+    expect(readCommand(move)).toEqual(move);
+    expect(touchedBy(move)).toEqual(['w1', 'w2']);
+    expect(progressKeysOf(move)).toEqual([]);
+    expect(referencesOf(move)).toMatchObject({
+      workItems: ['w1', 'w2'],
+      steps: ['dev'],
+      people: ['claire'],
+    });
+    expect(subjectOf(move)).toEqual({ workItemId: 'w2', stepId: null });
+  });
+
+  // Proof: with the readClaimMove call removed from readCommand, the first
+  // malformed shape below read back without throwing; watched 2026-10-20.
+  it('refuses a malformed claim move', () => {
+    for (const malformed of [
+      { do: 'move_claims', fromWorkItemId: 'w1', claims: [claim] },
+      { do: 'move_claims', fromWorkItemId: 'w1', toWorkItemId: '', claims: [claim] },
+      { do: 'move_claims', fromWorkItemId: 'w1', toWorkItemId: 'w2', claims: [] },
+      {
+        do: 'move_claims',
+        fromWorkItemId: 'w1',
+        toWorkItemId: 'w2',
+        claims: [{ ...claim, accountId: null }],
+      },
+      { do: 'move_claims', fromWorkItemId: 'w3', toWorkItemId: 'w2', claims: [claim] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim (move|replay)/);
+  });
 });
 
 describe('demand replay vocabulary', () => {

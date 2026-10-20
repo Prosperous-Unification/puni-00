@@ -1,0 +1,37 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "nx",
+    "run",
+    "shared-failures:test:unit:level",
+    "--skip-nx-cache"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 359356,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/bin/sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-failures.unit.xml && files=$(find ./src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: shared-failures:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-failures.unit.xml --timeout=10000"
+    ],
+    [
+      "bun",
+      "test",
+      "./src/report-failure.test.ts",
+      "--reporter=junit",
+      "--reporter-outfile=../../../../tmp/junit/shared-failures.unit.xml",
+      "--timeout=10000"
+    ],
+    ["bunx", "--no-install", "nx", "run", "shared-failures:test:unit:level", "--skip-nx-cache"],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/nx",
+      "run",
+      "shared-failures:test:unit:level",
+      "--skip-nx-cache"
+    ]
+  ]
+}

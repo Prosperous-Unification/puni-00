@@ -1,0 +1,17 @@
+{
+  "command": [
+    "bun",
+    "install",
+    "--cache-dir",
+    "/tmp/wbs100-dns-consumer-20261019/cache"
+  ],
+  "cwd": "/tmp/wbs100-dns-consumer-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 42148,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 60,
+  "seconds": 0.607,
+  "availableBeforeKiB": 22097284,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

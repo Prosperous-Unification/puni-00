@@ -1,0 +1,258 @@
+{
+  "base": {
+    "selection": {
+      "kind": "committed",
+      "revision": "ee750cb7070eb06d4b828eba7ccb3ddf16ae2d0b",
+      "tree": "9c56a947f27955e3c70edf35be773cab761369c4"
+    },
+    "outcome": {
+      "ok": true,
+      "report": [
+        {
+          "path": "apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts",
+          "message": "1241 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "message": "916 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/organization/sso-connections-panel.tsx",
+          "message": "987 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts",
+          "message": "3579 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx",
+          "message": "7642 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-cards.tsx",
+          "message": "3411 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx",
+          "message": "1291 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+          "message": "1095 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+          "message": "1834 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx",
+          "message": "1503 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/table-frame.ts",
+          "message": "1806 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+          "message": "3295 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/lib/wbs-api.ts",
+          "message": "3071 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/testing/fake-project-api.ts",
+          "message": "1269 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "message": "1795 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/mcp-01/src/oauth.ts",
+          "message": "1438 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-memory/src/source.ts",
+          "message": "1035 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/directory.ts",
+          "message": "1831 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+          "message": "847 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts",
+          "message": "991 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/project.ts",
+          "message": "1396 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/schema.ts",
+          "message": "3553 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/work-item.ts",
+          "message": "1242 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/conformance/src/stores/saved-plan-capture.ts",
+          "message": "886 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/core/src/module/directory/directory.resource.ts",
+          "message": "1336 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "message": "7431 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts",
+          "message": "1877 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+          "message": "906 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/domain/domain/src/schedule.ts",
+          "message": "3883 lines exceeds the ceiling 800"
+        }
+      ]
+    }
+  },
+  "candidate": {
+    "selection": {
+      "kind": "committed",
+      "revision": "0292ec45689fc42fa89685c223eb46d7b2a722f9",
+      "tree": "4723f838672b21cc3a5c3c1ca887b74479565707"
+    },
+    "outcome": {
+      "ok": true,
+      "report": [
+        {
+          "path": "apps/wbs/be-01/src/controller/auth-oidc-endpoints.ts",
+          "message": "1241 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/be-01/src/testing/organization-harness.ts",
+          "message": "916 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/organization/sso-connections-panel.tsx",
+          "message": "987 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts",
+          "message": "3579 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/gantt-panel.tsx",
+          "message": "7642 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-cards.tsx",
+          "message": "3411 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/depends.tsx",
+          "message": "1291 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+          "message": "1095 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/plan-toolbar.tsx",
+          "message": "1834 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/project-page.tsx",
+          "message": "1503 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/table-frame.ts",
+          "message": "1806 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/components/wbs/wbs-table.tsx",
+          "message": "3295 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/lib/wbs-api.ts",
+          "message": "3071 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/testing/fake-project-api.ts",
+          "message": "1269 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/fe-01/src/testing/refusing-api.ts",
+          "message": "1795 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "apps/wbs/mcp-01/src/oauth.ts",
+          "message": "1438 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-memory/src/source.ts",
+          "message": "1035 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/directory.ts",
+          "message": "1831 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/domain-claim.ts",
+          "message": "847 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/optimized-schedule-cache.ts",
+          "message": "991 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/project.ts",
+          "message": "1396 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/schema.ts",
+          "message": "3553 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/adapters/store-sqlite/src/work-item.ts",
+          "message": "1242 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/conformance/src/stores/saved-plan-capture.ts",
+          "message": "886 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/core/src/module/directory/directory.resource.ts",
+          "message": "1336 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts",
+          "message": "7431 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/application/core/src/testing/import-service-source-contract.ts",
+          "message": "1877 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts",
+          "message": "906 lines exceeds the ceiling 800"
+        },
+        {
+          "path": "libs/wbs/domain/domain/src/schedule.ts",
+          "message": "3883 lines exceeds the ceiling 800"
+        }
+      ]
+    }
+  }
+}

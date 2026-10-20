@@ -1,0 +1,1 @@
+{"extends": "./apps/wbs/fe-01/tsconfig.app.json", "include": ["apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx", "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx"], "exclude": []}

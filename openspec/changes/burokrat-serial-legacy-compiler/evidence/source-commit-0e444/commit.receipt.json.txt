@@ -1,0 +1,20 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "git",
+    "commit",
+    "-m",
+    "Release legacy TypeScript programs between extraction phases"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 838804,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 3.261,
+  "availableBeforeKiB": 23081548,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

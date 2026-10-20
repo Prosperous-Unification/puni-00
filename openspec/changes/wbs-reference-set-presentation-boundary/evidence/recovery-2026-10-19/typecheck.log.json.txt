@@ -1,0 +1,34 @@
+{
+  "command": [
+    "bunx",
+    "tsc",
+    "-p",
+    "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/.reference-recovery-scope.tsconfig.json",
+    "--noEmit"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 99252,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/home/df/wd/puni/puni-00/node_modules/@typescript/typescript-linux-x64/lib/tsc",
+      "-p",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/.reference-recovery-scope.tsconfig.json",
+      "--noEmit"
+    ],
+    [
+      "bunx",
+      "tsc",
+      "-p",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/.reference-recovery-scope.tsconfig.json",
+      "--noEmit"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/tsc",
+      "-p",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/.reference-recovery-scope.tsconfig.json",
+      "--noEmit"
+    ]
+  ]
+}

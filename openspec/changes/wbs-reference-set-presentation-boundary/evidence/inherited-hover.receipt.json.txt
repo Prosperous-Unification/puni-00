@@ -1,0 +1,14 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/reference-set-field.test.tsx",
+    "--maxWorkers=1",
+    "-t",
+    "adds the overriding dimension"
+  ],
+  "exitCode": 1,
+  "peakRssBytes": 384008192,
+  "seconds": 1.41
+}

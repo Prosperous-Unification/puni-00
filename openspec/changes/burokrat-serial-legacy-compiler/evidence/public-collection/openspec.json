@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "3ef2bd3ec8418412e94b86ab440da9ac5507cea42f1840e8d2edb9884d0b82f1",
+    "bytes": 509,
+    "text": "{\n  \"command\": [\n    \"env\",\n    \"BUN_TMPDIR=/tmp\",\n    \"OPENSPEC_TELEMETRY=0\",\n    \"bunx\",\n    \"@fission-ai/openspec@1.12.0\",\n    \"validate\",\n    \"burokrat-serial-legacy-compiler\",\n    \"--strict\",\n    \"--json\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 105820,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.254,\n  \"availableBeforeKiB\": 22568488,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "ccecb95851dd9fb8d53cb6c81b28e9eb6630429f978da03313bfa887c30ea64b",
+    "bytes": 521,
+    "text": "{\n  \"items\": [\n    {\n      \"id\": \"burokrat-serial-legacy-compiler\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n    \"source\": \"nearest\"\n  }\n}\n"
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

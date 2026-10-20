@@ -1,0 +1,19 @@
+{
+  "command": [
+    "/tmp/wbs100-serial-consumer-20261019/node_modules/.bin/twib",
+    "check",
+    "committed",
+    "/home/df/wd/puni/puni-00",
+    "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+    "/tmp/wbs100-reference-consumer-20261019/policy.json"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00",
+  "exitCode": 1,
+  "peakProcessTreeKiB": 2621540,
+  "ceilingKiB": 4194304,
+  "timeoutSeconds": 900,
+  "seconds": 17.834,
+  "availableBeforeKiB": 22741724,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

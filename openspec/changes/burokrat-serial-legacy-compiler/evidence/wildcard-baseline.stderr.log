@@ -1,0 +1,9 @@
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:
+(pass) later trusted package copies do not add roots to an earlier wildcard config [146.38ms]
+
+ 1 pass
+ 10 filtered out
+ 0 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [623.00ms]

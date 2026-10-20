@@ -1,0 +1,96 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "Recover reviewed estimate presentation extraction for WBS100",
+    "-m",
+    "Recover exact source and historical evidence from 192540c31 and 070b2861 on main 3e8d0742. Exclude directory and reference extractions. Fresh mounted, explicit TS6 and injected-fault checks are recorded separately."
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 893152,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-estimate-recovery-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/pre-commit"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-estimate-recovery-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "pre-commit"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+    ],
+    [
+      "bunx",
+      "prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+      "openspec/changes/wbs-estimate-presentation-boundary/proposal.md",
+      "openspec/changes/wbs-estimate-presentation-boundary/specs/estimate-presentation-boundary/spec.md",
+      "openspec/changes/wbs-estimate-presentation-boundary/tasks.md",
+      "openspec/changes/wbs-estimate-presentation-boundary/verify.md"
+    ],
+    [
+      "git",
+      "commit",
+      "-m",
+      "Recover reviewed estimate presentation extraction for WBS100",
+      "-m",
+      "Recover exact source and historical evidence from 192540c31 and 070b2861 on main 3e8d0742. Exclude directory and reference extractions. Fresh mounted, explicit TS6 and injected-fault checks are recorded separately."
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/node_modules/.bin/prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx",
+      "openspec/changes/wbs-estimate-presentation-boundary/proposal.md",
+      "openspec/changes/wbs-estimate-presentation-boundary/specs/estimate-presentation-boundary/spec.md",
+      "openspec/changes/wbs-estimate-presentation-boundary/tasks.md",
+      "openspec/changes/wbs-estimate-presentation-boundary/verify.md"
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx prettier --check apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx openspec/changes/wbs-estimate-presentation-boundary/proposal.md openspec/changes/wbs-estimate-presentation-boundary/specs/estimate-presentation-boundary/spec.md openspec/changes/wbs-estimate-presentation-boundary/tasks.md openspec/changes/wbs-estimate-presentation-boundary/verify.md "
+    ],
+    [
+      "sh",
+      "-c",
+      "for source in apps/wbs/fe-01/src/components/wbs/plan-columns/estimate-presentation.tsx apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx; do bunx eslint \"$source\" || exit $?; done "
+    ]
+  ]
+}
