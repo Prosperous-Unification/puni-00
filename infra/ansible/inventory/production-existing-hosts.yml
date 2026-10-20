@@ -71,3 +71,7 @@ all:
             - h3mon-observability-grafana-1
     k3s_join_servers:
       hosts: {}
+    # Second h2puni-style gate host (playbooks/gate-host.yml); host vars stay on h4claw above.
+    gate_hosts:
+      hosts:
+        h4claw: {}

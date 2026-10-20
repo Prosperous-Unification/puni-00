@@ -1,0 +1,92 @@
+---
+# Each probe runs as the gate account through its ~/.bashrc, the environment `ssh puni1@host CMD`
+# gives a gate, and fails the play when its condition is broken; none of them changes the host.
+- name: Resolve Bun the way a remote gate does
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, '. "$HOME/.bashrc"; command -v bun; bun --version; command -v bunx']
+  register: puni_gate_bun_probe
+  changed_when: false
+
+- name: Require the pinned Bun on the gate PATH
+  ansible.builtin.assert:
+    that:
+      - puni_gate_bun_probe.stdout_lines[0] == puni_gate_home + '/.bun-' + puni_gate_bun_version + '/bin/bun'
+      - puni_gate_bun_probe.stdout_lines[1] == puni_gate_bun_version
+      - puni_gate_bun_probe.stdout_lines[2] == puni_gate_home + '/.bun-' + puni_gate_bun_version + '/bin/bunx'
+    fail_msg: 'The gate PATH resolves {{ puni_gate_bun_probe.stdout_lines }}, not the pinned Bun'
+  # Proof (Docker lab, 2026-10-21): a PATH naming ~/.bun-9.9.9 failed the probe above with
+  # `bun: command not found`; a fake bun printing 1.3.14 first on PATH failed this assertion.
+
+- name: Read the gate tree state
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        cd "$1" && git remote get-url origin && git rev-parse --is-shallow-repository &&
+        printf 'promisor=%s\n' "$(git config --default '' --get remote.origin.promisor)" &&
+        printf 'dirty=%s\n' "$(git status --porcelain --untracked-files=normal | wc -l)"
+      - gate-tree
+      - '{{ puni_gate_checkout }}'
+  register: puni_gate_tree_probe
+  changed_when: false
+
+# A dirty tree makes every gate exit 65, so it is refused here rather than at the first gate.
+- name: Require a full, clean clone of the canonical repository
+  ansible.builtin.assert:
+    that:
+      - puni_gate_tree_probe.stdout_lines == [puni_gate_repository_url, 'false', 'promisor=', 'dirty=0']
+    fail_msg: 'The gate tree reports {{ puni_gate_tree_probe.stdout_lines }}'
+  # Proof (Docker lab, 2026-10-21): one untracked file in the tree failed this with `dirty=1`.
+
+- name: Use Docker as the gate account
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [docker, ps, --quiet]
+  changed_when: false
+  # Proof (Docker lab, 2026-10-21): removing puni1 from the docker group failed this with
+  # `permission denied while trying to connect to the docker API`.
+
+- name: Resolve the solver Python and its pinned solver
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - '. "$HOME/.bashrc"; command -v python3; python3 -c "import ortools; print(ortools.__version__)"; shellcheck --version >/dev/null'
+  register: puni_gate_python_probe
+  changed_when: false
+
+- name: Require the solver environment on the gate PATH
+  ansible.builtin.assert:
+    that:
+      - puni_gate_python_probe.stdout_lines[0] == puni_gate_home + '/.venv-solver/bin/python3'
+      - >-
+        (puni_gate_python_probe.stdout_lines[1] in
+        (lookup('ansible.builtin.file', puni_gate_solver_requirements) | regex_findall('(?m)^ortools==(\S+)')))
+    fail_msg: 'The gate python3 reports {{ puni_gate_python_probe.stdout_lines }}'
+
+# The production resolver, sourced from the gate tree, names the lock this host's gates take;
+# the account must be able to create the lock file and its records beside it.
+- name: Resolve the heavy lock the gate takes
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      - bash
+      - -c
+      - >-
+        source "$1/bin/heavy-lock-lib.sh" && lock=$(resolve_heavy_lock_path) &&
+        printf '%s\n' "$lock" && test -w "$(dirname "$lock")" && "$1/bin/with-heavy-lock.sh" status
+      - gate-lock
+      - '{{ puni_gate_checkout }}'
+  register: puni_gate_lock_probe
+  changed_when: false
+  # Proof (Docker lab, 2026-10-21): ~/.cache owned by root failed `test -w` here (rc 1).
+
+- name: Require the lock under the gate account's cache directory
+  ansible.builtin.assert:
+    that:
+      - puni_gate_lock_probe.stdout_lines[0] == puni_gate_home + '/.cache/wbs-heavy-work.lock'
+    fail_msg: 'The gate resolves the heavy lock at {{ puni_gate_lock_probe.stdout_lines[0] }}'
