@@ -218,6 +218,20 @@ took the same stamp; the 17 migration-list expectations carry all three.
   pinned `codex` claim answers 200); `claimIdentityOf`'s pin read answering null (the memory
   and SQLite pinned cases accept).
 
+### Gate on 8be412a35 and the Dash descriptor flake (2026-10-20)
+
+`bin/h2puni-gate.sh 8be412a35d3bcb6eb33124e42f205e0e80ca2202` printed `h2puni gate: running
+on 8be412a35d3bcb6eb33124e42f205e0e80ca2202` (after waiting 8710s for the lock). The 47 WBS
+projects passed; the one failure was outside this branch:
+`apps/twilight-structure/twilight-dash/cli/src/activation/controller.db.test.ts` "selected
+check closes remaining owned descriptors after a leaf descriptor was closed" (expected 23 open
+descriptors, received 22). This branch changes nothing under `apps/twilight-structure`. Rerun
+on the laptop three times with `env -u CLAUDECODE bun test
+apps/twilight-structure/twilight-dash/cli/src/activation/controller.db.test.ts -t "closes
+remaining owned descriptors"`: 1 pass 0 fail, 1 pass 0 fail, 1 pass 0 fail. Read as a
+host-load flake in a process-wide `/proc/self/fd` count; the merged head after slice 3 is gated
+again.
+
 ### Assumptions made in this slice (for Dany's review)
 
 - The bound account must be a member of the person's organization (`unknown_account`
