@@ -176,6 +176,7 @@ import {
   type ClaimInput,
   type ClaimRefusalOutcome,
   claimsAround,
+  isClaimAdmin,
   lineageOf,
   refusalOf,
   type ReleaseInput,
@@ -2849,7 +2850,7 @@ export class WorkItemService {
     id: string,
     actorId: string,
     input: ClaimInput,
-    isAdmin: boolean,
+    access: ResourceAccess,
     credential: CredentialPair | null,
   ): Promise<WorkItemOutcome<Claimed> | ClaimRefusalOutcome> {
     const context = await this.contextFor(id, actorId);
@@ -2860,11 +2861,10 @@ export class WorkItemService {
     const steps = await this.opts.projects.stepsOf(projectId);
     if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
       return { ok: false, reason: 'unknown_step' };
-    const nameOf = new Map(
-      (await this.opts.directory.listPeople()).map((person) => [person.id, person.name]),
-    );
-    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const nameOf = await this.claimantNamesWithin(access, input.personId, near);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     const stated = new Map(
       (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
         each.stepId,
@@ -2873,7 +2873,6 @@ export class WorkItemService {
     );
     const status = (await this.statusesOf(projectId, rows)).get(id);
     if (status === undefined) throw new Error(`work item ${id} has no derived status`);
-    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
     const decided = decideClaim({
       target: {
         workItemId: id,
@@ -2887,7 +2886,7 @@ export class WorkItemService {
       },
       caller: {
         accountId: actorId,
-        isAdmin,
+        isAdmin: isClaimAdmin(access),
         pinnedPersonId: await identity.pinnedPersonOf(credential),
       },
       claimant: {
@@ -2943,7 +2942,7 @@ export class WorkItemService {
     id: string,
     actorId: string,
     input: ReleaseInput,
-    isAdmin: boolean,
+    access: ResourceAccess,
     credential: CredentialPair | null,
   ): Promise<WorkItemOutcome<null> | ClaimRefusalOutcome> {
     const context = await this.contextFor(id, actorId);
@@ -2954,16 +2953,15 @@ export class WorkItemService {
     const steps = await this.opts.projects.stepsOf(projectId);
     if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
       return { ok: false, reason: 'unknown_step' };
-    const nameOf = new Map(
-      (await this.opts.directory.listPeople()).map((person) => [person.id, person.name]),
-    );
-    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const nameOf = await this.claimantNamesWithin(access, input.personId, near);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     const decided = decideRelease({
       target: { workItemId: id, isLeaf: lineage.isLeaf },
       caller: {
         accountId: actorId,
-        isAdmin,
+        isAdmin: isClaimAdmin(access),
         pinnedPersonId: await identity.pinnedPersonOf(credential),
       },
       claimant: {
@@ -2971,7 +2969,7 @@ export class WorkItemService {
         boundAccountId: await identity.boundAccountOf(input.personId),
       },
       stepIds: input.stepIds,
-      claims: claimsAround(await claims.listByProject(projectId), id, lineage),
+      claims: near,
     });
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
     const stamp = this.clock.stampFor(actorId);
@@ -2985,6 +2983,33 @@ export class WorkItemService {
       before: rows,
     });
     return { ok: true, value: null };
+  }
+
+  /**
+   * The display names a claim or release may answer with: the claimant's and
+   * every holder's among `near`. Under scoped access they are the
+   * organization's own names, from its person list, so a person outside the
+   * organization reads as unknown; under legacy access they are the root
+   * names, read by id. Neither scans the whole directory.
+   */
+  private async claimantNamesWithin(
+    access: ResourceAccess,
+    claimantId: string,
+    near: readonly Claim[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set([claimantId, ...near.map(({ personId }) => personId)])];
+    const { directory } = this.opts;
+    // Proof: with the root `listPeople()` read back in place of both branches,
+    // `names the holder by the organization's name` (claim-identity.controller.db.test.ts)
+    // read `root-claire`, and `reads only the people a refused claim names`
+    // (startable-scope.db.test.ts) saw a `SCAN person`; watched 2026-10-20.
+    const people =
+      access.kind === 'scoped'
+        ? (await directory.listInOrganization('people', access.scope.organizationId)).filter(
+            (person) => ids.includes(person.id),
+          )
+        : await directory.namesOf('people', ids);
+    return new Map(people.map((person) => [person.id, person.name]));
   }
 
   /**

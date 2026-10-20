@@ -6,7 +6,6 @@ import type { DependencyEndpoint } from '@wbs/domain';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type { ClaimRefusalOutcome } from '../work-item/claims';
-import { isClaimAdmin } from '../work-item/claims';
 import type {
   AppliedBase,
   AppliedCommand,
@@ -497,7 +496,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
           },
-          isClaimAdmin(context.access),
+          context.access,
           context.credential,
         ),
       );
@@ -517,7 +516,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             personId: context.required(command.personId, command.personRef),
             stepIds: command.steps ?? null,
           },
-          isClaimAdmin(context.access),
+          context.access,
           context.credential,
         ),
       );

@@ -185,6 +185,23 @@ describe('who may claim as a person', () => {
   });
 });
 
+describe('a refused claim names its holder', () => {
+  it("names the holder by the organization's name, not the root name", async () => {
+    expect((await batch('mem', [claim('claire')])).status).toBe(200);
+    const lost = await batch('kat', [claim('kats-agent')]);
+    expect(lost.status).toBe(409);
+    const { error, holders } = lost.body as {
+      error: string;
+      holders: { personId: string; name: string }[];
+    };
+    expect(error).toBe('already_claimed');
+    expect(holders.length).toBeGreaterThan(0);
+    expect(holders.map(({ personId, name }) => [personId, name])).toEqual(
+      holders.map(() => ['claire', 'claire']),
+    );
+  });
+});
+
 describe('a credential pinned to one person', () => {
   // Proof: `runCommandBatch` passing a null credential (no pin read) made the
   // claim as `codex` answer 200 (watched 2026-10-20).
@@ -211,6 +228,37 @@ describe('a credential pinned to one person', () => {
     );
     expect(own.status).toBe(200);
     expect(claimsOf('claire')).toBeGreaterThan(0);
+  });
+
+  // Proof: with `parentChain.some(...)` in decideClaim's pin check answering
+  // false, the delegated claim as `codex` answered 403
+  // credential_not_for_person; watched 2026-10-20.
+  it('delegates under its own person’s subtree claim, and only there', async () => {
+    await linkFleet('claire');
+    const token = await machineToken();
+    const asFleet = (commands: unknown[]) =>
+      h.callWith(
+        token,
+        'POST',
+        `/api/projects/${projectId}/commands`,
+        { commands },
+        { 'X-WBS-Expected-Organization': 'org-a' },
+      );
+    const created = await batch('dany', [
+      { kind: 'createWorkItem', parentId: leaf, afterId: null, name: 'Under' },
+    ]);
+    if (created.status !== 200) throw new Error(`child refused: ${JSON.stringify(created)}`);
+    const under = (created.body as { results: { id: string }[] }).results[0]?.id ?? '';
+    expect((await asFleet([claim('claire')])).status).toBe(200);
+    const parentClaim = h.sqlite
+      .query<{ id: string }, [string]>('SELECT id FROM claim WHERE work_item_id = ?')
+      .get(leaf)?.id;
+    expect(parentClaim).toBeDefined();
+    const delegated = { kind: 'claimWorkItem', workItemId: under, personId: 'codex' };
+    expect(await asFleet([delegated])).toEqual(refused('credential_not_for_person'));
+    expect(claimsOf('codex')).toBe(0);
+    expect((await asFleet([{ ...delegated, parentClaim }])).status).toBe(200);
+    expect(claimsOf('codex')).toBeGreaterThan(0);
   });
 
   it('leaves the account’s own session unpinned', async () => {
