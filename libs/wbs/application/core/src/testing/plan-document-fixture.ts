@@ -36,7 +36,10 @@ export function planDocumentFixture(): PlanDocumentImport {
       services: [{ id: 'service-1', name: ' Billing API ' }],
       types: [{ id: 'type-1', name: ' Milestone ' }],
       externalSystems: [{ id: 'system-1', name: ' Tracker ' }],
+      resources: [],
     },
+    resourceCapacities: [],
+    demands: [],
     workItems: [
       {
         id: 'row-1',

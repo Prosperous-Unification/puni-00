@@ -176,6 +176,53 @@ describe('resources in an organization', () => {
     });
   });
 
+  // Both export paths: an isolated organization's direct read, and a shared one's
+  // single snapshot (`chain-snapshot.ts`), which reads resources beside the tree.
+  // Proof: with the snapshot's resource read answering empty lists, the shared case
+  // failed; with the direct read's, the isolated case; watched 2026-10-20.
+  it.each(['isolated', 'shared'])(
+    'exports the organization’s resources under their local names (%s), and imports them back',
+    async (mode) => {
+      if (mode === 'shared')
+        h.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+      const ram = await declare('ada', 'h2puni ram');
+      await declare('ada', 'unused');
+      await h.call('ada', 'POST', `/api/projects/${own}/commands`, {
+        commands: [
+          { kind: 'setResourceCapacity', resourceId: ram, units: 32 },
+          { kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 },
+        ],
+      });
+      const exported = await h.call('ada', 'GET', `/api/projects/${own}/export?format=json`);
+      expect(exported).toMatchObject({
+        status: 200,
+        body: {
+          document: { version: 10 },
+          directory: {
+            resources: [{ id: ram, name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }],
+          },
+          resourceCapacities: [{ resourceId: ram, units: 32 }],
+          demands: [{ workItemId: 'w-a', resourceId: ram, units: 4 }],
+        },
+      });
+      const imported = await h.call('ada', 'POST', '/api/projects/import', exported.body);
+      expect(imported.status).toBe(201);
+      const { projectId } = imported.body as { projectId: string };
+      const read = await h.call('ada', 'GET', `/api/projects/${projectId}/resources`);
+      expect(read).toMatchObject({
+        status: 200,
+        body: {
+          capacities: [{ resourceId: ram, units: 32 }],
+          demands: [{ resourceId: ram, units: 4 }],
+        },
+      });
+      // Resolved by the organization-local name: no second `h2puni ram`.
+      expect(
+        (read.body as { resources: { name: string }[] }).resources.map(({ name }) => name),
+      ).toEqual(['h2puni ram', 'unused']);
+    },
+  );
+
   it('refuses an unbound session and a stranger alike', async () => {
     expect(await h.call('ada', 'GET', `/api/projects/${foreign}/resources`)).toEqual({
       status: 404,

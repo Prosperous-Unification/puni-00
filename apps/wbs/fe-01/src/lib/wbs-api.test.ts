@@ -158,7 +158,7 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
     workItems: tree.workItems.map((row, at) => (at === 0 ? { ...row, attempts: ATTEMPTS } : row)),
     project: PROJECT,
     stepNodes: [],
-    document: { format: 'wbs-plan', version: 9, exportedAt: '2026-09-14T08:30:00.000Z' },
+    document: { format: 'wbs-plan', version: 10, exportedAt: '2026-09-14T08:30:00.000Z' },
     typedDependencies: [],
     stepBlockages: [],
     settings: {
@@ -176,8 +176,18 @@ const PLAN_DOCUMENT = (ids: string[] = ['w1']): Record<string, unknown> => {
       timezone: 'Europe/Kyiv',
     },
     capacity: [],
+    resourceCapacities: [],
+    demands: [],
     calendarMarkers: [],
-    directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
+    directory: {
+      teams: [],
+      people: [],
+      tags: [],
+      services: [],
+      types: [],
+      externalSystems: [],
+      resources: [],
+    },
   };
 };
 
@@ -190,6 +200,9 @@ const importDocument = async (): Promise<PlanDocumentRequest> => {
   };
   delete legacyDocument['typedDependencies'];
   delete legacyDocument['stepBlockages'];
+  delete legacyDocument['resourceCapacities'];
+  delete legacyDocument['demands'];
+  delete (legacyDocument['directory'] as Record<string, unknown>)['resources'];
   // A version-3 file has neither the zone nor attempts version 7 added.
   const settings = legacyDocument['settings'] as Record<string, unknown>;
   delete settings['timezone'];

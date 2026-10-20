@@ -6,6 +6,7 @@ import type {
   Hold,
   MeasureMetric,
   Readiness,
+  ResourceKind,
   StepState,
   ThreePointEstimate as Estimate,
   TypedDependency,
@@ -19,6 +20,12 @@ type DocumentDirectory = PlanDocumentImport['directory'];
 export interface PreparedCapacity {
   teamFileId: string;
   size: number;
+}
+
+/** A resource the file states, matched by name against the target directory on import. */
+export interface PreparedResource extends PreparedNamedEntry {
+  kind: ResourceKind;
+  unitLabel: string;
 }
 
 export interface PreparedMarker {
@@ -153,6 +160,9 @@ export interface PreparedImport {
   serviceByFileId: ReadonlyMap<string, PreparedNamedEntry>;
   typeByFileId: ReadonlyMap<string, PreparedNamedEntry>;
   externalSystemByFileId: ReadonlyMap<string, PreparedNamedEntry>;
+  resourceByFileId: ReadonlyMap<string, PreparedResource>;
+  resourceCapacities: { resourceFileId: string; units: number }[];
+  demands: { workItemFileId: string; resourceFileId: string; units: number }[];
 }
 
 export type ImportRefusalCode =

@@ -2881,6 +2881,14 @@ export class WorkItemService {
     return this.demanding().listByProject(projectId);
   }
 
+  /** The project's stated resource capacities, in resource-id order. */
+  resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]> {
+    const { resourceCapacity } = this.opts;
+    if (resourceCapacity === undefined)
+      throw new Error('this work-item service was built without a resource capacity store');
+    return resourceCapacity.listFor(projectId);
+  }
+
   /**
    * The project's resource read (`wbs-resources`): the resources the caller's
    * directory holds, the project's stated capacities and every demand on its

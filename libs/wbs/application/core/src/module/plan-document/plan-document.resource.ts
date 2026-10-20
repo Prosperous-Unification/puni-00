@@ -1,6 +1,12 @@
 import {
   type DocumentAttempt,
   documentAttempt,
+  type DocumentDemand,
+  documentDemand,
+  type DocumentResource,
+  documentResource,
+  type DocumentResourceCapacity,
+  documentResourceCapacity,
   type DocumentTypedDependency,
   documentTypedDependencyRequest,
   documentV4TypedDependencyRequest,
@@ -22,6 +28,7 @@ import {
   isHold,
   isReadiness,
   isTimezone,
+  MOST_RESOURCE_UNITS,
   NO_ALLOWANCE,
   orderSteps,
 } from '@wbs/domain';
@@ -167,10 +174,16 @@ export class PlanDocumentService {
         this.options.stepParallels.listByProject(project.id),
       ]);
     if (!markerRead.ok) throw new Error(`project "${project.id}" disappeared during export`);
+    const [resources, capacities, demands] = await Promise.all([
+      read('resources', () => directory.listResources()),
+      this.options.resourceFacts.resourceCapacitiesOf(project.id),
+      this.options.resourceFacts.demandsOf(project.id),
+    ]);
     return {
       directory: { teams, people, tags, services, types, externalSystems },
       markers: markerRead.value,
       stepParallels,
+      resources: { resources, capacities, demands },
     };
   }
 }
@@ -306,14 +319,69 @@ function buildDocument(
       teamId: serviceTeamId,
       size,
     })),
+    // Proof: with either list written empty, `exports only the resources its
+    // capacities and demands name (wbs-resources)` (plan-document.resource.test.ts)
+    // failed; watched 2026-10-20.
+    resourceCapacities: [...reads.resources.capacities]
+      .sort((left, right) => left.resourceId.localeCompare(right.resourceId))
+      .map(({ resourceId, units }) => ({ resourceId, units })),
+    demands: documentDemands(tree, reads.resources.demands),
     calendarMarkers: reads.markers.map(({ id, date, name, color }) => ({
       id,
       date,
       name,
       color,
     })),
-    directory: closure,
+    directory: { ...closure, resources: referencedResources(reads.resources) },
   };
+}
+
+/**
+ * The project's demands as the document writes them, by work item then
+ * resource.
+ *
+ * @throws on a demand naming a work item the tree does not hold: trusted reads
+ * that disagree.
+ */
+function documentDemands(
+  tree: WorkItemTree,
+  demands: readonly { workItemId: string; resourceId: string; units: number }[],
+): PlanDocument['demands'] {
+  const rows = new Set(tree.workItems.map(({ id }) => id));
+  return [...demands]
+    .map(({ workItemId, resourceId, units }) => {
+      if (!rows.has(workItemId))
+        throw new Error(`demand names work item "${workItemId}" the tree does not hold`);
+      return { workItemId, resourceId, units };
+    })
+    .sort(
+      (left, right) =>
+        left.workItemId.localeCompare(right.workItemId) ||
+        left.resourceId.localeCompare(right.resourceId),
+    );
+}
+
+/**
+ * The resources the document's capacities and demands name, and no other,
+ * as every other catalog's closure is.
+ *
+ * Proof: returning the unfiltered list made `exports only the resources its
+ * capacities and demands name (wbs-resources)` (plan-document.resource.test.ts)
+ * carry the unused resource, and every zero-fact export carry all three; watched
+ * 2026-10-20.
+ *
+ * @throws when a capacity or demand names a resource the directory read lacks.
+ */
+function referencedResources(
+  read: PlanDocumentReads['resources'],
+): PlanDocument['directory']['resources'] {
+  const named = new Set([
+    ...read.capacities.map(({ resourceId }) => resourceId),
+    ...read.demands.map(({ resourceId }) => resourceId),
+  ]);
+  return requireRows('resource', named, [...read.resources]).map(
+    ({ id, name, kind, unitLabel }) => ({ id, name, kind, unitLabel }),
+  );
 }
 
 /**
@@ -471,6 +539,7 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     version !== 6 &&
     version !== 7 &&
     version !== 8 &&
+    version !== 9 &&
     version !== PLAN_DOCUMENT_VERSION
   ) {
     return { ok: false, code: 'unsupported_version', path: 'document.version' };
@@ -513,6 +582,8 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       stepBlockages.push({ workItemId, stepId, blockedAt });
     }
   }
+  const resourceFacts = resourceFactsOf(version, checked.value);
+  if (!resourceFacts.ok) return resourceFacts;
   for (const [at, row] of checked.value.workItems.entries()) {
     // Proof: bypassing row alias refusal failed `legacy row blockage aliases are refused` (2026-10-14).
     if (
@@ -612,6 +683,9 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
     ok: true,
     value: {
       ...checked.value,
+      directory: { ...checked.value.directory, resources: resourceFacts.resources },
+      resourceCapacities: resourceFacts.resourceCapacities,
+      demands: resourceFacts.demands,
       settings: { ...settings, timezone },
       steps,
       typedDependencies,
@@ -619,6 +693,97 @@ export async function classifyPlanDocument(input: unknown): Promise<PlanDocument
       workItems,
     },
   };
+}
+
+/**
+ * The resources, capacities and demands a file states (`wbs-resources`): from
+ * version 10 all three lists are required and every entry well formed — units
+ * whole numbers, a capacity from 0 and a demand from 1, both at most
+ * {@link MOST_RESOURCE_UNITS}; before version 10 a file carries none, and one
+ * that names any is refused rather than half-read. References between them and
+ * to the file's rows are `prepareImport`'s to check.
+ *
+ * Proof: with the version-10 shape checks bypassed, `refuses a version-10 file
+ * with a malformed resource, capacity or demand` (plan-document.resource.test.ts)
+ * classified a demand of 0 units ok; with the legacy refusal bypassed, `refuses
+ * resources in a file older than version 10` classified a v9 file naming a
+ * resource ok; both watched 2026-10-20.
+ */
+function resourceFactsOf(
+  version: number,
+  document: PlanDocumentRequest,
+):
+  | {
+      ok: true;
+      resources: DocumentResource[];
+      resourceCapacities: DocumentResourceCapacity[];
+      demands: DocumentDemand[];
+    }
+  | Extract<PlanDocumentClassification, { ok: false }> {
+  const listed = {
+    'directory.resources': document.directory.resources,
+    resourceCapacities: document.resourceCapacities,
+    demands: document.demands,
+  };
+  if (version < 10) {
+    for (const [path, held] of Object.entries(listed))
+      if (held !== undefined && (!Array.isArray(held) || held.length > 0))
+        return { ok: false, code: 'invalid_body', path };
+    return { ok: true, resources: [], resourceCapacities: [], demands: [] };
+  }
+  const resources: DocumentResource[] = [];
+  const resourceCapacities: DocumentResourceCapacity[] = [];
+  const demands: DocumentDemand[] = [];
+  const parse = <T>(
+    path: string,
+    held: unknown,
+    check: (entry: unknown) => T | null,
+    into: T[],
+  ): Extract<PlanDocumentClassification, { ok: false }> | null => {
+    if (!Array.isArray(held)) return { ok: false, code: 'invalid_body', path };
+    for (const [at, entry] of held.entries()) {
+      const parsed = check(entry);
+      if (parsed === null)
+        return { ok: false, code: 'invalid_body', path: `${path}[${String(at)}]` };
+      into.push(parsed);
+    }
+    return null;
+  };
+  const units = (value: unknown, floor: number): value is number =>
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= floor &&
+    value <= MOST_RESOURCE_UNITS;
+  const refused =
+    parse(
+      'directory.resources',
+      listed['directory.resources'],
+      (entry) => {
+        const parsed = documentResource(entry);
+        return parsed instanceof type.errors ? null : parsed;
+      },
+      resources,
+    ) ??
+    parse(
+      'resourceCapacities',
+      listed.resourceCapacities,
+      (entry) => {
+        const parsed = documentResourceCapacity(entry);
+        return parsed instanceof type.errors || !units(parsed.units, 0) ? null : parsed;
+      },
+      resourceCapacities,
+    ) ??
+    parse(
+      'demands',
+      listed.demands,
+      (entry) => {
+        const parsed = documentDemand(entry);
+        return parsed instanceof type.errors || !units(parsed.units, 1) ? null : parsed;
+      },
+      demands,
+    );
+  if (refused !== null) return refused;
+  return { ok: true, resources, resourceCapacities, demands };
 }
 
 type ClassifiedRow = Omit<PlanDocumentImport['workItems'][number], 'attempts'> & {
