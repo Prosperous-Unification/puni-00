@@ -58,9 +58,11 @@ const appliedResults = type({
       'serviceIds?': 'string[]',
       'teamIds?': 'string[]',
     },
-    // A `claimWorkItem` result: whether it wrote nothing, and the claims holding the steps.
+    // A `claimWorkItem` result: whether it wrote nothing, the claims holding the steps, and
+    // the steps `assign: true` assigned (empty for a subtree claim, alreadyHeld or no assign).
     'alreadyHeld?': 'boolean',
     'claimIds?': 'string[]',
+    'assignedStepIds?': 'string[]',
   }).array(),
 });
 const claimHolder = type({

@@ -86,6 +86,7 @@ export type AppliedCommand =
       entity?: never;
       alreadyHeld: boolean;
       claimIds: string[];
+      assignedStepIds: string[];
     })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
   | {

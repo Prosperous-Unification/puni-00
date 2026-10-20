@@ -222,8 +222,17 @@ describe('claimWorkItem in a batch', () => {
       const answer = await runner.run(projectId, F, [
         { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
       ]);
-      expect(answer).toMatchObject({ ok: true, results: [{ alreadyHeld: false }] });
+      expect(answer).toMatchObject({
+        ok: true,
+        results: [{ alreadyHeld: false, assignedStepIds: [impl, review] }],
+      });
       expect(await entries(F)).toBe(before + 1);
+      // Repeated by the holder it writes nothing, so it assigns nothing either.
+      expect(
+        await runner.run(projectId, F, [
+          { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
+        ]),
+      ).toMatchObject({ ok: true, results: [{ alreadyHeld: true, assignedStepIds: [] }] });
       const both = [impl, review].map((stepId) => [stepId, 'claire']);
       expect(await assignees()).toEqual(
         both.toSorted(([left = ''], [right = '']) => left.localeCompare(right)),
@@ -287,7 +296,7 @@ describe('claimWorkItem in a batch', () => {
         await runner.run(projectId, F, [
           { kind: 'claimWorkItem', workItemId: '080', personId: 'claire', assign: true },
         ]),
-      ).toMatchObject({ ok: true });
+      ).toMatchObject({ ok: true, results: [{ assignedStepIds: [] }] });
       for (const id of ['080', '080.25', '080.26'])
         expect(await source.stores.directory.assignmentsFor(id)).toEqual([]);
     } finally {

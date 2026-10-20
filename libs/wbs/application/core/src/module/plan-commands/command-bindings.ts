@@ -518,6 +518,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         kind: command.kind,
         alreadyHeld: claimed.alreadyHeld,
         claimIds: [...claimed.claimIds],
+        assignedStepIds: [...claimed.assignedStepIds],
       };
     },
     releaseWorkItem: async (command, context) => {

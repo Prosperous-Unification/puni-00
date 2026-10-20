@@ -514,10 +514,10 @@ function canonicalScheduleParts(
 }
 
 /** One compensating command, or a `batch` of them when there are several. */
-function oneCommandOf(steps: readonly CompensatingCommand[]): CompensatingCommand {
-  const [only] = steps;
-  if (steps.length === 0) throw new Error('a journal entry needs at least one command');
-  return steps.length === 1 ? only : { do: 'batch', steps: [...steps] };
+function oneCommandOf(commands: readonly CompensatingCommand[]): CompensatingCommand {
+  const [only] = commands;
+  if (commands.length === 0) throw new Error('a journal entry needs at least one command');
+  return commands.length === 1 ? only : { do: 'batch', steps: [...commands] };
 }
 
 /**
@@ -1810,6 +1810,9 @@ export class WorkItemService {
     access: ResourceAccess,
     personId: string,
   ): Promise<PersonWork | { readonly kind: 'unknown_person' } | null> {
+    // Proof: with this admission removed, `refuses a stranger exactly as the
+    // tree read does` (person-work-organization.controller.db.test.ts) answered
+    // 200 with the foreign project's empty lists instead of 404; watched 2026-10-20.
     if (!(await this.admits(projectId, access))) return null;
     const { directory } = this.opts;
     // Proof: with `namesOf` replaced by `listPeople()`, `materializes only the
@@ -2862,6 +2865,10 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem, rows } = context.value;
+    // The batch refuses a foreign step first (command-references.ts), so this is
+    // the direct caller's guard. Proof: removed, `answers unknown_step from the
+    // service itself` (assignee-commands.db.test.ts) answered ok on the memory
+    // store, which keeps no step check of its own; watched 2026-10-20.
     if (!(await this.holdsStep(workItem.projectId, stepId)))
       return { ok: false, reason: 'unknown_step' };
     const lineage = lineageOf(rows, id);
@@ -2991,7 +2998,10 @@ export class WorkItemService {
         (each) =>
           each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
       );
-      return { ok: true, value: { alreadyHeld: true, claimIds: held.map((each) => each.id) } };
+      return {
+        ok: true,
+        value: { alreadyHeld: true, claimIds: held.map((each) => each.id), assignedStepIds: [] },
+      };
     }
     const stamp = this.clock.stampFor(actorId);
     const written: Claim[] = decided.drafts.map((draft) => ({
@@ -3046,7 +3056,11 @@ export class WorkItemService {
     });
     return {
       ok: true,
-      value: { alreadyHeld: false, claimIds: written.map((each) => each.id) },
+      value: {
+        alreadyHeld: false,
+        claimIds: written.map((each) => each.id),
+        assignedStepIds: [...decided.assignStepIds],
+      },
     };
   }
 

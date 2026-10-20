@@ -78,11 +78,31 @@ person_name`.
 Not run: the h2puni gate (the orchestrator gates the merged head), the full Nx suites, fe-01
 tests (fe-01 typechecks; no fe-01 source changed).
 
-Spec notes:
+Spec notes (amended on `plan/wbs-resources` in 659654936, merged here):
 
-- `assignee-management` says `assignSubtree` refuses `not_a_step`; `setAssignee` refuses
-  `unknown_step` and no `not_a_step` code exists, so `assignSubtree` refuses `unknown_step`
-  "as `setAssignee` does".
-- The `wbs-team-claims` registry requirement says the claim "SHALL NOT read or write
-  assignments". With `assign: true` it now writes them; this change ADDs `assign` but does not
-  MODIFY that requirement, so the two read as conflicting until one of them is amended.
+- `assignee-management` now says `assignSubtree` refuses `unknown_step` and `unknown_person` as
+  `setAssignee` does, which is what it refuses.
+- The registry delta now MODIFIES the claim requirement: the claim reads and writes no
+  assignment unless `assign: true`, which assigns the claimed steps in the same entry and goes
+  through `setAssignee`'s calendar preflight; and the commands add no MCP tool while the
+  by-person read adds exactly one (82 to 83).
+
+### PR #587 review round (S2 to S4), 2026-10-20
+
+- S2: `assignSubtree` row added to `refuses a foreign service, team, tag, type, person and
+predecessor, all or none` (command-organization.controller.db.test.ts): 404 `unknown_person`
+  at 1, snapshot unchanged. Watched: with the `assignSubtree` arm removed from
+  `directoryReferencesOf` alone the row still answers 404, because the batch's post-command
+  crossing check (`assignment_person`) refuses it too; with that check also skipping
+  `assignment_person` the row answered 200. Either guard alone holds; the `Proof:` says so.
+- S3: `origin/plan/wbs-resources` (659654936) merged; spec notes above rewritten.
+- S4: `claimWorkItem` answers `assignedStepIds` (empty for a subtree claim, `alreadyHeld` or
+  no `assign`), asserted in claim-command.test.ts. Direct `WorkItemService.assignSubtree` with
+  an unknown step answers `unknown_step` on both stores; with the check removed the memory store
+  answered ok (SQLite's write refuses on its own). Removing `personWorkWithin`'s admission made
+  the stranger case answer 200 with empty lists instead of 404. A multi-leaf `assignSubtree`
+  undo after another account reassigned one leaf is refused and changes nothing (SQLite only:
+  the memory source keeps no work-item revisions, so the case is skipped there).
+  `oneCommandOf`'s parameter is `commands`.
+- `bunx tsc --build` (the nine projects): exit 0. `bun test` over 27 files: 533 pass, 1 skip
+  (the memory stale-undo case), 0 fail. `openspec validate --all --json`: 258 passed, 0 failed.

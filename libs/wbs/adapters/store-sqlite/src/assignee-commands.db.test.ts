@@ -17,6 +17,7 @@ import { openSqliteSource } from './source';
 
 const MIGRATIONS = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const F = 'account-f';
+const G = 'account-g';
 
 /** Each store the conformance suite certifies, opened fresh for one test. */
 const STORES: readonly {
@@ -67,10 +68,12 @@ async function seeded(store: (typeof STORES)[number]) {
     scheduler: fastScheduler,
   };
   const graph = servicesOver(source.stores, options);
-  await source.stores.users.create(
-    { id: F, username: F, passwordHash: 'x', createdAt: 1 },
-    { at: 1, by: F },
-  );
+  for (const id of [F, G]) {
+    await source.stores.users.create(
+      { id, username: id, passwordHash: 'x', createdAt: 1 },
+      { at: 1, by: id },
+    );
+  }
   const created = await graph.projects.create('Assignees', F);
   const projectId = created.project.id;
   if (isMemory) {
@@ -194,7 +197,7 @@ async function seeded(store: (typeof STORES)[number]) {
     await source.close();
     dispose();
   };
-  return { runner, projectId, dev, review, idOf, assignments, entries, close };
+  return { graph, runner, projectId, dev, review, idOf, assignments, entries, close };
 }
 
 const BEFORE = ['A:review:ada', 'C:dev:bob', 'D1:review:bob'];
@@ -278,6 +281,52 @@ for (const store of STORES) {
         }
         expect(await assignments()).toEqual(BEFORE);
         expect(await entries()).toBe(before);
+      } finally {
+        await close();
+      }
+    });
+  });
+
+  describe(`assignSubtree on the ${store.name} store, beyond the batch`, () => {
+    it('answers unknown_step from the service itself, before any write', async () => {
+      const { graph, review, idOf, entries, close } = await seeded(store);
+      try {
+        const before = await entries();
+        expect(await graph.workItems.assignSubtree(idOf('P'), F, 'not-a-step', 'kat')).toEqual({
+          ok: false,
+          reason: 'unknown_step',
+        });
+        expect(await graph.workItems.assignSubtree(idOf('P'), F, review, 'kat')).toEqual({
+          ok: true,
+          value: null,
+        });
+        expect(await entries()).toBe(before + 1);
+      } finally {
+        await close();
+      }
+    });
+
+    // The memory source keeps no work-item revisions, so only SQLite can tell an
+    // undo its leaves moved on since (the same split claim-command.test.ts states).
+    const onRevisions = store.name === 'sqlite' ? it : it.skip;
+    onRevisions('refuses a stale undo once another account changed one of its leaves', async () => {
+      const { runner, projectId, review, idOf, assignments, close } = await seeded(store);
+      try {
+        expect(
+          await runner.run(projectId, F, [
+            { kind: 'assignSubtree', workItemId: idOf('P'), stepId: review, personId: 'kat' },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(
+          await runner.run(projectId, G, [
+            { kind: 'setAssignee', workItemId: idOf('D2'), stepId: review, personId: 'ada' },
+          ]),
+        ).toMatchObject({ ok: true });
+        const moved = await assignments();
+        expect(moved).toContain('D2:review:ada');
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: false });
+        // All or none: no leaf goes back while one of them has moved on.
+        expect(await assignments()).toEqual(moved);
       } finally {
         await close();
       }
