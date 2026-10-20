@@ -69,7 +69,7 @@ describe('review finding: a frozen number must survive its parent moving', () =>
     // Child is frozen at 020.1. Now unfreeze the parent alone and move it first.
     await service.unfreeze(parent, OWNER);
 
-    await service.move(parent, OWNER, { parentId: null, afterId: null });
+    await service.move(parent, OWNER, { parentId: null, afterId: null }, { kind: 'legacy' });
 
     expect((await numbersByName())['Child']).toBe('020.1');
   });

@@ -1,0 +1,28 @@
+# Packet integrity and replay
+
+Files ending in `.txt` preserve original bytes, including JSON and Python source.
+[source-map.json.txt](source-map.json.txt) maps copied files to their original
+absolute paths and SHA-256 identities. No display whitespace was normalized.
+[raw-streams.json.txt](raw-streams.json.txt) additionally preserves all 64 stdout
+and stderr streams as lossless UTF-8 strings with byte counts and hashes.
+Negative diagnostics are concatenated for reading; the raw-stream entries retain
+exact individual streams, including empty stdout.
+
+The nineteen copied negative datasets are intentionally omitted. The original
+five reports, receipts and snapshots, unchanged policy, exact
+[negative reproducer](prove-comparator.py.txt), commands and per-fault changed-input
+hashes reconstruct each injected fault. The reproducer retains its original
+absolute paths. Replay requires restoring the original layout in a disposable
+location or explicitly adapting those paths, plus access to the exact installed
+successor and repository objects. Do not execute it over the existing proof
+folder: it refuses to replace that folder. These dependencies are not bundled.
+
+`compare-surveys-usage.txt` is the original preparation document; its statement
+that proofs were pending describes that earlier checkpoint. The completed
+comparison and negative receipts in this packet supersede that status only.
+The restored pristine command/output are under `negatives/`.
+
+`manifest.json.txt` hashes every other packet file. `integrity-check.json.txt`
+records source-byte equality, raw-stream round trips, nineteen named failures,
+unchanged original hashes and refreshed compatibility parity. No new compression,
+repository source change or evidence reclassification was performed.

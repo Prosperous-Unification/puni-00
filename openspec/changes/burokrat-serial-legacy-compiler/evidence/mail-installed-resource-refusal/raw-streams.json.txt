@@ -1,0 +1,22 @@
+{
+  "full-base.stdout": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "utf8": ""
+  },
+  "full-base.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "utf8": ""
+  },
+  "install-successor.stdout": {
+    "bytes": 99,
+    "sha256": "939e277b784db68284e574357d1e893d182585b128a4cfd87ea9cf73f65701d2",
+    "utf8": "bun install v1.4.2 (744846f84)\n\n+ twilight-burokrat@./artifact.tgz\n\n1 package installed [543.00ms]\n"
+  },
+  "install-successor.stderr": {
+    "bytes": 77,
+    "sha256": "a70c1350043cf739b8f467c9ebfc01dfceb802b253346e0ce861150a1b7b1206",
+    "utf8": "Resolving dependencies\nResolved, downloaded and extracted [1]\nSaved lockfile\n"
+  }
+}

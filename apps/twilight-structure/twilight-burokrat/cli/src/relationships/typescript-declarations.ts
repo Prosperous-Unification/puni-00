@@ -315,11 +315,17 @@ export function selectDeclarationOwner(
   return roots[0];
 }
 
+/**
+ * Builds the public closure after semantic discovery. The serial legacy caller may collect
+ * preceding compiler allocations at that boundary; bounded callers omit the callback so their
+ * source observations and charging sequence remain unchanged.
+ */
 export function publicDeclaration(
   workspace: string,
   entrypoint: string,
   project: ParsedProject,
   extractor: ExtractorIdentity,
+  collectBeforeDependencies?: () => void,
 ): PublicDeclarationSelector {
   if (!project.declarations.has(entrypoint)) {
     throw new Error(
@@ -331,6 +337,7 @@ export function publicDeclaration(
   // `keyof` use, and a generic default outside the public closure; changing each declaration left
   // the committed extractor's structural identity unchanged.
   const pending = [entrypoint, ...semanticDeclarationDependencies(workspace, project, entrypoint)];
+  collectBeforeDependencies?.();
   while (pending.length > 0) {
     const sourcePath = pending.pop();
     if (sourcePath === undefined || visited.has(sourcePath)) continue;

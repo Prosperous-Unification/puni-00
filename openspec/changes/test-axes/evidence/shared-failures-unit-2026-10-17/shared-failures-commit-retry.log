@@ -1,0 +1,97 @@
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mpre-commit[m │
+╰───────────────────────────────────────╯
+│  website-migration-lint (skip) no files for inspection
+│  doc-caps (skip) no matching staged files
+│  migration-lint (skip) no files for inspection
+┃  tool-wiki ❯ 
+{"schemaVersion":1,"status":"inactive","certified":false,"reason":"external activation root is not provisioned"}
+
+┃  plaintext-secrets ❯ 
+
+┃  private-nesting ❯ 
+
+┃  format ❯ 
+Checking formatting...
+All matched files use Prettier code style!
+
+┃  lint ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 4.36 seconds)
+✓ tool-wiki (0.02 seconds)
+✓ plaintext-secrets (0.05 seconds)
+✓ private-nesting (0.06 seconds)
+✓ format (2.41 seconds)
+✓ lint (4.33 seconds)
+╭───────────────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mprepare-commit-msg[m │
+╰───────────────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+╭───────────────────────────────────────╮
+│ lefthook  v2.1.12   hook:  [1mcommit-msg[m │
+╰───────────────────────────────────────╯
+┃  agent-authored-by ❯ 
+
+[38;2;56;56;56m  ────────────────────────────────────[m
+summary: (done in 0.02 seconds)
+✓ agent-authored-by (0.02 seconds)
+[feat/shared-failures-unit-oct17 4b318f481] feat(test): add isolated shared failures Unit reporting
+ 61 files changed, 3954 insertions(+), 1 deletion(-)
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/manifest.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/process-tree-guard.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-allocate-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-allocate-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-allocate-oct17.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-allocation-prefix-oct17.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-focused.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-focused.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-format-final.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-format-final.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-format.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-format.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-graph.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-graph.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-green.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-green.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-lint.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-lint.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-nx-unit.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-nx-unit.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-openspec.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-openspec.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-provenance-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-provenance-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-complete-collection-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-complete-collection-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-empty-selection-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-empty-selection-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-literal-operands-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-literal-operands-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-oct17.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-oct17.py
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-registration-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-registration-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-report-identity-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-report-identity-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-required-target-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-required-target-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-restoration-oct17.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-selector-failure-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-selector-failure-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-stale-report-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-stale-report-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-wrong-level-oct17.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-r5-wrong-level-oct17.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-red.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-red.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-restored.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-restored.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-typecheck.log
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/shared-failures-typecheck.log.json
+ create mode 100644 openspec/changes/test-axes/evidence/shared-failures-unit-2026-10-17/tsconfig.scoped.json
+ create mode 100644 tools/tool-devsync/src/shared-failures-level.test.ts

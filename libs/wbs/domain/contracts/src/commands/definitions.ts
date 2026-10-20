@@ -100,7 +100,8 @@ export const commandDefinitions = {
   moveWorkItem: defineCommand('moveWorkItem', {
     schema: type({ kind: "'moveWorkItem'", ...target, ...placement }),
     scope: 'project',
-    description: 'Move a work item under a parent, after a sibling.',
+    description:
+      'Move a work item under a parent, after a sibling. Refused destination_claimed (names holders) when the parent is a leaf whose steps are claimed.',
   }),
   duplicateWorkItem: defineCommand('duplicateWorkItem', {
     schema: type({ kind: "'duplicateWorkItem'", ...target, ...reference }),

@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/reference-set-field.test.tsx",
+    "src/components/wbs/depends-card.test.tsx",
+    "--maxWorkers=1"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 437927936,
+  "seconds": 3.12
+}

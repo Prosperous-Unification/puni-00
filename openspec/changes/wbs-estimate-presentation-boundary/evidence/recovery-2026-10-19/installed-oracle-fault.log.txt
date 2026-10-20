@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/tmp/wbs100-estimate-installed-oracle-20261019.py", line 10, in <module>
+    assert not any(selected(finding) for finding in candidate['findings']),'selected estimates.tsx finding remains'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: selected estimates.tsx finding remains

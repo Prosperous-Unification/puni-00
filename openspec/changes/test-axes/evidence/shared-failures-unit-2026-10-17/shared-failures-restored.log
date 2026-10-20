@@ -1,0 +1,18 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+(pass) shared-failures isolated Unit level > registers the canonical Unit collection and preserves unreported legacy runners [6.25ms]
+(pass) shared-failures isolated Unit level > refuses unknown and missing target declarations through the production inventory [0.63ms]
+(pass) shared-failures isolated Unit level > refuses a different report identity even when clear and write agree [0.33ms]
+(pass) shared-failures isolated Unit level > audits the full Unit source inventory and refuses omission of a new Unit file [461.38ms]
+(pass) shared-failures isolated Unit level > refuses api files in the Unit collection [266.15ms]
+(pass) shared-failures isolated Unit level > refuses view files in the Unit collection [293.84ms]
+(pass) shared-failures isolated Unit level > executes literal operands without running a nested matching decoy [31.79ms]
+(pass) shared-failures isolated Unit level > removes stale reports before refusing an empty selection [9.74ms]
+(pass) shared-failures isolated Unit level > removes stale reports and refuses a failing selector before Bun can discover tests [9.72ms]
+(pass) shared-failures isolated Unit level > writes all twenty real Unit outcomes to a fresh report [160.06ms]
+
+ 10 pass
+ 0 fail
+ 31 expect() calls
+Ran 10 tests across 1 file. [1394.00ms]

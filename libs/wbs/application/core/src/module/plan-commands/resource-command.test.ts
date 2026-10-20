@@ -65,6 +65,8 @@ async function seeded() {
     occupancyOf: (id) => claims.occupancyOf(id),
     add: (written, stated, stamp, occupancy) => claims.add(written, stated, stamp, occupancy),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
+    moveAll: (fromWorkItemId, toWorkItemId, stamp) =>
+      claims.moveAll(fromWorkItemId, toWorkItemId, stamp),
     boundAccountOf: (personId) => Promise.resolve(personId === 'claire' ? F : null),
     pinnedPersonOf: () => Promise.resolve(null),
   });

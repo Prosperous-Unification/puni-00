@@ -1,0 +1,22 @@
+{
+  "command": [
+    "bun",
+    "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+    "validate",
+    "test-axes",
+    "--strict"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 58260,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "/tmp/bunx-1000-@fission-ai/openspec@1.12.0/node_modules/@fission-ai/openspec/bin/openspec.js",
+      "validate",
+      "test-axes",
+      "--strict"
+    ]
+  ]
+}

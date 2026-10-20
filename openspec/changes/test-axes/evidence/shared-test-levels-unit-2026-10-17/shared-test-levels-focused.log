@@ -1,0 +1,177 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/test-levels.test.ts:
+(pass) the level-selection table > resolves the plain and the database conformance suffixes through target membership [2.82ms]
+(pass) the level-selection table > refuses a file that matches no row [0.13ms]
+(pass) the level-selection table > reads the conformance files out of the real targets [1.01ms]
+(pass) the adopted projects > registers the frontend Unit and View phases with separate report outputs [0.06ms]
+(pass) the adopted projects > refuses an undeclared mixed target from a covered project [173.89ms]
+(pass) the adopted projects > refuses a declared aggregate whose runner loses a member level [4.12ms]
+(pass) the adopted projects > refuses an aggregate runner filter that narrows executed cases [0.95ms]
+(pass) the adopted projects > refuses aggregate membership that omits a collected level [0.93ms]
+(pass) the adopted projects > refuses frontend aggregate dependency and Browser member drift [0.63ms]
+(pass) the adopted projects > refuses an unknown test target declaration [0.34ms]
+(pass) the adopted projects > classifies the organization real-backend Browser target outside the report-bound levels [0.29ms]
+(pass) the adopted projects > refuses a missing required level target [45.19ms]
+(pass) the adopted projects > keeps store-memory conformance separate from its legacy unit aggregate [0.15ms]
+(pass) the adopted projects > keeps every test file outside a declared test root on the known list [7.42ms]
+(pass) the adopted projects > accounts for every test-running target as a level, an aggregate or a known exception [2.03ms]
+(pass) declared level targets > refuses legacy aggregate Nx envelope drift through the production CLI [1667.87ms]
+(pass) declared level targets > refuses a missing or changed frontend Unit dependency target through the production CLI [567.16ms]
+(pass) declared level targets > refuses a second conflicting Bun report output through the production CLI [570.43ms]
+(pass) declared level targets > refuses Bun Nx envelope and report drift through the production CLI [1899.15ms]
+(pass) declared level targets > refuses frontend runner grammar drift through the production CLI [570.26ms]
+(pass) declared level targets > refuses an absent cross-project Browser aggregate member through the CLI [5920.76ms]
+(pass) declared level targets > refuses a Node list containing a View suite outside NODE_SUITES [488.28ms]
+(pass) declared level targets > refuses missing, unreadable and malformed Node suite manifests through the CLI [574.19ms]
+(pass) declared level targets > refuses invalid Node suite entries and omitted authority members through the CLI [2590.07ms]
+(pass) declared level targets > names the Conformance file and both levels when the API selector collects it [176.55ms]
+(pass) declared level targets > refuses a selected Bun file that is missing [2.61ms]
+(pass) declared level targets > refuses an empty Bun selection instead of crediting no cases [2.49ms]
+(pass) declared level targets > refuses a Bun test file omitted by every declared level target [195.84ms]
+(pass) declared level targets > collects frontend phase files from the actual Vitest configs as canonical paths [1066.53ms]
+(pass) declared level targets > verifies frontend phase membership and report paths against production commands [3322.26ms]
+(pass) declared level targets > runs the collection verifier through its production CLI [1777.37ms]
+(pass) declared level targets > refuses a manifest audit for an unknown project root or identity [548.54ms]
+(pass) declared level targets > refuses a frontend root suite omitted by all declared phases [1951.35ms]
+(pass) declared level targets > names a foreign View file in a target declared Unit [542.52ms]
+(pass) declared level targets > refuses frontend command, working directory, phase reports and cleanup drift [5.68ms]
+(pass) declared level targets > refuses a frontend file collected in two phases [805.98ms]
+(pass) declared level targets > refuses bad Vitest list output and removes only its owned temporary directory [2048.14ms]
+(pass) declared level targets > refuses a guarded target that clears a different JUnit report [2.34ms]
+1290 |   // Proof: on each SQLite API/Unit and core Unit production command, removing rm left stale XML
+1291 |   // readable; changing `$files` to `never` let Bun run unrelated.test.ts; changing `&& if` to
+1292 |   // `; if` mislabeled failed find as no-cases. All nine injections failed this case (2026-10-09).
+1293 |   it('refuses empty or failed selection before Bun runs and clears stale JUnit', async () => {
+1294 |     const guarded = LEVEL_TARGETS;
+1295 |     expect(guarded.map(({ project, target }) => `${project}:${target}`).sort()).toEqual([
+                                                                                       ^
+error: expect(received).toEqual(expected)
+
+  [
+-   "shared-test-levels:test:unit:level",
+    "shared-failures:test:unit:level",
++   "shared-test-levels:test:unit:level",
+    "shared-validation:test:unit:level",
+    "wbs-core:test:unit",
+    "wbs-store-memory:test:conformance:level",
+    "wbs-store-memory:test:unit:level",
+    "wbs-store-sqlite:test:api",
+    "wbs-store-sqlite:test:conformance:level",
+    "wbs-store-sqlite:test:unit",
+  ]
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/shared-test-levels-unit-oct17/tools/tool-devsync/src/test-levels.test.ts:1295:81)
+(fail) declared level targets > refuses empty or failed selection before Bun runs and clears stale JUnit [0.60ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for shared-test-levels:test:unit:level [18.21ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for shared-failures:test:unit:level [19.20ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for shared-validation:test:unit:level [19.84ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for wbs-store-sqlite:test:api [19.84ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for wbs-store-sqlite:test:unit [20.96ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for wbs-core:test:unit [21.10ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for wbs-store-memory:test:unit:level [21.33ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for wbs-store-memory:test:conformance:level [19.58ms]
+(pass) declared level targets > [TEST-AXES-092] executes exact find operands for wbs-store-sqlite:test:conformance:level [21.83ms]
+(pass) declared level targets > canonicalizes exactly one leading dot slash from collected operands [1.66ms]
+(pass) declared level targets > collects exactly the files of its own level [47.96ms]
+(pass) declared level targets > writes a JUnit report where the declaration says [1.93ms]
+(pass) declared level targets > refuses a command that names a test file outside its selector [0.15ms]
+(pass) declared level targets > refuses a command that filters which tests run [0.08ms]
+(pass) the adopted capability > leaves no scenario without an identifier [0.67ms]
+(pass) the adopted capability > allocates the identifiers once and in order [0.55ms]
+(pass) the adopted capability > reads a four digit identifier after the ordinal passes 999 [0.10ms]
+(pass) the adopted capability > refuses a specification that holds no scenario [0.07ms]
+(pass) the adopted capability > refuses a specification that holds no requirement [0.03ms]
+(pass) the adopted capability > refuses a specification whose scenario carries no identifier [0.06ms]
+(pass) the scenario join > reads an identifier out of a passing test title [0.44ms]
+(pass) the scenario join > names a scenario that no passing test cites [0.45ms]
+(pass) the scenario join > does not count a skipped or a failing test as coverage [0.29ms]
+(pass) the scenario join > does not read a citation out of a comment or out of failure text [0.73ms]
+(pass) the scenario join > reads the report Bun really writes, nesting, escapes and outcomes included [1.10ms]
+(pass) the scenario join > refuses a report whose root is not testsuites [0.22ms]
+(pass) the scenario join > refuses a testcase whose parent is not a testsuite [0.15ms]
+(pass) the scenario join > refuses a testcase nested inside a failure element [0.18ms]
+(pass) the scenario join > refuses an outcome element outside a testcase [0.19ms]
+(pass) the scenario join > refuses an unsupported element inside a testcase [0.15ms]
+(pass) the scenario join > refuses a testcase hidden inside an outcome element [0.31ms]
+(pass) the scenario join > refuses a namespaced element name [0.09ms]
+(pass) the scenario join > refuses a namespaced attribute name [0.22ms]
+(pass) the scenario join > refuses an xmlns attribute [0.09ms]
+(pass) the scenario join > refuses a document type declaration [0.17ms]
+(pass) the scenario join > refuses a CDATA section [0.23ms]
+(pass) the scenario join > refuses a CDATA section outside the root element [0.20ms]
+(pass) the scenario join > refuses a processing instruction after the declaration [0.25ms]
+(pass) the scenario join > refuses a testcase that names no test [0.11ms]
+(pass) the scenario join > refuses a testcase that names no file [0.08ms]
+(pass) the scenario join > refuses a report that holds no testcase [0.13ms]
+(pass) the scenario join > refuses a document with a second root element [0.15ms]
+(pass) the scenario join > refuses a report that is not a JUnit document [0.10ms]
+(pass) the scenario join > refuses a malformed XML declaration [0.27ms]
+(pass) the scenario join > refuses a declaration whose version is not an XML version [0.11ms]
+(pass) the scenario join > refuses a declaration that names no version [0.09ms]
+(pass) the scenario join > refuses a second XML declaration inside the root [0.12ms]
+(pass) the scenario join > refuses text outside the root element [0.13ms]
+(pass) the scenario join > refuses a malformed processing instruction [0.20ms]
+(pass) the scenario join > refuses a malformed comment [0.12ms]
+(pass) the scenario join > refuses an unterminated comment [0.07ms]
+(pass) the scenario join > refuses an unterminated CDATA section [0.07ms]
+(pass) the scenario join > refuses an entity it does not know [0.16ms]
+(pass) the scenario join > refuses a repeated attribute [0.08ms]
+(pass) the scenario join > refuses two attributes with no whitespace between them [0.07ms]
+(pass) the scenario join > refuses an attribute whose value is never closed [0.16ms]
+(pass) the scenario join > refuses an unescaped angle bracket in an attribute value [0.10ms]
+(pass) the scenario join > refuses an attribute with no value [0.19ms]
+(pass) the scenario join > refuses a truncated report [0.09ms]
+(pass) the scenario join > refuses a report that closes an element that is not open [0.08ms]
+(pass) the scenario join > refuses a report that leaves an element open [0.07ms]
+(pass) the report a declared level target wrote > names a level target that is declared, and refuses one that is not [0.15ms]
+(pass) the report a declared level target wrote > refuses a report naming a file the target does not collect [0.20ms]
+(pass) normalizes explicit Conformance operands to project-relative source identity [0.06ms]
+(pass) the devsync JUnit surface refuses repeated and conflicting outcome elements [0.27ms]
+
+tools/tool-devsync/src/shared-validation-level.test.ts:
+(pass) shared-validation isolated Unit level > registers the canonical Unit collection and preserves unreported legacy runners [8.38ms]
+(pass) shared-validation isolated Unit level > refuses unknown and missing target declarations through the production inventory [0.68ms]
+(pass) shared-validation isolated Unit level > refuses a different report identity even when clear and write agree [0.50ms]
+(pass) shared-validation isolated Unit level > audits the full Unit source inventory and refuses omission of a new Unit file [462.43ms]
+(pass) shared-validation isolated Unit level > refuses api files in the Unit collection [231.84ms]
+(pass) shared-validation isolated Unit level > refuses view files in the Unit collection [225.59ms]
+(pass) shared-validation isolated Unit level > executes literal operands without running a nested matching decoy [15.87ms]
+(pass) shared-validation isolated Unit level > removes stale reports before refusing an empty selection [7.60ms]
+(pass) shared-validation isolated Unit level > removes stale reports and refuses a failing selector before Bun can discover tests [8.18ms]
+(pass) shared-validation isolated Unit level > writes all three real Unit outcomes to a fresh report [134.52ms]
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+(pass) shared-failures isolated Unit level > registers the canonical Unit collection and preserves unreported legacy runners [5.86ms]
+(pass) shared-failures isolated Unit level > refuses unknown and missing target declarations through the production inventory [0.55ms]
+(pass) shared-failures isolated Unit level > refuses a different report identity even when clear and write agree [0.48ms]
+(pass) shared-failures isolated Unit level > audits the full Unit source inventory and refuses omission of a new Unit file [452.97ms]
+(pass) shared-failures isolated Unit level > refuses api files in the Unit collection [223.74ms]
+(pass) shared-failures isolated Unit level > refuses view files in the Unit collection [222.51ms]
+(pass) shared-failures isolated Unit level > executes literal operands without running a nested matching decoy [14.60ms]
+(pass) shared-failures isolated Unit level > removes stale reports before refusing an empty selection [7.41ms]
+(pass) shared-failures isolated Unit level > removes stale reports and refuses a failing selector before Bun can discover tests [8.05ms]
+(pass) shared-failures isolated Unit level > writes all twenty real Unit outcomes to a fresh report [146.52ms]
+
+tools/tool-devsync/src/shared-test-levels-level.test.ts:
+(pass) shared-test-levels isolated Unit level > registers the canonical Unit collection and preserves unreported legacy runners [5.66ms]
+(pass) shared-test-levels isolated Unit level > refuses unknown and missing target declarations through the production inventory [0.53ms]
+(pass) shared-test-levels isolated Unit level > refuses a different report identity even when clear and write agree [0.30ms]
+(pass) shared-test-levels isolated Unit level > audits the full Unit source inventory and refuses omission of a new Unit file [459.30ms]
+(pass) shared-test-levels isolated Unit level > refuses api files in the Unit collection [224.44ms]
+(pass) shared-test-levels isolated Unit level > refuses view files in the Unit collection [225.50ms]
+(pass) shared-test-levels isolated Unit level > executes literal operands without running a nested matching decoy [18.14ms]
+(pass) shared-test-levels isolated Unit level > removes stale reports before refusing an empty selection [7.73ms]
+(pass) shared-test-levels isolated Unit level > removes stale reports and refuses a failing selector before Bun can discover tests [8.03ms]
+(pass) shared-test-levels isolated Unit level > writes all five real Unit outcomes to a fresh report [17.44ms]
+
+1 tests failed:
+(fail) declared level targets > refuses empty or failed selection before Bun runs and clears stale JUnit [0.60ms]
+
+ 133 pass
+ 1 fail
+ 398 expect() calls
+Ran 134 tests across 4 files. [31.09s]

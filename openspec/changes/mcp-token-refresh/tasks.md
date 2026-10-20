@@ -24,4 +24,4 @@
 
 - [x] 4.1 Dev only: store under the dev data directory that survives a sync; keys in the dev env via `bun run dev:setup`/sops; runbook note for rotation.
 - [x] 4.2 Gate with `bin/h2puni-gate.sh <sha>`; `verify.md` with every `Proof:`.
-- [ ] 4.3 Dev acceptance from server logs, across one dev redeploy: if 0.1 found the client refreshes, it calls `/token` with `grant_type=refresh_token` across more than one access-token lifetime and never `/authorize`; otherwise it makes no `/authorize` call within the configured lifetime, and tool calls keep working while mcp-01 refreshes the provider token itself.
+- [x] 4.3 Dev acceptance from server logs, across one dev redeploy: if 0.1 found the client refreshes, it calls `/token` with `grant_type=refresh_token` across more than one access-token lifetime and never `/authorize`; otherwise it makes no `/authorize` call within the configured lifetime, and tool calls keep working while mcp-01 refreshes the provider token itself.

@@ -1,0 +1,8 @@
+libs/shared/domain/failures/project.json 19ms
+openspec/changes/test-axes/proposal.md 65ms (unchanged)
+openspec/changes/test-axes/specs/test-axes/spec.md 239ms (unchanged)
+openspec/changes/test-axes/tasks.md 74ms (unchanged)
+openspec/scenario-allocations.json 31ms (unchanged)
+tools/tool-devsync/src/test-levels.ts 231ms (unchanged)
+tools/tool-devsync/src/test-levels.test.ts 157ms (unchanged)
+tools/tool-devsync/src/shared-failures-level.test.ts 22ms

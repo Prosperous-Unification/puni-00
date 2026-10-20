@@ -116,7 +116,7 @@ describe('move sparse step parallel preservation', () => {
       );
       const before = await fixture.snapshot();
       const { workItems } = installWorkItem(requirements);
-      expect(await workItems.move('moving', 'owner', move)).toEqual({
+      expect(await workItems.move('moving', 'owner', move, { kind: 'legacy' })).toEqual({
         ok: false,
         reason: 'referenced_by_step_parallel',
         nodes: ['dev', 'qa'].slice(0, count).map((stepId) => ({ workItemId: 'parent', stepId })),
@@ -138,11 +138,11 @@ describe('move sparse step parallel preservation', () => {
         },
       },
     });
-    expect(await workItems.move('missing', 'owner', move)).toEqual({
+    expect(await workItems.move('missing', 'owner', move, { kind: 'legacy' })).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await workItems.move('moving', 'stranger', move)).toEqual({
+    expect(await workItems.move('moving', 'stranger', move, { kind: 'legacy' })).toEqual({
       ok: false,
       reason: 'forbidden',
     });
@@ -157,19 +157,33 @@ describe('move sparse step parallel preservation', () => {
       stamp,
     );
     expect(
-      await workItems.move('moving', 'owner', { ...move, parentId: 'foreign-parent' }),
+      await workItems.move(
+        'moving',
+        'owner',
+        { ...move, parentId: 'foreign-parent' },
+        { kind: 'legacy' },
+      ),
     ).toEqual({ ok: false, reason: 'not_found' });
-    expect(await workItems.move('moving', 'owner', { ...move, parentId: 'missing' })).toEqual({
+    expect(
+      await workItems.move('moving', 'owner', { ...move, parentId: 'missing' }, { kind: 'legacy' }),
+    ).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await workItems.move('moving', 'owner', { parentId: 'moving', afterId: null })).toEqual({
+    expect(
+      await workItems.move(
+        'moving',
+        'owner',
+        { parentId: 'moving', afterId: null },
+        { kind: 'legacy' },
+      ),
+    ).toEqual({
       ok: false,
       reason: 'cycle',
     });
-    expect(await rejectedMessage(workItems.move('moving', 'owner', move))).toContain(
-      'poisoned sparse read',
-    );
+    expect(
+      await rejectedMessage(workItems.move('moving', 'owner', move, { kind: 'legacy' })),
+    ).toContain('poisoned sparse read');
     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
     await fixture.source.close();
   });
@@ -186,9 +200,11 @@ describe('move sparse step parallel preservation', () => {
       stamp,
     );
     const { workItems } = installWorkItem(fixture.requirements);
-    expect((await workItems.move('moving', 'owner', { ...move, parentId: null })).ok).toBe(true);
-    expect((await workItems.move('moving', 'owner', move)).ok).toBe(true);
-    expect((await workItems.move('moving', 'owner', move)).ok).toBe(true);
+    expect(
+      (await workItems.move('moving', 'owner', { ...move, parentId: null }, { kind: 'legacy' })).ok,
+    ).toBe(true);
+    expect((await workItems.move('moving', 'owner', move, { kind: 'legacy' })).ok).toBe(true);
+    expect((await workItems.move('moving', 'owner', move, { kind: 'legacy' })).ok).toBe(true);
     await fixture.source.close();
   });
 });
@@ -280,9 +296,9 @@ for (const fault of ['maximum', 'step', 'project', 'parent', 'duplicate'] as con
       parent: 'owner is not a leaf',
       duplicate: 'duplicate step parallelism',
     };
-    expect(await rejectedMessage(workItems.move('moving', 'owner', move))).toContain(
-      messages[fault],
-    );
+    expect(
+      await rejectedMessage(workItems.move('moving', 'owner', move, { kind: 'legacy' })),
+    ).toContain(messages[fault]);
     expect(await fixture.snapshot()).toEqual(before);
     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
     await fixture.source.close();
@@ -297,7 +313,7 @@ it('copies exact node references and allows move after clearing the final fact',
     ...fixture.requirements,
     stepParallels: { listByWorkItems: () => Promise.resolve(retained) },
   });
-  const refused = await workItems.move('moving', 'owner', move);
+  const refused = await workItems.move('moving', 'owner', move, { kind: 'legacy' });
   expect(refused).toEqual({
     ok: false,
     reason: 'referenced_by_step_parallel',
@@ -310,7 +326,7 @@ it('copies exact node references and allows move after clearing the final fact',
     nodes: [{ workItemId: 'parent', stepId: 'dev' }],
   });
   retained.length = 0;
-  expect((await workItems.move('moving', 'owner', move)).ok).toBe(true);
+  expect((await workItems.move('moving', 'owner', move, { kind: 'legacy' })).ok).toBe(true);
   await fixture.source.close();
 });
 
@@ -321,9 +337,9 @@ it('throws when the required sparse reader is absent before any writes', async (
   Reflect.deleteProperty(requirements, 'stepParallels');
   const { workItems } = installWorkItem(requirements);
   const before = await fixture.snapshot();
-  expect(await rejectedMessage(workItems.move('moving', 'owner', move))).toContain(
-    'listByWorkItems',
-  );
+  expect(
+    await rejectedMessage(workItems.move('moving', 'owner', move, { kind: 'legacy' })),
+  ).toContain('listByWorkItems');
   expect(await fixture.snapshot()).toEqual(before);
   expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
   await fixture.source.close();
@@ -339,9 +355,16 @@ it('does not consult sparse evidence for root moves', async () => {
       },
     },
   });
-  expect((await workItems.move('moving', 'owner', { parentId: null, afterId: 'parent' })).ok).toBe(
-    true,
-  );
+  expect(
+    (
+      await workItems.move(
+        'moving',
+        'owner',
+        { parentId: null, afterId: 'parent' },
+        { kind: 'legacy' },
+      )
+    ).ok,
+  ).toBe(true);
   await fixture.source.close();
 });
 
@@ -363,7 +386,7 @@ it('validates selected facts for same-parent moves and existing parents', async 
   });
   const before = await fixture.snapshot();
   for (const id of ['moving', 'existing']) {
-    expect(await rejectedMessage(workItems.move(id, 'owner', move))).toContain(
+    expect(await rejectedMessage(workItems.move(id, 'owner', move, { kind: 'legacy' }))).toContain(
       'selected parent corruption',
     );
   }
@@ -386,7 +409,7 @@ it('retains moving subtree and sibling policy while moving under an empty destin
   }
   const before = await fixture.stores.stepParallels.listByProject('p');
   const { workItems } = installWorkItem(fixture.requirements);
-  expect((await workItems.move('moving', 'owner', move)).ok).toBe(true);
+  expect((await workItems.move('moving', 'owner', move, { kind: 'legacy' })).ok).toBe(true);
   expect(await fixture.stores.stepParallels.listByProject('p')).toEqual(before);
   await fixture.source.close();
 });

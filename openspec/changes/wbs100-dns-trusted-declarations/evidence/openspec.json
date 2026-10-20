@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "2998a6c42bb8abe311bea7291db8dff29ef6c658954ef44bf0a7506b3574cae4",
+    "bytes": 509,
+    "text": "{\n  \"command\": [\n    \"env\",\n    \"BUN_TMPDIR=/tmp\",\n    \"OPENSPEC_TELEMETRY=0\",\n    \"bunx\",\n    \"@fission-ai/openspec@1.12.0\",\n    \"validate\",\n    \"wbs100-dns-trusted-declarations\",\n    \"--strict\",\n    \"--json\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 109988,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.254,\n  \"availableBeforeKiB\": 22785448,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "1a0d3170f6a4ab0159ad1c4555b9a40b93a49aa81075dd05bd16f6e653c1df28",
+    "bytes": 521,
+    "text": "{\n  \"items\": [\n    {\n      \"id\": \"wbs100-dns-trusted-declarations\",\n      \"type\": \"change\",\n      \"valid\": true,\n      \"issues\": [],\n      \"durationMs\": 7\n    }\n  ],\n  \"summary\": {\n    \"totals\": {\n      \"items\": 1,\n      \"passed\": 1,\n      \"failed\": 0\n    },\n    \"byType\": {\n      \"change\": {\n        \"items\": 1,\n        \"passed\": 1,\n        \"failed\": 0\n      }\n    }\n  },\n  \"version\": \"1.0\",\n  \"root\": {\n    \"path\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n    \"source\": \"nearest\"\n  }\n}\n"
+  },
+  "stderr": {
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0,
+    "text": ""
+  }
+}

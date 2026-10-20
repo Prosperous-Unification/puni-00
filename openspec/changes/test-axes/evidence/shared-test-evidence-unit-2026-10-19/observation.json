@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 1,
+  "revision": "6a1853485d4129e4e2ee87b312f8ce747a2c460c",
+  "candidate": "6dc09a7f208eba404de8cea6506d26be24bbe776124d75ce170c90010f70c186",
+  "projectRoot": "libs/shared/domain/test-evidence",
+  "project": "shared-test-evidence",
+  "target": "test:unit:level",
+  "projectManifest": {
+    "path": "libs/shared/domain/test-evidence/project.json",
+    "mode": "100644",
+    "blob": "922853a29f13a79b1e90ed43ca8435b50bd3f79a",
+    "contentDigest": "d0e0723ec676f8bc6f4403c8b1601c177d69ad347581422fac7b6f79f6e0f69b"
+  },
+  "authority": {
+    "path": "/tmp/wbs08039-evidence-unit-20261019/authority.json",
+    "digest": "b36f8bb870cb202a09bac4724efbb7c8a91c0d7842acd30a36bf37dd6108e88b"
+  },
+  "junit": {
+    "path": "/tmp/wbs08039-evidence-unit-20261019/report.xml",
+    "digest": "033705c90fa7029754ceee86c093abcd0a1c14f7673a773e7ac060774c9b06dc"
+  },
+  "cases": [
+    {
+      "caseId": "cc1bc4ee9f138c615909080b944f8fe7039175af6ed9228ced2d6ef2f6a5269f",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "accepts several distinct cases in one fixture"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "14fcef3ef71e8a20dbbfa1d65328795d2049b8ad4f189a8d5b0dea2fd97490cc",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "binds the domain-separated declaration with canonical key order"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "196885121c412b88aab0ad926918d938322783113e102a3e4ca38efd6a6a2a7b",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "distinguishes missing and malformed thresholds"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "bc43df4b1b666fe0d5d8d084cf18ef36d42cbeb0d8f233ad4637caf589d42566",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "produces the same canonical SHA-256 vector in Bun and emitted Node ESM"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "8eb832415a52ae8b43648abfec92ff8c63697024ba78c6b94211311bb5dc7878",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "refuses duplicate case IDs and runner identities"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "16ceb24f51cf058d6c42d6f97653dc3d10f322a12057babf91f1cd5ddf55fa7f",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "refuses paths that are not normalized workspace paths"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "88f4d63350663052739341e91b939188ed12e28795d3f68efb3f25e59dfb29be",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance case declaration",
+        "rejects undeclared fields, unknown units and operators"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "10e488a2a640749cdb78553965a252103a2eebde1a192a14cc3a6e0fe60cea89",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance observations",
+        "decodes a strict one-case attachment and refuses schema or nonfinite values"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "b1728e8235ccd190686377c09808d1ad228c596b8aad34025225d60bc8aa4afa",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance observations",
+        "decodes a strict versioned run with finite observations"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "f7305e1ea215c425b71795b23c98963fd97d3a216078b7fe04332bb0323db36e",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance observations",
+        "recomputes both threshold operators and rejects nonfinite comparisons"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "69223710dc9821075c7807dad154c23d525cd65811db9343a408aaf0ad86a43d",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance observations",
+        "rejects unknown fields, duplicate cases and duplicate observations"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    },
+    {
+      "caseId": "7c6fd30bc69d8c5fdfd09d8bb4f131881888d3d758714e5a90ba58df0a13d654",
+      "project": "shared-test-evidence",
+      "target": "test:unit:level",
+      "file": "libs/shared/domain/test-evidence/src/index.test.ts",
+      "titlePath": [
+        "Performance selection environment",
+        "accepts only a canonical non-default shifted CI pair"
+      ],
+      "status": "passed",
+      "source": {
+        "mode": "100644",
+        "blob": "8e9d51b7695e363cc7ffef869451c5c593f0be67",
+        "contentDigest": "4060094855c74e256a12c28ee4873583d0482157000e9e2556a06e13b515f9e7"
+      },
+      "level": { "kind": "unresolved" },
+      "isolation": { "kind": "unresolved" }
+    }
+  ],
+  "authentication": { "kind": "absent" },
+  "certifies": false,
+  "observationDigest": "1372dc64a4f9963da2b2677706dca165d5b1480653779296c11bf0c23400a6be"
+}

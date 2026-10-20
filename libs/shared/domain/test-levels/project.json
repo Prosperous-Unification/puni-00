@@ -14,7 +14,9 @@
     },
     "lint": {
       "executor": "nx:run-commands",
-      "options": { "command": "bunx eslint libs/shared/domain/test-levels/src" }
+      "options": {
+        "command": "bunx eslint libs/shared/domain/test-levels/src"
+      }
     },
     "test": {
       "executor": "nx:run-commands",
@@ -34,6 +36,20 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "bunx tsc --build --force libs/shared/domain/test-levels/tsconfig.json"
+      }
+    },
+    "test:unit:level": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^production"],
+      "options": {
+        "command": "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-test-levels.unit.xml && files=$(find ./src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: shared-test-levels:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-test-levels.unit.xml --timeout=10000",
+        "cwd": "libs/shared/domain/test-levels",
+        "env": {
+          "CLAUDECODE": "0",
+          "AGENT": "0"
+        },
+        "forwardAllArgs": false
       }
     }
   }

@@ -1,4 +1,4 @@
-import { type CSSProperties, type RefObject, useLayoutEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import {
   Modal,
@@ -8,385 +8,56 @@ import {
   ModalTitle,
 } from '@/components/ui/modal';
 
-import { CreatablePicker, type CreatablePickerProps } from './creatable-picker';
+import { CreatablePicker } from './creatable-picker';
 import { HoverCard } from './hover-card';
 import type { CommitOutcome } from './live-editing';
 import { didLand } from './live-editing';
+import {
+  holdsOneMember,
+  type ReferenceSetAdapter,
+  type ReferenceSetSheetProps,
+  type ReferenceSetStripProps,
+} from './reference-set-contract';
+import {
+  chipLineStyle,
+  HiddenChipCount,
+  REFERENCE_SET_ADD_CLASS,
+  REFERENCE_SET_CHIP_CLASS,
+  REFERENCE_SET_INHERITED_CHIP_CLASS,
+  REFERENCE_SET_LINE_HEIGHT,
+  REFERENCE_SET_PANEL_LAYER,
+  REFERENCE_SET_REMOVE_CLASS,
+  REFERENCE_SET_STRIP_STYLE,
+  referenceSetLines,
+  SHEET_ADD_CLASS,
+  SHEET_CHIP_CLASS,
+  useHiddenChips,
+} from './reference-set-presentation';
 
-/**
- * The dimensions this strip draws.
- *
- * `type` is the fourth and the one that never sets `inheritedLabel`: a work item
- * type does not inherit, so there is no ancestor reading for the placeholder or
- * the sheet's `Inherited:` line to show
- * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`). The field stays
- * optional rather than growing a per-kind type, because the strip's behaviour is
- * "draw it if you were given one" either way, and a union that made it
- * impossible for `type` would be a rule enforced in the one place nobody can
- * read it from — the cell that would have passed it.
- */
-export type ReferenceSetKind = 'team' | 'tag' | 'service' | 'type';
-
-export interface ReferenceSetEntry {
-  id: string;
-  name: string;
-}
-
-/** One member in force from above, and the row a reader has to go to to remove it. */
-export interface InheritedReferenceEntry extends ReferenceSetEntry {
-  /** The stating row, as a reader knows it — `010 Compliance`, never an id. */
-  fromRow: string;
-}
-
-export interface ReferenceSetAdapter {
-  kind: ReferenceSetKind;
-  entries: readonly ReferenceSetEntry[];
-  ownIds: readonly string[];
-  /**
-   * The ancestor's set this row reads while its own is empty, in words.
-   *
-   * Drawn by {@link ReferenceSetSheet} alone, as its `Inherited:` line. The
-   * table cell has 120px and says the same thing in the search box's
-   * placeholder ink with a leading `↳` — one reading per surface, because two
-   * of them in one cell is two of the lines the Tags column grew.
-   *
-   * **The overriding dimensions' shape**, which since ADR 0008 is teams and
-   * services. It cannot describe an accumulating one: "while its own is empty"
-   * is the whole of what it says, and a row states `Ready` while carrying `Risk`
-   * from `010`. Tags pass {@link inheritedEntries} instead.
-   */
-  inheritedLabel?: string;
-  /**
-   * The members in force from above that this row does not state, drawn as chips
-   * beside its own.
-   *
-   * **Chips rather than a placeholder**, because a row that states members of
-   * its own still carries these: the box is not empty, so there is no
-   * placeholder left to say it in. That is the accumulating dimension's shape,
-   * which since ADR 0008 is tags and tags alone — teams and services override,
-   * so a row that states any carries none of its ancestor's and
-   * {@link inheritedLabel} is the whole of what they need.
-   *
-   * No adapter passes both: they are the same claim in two shapes, and drawing
-   * both put `↳ Risk, Review` and `Inherited: Risk, Review` in one 120px cell on
-   * 2026-08-29. The `type` kind passes **neither**, and that absence is
-   * load-bearing rather than an omission — a type does not inherit at all
-   * (`docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md`), so there is
-   * nothing above a row for either field to describe.
-   *
-   * These wear no ✕ — a member comes off where it was written, and `fromRow` is
-   * what the chip's `title` says instead.
-   */
-  inheritedEntries?: readonly InheritedReferenceEntry[];
-  replace: (ids: string[]) => Promise<CommitOutcome>;
-  create: (name: string, current: string[]) => Promise<CommitOutcome>;
-}
-
-export interface ReferenceSetStripProps {
-  label: string;
-  adapter: ReferenceSetAdapter;
-  dataCell?: CreatablePickerProps['dataCell'];
-  gridCell?: CreatablePickerProps['gridCell'];
-  addLabel?: string;
-  removeLabel?: (entry: ReferenceSetEntry) => string;
-  /** The name of a conflicted type's keep button; see {@link holdsOneMember}. */
-  keepLabel?: (entry: ReferenceSetEntry) => string;
-  placeholder?: string;
-  /**
-   * Where the strip is drawn: a table cell's one clipped line (the default), or
-   * the phone's sheet — see {@link ReferenceSetSheet}.
-   *
-   * The sheet is a surface with room, so there it is laid out as a form: the
-   * chips on their own wrapping line, the search under them at the sheet's
-   * width, always in the flow. None of the cell's machinery for a 120px column
-   * applies there — the clip and `+N` at rest, the floating panel while
-   * editing, the hover card — and drawn with it, the sheet's anchor took the
-   * sheet's whole height (`flex: 1` in a column) and centred one search box in
-   * it: the blank middle and bottom-docked field of F-049 (2026-10-13).
-   *
-   * Proof: with the sheet passing no `face`, `opens the team sheet titled by
-   * its field, chips and search at the top (F-049)` in `e2e/mobile.spec.ts`
-   * failed on `the search is not under the chips — Expected: > 586.90625,
-   * Received: 586.90625`: one line, 450px down the sheet.
-   */
-  face?: 'cell' | 'sheet';
-  'data-hint'?: string;
-  /** The project fact this box carries, drawn at once where a hint would wait. */
-  'data-fact'?: string;
-}
+export {
+  type HiddenChip,
+  holdsOneMember,
+  type InheritedReferenceEntry,
+  type ReferenceSetAdapter,
+  type ReferenceSetEntry,
+  type ReferenceSetKind,
+  type ReferenceSetSheetProps,
+  type ReferenceSetStripProps,
+} from './reference-set-contract';
+export {
+  chipLineStyle,
+  HiddenChipCount,
+  REFERENCE_SET_ADD_CLASS,
+  REFERENCE_SET_CHIP_CLASS,
+  REFERENCE_SET_INHERITED_CHIP_CLASS,
+  REFERENCE_SET_LINE_HEIGHT,
+  REFERENCE_SET_REMOVE_CLASS,
+  REFERENCE_SET_STRIP_STYLE,
+  referenceSetLines,
+  useHiddenChips,
+} from './reference-set-presentation';
 
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)];
-
-/**
- * Whether a kind holds at most one member: the work item type does
- * (WBS 010.4.10), so choosing replaces, creating selects the new type alone, and
- * a row stored with several is a **type conflict** drawn whole and flagged, with
- * a keep button per type. Nothing here picks one for the reader. The other
- * kinds add to a set.
- */
-export const holdsOneMember = (kind: ReferenceSetKind): boolean => kind === 'type';
-
-export const REFERENCE_SET_STRIP_STYLE = {
-  display: 'flex',
-  // One line, and the callers that want a second one ask for it: a 120px
-  // column that wraps is a row that grows a line per chip, which is what the
-  // Tags cell was doing on 2026-08-29 (three lines, screenshotted). Both this
-  // and the chip group below say `nowrap`, because one wrapping container
-  // beside one that does not still wraps.
-  flexWrap: 'nowrap',
-  alignItems: 'center',
-  gap: 4,
-  // Shrinks below its content, which is what lets a `nowrap` line clip instead
-  // of pushing its cell wider — and, in the Services cell, what lets the strip
-  // share a flex line with the mismatch mark beside it. A `flex: 1` was
-  // written here for that second case and deleted: taken out, all three
-  // Chromium cases still passed, because a flex item shrinks on
-  // `flex-shrink: 1` alone and the strip's content is wider than any of these
-  // columns. R5 — the guard whose removal cannot be seen does not ship.
-  minWidth: 0,
-} as const;
-
-/**
- * How tall one resting reference strip stands, in px.
- *
- * The strip leaves the flow while it is edited (see {@link ReferenceSetStrip}),
- * so something has to hold the line it was occupying or the row would shrink
- * the moment somebody clicked into a cell — the 2026-08-29 report's own fault
- * with its sign flipped. This is that height, on the anchor.
- *
- * It is a **measurement**, not a preference: the resting strip is as tall as
- * the search box in it, which is Chromium laying out a 14px `input` with this
- * table's padding and border. A constant that quietly disagreed with the real
- * one would clip the rest line by the difference, and silently — every style
- * assertion about the anchor is written against this same number. So
- * `e2e/reference-cells.spec.ts` measures the painted anchor against the
- * painted strip instead, and fails when the two part company.
- */
-export const REFERENCE_SET_LINE_HEIGHT = 24;
-
-/** The one chip line a resting strip shows; chips that would start a second wrap out of sight. */
-const REST_CHIP_LINE_PX = 18;
-
-/**
- * The chip group's line, shared by the four reference strips and the Depends
- * on strip so both say "more than fits" the same way (decision D4, UI review
- * F-057).
- *
- * At rest it wraps into a line nobody sees: the row gap pushes every chip
- * that does not fit whole onto a second line, and `maxHeight` with the
- * `hidden` overflow keeps only the first. So the rest line ends on a whole
- * chip — `Frontend ×` rather than `Frontend × Ba` — and {@link useHiddenChips}
- * counts what went. 18px holds a chip's 16px and the inherited chip's dashed
- * border. While `wrapping` (an open cell) every chip is drawn and nothing
- * clips.
- *
- * The `hidden` overflow at rest is also what keeps a chip from painting over
- * the search box beside the group: the box, later in the DOM, would take the
- * press aimed at the chip's ✕ (`round-trips every desktop reference set`,
- * 2026-08-29).
- */
-export function chipLineStyle(wrapping: boolean, columnGap: number): CSSProperties {
-  return {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    alignContent: 'flex-start',
-    columnGap,
-    rowGap: wrapping ? 3 : REST_CHIP_LINE_PX,
-    ...(wrapping ? {} : { maxHeight: REST_CHIP_LINE_PX }),
-    minWidth: 0,
-    maxWidth: '100%',
-    overflow: wrapping ? 'visible' : 'hidden',
-  };
-}
-
-/** One chip a resting line could not draw whole: its key and its words. */
-export interface HiddenChip {
-  key: string;
-  text: string;
-  /**
-   * Whether it is hidden for being wider than what is left of the line, not
-   * for having wrapped below it — a first chip a wrap cannot move. Its caller
-   * may take it out of the flow (it keeps its width, so it stays measured as
-   * too wide and the answer is stable) so it leaves no blank gap.
-   */
-  overruns: boolean;
-}
-
-/**
- * The chips a resting {@link chipLineStyle} line could not draw whole — a
- * layout fact, so measured: every `[data-rest-chip]` whose top is at or below
- * the line's bottom (wrapped out of sight), or whose right edge runs past the
- * line's (a first chip wider than the whole line, which a wrap cannot move;
- * the caller hides it rather than draw it cut, decision D4).
- *
- * Empty while `measuring` is false — an open cell wraps every chip into reach
- * — and in jsdom, which has no `ResizeObserver` and lays nothing out; the
- * count is proven in `e2e/plan-table-review.spec.ts`. Re-measured when the
- * line resizes and whenever `chipsKey` (the chips' identities) changes.
- */
-export function useHiddenChips(
-  line: RefObject<HTMLElement | null>,
-  measuring: boolean,
-  chipsKey: string,
-): readonly HiddenChip[] {
-  const [hidden, setHidden] = useState<readonly HiddenChip[]>([]);
-  useLayoutEffect(() => {
-    const group = line.current;
-    if (!measuring || group === null || typeof ResizeObserver === 'undefined') {
-      setHidden((was) => (was.length === 0 ? was : []));
-      return;
-    }
-    const measure = (): void => {
-      const edge = group.getBoundingClientRect();
-      const now = [...group.querySelectorAll<HTMLElement>('[data-rest-chip]')].flatMap((chip) => {
-        const box = chip.getBoundingClientRect();
-        // A caller that takes an overrunning chip out of the flow (the Depends
-        // on strip) leaves a line with no in-flow content; the chip then still
-        // reads as overrunning rather than wrapped only because this line's
-        // `alignItems: 'center'` (`chipLineStyle`) puts its static top above
-        // the line's bottom (-9px on an empty 18px line). Align it to the
-        // start or the end and it would read as wrapped, re-enter the flow,
-        // overrun again, and flip every frame. Held by `holds a lone chip too
-        // wide for its cell steady, counted` (`e2e/plan-table-review.spec.ts`).
-        const wrapped = box.top >= edge.bottom - 0.5;
-        const overruns = !wrapped && box.right > edge.right + 0.5;
-        if (!wrapped && !overruns) return [];
-        const key = chip.dataset['restChip'];
-        // The selector above matched the attribute, so it is there.
-        if (key === undefined) throw new Error('a rest chip without its key');
-        return [{ key, text: chip.textContent.replace(/[×✕✓]/g, '').trim(), overruns }];
-      });
-      const said = (chips: readonly HiddenChip[]): string =>
-        chips.map(({ key, text, overruns }) => `${key}\0${text}\0${String(overruns)}`).join('\0');
-      setHidden((was) => (said(was) === said(now) ? was : now));
-    };
-    measure();
-    const watching = new ResizeObserver(measure);
-    watching.observe(group);
-    return () => {
-      watching.disconnect();
-    };
-  }, [line, measuring, chipsKey]);
-  return hidden;
-}
-
-/**
- * How many chips a resting line hid — `+N`, after the chips, with a `title`
- * naming them (`Also: 010.3.02, 010.3.03`). Nothing when none is hidden. The
- * cell's own hover card still lists the whole set. In `--quiet-ink`, which
- * clears 4.5:1 on a banded row where `--muted-foreground` measured 4.48 (F-071).
- */
-export function HiddenChipCount({ hidden }: { hidden: readonly HiddenChip[] }) {
-  if (hidden.length === 0) return null;
-  return (
-    <span
-      data-reference-hidden-count={hidden.length}
-      title={`Also: ${hidden.map(({ text }) => text).join(', ')}`}
-      className="text-quiet-ink shrink-0 text-xs"
-    >
-      +{hidden.length}
-    </span>
-  );
-}
-
-/**
- * Where an open panel sits in the stack.
- *
- * Above every layer `table-frame.ts` gives a pinned or sticky cell (4 is its
- * highest) and below the `PickerList`'s own 15, which opens **inside** this
- * panel: a list that its own panel painted over would be a directory nobody
- * can read.
- */
-const REFERENCE_SET_PANEL_LAYER = 10;
-
-export const REFERENCE_SET_ADD_CLASS =
-  'shrink-0 border-0 bg-transparent text-xs hover:bg-[color-mix(in_oklab,var(--foreground)_7%,var(--cell-bg))] hover:text-foreground';
-/**
- * The `+` and a chip on the phone's sheet, where there is room for a control
- * a thumb can see: the cell's are 12px ink sized for a 120px column.
- */
-const SHEET_ADD_CLASS = 'border-border min-w-11 shrink-0 rounded-md border bg-transparent';
-const SHEET_CHIP_CLASS =
-  'bg-muted inline-flex max-w-full items-center gap-1 rounded-md pl-3 text-sm';
-// `min-w-0` so `max-w-full` holds: a flex item's automatic minimum is its
-// content, and a minimum outranks a maximum, so a long chip ran past its line
-// instead of ending in an ellipsis (review of PR #409).
-export const REFERENCE_SET_CHIP_CLASS =
-  'bg-muted inline-flex max-w-full min-w-0 items-center gap-0.5 rounded px-1 text-xs';
-export const REFERENCE_SET_REMOVE_CLASS = 'shrink-0 border-0 bg-transparent p-0';
-/**
- * The inherited chip's ink: the own chip's box, dimmed and outlined instead of
- * filled.
- *
- * A reader has to be able to tell, at a glance and without a pointer, which
- * words this row wrote and which it is carrying — that is the whole of what
- * `tags-accumulate` adds to a cell, and a chip that looked the same would make
- * the accumulation a lie about who said what. `border-dashed` rather than a
- * second fill because the filled `bg-muted` is already the row's own, and two
- * fills in one 120px cell read as two kinds of value rather than one value in
- * two states.
- */
-export const REFERENCE_SET_INHERITED_CHIP_CLASS =
-  'text-muted-foreground border-muted-foreground/40 inline-flex max-w-full min-w-0 items-center gap-0.5 rounded border border-dashed px-1 text-xs';
-
-/** One line of {@link ReferenceSetStrip}'s hover card. */
-interface ReferenceSetLine {
-  /** Stable within one card — the React key. */
-  key: string;
-  text: string;
-  /** Whether this row wrote the member, as against carrying it from above. */
-  stated: boolean;
-}
-
-/**
- * Everything a reference cell means, one line each, in the order the strip
- * draws it — what the hover card says.
- *
- * The card exists because the rest line is **one clipped line**: a 120px column
- * fits about two chips, the `+N` after them announces that the rest was cut,
- * and until 2026-08-31 there was no way at all to read what had been cut
- * without clicking into the cell and opening a panel over the rows below. Dany,
- * that day: *"cannot hover over tags cell to see the list of tags"*. The
- * Depends-on cell has said the same thing with a {@link HoverCard} since
- * `dep-hover-highlights`; this is the other four cells joining it.
- *
- * The three sources are the three things a cell can draw, and each is included
- * on exactly the terms the cell draws it on, so the card is the cell unclipped
- * rather than a second opinion about the row:
- *
- * - the members the row **states**, which are its chips;
- * - the members it **carries** as chips beside them, which is the accumulating
- *   dimension — tags (ADR 0008) — and which name the row they were written on,
- *   because that is where a reader has to go to take one off;
- * - the reading an **overriding** dimension makes while the row states none of
- *   its own, which is the box's `↳` placeholder and is therefore drawn only
- *   when {@link ReferenceSetAdapter.inheritedLabel} is given *and* the row is
- *   silent. A row that states a team of its own carries none of its ancestor's,
- *   so a line about one would be a claim the cell does not make.
- *
- * @param own The members this row states, already resolved to names.
- * @param inherited The members in force from above that it does not state.
- * @param inheritedLabel The overriding dimension's ancestor reading, in words.
- * @returns One line per reading, or an empty array for a cell that says nothing.
- */
-export function referenceSetLines(
-  own: readonly ReferenceSetEntry[],
-  inherited: readonly InheritedReferenceEntry[],
-  inheritedLabel: string | undefined,
-): ReferenceSetLine[] {
-  return [
-    ...own.map((entry) => ({ key: entry.id, text: entry.name, stated: true })),
-    ...inherited.map((entry) => ({
-      key: entry.id,
-      text: `↳ ${entry.name} — from ${entry.fromRow}`,
-      stated: false,
-    })),
-    ...(own.length === 0 && inheritedLabel !== undefined
-      ? [{ key: '(inherited)', text: `↳ ${inheritedLabel}`, stated: false }]
-      : []),
-  ];
-}
 
 /** Shared compact editor for directory-backed work-item reference sets. */
 export function ReferenceSetStrip({
@@ -1014,21 +685,6 @@ export function ReferenceSetStrip({
       )}
     </span>
   );
-}
-
-export interface ReferenceSetSheetProps extends Omit<ReferenceSetStripProps, 'face'> {
-  open: boolean;
-  onClose: () => void;
-  /**
-   * The sheet's heading and its dialog's name: the field this sheet edits and
-   * the row it edits it on, in words (`Teams for 010 - Onboarding redesign`).
-   *
-   * Separate from {@link ReferenceSetStripProps.label}, which names the search
-   * box and its list and is the table cell's own accessible name. The heading
-   * was `Edit {label}` — `Edit Service or team for 010` on a sheet that edits
-   * teams, which said neither which field nor which work item (F-049).
-   */
-  title: string;
 }
 
 /**

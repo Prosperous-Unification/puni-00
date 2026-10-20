@@ -1,0 +1,17 @@
+{
+  "receipt.json": {
+    "sha256": "668b29c9d71c4117c5de5d6a75c32594c2b406a90aa85fddc3453327e1eb263d",
+    "bytes": 426,
+    "text": "{\n  \"command\": [\n    \"bun\",\n    \"test\",\n    \"apps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts\"\n  ],\n  \"cwd\": \"/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019\",\n  \"exitCode\": 0,\n  \"peakProcessTreeKiB\": 160020,\n  \"ceilingKiB\": 2097152,\n  \"timeoutSeconds\": 360,\n  \"seconds\": 0.456,\n  \"availableBeforeKiB\": 22886604,\n  \"minimumAvailableKiB\": 12582912,\n  \"stopReason\": null\n}\n"
+  },
+  "stdout": {
+    "sha256": "6043908c8d26d62698476b88f737f39d5d3e91008d4155a81730902f5a37479c",
+    "bytes": 28,
+    "text": "bun test v1.4.2 (744846f84)\n"
+  },
+  "stderr": {
+    "sha256": "96fcbedd23523df530626c1e0fa3c69ed9bb635ba8258dfcc2518cd00f05a875",
+    "bytes": 1411,
+    "text": "\napps/twilight-structure/twilight-burokrat/cli/src/policy/trusted-modules.test.ts:\n(pass) walks nested dependency instances from their own manifests and preserves their topology [8.13ms]\n(pass) refuses a nested-only dependency missing from the installed closure despite ancestor decoys [3.67ms]\n(pass) refuses malformed trusted manifests: null [1.61ms]\n(pass) refuses malformed trusted manifests: [] [1.53ms]\n(pass) refuses malformed trusted manifests: {\"dependencies\":null} [1.54ms]\n(pass) refuses malformed trusted manifests: {\"dependencies\":[]} [1.51ms]\n(pass) refuses malformed trusted manifests: {\"dependencies\":{\"../../escape\":\"1\"}} [1.50ms]\n(pass) refuses malformed trusted manifests: {\"dependencies\":{\"vendor\":42}} [1.57ms]\n(pass) refuses an absent required dependency manifest [1.78ms]\n(pass) refuses an unreadable required dependency manifest [2.02ms]\n(pass) the release closure includes the reviewed supported declaration roots and nested Ark instances [11.79ms]\n(pass) canonical release copies omit metadata that Bun pack cannot transport [5.85ms]\n(pass) refuses an intermediate nested dependency directory symlink to ambient packages [3.42ms]\n(pass) refuses a scoped dependency directory symlink to ambient packages [3.20ms]\n(pass) DNS declaration roots retain only their declared transitive dependency instances [1.86ms]\n\n 15 pass\n 0 fail\n 36 expect() calls\nRan 15 tests across 1 file. [394.00ms]\n"
+  }
+}

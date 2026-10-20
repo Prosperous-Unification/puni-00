@@ -1,0 +1,186 @@
+{
+  "sourceHead": "8c52394bff2d8dc03b9f1e5d7289a4120619f5b1",
+  "identitySourceHashes": {
+    "apps/twilight-structure/twilight-burokrat/cli/src/rules/check.ts": "98dd08d850356a1244ec07fa4ef7f8db525b51962179536363e6f40fdb64f71a",
+    "apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-candidate.ts": "b0eae510766c23dad0256715680248fb75e8713599e837323ee20612bafe2772"
+  },
+  "policySha256": "3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c",
+  "bindings": {
+    "base": {
+      "commit": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "tree": "0bbdc22893e2f729219cf9bf14e143c80285fc4f",
+      "identity": {
+        "schemaVersion": 1,
+        "tool": "twilight-burokrat",
+        "toolVersion": "0.1.0",
+        "candidate": "41209f0f0de8e2a17976910ce32656802fcb054c3c9abc04d86ead3aaa311134",
+        "selection": {
+          "kind": "committed",
+          "revision": "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+          "tree": "0bbdc22893e2f729219cf9bf14e143c80285fc4f"
+        },
+        "certifies": false
+      },
+      "receipt": {
+        "command": [
+          "bun",
+          "/home/df/.codex/worktrees/e21c/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+          "candidate-identity",
+          "committed",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+          "3e8d0742154e90a606b23d305dd6e424bb9c7d06"
+        ],
+        "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+        "exitCode": 0,
+        "peakProcessTreeKiB": 393448,
+        "ceilingKiB": 2097152,
+        "timeoutSeconds": 60,
+        "seconds": 1.011,
+        "availableBeforeKiB": 22917428,
+        "minimumAvailableKiB": 12582912,
+        "stopReason": null
+      }
+    },
+    "reference": {
+      "commit": "40d40ff6219aae3d2115dd39eee6ca36f1cd9e61",
+      "tree": "11ea76d6a530a021dc11a273fb5a2a61c1724888",
+      "identity": {
+        "schemaVersion": 1,
+        "tool": "twilight-burokrat",
+        "toolVersion": "0.1.0",
+        "candidate": "b39ad452fd4a7fad018486fd67046bce04f36a2b2f8912cc1f7c31cdd42477f2",
+        "selection": {
+          "kind": "committed",
+          "revision": "40d40ff6219aae3d2115dd39eee6ca36f1cd9e61",
+          "tree": "11ea76d6a530a021dc11a273fb5a2a61c1724888"
+        },
+        "certifies": false
+      },
+      "receipt": {
+        "command": [
+          "bun",
+          "/home/df/.codex/worktrees/e21c/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+          "candidate-identity",
+          "committed",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+          "40d40ff6219aae3d2115dd39eee6ca36f1cd9e61"
+        ],
+        "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+        "exitCode": 0,
+        "peakProcessTreeKiB": 358408,
+        "ceilingKiB": 2097152,
+        "timeoutSeconds": 60,
+        "seconds": 1.016,
+        "availableBeforeKiB": 22545320,
+        "minimumAvailableKiB": 12582912,
+        "stopReason": null
+      }
+    },
+    "reference-fault": {
+      "commit": "d6026f83be7c0af4c325406961ebc3eacb58363c",
+      "tree": "a55f571d355612230ff9b167567f0a4a9d8768ef",
+      "identity": {
+        "schemaVersion": 1,
+        "tool": "twilight-burokrat",
+        "toolVersion": "0.1.0",
+        "candidate": "570940e1c1d17fe486b3acc0f4116b67ddd2b5680183810d310912572e62df50",
+        "selection": {
+          "kind": "committed",
+          "revision": "d6026f83be7c0af4c325406961ebc3eacb58363c",
+          "tree": "a55f571d355612230ff9b167567f0a4a9d8768ef"
+        },
+        "certifies": false
+      },
+      "receipt": {
+        "command": [
+          "bun",
+          "/home/df/.codex/worktrees/e21c/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+          "candidate-identity",
+          "committed",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+          "d6026f83be7c0af4c325406961ebc3eacb58363c"
+        ],
+        "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+        "exitCode": 0,
+        "peakProcessTreeKiB": 378980,
+        "ceilingKiB": 2097152,
+        "timeoutSeconds": 60,
+        "seconds": 0.963,
+        "availableBeforeKiB": 22454108,
+        "minimumAvailableKiB": 12582912,
+        "stopReason": null
+      }
+    },
+    "estimate": {
+      "commit": "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+      "tree": "b36d9b592e68b0a61cca0ea13d3b674c91a729aa",
+      "identity": {
+        "schemaVersion": 1,
+        "tool": "twilight-burokrat",
+        "toolVersion": "0.1.0",
+        "candidate": "283771b7deea121c67116e8b98093bcac0522c89caef324de421c42b186138bf",
+        "selection": {
+          "kind": "committed",
+          "revision": "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0",
+          "tree": "b36d9b592e68b0a61cca0ea13d3b674c91a729aa"
+        },
+        "certifies": false
+      },
+      "receipt": {
+        "command": [
+          "bun",
+          "/home/df/.codex/worktrees/e21c/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+          "candidate-identity",
+          "committed",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+          "4a98e8092fe4af14ffd5ceefac5d27dd42998ba0"
+        ],
+        "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+        "exitCode": 0,
+        "peakProcessTreeKiB": 367804,
+        "ceilingKiB": 2097152,
+        "timeoutSeconds": 60,
+        "seconds": 1.016,
+        "availableBeforeKiB": 22382672,
+        "minimumAvailableKiB": 12582912,
+        "stopReason": null
+      }
+    },
+    "estimate-fault": {
+      "commit": "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5",
+      "tree": "1cfb496345ae2acf814d58dc01c97dec1ba49f7a",
+      "identity": {
+        "schemaVersion": 1,
+        "tool": "twilight-burokrat",
+        "toolVersion": "0.1.0",
+        "candidate": "1d4809abf8b4fb3eac373da6e58b5e1e97bb02095752e35e3c15366ed648a7b9",
+        "selection": {
+          "kind": "committed",
+          "revision": "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5",
+          "tree": "1cfb496345ae2acf814d58dc01c97dec1ba49f7a"
+        },
+        "certifies": false
+      },
+      "receipt": {
+        "command": [
+          "bun",
+          "/home/df/.codex/worktrees/e21c/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+          "candidate-identity",
+          "committed",
+          "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+          "1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5"
+        ],
+        "cwd": "/home/df/.codex/worktrees/e21c/puni-00",
+        "exitCode": 0,
+        "peakProcessTreeKiB": 366688,
+        "ceilingKiB": 2097152,
+        "timeoutSeconds": 60,
+        "seconds": 1.014,
+        "availableBeforeKiB": 22396548,
+        "minimumAvailableKiB": 12582912,
+        "stopReason": null
+      }
+    }
+  },
+  "unsupportedEntryPoints": "Historical installed bin and current source bin do not register candidate-identity; refusals retained. Current source cli.ts route is supported and used."
+}

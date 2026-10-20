@@ -1,0 +1,65 @@
+from pathlib import Path
+import hashlib,json,shutil,difflib
+root=Path('/tmp/wbs100-mail-memory-diagnostic-20261020')
+original=Path('/tmp/wbs100-mail-consumer-20261020')
+copy=Path('/tmp/wbs100-mail-diagnostic-20261020')
+assert not copy.exists()
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def snapshot(directory):
+ return {str(p.relative_to(directory)):({'symlink':str(p.readlink())} if p.is_symlink() else {'sha256':sha(p)}) for p in sorted(directory.rglob('*')) if p.is_file() or p.is_symlink()}
+original_snapshot=snapshot(original)
+(root/'original-before.json').write_text(json.dumps(original_snapshot,indent=2)+'\n')
+shutil.copytree(original,copy,symlinks=True)
+assert snapshot(copy)==original_snapshot
+for p in original.rglob('*'):
+ if p.is_file() and not p.is_symlink():assert p.stat().st_ino!=(copy/p.relative_to(original)).stat().st_ino
+validator=copy/'node_modules/twilight-burokrat/dist/toolkit/validator.mjs'
+before=validator.read_text();source=before
+assert '_wbsTrace' not in source
+tracefile=str(root/'trace.jsonl')
+source='import { appendFileSync as _wbsTraceAppend } from "node:fs";\nvar _wbsTracePhase = "startup", _wbsTraceConfig = "", _wbsTraceEmissionBytes = 0;\nfunction _wbsTrace(event, extra = {}) { _wbsTraceAppend('+json.dumps(tracefile)+', JSON.stringify({time:Date.now(),pid:process.pid,event,phase:_wbsTracePhase,config:_wbsTraceConfig,...process.memoryUsage(),...extra})+"\\n"); }\n'+source
+def replace(old,new,count=1):
+ global source
+ assert source.count(old)==count,(old,source.count(old),count)
+ source=source.replace(old,new)
+replace('function extractRelationships(repository, candidate, request) {\n  const { workspace, installedModules } = materializeCandidate(repository, candidate);','function extractRelationships(repository, candidate, request) {\n  _wbsTrace("relationships:before-materialize", {entries:candidate.entries.length});\n  const { workspace, installedModules } = materializeCandidate(repository, candidate);\n  _wbsTrace("relationships:after-materialize");')
+replace('function extractSerialRelationships(workspace, request, source) {','function extractSerialRelationships(workspace, request, source) {\n  _wbsTrace("serial:start", {configs:request.configPaths.length,publicEntrypoints:request.publicEntrypoints.length});')
+replace('      configurations.push(captureProject(workspace, configPath, system));','      _wbsTracePhase="capture"; _wbsTraceConfig=configPath; _wbsTrace("helper:start");\n      configurations.push(captureProject(workspace, configPath, system));')
+replace('      for (const selector of observeImports(workspace, configuration, system, extractor))','      _wbsTracePhase="imports"; _wbsTraceConfig=configuration.configPath; _wbsTrace("helper:start");\n      for (const selector of observeImports(workspace, configuration, system, extractor))')
+replace('      for (const message of observeDiagnostics(workspace, configuration, system, extractor))','      _wbsTracePhase="diagnostics"; _wbsTraceConfig=configuration.configPath; _wbsTrace("helper:start");\n      for (const message of observeDiagnostics(workspace, configuration, system, extractor))')
+replace('      emitters.push(observeEmission(workspace, configuration, system, extractor, request.publicEntrypoints));','      _wbsTracePhase="emission"; _wbsTraceConfig=configuration.configPath; _wbsTrace("helper:start");\n      emitters.push(observeEmission(workspace, configuration, system, extractor, request.publicEntrypoints));')
+replace('      publicDeclarations.push(observePublicDeclaration(workspace, owner, system, extractor, entrypoint));','      _wbsTracePhase="public"; _wbsTraceConfig=owner.configPath; _wbsTrace("helper:start", {entrypoint});\n      publicDeclarations.push(observePublicDeclaration(workspace, owner, system, extractor, entrypoint));')
+# Only wrap existing serial GC calls. No additional collection or persistent compiler reference.
+start=source.index('function extractSerialRelationships(');end=source.index('var import_typescript7;',start)
+section=source[start:end];assert section.count('Bun.gc(true);')==6
+section=section.replace('Bun.gc(true);','_wbsTrace("before-existing-gc"); Bun.gc(true); _wbsTrace("after-existing-gc");')
+source=source[:start]+section+source[end:]
+replace('  const program = import_typescript3.default.createProgram({','  _wbsTrace("construct:start", {roots:parsed.fileNames.length});\n  const program = import_typescript3.default.createProgram({')
+replace('  const program = import_typescript6.default.createProgram({','  _wbsTrace("construct:start", {roots:configuration.roots.length});\n  const program = import_typescript6.default.createProgram({')
+replace('  assertProgramSources(workspace, program, system);','  _wbsTrace("construct:return", {sources:program.getSourceFiles().length});\n  assertProgramSources(workspace, program, system);',2)
+replace('function collectImports(workspace, project, extractor) {\n  const imports = [];','function collectImports(workspace, project, extractor) {\n  _wbsTrace("collect-imports:start", {sources:project.program.getSourceFiles().length});\n  const imports = [];')
+replace('  return imports;\n}\nfunction observeImports','  _wbsTrace("collect-imports:return", {imports:imports.length});\n  return imports;\n}\nfunction observeImports')
+replace('  return import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);','  _wbsTrace("diagnostics:start");\n  const messages = import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);\n  _wbsTrace("diagnostics:return", {diagnostics:messages.length});\n  return messages;')
+replace('  const diagnostics = import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);','  _wbsTrace("diagnostics:start");\n  const diagnostics = import_typescript7.default.getPreEmitDiagnostics(project.program).map(formatDiagnostic);\n  _wbsTrace("diagnostics:return", {diagnostics:diagnostics.length});')
+replace('          const typeChecker2 = getTypeChecker();\n          Debug.assert(!!sourceFile.bindDiagnostics);','          _wbsTrace("semantic-file:start", {path:sourceFile.fileName});\n          const typeChecker2 = getTypeChecker();\n          Debug.assert(!!sourceFile.bindDiagnostics);')
+replace('          let checkDiagnostics = typeChecker2.getDiagnostics(sourceFile, cancellationToken, nodesToCheck);','          let checkDiagnostics = typeChecker2.getDiagnostics(sourceFile, cancellationToken, nodesToCheck);\n          _wbsTrace("semantic-file:return", {path:sourceFile.fileName,diagnostics:checkDiagnostics.length});')
+replace('function emitDeclarations(workspace, project) {\n  const emitted = new Map;','function emitDeclarations(workspace, project) {\n  _wbsTraceEmissionBytes=0; _wbsTrace("emit:start");\n  const emitted = new Map;')
+replace('  project.declarations = emitted;','  project.declarations = emitted;\n  _wbsTrace("emit:return", {declarations:emitted.size,outputBytes:_wbsTraceEmissionBytes});')
+replace('  const emission = project.program.emit(sourceFile, (emittedPath, text) => {','  _wbsTrace("emit-source:start", {path:sourceFile.fileName,outputBytes:_wbsTraceEmissionBytes});\n  const emission = project.program.emit(sourceFile, (emittedPath, text) => {')
+replace('  emitted.set(sourcePath, output);','  emitted.set(sourcePath, output);\n  _wbsTraceEmissionBytes+=Buffer.byteLength(output.text); _wbsTrace("emit-source:return", {path:sourceFile.fileName,outputBytes:_wbsTraceEmissionBytes});')
+replace('function semanticDeclarationDependencies(workspace, project, entrypoint) {','function semanticDeclarationDependencies(workspace, project, entrypoint) {\n  _wbsTrace("public-semantics:start", {entrypoint});')
+replace('  return [...paths].sort(compareText6);','  _wbsTrace("public-semantics:return", {entrypoint,paths:paths.size});\n  return [...paths].sort(compareText6);')
+validator.write_text(source)
+(root/'validator-trace.patch').write_text(''.join(difflib.unified_diff(before.splitlines(True),source.splitlines(True),fromfile='exact72/validator.mjs',tofile='diagnostic/validator.mjs')))
+descriptor=validator.parent/'toolkit.json';manifest=validator.parent.parent/'package-manifest.json'
+(root/'original-toolkit.json').write_bytes(descriptor.read_bytes());(root/'original-package-manifest.json').write_bytes(manifest.read_bytes())
+parsed=json.loads(descriptor.read_text());parsed['roles']['validator.mjs']=sha(validator);descriptor.write_text(json.dumps(parsed,indent=2)+'\n')
+parsed=json.loads(manifest.read_text());parsed['toolkitIdentity']=sha(descriptor);manifest.write_text(json.dumps(parsed,indent=2)+'\n')
+(root/'diagnostic-toolkit.json').write_bytes(descriptor.read_bytes());(root/'diagnostic-package-manifest.json').write_bytes(manifest.read_bytes())
+after=snapshot(copy)
+changed=[p for p in original_snapshot if original_snapshot[p]!=after[p]]
+assert sorted(changed)==sorted(['node_modules/twilight-burokrat/dist/toolkit/validator.mjs','node_modules/twilight-burokrat/dist/toolkit/toolkit.json','node_modules/twilight-burokrat/dist/package-manifest.json'])
+assert snapshot(original)==original_snapshot
+identity={'status':'DIAGNOSTIC ONLY, not published successor or acceptance; embedded source72 names base before instrumentation','originalConsumer':str(original),'diagnosticConsumer':str(copy),'originalArchiveSha256':sha(original/'artifact.tgz'),'baseSourceRevision':'72a7e82d2e8ccf4546cb6fee0c49742d0b42fd06','changedPaths':{p:{'before':original_snapshot[p],'after':after[p]} for p in changed},'patchSha256':sha(root/'validator-trace.patch'),'originalSnapshotSha256':sha(root/'original-before.json'),'instrumentation':'synchronous JSONL memory measurements; original existing GC positions only; no policy/authentication code change; copied descriptor hashes refreshed','physicalCopy':'all regular file inodes differ; no hardlinks'}
+(root/'identity.json').write_text(json.dumps(identity,indent=2)+'\n')
+print(json.dumps(identity,indent=2))

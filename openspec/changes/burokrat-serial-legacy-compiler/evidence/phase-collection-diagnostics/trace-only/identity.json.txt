@@ -1,0 +1,37 @@
+{
+  "status": "DIAGNOSTIC ONLY, not published successor or acceptance; embedded source72 names base before instrumentation",
+  "originalConsumer": "/tmp/wbs100-mail-consumer-20261020",
+  "diagnosticConsumer": "/tmp/wbs100-mail-diagnostic-20261020",
+  "originalArchiveSha256": "0db4b51fb0efd5a6623709e738472dab94106359ce89bde69a1ed0add996464b",
+  "baseSourceRevision": "72a7e82d2e8ccf4546cb6fee0c49742d0b42fd06",
+  "changedPaths": {
+    "node_modules/twilight-burokrat/dist/package-manifest.json": {
+      "before": {
+        "sha256": "009d4a7644a0e3d74712495ebb8746672a0aa04db5dc50c89cc5f743aaf6336b"
+      },
+      "after": {
+        "sha256": "f447e25c0aa11b7f891169abd690dc365c9dcfb9fcb84c35a537dc73110163be"
+      }
+    },
+    "node_modules/twilight-burokrat/dist/toolkit/toolkit.json": {
+      "before": {
+        "sha256": "a20180f6343959d85142f461f9b4aa6505957a9ea38dda12782c60a68c3b8f7f"
+      },
+      "after": {
+        "sha256": "8e1a2a3395084a54a0c6ee42c29b873cb4cba7a87161ebe210e435f1abd9705e"
+      }
+    },
+    "node_modules/twilight-burokrat/dist/toolkit/validator.mjs": {
+      "before": {
+        "sha256": "9714adf5f3aa52dc445b47da72e3363bf5755e195b5b726f99ec3ab217519f12"
+      },
+      "after": {
+        "sha256": "4f37339ad50af4ba58a94ea7e1a1ba84d55d87cab6e66c908511c5abd6658a57"
+      }
+    }
+  },
+  "patchSha256": "30450161d000752c8ffae0a4a98954a1cd45c64dc70c2034be78f55b551c4c8c",
+  "originalSnapshotSha256": "0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff",
+  "instrumentation": "synchronous JSONL memory measurements; original existing GC positions only; no policy/authentication code change; copied descriptor hashes refreshed",
+  "physicalCopy": "all regular file inodes differ; no hardlinks"
+}

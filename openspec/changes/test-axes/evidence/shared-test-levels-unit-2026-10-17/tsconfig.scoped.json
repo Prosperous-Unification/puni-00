@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true
+  },
+  "files": [
+    "../tools/tool-devsync/src/test-levels.ts",
+    "../tools/tool-devsync/src/shared-failures-level.test.ts",
+    "../tools/tool-devsync/src/test-levels.test.ts",
+    "../tools/tool-devsync/src/shared-test-levels-level.test.ts"
+  ]
+}

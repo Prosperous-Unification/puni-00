@@ -145,3 +145,16 @@ bun test apps/wbs/be-01/src/domain-proof.boot.db.test.ts \
 ```
 
 The corrected [listener-first receipt](proofs/boot-faults.json) records exact before/after mutation text, command, assertion output, and matching original/restored source hashes. Fresh restored control: `bun test apps/wbs/be-01/src/domain-proof.boot.db.test.ts` — **13 pass, 0 fail, 48 assertions**, 2.65 seconds. No production behavior changed in this correction. The prior 304-test run is historical evidence; it was not repeated for this evidence/test-cleanup-only successor. No full gate or heavy checks were run.
+
+## Source and merge reconciliation — 2026-10-19
+
+[The parent reconciliation](../organization-ownership-and-access/verify.md#source-and-merge-reconciliation--2026-10-19)
+verifies merged checkpoint `05fb0b0ba` and PR #565 ancestry. Current `bootBe01`
+starts configured retained-proof scheduling, owns stop/join before storage
+disposal and exposes background failure to the shared entrypoint supervisor.
+The worker is implemented; earlier local-only and unwired annotations retain
+their checkpoint meaning.
+
+Live resolver/egress configuration, activated-domain observation and attended
+acceptance remain open. No new runtime test, gate or activation result is
+claimed, and the review/acceptance checkbox remains unchanged.

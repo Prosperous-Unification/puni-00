@@ -352,6 +352,31 @@ export function parseProject(
     options,
     projectReferences: parsed.projectReferences,
   });
+  assertProgramSources(workspace, program, system);
+  const configurationIdentity = hashCanonical({
+    configPath,
+    fileNames: parsed.fileNames
+      .map((fileName) => workspacePath(workspace, fileName))
+      .filter((path): path is string => path !== undefined)
+      .sort(compareText),
+    options: normalizedCompilerValue(options, workspace),
+  });
+  return {
+    system,
+    configPath,
+    configurationIdentity,
+    options,
+    program,
+    declarations: new Map(),
+  };
+}
+
+/** Rechecks every reconstructed program against the same admitted compiler namespace. */
+export function assertProgramSources(
+  workspace: string,
+  program: ts.Program,
+  system: TypeScriptSystem,
+): void {
   // Proof: with filesystem admission deliberately bypassed, this guard still refused an
   // outside config-listed declaration. Removing it then made that production CLI exit 0.
   for (const sourceFile of program.getSourceFiles()) {
@@ -376,22 +401,6 @@ export function parseProject(
       );
     }
   }
-  const configurationIdentity = hashCanonical({
-    configPath,
-    fileNames: parsed.fileNames
-      .map((fileName) => workspacePath(workspace, fileName))
-      .filter((path): path is string => path !== undefined)
-      .sort(compareText),
-    options: normalizedCompilerValue(options, workspace),
-  });
-  return {
-    system,
-    configPath,
-    configurationIdentity,
-    options,
-    program,
-    declarations: new Map(),
-  };
 }
 
 /**

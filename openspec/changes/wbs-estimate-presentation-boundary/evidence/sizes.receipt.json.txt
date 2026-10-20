@@ -1,0 +1,13 @@
+{
+  "command": [
+    "bun",
+    "/tmp/estimate-measure.mjs",
+    "/tmp/wbs-f7-estimates-oct17",
+    "ee750cb7070eb06d4b828eba7ccb3ddf16ae2d0b",
+    "192540c31",
+    "/tmp/directory-f7-consumer/policy.json"
+  ],
+  "exitCode": 0,
+  "peakRssBytes": 366428160,
+  "seconds": 2.11
+}

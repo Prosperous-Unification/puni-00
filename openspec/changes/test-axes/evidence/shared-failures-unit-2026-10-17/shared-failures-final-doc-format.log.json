@@ -1,0 +1,30 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "prettier",
+    "--write",
+    "openspec/changes/test-axes/verify.md",
+    "openspec/changes/test-axes/tasks.md"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 306024,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "prettier",
+      "--write",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/changes/test-axes/tasks.md"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/prettier",
+      "--write",
+      "openspec/changes/test-axes/verify.md",
+      "openspec/changes/test-axes/tasks.md"
+    ]
+  ]
+}

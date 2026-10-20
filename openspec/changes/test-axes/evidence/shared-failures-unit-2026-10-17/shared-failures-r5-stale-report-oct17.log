@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+225 |     await withRunnerFixture(({ project, report, command }) => {
+226 |       writeFileSync(report, '<stale/>');
+227 |       const execution = runCommand(project, command);
+228 |       expect(execution.exitCode).toBe(1);
+229 |       expect(execution.stderr.toString()).toContain(`no-cases: ${QUALIFIED}`);
+230 |       expect(existsSync(report)).toBe(false);
+                                       ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:230:34)
+      at withRunnerFixture (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:52:11)
+      at async <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:225:11)
+(fail) shared-failures isolated Unit level > removes stale reports before refusing an empty selection [5.11ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [158.00ms]

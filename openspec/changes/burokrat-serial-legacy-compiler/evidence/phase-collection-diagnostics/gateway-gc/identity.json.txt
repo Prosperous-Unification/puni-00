@@ -1,0 +1,38 @@
+{
+  "status": "DIAGNOSTIC ONLY: one additional gateway GC, not production fix/successor/acceptance",
+  "sourceRevisionMeaning": "72a7e82 identifies uninstrumented base only",
+  "priorCopy": "/tmp/wbs100-mail-diagnostic-20261020",
+  "diagnosticCopy": "/tmp/wbs100-mail-gc-diagnostic-20261020",
+  "originalConsumer": "/tmp/wbs100-mail-consumer-20261020",
+  "patchSha256": "2b8a6c9e80ff88856dae66262babc02c20bcbb7dc24cae3bcce16efa64210ffc",
+  "changedPaths": {
+    "node_modules/twilight-burokrat/dist/package-manifest.json": {
+      "before": {
+        "sha256": "f447e25c0aa11b7f891169abd690dc365c9dcfb9fcb84c35a537dc73110163be"
+      },
+      "after": {
+        "sha256": "8ee91ad78648133efd0fa7dd489ec038bca58627e734d93414d104d21eecbc55"
+      }
+    },
+    "node_modules/twilight-burokrat/dist/toolkit/toolkit.json": {
+      "before": {
+        "sha256": "8e1a2a3395084a54a0c6ee42c29b873cb4cba7a87161ebe210e435f1abd9705e"
+      },
+      "after": {
+        "sha256": "5b8548166e84150a8123ce85fe4468ab7afe48d7acdd24b0b9a49beed4eb800c"
+      }
+    },
+    "node_modules/twilight-burokrat/dist/toolkit/validator.mjs": {
+      "before": {
+        "sha256": "4f37339ad50af4ba58a94ea7e1a1ba84d55d87cab6e66c908511c5abd6658a57"
+      },
+      "after": {
+        "sha256": "790f6f4146ec78f1ef580f9c6b4456097ccfe1a9332a4e22f3038616d5b95d85"
+      }
+    }
+  },
+  "originalArchiveSha256": "0db4b51fb0efd5a6623709e738472dab94106359ce89bde69a1ed0add996464b",
+  "originalSnapshotSha256": "0b0ea2a36266d62e8e3fba2fa58d173c9471e14f23c00efa1d1228e3e62fbeff",
+  "priorSnapshotSha256": "096bb81dc9bb4e179a61f59f3333f14ddc644a10f715e07605cada2f0187d3e4",
+  "physicalCopy": "all regular file inodes differ; no hardlinks"
+}

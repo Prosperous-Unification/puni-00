@@ -561,6 +561,12 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         await scope.stores.claims.remove(claims, cleared, stamp);
         await refreshRows(owners);
       },
+      moveAll: async (fromWorkItemId, toWorkItemId, stamp) => {
+        await assertOwner(fromWorkItemId);
+        await assertOwner(toWorkItemId);
+        await scope.stores.claims.moveAll(fromWorkItemId, toWorkItemId, stamp);
+        await refreshRows([fromWorkItemId, toWorkItemId]);
+      },
     },
     demands: {
       listByProject: (requestedProjectId) => {

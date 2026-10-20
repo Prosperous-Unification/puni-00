@@ -1,0 +1,38 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/wbs/plan-cells.test.tsx > step node details > walks into both copy actions with keys and returns to the step cell
+Error: expect(element).toHaveFocus()
+
+Expected element with focus:
+  <input
+  aria-autocomplete="list"
+  aria-describedby="folded-w1-step-dev"
+  aria-expanded="false"
+  aria-invalid="false"
+  aria-label="Dev estimate for 010"
+  data-cell="w1::step-dev-final"
+  placeholder="o/r/p"
+  role="combobox"
+  style="width: 100%; box-sizing: border-box; font-family: inherit; font-style: inherit; line-height: inherit; flex: 1 1 0%; min-width: 0px; font-size: inherit; font-weight: 600;"
+  value=""
+/>
+Received element with focus:
+  <button
+  data-card-action="true"
+  type="button"
+>
+  Copy link
+</button>
+ ❯ src/components/wbs/plan-cells.test.tsx:173:24
+    171|       );
+    172|       fireEvent.keyDown(link, { key: 'Tab' });
+    173|       expect(estimate).toHaveFocus();
+       |                        ^
+    174|       fireEvent.keyDown(estimate, { key: 'F2' });
+    175|       fireEvent.keyDown(reference, { key: 'Escape' });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯

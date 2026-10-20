@@ -1,0 +1,19 @@
+import subprocess,json,hashlib
+from pathlib import Path
+consumer=Path('/tmp/wbs100-reference-consumer-20261019')
+pins={'node_modules/twilight-burokrat/dist/bin.mjs':'92ca1424826b325dad64a160090fb8c83521a5e581a48f6bed510a1d7d00ef4c','node_modules/twilight-burokrat/dist/toolkit/toolkit.json':'2417f876901efadcc817e7518a8f796985c9e62409ab6f68458b55ea21d2b69a','policy.json':'3cff7523646c98f4b405c7aea21df6b913ce90f0c1f6545157007fc31f73a00c'}
+for label,sha in [('base','3e8d0742154e90a606b23d305dd6e424bb9c7d06'),('candidate','4a98e8092fe4af14ffd5ceefac5d27dd42998ba0'),('fault','1b1a39e7fe4858b7a2a168d67a30dddc1fcbc7d5')]:
+ for path,digest in pins.items():assert hashlib.sha256((consumer/path).read_bytes()).hexdigest()==digest,path
+ prefix=f'/tmp/wbs100-estimate-installed-{label}-20261019'
+ subprocess.run(['python3','/tmp/wbs100-reference-installed-guard-20261019.py',prefix,'bun',str(consumer/'node_modules/twilight-burokrat/dist/bin.mjs'),'check','committed','/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019',sha,str(consumer/'policy.json'),'--rule','F7'],cwd=consumer,check=True)
+ receipt=json.loads(Path(prefix+'.receipt.json').read_text());report=json.loads(Path(prefix+'.stdout').read_text());assert receipt['exitCode']==0 and receipt['stopReason'] is None and report['ruleIds']==['F7'] and report['unevaluated']==[] and report['certifies'] is False
+ print(label,len(report['findings']),flush=True)
+for label in ['candidate','fault','restored']:
+ selected='candidate' if label=='restored' else label
+ command=['python3','/tmp/wbs100-estimate-installed-oracle-20261019.py','/tmp/wbs100-estimate-installed-base-20261019.stdout',f'/tmp/wbs100-estimate-installed-{selected}-20261019.stdout']
+ completed=subprocess.run(command,capture_output=True,text=True)
+ Path(f'/tmp/wbs100-estimate-installed-oracle-{label}-20261019.log').write_text(completed.stdout+completed.stderr)
+ Path(f'/tmp/wbs100-estimate-installed-oracle-{label}-20261019.json').write_text(json.dumps({'command':command,'exitCode':completed.returncode},indent=2)+'\n')
+ assert completed.returncode==(1 if label=='fault' else 0)
+ if label=='fault':assert 'selected estimates.tsx finding remains' in completed.stderr
+ print(label,completed.returncode,completed.stdout.strip(),flush=True)

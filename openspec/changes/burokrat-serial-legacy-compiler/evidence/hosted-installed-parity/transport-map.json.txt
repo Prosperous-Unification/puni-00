@@ -1,0 +1,48 @@
+{
+  "sourcePacket": "/tmp/puni-wbs100-hosted-parity-evidence-20261020",
+  "files": [
+    {
+      "original": "README.md",
+      "transport": "README.md.txt",
+      "bytes": 4167,
+      "sha256": "cc84488113f1ba6a25d0bcf320e97c2cce5bd70233510286cffa1c7238bc6b82"
+    },
+    {
+      "original": "audit.json.txt",
+      "transport": "audit.json.txt",
+      "bytes": 12262,
+      "sha256": "d07ee071d2f2cae9b5217718ec40fe8a73803754a91a306f8ec71027296a0733"
+    },
+    {
+      "original": "original-file-manifest.json.txt",
+      "transport": "original-file-manifest.json.txt",
+      "bytes": 22432,
+      "sha256": "35c822a4f601ee6e52dff9dd95a80e9cfd75a724fddfe9bcb0375cb6659f220c"
+    },
+    {
+      "original": "packet-manifest.json.txt",
+      "transport": "packet-manifest.json.txt",
+      "bytes": 811,
+      "sha256": "c070861454c81e438ccded40dff4281ed646d3e5a515043b59bd8dc56af7e90c"
+    },
+    {
+      "original": "raw-streams.json.txt",
+      "transport": "raw-streams.json.txt",
+      "bytes": 3829204,
+      "sha256": "6bbbeb7e11f77caf562450e4a5ea6f6acfb0efbaa559d1e07176f159ca464fc6"
+    },
+    {
+      "original": "reconstruct-check.py.txt",
+      "transport": "reconstruct-check.py.txt",
+      "bytes": 750,
+      "sha256": "33f4658046f223220429fd0f23009860bea6e15dc19e4c643e6752dbce340df1"
+    },
+    {
+      "original": "reconstruction-proof.json.txt",
+      "transport": "reconstruction-proof.json.txt",
+      "bytes": 747,
+      "sha256": "9bee2d1baa079d404e2384fb7101d9d1c012d2aff7fb9d9ad66cd05d7642e58e"
+    }
+  ],
+  "reason": "The retained packet README is carried as .md.txt to preserve its manifest-bound bytes through formatting."
+}

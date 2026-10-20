@@ -1,0 +1,102 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "test(wbs): restore oversized reference field for recovery proof"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 805384,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-fault-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/pre-commit"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/prepare-commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-fault-20261019/COMMIT_EDITMSG",
+      "message"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-fault-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "pre-commit"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "prepare-commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-reference-fault-20261019/COMMIT_EDITMSG",
+      "message"
+    ],
+    [
+      "bun",
+      "run",
+      "tools/tool-git-hooks/src/hooks/private-nesting.ts",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "bunx",
+      "prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "git",
+      "commit",
+      "-m",
+      "test(wbs): restore oversized reference field for recovery proof"
+    ],
+    [
+      "git",
+      "status",
+      "--short",
+      "--porcelain",
+      "-z"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-fault-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-fault-20261019/node_modules/.bin/prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx"
+    ],
+    [
+      "sh",
+      "-c",
+      "bun run tools/tool-git-hooks/src/hooks/private-nesting.ts apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx "
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx eslint apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx "
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx prettier --check apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx "
+    ]
+  ]
+}

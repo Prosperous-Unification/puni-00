@@ -1,0 +1,29 @@
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:
+70 | }
+71 |
+72 | function compare(configure: Configure, modules = trustedModules) {
+73 |   const predecessor = observe('predecessor', configure, modules);
+74 |   const serial = observe('serial', configure, modules);
+75 |   expect(serial).toEqual(predecessor);
+                      ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "message": "TypeScript public entrypoint src/index.ts resolved by 2 emitting configs with 0 explicit root configs; expected exactly one: config/consumer-0.json, config/consumer-1.json",
++   "message": "undefined is not an object (evaluating 'roots[0].configuration')",
+    "ok": false,
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at compare (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:75:18)
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:254:25)
+(fail) serial refuses shared emissions without explicit root with predecessor provenance [212.47ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [656.00ms]

@@ -52,6 +52,7 @@ export const CASE_MANIFEST = {
     'directory.patchPerson:owned-binding',
     'directory.credentialPinOf:unlinked',
     'directory.removePerson:claims-in-use',
+    'directory.removePerson:delegated-claims',
     'directory.removePerson:pinned-credential',
     'directory.addResource:taken',
     'directory.removeResource:in-use-cascade',
@@ -135,6 +136,7 @@ export const CASE_MANIFEST = {
     'claims.listStampedByProject:write-instant',
     'claims.remove:delegated-cascade',
     'claims.occupancy:hold-read-cascade',
+    'claims.moveAll:in-place',
   ],
   demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
   dependencies: [

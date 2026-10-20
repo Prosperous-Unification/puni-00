@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { readCandidate } from '/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/inventory/read-candidate.ts';
+import { measureSizes } from '/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/rules/size-ratchet.ts';
+const [repository, baseRevision, candidateRevision, policyPath] = Bun.argv.slice(2);
+assert(repository && baseRevision && candidateRevision && policyPath, 'repository, base, candidate, policy required');
+const policy = await Bun.file(policyPath).json();
+const measure = (revision) => {
+  const snapshot = readCandidate(repository, {kind:'committed', revision});
+  const outcome = measureSizes(repository, snapshot.entries, policy.sizeCeilings);
+  assert(outcome.ok, 'production size evaluation must succeed');
+  return {selection:snapshot.selection, outcome};
+};
+const base = measure(baseRevision);
+const candidate = measure(candidateRevision);
+const selected = (finding) => finding.path === 'apps/wbs/fe-01/src/components/wbs/reference-set-field.tsx';
+console.log(JSON.stringify({base,candidate},null,2));
+assert.equal(base.outcome.report.filter(selected).length,1,'base must report selected field once');
+// Proof: committed oversized-field restoration 60a837da8 made this fail with
+// selected reference-set-field finding remains; exact good8dc10bcdd passed again.
+assert.equal(candidate.outcome.report.filter(selected).length,0,'selected reference-set-field finding remains');
+assert.deepEqual(candidate.outcome.report,base.outcome.report.filter((finding)=>!selected(finding)),'unrelated findings changed');
+console.error(`Exact production measureSizes: only selected finding removed (${base.outcome.report.length} -> ${candidate.outcome.report.length}).`);

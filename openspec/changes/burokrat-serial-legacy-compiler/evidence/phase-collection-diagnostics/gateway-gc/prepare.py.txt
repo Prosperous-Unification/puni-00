@@ -1,0 +1,39 @@
+from pathlib import Path
+import json,hashlib,shutil,difflib
+root=Path('/tmp/wbs100-mail-memory-gc-diagnostic-20261020');prior=Path('/tmp/wbs100-mail-diagnostic-20261020');original=Path('/tmp/wbs100-mail-consumer-20261020');copy=Path('/tmp/wbs100-mail-gc-diagnostic-20261020')
+assert not copy.exists()
+def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
+def snapshot(directory):return {str(p.relative_to(directory)):({'symlink':str(p.readlink())} if p.is_symlink() else {'sha256':sha(p)}) for p in sorted(directory.rglob('*')) if p.is_file() or p.is_symlink()}
+first_original=json.loads(Path('/tmp/wbs100-mail-memory-diagnostic-20261020/original-before.json').read_text());original_snapshot=snapshot(original);assert original_snapshot==first_original
+prior_snapshot=snapshot(prior)
+for name,content in [('original-before',original_snapshot),('prior-before',prior_snapshot)]: (root/(name+'.json')).write_text(json.dumps(content,indent=2)+'\n')
+shutil.copytree(prior,copy,symlinks=True);assert snapshot(copy)==prior_snapshot
+for p in prior.rglob('*'):
+ if p.is_file() and not p.is_symlink():assert p.stat().st_ino!=(copy/p.relative_to(prior)).stat().st_ino
+validator=copy/'node_modules/twilight-burokrat/dist/toolkit/validator.mjs';before=validator.read_text();source=before
+old='/tmp/wbs100-mail-memory-diagnostic-20261020/trace.jsonl';assert source.count(old)==1;source=source.replace(old,str(root/'trace.jsonl'))
+old='''function observeDiagnostics(workspace, configuration, system, extractor) {
+  const project = reconstructProject(workspace, configuration, system);
+  collectImports(workspace, project, extractor);
+  _wbsTrace("diagnostics:start");'''
+new='''function observeDiagnostics(workspace, configuration, system, extractor) {
+  const project = reconstructProject(workspace, configuration, system);
+  collectImports(workspace, project, extractor);
+  if (configuration.configPath === "apps/wbs/gw-01/tsconfig.lib.json") {
+    _wbsTrace("gateway-extra-gc:before");
+    Bun.gc(true);
+    _wbsTrace("gateway-extra-gc:after");
+  }
+  _wbsTrace("diagnostics:start");'''
+assert source.count(old)==1;source=source.replace(old,new);validator.write_text(source)
+(root/'gateway-gc.patch').write_text(''.join(difflib.unified_diff(before.splitlines(True),source.splitlines(True),fromfile='first-diagnostic/validator.mjs',tofile='gateway-gc-diagnostic/validator.mjs')))
+descriptor=validator.parent/'toolkit.json';manifest=validator.parent.parent/'package-manifest.json'
+for name,p in [('prior-toolkit.json',descriptor),('prior-package-manifest.json',manifest)]: (root/name).write_bytes(p.read_bytes())
+parsed=json.loads(descriptor.read_text());parsed['roles']['validator.mjs']=sha(validator);descriptor.write_text(json.dumps(parsed,indent=2)+'\n')
+parsed=json.loads(manifest.read_text());parsed['toolkitIdentity']=sha(descriptor);manifest.write_text(json.dumps(parsed,indent=2)+'\n')
+for name,p in [('diagnostic-toolkit.json',descriptor),('diagnostic-package-manifest.json',manifest)]: (root/name).write_bytes(p.read_bytes())
+after=snapshot(copy);changed=[p for p in prior_snapshot if prior_snapshot[p]!=after[p]]
+assert sorted(changed)==sorted(['node_modules/twilight-burokrat/dist/toolkit/validator.mjs','node_modules/twilight-burokrat/dist/toolkit/toolkit.json','node_modules/twilight-burokrat/dist/package-manifest.json'])
+assert snapshot(original)==original_snapshot;assert snapshot(prior)==prior_snapshot
+identity={'status':'DIAGNOSTIC ONLY: one additional gateway GC, not production fix/successor/acceptance','sourceRevisionMeaning':'72a7e82 identifies uninstrumented base only','priorCopy':str(prior),'diagnosticCopy':str(copy),'originalConsumer':str(original),'patchSha256':sha(root/'gateway-gc.patch'),'changedPaths':{p:{'before':prior_snapshot[p],'after':after[p]} for p in changed},'originalArchiveSha256':sha(original/'artifact.tgz'),'originalSnapshotSha256':sha(root/'original-before.json'),'priorSnapshotSha256':sha(root/'prior-before.json'),'physicalCopy':'all regular file inodes differ; no hardlinks'}
+(root/'identity.json').write_text(json.dumps(identity,indent=2)+'\n');print(json.dumps(identity,indent=2))

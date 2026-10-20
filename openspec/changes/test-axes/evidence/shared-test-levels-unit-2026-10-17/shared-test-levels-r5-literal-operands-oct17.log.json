@@ -1,0 +1,36 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+    "--timeout=30000",
+    "-t",
+    "executes literal operands"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 94792,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "test",
+      "src/index.test.ts",
+      "--reporter=junit",
+      "--reporter-outfile=../../../../tmp/junit/shared-test-levels.unit.xml",
+      "--timeout=10000"
+    ],
+    [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-test-levels-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "executes literal operands"
+    ],
+    [
+      "sh",
+      "-c",
+      "mkdir -p ../../../../tmp/junit && rm -f ../../../../tmp/junit/shared-test-levels.unit.xml && files=$(find src -name '*.test.ts' ! -name '*.db.test.ts') && if [ -z \"$files\" ]; then echo 'no-cases: shared-test-levels:test:unit:level' >&2; exit 1; fi && bun test $files --reporter=junit --reporter-outfile=../../../../tmp/junit/shared-test-levels.unit.xml --timeout=10000"
+    ]
+  ]
+}
