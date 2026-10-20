@@ -31,7 +31,7 @@
 - [x] 4.1 Complete the authorized hosted-lane successor build/install and fixture comparison. Hosted run 39340870682 built exact source d7f212959, installed both preserved historical and successor packages, and proved four complete reports with eight stable identity snapshots; retained evidence distinguishes it from local 4.1a.
 - [x] 4.1a Install the separately identified local `0e444bcc4` successor, preserve the historical artifact and compare the bounded REL-EXTRACT fixture: exact positive and missing-public-entrypoint refusal JSON parity is retained.
 - [x] 4.2 Complete compiler-backed base/candidate all-rule acceptance with identical external policy and committed oversized negatives, including the recovery specifications’ hosted full-F7 and full-survey obligations. Hosted run 39343674302 passed five full surveys and five standalone F7 runs with twenty stable installed snapshots. Final local and hosted reports agree exactly; three unrelated refusals remain explicit. Preserve the earlier compiler-dependent refusals and failed intermediate attempts as historical observations.
-- [ ] 4.3 Run full CI and canonical exact-SHA h2puni gate. Keep WBS100 blocked until all remaining obligations are evidenced.
+- [x] 4.3 Run full CI and canonical exact-SHA h2puni gate. Exact merge CI and source cd98994a canonical acceptance are recorded in [terminal acceptance](verify.md#terminal-coordinator-acceptance-reconciled-2026-10-21). WBS100 remains blocked for unrelated parent obligations.
 
 ## 5. Real-baseline collection placement follow-up
 
