@@ -616,3 +616,29 @@ takes workers' delegated claims without naming them or moving their items' revis
 follow-up branch; S3-2 (refusal codes the deltas did not state) fixed in the specs. Not yet
 verified: the pre-activation `401 unknown_identity` clause (every fleet-credential test runs
 after activation); a test is owed by the follow-up branch.
+
+### Whole-change follow-ups (branch `feat/wbs-claims-handdown`, 2026-10-20)
+
+Each negative: fault injected, the named test watched failing, fault restored.
+
+- **S2 claims stranded on a split leaf.** `ClaimStore.moveAll(from, to)` on SQLite (one `UPDATE`, ids, account and `created_at` kept, both revisions bumped) and memory; `createWorkItem` moves a gaining leaf's claims to its first child beside the other step facts; the journal carries a new `move_claims` command (forward after `restore_subtree`, inverse before the child's `delete_subtree`), whose replay refuses when the claims on its source changed. Negative: hand-down skipped: `releases the handed-down claim on the child` (`claim-command.test.ts`) answered `not_claimed_by`, and the SQLite case in `claim-race.db.test.ts` read the claim still on the leaf; inverse omitted: undo read no claim on the parent (memory) and the child's delete cascaded it away (SQLite); forward omitted: redo left it on the parent; replay refusal removed: `refuses an undo of a split once the child's claims changed` answered ok; `readClaimMove` removed: `refuses a malformed claim move`; `moveAll` aimed at no row (SQLite) or its clash refusal disabled (memory): certification case `claims.moveAll:in-place`.
+- **S3-1 holder names from the root directory, full scan.** `claim`/`release` take the caller's `ResourceAccess`; names come from the organization's person list under scoped access and from `namesOf` under legacy access. Negative: root `listPeople()` restored: `names the holder by the organization's name, not the root name` (`claim-identity.controller.db.test.ts`) read `root-claire`; `reads only the people a refused claim names` (`startable-scope.db.test.ts`) saw `SCAN person USING INDEX person_name` and 85 rows.
+- **S3-3 delegation under a pinned credential.** test only: `delegates under its own person's subtree claim, and only there`. Negative: `decideClaim`'s pin callback answering false: the delegated claim with `parentClaim` answered 403.
+- **S3-4 superagent removal and delegated claims.** usage rows' `claims` are now every claim the removal takes (own and delegated, transitively, both sources); `directoryUsageOfPerson` names each on its own row; `removePerson` bumps and reports every affected work item. Negative: transitive read disabled: certification case `directory.removePerson:delegated-claims` (both sources); own claims only in `removePerson`: same case on both sources and `moves the revision of a delegated claim's work item when its superagent is removed` (`claim.db.test.ts`, revision 0); person filter restored in `directoryUsageOfPerson`: `names each claim the removal releases…`.
+- **S3-2 pre-activation `unknown_identity`.** test only: `refuses an unlinked groups-less token before activation, minting no account`. Negative: `authenticateOrRefuse`'s groups-less branch disabled: 200 with an empty project list instead of 401.
+- **S3-5 swap window.** documented here and in `docs/runbook-prod-deploy.md` (Team claims swap window and rollback). Negative: not a check.
+- **S4.** `credential-link.ts` imports `CredentialPair` from `@wbs/contracts`; `startable.ts` narrows the step claims instead of `?? ''`; D7 consequence on admin-written claims; the runbook's rollback order. Negative: not checks.
+
+**Blue/green window.** During the window, the outgoing be-01's confirmed `deletePerson` of a
+person green pinned, or `removeStep` of a step green claimed, fails on the foreign key (500,
+nothing written), and an outgoing fe-01 shown green's `claim_released` effect arm fails its
+validator; all fail closed. Taken from the whole-change review; not re-run in a two-colour
+setup here.
+
+**Assumed (for Dany's review).** The hand-down moves the claims rather than refusing the
+create: a split is a planning act and the holder keeps the work. Under scoped access a claim or
+release naming a person outside the caller's organization answers `unknown_person` (it read the
+root directory before). A `claim_released` effect names the row and step, not the holder, so
+the wire shape fe-01 validates is unchanged.
+
+Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the final head.

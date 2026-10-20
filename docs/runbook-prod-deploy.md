@@ -165,6 +165,22 @@ flags, scopes and refusals are in
 docker exec be-01-<colour> bun run src/link-credential-cli.ts --issuer=<iss> --subject=<sub> --account=<id or username> [--person=<id>]
 ```
 
+## Team claims swap window and rollback
+
+**Swap window.** While the outgoing be-01 still serves beside a green that holds claims and
+fleet pins, the outgoing binary does not know either. Its confirmed `deletePerson` of a person
+green pinned a credential to fails on the `external_identity.person_id` foreign key, and its
+`removeStep` of a step green claimed fails on `claim.step_id`: both answer 500 and write
+nothing. An outgoing fe-01 shown a green usage carrying a `claim_released` effect fails that
+arm's validator and shows the refusal. All three fail closed; retry after the swap commits.
+
+**Rollback.** `migrate-down-cli.ts --to=<the migration before 20261019120000_add_claim>`
+runs each down in its own transaction, newest first: it reverses the two binding migrations
+(`20261019130100_add_external_identity_person`, `20261019130000_add_person_account`, each
+refusing while a credential is pinned or a person is bound) and only then refuses on
+`add_claim` while any claim exists. A refused run therefore leaves the bindings already
+removed; release every claim first, then rerun.
+
 ## Typed dependency rollback
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's

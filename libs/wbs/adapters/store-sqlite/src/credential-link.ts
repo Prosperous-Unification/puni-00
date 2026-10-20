@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import type { CredentialPair } from '@wbs/contracts';
 import type { WriteStamp } from '@wbs/core';
 import { and, eq, or } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -7,12 +8,6 @@ import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 import { auditOnCreate } from './audit';
 import { readOrganizationActivation } from './organization-activation';
 import { externalIdentity, person, users } from './schema';
-
-/** One verified `(issuer, subject)`, such as an Auth0 machine-to-machine client. */
-export interface CredentialPair {
-  readonly issuer: string;
-  readonly subject: string;
-}
 
 /** What `link-credential-cli.ts` asks for: a pair, an existing account, and optionally a person. */
 export interface CredentialLinkRequest extends CredentialPair {
