@@ -24,26 +24,35 @@ Terms are in [CONTEXT.md](CONTEXT.md); the behaviour contract is
 Every kit assigns all of these, in both palettes. Utilities are the shadcn names (`bg-primary`,
 `text-muted-foreground`, `border-input`, `ring-ring`).
 
-| Token                                        | Role                                           |
-| -------------------------------------------- | ---------------------------------------------- |
-| `--background` / `--foreground`              | the page and its text                          |
-| `--card` / `--card-foreground`               | a surface that stands apart from the page      |
-| `--popover` / `--popover-foreground`         | a floating surface over the page               |
-| `--primary` / `--primary-foreground`         | the one main action; filled                    |
-| `--secondary` / `--secondary-foreground`     | a supporting action; quiet fill                |
-| `--muted` / `--muted-foreground`             | de-emphasised surfaces and secondary text      |
-| `--accent` / `--accent-foreground`           | hover and selection; one per surface           |
-| `--destructive` / `--destructive-foreground` | an action that cannot be undone                |
-| `--border`, `--input`                        | hairlines on surfaces and fields               |
-| `--ring`                                     | the keyboard focus ring                        |
-| `--radius`                                   | the base corner; `rounded-md` and `-lg` derive |
-| `--font-sans`, `--font-display`              | body and display faces                         |
+| Token                                        | Role                                                             |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| `--background` / `--foreground`              | the page and its text                                            |
+| `--card` / `--card-foreground`               | a surface that stands apart from the page                        |
+| `--popover` / `--popover-foreground`         | a floating surface over the page                                 |
+| `--primary` / `--primary-foreground`         | the one main action; filled                                      |
+| `--secondary` / `--secondary-foreground`     | a supporting action; quiet fill                                  |
+| `--muted` / `--muted-foreground`             | de-emphasised surfaces and secondary text                        |
+| `--accent` / `--accent-foreground`           | hover and selection; one per surface                             |
+| `--destructive` / `--destructive-foreground` | an action that cannot be undone                                  |
+| `--border`, `--input`                        | hairlines on surfaces and fields                                 |
+| `--ring`                                     | the keyboard focus ring                                          |
+| `--radius`                                   | the base corner; `rounded-md` and `-lg` derive                   |
+| `--font-body`, `--font-display`              | body and display faces; utilities `font-sans` and `font-heading` |
 
 ## Brand constants
 
-`brand.css` holds what every kit may draw from and no kit may redefine: the warm gold
-(`--brand-gold`), the night violet-black, paper white and ink, and the two self-hosted variable
-faces, Geist for body and Inter Tight for display, with their OFL notices in `src/fonts/`.
+`brand.css` holds what every kit may draw its values from and no kit may redefine.
+`design-spec.test.ts` checks every constant is named here.
+
+| Constant                                            | What it is                                            |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| `--brand-paper`, `--brand-paper-2`                  | the light page and its second surface                 |
+| `--brand-ink`, `--brand-ink-2`, `--brand-muted`     | light text, its second weight, its quiet weight       |
+| `--brand-line`, `--brand-line-strong`               | hairline, and the 3:1 control edge on paper           |
+| `--brand-night`, `--brand-night-2`                  | the dark page and its second surface                  |
+| `--brand-on-night`, `--brand-on-night-muted`        | dark text and its quiet weight                        |
+| `--brand-gold`, `--brand-gold-ink`, `--brand-focus` | the accent, text on it, the focus ring on paper       |
+| `--brand-font-display`, `--brand-font-body`         | Inter Tight and Geist, self-hosted under `src/fonts/` |
 
 ## Kits
 
