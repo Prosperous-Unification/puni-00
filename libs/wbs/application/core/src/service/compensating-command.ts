@@ -93,8 +93,10 @@ export type CompensatingCommand =
    * about: the redo of a claim and the undo of a release (`wbs-team-claims`).
    * `occupancy` is every row the claims carried (`wbs-resources` R3); putting
    * them back re-acquires, so it passes the occupancy check a fresh claim does.
+   * Absent on entries written before `20261020130000_add_claim_occupancy`,
+   * whose claims held nothing; every new entry writes it.
    */
-  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[]; occupancy: ClaimOccupancy[] }
+  | { do: 'add_claims'; claims: Claim[]; stated: ProgressKey[]; occupancy?: ClaimOccupancy[] }
   /**
    * Claims taken off by id, with the statements the claim had made: the undo
    * of a claim and the redo of a release. A release clears nothing.

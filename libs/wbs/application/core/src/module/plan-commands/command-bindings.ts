@@ -150,6 +150,14 @@ export class CommandContext {
             declared: outcome.declared,
           },
         });
+      case 'below_held_occupancy':
+        // Proof: with `held` replaced by 0, `refuses a later claim asking for
+        // less than its leaf holds` (resource-occupancy.db.test.ts) failed on
+        // both stores; watched 2026-10-20.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { resourceId: outcome.resourceId, asked: outcome.asked, held: outcome.held },
+        });
       case 'resources_exhausted':
         // Proof: with holders replaced by [], `refuses the ninth claim on 32 GB
         // naming the eight holders` (resource-occupancy.db.test.ts) named

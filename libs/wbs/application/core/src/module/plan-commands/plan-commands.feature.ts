@@ -95,7 +95,7 @@ export type AppliedCommand =
       alreadyHeld: boolean;
       claimIds: string[];
       assignedStepIds: string[];
-      /** The units the claim newly acquired (`wbs-resources` R3); empty past a leaf's first claim. */
+      /** The units the claim newly acquired (`wbs-resources` R3, R4): past a leaf's first claim, only what its ask adds. */
       acquired: ResourceUnits[];
     })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
@@ -132,6 +132,10 @@ export type Refusal =
   | {
       reason: 'below_declared_demand';
       detail: { resourceId: string; asked: number; declared: number };
+    }
+  | {
+      reason: 'below_held_occupancy';
+      detail: { resourceId: string; asked: number; held: number };
     }
   | {
       reason: 'resources_exhausted';

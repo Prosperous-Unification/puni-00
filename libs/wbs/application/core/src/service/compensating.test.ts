@@ -403,9 +403,15 @@ describe('claim replay vocabulary', () => {
       expect(() => readCommand(malformed)).toThrow(/claim (move|replay)/);
   });
 
-  it('refuses a claim replay with no occupancy, or one naming a claim it does not carry', () => {
+  it('reads a claim replay written before occupancy as holding nothing', () => {
+    const legacy: CompensatingCommand = { do: 'add_claims', claims: [claim], stated: [] };
+    expect(readCommand(legacy)).toEqual(legacy);
+    expect(referencesOf(readCommand(legacy))).toMatchObject({ resources: [] });
+  });
+
+  it('refuses a claim replay whose occupancy is malformed or names a claim it does not carry', () => {
     for (const malformed of [
-      { do: 'add_claims', claims: [claim], stated: [] },
+      { ...add, occupancy: null },
       { ...add, occupancy: [{ claimId: 'other', resourceId: 'ram', units: 4 }] },
       { ...add, occupancy: [{ claimId: 'c1', resourceId: 'ram', units: 0 }] },
       { ...add, occupancy: [{ claimId: 'c1', resourceId: '', units: 1 }] },

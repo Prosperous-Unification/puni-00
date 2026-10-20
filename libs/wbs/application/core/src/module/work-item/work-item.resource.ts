@@ -46,6 +46,7 @@ import {
   type NodeReading,
   nodeResourcesOf,
   occupancyByResource,
+  type OccupancyRow,
   orderSteps,
   ORDINARY_BAND_RANK,
   parentIndexOf,
@@ -2523,6 +2524,16 @@ export class WorkItemService {
         : (await this.opts.claims.listByProject(projectId)).filter(
             (each) => each.workItemId === gainsFirstChild,
           );
+    // The leaf's resource demands go down with its step facts (`wbs-resources`):
+    // a demand charges leaves' work, and the child now holds the work. The
+    // occupancy stays on the claims, which move in place. A fixture built
+    // without a demand store holds no demands to move.
+    const demandedHandedDown =
+      gainsFirstChild === null || this.opts.demands === undefined
+        ? []
+        : (await this.opts.demands.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     const stepNodeMapping =
       gainsFirstChild === null
         ? []
@@ -2575,6 +2586,20 @@ export class WorkItemService {
       // (claim-command.test.ts) answered `not_claimed_by`; watched 2026-10-20.
       if (claimedHandedDown.length > 0)
         await this.claiming().claims.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `hands a leaf’s demand down to its first child, keeping
+      // the occupancy, and back on undo` (resource-occupancy.db.test.ts) read
+      // the demand on the parent, on both stores; watched 2026-10-20.
+      for (const { resourceId, units } of demandedHandedDown) {
+        for (const [owner, value] of [
+          [workItem.id, units],
+          [gainsFirstChild, null],
+        ] as const) {
+          const written = await this.demanding().set(owner, resourceId, value, stamp);
+          // Both rows and the resource were read in this unit of work a moment ago.
+          if (written !== 'written')
+            throw new Error(`cannot hand demand on ${resourceId} to first child: ${written}`);
+        }
+      }
       // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
       // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
       for (const assignment of assignedHandedDown) {
@@ -2700,6 +2725,12 @@ export class WorkItemService {
               claims: claimedHandedDown,
             },
           ]),
+      // Proof: omitted, the same test read the demand back on the parent after
+      // the redo, on both stores; watched 2026-10-20.
+      ...demandedHandedDown.flatMap(({ workItemId, resourceId, units }) => [
+        { do: 'set_demand' as const, workItemId: workItem.id, resourceId, units },
+        { do: 'set_demand' as const, workItemId, resourceId, units: null },
+      ]),
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2730,6 +2761,15 @@ export class WorkItemService {
               claims: claimedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
             },
           ]),
+      // Back on the parent; the child's own row goes with its delete.
+      // Proof: omitted, `hands a leaf’s demand down to its first child, keeping
+      // the occupancy, and back on undo` read no demand after the undo; watched 2026-10-20.
+      ...demandedHandedDown.map(({ workItemId, resourceId, units }) => ({
+        do: 'set_demand' as const,
+        workItemId,
+        resourceId,
+        units,
+      })),
       inverse,
       // Proof: omitting these replay writes failed both exact blockage undo tests; watched 2026-10-14.
       ...restoreParentBlockages,
@@ -3152,6 +3192,19 @@ export class WorkItemService {
     const steps = await this.opts.projects.stepsOf(projectId);
     if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
       return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    // Read inside the batch's transaction: the write coordinator admits one
+    // batch at a time, so a concurrent claim's units are already here or not
+    // yet written (claim-occupancy-race.db.test.ts).
+    const occupancy = await claims.occupancyOf(projectId);
+    // The holders a `resources_exhausted` names sit on other leaves, beyond `near`.
+    const nameOf = await this.personNamesWithin(access, [
+      input.personId,
+      ...near.map(({ personId }) => personId),
+      ...occupancy.map(({ personId }) => personId),
+    ]);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     if (input.resources !== null) {
       const kindOf = new Map(
         (await this.opts.directory.listResources()).map((each) => [each.id, each.kind]),
@@ -3168,22 +3221,6 @@ export class WorkItemService {
         if (refusal !== null) return { ok: false, reason: refusal };
       }
     }
-    const lineage = lineageOf(rows, id);
-    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
-    // Read inside the batch's transaction: the write coordinator admits one
-    // batch at a time, so a concurrent claim's units are already here or not
-    // yet written (claim-occupancy-race.db.test.ts).
-    const occupied = await claims.occupancyOf(projectId);
-    // A `resources_exhausted` refusal names holders anywhere in the project, so
-    // their names are read beside the near claims'. Proof: with only `near`
-    // named, `admits one of two concurrent claims over capacity`
-    // (claim-occupancy-race.db.test.ts) threw `names an absent person`; watched 2026-10-20.
-    const nameOf = await this.personNamesWithin(access, [
-      input.personId,
-      ...near.map(({ personId }) => personId),
-      ...occupied.map(({ personId }) => personId),
-    ]);
-    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
     const stated = new Map(
       (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
         each.stepId,
@@ -3226,7 +3263,7 @@ export class WorkItemService {
         : [],
       resources: input.resources,
       capacities: await this.resourceCapacitiesOf(projectId),
-      occupancy: occupied,
+      occupancy,
     });
     if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
     if (decided.kind === 'alreadyHeld') {
@@ -3251,10 +3288,10 @@ export class WorkItemService {
       accountId: actorId,
     }));
     const statements = decided.stateInProgress.map((stepId) => ({ workItemId: id, stepId }));
-    const occupancy = written.flatMap((each) =>
+    const copies = written.flatMap((each) =>
       decided.occupancy.map(({ resourceId, units }) => ({ claimId: each.id, resourceId, units })),
     );
-    const outcome = await claims.add(written, statements, stamp, occupancy);
+    const outcome = await claims.add(written, statements, stamp, copies);
     // Read in this same unit of work a moment ago: a refusal here is the
     // write coordinator failing to serialize, not an outcome to model.
     if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
@@ -3286,7 +3323,7 @@ export class WorkItemService {
     }));
     await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
       forward: oneCommandOf([
-        { do: 'add_claims', claims: written, stated: statements, occupancy },
+        { do: 'add_claims', claims: written, stated: statements, occupancy: copies },
         ...assigning,
       ]),
       // Proof: with `unassigning` left out, `undo clears both the claim and the
@@ -3425,29 +3462,45 @@ export class WorkItemService {
    */
   private async refuseReacquiring(
     projectId: string,
-    command: { claims: readonly Claim[]; occupancy: readonly ClaimOccupancy[] },
+    command: { claims: readonly Claim[]; occupancy?: readonly ClaimOccupancy[] },
   ): Promise<string | null> {
-    if (command.occupancy.length === 0) return null;
-    const leafOf = new Map(command.claims.map((each) => [each.id, each.workItemId]));
+    const asked = command.occupancy ?? [];
+    if (asked.length === 0) return null;
+    const byId = new Map(command.claims.map((each) => [each.id, each]));
     const askedBy = new Map<string, Map<string, number>>();
-    for (const { claimId, resourceId, units } of command.occupancy) {
-      const leaf = leafOf.get(claimId);
+    for (const { claimId, resourceId, units } of asked) {
+      const leaf = byId.get(claimId)?.workItemId;
       // `readCommand` refused an occupancy naming a claim the entry lacks.
       if (leaf === undefined) throw new Error(`occupancy names claim ${claimId} not replayed`);
-      const asked = askedBy.get(leaf) ?? new Map<string, number>();
-      asked.set(resourceId, Math.max(asked.get(resourceId) ?? 0, units));
-      askedBy.set(leaf, asked);
+      const vector = askedBy.get(leaf) ?? new Map<string, number>();
+      vector.set(resourceId, Math.max(vector.get(resourceId) ?? 0, units));
+      askedBy.set(leaf, vector);
     }
     const capacities = await this.resourceCapacitiesOf(projectId);
-    const occupancy = await this.claiming().claims.occupancyOf(projectId);
-    for (const [workItemId, asked] of askedBy) {
+    // Leaf by leaf, each admitted leaf's rows joining the snapshot before the
+    // next is checked: one entry may put back several leaves (a cascading
+    // release), and units the first re-takes are not free for the second.
+    // Proof: with the admitted rows left out of the snapshot, `undo of a
+    // cascading release re-acquires leaf by leaf, refused once the second leaf
+    // no longer fits` (resource-occupancy.db.test.ts) answered the undo ok, over 8 GB
+    // capacity, on both stores; watched 2026-10-20.
+    const occupancy: OccupancyRow[] = [...(await this.claiming().claims.occupancyOf(projectId))];
+    for (const [workItemId, units] of askedBy) {
       const exhausted = refuseOccupancy({
         workItemId,
-        asked: [...asked].map(([resourceId, units]) => ({ resourceId, units })),
+        asked: [...units].map(([resourceId, each]) => ({ resourceId, units: each })),
         capacities,
         occupancy,
       });
-      if (exhausted === null) continue;
+      if (exhausted === null) {
+        for (const row of asked) {
+          const claim = byId.get(row.claimId);
+          if (claim?.workItemId !== workItemId) continue;
+          const { personId, runId } = claim;
+          occupancy.push({ ...row, workItemId, personId, runId });
+        }
+        continue;
+      }
       const resource = (await this.opts.directory.listResources()).find(
         (each) => each.id === exhausted.resourceId,
       );
@@ -6835,7 +6888,13 @@ export class WorkItemService {
         const { claims } = this.claiming();
         const exhausted = await this.refuseReacquiring(projectId, command);
         if (exhausted !== null) return { ok: false, detail: exhausted };
-        const added = await claims.add(command.claims, command.stated, stamp, command.occupancy);
+        const added = await claims.add(
+          command.claims,
+          command.stated,
+          stamp,
+          // Absent on an entry written before claim occupancy: its claims held nothing.
+          command.occupancy ?? [],
+        );
         // Proof: answering ok here made `refuses a redo of a claim once another
         // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.
         if (added === 'taken')

@@ -66,7 +66,7 @@ const appliedResults = type({
     'alreadyHeld?': 'boolean',
     'claimIds?': 'string[]',
     'assignedStepIds?': 'string[]',
-    // The units its claim newly acquired (`wbs-resources` R3); empty past a leaf's first claim.
+    // The units its claim newly acquired (`wbs-resources` R3, R4): past a leaf's first claim, what its ask adds.
     'acquired?': type({ resourceId: 'string', units: 'number' }).array(),
   }).array(),
 });
@@ -230,6 +230,13 @@ const batchRefusals = [
           resourceId: 'string',
           asked: 'number',
           declared: 'number',
+        }),
+        type({
+          ...context,
+          error: "'below_held_occupancy'",
+          resourceId: 'string',
+          asked: 'number',
+          held: 'number',
         }),
         type({
           ...context,

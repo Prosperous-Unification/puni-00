@@ -666,7 +666,7 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       // their rows, steps, people and progress` (compensating.test.ts) read no
       // resource off the occupancy; watched 2026-10-20.
       if (command.do === 'add_claims')
-        found.resources.push(...command.occupancy.map(({ resourceId }) => resourceId));
+        found.resources.push(...(command.occupancy ?? []).map(({ resourceId }) => resourceId));
       return;
     case 'move_claims':
       rows(command.fromWorkItemId, command.toWorkItemId);
@@ -891,12 +891,20 @@ function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
       throw new Error('a journal claim replay holds a malformed progress key');
   }
   if (keys === 'cleared') return;
-  const occupancy: unknown = 'occupancy' in value ? value.occupancy : undefined;
-  // Proof: with this check answering early, `refuses a claim replay with no
-  // occupancy, or one naming a claim it does not carry` (compensating.test.ts)
-  // did not throw; watched 2026-10-20.
-  if (!Array.isArray(occupancy)) throw new Error('a journal claim replay has no occupancy');
-  const ids = new Set(claims.map((each) => ('id' in each ? each.id : null)));
+  // Absent `occupancy` is the shape written before `20261020130000_add_claim_occupancy`
+  // (a claim of claims slice 1, a release's undo, or an outgoing colour mid-swap):
+  // those claims held nothing, so the replay re-adds them holding nothing.
+  // Proof: with absence refused, `reads a claim replay written before occupancy
+  // as holding nothing` (compensating.test.ts) threw, and `undoes a release and
+  // redoes a claim journalled before claim occupancy` (claim-race.db.test.ts)
+  // failed its undo; watched 2026-10-20.
+  if (!('occupancy' in value)) return;
+  const occupancy: unknown = value.occupancy;
+  // Proof: with this check answering early, `refuses a claim replay whose
+  // occupancy is malformed or names a claim it does not carry`
+  // (compensating.test.ts) did not throw; watched 2026-10-20.
+  if (!Array.isArray(occupancy)) throw new Error('a journal claim replay has no occupancy list');
+  const ids = new Set<unknown>(claims.map((each): unknown => Reflect.get(each, 'id')));
   const rows: readonly unknown[] = occupancy;
   for (const row of rows) {
     if (

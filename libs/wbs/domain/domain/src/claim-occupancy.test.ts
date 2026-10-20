@@ -154,13 +154,6 @@ describe('a claim occupies its leaf’s demand vector', () => {
       occupancy: [{ resourceId: WORKTREE, units: 1 }],
       acquired: [],
     });
-    // A larger ask on a later claim is not an edit of the standing occupancy (R4).
-    const larger = decideClaim({ ...second, resources: [{ resourceId: WORKTREE, units: 2 }] });
-    if (larger.kind !== 'claim') throw new Error('the larger second claim was not applied');
-    expect({ occupancy: larger.occupancy, acquired: larger.acquired }).toEqual({
-      occupancy: [{ resourceId: WORKTREE, units: 1 }],
-      acquired: [],
-    });
     const both = [...first.occupancy, ...written(second, 'b').occupancy];
     expect(occupancyByResource(both)).toEqual([
       {
@@ -172,6 +165,90 @@ describe('a claim occupies its leaf’s demand vector', () => {
         ],
       },
     ]);
+  });
+
+  // R4 on a held leaf: an ask above the standing copy is acquired whole or refused, never dropped.
+  describe('a later claim asking for more on a held leaf', () => {
+    const demand = [{ resourceId: RAM, units: 4 }];
+    const held = (capacity: number) => {
+      const capacities = [{ resourceId: RAM, units: capacity }];
+      const first = written(
+        leafClaim('leaf', { person: 'a0', stepIds: ['impl'], demand, capacities }),
+        'a0',
+      );
+      return (resources: ResourceUnits[]) =>
+        decideClaim(
+          leafClaim('leaf', {
+            person: 'a1',
+            stepIds: ['review'],
+            demand,
+            capacities,
+            resources,
+            claims: first.claims,
+            occupancy: first.occupancy,
+          }),
+        );
+    };
+
+    it('acquires the difference and carries the larger copy', () => {
+      const decided = held(8)([{ resourceId: RAM, units: 8 }]);
+      if (decided.kind !== 'claim') throw new Error(`expected a claim, got ${decided.kind}`);
+      expect({ occupancy: decided.occupancy, acquired: decided.acquired }).toEqual({
+        occupancy: [{ resourceId: RAM, units: 8 }],
+        acquired: [{ resourceId: RAM, units: 4 }],
+      });
+    });
+
+    it('refuses resources_exhausted for the whole ask when the difference does not fit', () => {
+      expect(held(6)([{ resourceId: RAM, units: 8 }])).toMatchObject({
+        kind: 'refused',
+        refusal: { reason: 'resources_exhausted', resourceId: RAM, asked: 8, free: 6 },
+      });
+    });
+
+    it('refuses below_held_occupancy for an ask under the standing copy', () => {
+      const lowered = held(8);
+      // The declared demand is a floor too, so the leaf here declares none and holds 4.
+      expect(
+        decideClaim({
+          ...leafClaim('leaf', {
+            person: 'a1',
+            stepIds: ['review'],
+            demand: [],
+            capacities: [{ resourceId: RAM, units: 8 }],
+            resources: [{ resourceId: RAM, units: 2 }],
+            claims: [
+              {
+                id: 'c0',
+                workItemId: 'leaf',
+                stepId: 'impl',
+                personId: 'a0',
+                runId: null,
+                parentClaimId: null,
+                accountId: F,
+              },
+            ],
+            occupancy: [
+              {
+                claimId: 'c0',
+                workItemId: 'leaf',
+                personId: 'a0',
+                runId: null,
+                resourceId: RAM,
+                units: 4,
+              },
+            ],
+          }),
+        }),
+      ).toEqual({
+        kind: 'refused',
+        refusal: { reason: 'below_held_occupancy', resourceId: RAM, asked: 2, held: 4 },
+      });
+      expect(lowered([{ resourceId: RAM, units: 4 }])).toMatchObject({
+        kind: 'claim',
+        acquired: [],
+      });
+    });
   });
 
   // Scenario: Release of the last claim frees the units.
