@@ -28,9 +28,9 @@
 
 ## 4. Coordinator acceptance
 
-- [ ] 4.1 Complete the originally planned authorized hosted-lane successor build/install and fixture comparison; the separately authorized local observation in 4.1a does not claim hosted execution.
+- [x] 4.1 Complete the authorized hosted-lane successor build/install and fixture comparison. Hosted run 39340870682 built exact source d7f212959, installed both preserved historical and successor packages, and proved four complete reports with eight stable identity snapshots; retained evidence distinguishes it from local 4.1a.
 - [x] 4.1a Install the separately identified local `0e444bcc4` successor, preserve the historical artifact and compare the bounded REL-EXTRACT fixture: exact positive and missing-public-entrypoint refusal JSON parity is retained.
-- [ ] 4.2 Complete compiler-backed base/candidate all-rule acceptance with identical external policy and committed oversized negative. The initial five-report comparison preserves only evaluated outcomes: ten rules remain unevaluated, including seven compiler-dependent rules. The DNS-only intermediate still refuses the SMTP import; retain these observations without closing full compiler acceptance.
+- [x] 4.2 Complete compiler-backed base/candidate all-rule acceptance with identical external policy and committed oversized negatives, including the recovery specifications’ hosted full-F7 and full-survey obligations. Hosted run 39343674302 passed five full surveys and five standalone F7 runs with twenty stable installed snapshots. Final local and hosted reports agree exactly; three unrelated refusals remain explicit. Preserve the earlier compiler-dependent refusals and failed intermediate attempts as historical observations.
 - [ ] 4.3 Run full CI and canonical exact-SHA h2puni gate. Keep WBS100 blocked until all remaining obligations are evidenced.
 
 ## 5. Real-baseline collection placement follow-up
@@ -39,7 +39,7 @@
 - [x] 5.2 Add only the two approved pre-diagnostic collection calls in typescript-serial.ts, preserving existing collections and all bounded behavior. Run the 87 focused compiler/parity/bounded controls and 53 production CLI controls.
 - [x] 5.3 Run scoped lint, typecheck, format and strict change validation; obtain independent source review. Preserve immutable predecessors and bind the dirty successor to the source patch.
 - [x] 5.4 Build/install the precommit successor and observe the same frozen full baseline complete within the unchanged 4 GiB/900-second guard. Stop on a new resource failure without increasing the ceiling or weakening checks. The two-point attempt failed; generic candidate 6.3 later satisfied this workload, with both outcomes retained.
-- [ ] 5.5 Commit through normal hooks, build the exact source revision, pass the installed 57-assertion oracle, and hand off artifact identities for coordinator full comparisons and gates.
+- [x] 5.5 Commit through normal hooks, build the exact source revision, pass the installed 57-assertion oracle, and hand off artifact identities for coordinator full comparisons and gates.
 
 ## 6. Public dependency collection follow-up
 
@@ -48,4 +48,4 @@ Task 5.2/5.3 successes remain scoped to the historical two-point candidate. Its 
 - [x] 6.1 Preserve failed two-point full-baseline receipts, declaration-closure traces, the unexercised post-schema probe, and the completed pre-schema diagnostic with immutable predecessor identities.
 - [x] 6.2 Add the approved internal optional collection callback after semantic dependency discovery and before emitted closure; supply it only from the serial legacy caller. Independently review both changed files and the unchanged bounded call site; pass 87 focused semantic/parity/accounting controls.
 - [x] 6.3 Bind and install a fresh dirty artifact, complete the unchanged frozen full baseline within 4 GiB/900 seconds, and compare the entire JSON report with the targeted diagnostic report. Stop and diagnose any resource failure.
-- [ ] 6.4 After resource GREEN, run 53 production CLI controls and scoped static checks; obtain final source review, commit through normal hooks, build exact committed source and pass the installed 57-assertion oracle before coordinator handoff.
+- [x] 6.4 After resource GREEN, run 53 production CLI controls and scoped static checks; obtain final source review, commit through normal hooks, build exact committed source and pass the installed 57-assertion oracle before coordinator handoff.

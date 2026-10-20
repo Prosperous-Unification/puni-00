@@ -1,0 +1,314 @@
+{
+  "audit": "passed",
+  "certifies": false,
+  "host": {
+    "runId": "39343674302",
+    "runAttempt": "1",
+    "proofCommit": "9215cdf312904669b6734917bf66b81a7e1cef89",
+    "sourceCommit": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+    "sourceTree": "f14468ac26ca00ee4652a5afc93b8fe1c36d7ba5",
+    "bunVersion": "1.4.2"
+  },
+  "sourceArchiveSha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+  "priorArtifact": {
+    "id": 12228379062,
+    "runId": 39340870682,
+    "zipSha256": "7c2941538885bdb2836ae4225272c3bf7dce79c00ba7a67cc54a340ca91fc126",
+    "bytes": 32569755
+  },
+  "snapshots": [
+    {
+      "path": "full-base.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-base.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-reference.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-reference.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-reference-fault.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-reference-fault.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-estimate.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-estimate.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-estimate-fault.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "full-estimate-fault.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-base.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-base.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-reference.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-reference.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-reference-fault.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-reference-fault.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-estimate.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-estimate.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-estimate-fault.before.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    },
+    {
+      "path": "f7-estimate-fault.after.json",
+      "sha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc"
+    }
+  ],
+  "allTwentySnapshotRawDigestsIdentical": true,
+  "snapshotRawSha256": "bd2f4cb88ccaedcf93c1306865fa3786338998ab44079a54c62fee4074c7e3cc",
+  "archiveRetention": {
+    "currentArtifactIncludesSuccessorArchive": false,
+    "priorHostedArtifactId": 12228379062,
+    "priorHostedArtifactZipSha256": "7c2941538885bdb2836ae4225272c3bf7dce79c00ba7a67cc54a340ca91fc126",
+    "independentlyRehashedSuccessorArchiveSha256": "761fb162076480d4a33e58afdb55a64a768a5549cffc736584e3612188c163b6",
+    "hostedChecksumEvidence": "Exact proof-inputs/run-hosted.py extract_successor checks ZIP and archive SHA before install; final package checksum equality runs immediately before completion.json. completion.json status pass attests this path finished.",
+    "limitation": "Workflow intentionally excludes successor.tgz and source-artifact.zip from this artifact; package remains retrievable from original immutable artifact 12228379062. No separately serialized final package checksum receipt exists."
+  },
+  "runs": {
+    "full-base": {
+      "reportSha256": "eedb17263aedc359fe503a2a2e9443c527f2a5b06b2685598f68554aa618dca2",
+      "receiptSha256": "0fd708d7d0ede18172a71b3790e621a3ac6be9d9ec073b48363ed8860c4e09b6",
+      "findings": 41,
+      "unevaluated": [
+        {
+          "ruleId": "INV-CLASSIFY",
+          "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+        },
+        {
+          "ruleId": "PERF-THRESHOLD",
+          "reason": "Performance config content differs from reviewed authority"
+        },
+        {
+          "ruleId": "SPEC-SCENARIOS",
+          "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+        }
+      ],
+      "allowed": false,
+      "exitCode": 1,
+      "seconds": 478.054,
+      "peakProcessTreeKiB": 3856504
+    },
+    "full-reference": {
+      "reportSha256": "240499a6f9d4d203c5eb31a1bc2a2984590cfed5500635ea03036600370ac72f",
+      "receiptSha256": "8d8f665afac6c8ac99b18b8ac7f8bbe19cf449fed8632c2b7668d285d1071612",
+      "findings": 40,
+      "unevaluated": [
+        {
+          "ruleId": "INV-CLASSIFY",
+          "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+        },
+        {
+          "ruleId": "PERF-THRESHOLD",
+          "reason": "Performance config content differs from reviewed authority"
+        },
+        {
+          "ruleId": "SPEC-SCENARIOS",
+          "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+        }
+      ],
+      "allowed": false,
+      "exitCode": 1,
+      "seconds": 473.509,
+      "peakProcessTreeKiB": 3909420
+    },
+    "full-reference-fault": {
+      "reportSha256": "0a66eeea1f011efc3a9417c64c7163d0bff9bbc9258d13b97684bdebc2b78629",
+      "receiptSha256": "9f425d86a0a84f7829279e5255a42023b2de625abd92589b4876d0267d8c865a",
+      "findings": 41,
+      "unevaluated": [
+        {
+          "ruleId": "INV-CLASSIFY",
+          "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+        },
+        {
+          "ruleId": "PERF-THRESHOLD",
+          "reason": "Performance config content differs from reviewed authority"
+        },
+        {
+          "ruleId": "SPEC-SCENARIOS",
+          "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+        }
+      ],
+      "allowed": false,
+      "exitCode": 1,
+      "seconds": 476.459,
+      "peakProcessTreeKiB": 3887924
+    },
+    "full-estimate": {
+      "reportSha256": "1aaf4497626f11ebf1e24ffe885e2dcd1a7e45404150f172549116a8b81f97f7",
+      "receiptSha256": "32aad73830bba45985a0cc5a3629c7fb0f50c38db9277e22d944e112d5410e68",
+      "findings": 40,
+      "unevaluated": [
+        {
+          "ruleId": "INV-CLASSIFY",
+          "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+        },
+        {
+          "ruleId": "PERF-THRESHOLD",
+          "reason": "Performance config content differs from reviewed authority"
+        },
+        {
+          "ruleId": "SPEC-SCENARIOS",
+          "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+        }
+      ],
+      "allowed": false,
+      "exitCode": 1,
+      "seconds": 481.433,
+      "peakProcessTreeKiB": 3936748
+    },
+    "full-estimate-fault": {
+      "reportSha256": "4b243e644d0827fca041d900a75748a6a435aa5c6a35b2ede2ff088c0306e94a",
+      "receiptSha256": "c47c0b95d8a7b373b620cf2e6810bd6eb00b61057fae2faa30bef9b7ca385ece",
+      "findings": 41,
+      "unevaluated": [
+        {
+          "ruleId": "INV-CLASSIFY",
+          "reason": "undeclared binary content at openspec/changes/activate-step-blockage-writers/evidence/rollback-boundary-2026-10-17/rollback-atomicity-receipt-red.log.gz"
+        },
+        {
+          "ruleId": "PERF-THRESHOLD",
+          "reason": "Performance config content differs from reviewed authority"
+        },
+        {
+          "ruleId": "SPEC-SCENARIOS",
+          "reason": "competing overlay operation: wbs-domain: A leaf's status folds its progress, hold, readiness and predecessors"
+        }
+      ],
+      "allowed": false,
+      "exitCode": 1,
+      "seconds": 483.789,
+      "peakProcessTreeKiB": 3891952
+    },
+    "f7-base": {
+      "reportSha256": "0839dbce2467565a72b6f4da8aeaa15a032f0695fe31efc174b199f88ce22db6",
+      "receiptSha256": "66727411aa7bab37c7d3643ed24ced8cfde19f59651e0db34994c362432f9231",
+      "findings": 29,
+      "unevaluated": [],
+      "allowed": true,
+      "exitCode": 0,
+      "seconds": 5.209,
+      "peakProcessTreeKiB": 1555896
+    },
+    "f7-reference": {
+      "reportSha256": "6a0863840e0be6f760c43868ddc5139189cd007de1e8f91f216866123615ed83",
+      "receiptSha256": "747db6fb96f55c95262f2192cdfd37ca001c13f9bfbe367afbd3cd3ab5222d3b",
+      "findings": 28,
+      "unevaluated": [],
+      "allowed": true,
+      "exitCode": 0,
+      "seconds": 5.347,
+      "peakProcessTreeKiB": 1575868
+    },
+    "f7-reference-fault": {
+      "reportSha256": "0fd6ca5975875fdd403e532478709048fb3ebca8ae92109317d143bdc73b4e58",
+      "receiptSha256": "11bd7deeec4941d51c872e560cb99eddcd9bfe805bfedade205b18865ecc9724",
+      "findings": 29,
+      "unevaluated": [],
+      "allowed": true,
+      "exitCode": 0,
+      "seconds": 5.281,
+      "peakProcessTreeKiB": 1581488
+    },
+    "f7-estimate": {
+      "reportSha256": "9a9a0f8d4173761468ca6c2162601547e1ca84000d968a0b03d640046bcf4594",
+      "receiptSha256": "bf3aeff33a18111c0140c63998ce4aa483ec067c29e1db84f2bb943bc5b53707",
+      "findings": 28,
+      "unevaluated": [],
+      "allowed": true,
+      "exitCode": 0,
+      "seconds": 5.245,
+      "peakProcessTreeKiB": 1560304
+    },
+    "f7-estimate-fault": {
+      "reportSha256": "860d7b7afbe28bf9ce6f5c8545a0290397fa1b4b70de6baa3a143b00e512bc6b",
+      "receiptSha256": "d8ecd11dd0e19781d74c77bfe210c2016f6404eed89d6400595fd2193a06384a",
+      "findings": 29,
+      "unevaluated": [],
+      "allowed": true,
+      "exitCode": 0,
+      "seconds": 5.244,
+      "peakProcessTreeKiB": 1569604
+    },
+    "consumer-install": {
+      "command": [
+        "bun",
+        "add",
+        "--exact",
+        "--ignore-scripts",
+        "/home/runner/work/puni-00/puni-00/receipts/successor.tgz"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/full-survey-consumer",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 48796,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 1.262,
+      "availableBeforeKiB": 15080760,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    },
+    "consumer-frozen": {
+      "command": [
+        "bun",
+        "install",
+        "--frozen-lockfile",
+        "--ignore-scripts"
+      ],
+      "cwd": "/home/runner/work/puni-00/puni-00/full-survey-consumer",
+      "exitCode": 0,
+      "peakProcessTreeKiB": 15836,
+      "ceilingKiB": 2097152,
+      "timeoutSeconds": 360,
+      "seconds": 0.239,
+      "availableBeforeKiB": 15078124,
+      "minimumAvailableKiB": 12582912,
+      "stopReason": null
+    }
+  },
+  "scope": "Independent retained artifact checks; no local evaluator execution. All three explicit unevaluated outcomes remain unevaluated."
+}

@@ -13,5 +13,5 @@
 
 ## 3. Coordinator acceptance
 
-- [ ] 3.1 Run the unchanged full policy for baseline and four recovery candidates, preserving every refusal and checking exact report identities/deltas.
+- [x] 3.1 Run the unchanged full policy for baseline and four recovery candidates, preserving every refusal and checking exact report identities/deltas. Completed for the final local successor; see [coordinator evidence](verify.md#final-successor-local-coordinator-evidence).
 - [ ] 3.2 Obtain full CI and exact-SHA h2puni acceptance before completion.

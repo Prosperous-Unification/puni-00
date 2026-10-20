@@ -1,0 +1,37 @@
+{
+  "files": {
+    "README.md": {
+      "bytes": 4141,
+      "sha256": "f75e840893a670058e555edb3d73efb792c5a8aaf3df8cce5478e0881755b51f"
+    },
+    "hosted-artifact.json.txt": {
+      "bytes": 4988,
+      "sha256": "7101802f24cc1ab526e6447ab590cf58ee48dffdad7d5a1a04f7ee4f3b2b02d3"
+    },
+    "independent-audit.json.txt": {
+      "bytes": 12031,
+      "sha256": "28a87389c3c1f51769ddc91fea633fe47cecf0fab64f3e892eae79cf01ab7f4a"
+    },
+    "independent-audit.py.txt": {
+      "bytes": 8552,
+      "sha256": "1ce6e88881e52d0633341887a68411038eaae0d6d57742b7331bd641508f3395"
+    },
+    "manifest.json.txt": {
+      "bytes": 43268,
+      "sha256": "1e816ea8a9637ac555b4cef06d449adee9855eefd410299a1d98ac131e94d60c"
+    },
+    "raw-streams.json.txt": {
+      "bytes": 863086,
+      "sha256": "5d5abfea824d3aaa25c42b3920912cc79175385648ee86791eb3ccca815a2f8e"
+    },
+    "reconstruct.py.txt": {
+      "bytes": 1230,
+      "sha256": "eb5a5311f5749e90de5ef4f43f0c78904d179400a161201c3a72681932b854fb"
+    },
+    "transport-proof.json.txt": {
+      "bytes": 766,
+      "sha256": "de04f35b0f18d66de7562e9371caf428d7ca55019c3f27203806023b7df06e92"
+    }
+  },
+  "scope": "Packet file hashes excluding this self-describing list; original artifact/raw-stream hashes are in manifest.json.txt."
+}

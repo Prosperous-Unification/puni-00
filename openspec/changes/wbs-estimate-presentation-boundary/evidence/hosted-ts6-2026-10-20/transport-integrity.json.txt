@@ -1,0 +1,128 @@
+{
+  "scope": "Lossless transport only, no compiler execution",
+  "checkerSha256": "7d5144d2cd1276829f3be75c5ad3e371c1f8fd31c9c3ebe889df410d8df4c0b0",
+  "manifestSha256": "29dfa1e09a54498d60d708df98b4176af39d6e445039c37200c31df246385e1c",
+  "carrierSha256": "c48eda533ee57c4356471167279877814da9ff0c002cf744731c7f35de14d056",
+  "checks": [
+    {
+      "label": "original",
+      "command": [
+        "python3",
+        "/tmp/puni-wbs100-hosted-estimate-ts6-packet-20261020/verify-packet.py.txt",
+        "/tmp/puni-wbs100-hosted-estimate-ts6-packet-20261020",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    },
+    {
+      "label": "carrier",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/carrier/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/carrier",
+        "--check-sources"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/carrier/verify-packet.py.txt\", line 16, in <module>\n    require(hashlib.sha256(carrier).hexdigest() == manifest['payloadFileSha256'], 'carrier digest mismatch')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/carrier/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: carrier digest mismatch\n"
+    },
+    {
+      "label": "carrier-restored",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/carrier/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/carrier",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    },
+    {
+      "label": "payload",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/payload/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/payload",
+        "--check-sources"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/payload/verify-packet.py.txt\", line 20, in <module>\n    require(hashlib.sha256(raw).hexdigest() == entry['sha256'], 'payload digest mismatch: ' + name)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/payload/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: payload digest mismatch: hosted/typecheck.receipt.json\n"
+    },
+    {
+      "label": "payload-restored",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/payload/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/payload",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    },
+    {
+      "label": "length",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/length/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/length",
+        "--check-sources"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/length/verify-packet.py.txt\", line 21, in <module>\n    require(len(raw) == entry['bytes'], 'byte count mismatch: ' + name)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/length/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: byte count mismatch: hosted/typecheck.receipt.json\n"
+    },
+    {
+      "label": "length-restored",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/length/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/length",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    },
+    {
+      "label": "source",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/source/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/source",
+        "--check-sources"
+      ],
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/source/verify-packet.py.txt\", line 23, in <module>\n    require(raw == Path(entry['source']).read_bytes(), 'source bytes mismatch: ' + name)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/wbs100-ts6-transport-x1wcpwpt/source/verify-packet.py.txt\", line 13, in require\n    raise ValueError(message)\nValueError: source bytes mismatch: hosted/typecheck.receipt.json\n"
+    },
+    {
+      "label": "source-restored",
+      "command": [
+        "python3",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/source/verify-packet.py.txt",
+        "/tmp/wbs100-ts6-transport-x1wcpwpt/source",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    },
+    {
+      "label": "original-final",
+      "command": [
+        "python3",
+        "/tmp/puni-wbs100-hosted-estimate-ts6-packet-20261020/verify-packet.py.txt",
+        "/tmp/puni-wbs100-hosted-estimate-ts6-packet-20261020",
+        "--check-sources"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"files\": 50, \"payloads\": 37, \"sourceBytesChecked\": true, \"status\": \"passed\"}\n",
+      "stderr": ""
+    }
+  ]
+}

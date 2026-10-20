@@ -102,9 +102,14 @@ diff. Patches and [restoration hashes](evidence/recovery-2026-10-19/fault-restor
 retain that distinction. Other faults touch only extracted presentation.
 Existing historical `Proof:` comments remain unchanged with the original source.
 
-These observations satisfy the bounded successor's historical tasks 1.3 and
-1.5; the old task file remains intact as a historical artifact. No browser,
-full-gate or all-rule task is declared complete.
+The watched faults and restored mounted checks satisfy the bounded successor's
+historical task 1.3. The explicit TS6 result above is local: it proves the scoped
+compiler check, but does not satisfy task 1.5's required hosted venue. The hosted
+frontend target uses the workspace TypeScript 7 executable, so its green result
+is not substituted for explicit hosted TS6 evidence. The later [dedicated hosted
+TS6 proof](#dedicated-hosted-ts6-acceptance) satisfies that missing venue component
+for the recovered source; the old task file retains its historical observations.
+No browser, full-gate or all-rule task is declared complete by these local results.
 
 ## Scoped checks and normal commits
 
@@ -220,3 +225,29 @@ preserved, including seven DNS-dependent compiler refusals. Thus evaluated
 finding preservation is now observed, while full compiler acceptance and WBS100
 completion remain open. The historical artifact and its original evidence
 remain unchanged.
+
+## Exact-successor local full comparison
+
+The [final local installed survey packet](../burokrat-serial-legacy-compiler/evidence/final-installed-surveys/README.md) supersedes the earlier lack of complete local compiler-backed evidence for this separately identified successor. Exact evaluator source `d7f2129598af7a3cb7ed3c7161e06d504b586891`, local archive `5dfc97149a59511d843f5f39e39c57e731c4b898cfbe2aa43920f05e5f088dee`, and unchanged policy `3cff7523…` evaluated the original base `3e8d0742…`, estimate `4a98e809…` and committed oversized fault `1b1a39e7…`, alongside the reference pair. All fourteen selected rules are present; the seven compiler-dependent rules no longer refuse DNS/SMTP resolution.
+
+The unchanged strict five-report comparison passed. Estimate whole findings changed 41→40 only by removing the F7 record for the 1095-line `plan-columns/estimates.tsx`; the actual fault restored all 41 baseline findings exactly. Estimate and fault completed in 439.198/415.397 seconds at 4,133,748/4,101,988 KiB under the unchanged 4 GiB/900-second guard, with identical before/after evaluator snapshots. The unchanged equality helper rejected the real fault report and passed when reselecting the good report; that last comparison did not rerun evaluation.
+
+All reports retain the same three explicit INV-CLASSIFY/PERF-THRESHOLD/SPEC-SCENARIOS unevaluated records, `allowed:false` and `certifies:false`. This is local full-rule preservation, not hosted full-survey or final WBS100 acceptance. Hosted bounded-parity archive `761fb162…` has a separate identity from the local `5dfc9714…` archive, despite the same source revision. Hosted full comparison and required gates remain pending coordinator evidence. The historical installed artifact and earlier proof scope remain unchanged.
+
+## Dedicated hosted TS6 acceptance
+
+The [retained hosted packet](evidence/hosted-ts6-2026-10-20/README.md) records successful [run 39345173154](https://github.com/Prosperous-Unification/puni-00/actions/runs/39345173154), job 118375915716, proof commit `bf5aba88cfe0bf230c253f3b2ee691b540570dd6` and independently pinned source `d7f2129598af7a3cb7ed3c7161e06d504b586891`. Both selected production files are byte-identical to recovered estimate source `4a98e8092fe4af14ffd5ceefac5d27dd42998ba0`. This is a new hosted execution of the retained scope, not a relabeling of the earlier local run or the frontend target's TypeScript 7 check.
+
+After a fresh frozen Bun 1.4.2 install, the exact command `bun node_modules/typescript/bin/tsc6 -p .estimate-recovery-scope.tsconfig.json --noEmit` passed with child exit zero, empty stdout/stderr and no guard stop in 11.460 seconds at 1,453,972 KiB. The unchanged retained guard enforced 2 GiB/360 seconds and at least 12 GiB available memory; all four install/version/resolve/typecheck invocations passed. Actual version output was `Version 6.0.3`, and the entry/facade/resolved compiler hashes match the historical public TS6 identity. Source/config/compiler before/after snapshots are byte-identical at SHA256 `72600672799db9086f67e1e0e033a7b759978896b2df959bd13660436f5dbeea`.
+
+Artifact 12230922085 has original ZIP SHA256 `4cab00032ce438e11d3d75c78f3523d88e521024575030fe4f2f1c850f91cda3`. All 40 hosted text files, run/artifact metadata and independent audits are retained losslessly with the local adapter checks; the ZIP itself stays outside the repository. The packet's 50 original streams reconstruct exactly from 37 payloads, with four watched transport faults and restorations. The hosted adapter's 38 input and five orchestration negatives concern proof integrity, not compiler negatives. Independent source and downloaded-artifact review found no remaining scoped proof issue.
+
+This closes historical task 1.5's explicit hosted TS6 obligation for the recovered source; its original unchecked task record remains historical with this superseding pointer. Full CI, canonical h2puni gates, hosted full-survey and WBS100 completion remain separate coordinator obligations and are not claimed here.
+
+## Hosted full comparison acceptance
+
+The later [hosted full-survey packet](../burokrat-serial-legacy-compiler/evidence/hosted-full-surveys/README.md) supplies historical task 2.3's independent hosted full-F7 and all-rule comparison component. Run 39343674302 succeeded at proof `9215cdf312904669b6734917bf66b81a7e1cef89`, independently pinning evaluator source `d7f2129598af7a3cb7ed3c7161e06d504b586891`, hosted archive `761fb162…`, original policy `3cff7523…` and all five original candidate/fault bindings. Artifact 12232405029 has ZIP SHA256 `0d342b6e8d3874430f81ceb41a5a13af9f11c274c31f222908f8a3841d05343e`.
+
+All five full reports are byte-identical to the corresponding final local reports. The unchanged strict comparator proves only the addressed F7 finding disappears and the actual committed oversized fault restores every baseline finding. Five separate installed F7 commands independently prove 29→28→29 with empty unevaluated arrays. All twenty installed snapshots are byte-identical; all ten commands completed under the unchanged 4 GiB/900-second guard without a resource stop. Root and peer independently audited the actual artifact and command/report identities.
+
+This supersedes the pending hosted-survey statements above. The earlier recovered-source browser and immutable hosted CI observations remain recorded in the post-merge section; the estimate's separate explicit hosted TS6 proof is not substituted for these surveys. Final compiler-successor CI/canonical gates remain separate coordinator obligations. All three unrelated full-survey refusals remain explicit, all reports retain `certifies:false`, and WBS100 stays open. The original task and historical packet bytes are preserved rather than relabelled as this new execution.

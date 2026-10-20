@@ -1,0 +1,263 @@
+{
+  "sourceRevision": "d7f2129598af7a3cb7ed3c7161e06d504b586891",
+  "proofRevision": "bf5aba88cfe0bf230c253f3b2ee691b540570dd6",
+  "run": 39345173154,
+  "job": 118375915716,
+  "artifact": 12230922085,
+  "originalZipSha256": "4cab00032ce438e11d3d75c78f3523d88e521024575030fe4f2f1c850f91cda3",
+  "originalZipBytes": 23999,
+  "scope": "Hosted explicit estimate TypeScript6 scope; not full frontend CI/h2/all-rule acceptance",
+  "payloadFileSha256": "c48eda533ee57c4356471167279877814da9ff0c002cf744731c7f35de14d056",
+  "files": {
+    "hosted/acceptance.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/acceptance.json",
+      "sha256": "21b88bd84155059910d7fbf89913f7596fe64dc0a98f61dbd374701bc61e4813",
+      "bytes": 386
+    },
+    "hosted/adapter-negatives.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/adapter-negatives.json",
+      "sha256": "850a54783cc995ff4c5dfda6464511d75e60912c380bff9706b322f321507663",
+      "bytes": 16007
+    },
+    "hosted/after.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/after.json",
+      "sha256": "72600672799db9086f67e1e0e033a7b759978896b2df959bd13660436f5dbeea",
+      "bytes": 2154
+    },
+    "hosted/before.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/before.json",
+      "sha256": "72600672799db9086f67e1e0e033a7b759978896b2df959bd13660436f5dbeea",
+      "bytes": 2154
+    },
+    "hosted/install.command.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.command.json",
+      "sha256": "fa551f0ffa5a522794d9b6acb5ed21a0ba2c6d074dc09d86547323dcc97a5f0d",
+      "bytes": 274
+    },
+    "hosted/install.guard-exit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.guard-exit.json",
+      "sha256": "ff8ae5796bcef71911ff9c5c3eaea341819c471f669549e252b830106edd4305",
+      "bytes": 20
+    },
+    "hosted/install.guard.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.guard.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/install.guard.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.guard.stdout",
+      "sha256": "478b05854f29462ea6022170d2e4919c18e94263a2bcc80d8757238e62c29a7a",
+      "bytes": 298
+    },
+    "hosted/install.receipt.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.receipt.json",
+      "sha256": "86c8a8b526d573604fd7247fefb7c17cfa8368a3a6041c99f2f1fce5b07f199a",
+      "bytes": 336
+    },
+    "hosted/install.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/install.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/install.stdout",
+      "sha256": "fe909e5fc6ffef038be12b111a39ab3cab0cf19934ef40d7246e5177df48c04e",
+      "bytes": 2452
+    },
+    "hosted/mounted-ts6-guard.py.txt": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/mounted-ts6-guard.py.txt",
+      "sha256": "291398b1395dcdc5a342f7439f48c2f9f497ceaa83481176110cec1192df974c",
+      "bytes": 1954
+    },
+    "hosted/proof-inputs/README.md": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/proof-inputs/README.md",
+      "sha256": "a559beb8f01472c1348a1a4db5464d4f8650c540267f8725a2aadc22e43b3f70",
+      "bytes": 2199
+    },
+    "hosted/proof-inputs/prove-adapter.py": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/proof-inputs/prove-adapter.py",
+      "sha256": "076be9f2e6e62397a834f9f22364908da9449ea0a443a400ef17aff9b2856a7c",
+      "bytes": 8323
+    },
+    "hosted/proof-inputs/run-hosted.py": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/proof-inputs/run-hosted.py",
+      "sha256": "6ebc32cd9f9a4b25e460613831f016a480f8b3915a9f5e74c8ea7d2b9d5bd68d",
+      "bytes": 10314
+    },
+    "hosted/provenance.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/provenance.json",
+      "sha256": "b35ee1ceffd08f633a232035f793336e30bbf5a5eb7c89c7cfd2510a5d258c10",
+      "bytes": 335
+    },
+    "hosted/resolve.command.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.command.json",
+      "sha256": "1e92cb9f4098611b7dddc9f29d2231c45d3cd39ba6ef5828902b928fb8eb7e14",
+      "bytes": 587
+    },
+    "hosted/resolve.guard-exit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.guard-exit.json",
+      "sha256": "ff8ae5796bcef71911ff9c5c3eaea341819c471f669549e252b830106edd4305",
+      "bytes": 20
+    },
+    "hosted/resolve.guard.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.guard.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/resolve.guard.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.guard.stdout",
+      "sha256": "1eefc7edf0c197ab80f56805de1ad186cef3053f16821d1fdcd8a87f2ffa213a",
+      "bytes": 606
+    },
+    "hosted/resolve.receipt.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.receipt.json",
+      "sha256": "f5e9595833b8dc8553e50b3a18570aab788ddc5b8a033cc02dc78dc4f1d30a4b",
+      "bytes": 644
+    },
+    "hosted/resolve.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/resolve.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/resolve.stdout",
+      "sha256": "31d9f51d569e7124bafee9091593d6a6b0d937255261811717916a212dd7516a",
+      "bytes": 267
+    },
+    "hosted/ts6-identity.json.txt": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/ts6-identity.json.txt",
+      "sha256": "1d3ef6d59bee8d6513f8c8ca5e91e61db22e467d60b107a5df1f770539d604c1",
+      "bytes": 621
+    },
+    "hosted/ts6-scope.json.txt": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/ts6-scope.json.txt",
+      "sha256": "124877f93f60b1d2585493fbfa6104c8b4e3b4efbc1d8f3d65dd33fd0ccc6fd1",
+      "bytes": 217
+    },
+    "hosted/typecheck.command.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.command.json",
+      "sha256": "04904ae3b23ec9137ba9727222ece4604662ced389439bf636e522d8ed052106",
+      "bytes": 348
+    },
+    "hosted/typecheck.guard-exit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.guard-exit.json",
+      "sha256": "ff8ae5796bcef71911ff9c5c3eaea341819c471f669549e252b830106edd4305",
+      "bytes": 20
+    },
+    "hosted/typecheck.guard.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.guard.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/typecheck.guard.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.guard.stdout",
+      "sha256": "e28035e4887bff2c7ca0ae13ba755bb35540f642922b35513d2ce6a28f7b74cb",
+      "bytes": 363
+    },
+    "hosted/typecheck.receipt.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.receipt.json",
+      "sha256": "5498e2635a654fe9e20db126594016bf83ac24938ca3f24dbcc72d208fcb4772",
+      "bytes": 409
+    },
+    "hosted/typecheck.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/typecheck.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/typecheck.stdout",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/version.command.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.command.json",
+      "sha256": "04f3e9f3363c9b9eba47ba91395b46f32cbf3db9c15e1f39115e49e156d2417b",
+      "bytes": 291
+    },
+    "hosted/version.guard-exit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.guard-exit.json",
+      "sha256": "ff8ae5796bcef71911ff9c5c3eaea341819c471f669549e252b830106edd4305",
+      "bytes": 20
+    },
+    "hosted/version.guard.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.guard.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/version.guard.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.guard.stdout",
+      "sha256": "e6069cacbc03fdbdebb4732a32efbf7d3dff9d441e597e588be4dfa893381bb8",
+      "bytes": 315
+    },
+    "hosted/version.receipt.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.receipt.json",
+      "sha256": "e812fb43e7dff18b550b04350972a9e5aacb637cdae7ca7f41605bd54104ccfb",
+      "bytes": 353
+    },
+    "hosted/version.stderr": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "hosted/version.stdout": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/version.stdout",
+      "sha256": "13af495bed3deeb9d4f80a19f5b54797937e54e69bdffe4292db85b4e211fdde",
+      "bytes": 14
+    },
+    "hosted/workflow.yml": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/extracted/workflow.yml",
+      "sha256": "788d66d3294e945c1398aed021d8aa41925f9b553f1e9b98640d00fc4013be5b",
+      "bytes": 1877
+    },
+    "audit/run.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/run.json",
+      "sha256": "87eff348cc34178bdaef46646d913e31199fc9afb7651cdb63ef54ce46f78a0f",
+      "bytes": 2675
+    },
+    "audit/artifacts.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/artifacts.json",
+      "sha256": "8f26dd9cae6cc1b5d41bedcc16439895a3598b9b3545fea07cde6470bc6769a3",
+      "bytes": 798
+    },
+    "audit/audit.py": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/audit.py",
+      "sha256": "e90c24bf1c58fc6dce57e9dad452cd6f048c4fcca39605d880b085b7302c35b9",
+      "bytes": 5692
+    },
+    "audit/audit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/audit.json",
+      "sha256": "f1917c3a12f9f0583e0de31135f62cc24088805bd600aae4412f02008f03f58e",
+      "bytes": 6619
+    },
+    "audit/root-audit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-artifact-20261020/root-audit.json",
+      "sha256": "818838dcdd6047ce9e687ccfb9abb623f43016ce8c918fa57ebd89284437bc26",
+      "bytes": 564
+    },
+    "local-adapter/adapter-negatives.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-local-checks-20261020/adapter-negatives.json",
+      "sha256": "850a54783cc995ff4c5dfda6464511d75e60912c380bff9706b322f321507663",
+      "bytes": 16007
+    },
+    "local-adapter/orchestration-wiring-faults.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-local-checks-20261020/orchestration-wiring-faults.json",
+      "sha256": "abab3af976b755087f8bb66b92213b11ceaef9c7f997ca2d126a6d2904576b6e",
+      "bytes": 1438
+    },
+    "local-adapter/source-identities.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-local-checks-20261020/source-identities.json",
+      "sha256": "de655e319a9a9561b2c2d7653529edb356d4b2acb59131a6cfc2e44099f65f8d",
+      "bytes": 511
+    },
+    "local-adapter/static-checks.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-local-checks-20261020/static-checks.json",
+      "sha256": "873398d145cc318b85d0b9e0369c3cf8f334a0f82f7d457cf11ea49067a7e3c4",
+      "bytes": 697
+    },
+    "local-adapter/commit.json": {
+      "source": "/tmp/puni-wbs100-hosted-estimate-ts6-local-checks-20261020/commit.json",
+      "sha256": "767a40c62ea3da98fa0314acaf60f65eaf84e3fa146aee008e1a5ea91f5bbfc5",
+      "bytes": 4191
+    }
+  }
+}

@@ -13,5 +13,5 @@
 
 ## 3. Coordinator acceptance
 
-- [ ] 3.1 Install the separately identified successor and rerun all five full-rule reports under the unchanged policy; preserve every unevaluated result and investigate remaining refusals.
+- [x] 3.1 Install the separately identified successor and rerun all five full-rule reports under the unchanged policy; preserve every unevaluated result and investigate remaining refusals. Completed for the final local successor; see [coordinator evidence](verify.md#final-successor-local-coordinator-evidence).
 - [ ] 3.2 Obtain full CI and exact-SHA h2puni acceptance before claiming completion.
