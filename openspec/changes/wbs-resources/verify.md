@@ -342,7 +342,18 @@ predecessor, all or none` (command-organization.controller.db.test.ts): 404 `unk
 ## Slice 1: the declaration surface (tasks 1.1 to 1.4)
 
 Run on the laptop 2026-10-20, every test under `env -u CLAUDECODE`, per project and not the
-full gate (one other worker shared the laptop). The h2puni gate is recorded at the end.
+full gate (one other worker shared the laptop).
+
+h2puni gate on `775a7a7f91e7e86c8acb7d5164bd62e246524dec`:
+
+- Worker-clone run (`~/gate-resources-decl-775a7a7f.log`) printed `h2puni gate: running on
+775a7a7f91e7e86c8acb7d5164bd62e246524dec` and ended `GATE_EXIT=1` on a clone artefact: the
+  clone was blobless (`--filter=blob:none`), and all 27 failures were in
+  `twilight-burokrat` `root-migration.test.ts` reading a historical blob (`git cat-file
+2bc8742b…: bad file`). Every other task passed; the file passes locally (32 pass, 0 fail).
+- Full-clone run (`~/gate-resources-decl-775a7a7f-r2.log`) ended `GATE_EXIT=75`: the
+  three-hour heavy-lock queue budget expired before it ran.
+- Shared-tree run pending: `~/gate-resources-decl-775a7a7f-tbf2.log`.
 
 ### What shipped, and the decisions slice 1 had to make
 
@@ -384,24 +395,24 @@ full gate (one other worker shared the laptop). The h2puni gate is recorded at t
 
 ### Commands and results
 
-| Command (cwd)                                                                                                                        | Result             |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| `bun test ./src` (libs/wbs/domain/domain)                                                                                            | 1147 pass, 0 fail  |
-| `bun test ./src` (libs/wbs/domain/contracts)                                                                                         | 151 pass, 0 fail   |
-| `bun test ./src` (libs/wbs/application/core)                                                                                         | 1113 pass, 0 fail  |
-| `bun test ./src` (libs/wbs/adapters/store-memory)                                                                                    | 190 pass, 0 fail   |
-| `bun test ./src` (libs/wbs/application/conformance)                                                                                  | 35 pass, 0 fail    |
-| `bun test ./src` (libs/wbs/adapters/store-sqlite)                                                                                    | 1693 pass, 0 fail  |
-| `bun test ./src` (apps/wbs/be-01)                                                                                                    | BE01_COUNTS        |
-| `bun test ./src` (apps/wbs/mcp-01)                                                                                                   | 423 pass, 0 fail   |
-| `bun test ./src` (apps/twilight-structure/twilight-navigator/cli)                                                                    | 97 pass, 0 fail    |
-| `bun test ./src/contracts`, `./src/packaging/build.test.ts` (twilight-burokrat/cli)                                                  | 137 pass; 2 pass   |
-| `bun test ./src/progress/record-progress.test.ts` (twilight-dash/cli)                                                                | 68 pass, 0 fail    |
-| `TZ=UTC bunx vitest run` over wbs-api, directory-page, refusing-api and the 7 suites importing `plan-refusal`/`refusing-api` (fe-01) | 10 files, 530 pass |
-| `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts` (root)                                                            | 15 pass, 0 fail    |
-| `bunx tsc --build` domain, contracts, core, conformance, both stores, be-01, mcp-01, fe-01, Navigator, Burokrat, Dash                | no diagnostics     |
-| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts <migration.sql> <down.sql>`                                                | exit 0             |
-| `bunx @fission-ai/openspec@1.12.0 validate wbs-resources --json`                                                                     | 1 passed, 0 failed |
+| Command (cwd)                                                                                                                        | Result                       |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+| `bun test ./src` (libs/wbs/domain/domain)                                                                                            | 1147 pass, 0 fail            |
+| `bun test ./src` (libs/wbs/domain/contracts)                                                                                         | 151 pass, 0 fail             |
+| `bun test ./src` (libs/wbs/application/core)                                                                                         | 1113 pass, 0 fail            |
+| `bun test ./src` (libs/wbs/adapters/store-memory)                                                                                    | 190 pass, 0 fail             |
+| `bun test ./src` (libs/wbs/application/conformance)                                                                                  | 35 pass, 0 fail              |
+| `bun test ./src` (libs/wbs/adapters/store-sqlite)                                                                                    | 1693 pass, 0 fail            |
+| `bun test ./src` (apps/wbs/be-01)                                                                                                    | 2930 pass, 0 fail (2933 ran) |
+| `bun test ./src` (apps/wbs/mcp-01)                                                                                                   | 423 pass, 0 fail             |
+| `bun test ./src` (apps/twilight-structure/twilight-navigator/cli)                                                                    | 97 pass, 0 fail              |
+| `bun test ./src/contracts`, `./src/packaging/build.test.ts` (twilight-burokrat/cli)                                                  | 137 pass; 2 pass             |
+| `bun test ./src/progress/record-progress.test.ts` (twilight-dash/cli)                                                                | 68 pass, 0 fail              |
+| `TZ=UTC bunx vitest run` over wbs-api, directory-page, refusing-api and the 7 suites importing `plan-refusal`/`refusing-api` (fe-01) | 10 files, 530 pass           |
+| `bun test tools/tool-devsync/src/repo-namespacing-handoff.test.ts` (root)                                                            | 15 pass, 0 fail              |
+| `bunx tsc --build` domain, contracts, core, conformance, both stores, be-01, mcp-01, fe-01, Navigator, Burokrat, Dash                | no diagnostics               |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts <migration.sql> <down.sql>`                                                | exit 0                       |
+| `bunx @fission-ai/openspec@1.12.0 validate wbs-resources --json`                                                                     | 1 passed, 0 failed           |
 
 OpenAPI: `bun apps/wbs/be-01/src/openapi/emit-openapi-cli.ts` on `09caffb93` and on this
 branch, compared structurally (every base key and list entry covered in the new document,
