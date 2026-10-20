@@ -153,6 +153,8 @@ const batchRefusals = [
         type({ ...context, error: "'unknown_type'" }),
         type({ ...context, error: "'unknown_system'" }),
         type({ ...context, error: "'unknown_attempt'" }),
+        // `patchPerson.accountId` naming no member of the person's organization.
+        type({ ...context, error: "'unknown_account'" }),
       ),
     ),
   },

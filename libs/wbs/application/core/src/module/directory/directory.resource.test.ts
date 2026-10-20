@@ -87,3 +87,22 @@ describe('an opaque root name', () => {
     expect(once.mapped).toEqual(['id-2']);
   });
 });
+
+describe('binding an account to a person', () => {
+  // Legacy access has no organization, so nobody holds the admin role a
+  // binding needs (`wbs-team-claims` D5).
+  test('refuses a binding under legacy access', async () => {
+    const { service, base } = await fixture(0);
+    const added = await base.addPerson({ id: 'claire', name: 'Claire', kind: 'agent' }, [], {
+      at: 0,
+      by: 'u',
+    });
+    if (!added.ok) throw new Error('the fixture person was refused');
+
+    expect(await service.patchPerson('claire', 'u', { accountId: 'u' })).toEqual({
+      ok: false,
+      reason: 'forbidden',
+    });
+    expect(await base.boundAccountOf('claire')).toBeNull();
+  });
+});

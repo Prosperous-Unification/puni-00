@@ -130,6 +130,7 @@ describe('the Authentication module', () => {
           email: 'person@example.com',
           emailVerified: true,
           scopes: ['read', 'write'],
+          groupsClaimed: true,
         }),
     };
     const { auth } = installAuthentication({

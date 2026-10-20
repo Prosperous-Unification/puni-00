@@ -14,6 +14,7 @@ import type {
 } from '@wbs/core';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
+import { credentialKey } from './directory-fixture';
 import { inertMemoryLateWriteSeam, type MemoryLateWriteSeam } from './late-write-seam';
 import { bindStores, MemoryState, replaceMap } from './memory-stores';
 
@@ -164,6 +165,21 @@ export interface MemorySourceFixture {
   ): Promise<never>;
   /** Reproduces forbidden ID-keyed dependency uniqueness in source-owned state. */
   storeDependencyById(dependency: StoredDependency): void;
+  /**
+   * Gives a person an owning organization and that organization its members,
+   * the side-table and membership rows SQLite holds and no memory port writes,
+   * so a conformance case can bind an owned person.
+   */
+  ownPersonInOrganization(
+    personId: string,
+    organizationId: string,
+    memberIds: readonly string[],
+  ): void;
+  /**
+   * Pins a credential to a person, the `external_identity.person_id` row
+   * `link-credential-cli.ts` writes on SQLite; no memory port writes it.
+   */
+  pinCredential(issuer: string, subject: string, personId: string): void;
   /** Reproduces the forbidden retained-row sequence derivation in source-owned state. */
   deriveNextEventSeqFromRetained(subscription: string): void;
   /**
@@ -420,6 +436,13 @@ function openMemorySourceWithSeams(
     deriveNextEventSeqFromRetained(subscription) {
       const retained = committed.tables.eventLog.rows.get(subscription) ?? [];
       committed.tables.eventLog.nextSeq.set(subscription, (retained.at(-1)?.seq ?? -1) + 1);
+    },
+    pinCredential(issuer, subject, personId) {
+      committed.tables.directory.credentialPins.set(credentialKey(issuer, subject), personId);
+    },
+    ownPersonInOrganization(personId, organizationId, memberIds) {
+      committed.tables.directory.organizationOf.set(personId, organizationId);
+      committed.tables.directory.organizationMembers.set(organizationId, new Set(memberIds));
     },
     routeJournalEventToIndependent(eventId) {
       const index = committed.tables.journal.events.findIndex(({ id }) => id === eventId);

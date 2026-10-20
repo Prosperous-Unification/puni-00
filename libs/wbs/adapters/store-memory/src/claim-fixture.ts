@@ -3,7 +3,6 @@ import {
   type ClaimIdentity,
   type ClaimStore,
   type StampedClaim,
-  UNBOUND_CLAIM_IDENTITY,
   unstampClaim,
   type WorkItemStore,
 } from '@wbs/core';
@@ -28,8 +27,8 @@ export function memoryClaimTable(): MemoryClaimTable {
  * Each claim keeps the instant of the write that stored it, as SQLite's
  * `created_at` does; {@link ClaimStore.listStampedByProject} answers it.
  *
- * `identity` answers the bound-account and credential-pin reads; the default
- * binds nobody and pins nothing, as SQLite does until `person.account_id` lands.
+ * `identity` answers the bound-account and credential-pin reads: the source's
+ * directory, through `claimIdentityOf`, as SQLite's claims read theirs.
  *
  * @throws on a read of a claim whose work item is gone, and on a removal of a
  * claim that is not stored: both are trusted state gone wrong.
@@ -37,8 +36,8 @@ export function memoryClaimTable(): MemoryClaimTable {
 export function inMemoryClaims(
   workItems: Pick<WorkItemStore, 'findById' | 'listByProject'>,
   progress: MemoryProgressTable,
-  table: MemoryClaimTable = memoryClaimTable(),
-  identity: ClaimIdentity = UNBOUND_CLAIM_IDENTITY,
+  table: MemoryClaimTable,
+  identity: ClaimIdentity,
 ): ClaimStore {
   const inProject = async (projectId: string): Promise<StampedClaim[]> => {
     const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
@@ -66,7 +65,7 @@ export function inMemoryClaims(
       return found === undefined ? null : unstampClaim(found);
     },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
-    pinnedPersonOf: (actorId) => identity.pinnedPersonOf(actorId),
+    pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),
     add(claims, stated, stamp) {
       const held = (claim: Claim): boolean =>
         table.rows.some(

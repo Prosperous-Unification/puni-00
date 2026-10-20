@@ -193,9 +193,16 @@ function directory(): Pick<
       ]),
     listPeople: () =>
       Promise.resolve([
-        { id: 'person-used', name: 'Kat', kind: 'agent', teamIds: ['team-membership'] },
-        { id: 'person-unused', name: 'Nobody', kind: 'person', teamIds: [] },
-        { id: 'person-attempt', name: 'Ana', kind: 'person', teamIds: [] },
+        // Bound, so the export assertions below prove the binding stays home.
+        {
+          id: 'person-used',
+          name: 'Kat',
+          kind: 'agent',
+          teamIds: ['team-membership'],
+          accountId: 'account-dany',
+        },
+        { id: 'person-unused', name: 'Nobody', kind: 'person', teamIds: [], accountId: null },
+        { id: 'person-attempt', name: 'Ana', kind: 'person', teamIds: [], accountId: null },
       ]),
     listTags: () =>
       Promise.resolve([

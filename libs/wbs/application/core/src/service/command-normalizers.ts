@@ -333,6 +333,9 @@ export const commandNormalizers = {
         name: asOptionalText(patch.name, 'name'),
         teamIds: asOptionalIds(patch.teamIds, 'teamIds', MOST_TEAMS_ON_ONE_ITEM),
         kind: asOptionalText(patch.kind, 'kind'),
+        // Absent leaves the binding alone; null unbinds.
+        accountId:
+          patch.accountId === undefined ? undefined : asIdOrNull(patch.accountId, 'accountId'),
       }),
     });
   },

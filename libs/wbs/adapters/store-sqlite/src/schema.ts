@@ -1941,10 +1941,21 @@ export const person = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     kind: text('kind', { enum: PERSON_KINDS }).notNull().default('person'),
+    /**
+     * The account that may act as this person (`wbs-team-claims` D5): a claim
+     * naming this person is accepted from a credential of this account. Null is
+     * unbound. One account may be bound to many persons (a human and each of
+     * their agents); a person to at most one account. Written only by
+     * `patchPerson` from an organization admin or super-admin; never exported.
+     * Added by `20261019130000_add_person_account`, whose `down.sql` refuses
+     * while any person is bound.
+     */
+    accountId: text('account_id').references(() => users.id),
     ...auditColumns(),
   },
   (t) => [
     uniqueIndex('person_name').on(t.name),
+    index('person_account').on(t.accountId),
     check('person_kind', sql`${t.kind} IN ('person', 'agent')`),
   ],
 );
@@ -2839,12 +2850,23 @@ export const externalIdentity = sqliteTable(
       .references(() => users.id),
     issuer: text('issuer').notNull(),
     subject: text('subject').notNull(),
+    /**
+     * The one person this credential may claim as (`wbs-team-claims` D6): a
+     * fleet credential linked to a human's account is pinned to that fleet's
+     * agent person, which must be bound to the same account. Null is an
+     * unpinned credential, as every browser login is. Written only by
+     * `link-credential-cli.ts`; added by
+     * `20261019130100_add_external_identity_person`, whose `down.sql` refuses
+     * while any credential is pinned.
+     */
+    personId: text('person_id').references(() => person.id),
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
   (t) => [
     uniqueIndex('external_identity_issuer_subject').on(t.issuer, t.subject),
     index('external_identity_user').on(t.userId),
+    index('external_identity_person').on(t.personId),
   ],
 );
 

@@ -17,6 +17,7 @@ test('direct account resource reports an absent OIDC identity store', () => {
       email: null,
       emailVerified: false,
       scopes: ['read'],
+      groupsClaimed: true,
     }),
   ).toThrow('OIDC identity store is not configured');
 });

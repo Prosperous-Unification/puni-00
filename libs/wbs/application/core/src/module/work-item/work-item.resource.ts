@@ -87,7 +87,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
-import type { ClaimIdentity, ClaimStore } from '../../ports/claim-store';
+import type { ClaimIdentity, ClaimStore, CredentialPair } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -2810,6 +2810,7 @@ export class WorkItemService {
     actorId: string,
     input: ClaimInput,
     isAdmin: boolean,
+    credential: CredentialPair | null,
   ): Promise<WorkItemOutcome<Claimed> | ClaimRefusalOutcome> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -2847,7 +2848,7 @@ export class WorkItemService {
       caller: {
         accountId: actorId,
         isAdmin,
-        pinnedPersonId: await identity.pinnedPersonOf(actorId),
+        pinnedPersonId: await identity.pinnedPersonOf(credential),
       },
       claimant: {
         personId: input.personId,
@@ -2903,6 +2904,7 @@ export class WorkItemService {
     actorId: string,
     input: ReleaseInput,
     isAdmin: boolean,
+    credential: CredentialPair | null,
   ): Promise<WorkItemOutcome<null> | ClaimRefusalOutcome> {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -2922,7 +2924,7 @@ export class WorkItemService {
       caller: {
         accountId: actorId,
         isAdmin,
-        pinnedPersonId: await identity.pinnedPersonOf(actorId),
+        pinnedPersonId: await identity.pinnedPersonOf(credential),
       },
       claimant: {
         personId: input.personId,

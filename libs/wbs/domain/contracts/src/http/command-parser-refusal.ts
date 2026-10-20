@@ -157,6 +157,11 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  accountId_must_be_id_or_null: type({
+    error: "'accountId_must_be_id_or_null'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   name_must_be_text: type({ error: "'name_must_be_text'", at: 'number', kind: commandKindsType }),
   notes_must_be_text: type({ error: "'notes_must_be_text'", at: 'number', kind: commandKindsType }),
   kind_must_be_text: type({ error: "'kind_must_be_text'", at: 'number', kind: commandKindsType }),

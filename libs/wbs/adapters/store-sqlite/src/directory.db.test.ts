@@ -203,7 +203,7 @@ describe('DirectoryRepository', () => {
 
     expect(both).toEqual({
       ok: true,
-      person: { id: ada.id, name: 'Ada L', kind: 'agent', teamIds: [platform.id] },
+      person: { id: ada.id, name: 'Ada L', kind: 'agent', teamIds: [platform.id], accountId: null },
       projectIds: [],
     });
 
@@ -214,7 +214,13 @@ describe('DirectoryRepository', () => {
 
     expect(kindOnly).toEqual({
       ok: true,
-      person: { id: ada.id, name: 'Ada L', kind: 'person', teamIds: [platform.id] },
+      person: {
+        id: ada.id,
+        name: 'Ada L',
+        kind: 'person',
+        teamIds: [platform.id],
+        accountId: null,
+      },
       projectIds: [],
     });
   });

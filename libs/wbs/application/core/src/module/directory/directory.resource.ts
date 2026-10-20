@@ -1,4 +1,10 @@
-import { cleanName, type OrganizationScope, PERSON_KINDS, type PersonKind } from '@wbs/domain';
+import {
+  cleanName,
+  mayBindAccountInOrganization,
+  type OrganizationScope,
+  PERSON_KINDS,
+  type PersonKind,
+} from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { DirectoryOutcome } from '../../ports/directory-outcome';
@@ -70,6 +76,16 @@ export interface DirectoryServiceOptions {
  */
 function holdsKind(kind: string): kind is PersonKind {
   return (PERSON_KINDS as readonly string[]).includes(kind);
+}
+
+/** A person patch naming nothing to change: `nothing_to_change`. */
+function isEmptyPersonPatch(patch: PersonPatchInput): boolean {
+  return (
+    patch.name === undefined &&
+    patch.teamIds === undefined &&
+    patch.kind === undefined &&
+    patch.accountId === undefined
+  );
 }
 
 /**
@@ -584,15 +600,22 @@ export class DirectoryService {
    * directory that lacks something, so it is 400 and not the 404 an unknown
    * team gets. Dropping it silently would answer 200 to a caller that believes
    * it has just marked somebody an agent.
+   *
+   * **`accountId` is `forbidden` here**: binding an account to a person is an
+   * organization admin's act (`wbs-team-claims` D5), and legacy access has no
+   * organization, so nobody holds the role it needs. See
+   * {@link patchPersonWithin}.
    */
   async patchPerson(
     personId: string,
     actorId: string,
     patch: PersonPatchInput,
   ): Promise<DirectoryOutcome<PersonWithTeams>> {
-    if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
-      return { ok: false, reason: 'nothing_to_change' };
-    }
+    if (isEmptyPersonPatch(patch)) return { ok: false, reason: 'nothing_to_change' };
+    // Proof: skipping this made `refuses a binding under legacy access` in
+    // `directory.resource.test.ts` answer ok while dropping `accountId` unwritten
+    // (watched 2026-10-19).
+    if (patch.accountId !== undefined) return { ok: false, reason: 'forbidden' };
     if (patch.kind !== undefined && !holdsKind(patch.kind)) {
       return { ok: false, reason: 'invalid_kind' };
     }
@@ -1086,6 +1109,12 @@ export class DirectoryService {
    * {@link patchPerson} through the caller's access. Under scoped access the
    * person and every team must be the organization's, the name moves only in
    * the organization, and the answer carries the local name.
+   *
+   * `accountId` binds the person to the account that may act as them, or
+   * unbinds them with null (`wbs-team-claims` D5). Only an admin or a
+   * super-admin of the active organization may send it; anyone else is
+   * `forbidden` before anything is read. The store refuses an account that is
+   * not a member of the person's organization as `unknown_account`.
    */
   async patchPersonWithin(
     personId: string,
@@ -1101,15 +1130,19 @@ export class DirectoryService {
         (value) => value.ok,
       );
     if (access.kind === 'legacy') return this.patchPerson(personId, actorId, patch);
-    if (patch.name === undefined && patch.teamIds === undefined && patch.kind === undefined) {
-      return { ok: false, reason: 'nothing_to_change' };
+    if (isEmptyPersonPatch(patch)) return { ok: false, reason: 'nothing_to_change' };
+    const { scope } = access;
+    // Proof: skipping this made `refuses a member binding a person to an
+    // account` in `person-account.controller.db.test.ts` answer 200 with the
+    // binding written (watched 2026-10-19).
+    if (patch.accountId !== undefined && !mayBindAccountInOrganization(scope.role)) {
+      return { ok: false, reason: 'forbidden' };
     }
     if (patch.kind !== undefined && !holdsKind(patch.kind)) {
       return { ok: false, reason: 'invalid_kind' };
     }
     const clean = patch.name === undefined ? undefined : cleanName(patch.name);
     if (clean === null) return { ok: false, reason: 'name_required' };
-    const { scope } = access;
     // Proof: skipping this check made `answers a foreign entry exactly as an
     // absent one, changing nothing` in
     // `directory-command-organization.controller.db.test.ts` answer 500
@@ -1130,12 +1163,13 @@ export class DirectoryService {
       const renamed = await this.renameLocal('people', personId, clean, actorId, scope);
       if (!renamed.ok) return renamed;
     }
-    if (patch.teamIds !== undefined || patch.kind !== undefined) {
+    if (patch.teamIds !== undefined || patch.kind !== undefined || patch.accountId !== undefined) {
       const written = await this.opts.directory.patchPerson(
         personId,
         {
           ...(patch.teamIds === undefined ? {} : { teamIds: patch.teamIds }),
           ...(patch.kind === undefined ? {} : { kind: patch.kind }),
+          ...(patch.accountId === undefined ? {} : { accountId: patch.accountId }),
         },
         this.clock.stampFor(actorId),
       );

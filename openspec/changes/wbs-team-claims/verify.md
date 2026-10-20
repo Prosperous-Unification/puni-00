@@ -46,6 +46,216 @@ user.
 
 `openspec validate --all --json` on this change: run before each push, result in the PR.
 
+## Slice 2: binding and credentials (tasks 2.1, 2.2, 2.4)
+
+Branch `feat/wbs-person-account`, 2026-10-19. Tasks 2.3 and 2.5 are not in this slice. All
+tests ran on the laptop with `env -u CLAUDECODE` (13 repo tests fail only under
+`CLAUDECODE=1`).
+
+### What landed
+
+- `20261019130000_add_person_account`: nullable `person.account_id` FK `users.id`, plain
+  index (many persons per account). `down.sql` refuses while any person is bound, naming the
+  count and the unbind (`patchPerson` with `accountId: null`).
+- `20261019130100_add_external_identity_person`: nullable `external_identity.person_id` FK
+  `person.id`, index. `down.sql` refuses while any credential is pinned, naming the count and
+  `link-credential-cli.ts --unlink`. Both guards use a temp trigger whose `RAISE` message is an
+  expression (SQLite 3.53.2 under Bun 1.4.2) so the refusal can carry the count.
+- `patchPerson.accountId` (string or null): scoped access only, admin or super-admin
+  (`mayBindAccountInOrganization` in `@wbs/domain`); a member gets `forbidden` (403 at the
+  command), a viewer the whole-batch 403, legacy access `forbidden`. The store answers
+  `unknown_account` (404) for an account that does not exist or is not a member of the
+  person's organization. `accountId_must_be_id_or_null` (400) for any other type.
+- `PersonWithTeams.accountId` on `GET /api/people` and the `patchPerson` answer; the plan
+  export (document version 9, not 6 as the brief said) drops it in `exportedPerson`.
+- `DirectoryStore.boundAccountOf(personId)` (throws on an absent person) and
+  `credentialPinOf(issuer, subject)` on SQLite and memory, for the claim branch.
+- `libs/wbs/adapters/store-sqlite/src/credential-link.ts` and
+  `apps/wbs/be-01/src/link-credential-cli.ts` (`--issuer --subject --account [--person]`,
+  `--unlink`; `--flag=value` or `--flag value`).
+
+### Commands and results
+
+| Command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Result                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/person-account-migration.db.test.ts apps/wbs/be-01/src/controller/person-account.controller.db.test.ts apps/wbs/be-01/src/link-credential-cli.db.test.ts apps/wbs/be-01/src/controller/fleet-credential.controller.db.test.ts libs/wbs/application/core/src/module/directory/directory.resource.test.ts libs/wbs/application/core/src/module/plan-document/plan-document.resource.test.ts apps/wbs/be-01/src/controller/project.controller.test.ts libs/wbs/adapters/store-memory/src/directory-fixture.test.ts libs/wbs/domain/contracts/src/http/directory-shapes.test.ts` | 156 pass, 0 fail                                                                                                                                                        |
+| `env -u CLAUDECODE bun test libs/wbs/adapters/store-sqlite/src/testing/source-conformance.db.test.ts libs/wbs/adapters/store-memory/src/testing/source-conformance.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 150 pass, 0 fail                                                                                                                                                        |
+| every store-sqlite and be-01 test file naming the new migrations (31 files, migration-list expectations moved by two)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 590 pass, 0 fail                                                                                                                                                        |
+| `env -u CLAUDECODE bunx nx run-many -t test:unit --skip-nx-cache`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 21 projects succeeded (a first, cached-less run reported `wbs-store-sqlite:test:unit` failed under parallel load; it passed alone, 47 pass, and the whole rerun passed) |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts` on the four new SQL files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | exit 0                                                                                                                                                                  |
+| `bunx tsc --noEmit` for core lib/spec, store-sqlite lib/spec, store-memory spec, contracts lib, conformance spec, be-01 lib/spec/tools, fe-01 app/spec                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | no errors                                                                                                                                                               |
+
+### R5 proofs (each fault injected, the named test watched failing, then restored)
+
+- Person-binding guard: the `INSERT … SELECT count(*)` in `add_person_account/down.sql`
+  replaced with `SELECT 0` made `refuses rollback while a person is bound` exit 0 and drop the
+  column with both bindings in it.
+- Pin guard: the same in `add_external_identity_person/down.sql` made `refuses rollback while a
+credential is pinned` exit 0 and drop the column with the pin in it.
+- Role: `mayBindAccountInOrganization` answering `role !== 'viewer'`, and separately the
+  resource's role check disabled, each made `refuses a member binding a person to an account`
+  answer 200 with the binding written.
+- Legacy: the legacy `forbidden` removed made `refuses a binding under legacy access` answer ok
+  while silently dropping `accountId`.
+- Account validity: SQLite `accountMayBind` answering true made the conformance case
+  `directory.patchPerson:account-binding` fail on the raw foreign-key error; the memory
+  fixture's `accounts.has` check removed made it answer ok instead of `unknown_account`.
+- Export: `directory: closure` written whole made `capacity-only team is named …`,
+  `v9 zero-fact export retains canonical bytes` and `exports the referenced directory closure …`
+  fail with `accountId` in the document.
+- CLI pair check: removed, `refuses a second link of the same pair, naming the account` lost
+  the account's name to the raw `UNIQUE constraint failed` error. The unique index
+  `external_identity_issuer_subject` is what prevents stealing a linked pair, so the brief's
+  expected "a second link steals the credential" cannot be observed without also dropping that
+  index.
+- CLI person check: removed, `refuses pinning to a person bound to another account or to none`
+  wrote the pin.
+- CLI activation check: removed, `refuses before organization activation …` wrote the row.
+
+### First h2puni gate, and what it caught
+
+`bin/h2puni-gate.sh 634587486dab11e3acf32cfb5521eb04197f505b` printed `h2puni gate: running on
+634587486dab11e3acf32cfb5521eb04197f505b` and exited 1. Failed: `wbs-fe-01:test` (111 cases of
+`plan-cards.test.tsx` plus `plan-filter`, `plan-estimates`, `plan-keyboard`,
+`plan-read-and-write`): fe-01 validates the people read against the same `listPeople` shape,
+its fixtures carry no `accountId`, and every refresh was refused `fake_invalid_response`.
+The same refusal would hit a new fe-01 answered by the outgoing be-01 mid-swap. `accountId` is
+now optional on that wire shape (be-01's own answer is still held to it by
+`person-account.controller.db.test.ts`), `PersonView.accountId` is optional, and
+`refusing-api.test.ts` round-trips a people fixture with and without the binding through the
+client validator. Proof: the field made required again failed that case and
+`directory-shapes.test.ts` `reads people from a release that sends no accountId, as mid-swap`.
+Also failed: `wbs-store-memory`, `wbs-conformance` and `wbs-store-sqlite:typecheck` (`tsc
+--build` over `saved-plan-capture.ts`, a literal `null` where `string | null` was needed; the
+per-config `tsc -p` runs above had missed it) and `tool-devsync:test` (the new
+`directory-fixture.test.ts` was not in the store-memory module index).
+
+### Review round on 76d1c145 (S1 to S4), 2026-10-20
+
+Merged `origin/plan/wbs-team-claims` first (D6b and the fleet-credentials requirement "A
+machine token is scoped by its linked account and never mints an account").
+
+- **S1** A mapped token without an email claim no longer clears its owner's email and
+  verification (`resolveMappedIdentity` returns the owner untouched). Test: `leaves the owner's
+row byte for byte under a linked machine token` (`fleet-credential.controller.db.test.ts`),
+  which now seeds Dany with `email='dany@example.com', email_verified=1` and compares the whole
+  `users` table after a groups-bearing and a groups-less machine request. Proof: the guard
+  removed, that case failed on `email: null, email_verified: 0`.
+- **S2 / D6b** `OidcIdentity.groupsClaimed` says whether the token carried `wbs_groups` at all.
+  `AuthService.authenticateOrRefuse` sends a token without it through
+  `readExistingOidcIdentity` only (no account minted, nothing written): linked to nothing it is
+  refused `401 unknown_identity`; linked, it is scoped by `scopesOfRoles` from the account's
+  `organization_membership` roles (viewer read; member read, write; admin and super_admin all
+  three), and the per-organization role checks apply as for any session of that account. The
+  organization-credential evidence path does the same. Tokens with the claim are unchanged.
+  `unknown_identity` is answered in `mount.ts` before the endpoint shape, because no endpoint
+  shape declares it: declaring it on all 38 401 shapes made fe-01 fail to compile in 21 files
+  (exhaustive refusal switches for a refusal no browser can receive). Tests:
+  `refuses an unlinked machine token as unknown_identity, minting no account`,
+  `ends at --unlink: unknown_identity, no new account, and the pair links again`,
+  `scopes a linked token without groups from its account's membership: a member` (read 200,
+  project write 200, organization settings write 403), and
+  `tells a token without the groups claim from one with an empty claim`
+  (`oidc-identity.test.ts`). Proofs, each watched failing: the groups rule removed (unlinked
+  and unlink cases mint and answer 403, member case 403); `scopesOfRoles` answering `[]`
+  (member read 403 `insufficient_scope`); the `mount.ts` bypass removed (401 cases answer 500);
+  `groupsClaimed` always true (same three cases). The member case now runs a real command
+  batch: the suite moved to `OrganizationHarness.openComposedWith`, which task 2.3 gave
+  `upstreamCredential` (before that it wrote through `PATCH /api/projects/:id`).
+  Pre-activation, a groups-less token resolves only a `users.idp_*` pair, so it is refused
+  there too rather than minting (stricter than the spec, which speaks of after activation).
+- **S3-1** `link-credential-cli.ts` refuses a pair that is an account's own `users.idp_*`
+  sign-in, naming that account (`refuses an account's own unmapped sign-in pair, naming it`).
+  Proof: the check removed, the row was written.
+- **S3-2** The memory directory keeps `organizationMembers` and binds an owned person only to a
+  member of its organization; a new shared conformance case
+  `directory.patchPerson:owned-binding` runs on both stores (each source seeds the owned person
+  through its own side tables; memory through the new fixture seam `ownPersonInOrganization`).
+  Proof: either store's membership read answering true failed that case on that store.
+- **S3-3** Before this round, `fleet-credential.controller.db.test.ts` signed its machine
+  token with `wbs_groups`, which a real Auth0 machine-to-machine token does not carry (task
+  0.2). Its default token now carries none, so the groups-less path is what the suite proves.
+- **S4** A patch with `name` and a refused `accountId` leaves the rename unapplied: the batch's
+  unit of work rolls it back (`leaves a rename sent beside a refused account unapplied`); no
+  reorder was needed. The CLI's unreachable `?? ''` and the adjective-named `required` are
+  gone (`requireFlag`).
+- Test doubles that spied on `AuthService.authenticate` for the endpoint path now spy on
+  `authenticateOrRefuse`, which the identity resolver calls.
+
+### Task 2.3: the claim reads the real binding and pin (2026-10-20)
+
+Merged `origin/plan/wbs-team-claims` at f49bc99ad (slice 1, PR #579) first. The binding
+migrations moved to `20261019130000_add_person_account` and
+`20261019130100_add_external_identity_person`, because slice 1's `20261019120000_add_claim`
+took the same stamp; the 17 migration-list expectations carry all three.
+
+- `ClaimIdentity.pinnedPersonOf` takes the request credential's pair
+  (`CredentialPair | null`), not the actor id: `credentialPairOf(authentication)` is the pair of
+  an `upstream` authentication (a verified token, or a delegation's carried pair) and null for a
+  first-party session, which is unpinned. `runCommandBatch` passes it through `runWithin` /
+  `runAfterWithin` into each `CommandContext`, and `claim` / `release` read it. Legacy `run`
+  and directory batches pass null (no credential is linked before activation; a directory
+  batch claims nothing).
+- `UNBOUND_CLAIM_IDENTITY` is gone. `claimIdentityOf(directory)` answers both reads from the
+  directory's `boundAccountOf` and `credentialPinOf`; SQLite's `ClaimRepository` and the memory
+  claim store both use it, so a claim reads the rows `patchPerson` and `link-credential-cli.ts`
+  write.
+- `OrganizationHarness.openComposedWith` takes `upstreamCredential`, so a machine token can run
+  a real command batch.
+- Tests: `apps/wbs/be-01/src/controller/claim-identity.controller.db.test.ts` (composed harness,
+  real SQLite, scoped access): a member claims as a person bound to their account (200); a
+  member is refused `person_not_bound` for a person bound to another account and for one bound
+  to nobody, and on release of another account's claim; an admin claims as both (the bypass);
+  a credential linked to `mem` and pinned to `claire` is refused `credential_not_for_person` as
+  `codex` (also bound to `mem`) and accepted as `claire`, while `mem`'s own session is unpinned.
+  `claim-command.test.ts` (memory) now seeds bindings with `patchPerson` and the pin through the
+  fixture seam `pinCredential`, and claims as an organization-owned person once it is bound to a
+  member (refused `person_not_bound` before, `unknown_account` for a non-member).
+  `claim.db.test.ts` reads both from the repository.
+- Proofs, each watched failing then restored: `ClaimRepository.boundAccountOf` answering null
+  (member's own claim and the release case answer 403, `claim.db.test.ts` fails); `isClaimAdmin`
+  answering false (both admin cases 403); `runCommandBatch` passing a null credential (the
+  pinned `codex` claim answers 200); `claimIdentityOf`'s pin read answering null (the memory
+  and SQLite pinned cases accept).
+
+### Gate on 8be412a35 and the Dash descriptor flake (2026-10-20)
+
+`bin/h2puni-gate.sh 8be412a35d3bcb6eb33124e42f205e0e80ca2202` printed `h2puni gate: running
+on 8be412a35d3bcb6eb33124e42f205e0e80ca2202` (after waiting 8710s for the lock). The 47 WBS
+projects passed; the one failure was outside this branch:
+`apps/twilight-structure/twilight-dash/cli/src/activation/controller.db.test.ts` "selected
+check closes remaining owned descriptors after a leaf descriptor was closed" (expected 23 open
+descriptors, received 22). This branch changes nothing under `apps/twilight-structure`. Rerun
+on the laptop three times with `env -u CLAUDECODE bun test
+apps/twilight-structure/twilight-dash/cli/src/activation/controller.db.test.ts -t "closes
+remaining owned descriptors"`: 1 pass 0 fail, 1 pass 0 fail, 1 pass 0 fail. Read as a
+host-load flake in a process-wide `/proc/self/fd` count; the merged head after slice 3 is gated
+again.
+
+### Assumptions made in this slice (for Dany's review)
+
+- The bound account must be a member of the person's organization (`unknown_account`
+  otherwise); an unowned (pre-tenancy) person needs only an existing account.
+- Legacy access cannot bind: no organization, so no admin role.
+- `link-credential-cli.ts` refuses before organization activation: until then logins resolve
+  through `users.idp_*` and never read `external_identity`, so a linked machine pair would mint
+  a new account at its first request.
+- `--unlink` refuses the account's own `users.idp_*` sign-in pair: `resolveOidcIdentity`
+  requires it to stay mapped, and removing it would make every other credential of the account
+  throw at login.
+- `external_identity.created_by` of a CLI link is the linked account itself: the host operator
+  has no WBS account to name.
+
+### Found, not changed
+
+- Fixed in the review round (S2): unlinking used to let the next machine request mint a new
+  account; it is now refused `401 unknown_identity` and `users` does not grow.
+- Removing a person that a credential is pinned to is a raw foreign-key failure (500) on SQLite;
+  no modeled refusal yet.
+- Not verified by a build: that `link-credential-cli.ts` ships in the production image. The
+  be-01 Dockerfile copies `apps/wbs/be-01` whole (`COPY apps/wbs/be-01 ./apps/wbs/be-01`), as
+  for the other `src/*-cli.ts`; no image was built here.
+
 ## Slice 1: the claim record and its decision (tasks 1.1 to 1.6)
 
 Run on the laptop 2026-10-19, every test under `env -u CLAUDECODE` (13 repo tests fail only

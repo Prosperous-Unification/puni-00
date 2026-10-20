@@ -52,6 +52,25 @@ export type CredentialAuthentication =
   | { readonly kind: 'upstream'; readonly issuer: string; readonly subject: string }
   | { readonly kind: 'first_party'; readonly issuedAt: number };
 
+/**
+ * The verified `(issuer, subject)` a request's credential carries: an upstream
+ * token's, or the pair a delegation carries. Absent for a first-party session.
+ * What a claim reads a credential pin by (`wbs-team-claims` D6).
+ */
+export interface CredentialPair {
+  readonly issuer: string;
+  readonly subject: string;
+}
+
+/** The pair of `authentication` when it is an upstream one, else null (unpinned). */
+export function credentialPairOf(
+  authentication: CredentialAuthentication | undefined,
+): CredentialPair | null {
+  return authentication?.kind === 'upstream'
+    ? { issuer: authentication.issuer, subject: authentication.subject }
+    : null;
+}
+
 /** Evidence from the credential verifier, never from caller-declared kind or expiry. */
 export interface VerifiedOrganizationCredential {
   readonly kind: 'native' | 'oidc';

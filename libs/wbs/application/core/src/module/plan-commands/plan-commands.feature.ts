@@ -1,3 +1,4 @@
+import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import type { WorkItemStatus } from '@wbs/domain';
 
@@ -232,8 +233,12 @@ const GRAPH_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
 export class PlanCommandRunner {
   constructor(private readonly opts: PlanCommandRunnerOptions) {}
 
+  /**
+   * Under legacy access, with no credential pair: before activation no
+   * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
+   */
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(projectId, actorId, commands, LEGACY_ACCESS).then(legacyOutcome);
+    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
   }
 
   /**
@@ -246,8 +251,9 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, actorId, commands, access);
+    return this.execute(projectId, actorId, commands, access, credential);
   }
 
   /**
@@ -260,8 +266,9 @@ export class PlanCommandRunner {
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
-    return this.execute(projectId, actorId, commands, access, prelude);
+    return this.execute(projectId, actorId, commands, access, credential, prelude);
   }
 
   /**
@@ -275,7 +282,8 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(null, actorId, commands, access);
+    // A directory batch claims nothing, so it reads no credential pin.
+    return this.execute(null, actorId, commands, access, null);
   }
 
   /**
@@ -286,7 +294,7 @@ export class PlanCommandRunner {
    * `project_required` at its index.
    */
   runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(null, actorId, commands, LEGACY_ACCESS).then(legacyOutcome);
+    return this.execute(null, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
   }
 
   /**
@@ -321,12 +329,14 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private async execute<R>(
@@ -334,6 +344,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     // This batch's own collector and its own graph over it. Two batches never
@@ -399,7 +410,7 @@ export class PlanCommandRunner {
             }
             let applied: Applied;
             const collected = await graph.workItems.collect(() =>
-              this.applyAll(graph, scope, projectId, actorId, commands, access),
+              this.applyAll(graph, scope, projectId, actorId, commands, access, credential),
             );
             if (projectId !== null) {
               const needsCalendarPreflight = commands.some(({ kind }) =>
@@ -603,12 +614,21 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);
     const applied: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
-      const context = new CommandContext(actorId, projectId, index, command.kind, refs, access);
+      const context = new CommandContext(
+        actorId,
+        projectId,
+        index,
+        command.kind,
+        refs,
+        access,
+        credential,
+      );
       // Proof: removing this check made the mounted cross-project estimate test fail:
       // Expected: 404 / Received: 200 (2026-09-27).
       if (projectId !== null && ('workItemId' in command || 'workItemRef' in command)) {

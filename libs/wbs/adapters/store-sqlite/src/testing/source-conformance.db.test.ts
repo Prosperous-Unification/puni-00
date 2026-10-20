@@ -26,6 +26,7 @@ import {
   type FaultRun,
   type HistoryBatchFixture,
   observePlanInput,
+  OWNED_BINDING,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -357,6 +358,24 @@ async function openSqliteCase<Family extends ExistingFamily>(
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
+    if (caseId === 'directory.patchPerson:owned-binding') {
+      const added = await seeded.stores.directory.addPerson(
+        { id: OWNED_BINDING.personId, name: 'Owned person' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the owned person was refused');
+      const { personId, organizationId } = OWNED_BINDING;
+      seeded.db.run(
+        sql`INSERT INTO organization (id, name, created_at) VALUES (${organizationId}, ${organizationId}, 1)`,
+      );
+      seeded.db.run(
+        sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${personId}, ${organizationId}, 'Owned person')`,
+      );
+      seeded.db.run(
+        sql`INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES (${organizationId}, ${DETERMINISTIC_SEED.ownerIds[0]}, 'member', 1)`,
+      );
+    }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
   });
@@ -641,6 +660,7 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
           name: 'Unassigned member',
           kind: 'person',
           teamIds: ['team-a'],
+          accountId: null,
         },
         projectIds: [],
       },
@@ -655,9 +675,10 @@ async function changeSqliteCaptureDirectory(source: SqliteSource): Promise<Captu
         name: 'Unassigned member',
         kind: 'person',
         teamIds: ['team-a'],
+        accountId: null,
       },
-      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
-      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'], accountId: null },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'], accountId: null },
     ],
   });
   return change;

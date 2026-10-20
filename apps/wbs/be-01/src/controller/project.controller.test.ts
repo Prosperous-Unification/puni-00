@@ -1384,7 +1384,7 @@ it('rejects undeclared project patches at every nested boundary before calling t
 
 it('keeps opened write scope and write origin before malformed input', async () => {
   const h = buildHarness();
-  const identity = spyOn(h.auth, 'authenticate').mockResolvedValue({
+  const identity = spyOn(h.auth, 'authenticateOrRefuse').mockResolvedValue({
     id: 'reader',
     username: 'reader',
     scopes: ['read'],

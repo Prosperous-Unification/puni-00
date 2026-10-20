@@ -4,7 +4,9 @@ import {
   type AuthMethodId,
   authMethodOfSubject,
   type OidcIdentity,
+  type WbsScope,
 } from '@wbs/contracts';
+import type { OrganizationRole } from '@wbs/domain';
 
 import type { User } from '../../ports/account-values';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
@@ -185,6 +187,25 @@ export class AuthService {
    * (controller/oidc.integration.test.ts).
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
+    const outcome = await this.authenticateOrRefuse(token);
+    return outcome === 'unknown_identity' ? null : outcome;
+  }
+
+  /**
+   * {@link authenticate}, telling a verified token nobody is linked to
+   * (`unknown_identity`) apart from an absent or invalid one (null).
+   *
+   * **A token without a groups claim never mints an account** (`wbs-team-claims`
+   * D6b): it is a machine credential, which reaches only an account a host
+   * operator linked it to with `link-credential-cli.ts`, and it is read through
+   * the existing mapping alone, so it writes nothing (no email refresh either).
+   * Its scopes come from the linked account's memberships
+   * ({@link scopesOfRoles}); the per-organization role checks then apply as for
+   * any session of that account. A token with the claim keeps the login path.
+   */
+  async authenticateOrRefuse(
+    token: string | null,
+  ): Promise<AuthenticatedUser | 'unknown_identity' | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
     if (this.opts.oidc !== undefined) {
@@ -194,6 +215,19 @@ export class AuthService {
         // literal fallback test authenticate the legacy account instead of null
         // (auth-service-null-password.test.ts).
         if (this.opts.passwordSessions !== true) return null;
+      } else if (!identity.groupsClaimed) {
+        // Proof: resolving this through `resolveOidcIdentity` made `refuses an
+        // unlinked machine token as unknown_identity, minting no account` in
+        // `fleet-credential.controller.db.test.ts` mint a second account and
+        // answer 403 instead of 401 (watched 2026-10-20).
+        const linked = await this.readExistingOidcIdentity(identity);
+        if (linked === null) return 'unknown_identity';
+        return {
+          id: linked.id,
+          username: linked.username,
+          scopes: scopesOfRoles(await this.opts.account.membershipRolesOf(linked.id)),
+          authentication: { kind: 'upstream', issuer: identity.issuer, subject: identity.subject },
+        };
       } else {
         const user = await this.resolveOidcIdentity(identity);
         if (user === null) return null;
@@ -251,6 +285,20 @@ export class AuthService {
     );
     return { token, user: { id: user.id, username: user.username } };
   }
+}
+
+/**
+ * The scopes a linked machine token without a groups claim carries
+ * (`wbs-team-claims` D6b): the strongest of its account's organization roles.
+ * `viewer` reads, `member` reads and writes, `admin` and `super_admin` edit;
+ * no membership grants nothing.
+ */
+export function scopesOfRoles(roles: readonly OrganizationRole[]): WbsScope[] {
+  if (roles.some((role) => role === 'admin' || role === 'super_admin'))
+    return ['read', 'write', 'editor'];
+  if (roles.includes('member')) return ['read', 'write'];
+  if (roles.includes('viewer')) return ['read'];
+  return [];
 }
 
 /**

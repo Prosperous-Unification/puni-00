@@ -1,10 +1,12 @@
 import {
   type Claim,
+  type ClaimIdentity,
+  claimIdentityOf,
   type ClaimStore,
   type ClaimWriteOutcome,
+  type CredentialPair,
   type ProgressKey,
   type StampedClaim,
-  UNBOUND_CLAIM_IDENTITY,
   unstampClaim,
   type WriteStamp,
 } from '@wbs/core';
@@ -12,6 +14,7 @@ import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 
 import { auditOnCreate } from './audit';
 import type { Drizzle } from './db';
+import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
 import { claim, stepProgress, workItem } from './schema';
@@ -25,18 +28,22 @@ import { claim, stepProgress, workItem } from './schema';
  * not the stamp: an undo of a release puts the claim back as its claimant's,
  * whoever pressed the key, so `parent_claim_foreign` keeps meaning the same.
  *
- * The identity reads answer nobody bound and nothing pinned until
- * `person.account_id` and `external_identity.person_id` exist (task 2.1).
+ * The identity reads are the directory's: `person.account_id` and
+ * `external_identity.person_id` (`wbs-team-claims` D5, D6).
  *
  * @throws for a stored claim with no writing account, a stamped read of a claim
  * with no write instant, a removal of a claim that is not stored, and every
  * database failure.
  */
 export class ClaimRepository implements ClaimStore {
+  private readonly identity: ClaimIdentity;
+
   constructor(
     private readonly db: Drizzle,
     private readonly gate: Gate,
-  ) {}
+  ) {
+    this.identity = claimIdentityOf(new DirectoryRepository(db, gate));
+  }
 
   async listByProject(projectId: string): Promise<Claim[]> {
     return (await this.read(projectId)).map(unstampClaim);
@@ -57,11 +64,11 @@ export class ClaimRepository implements ClaimStore {
   }
 
   boundAccountOf(personId: string): Promise<string | null> {
-    return UNBOUND_CLAIM_IDENTITY.boundAccountOf(personId);
+    return this.identity.boundAccountOf(personId);
   }
 
-  pinnedPersonOf(actorId: string): Promise<string | null> {
-    return UNBOUND_CLAIM_IDENTITY.pinnedPersonOf(actorId);
+  pinnedPersonOf(credential: CredentialPair | null): Promise<string | null> {
+    return this.identity.pinnedPersonOf(credential);
   }
 
   /** Claims with their write instant as stored, null for a row written outside {@link add}. */

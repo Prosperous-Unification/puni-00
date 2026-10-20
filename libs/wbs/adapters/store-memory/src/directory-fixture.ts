@@ -73,6 +73,26 @@ export interface MemoryDirectoryTables {
   readonly assignments: Map<string, Assignment>;
   /** Which organization owns each catalog entry, by entry id, as the side tables hold it. */
   readonly organizationOf: Map<string, string>;
+  /** `person.account_id`: the account bound to act as each bound person, by person id. */
+  readonly accountOf: Map<string, string>;
+  /**
+   * `organization_membership`, as far as binding needs it: the account ids
+   * that are members of each organization, by organization id. An owned person
+   * binds only to a member of its organization, as SQLite's `accountMayBind`.
+   */
+  readonly organizationMembers: Map<string, Set<string>>;
+  /**
+   * `external_identity.person_id`: the person each pinned credential may claim
+   * as, keyed by {@link credentialKey}. Nothing in this package writes it; a
+   * test that needs a pinned credential sets it, as `link-credential-cli.ts`
+   * is SQLite's only writer.
+   */
+  readonly credentialPins: Map<string, string>;
+}
+
+/** The {@link MemoryDirectoryTables.credentialPins} key of one `(issuer, subject)`. */
+export function credentialKey(issuer: string, subject: string): string {
+  return JSON.stringify([issuer, subject]);
 }
 
 export function memoryDirectoryTables(): MemoryDirectoryTables {
@@ -93,12 +113,21 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     owned: new Map(),
     assignments: new Map(),
     organizationOf: new Map(),
+    accountOf: new Map(),
+    organizationMembers: new Map(),
+    credentialPins: new Map(),
   };
 }
 
+/**
+ * `accounts` are the account ids `patchPerson.accountId` may bind to; a
+ * directory built without them refuses every binding by throwing, because it
+ * cannot tell an unknown account from a known one.
+ */
 export function inMemoryDirectory(
   readProject?: (projectId: string) => Promise<readonly { id: string }[]>,
   tables: MemoryDirectoryTables = memoryDirectoryTables(),
+  accounts?: Pick<ReadonlyMap<string, unknown>, 'has'>,
 ): DirectoryStore {
   const {
     teams,
@@ -111,6 +140,9 @@ export function inMemoryDirectory(
     owned,
     assignments,
     organizationOf,
+    accountOf,
+    organizationMembers,
+    credentialPins,
   } = tables;
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
@@ -348,6 +380,7 @@ export function inMemoryDirectory(
           .map((each): PersonWithTeams => ({
             ...each,
             teamIds: [...(memberships.get(each.id) ?? [])],
+            accountId: accountOf.get(each.id) ?? null,
           })),
       ),
     addPerson(toAdd, teamIds, _stamp) {
@@ -380,6 +413,23 @@ export function inMemoryDirectory(
       if (wanted?.some((each) => !teams.has(each)) === true) {
         return Promise.resolve({ ok: false, reason: 'unknown_team' });
       }
+      if (typeof patch.accountId === 'string') {
+        const owner = organizationOf.get(personId);
+        // An owned person binds to a member of its organization; an unowned one
+        // to any account, which only a directory built with accounts can tell.
+        // Proof: the membership read replaced with `true` made the conformance
+        // case `directory.patchPerson:owned-binding` bind the non-member
+        // (watched 2026-10-20).
+        if (owner !== undefined) {
+          if (organizationMembers.get(owner)?.has(patch.accountId) !== true)
+            return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        } else {
+          if (accounts === undefined)
+            return Promise.reject(new Error('this in-memory directory was built without accounts'));
+          if (!accounts.has(patch.accountId))
+            return Promise.resolve({ ok: false, reason: 'unknown_account' });
+        }
+      }
       if (patch.name !== undefined) {
         const held = [...people.values()].some(
           (each) => each.name === patch.name && each.id !== personId,
@@ -394,13 +444,27 @@ export function inMemoryDirectory(
         people.set(personId, { ...current, kind: patch.kind });
       }
       if (wanted !== null) memberships.set(personId, new Set(wanted));
+      if (patch.accountId === null) accountOf.delete(personId);
+      if (typeof patch.accountId === 'string') accountOf.set(personId, patch.accountId);
       const patched = people.get(personId);
       if (patched === undefined) throw new Error(`person vanished mid-patch: ${personId}`);
       return Promise.resolve({
         ok: true,
-        person: { ...patched, teamIds: [...(memberships.get(personId) ?? [])] },
+        person: {
+          ...patched,
+          teamIds: [...(memberships.get(personId) ?? [])],
+          accountId: accountOf.get(personId) ?? null,
+        },
         projectIds: [],
       });
+    },
+    boundAccountOf(personId) {
+      if (!people.has(personId))
+        return Promise.reject(new Error(`no person "${personId}" to read the binding of`));
+      return Promise.resolve(accountOf.get(personId) ?? null);
+    },
+    credentialPinOf(issuer, subject) {
+      return Promise.resolve(credentialPins.get(credentialKey(issuer, subject)) ?? null);
     },
     // The four removal methods model only what an array can: a person or team
     // this fixture holds, and the rows it holds about them. **Nothing here
@@ -423,6 +487,8 @@ export function inMemoryDirectory(
       const held = [...assignments.values()].filter((each) => each.personId === personId);
       for (const each of held) assignments.delete(key(each.workItemId, each.stepId));
       memberships.delete(personId);
+      // The binding is a column of the removed row.
+      accountOf.delete(personId);
       people.delete(personId);
       return Promise.resolve({
         ok: true,

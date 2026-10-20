@@ -12,7 +12,7 @@ function byAssignment(assignments: Assignment[]): Assignment[] {
   );
 }
 
-function byPerson(people: { id: string; name: string }[]): { id: string; name: string }[] {
+function byPerson<Person extends { id: string }>(people: Person[]): Person[] {
   return people.toSorted((left, right) => left.id.localeCompare(right.id));
 }
 
@@ -66,6 +66,13 @@ async function assignmentState(
     ],
   };
 }
+
+/**
+ * The person `directory.patchPerson:owned-binding` binds: each source seeds it
+ * owned by this organization, with only the first owner as a member, through
+ * whatever side tables it has (no port writes ownership).
+ */
+export const OWNED_BINDING = { personId: 'owned-person', organizationId: 'org-binding' } as const;
 
 /** The original shared directory cases, retaining their stable case IDs. */
 export function directoryRegistrations(open: OpenCase<'directory'>): readonly CaseRegistration[] {
@@ -222,6 +229,79 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
           a.id.localeCompare(b.id),
         ),
       );
+    }),
+    // `wbs-team-claims` D5: many persons to one account, at most one account
+    // to a person, null unbinds, and a refused binding changes nothing.
+    // Proof: the SQLite `accountMayBind` answering true failed this on the raw
+    // foreign-key `Failed query: update "person"`; the memory fixture's
+    // `accounts.has` check removed failed its `unknown_account` toEqual (watched 2026-10-19).
+    storeCase(
+      'directory',
+      'directory.patchPerson:account-binding',
+      open,
+      async ({ port, seed }) => {
+        const [first, second] = seed.personIds;
+        const [account, otherAccount] = seed.ownerIds;
+        const bound = await port.patchPerson(first, { accountId: account }, seed.stamps[0]);
+        expect(bound.ok && bound.person.accountId).toBe(account);
+        expect((await port.patchPerson(second, { accountId: account }, seed.stamps[0])).ok).toBe(
+          true,
+        );
+        expect([await port.boundAccountOf(first), await port.boundAccountOf(second)]).toEqual([
+          account,
+          account,
+        ]);
+        expect(
+          byPerson(await port.listPeople()).map(({ id, accountId }) => ({ id, accountId })),
+        ).toEqual([
+          { id: first, accountId: account },
+          { id: second, accountId: account },
+        ]);
+
+        expect(
+          await port.patchPerson(first, { accountId: 'no-such-account' }, seed.stamps[1]),
+        ).toEqual({ ok: false, reason: 'unknown_account' });
+        expect(await port.boundAccountOf(first)).toBe(account);
+
+        expect(
+          (await port.patchPerson(first, { accountId: otherAccount }, seed.stamps[1])).ok,
+        ).toBe(true);
+        expect(await port.boundAccountOf(first)).toBe(otherAccount);
+        const unbound = await port.patchPerson(first, { accountId: null }, seed.stamps[1]);
+        expect(unbound.ok && unbound.person.accountId).toBeNull();
+        expect(await port.boundAccountOf(first)).toBeNull();
+        expect(await port.boundAccountOf(second)).toBe(account);
+        expect(
+          await port.boundAccountOf('no-such-person').then(
+            () => 'resolved',
+            (error: unknown) => (error instanceof Error ? error.message : String(error)),
+          ),
+        ).toContain('no-such-person');
+      },
+    ),
+    // An owned person binds only to a member of its organization, the rule
+    // SQLite's `accountMayBind` and the memory membership map both keep.
+    // Proof: either membership read answering true made this case fail its
+    // `unknown_account` toEqual on that source (watched 2026-10-20).
+    storeCase('directory', 'directory.patchPerson:owned-binding', open, async ({ port, seed }) => {
+      const [member, stranger] = seed.ownerIds;
+      expect(
+        await port.patchPerson(OWNED_BINDING.personId, { accountId: stranger }, seed.stamps[0]),
+      ).toEqual({ ok: false, reason: 'unknown_account' });
+      expect(await port.boundAccountOf(OWNED_BINDING.personId)).toBeNull();
+      const bound = await port.patchPerson(
+        OWNED_BINDING.personId,
+        { accountId: member },
+        seed.stamps[0],
+      );
+      expect(bound.ok && bound.person.accountId).toBe(member);
+      expect(await port.boundAccountOf(OWNED_BINDING.personId)).toBe(member);
+    }),
+    // No source writes a pin through a port (`link-credential-cli.ts` is
+    // SQLite's only writer), so the shared case is the unlinked pair; pinned
+    // reads are asserted per source beside their writers.
+    storeCase('directory', 'directory.credentialPinOf:unlinked', open, async ({ port }) => {
+      expect(await port.credentialPinOf('https://idp.example/', 'nobody')).toBeNull();
     }),
     storeCase('directory', 'directory.removePerson:claims-in-use', open, async ({ port, seed }) => {
       const [personId] = seed.personIds;
