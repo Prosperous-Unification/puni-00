@@ -185,7 +185,13 @@ Attempt identity is (claim id, step node id, ordinal); a retry is a new attempt 
 claim stays held across retries of one step. Restart resume: on boot every `running` row
 becomes `interrupted` before any new admission. The walk over a leaf is today's step order
 read from WBS; the interface takes an ordered list of step nodes, so the parked DAG replaces
-the list without touching the states. The lifecycle gets a model-based test
+the list without touching the states. The walker is `configurable-tree-traversal`: its
+unreleased 0.8.0 (`main`, 2026-09-13) has DAG mode with explicit identity, `dependsOn`,
+`ON_READY`/`ON_COMPLETE` and async concurrency, verified under Bun on 2026-10-21; what a
+durable coordinator still needs from it (journal replay, waits, retries, cancellation,
+per-vertex failure) is specified in
+[configurable-tree-traversal#2](https://github.com/dany-fedorov/configurable-tree-traversal/issues/2),
+and slice 6 consumes whichever of those land before it, writing the rest in the host. The lifecycle gets a model-based test
 (`fc.asyncModelRun`) with sabotage proofs before any of it runs against a real agent, as the
 2026-09-22 finding requires for concurrency code.
 
@@ -210,10 +216,11 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike    | Fallback                                          |
-| -------------------------------------------------------- | -------- | ------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1      | Claude Agent SDK direct behind the same port      |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2      | plain tool calling for `plan`                     |
-| Harness packages break between 1.0.x releases            | 0.3      | exact pins, one renovate lane, the port absorbs   |
-| ACP attempts report no usage                             | modelled | `Usage.unknown`, shown, never defaulted           |
-| Two coordinators on one store                            | design   | one store, one process, the lease authority later |
+| Risk                                                     | Spike          | Fallback                                          |
+| -------------------------------------------------------- | -------------- | ------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1            | Claude Agent SDK direct behind the same port      |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2            | plain tool calling for `plan`                     |
+| Harness packages break between 1.0.x releases            | 0.3            | exact pins, one renovate lane, the port absorbs   |
+| ACP attempts report no usage                             | modelled       | `Usage.unknown`, shown, never defaulted           |
+| Two coordinators on one store                            | design         | one store, one process, the lease authority later |
+| `configurable-tree-traversal` 0.8.0 unpublished          | issue #2 there | pin a git revision until the npm release          |
