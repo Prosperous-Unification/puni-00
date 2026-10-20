@@ -5,7 +5,7 @@
 `assignSubtree { workItem, step, person | null }` SHALL set the assignee of the given step
 on every leaf of the subtree (the item itself when a leaf) to the person, or clear it when
 null, as one journal entry whose undo restores exactly the previous assignees. It SHALL
-refuse `not_a_step` and `unknown_person` as `setAssignee` does and SHALL NOT read team
+refuse `unknown_step` and `unknown_person` as `setAssignee` does and SHALL NOT read team
 labels or claims.
 
 #### Scenario: Review of a subtree goes to one reviewer
