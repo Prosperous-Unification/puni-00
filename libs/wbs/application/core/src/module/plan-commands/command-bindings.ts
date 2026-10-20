@@ -6,7 +6,6 @@ import type { DependencyEndpoint } from '@wbs/domain';
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
 import type { ClaimRefusalOutcome } from '../work-item/claims';
-import { isClaimAdmin } from '../work-item/claims';
 import type {
   AppliedBase,
   AppliedCommand,
@@ -180,6 +179,12 @@ export class CommandContext {
         detail: { nodes: outcome.nodes.map(({ workItemId, stepId }) => ({ workItemId, stepId })) },
       });
     }
+    if (outcome.reason === 'destination_claimed') {
+      return this.refuse({
+        reason: outcome.reason,
+        detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
+      });
+    }
     if (outcome.reason === 'taken') {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
@@ -297,6 +302,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             parentId: context.id(command.parentId, command.parentRef),
             afterId: context.id(command.afterId, command.afterRef),
           },
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
@@ -497,7 +503,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             runId: command.runId ?? null,
             parentClaimId: command.parentClaim ?? null,
           },
-          isClaimAdmin(context.access),
+          context.access,
           context.credential,
         ),
       );
@@ -517,7 +523,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
             personId: context.required(command.personId, command.personRef),
             stepIds: command.steps ?? null,
           },
-          isClaimAdmin(context.access),
+          context.access,
           context.credential,
         ),
       );

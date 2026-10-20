@@ -163,8 +163,8 @@ export function findStartableWork(reads: StartableReads): StartableWork {
   );
   const stepClaims = new Map(
     reads.claims
-      .filter((each) => each.stepId !== null)
-      .map((each) => [`${each.workItemId}\u0000${each.stepId ?? ''}`, each]),
+      .filter((each): each is StampedClaim & { readonly stepId: string } => each.stepId !== null)
+      .map((each) => [`${each.workItemId}\u0000${each.stepId}`, each]),
   );
   const subtreeClaims = new Map(
     reads.claims.filter((each) => each.stepId === null).map((each) => [each.workItemId, each]),

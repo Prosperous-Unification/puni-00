@@ -86,14 +86,21 @@ describe('directoryUsageOfTeam over a set', () => {
 describe('directoryUsageOfPerson over claims', () => {
   // Proof: with the claim effects dropped from directoryUsageOfPerson, this
   // person's usage named no work item; watched 2026-10-19.
+  // Proof: with the person filter restored, the worker's delegated claim on
+  // `b` went unnamed; watched 2026-10-20.
   it('names each claim the removal releases, a subtree claim with no step', () => {
     const rows: DirectoryUsageRows = {
       ...rowsOf([labelled('a', null), labelled('b', 'a')]),
-      steps: [{ id: 'dev', name: 'Dev' }],
+      steps: [
+        { id: 'dev', name: 'Dev' },
+        { id: 'qa', name: 'QA' },
+      ],
+      // What the removal takes: claire's own claims and a worker's claim
+      // delegated under her subtree claim, which the parent cascade takes too.
       claims: [
         { workItemId: 'a', stepId: null, personId: 'claire' },
         { workItemId: 'b', stepId: 'dev', personId: 'claire' },
-        { workItemId: 'b', stepId: 'qa', personId: 'other' },
+        { workItemId: 'b', stepId: 'qa', personId: 'claire-worker' },
       ],
     };
     expect(
@@ -103,7 +110,13 @@ describe('directoryUsageOfPerson over claims', () => {
       ]),
     ).toEqual([
       ['a', [{ kind: 'claim_released', step: null }]],
-      ['b', [{ kind: 'claim_released', step: { id: 'dev', name: 'Dev' } }]],
+      [
+        'b',
+        [
+          { kind: 'claim_released', step: { id: 'dev', name: 'Dev' } },
+          { kind: 'claim_released', step: { id: 'qa', name: 'QA' } },
+        ],
+      ],
     ]);
   });
 });

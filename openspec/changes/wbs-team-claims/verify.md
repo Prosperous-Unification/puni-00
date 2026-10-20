@@ -616,3 +616,51 @@ takes workers' delegated claims without naming them or moving their items' revis
 follow-up branch; S3-2 (refusal codes the deltas did not state) fixed in the specs. Not yet
 verified: the pre-activation `401 unknown_identity` clause (every fleet-credential test runs
 after activation); a test is owed by the follow-up branch.
+
+### Whole-change follow-ups (branch `feat/wbs-claims-handdown`, 2026-10-20)
+
+Each negative: fault injected, the named test watched failing, fault restored.
+
+- **S2 claims stranded on a split leaf.** `ClaimStore.moveAll(from, to)` on SQLite (one `UPDATE`, ids, account and `created_at` kept, both revisions bumped) and memory; `createWorkItem` moves a gaining leaf's claims to its first child beside the other step facts; the journal carries a new `move_claims` command (forward after `restore_subtree`, inverse before the child's `delete_subtree`), whose replay refuses when the claims on its source changed. Negative: hand-down skipped: `releases the handed-down claim on the child` (`claim-command.test.ts`) answered `not_claimed_by`, and the SQLite case in `claim-race.db.test.ts` read the claim still on the leaf; inverse omitted: undo read no claim on the parent (memory) and the child's delete cascaded it away (SQLite); forward omitted: redo left it on the parent; replay refusal removed: `refuses an undo of a split once the child's claims changed` answered ok; `readClaimMove` removed: `refuses a malformed claim move`; `moveAll` aimed at no row (SQLite) or its clash refusal disabled (memory): certification case `claims.moveAll:in-place`.
+- **S3-1 holder names from the root directory, full scan.** `claim`/`release` take the caller's `ResourceAccess`; names come from the organization's person list under scoped access and from `namesOf` under legacy access. Negative: root `listPeople()` restored: `names the holder by the organization's name, not the root name` (`claim-identity.controller.db.test.ts`) read `root-claire`; `reads only the people a refused claim names` (`startable-scope.db.test.ts`) saw `SCAN person USING INDEX person_name` and 85 rows.
+- **S3-3 delegation under a pinned credential.** test only: `delegates under its own person's subtree claim, and only there`. Negative: `decideClaim`'s pin callback answering false: the delegated claim with `parentClaim` answered 403.
+- **S3-4 superagent removal and delegated claims.** usage rows' `claims` are now every claim the removal takes (own and delegated, transitively, both sources); `directoryUsageOfPerson` names each on its own row; `removePerson` bumps and reports every affected work item. Negative: transitive read disabled: certification case `directory.removePerson:delegated-claims` (both sources); own claims only in `removePerson`: same case on both sources and `moves the revision of a delegated claim's work item when its superagent is removed` (`claim.db.test.ts`, revision 0); person filter restored in `directoryUsageOfPerson`: `names each claim the removal releases…`.
+- **S3-2 pre-activation `unknown_identity`.** test only: `refuses an unlinked groups-less token before activation, minting no account`. Negative: `authenticateOrRefuse`'s groups-less branch disabled: 200 with an empty project list instead of 401.
+- **S3-5 swap window.** documented here and in `docs/runbook-prod-deploy.md` (Team claims swap window and rollback). Negative: not a check.
+- **S4.** `credential-link.ts` imports `CredentialPair` from `@wbs/contracts`; `startable.ts` narrows the step claims instead of `?? ''`; D7 consequence on admin-written claims; the runbook's rollback order. Negative: not checks.
+
+**Blue/green window.** During the window, the outgoing be-01's confirmed `deletePerson` of a
+person green pinned, or `removeStep` of a step green claimed, fails on the foreign key (500,
+nothing written), and an outgoing fe-01 shown green's `claim_released` effect arm fails its
+validator; those fail closed. The outgoing be-01's confirmed `deletePerson` of a person who
+holds claims but is not pinned does not: the `claim.person_id` cascade takes the claims with no
+`in_use` refusal and no revision bump, so the runbook rules out person deletions during the
+swap window. Taken from the whole-change review and its PR #589 review; not re-run in a
+two-colour setup here.
+
+**Assumed (for Dany's review).** The hand-down moves the claims rather than refusing the
+create: a split is a planning act and the holder keeps the work. Under scoped access a claim or
+release naming a person outside the caller's organization answers `unknown_person` (it read the
+root directory before). A `claim_released` effect names the row and step, not the holder, so
+the wire shape fe-01 validates is unchanged.
+
+Second round (PR #589 review):
+
+- **S2 a move under a claimed leaf.** `moveWorkItem` whose destination is a leaf holding step
+  claims is refused `destination_claimed` (409, holders by id, name and run; nothing written);
+  the moved row is other work and does not take the claims over. Negative: refusal disabled,
+  `refuses a move under a claimed leaf, naming its holders, until they are released`
+  (`claim-command.test.ts`) answered ok.
+- **S3-1 `remove_claims` replay after a split.** The replay refuses when a recorded claim now
+  sits on another work item. Negative: check disabled, `refuses an undo of a claim once
+another actor split the leaf` (memory, no revisions) answered the undo ok.
+- **S4.** `touchedBy`'s `move_claims` arm is redundant with the create's explicit touched ids
+  (commented; no production negative). The four step-parallel fixtures that build the
+  work-item service without a claim store keep the `claims === undefined` skip: they predate
+  claims, hold none, and requiring the store would change four fixtures for no reachable state.
+- **Known gap, not fixed here.** `delete_subtree` and `restore_subtree` carry no claims, so
+  undoing the deletion of a claimed leaf restores the row without its claims.
+- **Known gap, not fixed here.** A redo of a `move` onto a leaf claimed since relies on the
+  revision gate (SQLite); the replay itself does not re-check `destination_claimed`.
+
+Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the final head.
