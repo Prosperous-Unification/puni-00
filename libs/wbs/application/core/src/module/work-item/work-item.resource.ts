@@ -4425,14 +4425,25 @@ export class WorkItemService {
    * Refuses retained sparse facts on the exact removed owners before stamping or
    * writes; promote retains child owners. Corrupt or unreadable facts throw.
    * Command scopes own atomic rollback until sparse snapshot/history support exists.
+   *
+   * A delete that promotes the parent back to a leaf hands the deleted leaf's
+   * claims up with its other step facts (`wbs-team-claims`), ids, parents and
+   * occupancy kept, and the undo hands them back down. It is refused
+   * `children_claimed`, naming every holder, when claims sit on more than one
+   * deleted row or on the parent itself: two leaves' step claims would clash on
+   * the parent's (work item, step) key, a claim delegated under a deleted
+   * subtree claim would go with it, and the undo could not tell a parent's own
+   * subtree claim from the claims it was handed. `access` names the holders.
    */
   async remove(
     id: string,
     actorId: string,
     strategy: DeleteStrategy | null,
+    access: ResourceAccess,
   ): Promise<
     | WorkItemOutcome<null>
     | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    | { ok: false; reason: 'children_claimed'; holders: readonly NamedClaimHolder[] }
   > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -4536,6 +4547,58 @@ export class WorkItemService {
           dependencyIds: stranded.map((row) => row.id),
         };
       }
+    }
+    // The claims a promoting delete hands up: those of the one deleted row
+    // holding any, when that row is a former leaf. Claims on more than one
+    // deleted row, or on a parent that would receive some, are refused below;
+    // a lone subtree claim on a deleted parent goes with it, as before.
+    const promotes =
+      survivor !== null &&
+      (children.length === 0 || strategy === 'cascade') &&
+      rows.filter((row) => row.parentId === survivor).length === 1;
+    const claimedRows = promotes
+      ? [
+          ...new Set(
+            removedClaims.claims
+              .filter(({ workItemId }) => inside.has(workItemId))
+              .map(({ workItemId }) => workItemId),
+          ),
+        ]
+      : [];
+    const claimedHandedUp = removedClaims.claims.filter(
+      ({ workItemId }) =>
+        claimedRows.includes(workItemId) && !rows.some((row) => row.parentId === workItemId),
+    );
+    const parentClaims =
+      claimedHandedUp.length === 0 || this.opts.claims === undefined
+        ? []
+        : (await this.opts.claims.listByProject(workItem.projectId)).filter(
+            ({ workItemId }) => workItemId === survivor,
+          );
+    // Proof: with this refusal disabled, `refuses a promoting delete whose
+    // claims sit on two former leaves, naming every holder`
+    // (resource-occupancy.db.test.ts) threw `already holds a claim` on memory
+    // and a DrizzleQueryError on the `claim` update on SQLite (the unique
+    // index), and `refuses a promoting delete handing claims up to a parent
+    // that holds its own subtree claim` answered ok on both; watched 2026-10-20.
+    if (claimedRows.length > 1 || parentClaims.length > 0) {
+      const held = [
+        ...parentClaims,
+        ...removedClaims.claims.filter(({ workItemId }) => inside.has(workItemId)),
+      ];
+      const nameOf = await this.personNamesWithin(
+        access,
+        held.map(({ personId }) => personId),
+      );
+      return {
+        ok: false,
+        reason: 'children_claimed',
+        holders: held.map(({ id: claimId, personId, runId }) => {
+          const name = nameOf.get(personId);
+          if (name === undefined) throw new Error(`claim ${claimId} names an absent person`);
+          return { claimId, personId, name, runId };
+        }),
+      };
     }
 
     if (children.length === 0 || strategy === 'cascade') {
@@ -4708,6 +4771,31 @@ export class WorkItemService {
       // so a moment later there is nothing left to read and the restore would
       // put the branch back with nobody on it.
       const doomedAssignments = await this.opts.directory.assignmentsOf(doomed);
+      // The claims up before the rows go, which would cascade them away; moved
+      // in place, so their occupancy rows and the claims delegated under them
+      // follow by id. What the delete then takes is read afresh.
+      // Proof: skipped, `hands the only child’s claims and occupancy back up
+      // when its delete promotes the parent, and back on undo` read no claim
+      // and no occupancy after the delete, and `hands a delegated claim up with
+      // its parent claim id …` lost the delegated claim (both in
+      // resource-occupancy.db.test.ts, both stores), and the swarm rehearsal's
+      // step 5b read `[]` on the parent; watched 2026-10-20.
+      const claimsMovedUp: Extract<CompensatingCommand, { do: 'move_claims' }>[] = [];
+      for (const fromWorkItemId of new Set(claimedHandedUp.map(({ workItemId }) => workItemId))) {
+        // `promotes` holds whenever anything is handed up.
+        if (parentId === null) throw new Error('a claim was handed up to no parent');
+        await this.claiming().claims.moveAll(fromWorkItemId, parentId, stamp);
+        claimsMovedUp.push({
+          do: 'move_claims',
+          fromWorkItemId,
+          toWorkItemId: parentId,
+          claims: claimedHandedUp.filter(({ workItemId }) => workItemId === fromWorkItemId),
+        });
+      }
+      const claimsTaken =
+        claimsMovedUp.length === 0
+          ? removedClaims
+          : await this.claimsGoingWith(workItem.projectId, doomed);
       // Edges first, and every one touching anything in the subtree. The
       // foreign keys refuse a delete that would orphan one, so this is not
       // tidiness: without it, deleting a work item anything depends on fails
@@ -4759,105 +4847,123 @@ export class WorkItemService {
         // child’s demand back up when its delete promotes the parent` read no
         // demand after the redo; left out of the inverse, its undo read the
         // demand on both rows; both stores, watched 2026-10-20.
+        // Proof: the hand-up of claims left out of the forward, `hands the only
+        // child’s claims …` and `hands a delegated claim up …` read them on the
+        // restored child after the redo; left out of the inverse, their undo
+        // read them on the parent; both stores, watched 2026-10-20.
         forward: withSteps(
-          withPatchStep(
-            withRemovedTyped(
-              {
-                do: 'delete_subtree',
-                deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
-                rootId: id,
-                expectedSubtree: doomed,
-                remove: doomed,
-                reparented: [],
-                setEstimates: handedUp,
-                setActuals: recordedHandedUp,
-                setProgress: statedHandedUp,
-                setMeasures: measuredHandedUp,
-              },
-              removedTyped,
-              false,
+          withSteps(
+            withPatchStep(
+              withRemovedTyped(
+                {
+                  do: 'delete_subtree',
+                  deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
+                  rootId: id,
+                  expectedSubtree: doomed,
+                  remove: doomed,
+                  reparented: [],
+                  setEstimates: handedUp,
+                  setActuals: recordedHandedUp,
+                  setProgress: statedHandedUp,
+                  setMeasures: measuredHandedUp,
+                },
+                removedTyped,
+                false,
+              ),
+              handUpStep?.forward,
+              'after',
             ),
-            handUpStep?.forward,
+            demandHandUp('units'),
             'after',
           ),
-          demandHandUp('units'),
-          'after',
+          claimsMovedUp,
+          'before',
         ),
         inverse: withSteps(
-          withPatchStep(
-            withRemovedTyped(
-              withClaimsRestored(
-                {
-                  do: 'restore_subtree',
-                  deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
-                  rows: doomed.map((each) => rowOf(rows, each)),
-                  rootPosition: workItem.position,
-                  reparented: [],
-                  estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-                  // Every day recorded anywhere in the branch, put back where it was
-                  // recorded. Without this an undo of a delete answers `ok` and returns
-                  // the branch with its estimates and none of its actuals — the plan
-                  // looks whole and a week of somebody's record is gone.
-                  actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-                  // Every statement made anywhere in the branch, put back where it was
-                  // made. Without this an undo of a delete answers `ok` and returns the
-                  // branch reading as work nobody has started — the plan looks whole and
-                  // a fortnight of finished work is unfinished again.
-                  progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-                  // Every token and hour recorded anywhere in the branch, put back where
-                  // it was recorded. Without this an undo of a delete answers `ok` and
-                  // returns the branch with its days and none of its tokens — the plan
-                  // looks whole and the record of what the work cost to run is gone.
-                  measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-                  // Every attempt at the branch's nodes, verbatim with its number.
-                  attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
-                  // Proof: left out, `puts a deleted leaf back still skipping its removed
-                  // highest number` in `step-node-attempt.controller.db.test.ts` numbered
-                  // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
-                  issuedAttemptNumbers: storedIssued,
-                  assignments: doomedAssignments,
-                  // Every demand stated anywhere in the branch, put back where it was
-                  // stated. Without this an undo of a delete answers `ok` and returns
-                  // the branch needing nothing, and the engines level it as free.
-                  // Proof: with this list emptied, `undo of a delete puts the demands
-                  // back exactly` and `undo of a cascading delete puts every row’s
-                  // demands back` (resource-occupancy.db.test.ts) read [] on both
-                  // stores; watched 2026-10-20.
-                  demands: storedDemands.filter((each) => inside.has(each.workItemId)),
-                  internalDependencies: cut.filter(
-                    (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
-                  ),
-                  externalDependencies: cut.filter(
-                    (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
-                  ),
-                  removedEstimates: handedUp.map((each) => ({
-                    workItemId: each.workItemId,
-                    stepId: each.stepId,
-                  })),
-                  removedActuals: recordedHandedUp.map((each) => ({
-                    workItemId: each.workItemId,
-                    stepId: each.stepId,
-                  })),
-                  removedProgress: statedHandedUp.map((each) => ({
-                    workItemId: each.workItemId,
-                    stepId: each.stepId,
-                  })),
-                  removedMeasures: measuredHandedUp.map((each) => ({
-                    workItemId: each.workItemId,
-                    stepId: each.stepId,
-                    metric: each.metric,
-                  })),
-                },
-                removedClaims,
+          withSteps(
+            withPatchStep(
+              withRemovedTyped(
+                withClaimsRestored(
+                  {
+                    do: 'restore_subtree',
+                    deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
+                    rows: doomed.map((each) => rowOf(rows, each)),
+                    rootPosition: workItem.position,
+                    reparented: [],
+                    estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+                    // Every day recorded anywhere in the branch, put back where it was
+                    // recorded. Without this an undo of a delete answers `ok` and returns
+                    // the branch with its estimates and none of its actuals — the plan
+                    // looks whole and a week of somebody's record is gone.
+                    actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+                    // Every statement made anywhere in the branch, put back where it was
+                    // made. Without this an undo of a delete answers `ok` and returns the
+                    // branch reading as work nobody has started — the plan looks whole and
+                    // a fortnight of finished work is unfinished again.
+                    progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+                    // Every token and hour recorded anywhere in the branch, put back where
+                    // it was recorded. Without this an undo of a delete answers `ok` and
+                    // returns the branch with its days and none of its tokens — the plan
+                    // looks whole and the record of what the work cost to run is gone.
+                    measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+                    // Every attempt at the branch's nodes, verbatim with its number.
+                    attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
+                    // Proof: left out, `puts a deleted leaf back still skipping its removed
+                    // highest number` in `step-node-attempt.controller.db.test.ts` numbered
+                    // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+                    issuedAttemptNumbers: storedIssued,
+                    assignments: doomedAssignments,
+                    // Every demand stated anywhere in the branch, put back where it was
+                    // stated. Without this an undo of a delete answers `ok` and returns
+                    // the branch needing nothing, and the engines level it as free.
+                    // Proof: with this list emptied, `undo of a delete puts the demands
+                    // back exactly` and `undo of a cascading delete puts every row’s
+                    // demands back` (resource-occupancy.db.test.ts) read [] on both
+                    // stores; watched 2026-10-20.
+                    demands: storedDemands.filter((each) => inside.has(each.workItemId)),
+                    internalDependencies: cut.filter(
+                      (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+                    ),
+                    externalDependencies: cut.filter(
+                      (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+                    ),
+                    removedEstimates: handedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                    })),
+                    removedActuals: recordedHandedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                    })),
+                    removedProgress: statedHandedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                    })),
+                    removedMeasures: measuredHandedUp.map((each) => ({
+                      workItemId: each.workItemId,
+                      stepId: each.stepId,
+                      metric: each.metric,
+                    })),
+                  },
+                  claimsTaken,
+                ),
+                removedTyped,
+                true,
               ),
-              removedTyped,
-              true,
+              handUpStep?.inverse,
+              'before',
             ),
-            handUpStep?.inverse,
+            demandHandUp('previous'),
             'before',
           ),
-          demandHandUp('previous'),
-          'before',
+          // After the restore, which puts back the rows they return to.
+          claimsMovedUp.map(({ fromWorkItemId, toWorkItemId, claims }) => ({
+            do: 'move_claims' as const,
+            fromWorkItemId: toWorkItemId,
+            toWorkItemId: fromWorkItemId,
+            claims: claims.map((each) => ({ ...each, workItemId: toWorkItemId })),
+          })),
+          'after',
         ),
         // Two deliberate absences. The deleted rows are not here — nothing can
         // hold a revision of a row that is gone, and the restore's refusal to

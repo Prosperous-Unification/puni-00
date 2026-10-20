@@ -844,3 +844,77 @@ the delete/undo/duplicate follow-up (PR #593), the whole-change follow-ups (PR #
 `origin/main` at 0e8909294. An earlier run on fb4442286 failed six store-sqlite scope tests on a
 test-harness spread that dropped prototype methods, fixed in PR #594. This commit changes only
 verify.md.
+
+## Swarm rehearsal (2026-10-20)
+
+`env -u CLAUDECODE bun test ./apps/wbs/be-01/src/swarm-rehearsal.boot.db.test.ts` runs both
+changes together for two fleets on be-01's production composition (cookie organization binding,
+JWKS-verified machine tokens with no `wbs_groups` and no email) over one fresh SQLite file
+migrated from empty by `migrate-cli.ts`, activated by `organization-activation-cli.ts` (dry run
+writes nothing, apply leaves `readOrganizationActivation` = `activated`; the CLI is PR #582,
+merged into the rehearsal branch) and credentialed by `link-credential-cli.ts`: two superagents
+claim their subtrees, seven delegated worker claims race through the held write coordinator for
+16 GB of RAM and one `staging` slot (in every admission order two 6 GB leaves and one staging leaf
+win, the other four are refused `resources_exhausted` naming real holders), the fences
+(`inside_subtree_claim`, `credential_not_for_person`) hold, the startable read agrees with the
+store for both teams, `assignSubtree`, the by-person read and `claim { assign: true }` with its
+undo work, a subtree release cascades and frees the units, its undo is refused `stale_undo`
+`resources_exhausted:` once another account took them, a second round claims again, a claimed
+demanded leaf's split and undo move claim and demand, a move under it is refused
+`destination_claimed`, and an unlinked credential answers `401 unknown_identity` minting no
+account. Result: 7 pass, 1 todo, 0 fail, 195 to 197 `expect()` calls (the count follows which
+leaves win), about 7.4 s (4.6 s of it the activation and CLI spawns); 15 consecutive runs green. Proofs: with `decideClaim` ignoring
+`refuseOccupancy`, four staging leaves were admitted in the race; an organization row inserted
+between the dry run's snapshots failed step 1.
+
+Findings, each with the exact response:
+
+- **Delete-promotion drops claims (todo 5b).** Deleting the only child of a claimed, demanded leaf
+  answers `200 {"results":[{"index":0}],"undoable":true,"redoable":false}` and returns the
+  demand to the parent, but the child's claim rows are removed rather than moved back: the
+  parent holds no claim and its RAM, disk and staging occupancy is freed without a release.
+  `wbs-team-claims` specifies only that undoing the first child moves claims back; compare its
+  known gap that `delete_subtree` carries no claims.
+- **A freed leaf taken again refuses the undo before the occupancy check.** When another agent
+  claims one of the leaves a subtree release freed, undoing the release answers `409 stale_undo`
+  with detail `“Leaf A2” has changed since then.`, not `resources_exhausted:`. The
+  `resources_exhausted:` detail appears only when the units are taken on a leaf the release did
+  not touch (the rehearsal's hotfix leaf).
+- **Not a break, by the specified order:** a stranger claiming an unclaimed leaf inside a claimed
+  subtree while its demand does not fit is told `resources_exhausted`, since the occupancy
+  refusals precede `inside_subtree_claim`; and a fleet A worker claiming inside fleet B's subtree
+  through fleet A's credential without a parent claim is refused `credential_not_for_person`
+  before the fence. The fence is shown on a held leaf's free step, which acquires nothing.
+
+## Swarm rehearsal follow-up (2026-10-20)
+
+The delete-promotion finding is closed: a delete that promotes the parent back to a leaf moves
+the deleted former leaf's claims up in place (`ClaimStore.moveAll`, journalled `move_claims`
+before the `delete_subtree` and inverted after the `restore_subtree`), so ids, holders, runs and
+parent claim ids are kept and the occupancy rows follow by claim id. The honest rule for a
+branch: when claims sit on more than one deleted row, or the receiving parent holds a claim of
+its own, the delete is refused `children_claimed` naming every holder, because two leaves' step
+claims clash on the parent's (work item, step) key, a claim delegated under a deleted subtree
+claim would cascade with it, and the undo could not tell a parent's own claim from the ones it
+was handed. A lone subtree claim on a deleted parent with no claimed leaf goes with the delete as
+before.
+
+| Command                                                                                         | Result                                                    |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `env -u CLAUDECODE bun test ./libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts` | 68 pass, 0 fail, 382 `expect()` calls (memory and SQLite) |
+| `env -u CLAUDECODE bun test ./apps/wbs/be-01/src/swarm-rehearsal.boot.db.test.ts`, three runs   | 8 pass, 0 todo, 0 fail, 210 `expect()` calls each         |
+
+Proofs, each watched failing on both stores and restored:
+
+| Injected fault                        | Observed                                                                                                                                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `moveAll` in the promotion skipped    | `hands the only child’s claims and occupancy back up …` read no claim and no occupancy after the delete; `hands a delegated claim up with its parent claim id …` lost the claim; rehearsal 5b read `[]` on the parent                                                                      |
+| `children_claimed` refusal disabled   | `refuses a promoting delete whose claims sit on two former leaves …` threw `already holds a claim` (memory) and a `DrizzleQueryError` on the `claim` update (SQLite unique index); `refuses a promoting delete handing claims up to a parent that holds its own subtree claim` answered ok |
+| `move_claims` left out of the forward | both hand-up cases read the claims on the restored child after the redo                                                                                                                                                                                                                    |
+| `move_claims` left out of the inverse | both hand-up cases read the claims on the parent after the undo                                                                                                                                                                                                                            |
+
+Rehearsal 5b undoes a delete, which a database whose blockage authority was never activated
+refuses `409 step_blockage_inactive` whatever the claims do; the step enables it with
+`activateTestStepBlockages` as the attended activation would. `refuses an undo of a delete once
+the claim it was delegated under was released` gained a sibling `W` so its delete no longer
+promotes (it would now hand the claim up rather than take it).

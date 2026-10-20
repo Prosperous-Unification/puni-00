@@ -568,12 +568,15 @@ export class OrganizationHarness {
     sessionBinding,
     provider,
     upstreamCredential,
+    migrate = (path) => {
+      runMigrations(path, FOLDER);
+    },
   }: ComposedHarnessOptions): OrganizationHarness {
     if (provider !== undefined && upstreamCredential !== undefined)
       throw new Error('a harness takes a fake provider or an upstream credential, not both');
     const dir = mkdtempSync(join(tmpdir(), 'wbs-organization-'));
     const path = join(dir, 'test.db');
-    runMigrations(path, FOLDER);
+    migrate(path);
     const source = openSqliteSource({
       dbPath: path,
       openReadOnlyConnection,
@@ -934,6 +937,11 @@ export interface ComposedHarnessOptions {
   provider?: FakeOidcProvider;
   /** Verifies upstream Bearer tokens; see {@link OrganizationHarnessOptions}. */
   upstreamCredential?: OrganizationHarnessOptions['upstreamCredential'];
+  /**
+   * Migrates the fresh, empty file at `dbPath` before anything opens it; in-process
+   * `runMigrations` when absent. A rehearsal passes the operator's `migrate-cli.ts`.
+   */
+  migrate?: (dbPath: string) => void;
 }
 
 /**

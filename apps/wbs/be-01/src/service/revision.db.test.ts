@@ -322,7 +322,7 @@ describe('what a work item write moves', () => {
     const cable = await root('Cable', strip);
     const before = await revisionOf(sockets);
 
-    const outcome = await workItems.remove(strip, ownerId, 'promote');
+    const outcome = await workItems.remove(strip, ownerId, 'promote', { kind: 'legacy' });
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(sockets)).toBe(before + 1);
@@ -418,7 +418,7 @@ describe('what an estimate moves', () => {
     await workItems.setEstimate(sockets, ownerId, dev(), DAYS);
     const before = await revisionOf(strip);
 
-    const outcome = await workItems.remove(sockets, ownerId, 'cascade');
+    const outcome = await workItems.remove(sockets, ownerId, 'cascade', { kind: 'legacy' });
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(strip)).toBe(before + 1);
@@ -486,7 +486,7 @@ describe('what a dependency moves', () => {
     await workItems.addDependency(cable, ownerId, strip);
     const before = await revisionOf(cable);
 
-    const outcome = await workItems.remove(strip, ownerId, 'cascade');
+    const outcome = await workItems.remove(strip, ownerId, 'cascade', { kind: 'legacy' });
 
     expect(outcome.ok).toBe(true);
     expect(await revisionOf(cable)).toBe(before + 1);

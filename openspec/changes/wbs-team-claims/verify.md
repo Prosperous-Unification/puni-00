@@ -664,3 +664,6 @@ another actor split the leaf` (memory, no revisions) answered the undo ok.
   revision gate (SQLite); the replay itself does not re-check `destination_claimed`.
 
 Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the final head.
+
+Swarm rehearsal (2026-10-20): both changes exercised together for two fleets on a booted be-01,
+with the findings it raised, in `openspec/changes/wbs-resources/verify.md`, "Swarm rehearsal".

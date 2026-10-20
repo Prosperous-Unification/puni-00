@@ -1931,3 +1931,102 @@ itself. Pinned OpenSpec 1.12.0 `validate <change> --strict --json` passed all si
 affected changes with no issues; changed-file Prettier and `git diff --check`
 passed. Existing installed dependencies supplied formatting/hooks; no frozen
 install or application verification was performed for this documentation slice.
+
+## Activation CLI — 2026-10-20
+
+Task 7.1A, branch `feat/organization-activation-cli` from `origin/main` `a82d6fa9b`.
+`apps/wbs/be-01/src/organization-activation-cli.ts` is a thin shell over
+`activateLegacyOrganization` (`libs/wbs/adapters/store-sqlite/src/organization-legacy-activation.ts`),
+which reuses `readOrganizationActivation`, `OrganizationOwnershipRepository.backfillLegacyOwnership`
+(nested as a savepoint), `backfillExternalIdentities` and the preflight's three reconciliation
+queries inside one `BEGIN IMMEDIATE`. The preflight's own `preflightOrganizationOwnership` opens a
+`BEGIN DEFERRED` and cannot nest, so its three repository queries are called directly. Without
+`--apply` the transaction is rehearsed and rolled back. No migration.
+
+Reconciliation runs after the backfill because before it every event stream resolves to no mapped
+project and every root is unmapped. Refusals are typed and exit 3 (activated), 4 (organization
+exists), 5 (super-admin not exactly one user) or 6 (reconciliation); a broken marker, a half legacy
+solution or identity pair and usage errors throw (exit 1).
+
+Fixture: migrated disposable SQLite with three users (one with a legacy Auth0 pair), three
+projects (one with a legacy solution pair), two people, two teams, a service, a tag, a type, an
+external system, two saved plans, work items, a dependency, links, capacity and an event stream.
+
+| Command                                                                                                                                                                                        | Result                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/organization-activation-cli.db.test.ts apps/wbs/be-01/src/organization-activation.boot.db.test.ts`                                              | 20 pass, 0 fail, 108 expect() calls |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts`                         | 69 pass, 0 fail                     |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts` | 19 pass, 0 fail                     |
+| `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                        | succeeded                           |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                                                                                                                                       | 258/258 passed                      |
+
+The rehearsal leaves every written table, the marker and the main database file byte for byte
+unchanged. The apply maps each root kind's full row count, grants one `super_admin` and two
+`member` rows, moves one solution pair and copies one identity. The booted test runs the CLI as a
+separate process against the file `bootBe01` serves (`BROWSER_SESSION_AUTHORITY=enabled`), with no
+restart. Afterwards the super-admin and a member each select their one membership and list both
+legacy projects, a Bearer-only request and a stranger registered after activation get
+`403 no_active_organization`, and under `disabled` the super-admin gets the same 403.
+
+R5 faults, each watched failing and restored:
+
+- Marker check removed: `refuses a second apply before touching the store` exited 4
+  (`organization_exists`) instead of 3; `refuses an activated marker even when no organization
+exists` reached the marker's no-revert trigger (exit 1).
+- Reconciliation check removed: `refuses and rolls back over a root planted after the backfill`
+  (bridge trigger dropped, tag inserted by a planted membership trigger) and `refuses an event
+stream that resolves to no project` both exited 0 and committed the marker.
+- Rehearsal committed: `rehearses without --apply` observed the identity, mappings and cleared
+  legacy solution pair.
+- Booted test run without `--apply`: the memberships read answered 403, not 200.
+
+Not verified: the CLI has not run on dev or prod. Drain/fence of old processes, the MCP epoch,
+trusted policy state and the release fence for `project_solution` remain 7.1B.
+
+### Review round 1 (PR #582 at `419f8fe4`)
+
+The queued gate on `419f8fe4` was cancelled before it started.
+
+- S2-1: Deleting a project through the production drain (`beginOptimizationDrain` and
+  `finishOptimizationDrain`) leaves its event stream behind. `organization-legacy-activation.db.test.ts`
+  shows activation refusing it as an `event_stream` conflict. `--prune-retained-streams` (only
+  with `--apply`) deletes, in the same transaction, the `event_sequencer`/`event_log` rows of
+  `project:<id>` streams whose project row is gone, and lists them in `prunedStreams`.
+  Faults:
+  - With the `NOT EXISTS` project guard removed, both the store test and the CLI's
+    `prunes a deleted project's retained stream only with --apply` also pruned the live
+    project's stream.
+  - With the without-`--apply` usage clause removed, both prune CLI tests exited 0.
+- S3-1: The plan prints `members` as `{id, username, role}` by id, `externalIdentities` as
+  `{userId, issuer, subject}`, and `solutionLinks` as `{projectId, slug, url}`. The dry-run test
+  pins the plan's keys and lists. A mounted parity test shows that a `member` reads a
+  restricted project it does not own and is refused its edit with the same 403 body before
+  and after activation. Fault: granting `super_admin` instead of `member` made that edit answer
+  200 and rename the project.
+- S2-2, S2-3, S3-2: `docs/runbook-organization-activation.md` now has:
+  - a Bearer and MCP loss statement naming tasks 2.5 and 6.4–6.6;
+  - a step 0 that stops on `BROWSER_SESSION_AUTHORITY=disabled`, with what `enabled` changes
+    before activation;
+  - preflight and selection preview run on the backup before the dry run.
+- S4: the `OrganizationRepository.addMember` JSDoc is corrected, and the `c` callback is renamed.
+
+| Command                                                                                                                                                                                                                                                  | Result                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| `env -u CLAUDECODE bun test apps/wbs/be-01/src/organization-activation-cli.db.test.ts apps/wbs/be-01/src/organization-activation.boot.db.test.ts`                                                                                                        | 23 pass, 0 fail, 136 expect() calls |
+| `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/organization-legacy-activation.db.test.ts src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts src/organization-records.db.test.ts` | 104 pass, 0 fail                    |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts`                                                           | 19 pass, 0 fail                     |
+| `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                                                                                  | succeeded                           |
+
+### Gate on `fde00049` and the stderr fix
+
+`h2puni gate: running on fde00049a830335f74097ea2f554b447ba60fe27` ended `GATE_EXIT=1`. The
+only failed task was `wbs-be-01:test`, which had 7 failures. All of them were refusal cases
+in `organization-activation-cli.db.test.ts`, each failing with
+`JSON Parse error: Unrecognized token '\x1b'`. Under Nx, `FORCE_COLOR` is set, and Bun's
+`console.error` wraps its output in `\x1b[0m\x1b[31m`. The local raw stderr of a refusal,
+captured with `od -c`, began `033 [ 0 m 033 [ 3 1 m {` even with `FORCE_COLOR` empty. The CLI
+now writes each refusal as one raw JSON line through `process.stderr.write`, and the plan
+through `process.stdout.write`. The test runs the CLI with `FORCE_COLOR=1` and requires
+stderr to be exactly one JSON object line. Fault: restoring `console.error` failed the same
+7 tests locally, with 13 passing. Fixed run: the CLI and boot files gave 23 pass, 0 fail,
+154 expect() calls.

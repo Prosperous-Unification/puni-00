@@ -395,6 +395,7 @@ function answerBatch(
       };
     case 'already_claimed':
     case 'destination_claimed':
+    case 'children_claimed':
       return {
         ok: false,
         status: 409,

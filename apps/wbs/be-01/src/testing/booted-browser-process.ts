@@ -94,6 +94,11 @@ export class BootedBrowserProcess {
     );
   }
 
+  /** The migrated file the booted app serves, for a CLI run as a separate process. */
+  databasePath(): string {
+    return join(this.dir, 'test.db');
+  }
+
   async close(): Promise<void> {
     this.sqlite.close();
     await this.running.stop();

@@ -503,6 +503,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // A move under a leaf whose steps are claimed: the table's own drag sends it.
     case 'destination_claimed':
       return refusal.error;
+    // A delete that would hand two rows' claims up to one leaf.
+    case 'children_claimed':
+      return refusal.error;
     // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
     case 'resources_must_be_a_list':
     case 'resources_must_name_a_resource':
@@ -769,6 +772,8 @@ export const PLAN_REFUSALS: RefusalWords = {
       'That change cannot be made while the affected steps have individual parallelism overrides.',
     destination_claimed:
       'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
+    children_claimed:
+      'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:
       'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:

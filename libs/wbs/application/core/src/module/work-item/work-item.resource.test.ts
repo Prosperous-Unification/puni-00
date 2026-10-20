@@ -238,7 +238,7 @@ describe('deleting blocked work items', () => {
     const leaf = await add('Blocked leaf');
     await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: -30 }, WROTE);
     await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 25 }, WROTE);
-    expect((await service.remove(leaf, OWNER, null)).ok).toBe(true);
+    expect((await service.remove(leaf, OWNER, null, { kind: 'legacy' })).ok).toBe(true);
     expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([]);
     expect((await service.undo(projectId, OWNER)).ok).toBe(true);
     expect(await serviceOptions.blockages.listByProject(projectId)).toEqual([
@@ -263,7 +263,7 @@ describe('deleting blocked work items', () => {
         await serviceOptions.blockages.set({ workItemId: second, stepId, blockedAt: -10 }, WROTE);
       await progress.set({ workItemId: first, stepId, state: 'done', statedAt: 20 }, WROTE);
       await progress.set({ workItemId: second, stepId, state: 'done', statedAt: 30 }, WROTE);
-      expect((await service.remove(branch, OWNER, 'cascade')).ok).toBe(true);
+      expect((await service.remove(branch, OWNER, 'cascade', { kind: 'legacy' })).ok).toBe(true);
       expect(await serviceOptions.blockages.listByProject(projectId)).toEqual(
         unanimous ? [{ workItemId: parent, stepId, blockedAt: -10 }] : [],
       );
@@ -288,7 +288,7 @@ describe('deleting blocked work items', () => {
       ...serviceOptions,
       blockages: { ...serviceOptions.blockages, set: () => Promise.resolve('unknown_step') },
     });
-    const rejection = await refused.remove(leaf, OWNER, null).then(
+    const rejection = await refused.remove(leaf, OWNER, null, { kind: 'legacy' }).then(
       () => 'resolved',
       (error: unknown) => String(error),
     );
@@ -300,7 +300,7 @@ describe('deleting blocked work items', () => {
     const leaf = await add('Leaf', parent);
     await progress.set({ workItemId: parent, stepId, state: 'in_progress', statedAt: -30 }, WROTE);
     await progress.set({ workItemId: leaf, stepId, state: 'done', statedAt: 20 }, WROTE);
-    expect((await service.remove(leaf, OWNER, null)).ok).toBe(true);
+    expect((await service.remove(leaf, OWNER, null, { kind: 'legacy' })).ok).toBe(true);
     const refused = new WorkItemService({
       ...serviceOptions,
       progress: { ...progress, set: () => Promise.resolve('unknown_step') },
@@ -316,7 +316,7 @@ describe('deleting blocked work items', () => {
     const parent = await add('Parent');
     const leaf = await add('Leaf', parent);
     await serviceOptions.blockages.set({ workItemId: leaf, stepId, blockedAt: 10 }, WROTE);
-    await service.remove(leaf, OWNER, null);
+    await service.remove(leaf, OWNER, null, { kind: 'legacy' });
     await progress.set({ workItemId: parent, stepId, state: 'done', statedAt: 99 }, WROTE);
     const current = await workItems.findById(parent);
     if (current === null) throw new Error('missing parent');
@@ -718,7 +718,7 @@ describe('deleting work items', () => {
     const cable = await add('Cable', null, strip);
     await add('Test', null, cable);
 
-    await service.remove(cable, OWNER, null);
+    await service.remove(cable, OWNER, null, { kind: 'legacy' });
 
     expect(await numbered()).toEqual({ '010': 'Strip', '020': 'Test' });
   });
@@ -727,7 +727,7 @@ describe('deleting work items', () => {
     const strip = await add('Strip');
     await add('Sockets', strip);
 
-    const outcome = await service.remove(strip, OWNER, null);
+    const outcome = await service.remove(strip, OWNER, null, { kind: 'legacy' });
 
     expect(outcome).toEqual({ ok: false, reason: 'strategy_required' });
     expect(await numbered()).toEqual({ '010': 'Strip', '010.1': 'Sockets' });
@@ -739,7 +739,7 @@ describe('deleting work items', () => {
     await add('Back boxes', sockets);
     await add('Cable', null, strip);
 
-    await service.remove(strip, OWNER, 'cascade');
+    await service.remove(strip, OWNER, 'cascade', { kind: 'legacy' });
 
     expect(await numbered()).toEqual({ '010': 'Cable' });
   });
@@ -750,7 +750,7 @@ describe('deleting work items', () => {
     await add('Switches', strip, sockets);
     await add('Cable', null, strip);
 
-    await service.remove(strip, OWNER, 'promote');
+    await service.remove(strip, OWNER, 'promote', { kind: 'legacy' });
 
     expect(await numbered()).toEqual({
       '010': 'Sockets',
@@ -821,7 +821,10 @@ describe('dependencies', () => {
     const b = await add('Sand');
     await service.addDependency(b, OWNER, a);
 
-    expect(await service.remove(a, OWNER, null)).toEqual({ ok: true, value: null });
+    expect(await service.remove(a, OWNER, null, { kind: 'legacy' })).toEqual({
+      ok: true,
+      value: null,
+    });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === b)?.dependsOn).toEqual([]);
@@ -836,7 +839,10 @@ describe('dependencies', () => {
     const other = await add('Sand');
     await service.addDependency(other, OWNER, parent);
 
-    expect(await service.remove(parent, OWNER, 'promote')).toEqual({ ok: true, value: null });
+    expect(await service.remove(parent, OWNER, 'promote', { kind: 'legacy' })).toEqual({
+      ok: true,
+      value: null,
+    });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.id === other)?.dependsOn).toEqual([]);

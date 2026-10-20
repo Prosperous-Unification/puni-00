@@ -210,7 +210,7 @@ export class CommandContext {
         detail: { nodes: outcome.nodes.map(({ workItemId, stepId }) => ({ workItemId, stepId })) },
       });
     }
-    if (outcome.reason === 'destination_claimed') {
+    if (outcome.reason === 'destination_claimed' || outcome.reason === 'children_claimed') {
       return this.refuse({
         reason: outcome.reason,
         detail: { holders: outcome.holders.map((holder) => ({ ...holder })) },
@@ -361,6 +361,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.required(command.workItemId, command.workItemRef),
           context.actorId,
           command.strategy ?? null,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };
