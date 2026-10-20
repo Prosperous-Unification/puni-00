@@ -833,3 +833,14 @@ All with `env -u CLAUDECODE`, explicit `./` paths; no full suites and no h2puni 
 | occupancy-only projects announced on cascade    | absent (before the change)            | `refuses deleting a resource a claim holds, counting it, and cascades on confirmation` (announced `[]`)            |
 | harness keeps prototype reads                   | the object spread                     | the six scope tests (`listByProject is not a function`)                                                            |
 | harness cascade still reached through the proxy | `remove` not intercepted              | `takes a removed row’s demands, so a row put back without them reads none` (harness.test.ts)                       |
+
+## Final gate on the merged head (2026-10-20)
+
+`bin/h2puni-gate.sh 8759e4dcfafd31cb17450546082161a9157ee5d7` from `/home/puni1/puni-00-gate-tbf`
+(log `~/gate-resources-plan-final2.log`): printed
+`h2puni gate: running on 8759e4dcfafd31cb17450546082161a9157ee5d7`, 47 projects passed, Burokrat
+and Dash suites passed, solver image smoke passed, `GATE_EXIT=0`. That head contains slices 1 to 5,
+the delete/undo/duplicate follow-up (PR #593), the whole-change follow-ups (PR #594) and
+`origin/main` at 0e8909294. An earlier run on fb4442286 failed six store-sqlite scope tests on a
+test-harness spread that dropped prototype methods, fixed in PR #594. This commit changes only
+verify.md.
