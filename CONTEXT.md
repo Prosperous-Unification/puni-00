@@ -511,6 +511,33 @@ account, pinned to the one agent person it may claim as. One account, many crede
 revoked by unlinking.
 _Avoid_: Agent account, service account, machine identity, bot user
 
+**Resource**:
+A claimable thing work can state a demand on, named in the directory like a team: a host's
+RAM or tmp disk, a staging environment, worktrees, agent slots. Has a kind and a unit label,
+no global size.
+_Avoid_: Asset, pool (the scheduler-side projection), resource type
+
+**Resource kind**:
+Which scheduling problem a resource is: `exclusive` (identical units, demand always 1) or
+`divisible` (N integer units, demand k). Renewable (units per period) is not a kind yet.
+_Avoid_: Resource type, category
+
+**Resource capacity**:
+How many units of one resource one project's plan may use, a fact about the pair, with the
+same unstated and remembered states as a team's capacity.
+_Avoid_: Quota, limit, size
+
+**Demand**:
+The units of one resource one work item states it needs while any of its steps runs. Plan
+data: levelled by the engines, acquired by a claim. Not inherited down the tree.
+_Avoid_: Requirement, reservation, claim
+
+**Occupancy**:
+The units of a resource a leaf's claims hold right now, acquired whole when the first step
+of the leaf is claimed and freed when its last claim is released. Clockless; read by the
+claim path and the startable read, never by a schedule.
+_Avoid_: Lease, hold, lock, allocation
+
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
 the affected projects with their work items by number and name, each work item's effects,
