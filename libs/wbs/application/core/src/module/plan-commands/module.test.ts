@@ -137,10 +137,16 @@ describe('the Plan commands module', () => {
     const { commands } = installPlanCommands({ ...requirements, uow });
     expect(
       (
-        await commands.runWithin(PROJECT, OWNER, [], {
-          kind: 'scoped',
-          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
-        })
+        await commands.runWithin(
+          PROJECT,
+          OWNER,
+          [],
+          {
+            kind: 'scoped',
+            scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+          },
+          null,
+        )
       ).ok,
     ).toBe(true);
   });

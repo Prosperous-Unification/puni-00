@@ -359,10 +359,16 @@ export const commandDefinitions = {
     schema: type({
       kind: "'patchPerson'",
       ...person,
-      patch: { 'name?': 'string', 'teamIds?': 'string[]', 'kind?': 'string' },
+      patch: {
+        'name?': 'string',
+        'teamIds?': 'string[]',
+        'kind?': 'string',
+        'accountId?': 'string | null',
+      },
     }),
     scope: 'directory',
-    description: 'Rename a person, change their teams or their kind.',
+    description:
+      'Rename a person, change their teams or their kind, or bind them to the account that may act as them (accountId; null unbinds; organization admins only).',
   }),
   deletePerson: defineCommand('deletePerson', {
     schema: type({ kind: "'deletePerson'", ...person, 'cascade?': 'boolean' }),

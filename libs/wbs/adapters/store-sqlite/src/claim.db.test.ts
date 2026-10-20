@@ -171,9 +171,20 @@ describe('ClaimRepository', () => {
     );
   });
 
-  it('binds nobody and pins nothing until person.account_id lands', async () => {
-    expect(await store.boundAccountOf('claire')).toBeNull();
-    expect(await store.pinnedPersonOf('u')).toBeNull();
+  // Proof: the repository's identity reads answering null (slice 1's interim
+  // port) failed the bound and pinned expectations here (watched 2026-10-20).
+  it('reads the binding and the credential pin the directory holds', async () => {
+    connection.db.run("UPDATE person SET account_id = 'u' WHERE id = 'claire'");
+    connection.db.run(
+      "INSERT INTO external_identity (id,user_id,issuer,subject,person_id,created_at) VALUES ('fleet','u','https://idp.test','m2m','claire',1)",
+    );
+    expect(await store.boundAccountOf('claire')).toBe('u');
+    expect(await store.boundAccountOf('worker')).toBeNull();
+    expect(await store.pinnedPersonOf({ issuer: 'https://idp.test', subject: 'm2m' })).toBe(
+      'claire',
+    );
+    expect(await store.pinnedPersonOf({ issuer: 'https://idp.test', subject: 'other' })).toBeNull();
+    expect(await store.pinnedPersonOf(null)).toBeNull();
   });
 });
 

@@ -79,6 +79,8 @@ export function createWorkingPlanDirectory(
     listPeople: () => source().listPeople(),
     addPerson: afterWrite((...parameters) => source().addPerson(...parameters), ok),
     patchPerson: afterWrite((...parameters) => source().patchPerson(...parameters), ok),
+    boundAccountOf: (personId) => source().boundAccountOf(personId),
+    credentialPinOf: (issuer, subject) => source().credentialPinOf(issuer, subject),
     usageOfPerson: (personId) => source().usageOfPerson(personId),
     usageOfTeam: (teamId) => source().usageOfTeam(teamId),
     removePerson: afterWrite((...parameters) => source().removePerson(...parameters), ok),

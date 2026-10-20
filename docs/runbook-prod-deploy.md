@@ -155,6 +155,16 @@ signed-in checks fail with 401. Every signed-in request asks the OIDC verifier f
 outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
 not an application fault.
 
+## Fleet credential links
+
+Link or unlink a fleet's machine-to-machine credential in the live colour; the
+flags, scopes and refusals are in
+[fleet credentials](auth-integration.md#fleet-credentials):
+
+```sh
+docker exec be-01-<colour> bun run src/link-credential-cli.ts --issuer=<iss> --subject=<sub> --account=<id or username> [--person=<id>]
+```
+
 ## Typed dependency rollback
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's

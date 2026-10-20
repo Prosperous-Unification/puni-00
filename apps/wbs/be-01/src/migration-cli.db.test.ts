@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261019120000_add_claim');
+    expect(baselineLedger.at(-1)?.name).toBe('20261019130100_add_external_identity_person');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1105,7 +1105,7 @@ describe('migration deploy entrypoints', () => {
     expect((await runCli('migrate-status-cli.ts', dbPath)).stdout.trim()).toBe(baseline);
   }, 60_000);
 
-  it('refuses to reverse add_claim while one claim exists, keeping it and the ledger', async () => {
+  it('refuses to reverse add_claim over a claim after reversing the two binding migrations, each in its own transaction', async () => {
     const root = mkdtempSync(join(tmpdir(), 'wbs-claim-down-cli-'));
     roots.push(root);
     const dbPath = join(root, 'plan.db');
@@ -1137,7 +1137,15 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    expect(migrationLedgerAt(dbPath)).toEqual(ledger);
+    // The empty binding migrations newer than add_claim reverse first, each in
+    // its own transaction, so add_claim's refusal leaves them reversed.
+    expect(migrationLedgerAt(dbPath)).toEqual(
+      ledger.filter(
+        ({ name }) =>
+          name !== '20261019130000_add_person_account' &&
+          name !== '20261019130100_add_external_identity_person',
+      ),
+    );
     const after = openDatabase(dbPath);
     try {
       expect(after.query<{ id: string }, []>('SELECT id FROM claim').all()).toEqual([{ id: 'c' }]);

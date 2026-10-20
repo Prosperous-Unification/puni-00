@@ -1,11 +1,11 @@
-import type { TransactionalStores } from '@wbs/core';
+import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
-import { inMemoryClaims } from './claim-fixture';
+import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory } from './directory-fixture';
@@ -61,7 +61,12 @@ export function inMemoryStores(): TransactionalStores {
     progress,
     attempts,
     stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),
-    claims: inMemoryClaims(workItems, progressTable),
+    claims: inMemoryClaims(
+      workItems,
+      progressTable,
+      memoryClaimTable(),
+      claimIdentityOf(directory),
+    ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {
         const step = await steps.findById(stepId);

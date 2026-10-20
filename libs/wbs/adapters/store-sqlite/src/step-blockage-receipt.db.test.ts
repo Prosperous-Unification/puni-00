@@ -17,7 +17,13 @@ import {
 const migrations = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const previous = '20261014140000_add_step_blockage_activation';
 const parallelMigration = '20261015110000_add_step_node_parallelism';
-const claimMigration = '20261019120000_add_claim';
+/** Every migration newer than the receipt's, each reversed before its refusal. */
+const newerMigrations = [
+  parallelMigration,
+  '20261019120000_add_claim',
+  '20261019130000_add_person_account',
+  '20261019130100_add_external_identity_person',
+];
 const receipt: StepBlockageReceipt = {
   protocol: 'step-blockage-activation',
   version: 1,
@@ -170,7 +176,7 @@ for (const retained of [
       expect(ledger.some(({ name }) => name === parallelMigration)).toBe(true);
       // Proof: omitting the newer migration's ledger deletion failed the exact post-refusal ledger (2026-10-17).
       const refusedLedger = ledger.filter(
-        ({ name }) => name !== parallelMigration && name !== claimMigration,
+        ({ name }) => name === null || !newerMigrations.includes(name),
       );
       const receiptState = () => ({
         schema: connection.db.all(

@@ -1029,7 +1029,7 @@ function fixture() {
     });
   const endpoints = savedPlanRoutes(plans, projects, announcements, legacyOrganizationAccess);
   const auth = testAuthService();
-  const authenticate = spyOn(auth, 'authenticate').mockImplementation((token) =>
+  const authenticate = spyOn(auth, 'authenticateOrRefuse').mockImplementation((token) =>
     Promise.resolve(
       token === null ? null : token === 'reader' ? { ...principal, scopes: ['read'] } : principal,
     ),

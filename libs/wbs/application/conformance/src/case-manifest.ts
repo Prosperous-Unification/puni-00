@@ -46,7 +46,11 @@ export const CASE_MANIFEST = {
     'directory.assign:unknown_person',
     'directory.assign:scope-replace-clear',
     'directory.patchTeam:atomic-refusal',
+    'directory.patchPerson:account-binding',
+    'directory.patchPerson:owned-binding',
+    'directory.credentialPinOf:unlinked',
     'directory.removePerson:claims-in-use',
+    'directory.removePerson:pinned-credential',
   ],
   capacity: [
     'capacity.set:project-team-key',

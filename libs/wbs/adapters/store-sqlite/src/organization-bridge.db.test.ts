@@ -331,6 +331,8 @@ describe('20260927190000_add_organization_bridge', () => {
   it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
     run([LEGACY, ...writeRoots('1')]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+      '20261019130100_add_external_identity_person',
+      '20261019130000_add_person_account',
       '20261019120000_add_claim',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',

@@ -968,6 +968,11 @@ export interface PersonIdentityView {
 /** Somebody who does work, and the teams they belong to. Empty means a free agent. */
 export interface PersonView extends PersonIdentityView {
   teamIds: string[];
+  /**
+   * The account that may act as this person (`wbs-team-claims` D5), null when
+   * unbound; absent from an outgoing be-01 that predates the binding.
+   */
+  accountId?: string | null;
 }
 
 /**
@@ -1055,6 +1060,11 @@ export interface UsedProject {
 export interface DirectoryUsage {
   projects: UsedProject[];
   members: { id: string; name: string }[];
+  /**
+   * Linked fleet credentials pinned to the person, which a confirmed removal
+   * revokes. Optional: an outgoing be-01 mid-swap counts no pins.
+   */
+  pinnedCredentials?: number;
 }
 
 /**

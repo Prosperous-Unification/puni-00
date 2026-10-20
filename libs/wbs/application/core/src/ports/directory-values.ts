@@ -74,9 +74,16 @@ export interface Person {
   kind: PersonKind;
 }
 
-/** A person and the teams they belong to — empty means a free agent. */
+/**
+ * A person, the teams they belong to — empty means a free agent — and the
+ * account that may act as them (`wbs-team-claims` D5), null when unbound.
+ *
+ * `accountId` is on the directory read, never on the plan export: the plan
+ * document leaves this shape through `referencedDirectory`, which drops it.
+ */
 export interface PersonWithTeams extends Person {
   teamIds: string[];
+  accountId: string | null;
 }
 
 /** The six directory catalogs a client lists, each under its list route's name. */

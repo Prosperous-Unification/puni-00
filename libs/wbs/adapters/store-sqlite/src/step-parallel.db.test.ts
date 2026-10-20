@@ -18,6 +18,12 @@ import { StepParallelRepository } from './step-parallel';
 const folder = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const migration = '20261015110000_add_step_node_parallelism';
 const baseline = '20261015100000_add_step_blockage_activation_receipt';
+/** Migrations newer than this one, which every rollback to `baseline` reverses first. */
+const newer = [
+  '20261019130100_add_external_identity_person',
+  '20261019130000_add_person_account',
+  '20261019120000_add_claim',
+];
 let directory: string;
 let path: string;
 let connection: Connection;
@@ -120,16 +126,15 @@ describe('sparse parallelism SQL contract', () => {
     });
   it('down refuses retained facts and preserves table and applied ledger', () => {
     insert();
-    // The newer, empty claim migration reverses first; the refusal keeps everything older.
     const before = connection.db
       .all<{ name: string }>('SELECT * FROM __drizzle_migrations')
-      .filter(({ name }) => name !== '20261019120000_add_claim');
+      .filter(({ name }) => !newer.includes(name));
     expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
   });
   it('empty down and forward preserve existing work items', () => {
-    expect(rollbackTo(path, folder, baseline)).toEqual(['20261019120000_add_claim', migration]);
+    expect(rollbackTo(path, folder, baseline)).toEqual([...newer, migration]);
     expect(connection.db.get<{ count: number }>('SELECT count(*) AS count FROM work_item')).toEqual(
       { count: 3 },
     );

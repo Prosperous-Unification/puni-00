@@ -55,7 +55,7 @@ export type ParserRefusalCode =
   | 'first_band_must_start_at_1'
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
-  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId'}_must_be_id_or_null`
+  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
   | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note'}_must_be_text`
   | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
@@ -137,6 +137,8 @@ export type CommandRefusalCode =
   | 'unknown_step'
   | 'unknown_metric'
   | 'unknown_person'
+  /** `patchPerson.accountId` naming no account that is a member of the person's organization. */
+  | 'unknown_account'
   | 'unknown_team'
   | 'unknown_tag'
   | 'unknown_service'
@@ -219,6 +221,11 @@ export interface DirectoryUsage {
     workItems: { id: string; number: string; name: string; effects: DirectoryEffect[] }[];
   }[];
   members: { id: string; name: string }[];
+  /**
+   * Linked credentials pinned to the person, revoked by a confirmed removal.
+   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
+   */
+  pinnedCredentials?: number;
 }
 
 /**
@@ -335,6 +342,12 @@ type BareRefusalCode =
   | 'not_a_member'
   | 'invalid_origin'
   | 'unauthorized'
+  /**
+   * A verified machine token (no groups claim) whose `(issuer, subject)` no
+   * account is linked to (`wbs-team-claims` D6b): refused before any account
+   * is minted.
+   */
+  | 'unknown_identity'
   | 'invalid_body'
   | 'invalid_allowance'
   | 'invalid_estimate_unit'

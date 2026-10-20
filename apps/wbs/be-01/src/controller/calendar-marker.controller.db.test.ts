@@ -309,10 +309,12 @@ describe('the calendar-marker routes', () => {
     expect(refused.status).toBe(403);
     expect(await refused.json()).toEqual({ error: 'invalid_origin' });
     expect(await list('owner')).toEqual([]);
-    const authenticate = auth.authenticate.bind(auth);
-    const scoped = spyOn(auth, 'authenticate').mockImplementation(async (token) => {
+    const authenticate = auth.authenticateOrRefuse.bind(auth);
+    const scoped = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (token) => {
       const account = await authenticate(token);
-      return account === null ? null : { ...account, scopes: ['read'] };
+      return account === null || account === 'unknown_identity'
+        ? account
+        : { ...account, scopes: ['read'] };
     });
     try {
       const denied = await as(tokens['owner'], path, { method: 'POST', body });

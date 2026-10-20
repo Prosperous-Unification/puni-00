@@ -5,7 +5,7 @@ export * from './source-conformance';
 export * from './source-declaration';
 export * from './space-store-conformance';
 export * from './step-parallel-conformance';
-export { CLAIM_IN_USE } from './stores/directory';
+export { CLAIM_IN_USE, OWNED_BINDING, PINNED_CREDENTIAL } from './stores/directory';
 export * from './stores/history-batch';
 export * from './stores/saved-plan-capture';
 export * from './stores/subtrees';

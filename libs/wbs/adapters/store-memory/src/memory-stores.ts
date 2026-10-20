@@ -1,4 +1,4 @@
-import type { TransactionalStores } from '@wbs/core';
+import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
 import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
@@ -203,6 +203,12 @@ export class MemoryState {
     replaceMap(this.tables.directory.memberships, next.tables.directory.memberships);
     replaceMap(this.tables.directory.owned, next.tables.directory.owned);
     replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
+    replaceMap(this.tables.directory.accountOf, next.tables.directory.accountOf);
+    replaceMap(
+      this.tables.directory.organizationMembers,
+      next.tables.directory.organizationMembers,
+    );
+    replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`
@@ -244,10 +250,14 @@ export function bindStores(
 ): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
-  const fixtureDirectory = inMemoryDirectory((projectId) => {
-    if (workItems === null) throw new Error('work-item table was read before it was bound');
-    return workItems.listByProject(projectId);
-  }, state.tables.directory);
+  const fixtureDirectory = inMemoryDirectory(
+    (projectId) => {
+      if (workItems === null) throw new Error('work-item table was read before it was bound');
+      return workItems.listByProject(projectId);
+    },
+    state.tables.directory,
+    state.tables.users.byId,
+  );
   const claimsOf = (personId: string) =>
     state.tables.claims.rows
       .filter((each) => each.personId === personId)
@@ -379,7 +389,12 @@ export function bindStores(
     attempts,
     blockages,
     stepParallels,
-    claims: inMemoryClaims(workItems, state.tables.progress, state.tables.claims),
+    claims: inMemoryClaims(
+      workItems,
+      state.tables.progress,
+      state.tables.claims,
+      claimIdentityOf(directory),
+    ),
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),

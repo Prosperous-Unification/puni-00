@@ -1,4 +1,5 @@
 import type { OidcIdentity } from '@wbs/contracts';
+import type { OrganizationRole } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import {
@@ -99,6 +100,13 @@ export class AccountResource {
     if (this.opts.identities === undefined)
       throw new Error('OIDC identity store is not configured');
     return this.opts.identities.findExistingOidcIdentity(identity);
+  }
+
+  /** The roles the account holds across its organizations; see {@link OidcIdentityStore.membershipRolesOf}. */
+  membershipRolesOf(accountId: string): Promise<readonly OrganizationRole[]> {
+    if (this.opts.identities === undefined)
+      throw new Error('OIDC identity store is not configured');
+    return this.opts.identities.membershipRolesOf(accountId);
   }
 
   /**
