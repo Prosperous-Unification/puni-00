@@ -145,3 +145,34 @@ test('refuses missing and nonboolean blockage intent before dispatch', () => {
     ).toThrow('isBlocked_must_be_true_or_false');
   }
 });
+
+// Proof: with asOptionalRunId's length bound removed, the 257-character run
+// normalized; watched 2026-10-19.
+test('bounds a claim’s run to 1 to 256 characters and keeps steps and parent as given', () => {
+  const claim = (runId: unknown) =>
+    commandNormalizers.claimWorkItem({
+      kind: 'claimWorkItem',
+      workItemId: 'w',
+      personId: 'p',
+      steps: ['dev'],
+      parentClaim: 'c0',
+      runId,
+    } as never);
+  expect(claim('r'.repeat(256))).toEqual({
+    kind: 'claimWorkItem',
+    workItemId: 'w',
+    personId: 'p',
+    steps: ['dev'],
+    parentClaim: 'c0',
+    runId: 'r'.repeat(256),
+  });
+  for (const runId of ['r'.repeat(257), '', 7])
+    expect(() => claim(runId)).toThrow('runId_must_be_1_to_256_characters');
+});
+
+test('refuses an empty step list on a claim and a release', () => {
+  for (const kind of ['claimWorkItem', 'releaseWorkItem'] as const)
+    expect(() =>
+      commandNormalizers[kind]({ kind, workItemId: 'w', personId: 'p', steps: [] } as never),
+    ).toThrow('steps_must_name_a_step');
+});

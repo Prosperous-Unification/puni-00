@@ -112,11 +112,18 @@ export interface PersonPatch {
   name?: string;
   teamIds?: readonly string[];
   kind?: PersonKind;
+  /**
+   * Binds the person to the account that may act as them, or unbinds them
+   * with null (`wbs-team-claims` D5). Who may send it is the resource's rule;
+   * the store refuses `unknown_account` for an account that does not exist or,
+   * when the person belongs to an organization, is not its member.
+   */
+  accountId?: string | null;
 }
 
 export type PersonWritten =
   | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
-  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' };
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' };
 
 /**
  * What a create answered.
@@ -166,6 +173,22 @@ export interface DirectoryUsageRows {
    * to satisfy a type, which is the tail wagging the query.
    */
   members: readonly { id: string; name: string }[];
+  /**
+   * Every claim a person's removal takes (`wbs-team-claims`): their own and
+   * every claim delegated under one, transitively, whoever holds it, since the
+   * parent reference cascades. It is refused `in_use` without `cascade` exactly
+   * as an assignment refuses it. Empty for any other entry, never absent.
+   */
+  claims: readonly { workItemId: string; stepId: string | null; personId: string }[];
+  /**
+   * How many linked credentials are pinned to the person being removed
+   * (`external_identity.person_id`, `wbs-team-claims` D6); 0 for a team. A
+   * pin names no project, so it is a count beside the trees, and it refuses an
+   * unconfirmed removal `in_use` as an assignment does. A confirmed removal
+   * revokes those credentials with the person rather than unpinning them: an
+   * unpinned fleet credential could claim as any person of its account.
+   */
+  pinnedCredentials: number;
   /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
@@ -415,6 +438,21 @@ export interface DirectoryStore {
    */
   patchPerson(personId: string, patch: PersonPatch, stamp: WriteStamp): Promise<PersonWritten>;
   /**
+   * The account bound to act as this person, or null when the person is
+   * unbound (`wbs-team-claims` D5).
+   *
+   * @throws when no person has this id: the caller names a person it already
+   * holds, so its absence is a fault, not an unbound person.
+   */
+  boundAccountOf(personId: string): Promise<string | null>;
+  /**
+   * The person a linked credential `(issuer, subject)` is pinned to, or null
+   * when the credential is unpinned or is not linked through
+   * `external_identity` at all (a pre-activation login's pair lives on its
+   * user row and is unpinned) — `wbs-team-claims` D6.
+   */
+  credentialPinOf(issuer: string, subject: string): Promise<string | null>;
+  /**
    * What points at this person right now — a **fast path** for the refusal,
    * never the authority for it. Between this answer and any delete, anybody may
    * assign them. {@link DirectoryStore.removePerson} is what decides.
@@ -424,9 +462,11 @@ export interface DirectoryStore {
   usageOfTeam(teamId: string): Promise<DirectoryUsageRows>;
   /**
    * Counts what points at the person, refuses an unconfirmed removal that would
-   * take any of it, and otherwise drops their assignments, their memberships
-   * and the person — all in **one** transaction, moving the revision of every
-   * work item that lost an assignment.
+   * take any of it, and otherwise drops their assignments, their claims, the
+   * credentials pinned to them (revoked, see
+   * {@link DirectoryUsageRows.pinnedCredentials}), their memberships and the
+   * person — all in **one** transaction, moving the revision of every work item
+   * that lost an assignment or a claim.
    *
    * The count lives inside the transaction because it *is* the decision: a
    * caller that asked without `cascade` consented to nothing, so an assignment
@@ -453,6 +493,16 @@ export interface DirectoryStore {
     assignments: Assignment[];
     people: { id: string; name: string }[];
   }>;
+  /**
+   * The root names of exactly these people or teams, one primary-key read
+   * each, in no promised order; an id the directory does not hold is absent.
+   * For reads that must not materialize the whole directory (spec
+   * `project-assignment-reads`), such as the startable read's claim holders.
+   */
+  namesOf(
+    catalog: 'people' | 'teams',
+    ids: readonly string[],
+  ): Promise<{ id: string; name: string }[]>;
   /** Assignments on one work item, bounded by its indexed key. */
   assignmentsFor(workItemId: string): Promise<Assignment[]>;
   /** Subset consumer compatibility; each distinct work item uses its indexed key. */

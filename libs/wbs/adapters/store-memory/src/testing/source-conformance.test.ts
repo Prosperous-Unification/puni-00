@@ -8,9 +8,11 @@ import {
   type CaseFixture,
   type CaseId,
   changeSavedPlanCaptureTypedDependencies,
+  CLAIM_IN_USE,
   completeSubtreeCopy,
   createFaultControl,
   defineFault,
+  DELEGATED_CLAIMS,
   DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
   type ExecutionReport,
@@ -23,6 +25,8 @@ import {
   type FaultRun,
   type HistoryBatchFixture,
   observePlanInput,
+  OWNED_BINDING,
+  PINNED_CREDENTIAL,
   printCertification,
   PROGRESS_SENTINEL_STEP_ID,
   readSubtreePublicState,
@@ -87,6 +91,8 @@ type MemorySource = ReturnType<typeof openMemorySourceFixture>['source'] & {
   independentJournalHistoryFor(): Promise<PlanEvent[]>;
   routeJournalEventToIndependent(eventId: string): PlanEvent;
   storeDependencyById(dependency: StoredDependency): void;
+  ownPersonInOrganization: ReturnType<typeof openMemorySourceFixture>['ownPersonInOrganization'];
+  pinCredential: ReturnType<typeof openMemorySourceFixture>['pinCredential'];
   insertSubtree(copy: SubtreeCopy, stamp: WriteStamp): Promise<void>;
   journal: CommandJournalStore;
   setSavedPlanByteCounts(savedPlanId: string, inputBytes: number, scheduleBytes: number): void;
@@ -150,6 +156,16 @@ function conformanceMemorySource(
       fixture.routeJournalEventToIndependent(eventId),
     storeDependencyById: (dependency: StoredDependency) => {
       fixture.storeDependencyById(dependency);
+    },
+    ownPersonInOrganization: (
+      personId: string,
+      organizationId: string,
+      memberIds: readonly string[],
+    ) => {
+      fixture.ownPersonInOrganization(personId, organizationId, memberIds);
+    },
+    pinCredential: (issuer: string, subject: string, personId: string) => {
+      fixture.pinCredential(issuer, subject, personId);
     },
     insertSubtree: (copy: SubtreeCopy, stamp: WriteStamp) =>
       fixture.source.uow.run(async ({ stores }) => {
@@ -355,6 +371,31 @@ async function openMemoryCase<Family extends ExistingFamily>(
     if (family === 'progress') await seedProgressStep(seeded);
     if (family === 'dependencies') await seedDependencyWorkItems(seeded);
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
+    if (caseId === 'directory.patchPerson:owned-binding') {
+      const added = await seeded.stores.directory.addPerson(
+        { id: OWNED_BINDING.personId, name: 'Owned person' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the owned person was refused');
+      seeded.ownPersonInOrganization(OWNED_BINDING.personId, OWNED_BINDING.organizationId, [
+        DETERMINISTIC_SEED.ownerIds[0],
+      ]);
+    }
+    if (caseId === 'directory.removePerson:claims-in-use')
+      await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
+    if (caseId === 'directory.removePerson:delegated-claims')
+      await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0]);
+    if (caseId === 'directory.removePerson:pinned-credential') {
+      const { personId, issuer, subject } = PINNED_CREDENTIAL;
+      const added = await seeded.stores.directory.addPerson(
+        { id: personId, name: 'Pinned person', kind: 'agent' },
+        [],
+        DETERMINISTIC_SEED.stamps[0],
+      );
+      if (!added.ok) throw new Error('the pinned person was refused');
+      seeded.pinCredential(issuer, subject, personId);
+    }
   });
   if (family === 'subtrees') {
     return {
@@ -706,6 +747,7 @@ async function changeMemoryCaptureDirectory(source: MemorySource): Promise<Captu
           name: 'Unassigned member',
           kind: 'person',
           teamIds: ['team-a'],
+          accountId: null,
         },
         projectIds: [],
       },
@@ -720,9 +762,10 @@ async function changeMemoryCaptureDirectory(source: MemorySource): Promise<Captu
         name: 'Unassigned member',
         kind: 'person',
         teamIds: ['team-a'],
+        accountId: null,
       },
-      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'] },
-      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'] },
+      { id: 'person-a', name: 'Person 1', kind: 'person', teamIds: ['team-a'], accountId: null },
+      { id: 'person-b', name: 'Person 2', kind: 'person', teamIds: ['team-b'], accountId: null },
     ],
   });
   return change;
@@ -843,6 +886,7 @@ const openers: ExistingStoreOpeners = {
   attempts: (caseId) => openMemoryCase('attempts', caseId),
   blockages: (caseId) => openMemoryCase('blockages', caseId),
   stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
+  claims: (caseId) => openMemoryCase('claims', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -985,6 +1029,7 @@ const declaration: SourceDeclaration = {
     attempts: { kind: 'offered', gaps: [], open: openers.attempts },
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
+    claims: { kind: 'offered', gaps: [], open: openers.claims },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -4280,6 +4325,7 @@ async function proveFault(
         attempts: (caseId) => takeFixture('attempts', caseId),
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
+        claims: (caseId) => takeFixture('claims', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),

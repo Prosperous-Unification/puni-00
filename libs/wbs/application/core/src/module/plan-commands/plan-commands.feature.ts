@@ -1,4 +1,6 @@
+import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
+import type { WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
 import type {
@@ -20,6 +22,7 @@ import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
 import type { DirectoryUsage } from '../../service/directory-usage';
 import { MOST_COMMANDS_IN_A_BATCH, type PlanCommand } from '../../service/plan-command';
 import type { DirectoryOutcome, RemoveDirectoryOutcome } from '../directory/directory.resource';
+import type { NamedClaimHolder, PlainClaimReason } from '../work-item/claims';
 import type { Collected, UndoOutcome, WorkItemOutcome } from '../work-item/work-item.resource';
 import type {
   CommandAdmission,
@@ -72,7 +75,18 @@ type MintedKind =
 export type MintedBase = AppliedBase & { id: string };
 /** Internal kind identifies the producer's exact entity contract; controllers erase it from the unchanged wire. */
 export type AppliedCommand =
-  | (AppliedBase & { kind: Exclude<PlainKind, MintedKind>; entity?: never })
+  | (AppliedBase & {
+      kind: Exclude<PlainKind, MintedKind | 'claimWorkItem'>;
+      entity?: never;
+      alreadyHeld?: never;
+    })
+  /** A claim says whether it wrote nothing and which claims hold the steps. */
+  | (AppliedBase & {
+      kind: 'claimWorkItem';
+      entity?: never;
+      alreadyHeld: boolean;
+      claimIds: string[];
+    })
   | (MintedBase & { kind: Extract<PlainKind, MintedKind>; entity?: never })
   | {
       [K in EntityKind]: (K extends MintedKind ? MintedBase : AppliedBase) & {
@@ -93,7 +107,15 @@ export type Refusal =
       detail: { nodes: { workItemId: string; stepId: string }[] };
     }
   | { reason: 'taken'; detail: { name: string } }
-  | { reason: 'in_use'; detail: { usage: DirectoryUsage } };
+  | { reason: 'in_use'; detail: { usage: DirectoryUsage } }
+  | { reason: PlainClaimReason; detail?: never }
+  | { reason: 'not_startable'; detail: { status: WorkItemStatus } }
+  | { reason: 'step_done'; detail: { stepIds: string[] } }
+  | { reason: 'already_claimed' | 'destination_claimed'; detail: { holders: NamedClaimHolder[] } }
+  | {
+      reason: 'inside_subtree_claim' | 'overlaps_subtree_claim';
+      detail: { holder: NamedClaimHolder };
+    };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =
@@ -102,6 +124,7 @@ export type ServiceRefusal =
       reason: 'referenced_by_step_parallel';
       nodes: readonly { workItemId: string; stepId: string }[];
     }
+  | { ok: false; reason: 'destination_claimed'; holders: readonly NamedClaimHolder[] }
   | Extract<WorkItemOutcome<never>, { ok: false }>
   | { ok: false; reason: PlainReason }
   | {
@@ -211,8 +234,12 @@ const GRAPH_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
 export class PlanCommandRunner {
   constructor(private readonly opts: PlanCommandRunnerOptions) {}
 
+  /**
+   * Under legacy access, with no credential pair: before activation no
+   * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
+   */
   run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(projectId, actorId, commands, LEGACY_ACCESS).then(legacyOutcome);
+    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
   }
 
   /**
@@ -225,8 +252,9 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, actorId, commands, access);
+    return this.execute(projectId, actorId, commands, access, credential);
   }
 
   /**
@@ -239,8 +267,9 @@ export class PlanCommandRunner {
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
-    return this.execute(projectId, actorId, commands, access, prelude);
+    return this.execute(projectId, actorId, commands, access, credential, prelude);
   }
 
   /**
@@ -254,7 +283,8 @@ export class PlanCommandRunner {
     commands: readonly PlanCommand[],
     access: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(null, actorId, commands, access);
+    // A directory batch claims nothing, so it reads no credential pin.
+    return this.execute(null, actorId, commands, access, null);
   }
 
   /**
@@ -265,7 +295,7 @@ export class PlanCommandRunner {
    * `project_required` at its index.
    */
   runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(null, actorId, commands, LEGACY_ACCESS).then(legacyOutcome);
+    return this.execute(null, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
   }
 
   /**
@@ -300,12 +330,14 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private async execute<R>(
@@ -313,6 +345,7 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
     // This batch's own collector and its own graph over it. Two batches never
@@ -378,7 +411,7 @@ export class PlanCommandRunner {
             }
             let applied: Applied;
             const collected = await graph.workItems.collect(() =>
-              this.applyAll(graph, scope, projectId, actorId, commands, access),
+              this.applyAll(graph, scope, projectId, actorId, commands, access, credential),
             );
             if (projectId !== null) {
               const needsCalendarPreflight = commands.some(({ kind }) =>
@@ -582,12 +615,21 @@ export class PlanCommandRunner {
     actorId: string,
     commands: readonly PlanCommand[],
     access: ResourceAccess,
+    credential: CredentialPair | null,
   ): Promise<AppliedCommand[]> {
     const refs = new Map<string, string>();
     const bindings = bindCommands(graph);
     const applied: AppliedCommand[] = [];
     for (const [index, command] of commands.entries()) {
-      const context = new CommandContext(actorId, projectId, index, command.kind, refs, access);
+      const context = new CommandContext(
+        actorId,
+        projectId,
+        index,
+        command.kind,
+        refs,
+        access,
+        credential,
+      );
       // Proof: removing this check made the mounted cross-project estimate test fail:
       // Expected: 404 / Received: 200 (2026-09-27).
       if (projectId !== null && ('workItemId' in command || 'workItemRef' in command)) {

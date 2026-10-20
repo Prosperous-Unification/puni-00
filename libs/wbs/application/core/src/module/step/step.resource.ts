@@ -119,6 +119,8 @@ export interface StepInUse {
   measures: number;
   /** Attempts at this step's nodes — {@link StepUsageRows.attempts}. */
   attempts: number;
+  /** Claims holding this step (`wbs-team-claims`). */
+  claims: number;
   /** Explicit assignments on this step. The assumed ones are in `assumedAssignees`. */
   assignments: number;
   /**
@@ -161,6 +163,7 @@ function inUseFrom(usage: StepUsageRows, stepId: string): StepInUse {
     blockages: usage.blockages,
     measures: usage.measures,
     attempts: usage.attempts,
+    claims: usage.claims,
     assignments: usage.assignments.filter((each) => each.stepId === stepId).length,
     assumedAssignees: assumedAssigneeFlips(usage.assignments, stepId),
   };

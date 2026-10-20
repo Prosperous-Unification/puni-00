@@ -530,6 +530,7 @@ export function importServiceSourceContract(
           name: 'Kat',
           kind: 'agent',
           teamIds: [team.id],
+          accountId: null,
         });
       } finally {
         await source.close();

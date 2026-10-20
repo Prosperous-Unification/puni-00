@@ -55,7 +55,7 @@ export type ParserRefusalCode =
   | 'first_band_must_start_at_1'
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
-  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId'}_must_be_id_or_null`
+  | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
   | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note'}_must_be_text`
   | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
@@ -75,7 +75,14 @@ export type ParserRefusalCode =
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
   | 'startNoEarlierThanReason_must_be_at_most_200_characters'
-  | 'allowancePercent_must_be_0_to_1000_with_two_decimals';
+  | 'allowancePercent_must_be_0_to_1000_with_two_decimals'
+  /** A `claimWorkItem` run that is not text of 1 to 256 characters (`wbs-team-claims`). */
+  | 'runId_must_be_1_to_256_characters'
+  | 'parentClaim_must_be_an_id'
+  | 'steps_must_be_a_list_of_ids'
+  | 'steps_must_be_at_most_50'
+  /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
+  | 'steps_must_name_a_step';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -130,6 +137,8 @@ export type CommandRefusalCode =
   | 'unknown_step'
   | 'unknown_metric'
   | 'unknown_person'
+  /** `patchPerson.accountId` naming no account that is a member of the person's organization. */
+  | 'unknown_account'
   | 'unknown_team'
   | 'unknown_tag'
   | 'unknown_service'
@@ -160,7 +169,31 @@ export type CommandRefusalCode =
   | 'invalid_kind'
   | 'nothing_to_change'
   | 'taken'
-  | 'in_use';
+  | 'in_use'
+  // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`), in the spec's order.
+  | 'person_not_bound'
+  | 'credential_not_for_person'
+  | 'parent_claim_unknown'
+  | 'parent_claim_foreign'
+  | 'parent_claim_not_ancestor'
+  | 'steps_on_subtree'
+  | 'item_done'
+  | 'not_startable'
+  | 'step_done'
+  | 'already_claimed'
+  | 'inside_subtree_claim'
+  | 'overlaps_subtree_claim'
+  | 'not_claimed_by'
+  /** `moveWorkItem` under a leaf whose steps are claimed; names the holders. */
+  | 'destination_claimed';
+
+/** One claim a claim refusal names: the claim, its person by id and name, and its run. */
+export interface ClaimRefusalHolder {
+  claimId: string;
+  personId: string;
+  name: string;
+  runId: string | null;
+}
 
 /**
  * Proof (type boundary only): making kind optional produces TS2578 for both the
@@ -176,6 +209,7 @@ type ParserContext = undefined | { at: number; kind?: never } | CommandContext;
 
 export type DirectoryEffect =
   | { kind: 'assignment_dropped'; step: { id: string; name: string } }
+  | { kind: 'claim_released'; step: { id: string; name: string } | null }
   | { kind: 'label_nulled' }
   | { kind: 'label_removed' }
   | { kind: 'capacity_released'; size: number; fromId: string }
@@ -189,6 +223,11 @@ export interface DirectoryUsage {
     workItems: { id: string; number: string; name: string; effects: DirectoryEffect[] }[];
   }[];
   members: { id: string; name: string }[];
+  /**
+   * Linked credentials pinned to the person, revoked by a confirmed removal.
+   * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
+   */
+  pinnedCredentials?: number;
 }
 
 /**
@@ -205,6 +244,8 @@ export interface StepInUse {
   measures: number;
   /** Optional on the wire: an outgoing be-01 mid-swap counts no attempts. */
   attempts?: number;
+  /** Optional on the wire: an outgoing be-01 mid-swap counts no claims. */
+  claims?: number;
   assignments: number;
   assumedAssignees: {
     workItemId: string;
@@ -257,7 +298,15 @@ export type CommandRefusalDetail = {
             ? { usage: DirectoryUsage }
             : C extends 'taken'
               ? { name?: string }
-              : Record<never, never>);
+              : C extends 'not_startable'
+                ? { status: string }
+                : C extends 'step_done'
+                  ? { stepIds: string[] }
+                  : C extends 'already_claimed' | 'destination_claimed'
+                    ? { holders: ClaimRefusalHolder[] }
+                    : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
+                      ? { holder: ClaimRefusalHolder }
+                      : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -284,7 +333,6 @@ type BareRefusalCode =
   | 'domain_matched'
   | 'invalid_domain'
   | 'unclaimable'
-  | 'already_claimed'
   | 'stale'
   | 'proof_mismatch'
   | 'domain_taken'
@@ -296,6 +344,12 @@ type BareRefusalCode =
   | 'not_a_member'
   | 'invalid_origin'
   | 'unauthorized'
+  /**
+   * A verified machine token (no groups claim) whose `(issuer, subject)` no
+   * account is linked to (`wbs-team-claims` D6b): refused before any account
+   * is minted.
+   */
+  | 'unknown_identity'
   | 'invalid_body'
   | 'invalid_allowance'
   | 'invalid_estimate_unit'
@@ -378,7 +432,9 @@ type SharedCommandCode =
   | 'taken'
   | 'in_use'
   | 'calendar_range'
-  | 'referenced_by_step_parallel';
+  | 'referenced_by_step_parallel'
+  | 'already_claimed'
+  | 'unknown_team';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -403,6 +459,10 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     /** Bare from a step PATCH's allowance; with its command context from a batch. */
     calendar_range: undefined | CommandContext;
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
+    /** Bare from a domain claim; with its holders from a `claimWorkItem` batch. */
+    already_claimed: undefined | CommandRefusalDetail['already_claimed'];
+    /** Bare from the startable read's `team` filter; with its command context from a batch. */
+    unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };

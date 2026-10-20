@@ -113,6 +113,7 @@ import {
   removeSsoConnection,
   updateSsoConnection,
 } from './sso-connection-shapes';
+import { readStartableWork } from './startable-shapes';
 import { addStep, removeStep, renameStep } from './step-shapes';
 import { readTimezones } from './timezone-shapes';
 import {
@@ -206,6 +207,7 @@ export const httpShapes = [
   getWorkItemRows,
   getWorkItem,
   getStepReference,
+  readStartableWork,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

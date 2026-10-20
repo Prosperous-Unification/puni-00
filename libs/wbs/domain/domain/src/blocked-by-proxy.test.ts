@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 
-import { blockedByProxyOf } from './blocked-by-proxy';
+import { blockedByProxyOf, predecessorLeavesOf } from './blocked-by-proxy';
 import type { PlannedRow } from './derive-numbers';
 import type { LeafStatus } from './progress';
 import { type DependencyEdge, indexTree } from './schedule';
@@ -168,5 +168,18 @@ describe('blockedByProxyOf', () => {
     expect(() => read([row('a')], { a: 'unknown' }, [edge('ghost', 'a')])).toThrow(
       'no work item ghost in this plan',
     );
+  });
+});
+
+describe('predecessorLeavesOf', () => {
+  it('takes both endpoints down to their leaves, over legacy and typed edges, never self', () => {
+    const rows = [row('p'), row('p1', 'p'), row('p2', 'p'), row('s'), row('t')];
+    const found = predecessorLeavesOf(indexTree(rows), {
+      edges: [edge('p', 's'), edge('t', 't')],
+      typed: [typed('x', { scope: 'whole', workItemId: 't' }, { scope: 'whole', workItemId: 's' })],
+    });
+    expect(Object.fromEntries([...found].map(([id, from]) => [id, [...from].sort()]))).toEqual({
+      s: ['p1', 'p2', 't'],
+    });
   });
 });

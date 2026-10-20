@@ -118,7 +118,7 @@ async function scopedFixture(scopes: readonly string[]) {
 
 test('resolves the actual password account once for each user requirement', async () => {
   const fixture = await passwordFixture();
-  const authenticate = spyOn(fixture.auth, 'authenticate');
+  const authenticate = spyOn(fixture.auth, 'authenticateOrRefuse');
   try {
     for (const requirement of ['signed-in', 'read-scope', 'write-scope'] as const) {
       authenticate.mockClear();
@@ -139,7 +139,7 @@ test('keeps a verified organization binding on this request when authentication 
   const authenticated = await fixture.auth.authenticate(fixture.token);
   if (authenticated === null) throw new Error('credential did not authenticate');
   const shared = { ...authenticated };
-  const authenticate = spyOn(fixture.auth, 'authenticate').mockResolvedValue(shared);
+  const authenticate = spyOn(fixture.auth, 'authenticateOrRefuse').mockResolvedValue(shared);
   try {
     const resolve = identityResolver(fixture.auth, internalSecret, REFUSE_DELEGATIONS, () =>
       Promise.resolve({
@@ -177,7 +177,7 @@ test('requires the requested scope while signed-in accepts an account with no sc
       ['read-scope', scopes.some((scope) => scope === 'read')],
       ['write-scope', scopes.some((scope) => scope === 'write')],
     ] as const) {
-      const authenticate = spyOn(fixture.auth, 'authenticate');
+      const authenticate = spyOn(fixture.auth, 'authenticateOrRefuse');
       try {
         const reply = await userApp(fixture.auth, requirement).handle(
           request({ authorization: `Bearer ${fixture.token}` }),
@@ -243,7 +243,7 @@ test('refuses absent, invalid and retired credentials without inventing an accou
 
 test('resolves only the internal secret as internal without authenticating a user', async () => {
   const fixture = await passwordFixture();
-  const authenticate = spyOn(fixture.auth, 'authenticate');
+  const authenticate = spyOn(fixture.auth, 'authenticateOrRefuse');
   try {
     const app = internalApp(fixture.auth);
     const refusedHeaders: HeadersInit[] = [

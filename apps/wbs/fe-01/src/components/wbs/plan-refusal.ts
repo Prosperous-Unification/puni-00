@@ -355,6 +355,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'afterId_must_be_id_or_null':
     case 'personId_must_be_id_or_null':
     case 'serviceTeamId_must_be_id_or_null':
+    case 'accountId_must_be_id_or_null':
     case 'name_must_be_text':
     case 'notes_must_be_text':
     case 'kind_must_be_text':
@@ -424,6 +425,7 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_dependency':
     case 'unknown_metric':
     case 'unknown_person':
+    case 'unknown_account':
     case 'unknown_team':
     case 'unknown_tag':
     case 'unknown_service':
@@ -476,6 +478,30 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
       return refusal.error;
     // Proof: removing this case failed both sparse command writer cases (2026-10-17).
     case 'referenced_by_step_parallel':
+      return refusal.error;
+    // `claimWorkItem` and `releaseWorkItem` (`wbs-team-claims`): the table sends
+    // neither yet, so these arrive only from a batch another client wrote.
+    case 'runId_must_be_1_to_256_characters':
+    case 'parentClaim_must_be_an_id':
+    case 'steps_must_be_a_list_of_ids':
+    case 'steps_must_be_at_most_50':
+    case 'steps_must_name_a_step':
+    case 'steps_on_subtree':
+    case 'person_not_bound':
+    case 'credential_not_for_person':
+    case 'parent_claim_unknown':
+    case 'parent_claim_foreign':
+    case 'parent_claim_not_ancestor':
+    case 'item_done':
+    case 'not_startable':
+    case 'step_done':
+    case 'already_claimed':
+    case 'inside_subtree_claim':
+    case 'overlaps_subtree_claim':
+    case 'not_claimed_by':
+      return refusal.error;
+    // A move under a leaf whose steps are claimed: the table's own drag sends it.
+    case 'destination_claimed':
       return refusal.error;
     default:
       return unreachable(refusal);
@@ -716,6 +742,8 @@ export const PLAN_REFUSALS: RefusalWords = {
     // Proof: deleting this sentence failed all three sparse writer refusal cases (2026-10-17).
     referenced_by_step_parallel:
       'That change cannot be made while the affected steps have individual parallelism overrides.',
+    destination_claimed:
+      'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
     node_done:
       'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:

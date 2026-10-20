@@ -1,4 +1,4 @@
-import type { TransactionalStores } from '@wbs/core';
+import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals, type MemoryActualTable, memoryActualTable } from './actual-fixture';
 import { inMemoryAttempts, type MemoryAttemptTable, memoryAttemptTable } from './attempt-fixture';
@@ -13,6 +13,13 @@ import {
   type MemoryCapacityTable,
   memoryCapacityTable,
 } from './capacity-fixture';
+import {
+  cascadeClaims,
+  claimsTakenWith,
+  inMemoryClaims,
+  type MemoryClaimTable,
+  memoryClaimTable,
+} from './claim-fixture';
 import {
   inMemoryCommandJournal,
   type MemoryCommandJournalTables,
@@ -90,6 +97,7 @@ interface MemoryTables {
   readonly attempts: MemoryAttemptTable;
   readonly blockages: MemoryStepBlockageTable;
   readonly stepParallels: MemoryStepParallelTable;
+  readonly claims: MemoryClaimTable;
   readonly capacity: MemoryCapacityTable;
   readonly priorityBands: MemoryPriorityBandTable;
   readonly calendarMarkers: MemoryCalendarMarkerTable;
@@ -113,6 +121,7 @@ function emptyTables(): MemoryTables {
     attempts: memoryAttemptTable(),
     blockages: memoryStepBlockageTable(),
     stepParallels: memoryStepParallelTable(),
+    claims: memoryClaimTable(),
     capacity: memoryCapacityTable(),
     priorityBands: memoryPriorityBandTable(),
     calendarMarkers: memoryCalendarMarkerTable(),
@@ -195,6 +204,12 @@ export class MemoryState {
     replaceMap(this.tables.directory.memberships, next.tables.directory.memberships);
     replaceMap(this.tables.directory.owned, next.tables.directory.owned);
     replaceMap(this.tables.directory.assignments, next.tables.directory.assignments);
+    replaceMap(this.tables.directory.accountOf, next.tables.directory.accountOf);
+    replaceMap(
+      this.tables.directory.organizationMembers,
+      next.tables.directory.organizationMembers,
+    );
+    replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`
@@ -217,6 +232,9 @@ export class MemoryState {
     // Proof: copy removed; source commit assertion lost the real authored fact (memory-commit.txt), 2026-10-15.
     replaceArray(this.tables.stepParallels.rows, next.tables.stepParallels.rows);
     replaceArray(this.tables.attempts.issued, next.tables.attempts.issued);
+    // Proof: with this copy removed, eight cases of claim-command.test.ts lost
+    // their committed claims; watched 2026-10-19.
+    replaceArray(this.tables.claims.rows, next.tables.claims.rows);
     replaceMap(this.tables.capacity.held, next.tables.capacity.held);
     replaceMap(this.tables.priorityBands.held, next.tables.priorityBands.held);
     replaceMap(this.tables.calendarMarkers.held, next.tables.calendarMarkers.held);
@@ -233,10 +251,18 @@ export function bindStores(
 ): TransactionalStores {
   const users = inMemoryUsers(state.tables.users);
   let workItems: TransactionalStores['workItems'] | null = null;
-  const fixtureDirectory = inMemoryDirectory((projectId) => {
-    if (workItems === null) throw new Error('work-item table was read before it was bound');
-    return workItems.listByProject(projectId);
-  }, state.tables.directory);
+  const fixtureDirectory = inMemoryDirectory(
+    (projectId) => {
+      if (workItems === null) throw new Error('work-item table was read before it was bound');
+      return workItems.listByProject(projectId);
+    },
+    state.tables.directory,
+    state.tables.users.byId,
+  );
+  const claimsOf = (personId: string) =>
+    claimsTakenWith(state.tables.claims, personId).map(
+      ({ workItemId, stepId, personId: holder }) => ({ workItemId, stepId, personId: holder }),
+    );
   const directory: TransactionalStores['directory'] = {
     ...fixtureDirectory,
     async renameTag(tagId, name, stamp) {
@@ -252,6 +278,34 @@ export function bindStores(
         ),
       ].sort();
       return { ...written, projectIds };
+    },
+    // Claims live in the source's own table, out of the fixture's sight: a
+    // person's claims refuse an unconfirmed removal and go with a confirmed one,
+    // as SQLite's do.
+    async usageOfPerson(personId) {
+      return { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimsOf(personId) };
+    },
+    async removePerson(personId, cascade, stamp) {
+      const claimed = claimsOf(personId);
+      // Proof: with this refusal removed, the memory certification's
+      // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
+      if (!cascade && claimed.length > 0) {
+        return {
+          ok: false,
+          reason: 'in_use',
+          usage: { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimed },
+        };
+      }
+      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp);
+      if (!removed.ok) return removed;
+      cascadeClaims(state.tables.claims, (each) => each.personId === personId);
+      // Proof: without the claims' work items here, the memory
+      // `directory.removePerson:delegated-claims` case found the worker's work
+      // item missing from the removal; watched 2026-10-20.
+      const workItemIds = [
+        ...new Set([...removed.removal.workItemIds, ...claimed.map((each) => each.workItemId)]),
+      ];
+      return { ...removed, removal: { ...removed.removal, workItemIds } };
     },
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
@@ -326,6 +380,8 @@ export function bindStores(
       // left an unreadable blockage fact; watched 2026-10-13.
       removeSatelliteRows(state.tables.blockages.rows);
       removeSatelliteRows(state.tables.attempts.issued);
+      // SQLite cascades claims with their work item and delegated claims with their parent.
+      cascadeClaims(state.tables.claims, ({ workItemId }) => removed.has(workItemId));
     },
   };
   const stores: TransactionalStores = {
@@ -341,6 +397,12 @@ export function bindStores(
     attempts,
     blockages,
     stepParallels,
+    claims: inMemoryClaims(
+      workItems,
+      state.tables.progress,
+      state.tables.claims,
+      claimIdentityOf(directory),
+    ),
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),

@@ -475,6 +475,42 @@ read, not a rule the engine follows. Not to be confused with **free agent**, whi
 about team membership and predates this term.
 _Avoid_: bot, AI, machine user, automation
 
+**Allotment**:
+The part of a plan one team is expected to work in: the leaves whose effective team set
+includes that team. A reading of the team labels, advisory only; nothing refuses on it, and
+the startable read filters by it.
+_Avoid_: Scope, territory, ownership
+
+**Claim**:
+A record that one person, under one run, occupies a step so nobody else picks it up; or, on
+a non-leaf, reserves dispatch of the subtree. Separate from the assignment, which is the plan
+of who does the work. Refused where the step is blocked, held, done or already claimed.
+Giving it back is a **release**, which leaves progress as it is.
+_Avoid_: Lock, lease, reservation, checkout
+
+**Delegated claim**:
+A claim that names a subtree claim as its parent and is written by the same account: how a
+superagent lets its subagents claim leaves inside its subtree. Released with its parent.
+_Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
+
+**Startable**:
+A step whose leaf is not blocked, held or done, whose progress is not done, and that no
+claim holds; startable **for a team** when that team is also in the leaf's effective team
+set. Derived from the folds the table uses, never stored.
+_Avoid_: Available, free, unassigned, ready (which is a readiness value)
+
+**Agent run**:
+The opaque string a harness gives one execution of an agent, recorded on a claim beside the
+person: an OpenClaw session key, a Codex thread, a Claude session id. WBS stores and shows
+it and never parses it.
+_Avoid_: Session, instance, worker id
+
+**Fleet credential**:
+An `(issuer, subject)` linked to a human's account so a headless fleet writes as that
+account, pinned to the one agent person it may claim as. One account, many credentials;
+revoked by unlinking.
+_Avoid_: Agent account, service account, machine identity, bot user
+
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
 the affected projects with their work items by number and name, each work item's effects,

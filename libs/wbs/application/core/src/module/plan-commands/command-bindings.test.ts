@@ -16,6 +16,7 @@ it('refuses an endpoint conflict missing its relationship ids at the command bou
     'moveWorkItem',
     new Map(),
     LEGACY_ACCESS,
+    null,
   );
   for (const reason of ['node_on_parent', 'descendant_step_on_leaf'] as const) {
     expect(() => {

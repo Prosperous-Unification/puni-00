@@ -5,6 +5,7 @@ import {
   assumedAssignee,
   type Attempt,
   type AttemptOutcome,
+  type AuthoredDependencyGraph,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -12,9 +13,12 @@ import {
   type ChargedEstimate,
   chargedWorkdays,
   chargedWorkdaysOf,
+  type Claim,
   type Days,
   deadlineOffsetOf,
   deadlineOffsetsOf,
+  decideClaim,
+  decideRelease,
   type DependencyEndpoint,
   deriveNumbers,
   effectiveTeamsOf,
@@ -83,6 +87,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import type { ActualStore, StoredActual } from '../../ports/actual-store';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { LivePlanStore } from '../../ports/chain-snapshot-store';
+import type { ClaimIdentity, ClaimStore, CredentialPair } from '../../ports/claim-store';
 import type { Clock } from '../../ports/clock';
 import type {
   CommandJournalStore,
@@ -166,6 +171,18 @@ import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/depe
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
+import {
+  type Claimed,
+  type ClaimInput,
+  type ClaimRefusalOutcome,
+  claimsAround,
+  isClaimAdmin,
+  lineageOf,
+  type NamedClaimHolder,
+  refusalOf,
+  type ReleaseInput,
+} from './claims';
+import { findStartableWork, type StartableWork } from './startable';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -979,6 +996,12 @@ export interface WorkItemServiceOptions {
   attempts: StepNodeAttemptStore;
   /** Direct node blockage facts used only by the live tree projection. */
   blockages: StepBlockageStore;
+  /**
+   * Who occupies a step or reserves a subtree now (`wbs-team-claims`).
+   * Optional only for fixtures that predate claims: without it a claim, a
+   * release, or the replay of either throws rather than answering.
+   */
+  claims?: ClaimStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -1704,6 +1727,67 @@ export class WorkItemService {
     return this.opts.workItems.listUpdateInstants(projectId);
   }
 
+  /**
+   * The **Startable** steps of a project through the caller's access, filtered
+   * to one team's allotment when `teamId` is given ({@link findStartableWork}).
+   * Statuses come from {@link statusReadsOf}, the fold the claim command uses.
+   *
+   * Names are the organization's own under scoped access, as {@link treeWithin}
+   * names assignees. Under legacy access no directory-wide list is read: the
+   * assignees' names come with the project's assignments and every other
+   * person or team is read by id (`DirectoryStore.namesOf`).
+   *
+   * Null for a project the caller cannot read, refused alike with an absent one;
+   * `unknown_team` for a team the caller's directory does not hold.
+   */
+  async startableWithin(
+    projectId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    const { directory } = this.opts;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const claims = await this.claiming().claims.listStampedByProject(projectId);
+    const { assignments, people: assigned } = await directory.assignmentsInProject(projectId);
+    const unassigned = claims
+      .map((each) => each.personId)
+      .filter((id) => !assigned.some((person) => person.id === id));
+    const labelled = [...rows.flatMap((row) => row.teamIds), ...(teamId === null ? [] : [teamId])];
+    // Proof: reading the root catalogs under scoped access too made `answers a
+    // member and a viewer alike, with the organization's own names` and
+    // `refuses a team the caller's organization does not hold`
+    // (startable-organization.controller.db.test.ts) fail; watched 2026-10-19.
+    // Proof: `listPeople()` in place of the legacy `namesOf` made `materializes
+    // only the assignee and the claim holder during a tiny startable read`
+    // (startable-scope.db.test.ts) fail on a `SCAN person`; watched 2026-10-20.
+    const [people, teams] =
+      access.kind === 'scoped'
+        ? await Promise.all([
+            directory.listInOrganization('people', access.scope.organizationId),
+            directory.listInOrganization('teams', access.scope.organizationId),
+          ])
+        : await Promise.all([
+            directory.namesOf('people', unassigned).then((found) => [...assigned, ...found]),
+            directory.namesOf('teams', labelled),
+          ]);
+    const teamNames = new Map(teams.map((team) => [team.id, team.name] as const));
+    if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
+    const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
+    return findStartableWork({
+      rows,
+      statuses,
+      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      stated,
+      claims,
+      assignments,
+      dependencies,
+      personNames: new Map(people.map((person) => [person.id, person.name] as const)),
+      teamNames,
+      teamId,
+    });
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(
     projectId: string,
@@ -2341,6 +2425,17 @@ export class WorkItemService {
         : await this.opts.attempts.listIssued(projectId, [gainsFirstChild]);
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
+    // And the claims: left on a row that is no longer a leaf, a step claim is
+    // one no release reaches, no claim on the child is fenced by and the
+    // startable read never lists. Moved in place, ids kept, so a delegated
+    // claim or any later satellite naming one moves with it. A fixture built
+    // without a claim store holds no claims to move.
+    const claimedHandedDown =
+      gainsFirstChild === null || this.opts.claims === undefined
+        ? []
+        : (await this.opts.claims.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     const stepNodeMapping =
       gainsFirstChild === null
         ? []
@@ -2389,6 +2484,10 @@ export class WorkItemService {
       // Proof: skipped, `hands a leaf’s attempts down to its first child,
       // numbers kept` read none on the child; watched 2026-10-12.
       await this.opts.attempts.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `releases the handed-down claim on the child`
+      // (claim-command.test.ts) answered `not_claimed_by`; watched 2026-10-20.
+      if (claimedHandedDown.length > 0)
+        await this.claiming().claims.moveAll(gainsFirstChild, workItem.id, stamp);
       // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
       // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
       for (const assignment of assignedHandedDown) {
@@ -2502,6 +2601,18 @@ export class WorkItemService {
       forward,
       // Proof: omitting these replay writes failed both exact blockage redo tests; watched 2026-10-14.
       ...setChildBlockages,
+      // Proof: omitted, `hands a claimed leaf's claims to its first child and
+      // back on undo` read the claim on the parent after the redo; watched 2026-10-20.
+      ...(gainsFirstChild === null || claimedHandedDown.length === 0
+        ? []
+        : [
+            {
+              do: 'move_claims' as const,
+              fromWorkItemId: gainsFirstChild,
+              toWorkItemId: workItem.id,
+              claims: claimedHandedDown,
+            },
+          ]),
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2519,6 +2630,19 @@ export class WorkItemService {
         dependency: remapped,
       })),
       ...clearChildBlockages,
+      // Before the child's delete, which would cascade them away.
+      // Proof: omitted, `hands a claimed leaf's claims to its first child and
+      // back on undo` read no claim on the parent after the undo; watched 2026-10-20.
+      ...(gainsFirstChild === null || claimedHandedDown.length === 0
+        ? []
+        : [
+            {
+              do: 'move_claims' as const,
+              fromWorkItemId: workItem.id,
+              toWorkItemId: gainsFirstChild,
+              claims: claimedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+            },
+          ]),
       inverse,
       // Proof: omitting these replay writes failed both exact blockage undo tests; watched 2026-10-14.
       ...restoreParentBlockages,
@@ -2714,6 +2838,252 @@ export class WorkItemService {
   }
 
   /**
+   * Claims a leaf's steps, or a non-leaf's subtree, for one person under one
+   * run: the pure decision is {@link decideClaim}; this reads its inputs, writes
+   * the claims and the `in_progress` statements it asks for in one store call,
+   * and journals one undoable entry whose undo removes exactly those. A claim
+   * neither reads nor writes assignments (D1).
+   *
+   * `unknown_step` and `unknown_person` answer before the decision; everything
+   * else is the decision's one refusal, holders named.
+   */
+  async claim(
+    id: string,
+    actorId: string,
+    input: ClaimInput,
+    access: ResourceAccess,
+    credential: CredentialPair | null,
+  ): Promise<WorkItemOutcome<Claimed> | ClaimRefusalOutcome> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    const { claims, identity } = this.claiming();
+    const projectId = workItem.projectId;
+    const steps = await this.opts.projects.stepsOf(projectId);
+    if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
+      return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const nameOf = await this.claimantNamesWithin(access, input.personId, near);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    const stated = new Map(
+      (await this.opts.progress.listByWorkItems(projectId, [id])).map((each) => [
+        each.stepId,
+        each.state,
+      ]),
+    );
+    const status = (await this.statusesOf(projectId, rows)).get(id);
+    if (status === undefined) throw new Error(`work item ${id} has no derived status`);
+    const decided = decideClaim({
+      target: {
+        workItemId: id,
+        isLeaf: lineage.isLeaf,
+        status,
+        ancestorIds: lineage.ancestorIds,
+        descendantIds: lineage.descendantIds,
+        steps: lineage.isLeaf
+          ? steps.map((step) => ({ stepId: step.id, progress: stated.get(step.id) ?? 'unknown' }))
+          : [],
+      },
+      caller: {
+        accountId: actorId,
+        isAdmin: isClaimAdmin(access),
+        pinnedPersonId: await identity.pinnedPersonOf(credential),
+      },
+      claimant: {
+        personId: input.personId,
+        boundAccountId: await identity.boundAccountOf(input.personId),
+      },
+      stepIds: input.stepIds,
+      runId: input.runId,
+      parentClaimId: input.parentClaimId,
+      parentClaim:
+        input.parentClaimId === null ? null : await claims.findById(projectId, input.parentClaimId),
+      claims: near,
+    });
+    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    if (decided.kind === 'alreadyHeld') {
+      const held = near.filter(
+        (each) =>
+          each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+      );
+      return { ok: true, value: { alreadyHeld: true, claimIds: held.map((each) => each.id) } };
+    }
+    const stamp = this.clock.stampFor(actorId);
+    const written: Claim[] = decided.drafts.map((draft) => ({
+      ...draft,
+      id: this.clock.newId(),
+      accountId: actorId,
+    }));
+    const statements = decided.stateInProgress.map((stepId) => ({ workItemId: id, stepId }));
+    const outcome = await claims.add(written, statements, stamp);
+    // Read in this same unit of work a moment ago: a refusal here is the
+    // write coordinator failing to serialize, not an outcome to model.
+    if (outcome !== 'written') throw new Error(`claim of ${id} was refused at write: ${outcome}`);
+    await this.announceTree(projectId);
+    await this.record(projectId, stamp, 'claim', `claim ${quoteName(workItem.name)}`, {
+      forward: { do: 'add_claims', claims: written, stated: statements },
+      inverse: { do: 'remove_claims', claims: written, cleared: statements },
+      touched: [id],
+      before: rows,
+    });
+    return {
+      ok: true,
+      value: { alreadyHeld: false, claimIds: written.map((each) => each.id) },
+    };
+  }
+
+  /**
+   * Releases one person's claims on a leaf's steps, or their subtree claim on
+   * a non-leaf with every delegated claim under it, transitively
+   * ({@link decideRelease}). Progress stays as it is; one undoable entry
+   * puts every removed claim back verbatim.
+   */
+  async release(
+    id: string,
+    actorId: string,
+    input: ReleaseInput,
+    access: ResourceAccess,
+    credential: CredentialPair | null,
+  ): Promise<WorkItemOutcome<null> | ClaimRefusalOutcome> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem, rows } = context.value;
+    const { claims, identity } = this.claiming();
+    const projectId = workItem.projectId;
+    const steps = await this.opts.projects.stepsOf(projectId);
+    if (input.stepIds?.some((stepId) => !steps.some((each) => each.id === stepId)) === true)
+      return { ok: false, reason: 'unknown_step' };
+    const lineage = lineageOf(rows, id);
+    const near = claimsAround(await claims.listByProject(projectId), id, lineage);
+    const nameOf = await this.claimantNamesWithin(access, input.personId, near);
+    if (!nameOf.has(input.personId)) return { ok: false, reason: 'unknown_person' };
+    const decided = decideRelease({
+      target: { workItemId: id, isLeaf: lineage.isLeaf },
+      caller: {
+        accountId: actorId,
+        isAdmin: isClaimAdmin(access),
+        pinnedPersonId: await identity.pinnedPersonOf(credential),
+      },
+      claimant: {
+        personId: input.personId,
+        boundAccountId: await identity.boundAccountOf(input.personId),
+      },
+      stepIds: input.stepIds,
+      claims: near,
+    });
+    if (decided.kind === 'refused') return refusalOf(decided.refusal, nameOf);
+    const stamp = this.clock.stampFor(actorId);
+    const removed = [...decided.claims];
+    await claims.remove(removed, [], stamp);
+    await this.announceTree(projectId);
+    await this.record(projectId, stamp, 'release', `release ${quoteName(workItem.name)}`, {
+      forward: { do: 'remove_claims', claims: removed, cleared: [] },
+      inverse: { do: 'add_claims', claims: removed, stated: [] },
+      touched: [...new Set(removed.map((each) => each.workItemId))],
+      before: rows,
+    });
+    return { ok: true, value: null };
+  }
+
+  /**
+   * The display names a claim or release may answer with: the claimant's and
+   * every holder's among `near`. Under scoped access they are the
+   * organization's own names, from its person list, so a person outside the
+   * organization reads as unknown; under legacy access they are the root
+   * names, read by id. Neither scans the whole directory.
+   */
+  private claimantNamesWithin(
+    access: ResourceAccess,
+    claimantId: string,
+    near: readonly Claim[],
+  ): Promise<Map<string, string>> {
+    return this.personNamesWithin(access, [claimantId, ...near.map(({ personId }) => personId)]);
+  }
+
+  /** {@link claimantNamesWithin} for any set of person ids. */
+  private async personNamesWithin(
+    access: ResourceAccess,
+    personIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const ids = [...new Set(personIds)];
+    const { directory } = this.opts;
+    // Proof: with the root `listPeople()` read back in place of both branches,
+    // `names the holder by the organization's name` (claim-identity.controller.db.test.ts)
+    // read `root-claire`, and `reads only the people a refused claim names`
+    // (startable-scope.db.test.ts) saw a `SCAN person`; watched 2026-10-20.
+    const people =
+      access.kind === 'scoped'
+        ? (await directory.listInOrganization('people', access.scope.organizationId)).filter(
+            (person) => ids.includes(person.id),
+          )
+        : await directory.namesOf('people', ids);
+    return new Map(people.map((person) => [person.id, person.name]));
+  }
+
+  /**
+   * The claim store and the identity reads the claim rules take, or a loud
+   * failure in a fixture built without them. Until `person.account_id` lands
+   * (task 2.1) the claim store itself answers those reads, so both come from it.
+   */
+  private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
+    const { claims } = this.opts;
+    if (claims === undefined)
+      throw new Error('this work-item service was built without a claim store');
+    return { claims, identity: claims };
+  }
+
+  /**
+   * Every work item's derived status, by the folds the plan read uses: progress
+   * rolled up over worked steps and running attempts, then
+   * {@link workItemStatusesOf} over the project's own dependency edges.
+   */
+  private async statusesOf(
+    projectId: string,
+    rows: readonly LabelledWorkItem[],
+  ): Promise<Map<string, WorkItemStatus>> {
+    return (await this.statusReadsOf(projectId, rows)).statuses;
+  }
+
+  /**
+   * {@link statusesOf} with the reads it folded, so a caller that needs the
+   * same progress statements and dependency edges reads them once.
+   */
+  private async statusReadsOf(
+    projectId: string,
+    rows: readonly LabelledWorkItem[],
+  ): Promise<{
+    statuses: Map<string, WorkItemStatus>;
+    stated: StoredProgress[];
+    dependencies: AuthoredDependencyGraph;
+  }> {
+    const stated = await this.opts.progress.listByProject(projectId);
+    const attempted = await this.opts.attempts.listByProject(projectId);
+    const progress = rollUpWorkItemStatuses(
+      rows,
+      rollUpProgress(
+        rows,
+        stated,
+        workedStepsOf(
+          await this.opts.estimates.listByProject(projectId),
+          await this.opts.actuals.listByProject(projectId),
+          stated,
+          attempted,
+        ),
+        attempted.filter((attempt) => attempt.endedAt === null),
+      ),
+    );
+    const rowIds = new Set(rows.map((row) => row.id));
+    const dependencies = {
+      edges: (await this.opts.dependencies.listByProject(projectId)).filter(
+        (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
+      ),
+      typed: await this.opts.typedDependencies.listByProject(projectId),
+    };
+    return { statuses: workItemStatusesOf(rows, progress, dependencies), stated, dependencies };
+  }
+
+  /**
    * Reparents the subtree. Retained destination step parallel facts refuse before
    * stamping or mutation; selected corrupt facts throw even on existing parents.
    * Clears unrelated destination leaf statements before
@@ -2729,9 +3099,11 @@ export class WorkItemService {
     id: string,
     actorId: string,
     input: MoveWorkItem,
+    access: ResourceAccess,
   ): Promise<
     | WorkItemOutcome<null>
     | { ok: false; reason: 'referenced_by_step_parallel'; nodes: readonly StepNodeRef[] }
+    | { ok: false; reason: 'destination_claimed'; holders: readonly NamedClaimHolder[] }
   > {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
@@ -2820,6 +3192,40 @@ export class WorkItemService {
           ok: false,
           reason: 'referenced_by_step_parallel',
           nodes: parallels.map(({ workItemId, stepId }) => ({ workItemId, stepId })),
+        };
+      }
+    }
+
+    // A leaf whose steps are claimed is somebody's work in progress; the moved
+    // row is other work, so it does not take those claims over (they would be
+    // stranded on a parent, where nothing reaches them) and the move is refused
+    // until they are released (`wbs-team-claims` D3: a blocker is resolved, not
+    // worked around). A fixture built without a claim store holds no claims.
+    // Proof: with this refusal disabled, `refuses a move under a claimed leaf,
+    // naming its holders, until they are released` (claim-command.test.ts)
+    // answered ok: the move went through over the claim; watched 2026-10-20.
+    if (
+      input.parentId !== null &&
+      this.opts.claims !== undefined &&
+      !rows.some((row) => row.parentId === input.parentId)
+    ) {
+      const destinationId = input.parentId;
+      const held = (await this.opts.claims.listByProject(workItem.projectId)).filter(
+        (each) => each.workItemId === destinationId && each.stepId !== null,
+      );
+      if (held.length > 0) {
+        const nameOf = await this.personNamesWithin(
+          access,
+          held.map(({ personId }) => personId),
+        );
+        return {
+          ok: false,
+          reason: 'destination_claimed',
+          holders: held.map(({ id: claimId, personId, runId }) => {
+            const name = nameOf.get(personId);
+            if (name === undefined) throw new Error(`claim ${claimId} names an absent person`);
+            return { claimId, personId, name, runId };
+          }),
         };
       }
     }
@@ -5976,6 +6382,63 @@ export class WorkItemService {
       case 'clear_progress':
         await this.opts.progress.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
+      case 'add_claims': {
+        const added = await this.claiming().claims.add(command.claims, command.stated, stamp);
+        // Proof: answering ok here made `refuses a redo of a claim once another
+        // holder took the step` (claim-command.test.ts) answer the redo ok; watched 2026-10-19.
+        if (added === 'taken')
+          return { ok: false, detail: 'that step or subtree has been claimed since.' };
+        if (added === 'progress_stated')
+          return { ok: false, detail: 'that step has been spoken about since.' };
+        return { ok: true, detail: null };
+      }
+      case 'remove_claims': {
+        const { claims } = this.claiming();
+        const stored = await claims.listByProject(projectId);
+        const held = new Set(stored.map(({ id }) => id));
+        if (command.claims.some(({ id }) => !held.has(id)))
+          return { ok: false, detail: 'that claim has been released since.' };
+        // A claim handed down to a first child since (`move_claims`) is the
+        // child's now; taking it back here would leave the child's statement.
+        // Proof: with this refusal removed, `refuses an undo of a claim once
+        // another actor split the leaf` (claim-command.test.ts, memory, which
+        // keeps no revisions) answered the undo ok; watched 2026-10-20.
+        const placedOn = new Map(stored.map(({ id, workItemId }) => [id, workItemId]));
+        if (command.claims.some(({ id, workItemId }) => placedOn.get(id) !== workItemId))
+          return { ok: false, detail: 'that claim has moved to another work item since.' };
+        // A removed claim takes its delegated claims with it (the parent
+        // reference cascades), so a delegated claim this entry did not write
+        // would go with an undo that cannot put it back.
+        // Proof: with this refusal removed, `refuses an undo of a subtree claim
+        // that would take a delegated claim it never wrote` (claim-race.db.test.ts)
+        // answered the second undo ok, taking the worker's delegated claim with
+        // the subtree claim; watched 2026-10-19.
+        const listed = new Set(command.claims.map(({ id }) => id));
+        const delegatedSince = stored.some(
+          ({ id, parentClaimId }) =>
+            !listed.has(id) && parentClaimId !== null && listed.has(parentClaimId),
+        );
+        if (delegatedSince)
+          return { ok: false, detail: 'a claim has been delegated under it since.' };
+        await claims.remove(command.claims, command.cleared, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'move_claims': {
+        const { claims } = this.claiming();
+        const stored = await claims.listByProject(projectId);
+        const onFrom = stored
+          .filter(({ workItemId }) => workItemId === command.fromWorkItemId)
+          .map(({ id }) => id)
+          .sort();
+        const listed = command.claims.map(({ id }) => id).sort();
+        // Proof: with this refusal removed, `refuses an undo of a split once
+        // the child's claims changed` (claim-command.test.ts, memory, which
+        // keeps no revisions) answered the undo ok; watched 2026-10-20.
+        if (onFrom.length !== listed.length || onFrom.some((id, at) => id !== listed[at]))
+          return { ok: false, detail: 'the claims on that work item have changed since.' };
+        await claims.moveAll(command.fromWorkItemId, command.toWorkItemId, stamp);
+        return { ok: true, detail: null };
+      }
       case 'replace_blockage': {
         const rows = await this.opts.workItems.listByProject(projectId);
         if (

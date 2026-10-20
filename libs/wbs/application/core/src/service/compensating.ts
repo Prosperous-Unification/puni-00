@@ -89,6 +89,9 @@ const COMMANDS = [
   'clear_progress',
   ...STEP_BLOCKAGE_REPLAY_KINDS,
   'assign',
+  'add_claims',
+  'remove_claims',
+  'move_claims',
   'restore_attempt',
   'remove_attempt',
   'add_dependency',
@@ -147,6 +150,16 @@ export function readCommand(value: unknown): CompensatingCommand {
       !blockedTime(value.replacementBlockedAt)
     )
       throw new Error('a journal blockage replacement is malformed');
+  }
+  if (named === 'add_claims' || named === 'remove_claims') {
+    // Proof: with this call removed, `refuses a malformed claim replay` in
+    // compensating.test.ts did not throw; watched 2026-10-19.
+    readClaimReplay(value, named === 'add_claims' ? 'stated' : 'cleared');
+  }
+  if (named === 'move_claims') {
+    // Proof: with this call removed, `refuses a malformed claim move` in
+    // compensating.test.ts did not throw; watched 2026-10-20.
+    readClaimMove(value);
   }
   if (named === 'move' && 'expectedProgress' in value) {
     // Proof: removing this boundary admitted a mounted guarded move with no destination; watched 2026-10-14.
@@ -400,6 +413,10 @@ export function progressKeysOf(command: CompensatingCommand): ProgressKey[] {
         workItemId,
         stepId,
       }));
+    case 'add_claims':
+      return command.stated.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
+    case 'remove_claims':
+      return command.cleared.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
     case 'delete_subtree':
       // Proof: omitting these writes failed exact delete progress attribution; watched 2026-10-14.
       return command.setProgress.map(({ workItemId, stepId }) => ({ workItemId, stepId }));
@@ -437,6 +454,15 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // Proof: omitting assignment owners made the SQLite assignment-only redo
       // conflict test fail at `Expected: 409, Received: 200`; watched 2026-09-27.
       return [command.workItemId];
+    case 'add_claims':
+    case 'remove_claims':
+      // Proof: returning [] here made `refuses a redo of a claim after the leaf
+      // moved on` (claim-race.db.test.ts) apply the redo; watched 2026-10-19.
+      return [...new Set(command.claims.map(({ workItemId }) => workItemId))];
+    case 'move_claims':
+      // Redundant today: the one writer, a first child's create, names both
+      // ids in its touched set already, so no production negative can fail here.
+      return [command.fromWorkItemId, command.toWorkItemId];
     case 'restore_attempt':
       return [command.attempt.workItemId];
     case 'add_dependency':
@@ -607,6 +633,22 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       onStep(command);
       if (command.personId !== null) found.people.push(command.personId);
       return;
+    case 'add_claims':
+    case 'remove_claims':
+      for (const each of command.claims) {
+        rows(each.workItemId);
+        if (each.stepId !== null) found.steps.push(each.stepId);
+        found.people.push(each.personId);
+      }
+      [...('stated' in command ? command.stated : command.cleared)].forEach(onStep);
+      return;
+    case 'move_claims':
+      rows(command.fromWorkItemId, command.toWorkItemId);
+      for (const each of command.claims) {
+        if (each.stepId !== null) found.steps.push(each.stepId);
+        found.people.push(each.personId);
+      }
+      return;
     case 'restore_attempt':
       attempted(command.attempt);
       return;
@@ -710,6 +752,18 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'assign':
     case 'remove_attempt':
       return { workItemId: command.workItemId, stepId: command.stepId };
+    case 'add_claims':
+    case 'remove_claims': {
+      // One claim command addresses one work item; several steps of it name none.
+      const first = command.claims.at(0);
+      return {
+        workItemId: first?.workItemId ?? null,
+        stepId: command.claims.length === 1 ? (first?.stepId ?? null) : null,
+      };
+    }
+    case 'move_claims':
+      // Part of a first child's create or its undo; the work item the claims land on.
+      return { workItemId: command.toWorkItemId, stepId: null };
     case 'restore_attempt':
       return { workItemId: command.attempt.workItemId, stepId: command.attempt.stepId };
     case 'patch':
@@ -767,4 +821,78 @@ export function quoteName(name: string): string {
   const trimmed = name.trim();
   if (trimmed === '') return 'an unnamed work item';
   return `“${trimmed.length > 40 ? `${trimmed.slice(0, 39)}…` : trimmed}”`;
+}
+
+/**
+ * Checks a stored claim replay: every claim whole, and every progress key a
+ * pair of strings. A claim with a missing field would otherwise be inserted as
+ * a row nobody wrote.
+ *
+ * @throws for any malformed claim or key.
+ */
+function readClaimMove(value: object): void {
+  const text = (field: unknown): field is string => typeof field === 'string' && field.length > 0;
+  if (
+    !('fromWorkItemId' in value) ||
+    !text(value.fromWorkItemId) ||
+    !('toWorkItemId' in value) ||
+    !text(value.toWorkItemId)
+  )
+    throw new Error('a journal claim move names no work items');
+  const from = value.fromWorkItemId;
+  const claims = readClaims(value);
+  if (claims.some((each) => Reflect.get(each, 'workItemId') !== from))
+    throw new Error('a journal claim move holds a claim of another work item');
+}
+
+function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
+  const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
+  readClaims(value);
+  const pairs: unknown = keys in value ? Reflect.get(value, keys) : undefined;
+  if (!Array.isArray(pairs)) throw new Error(`a journal claim replay has no ${keys} progress`);
+  const listed: readonly unknown[] = pairs;
+  for (const pair of listed) {
+    if (
+      typeof pair !== 'object' ||
+      pair === null ||
+      !('workItemId' in pair) ||
+      !text(pair.workItemId) ||
+      !('stepId' in pair) ||
+      !text(pair.stepId)
+    )
+      throw new Error('a journal claim replay holds a malformed progress key');
+  }
+}
+
+/** The non-empty `claims` of a stored claim command, each claim checked field by field. */
+function readClaims(value: object): readonly object[] {
+  const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
+  const nullableText = (field: unknown): boolean => field === null || text(field);
+  if (!('claims' in value) || !Array.isArray(value.claims) || value.claims.length === 0)
+    throw new Error('a journal claim replay has no claims');
+  const claims: readonly unknown[] = value.claims;
+  const checked: object[] = [];
+  for (const each of claims) {
+    if (
+      typeof each !== 'object' ||
+      each === null ||
+      !('id' in each) ||
+      !text(each.id) ||
+      !('workItemId' in each) ||
+      !text(each.workItemId) ||
+      !('stepId' in each) ||
+      !nullableText(each.stepId) ||
+      !('personId' in each) ||
+      !text(each.personId) ||
+      !('runId' in each) ||
+      !nullableText(each.runId) ||
+      !('parentClaimId' in each) ||
+      !nullableText(each.parentClaimId) ||
+      !('accountId' in each) ||
+      !text(each.accountId)
+    )
+      throw new Error('a journal claim replay holds a malformed claim');
+    checked.push(each);
+  }
+  return checked;
 }

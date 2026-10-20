@@ -1,10 +1,11 @@
-import type { TransactionalStores } from '@wbs/core';
+import { claimIdentityOf, type TransactionalStores } from '@wbs/core';
 
 import { inMemoryActuals } from './actual-fixture';
 import { inMemoryAttempts } from './attempt-fixture';
 import { inMemoryUsers } from './auth-fixture';
 import { inMemoryCalendarMarkers } from './calendar-marker-fixture';
 import { inMemoryCapacity } from './capacity-fixture';
+import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
 import { inMemoryDirectory } from './directory-fixture';
@@ -13,7 +14,7 @@ import { inMemoryPlanEvents } from './history-fixture';
 import { inMemoryMeasures } from './measure-fixture';
 import { inMemoryWorkItems } from './memory-work-item-fixture';
 import { inMemoryPriorityBands } from './priority-band-fixture';
-import { inMemoryProgress } from './progress-fixture';
+import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
 import { inMemoryProjects } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
 import { inMemoryStepBlockages } from './step-blockage-fixture';
@@ -44,7 +45,8 @@ export function inMemoryStores(): TransactionalStores {
   const estimates = inMemoryEstimates(workItems, estimateTable, steps);
   const actuals = inMemoryActuals(workItems, undefined, steps);
   const measures = inMemoryMeasures(workItems, undefined, steps);
-  const progress = inMemoryProgress(workItems, undefined, steps);
+  const progressTable = memoryProgressTable();
+  const progress = inMemoryProgress(workItems, progressTable, steps);
   const attempts = inMemoryAttempts(workItems, undefined, steps, progress);
   const projects = inMemoryProjects(users);
   const dependencies = inMemoryDependencies([], undefined, workItems);
@@ -59,6 +61,12 @@ export function inMemoryStores(): TransactionalStores {
     progress,
     attempts,
     stepParallels: inMemoryStepParallels(workItems, steps, parallelTable),
+    claims: inMemoryClaims(
+      workItems,
+      progressTable,
+      memoryClaimTable(),
+      claimIdentityOf(directory),
+    ),
     blockages: inMemoryStepBlockages(workItems, {
       async findById(stepId) {
         const step = await steps.findById(stepId);

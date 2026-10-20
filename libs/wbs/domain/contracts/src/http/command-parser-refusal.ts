@@ -157,6 +157,11 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  accountId_must_be_id_or_null: type({
+    error: "'accountId_must_be_id_or_null'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
   name_must_be_text: type({ error: "'name_must_be_text'", at: 'number', kind: commandKindsType }),
   notes_must_be_text: type({ error: "'notes_must_be_text'", at: 'number', kind: commandKindsType }),
   kind_must_be_text: type({ error: "'kind_must_be_text'", at: 'number', kind: commandKindsType }),
@@ -425,6 +430,31 @@ const parserArms = {
   }),
   allowancePercent_must_be_0_to_1000_with_two_decimals: type({
     error: "'allowancePercent_must_be_0_to_1000_with_two_decimals'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  runId_must_be_1_to_256_characters: type({
+    error: "'runId_must_be_1_to_256_characters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  parentClaim_must_be_an_id: type({
+    error: "'parentClaim_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  steps_must_be_a_list_of_ids: type({
+    error: "'steps_must_be_a_list_of_ids'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  steps_must_name_a_step: type({
+    error: "'steps_must_name_a_step'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  steps_must_be_at_most_50: type({
+    error: "'steps_must_be_at_most_50'",
     at: 'number',
     kind: commandKindsType,
   }),

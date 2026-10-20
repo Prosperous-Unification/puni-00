@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261015110000_add_step_node_parallelism');
+    expect(baselineLedger.at(-1)?.name).toBe('20261019130100_add_external_identity_person');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1103,6 +1103,64 @@ describe('migration deploy entrypoints', () => {
     expect(down.stdout).toContain(`rolled back: ${latest}`);
     expect(schemaAt(dbPath)).toEqual(priorSchema);
     expect((await runCli('migrate-status-cli.ts', dbPath)).stdout.trim()).toBe(baseline);
+  }, 60_000);
+
+  it('refuses to reverse add_claim over a claim after reversing the two binding migrations, each in its own transaction', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'wbs-claim-down-cli-'));
+    roots.push(root);
+    const dbPath = join(root, 'plan.db');
+    runMigrations(dbPath, MIGRATIONS);
+    const sqlite = openDatabase(dbPath);
+    try {
+      sqlite.run("INSERT INTO users (id,username,password_hash,created_at) VALUES ('u','u','x',1)");
+      sqlite.run(
+        "INSERT INTO project (id,name,owner_id,revision,created_at) VALUES ('p','P','u',0,1)",
+      );
+      sqlite.run("INSERT INTO step (id,project_id,name,position) VALUES ('s','p','Dev',1)");
+      sqlite.run(
+        "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('w','p','W',1,0)",
+      );
+      sqlite.run("INSERT INTO person (id,name) VALUES ('claire','claire')");
+      sqlite.run(
+        "INSERT INTO claim (id,work_item_id,step_id,person_id,created_by) VALUES ('c','w','s','claire','u')",
+      );
+    } finally {
+      sqlite.close();
+    }
+    const ledger = migrationLedgerAt(dbPath);
+    // Proof: with down.sql's guard statements removed, this down exited 0 and
+    // the claim table was gone with its row; watched 2026-10-19.
+    const down = await runCli(
+      'migrate-down-cli.ts',
+      dbPath,
+      '--to=20261015110000_add_step_node_parallelism',
+    );
+    expect(down.exitCode).not.toBe(0);
+    expect(down.stderr).toContain('claims exist');
+    // The empty binding migrations newer than add_claim reverse first, each in
+    // its own transaction, so add_claim's refusal leaves them reversed.
+    expect(migrationLedgerAt(dbPath)).toEqual(
+      ledger.filter(
+        ({ name }) =>
+          name !== '20261019130000_add_person_account' &&
+          name !== '20261019130100_add_external_identity_person',
+      ),
+    );
+    const after = openDatabase(dbPath);
+    try {
+      expect(after.query<{ id: string }, []>('SELECT id FROM claim').all()).toEqual([{ id: 'c' }]);
+      after.run('DELETE FROM claim');
+    } finally {
+      after.close();
+    }
+    const empty = await runCli(
+      'migrate-down-cli.ts',
+      dbPath,
+      '--to=20261015110000_add_step_node_parallelism',
+    );
+    expect(empty.exitCode).toBe(0);
+    expect(empty.stdout).toContain('rolled back: 20261019120000_add_claim');
+    expect(schemaAt(dbPath)).not.toContain('CREATE TABLE `claim`');
   }, 60_000);
 
   it('previews organization selection read-only, and fails without a database', async () => {

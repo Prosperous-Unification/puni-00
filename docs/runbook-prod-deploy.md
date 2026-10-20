@@ -155,6 +155,36 @@ signed-in checks fail with 401. Every signed-in request asks the OIDC verifier f
 outage of the provider's discovery or JWKS endpoint shows as 500 on the signed-in checks. That is
 not an application fault.
 
+## Fleet credential links
+
+Link or unlink a fleet's machine-to-machine credential in the live colour; the
+flags, scopes and refusals are in
+[fleet credentials](auth-integration.md#fleet-credentials):
+
+```sh
+docker exec be-01-<colour> bun run src/link-credential-cli.ts --issuer=<iss> --subject=<sub> --account=<id or username> [--person=<id>]
+```
+
+## Team claims swap window and rollback
+
+**Swap window.** While the outgoing be-01 still serves beside a green that holds claims and
+fleet pins, the outgoing binary does not know either. Its confirmed `deletePerson` of a person
+green pinned a credential to fails on the `external_identity.person_id` foreign key, and its
+`removeStep` of a step green claimed fails on `claim.step_id`: both answer 500 and write
+nothing. An outgoing fe-01 shown a green usage carrying a `claim_released` effect fails that
+arm's validator and shows the refusal. Those three fail closed; retry after the swap commits.
+One does not: the outgoing be-01's confirmed `deletePerson` of a person who holds claims but
+has no pinned credential succeeds, and the `claim.person_id` cascade takes those claims (and
+every claim delegated under them) with no `in_use` refusal naming them and no revision moved
+on their work items. Rule: no person deletions during the swap window.
+
+**Rollback.** `migrate-down-cli.ts --to=<the migration before 20261019120000_add_claim>`
+runs each down in its own transaction, newest first: it reverses the two binding migrations
+(`20261019130100_add_external_identity_person`, `20261019130000_add_person_account`, each
+refusing while a credential is pinned or a person is bound) and only then refuses on
+`add_claim` while any claim exists. A refused run therefore leaves the bindings already
+removed; release every claim first, then rerun.
+
 ## Typed dependency rollback
 
 **Code rollback with SS/FF rows.** The `be` swap compares the incoming binary's

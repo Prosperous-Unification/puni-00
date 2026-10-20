@@ -50,10 +50,11 @@ test('validates required memberships and person kind while retaining additive au
     (await validateSchema(team, { teams: [{ id: 't', name: 'Team', serviceIds: [4] }] })).issues,
   ).toBeDefined();
   for (const person of [
-    { id: 'p', name: 'Person', teamIds: [] },
-    { id: 'p', name: 'Person', kind: 'robot', teamIds: [] },
-    { id: 'p', name: 'Person', kind: 'person' },
-    { id: 'p', name: 'Person', kind: 'agent', teamIds: [4] },
+    { id: 'p', name: 'Person', teamIds: [], accountId: null },
+    { id: 'p', name: 'Person', kind: 'robot', teamIds: [], accountId: null },
+    { id: 'p', name: 'Person', kind: 'person', accountId: null },
+    { id: 'p', name: 'Person', kind: 'agent', teamIds: [4], accountId: null },
+    { id: 'p', name: 'Person', kind: 'agent', teamIds: [], accountId: 4 },
   ])
     expect((await validateSchema(people, { people: [person] })).issues).toBeDefined();
   const enriched = {
@@ -63,10 +64,20 @@ test('validates required memberships and person kind while retaining additive au
         name: 'Person',
         kind: 'agent' as const,
         teamIds: ['t'],
+        accountId: 'account-dany',
         createdAt: 42,
         createdBy: 'owner',
       },
     ],
   };
   expect(await validateSchema(people, enriched)).toEqual({ value: enriched });
+});
+
+// Proof: `accountId` required on this shape made this fail, and with it 111
+// cases of fe-01's `plan-cards.test.tsx` whose people fixtures predate the
+// field (the h2puni gate on 634587486dab, 2026-10-19).
+test('reads people from a release that sends no accountId, as mid-swap', async () => {
+  const people = listPeople.responses[0].schema;
+  const outgoing = { people: [{ id: 'p', name: 'Person', kind: 'agent' as const, teamIds: [] }] };
+  expect(await validateSchema(people, outgoing)).toEqual({ value: outgoing });
 });

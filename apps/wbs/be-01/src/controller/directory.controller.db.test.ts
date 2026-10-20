@@ -572,6 +572,7 @@ describe('deletePerson and deleteTeam', () => {
           },
         ],
         members: [],
+        pinnedCredentials: 0,
       },
     });
 
@@ -599,7 +600,7 @@ describe('deletePerson and deleteTeam', () => {
         error: 'in_use',
         at: 0,
         kind: 'deleteTeam',
-        usage: { projects: [], members: [{ id: kat, name: 'Kat' }] },
+        usage: { projects: [], members: [{ id: kat, name: 'Kat' }], pinnedCredentials: 0 },
       },
     });
   });
@@ -632,7 +633,7 @@ describe('patchPerson', () => {
     });
 
     expect(patched).toEqual(
-      applied({ id: kat, name: 'Katrin', kind: 'person', teamIds: [payments] }),
+      applied({ id: kat, name: 'Katrin', kind: 'person', teamIds: [payments], accountId: null }),
     );
   });
 
@@ -648,7 +649,7 @@ describe('patchPerson', () => {
       }),
     ).toEqual({ status: 404, body: { error: 'unknown_team', at: 0, kind: 'patchPerson' } });
     expect(await store.listPeople()).toEqual([
-      { id: kat, name: 'Kat', kind: 'person', teamIds: [platform] },
+      { id: kat, name: 'Kat', kind: 'person', teamIds: [platform], accountId: null },
     ]);
   });
 
@@ -665,13 +666,13 @@ describe('patchPerson', () => {
     const kat = await addPerson('Kat', []);
 
     expect(await command({ kind: 'patchPerson', personId: kat, patch: { kind: 'agent' } })).toEqual(
-      applied({ id: kat, name: 'Kat', kind: 'agent', teamIds: [] }),
+      applied({ id: kat, name: 'Kat', kind: 'agent', teamIds: [], accountId: null }),
     );
     // Patching it back is the whole undo — the directory journals nothing, and
     // `plan_event` is a plan's history, so it cannot hold this. tasks.md 4.4.
     expect(
       await command({ kind: 'patchPerson', personId: kat, patch: { kind: 'person' } }),
-    ).toEqual(applied({ id: kat, name: 'Kat', kind: 'person', teamIds: [] }));
+    ).toEqual(applied({ id: kat, name: 'Kat', kind: 'person', teamIds: [], accountId: null }));
   });
 
   it('answers 400 invalid_kind for a kind outside the set, rename included', async () => {
@@ -693,7 +694,7 @@ describe('patchPerson', () => {
       body: { error: 'invalid_kind', at: 0, kind: 'patchPerson' },
     });
     expect(await store.listPeople()).toEqual([
-      { id: kat, name: 'Kat', kind: 'person', teamIds: [] },
+      { id: kat, name: 'Kat', kind: 'person', teamIds: [], accountId: null },
     ]);
   });
 
@@ -724,7 +725,7 @@ describe('patchPerson', () => {
 
     expect(res.status).toBe(401);
     expect(await store.listPeople()).toEqual([
-      { id: kat, name: 'Kat', kind: 'person', teamIds: [platform] },
+      { id: kat, name: 'Kat', kind: 'person', teamIds: [platform], accountId: null },
     ]);
   });
 });
@@ -835,6 +836,7 @@ describe('the service commands', () => {
             },
           ],
           members: [],
+          pinnedCredentials: 0,
         },
       },
     });
@@ -1002,6 +1004,7 @@ it('retains additive directory audit fields in the mounted response', async () =
       name: 'Person',
       kind: 'agent' as const,
       teamIds: ['t'],
+      accountId: null,
       createdAt: 42,
       createdBy: 'owner',
     },

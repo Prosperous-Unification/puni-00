@@ -202,6 +202,9 @@ describe('the project settings migration', () => {
       // cannot make: a migration that also dropped a column would still pass
       // every line above.
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261019130100_add_external_identity_person',
+        '20261019130000_add_person_account',
+        '20261019120000_add_claim',
         '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
@@ -271,6 +274,9 @@ describe('the project settings migration', () => {
     try {
       runMigrations(db.path, FOLDER);
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261019130100_add_external_identity_person',
+        '20261019130000_add_person_account',
+        '20261019120000_add_claim',
         '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',
@@ -382,6 +388,9 @@ describe('the project settings migration', () => {
       const migratedDdl = projectDdl(db.path);
 
       expect(rollbackTo(db.path, FOLDER, OPTIMIZER_TABLES)).toEqual([
+        '20261019130100_add_external_identity_person',
+        '20261019130000_add_person_account',
+        '20261019120000_add_claim',
         '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
         '20261014140000_add_step_blockage_activation',

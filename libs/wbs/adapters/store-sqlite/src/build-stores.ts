@@ -3,6 +3,7 @@ import type { LivePlanStore } from '@wbs/core/ports/chain-snapshot-store';
 import { ActualRepository } from './actual';
 import { CalendarMarkerRepository } from './calendar-marker';
 import { CapacityRepository } from './capacity';
+import { ClaimRepository } from './claim';
 import { CommandJournalRepository } from './command-journal';
 import type { Drizzle } from './db';
 import { DependencyRepository } from './dependency';
@@ -51,6 +52,7 @@ export function buildStores(
     progress: new StepProgressRepository(db, gate),
     blockages: new StepBlockageRepository(db, gate),
     stepParallels: new StepParallelRepository(db, gate),
+    claims: new ClaimRepository(db, gate),
     attempts: new StepNodeAttemptRepository(db, gate),
     dependencies: new DependencyRepository(db, gate),
     typedDependencies: new TypedDependencyRepository(db, gate),

@@ -156,7 +156,7 @@ describe('working plan global directory barrier', () => {
         }),
         patchPerson: async (id) => ({
           ok: true,
-          person: { id, name: 'Patched person', kind: 'person', teamIds: [] },
+          person: { id, name: 'Patched person', kind: 'person', teamIds: [], accountId: null },
           projectIds: [],
         }),
         removePerson: async () => ({ ok: true, removal: { workItemIds: [], projectIds: [] } }),

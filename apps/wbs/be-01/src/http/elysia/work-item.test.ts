@@ -241,6 +241,8 @@ test('mounted parsing preserves priority absence and null while defaulting assig
       { kind: 'setAssignee', stepId: 's', personId: null },
     ],
     { kind: 'legacy' },
+    // A password session carries no upstream pair, so nothing pins it.
+    null,
   );
 });
 

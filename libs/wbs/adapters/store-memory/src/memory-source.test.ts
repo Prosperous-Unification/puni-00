@@ -17,6 +17,7 @@ const STORE_BINDINGS = [
   'blockages',
   'calendarMarkers',
   'capacity',
+  'claims',
   'dependencies',
   'directory',
   'estimates',
@@ -229,6 +230,21 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     { workItemId: 'wi-1', stepId: 'step-memory', maxParallel: 1 },
     stamp,
   );
+  await stores.claims.add(
+    [
+      {
+        id: 'claim-1',
+        workItemId: 'wi-1',
+        stepId: 'step-memory',
+        personId: 'person-1',
+        runId: 'stored run',
+        parentClaimId: null,
+        accountId: 'owner',
+      },
+    ],
+    [],
+    stamp,
+  );
   const recorded = await stores.eventLog.recordEvent(
     'project:p1',
     { nested: { label: 'stored message' } },
@@ -378,6 +394,11 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'progress',
       returned: await stores.progress.listByProject('p1'),
       reread: () => stores.progress.listByProject('p1'),
+    },
+    {
+      name: 'claims',
+      returned: await stores.claims.listByProject('p1'),
+      reread: () => stores.claims.listByProject('p1'),
     },
     {
       name: 'attempts',
