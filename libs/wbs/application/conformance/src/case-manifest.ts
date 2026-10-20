@@ -126,6 +126,7 @@ export const CASE_MANIFEST = {
     'claims.add:taken-stated-remove',
     'claims.listStampedByProject:write-instant',
     'claims.remove:delegated-cascade',
+    'claims.moveAll:in-place',
   ],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',

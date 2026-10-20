@@ -2423,6 +2423,17 @@ export class WorkItemService {
         : await this.opts.attempts.listIssued(projectId, [gainsFirstChild]);
     const assignedHandedDown =
       gainsFirstChild === null ? [] : await this.opts.directory.assignmentsFor(gainsFirstChild);
+    // And the claims: left on a row that is no longer a leaf, a step claim is
+    // one no release reaches, no claim on the child is fenced by and the
+    // startable read never lists. Moved in place, ids kept, so a delegated
+    // claim or any later satellite naming one moves with it. A fixture built
+    // without a claim store holds no claims to move.
+    const claimedHandedDown =
+      gainsFirstChild === null || this.opts.claims === undefined
+        ? []
+        : (await this.opts.claims.listByProject(projectId)).filter(
+            (each) => each.workItemId === gainsFirstChild,
+          );
     const stepNodeMapping =
       gainsFirstChild === null
         ? []
@@ -2471,6 +2482,10 @@ export class WorkItemService {
       // Proof: skipped, `hands a leaf’s attempts down to its first child,
       // numbers kept` read none on the child; watched 2026-10-12.
       await this.opts.attempts.moveAll(gainsFirstChild, workItem.id, stamp);
+      // Proof: skipped, `releases the handed-down claim on the child`
+      // (claim-command.test.ts) answered `not_claimed_by`; watched 2026-10-20.
+      if (claimedHandedDown.length > 0)
+        await this.claiming().claims.moveAll(gainsFirstChild, workItem.id, stamp);
       // Proof: skipping these writes failed `hands a first child every Dev fact and Ann`
       // at `Expected: <Ann id>, Received: undefined` for child.assignees[Dev]; watched 2026-09-27.
       for (const assignment of assignedHandedDown) {
@@ -2584,6 +2599,18 @@ export class WorkItemService {
       forward,
       // Proof: omitting these replay writes failed both exact blockage redo tests; watched 2026-10-14.
       ...setChildBlockages,
+      // Proof: omitted, `hands a claimed leaf's claims to its first child and
+      // back on undo` read the claim on the parent after the redo; watched 2026-10-20.
+      ...(gainsFirstChild === null || claimedHandedDown.length === 0
+        ? []
+        : [
+            {
+              do: 'move_claims' as const,
+              fromWorkItemId: gainsFirstChild,
+              toWorkItemId: workItem.id,
+              claims: claimedHandedDown,
+            },
+          ]),
       ...assignedHandedDown.map(({ workItemId, stepId }) => ({
         do: 'assign' as const,
         workItemId,
@@ -2601,6 +2628,19 @@ export class WorkItemService {
         dependency: remapped,
       })),
       ...clearChildBlockages,
+      // Before the child's delete, which would cascade them away.
+      // Proof: omitted, `hands a claimed leaf's claims to its first child and
+      // back on undo` read no claim on the parent after the undo; watched 2026-10-20.
+      ...(gainsFirstChild === null || claimedHandedDown.length === 0
+        ? []
+        : [
+            {
+              do: 'move_claims' as const,
+              fromWorkItemId: workItem.id,
+              toWorkItemId: gainsFirstChild,
+              claims: claimedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+            },
+          ]),
       inverse,
       // Proof: omitting these replay writes failed both exact blockage undo tests; watched 2026-10-14.
       ...restoreParentBlockages,
@@ -6303,6 +6343,22 @@ export class WorkItemService {
         if (delegatedSince)
           return { ok: false, detail: 'a claim has been delegated under it since.' };
         await claims.remove(command.claims, command.cleared, stamp);
+        return { ok: true, detail: null };
+      }
+      case 'move_claims': {
+        const { claims } = this.claiming();
+        const stored = await claims.listByProject(projectId);
+        const onFrom = stored
+          .filter(({ workItemId }) => workItemId === command.fromWorkItemId)
+          .map(({ id }) => id)
+          .sort();
+        const listed = command.claims.map(({ id }) => id).sort();
+        // Proof: with this refusal removed, `refuses an undo of a split once
+        // the child's claims changed` (claim-command.test.ts, memory, which
+        // keeps no revisions) answered the undo ok; watched 2026-10-20.
+        if (onFrom.length !== listed.length || onFrom.some((id, at) => id !== listed[at]))
+          return { ok: false, detail: 'the claims on that work item have changed since.' };
+        await claims.moveAll(command.fromWorkItemId, command.toWorkItemId, stamp);
         return { ok: true, detail: null };
       }
       case 'replace_blockage': {

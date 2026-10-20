@@ -91,6 +91,7 @@ const COMMANDS = [
   'assign',
   'add_claims',
   'remove_claims',
+  'move_claims',
   'restore_attempt',
   'remove_attempt',
   'add_dependency',
@@ -154,6 +155,11 @@ export function readCommand(value: unknown): CompensatingCommand {
     // Proof: with this call removed, `refuses a malformed claim replay` in
     // compensating.test.ts did not throw; watched 2026-10-19.
     readClaimReplay(value, named === 'add_claims' ? 'stated' : 'cleared');
+  }
+  if (named === 'move_claims') {
+    // Proof: with this call removed, `refuses a malformed claim move` in
+    // compensating.test.ts did not throw; watched 2026-10-20.
+    readClaimMove(value);
   }
   if (named === 'move' && 'expectedProgress' in value) {
     // Proof: removing this boundary admitted a mounted guarded move with no destination; watched 2026-10-14.
@@ -453,6 +459,8 @@ export function touchedBy(command: CompensatingCommand): string[] {
       // Proof: returning [] here made `refuses a redo of a claim after the leaf
       // moved on` (claim-race.db.test.ts) apply the redo; watched 2026-10-19.
       return [...new Set(command.claims.map(({ workItemId }) => workItemId))];
+    case 'move_claims':
+      return [command.fromWorkItemId, command.toWorkItemId];
     case 'restore_attempt':
       return [command.attempt.workItemId];
     case 'add_dependency':
@@ -632,6 +640,13 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
       }
       [...('stated' in command ? command.stated : command.cleared)].forEach(onStep);
       return;
+    case 'move_claims':
+      rows(command.fromWorkItemId, command.toWorkItemId);
+      for (const each of command.claims) {
+        if (each.stepId !== null) found.steps.push(each.stepId);
+        found.people.push(each.personId);
+      }
+      return;
     case 'restore_attempt':
       attempted(command.attempt);
       return;
@@ -744,6 +759,9 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
         stepId: command.claims.length === 1 ? (first?.stepId ?? null) : null,
       };
     }
+    case 'move_claims':
+      // Part of a first child's create or its undo; the work item the claims land on.
+      return { workItemId: command.toWorkItemId, stepId: null };
     case 'restore_attempt':
       return { workItemId: command.attempt.workItemId, stepId: command.attempt.stepId };
     case 'patch':
@@ -810,12 +828,48 @@ export function quoteName(name: string): string {
  *
  * @throws for any malformed claim or key.
  */
+function readClaimMove(value: object): void {
+  const text = (field: unknown): field is string => typeof field === 'string' && field.length > 0;
+  if (
+    !('fromWorkItemId' in value) ||
+    !text(value.fromWorkItemId) ||
+    !('toWorkItemId' in value) ||
+    !text(value.toWorkItemId)
+  )
+    throw new Error('a journal claim move names no work items');
+  const from = value.fromWorkItemId;
+  const claims = readClaims(value);
+  if (claims.some((each) => Reflect.get(each, 'workItemId') !== from))
+    throw new Error('a journal claim move holds a claim of another work item');
+}
+
 function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
+  const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
+  readClaims(value);
+  const pairs: unknown = keys in value ? Reflect.get(value, keys) : undefined;
+  if (!Array.isArray(pairs)) throw new Error(`a journal claim replay has no ${keys} progress`);
+  const listed: readonly unknown[] = pairs;
+  for (const pair of listed) {
+    if (
+      typeof pair !== 'object' ||
+      pair === null ||
+      !('workItemId' in pair) ||
+      !text(pair.workItemId) ||
+      !('stepId' in pair) ||
+      !text(pair.stepId)
+    )
+      throw new Error('a journal claim replay holds a malformed progress key');
+  }
+}
+
+/** The non-empty `claims` of a stored claim command, each claim checked field by field. */
+function readClaims(value: object): readonly object[] {
   const text = (field: unknown): boolean => typeof field === 'string' && field.length > 0;
   const nullableText = (field: unknown): boolean => field === null || text(field);
   if (!('claims' in value) || !Array.isArray(value.claims) || value.claims.length === 0)
     throw new Error('a journal claim replay has no claims');
   const claims: readonly unknown[] = value.claims;
+  const checked: object[] = [];
   for (const each of claims) {
     if (
       typeof each !== 'object' ||
@@ -836,19 +890,7 @@ function readClaimReplay(value: object, keys: 'stated' | 'cleared'): void {
       !text(each.accountId)
     )
       throw new Error('a journal claim replay holds a malformed claim');
+    checked.push(each);
   }
-  const pairs: unknown = keys in value ? Reflect.get(value, keys) : undefined;
-  if (!Array.isArray(pairs)) throw new Error(`a journal claim replay has no ${keys} progress`);
-  const listed: readonly unknown[] = pairs;
-  for (const pair of listed) {
-    if (
-      typeof pair !== 'object' ||
-      pair === null ||
-      !('workItemId' in pair) ||
-      !text(pair.workItemId) ||
-      !('stepId' in pair) ||
-      !text(pair.stepId)
-    )
-      throw new Error('a journal claim replay holds a malformed progress key');
-  }
+  return checked;
 }

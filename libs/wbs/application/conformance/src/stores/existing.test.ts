@@ -120,6 +120,7 @@ describe('the migrated existing store kits', () => {
       'claims.add:taken-stated-remove',
       'claims.listStampedByProject:write-instant',
       'claims.remove:delegated-cascade',
+      'claims.moveAll:in-place',
       'dependencies.listByWorkItems:incident-scope',
       'dependencies.add:idempotent-pair',
       'dependencies.remove:pair',

@@ -287,6 +287,45 @@ export function existingStoreRegistrations(
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
       },
     ),
+    storeCase('claims', 'claims.moveAll:in-place', openers.claims, async ({ port, seed }) => {
+      const [leaf, child] = seed.workItemIds[0];
+      const [stepId, otherStepId] = seed.stepIds[0];
+      const moved = {
+        id: 'claim-moved',
+        workItemId: leaf,
+        stepId,
+        personId: seed.personIds[0],
+        runId: 'run-moved',
+        parentClaimId: null,
+        accountId: seed.ownerIds[0],
+      };
+      // Delegated under the moved claim: a delete and insert would cascade it away.
+      const under = {
+        ...moved,
+        id: 'claim-under',
+        workItemId: child,
+        stepId: otherStepId,
+        personId: seed.personIds[1],
+        parentClaimId: moved.id,
+      };
+      expect(await port.add([moved], [], seed.stamps[0])).toBe('written');
+      expect(await port.add([under], [], seed.stamps[0])).toBe('written');
+      await port.moveAll(leaf, child, seed.stamps[1]);
+      expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
+        [
+          { ...moved, workItemId: child, claimedAt: seed.stamps[0].at },
+          { ...under, claimedAt: seed.stamps[0].at },
+        ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
+      );
+      const clash = { ...moved, id: 'claim-clash', workItemId: leaf, stepId: otherStepId };
+      expect(await port.add([clash], [], seed.stamps[1])).toBe('written');
+      expect(await failureOf(port.moveAll(leaf, child, seed.stamps[1]))).not.toBe('');
+      await port.remove([clash], [], seed.stamps[1]);
+      await port.moveAll(child, leaf, seed.stamps[1]);
+      expect(await port.findById(seed.projectIds[0], moved.id)).toEqual(moved);
+      await port.remove([moved], [], seed.stamps[1]);
+      expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+    }),
     ...dependencyRegistrations(openers.dependencies),
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),

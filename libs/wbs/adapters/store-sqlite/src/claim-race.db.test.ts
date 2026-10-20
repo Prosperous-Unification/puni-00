@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ClaimStore, PlanCommand, Scope } from '@wbs/core';
-import { CREATOR_ADMISSION } from '@wbs/core';
+import { CREATOR_ADMISSION, LEGACY_ACCESS } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
@@ -83,6 +83,7 @@ async function seeded(hold?: Hold) {
     findById: (id, claimId) => claims.findById(id, claimId),
     add: (written, stated, stamp) => claims.add(written, stated, stamp),
     remove: (removed, cleared, stamp) => claims.remove(removed, cleared, stamp),
+    moveAll: (from, to, stamp) => claims.moveAll(from, to, stamp),
     boundAccountOf: (personId) => Promise.resolve(BOUND.get(personId) ?? null),
     pinnedPersonOf: () => Promise.resolve(null),
   });
@@ -116,7 +117,7 @@ async function seeded(hold?: Hold) {
     source.db.all<{ person_id: string; step_id: string }>(
       sql`SELECT person_id, step_id FROM claim ORDER BY person_id`,
     );
-  return { runner, projectId, leafId, steps, revision, claims, as };
+  return { graph, runner, projectId, leafId, steps, revision, claims, as };
 }
 
 describe('two fleets claim the same step', () => {
@@ -270,6 +271,48 @@ describe('a claim on SQLite', () => {
     await as(G, [{ kind: 'patchWorkItem', workItemId: leafId, patch: { name: 'Renamed' } }])();
     expect(await runner.redo(projectId, F)).toMatchObject({ ok: false, reason: 'stale_undo' });
     expect(claims()).toEqual([]);
+  });
+
+  // Proof: with the hand-down's `moveAll` skipped this read the claim still on
+  // the leaf; with the undo's `move_claims` omitted the child's delete cascaded
+  // it away and the undo read no claim; watched 2026-10-20.
+  it('hands a claimed leaf’s claim to its first child, fencing and releasable there, and back on undo', async () => {
+    const { graph, runner, projectId, leafId, steps, as } = await seeded();
+    const [dev] = steps;
+    await as(F, [
+      { kind: 'claimWorkItem', workItemId: leafId, personId: 'claire', steps: [dev] },
+    ])();
+    const owners = () =>
+      source.db.all<{ work_item_id: string; step_id: string; person_id: string }>(
+        sql`SELECT work_item_id, step_id, person_id FROM claim ORDER BY id`,
+      );
+    const claimId = source.db.get<{ id: string }>(sql`SELECT id FROM claim`).id;
+    const created = await as(F, [
+      { kind: 'createWorkItem', ref: 'half', name: 'Half', parentId: leafId, afterId: null },
+    ])();
+    if (!created.ok) throw new Error('the child was refused');
+    const childId = created.results[0]?.id ?? '';
+    expect(owners()).toEqual([{ work_item_id: childId, step_id: dev, person_id: 'claire' }]);
+    expect(source.db.get<{ id: string }>(sql`SELECT id FROM claim`).id).toBe(claimId);
+    const startable = await graph.workItems.startableWithin(projectId, LEGACY_ACCESS, null);
+    if (startable === null || 'kind' in startable) throw new Error('the read refused');
+    expect(startable.claimed.map(({ workItemId, claimId: id }) => [workItemId, id])).toEqual([
+      [childId, claimId],
+    ]);
+    expect(
+      await as(G, [
+        { kind: 'claimWorkItem', workItemId: childId, personId: 'codex', steps: [dev] },
+      ])(),
+    ).toMatchObject({ ok: false, reason: 'already_claimed' });
+
+    expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+    expect(owners()).toEqual([{ work_item_id: leafId, step_id: dev, person_id: 'claire' }]);
+    expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+    expect(owners()).toEqual([{ work_item_id: childId, step_id: dev, person_id: 'claire' }]);
+    expect(
+      await as(F, [{ kind: 'releaseWorkItem', workItemId: childId, personId: 'claire' }])(),
+    ).toMatchObject({ ok: true });
+    expect(owners()).toEqual([]);
   });
 
   it('refuses a redo of a claim once another holder took the step', async () => {
