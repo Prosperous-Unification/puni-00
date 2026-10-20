@@ -40,6 +40,36 @@ export interface LevelTarget {
  * obliges that target to collect exactly the files {@link levelOf} puts at its level.
  */
 export const LEVEL_TARGETS: readonly LevelTarget[] = [
+  // Proof: removing this registration failed shared-test-evidence's canonical Unit collection
+  // test with the production lookup's not-a-declared-level refusal (2026-10-19).
+  {
+    project: 'shared-test-evidence',
+    root: 'libs/shared/domain/test-evidence',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-test-evidence.unit.xml',
+    testRoots: ['src'],
+  },
+  // Proof: removing this registration failed shared-test-levels's canonical Unit collection test
+  // with the production lookup's not-a-declared-level refusal (2026-10-17).
+  {
+    project: 'shared-test-levels',
+    root: 'libs/shared/domain/test-levels',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-test-levels.unit.xml',
+    testRoots: ['src'],
+  },
+  // Proof: removing this registration failed shared-failures's canonical Unit collection test
+  // with the production lookup's not-a-declared-level refusal (2026-10-17).
+  {
+    project: 'shared-failures',
+    root: 'libs/shared/domain/failures',
+    target: 'test:unit:level',
+    level: 'unit',
+    report: 'tmp/junit/shared-failures.unit.xml',
+    testRoots: ['src'],
+  },
   // Proof: removing this registration failed shared-validation's canonical Unit collection test
   // with the production lookup's not-a-declared-level refusal (2026-10-17).
   {
@@ -817,6 +847,18 @@ export const AGGREGATE_TARGETS: readonly string[] = AGGREGATE_DECLARATIONS.map(
  * one of these three lists.
  */
 export const UNDECLARED_TEST_TARGETS: Readonly<Record<string, string>> = {
+  'shared-test-evidence:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-test-evidence:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-test-levels:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-test-levels:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-failures:test':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
+  'shared-failures:test:unit':
+    'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
   'shared-validation:test':
     'Preserved legacy runner without a JUnit report; no isolated level evidence credit.',
   'shared-validation:test:unit':

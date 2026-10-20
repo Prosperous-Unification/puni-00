@@ -1,0 +1,21 @@
+{
+  "command": [
+    "bunx",
+    "openspec",
+    "validate",
+    "wbs-reference-set-presentation-boundary",
+    "--json"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 1200,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "openspec",
+      "validate",
+      "wbs-reference-set-presentation-boundary",
+      "--json"
+    ]
+  ]
+}

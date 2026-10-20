@@ -313,8 +313,25 @@ describe('packed Twilight Burokrat installation', () => {
         "import type { Elysia } from 'elysia';\n" +
         "import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';\n" +
         "import { parseAllDocuments } from 'yaml';\n" +
+        "import { decode, name, question } from 'dns-packet';\n" +
+        "import type { DecodedPacket, Question } from 'dns-packet';\n" +
+        "import SMTPConnection from 'nodemailer/lib/smtp-connection';\n" +
+        "import type { SMTPConnectionOptions } from 'nodemailer/lib/smtp-connection';\n" +
+        "import type {} from './codec';\n" +
+        'export function createSmtp(options: SMTPConnectionOptions): SMTPConnection { return new SMTPConnection(options); }\n' +
+        'export function decodeDns(bytes: Buffer): DecodedPacket { return decode(bytes); }\n' +
+        'export function dnsNameLength(value: string): number { return name.encodingLength(value); }\n' +
+        'export function dnsQuestionLength(value: Question): number { return question.encodingLength(value); }\n' +
+        'export interface PublicDns { question: Question; response: DecodedPacket; decodeName: typeof name.decode; }\n' +
         'export function parseManifest(source: string): ReturnType<typeof parseAllDocuments> { return parseAllDocuments(source); }\n' +
         'export interface PublicModel { schema: ReturnType<typeof type>; app: Elysia; column: AnySQLiteColumn; file: Bun.BunFile }\n',
+    );
+    write(
+      join(repository, 'src/codec.d.ts'),
+      readFileSync(
+        join(workspace, 'apps/wbs/be-01/src/runtime/authoritative-dns/codec.d.ts'),
+        'utf8',
+      ),
     );
     git(repository, ['add', '--all']);
     git(repository, ['commit', '--message', 'consumer declaration imports']);
@@ -338,17 +355,34 @@ describe('packed Twilight Burokrat installation', () => {
     expect(extracted.exitCode, extracted.stderr.toString()).toBe(0);
     const report = JSON.parse(extracted.stdout.toString()) as {
       typescript: {
-        imports: { specifier: string }[];
+        imports: { specifier: string; importKind: string }[];
         publicDeclarations: {
           entrypoint: string;
-          declarations: { text: string }[];
+          declarations: { sourcePath: string; text: string }[];
         }[];
       };
     };
     const specifiers = report.typescript.imports.map((edge) => edge.specifier);
-    for (const specifier of ['arktype', 'elysia', 'drizzle-orm/sqlite-core', 'yaml']) {
+    for (const specifier of [
+      'arktype',
+      'elysia',
+      'drizzle-orm/sqlite-core',
+      'yaml',
+      'dns-packet',
+      'nodemailer/lib/smtp-connection',
+    ]) {
       expect(specifiers).toContain(specifier);
     }
+    const dnsImportKinds = report.typescript.imports
+      .filter((edge) => edge.specifier === 'dns-packet')
+      .map((edge) => edge.importKind);
+    expect(dnsImportKinds).toContain('type');
+    expect(dnsImportKinds).toContain('value');
+    const smtpImportKinds = report.typescript.imports
+      .filter((edge) => edge.specifier === 'nodemailer/lib/smtp-connection')
+      .map((edge) => edge.importKind);
+    expect(smtpImportKinds).toContain('type');
+    expect(smtpImportKinds).toContain('value');
     expect(report.typescript.publicDeclarations).toHaveLength(1);
     expect(report.typescript.publicDeclarations[0].entrypoint).toBe('src/index.ts');
     expect(
@@ -362,6 +396,20 @@ describe('packed Twilight Burokrat installation', () => {
         .map((declaration) => declaration.text)
         .join('\n'),
     ).toContain('ReturnType<typeof parseAllDocuments>');
+    const publicText = report.typescript.publicDeclarations[0].declarations
+      .map((declaration) => declaration.text)
+      .join('\n');
+    expect(publicText).toContain('decodeDns(bytes: Buffer): DecodedPacket');
+    expect(publicText).toContain('createSmtp(options: SMTPConnectionOptions): SMTPConnection');
+    expect(publicText).toContain('question: Question');
+    expect(publicText).toContain('response: DecodedPacket');
+    expect(
+      report.typescript.publicDeclarations[0].declarations.some(
+        (declaration) =>
+          declaration.sourcePath === 'src/codec.d.ts' &&
+          declaration.text.includes('namespace question'),
+      ),
+    ).toBe(true);
     const closure = join(
       consumer,
       'node_modules/twilight-burokrat/dist/toolkit/trusted-node-modules',
@@ -413,6 +461,55 @@ describe('packed Twilight Burokrat installation', () => {
     );
     expect(restored.exitCode, restored.stderr.toString()).toBe(0);
     expect(JSON.parse(restored.stdout.toString())).toEqual(report);
+    expect(existsSync(join(closure, 'dns-packet/package.json'))).toBe(true);
+    expect(existsSync(join(closure, '@leichtgewicht/ip-codec/package.json'))).toBe(true);
+    for (const vendor of [
+      {
+        requiredPath: join(closure, '@types/dns-packet'),
+        declarationPath: join(closure, '@types/dns-packet/index.d.ts'),
+        savedPath: join(consumer, 'dns-types.saved'),
+      },
+      {
+        requiredPath: join(closure, 'nodemailer/dist/esm/smtp-connection/index.d.ts'),
+        declarationPath: join(closure, 'nodemailer/dist/esm/smtp-connection/index.d.ts'),
+        savedPath: join(consumer, 'smtp-types.saved'),
+      },
+    ]) {
+      const originalDeclaration = readFileSync(vendor.declarationPath);
+      for (const fault of ['missing', 'corrupted'] as const) {
+        try {
+          if (fault === 'missing') renameSync(vendor.requiredPath, vendor.savedPath);
+          else
+            writeFileSync(
+              vendor.declarationPath,
+              Buffer.concat([
+                originalDeclaration,
+                Buffer.from('\n// altered vendor declaration\n'),
+              ]),
+            );
+          const refused = invokeWithoutWorkspace(
+            executable,
+            ['extract-relationships', 'committed', repository, revision, request],
+            consumer,
+          );
+          expect(refused.exitCode, fault).toBe(1);
+          expect(refused.stdout.toString(), fault).toBe('');
+          expect(refused.stderr.toString(), fault).toContain(
+            'toolkit runtime closure differs from toolkit.json',
+          );
+        } finally {
+          if (fault === 'missing') renameSync(vendor.savedPath, vendor.requiredPath);
+          else writeFileSync(vendor.declarationPath, originalDeclaration);
+        }
+        const recovered = invokeWithoutWorkspace(
+          executable,
+          ['extract-relationships', 'committed', repository, revision, request],
+          consumer,
+        );
+        expect(recovered.exitCode, recovered.stderr.toString()).toBe(0);
+        expect(JSON.parse(recovered.stdout.toString())).toEqual(report);
+      }
+    }
   }, 120_000);
 
   test('prepares certified admission and the old activation refuses a newer commit', () => {

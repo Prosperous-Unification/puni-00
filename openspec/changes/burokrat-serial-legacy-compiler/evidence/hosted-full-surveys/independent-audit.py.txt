@@ -1,0 +1,104 @@
+import hashlib
+import importlib.util
+import json
+from pathlib import Path
+import subprocess
+import sys
+import zipfile
+
+sys.dont_write_bytecode = True
+PROOF = Path('/tmp/puni-wbs100-hosted-full-surveys-worktree-20261020/.github/proofs/wbs100-hosted-full-surveys')
+sys.path.insert(0, str(PROOF))
+import acceptance
+s = acceptance.survey
+DIRECTORY = Path(sys.argv[1])
+HOST = Path('/home/runner/work/puni-00/puni-00')
+REMOTE_PROOF = HOST / 'proof/.github/proofs/wbs100-hosted-full-surveys'
+CONSUMER = HOST / 'full-survey-consumer'
+EXECUTABLE = CONSUMER / 'node_modules/.bin/twib'
+REPOSITORY = HOST / 'candidates'
+CONFIG = s.read_json(PROOF / 'bindings.json')
+BINDINGS = s.read_json(PROOF / 'inputs/candidate-bindings.json.txt')
+POLICY = s.read_json(PROOF / 'inputs/policy.json.txt')
+IDENTITY = s.read_json(PROOF / 'inputs/installed-identity.json.txt')
+
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+for original in PROOF.rglob('*'):
+    if original.is_file():
+        s.equal((DIRECTORY / 'proof-inputs' / original.relative_to(PROOF)).read_bytes(), original.read_bytes(), 'retained proof input: ' + str(original.relative_to(PROOF)))
+host = s.read_json(DIRECTORY / 'host.json')
+s.equal(host['runId'], '39343674302', 'host run ID')
+s.equal(host['proofCommit'], '9215cdf312904669b6734917bf66b81a7e1cef89', 'host proof commit')
+s.equal(host['sourceCommit'], CONFIG['finalSourceRevision'], 'host source commit')
+s.equal(host['bunVersion'], '1.4.2', 'host runtime')
+s.equal(host['sourceTree'], subprocess.check_output(['git', 'rev-parse', CONFIG['finalSourceRevision'] + '^{tree}'], cwd=PROOF, text=True).strip(), 'host source tree')
+s.equal(s.read_json(DIRECTORY / 'candidate-bindings-verified.json'), BINDINGS, 'retained candidate bindings')
+reports = {}; summary = {}; snapshots = []
+for mode in ('full', 'f7'):
+    reports[mode] = {}
+    for label in s.LABELS:
+        prefix = mode + '-' + label
+        report = s.read_json(DIRECTORY / (prefix + '.stdout'))
+        if mode == 'full':
+            s.validate_report(report, BINDINGS['bindings'][label], POLICY, prefix)
+            if label == 'base':
+                s.equal(report, s.read_json(PROOF / 'inputs/expected-base.json.txt'), 'published complete baseline')
+        else:
+            expected = {**reports['full'][label], 'allowed': True, 'ruleIds': ['F7'], 'findings': [finding for finding in reports['full'][label]['findings'] if finding['ruleId'] == 'F7'], 'unevaluated': []}
+            s.equal(report, expected, prefix + ': complete standalone subset')
+            s.equal(len(report['findings']), 28 if label in s.SELECTED else 29, prefix + ': standalone count')
+        command = [str(EXECUTABLE), 'check', 'committed', str(REPOSITORY), BINDINGS['bindings'][label]['commit'], str(REMOTE_PROOF / 'inputs/policy.json.txt')]
+        if mode == 'f7':
+            command += ['--rule', 'F7']
+        receipt = s.read_json(DIRECTORY / (prefix + '.receipt.json'))
+        acceptance.validate_guard(receipt, command, CONSUMER, 0 if report['allowed'] else 1)
+        wrapper = s.read_json(DIRECTORY / (prefix + '.guard-exit.json'))
+        s.equal(wrapper, {'command': ['python3', str(REMOTE_PROOF / 'guards/survey-guard.py'), str(HOST / 'receipts' / prefix), *command], 'exitCode': 0}, prefix + ': actual guard wrapper')
+        for phase in ('before', 'after'):
+            path = DIRECTORY / (prefix + '.' + phase + '.json')
+            identity = s.read_json(path)
+            s.validate_snapshot(identity, prefix + '/' + phase)
+            s.equal(identity, IDENTITY, prefix + '/' + phase + ': exact installed identity')
+            snapshots.append({'path': path.name, 'sha256': digest(path)})
+        for suffix in ('.stdout', '.stderr', '.guard.stdout', '.guard.stderr'):
+            (DIRECTORY / (prefix + suffix)).read_bytes().decode('utf-8')
+        reports[mode][label] = report
+        summary[prefix] = {'reportSha256': digest(DIRECTORY / (prefix + '.stdout')), 'receiptSha256': digest(DIRECTORY / (prefix + '.receipt.json')), 'findings': len(report['findings']), 'unevaluated': report['unevaluated'], 'allowed': report['allowed'], 'exitCode': receipt['exitCode'], 'seconds': receipt['seconds'], 'peakProcessTreeKiB': receipt['peakProcessTreeKiB']}
+    baseline = reports[mode]['base']
+    for label, report in reports[mode].items():
+        s.equal(report['unevaluated'], baseline['unevaluated'], mode + ': unchanged unevaluated')
+    for label, path in s.SELECTED.items():
+        expected = [finding for finding in baseline['findings'] if not (finding['ruleId'] == 'F7' and finding['path'] == path)]
+        s.equal(reports[mode][label]['findings'], expected, mode + '/' + label + ': only selected F7 removed')
+        s.equal(reports[mode][label + '-fault']['findings'], baseline['findings'], mode + '/' + label + ': complete findings restored')
+comparison = s.read_json(DIRECTORY / 'full-comparison.stdout')
+s.equal(comparison['comparison'], 'passed', 'hosted full oracle outcome')
+s.equal(comparison['installedIdentity'], IDENTITY, 'hosted full oracle identity')
+s.equal(comparison['unevaluated'], reports['full']['base']['unevaluated'], 'hosted full oracle unevaluated')
+s.equal(s.read_json(DIRECTORY / 'full-comparison.receipt.json')['exitCode'], 0, 'hosted full oracle exit')
+s.equal(s.read_json(DIRECTORY / 'f7-comparison.json'), {'comparison': 'passed', 'certifies': False, 'reports': reports['f7']}, 'hosted F7 comparison')
+s.equal(s.read_json(DIRECTORY / 'completion.json')['status'], 'pass', 'driver completion')
+s.equal(s.read_json(DIRECTORY / 'completion.json')['certifies'], False, 'driver noncertification')
+for label, command in [('consumer-install', ['bun', 'add', '--exact', '--ignore-scripts', str(HOST / 'receipts/successor.tgz')]), ('consumer-frozen', ['bun', 'install', '--frozen-lockfile', '--ignore-scripts'])]:
+    receipt = s.read_json(DIRECTORY / (label + '.receipt.json'))
+    s.equal(receipt['command'], command, label + ': command')
+    s.equal(receipt['cwd'], str(CONSUMER), label + ': cwd')
+    for field, expected in [('exitCode', 0), ('stopReason', None), ('ceilingKiB', 2097152), ('timeoutSeconds', 360), ('minimumAvailableKiB', 12582912)]:
+        s.equal(receipt[field], expected, label + ': ' + field)
+    s.require(receipt['availableBeforeKiB'] >= 12582912 and 0 < receipt['peakProcessTreeKiB'] <= 2097152 and 0 <= receipt['seconds'] <= 361, label + ': resource bounds')
+    s.equal(s.read_json(DIRECTORY / (label + '.guard-exit.json'))['exitCode'], 0, label + ': wrapper exit')
+    summary[label] = receipt
+snapshot_digests = sorted({entry['sha256'] for entry in snapshots})
+s.require(len(snapshot_digests) == 1, 'twenty snapshot raw-byte digests differ')
+prior_zip = Path('/tmp/puni-wbs100-hosted-publication-20261020/hosted-artifact-12228379062.zip')
+s.equal(digest(prior_zip), CONFIG['artifact']['zipSha256'], 'retained prior hosted artifact ZIP')
+with zipfile.ZipFile(prior_zip) as packed:
+    original_package_digest = hashlib.sha256(packed.read(CONFIG['artifactMember'])).hexdigest()
+s.equal(original_package_digest, CONFIG['successorArchiveSha256'], 'exact retained prior hosted successor archive')
+package = DIRECTORY / 'successor.tgz'
+if package.exists():
+    s.equal(digest(package), CONFIG['successorArchiveSha256'], 'current artifact retained successor archive')
+archive_retention = {'currentArtifactIncludesSuccessorArchive': package.exists(), 'priorHostedArtifactId': CONFIG['artifact']['id'], 'priorHostedArtifactZipSha256': digest(prior_zip), 'independentlyRehashedSuccessorArchiveSha256': original_package_digest, 'hostedChecksumEvidence': 'Exact proof-inputs/run-hosted.py extract_successor checks ZIP and archive SHA before install; final package checksum equality runs immediately before completion.json. completion.json status pass attests this path finished.', 'limitation': 'Workflow intentionally excludes successor.tgz and source-artifact.zip from this artifact; package remains retrievable from original immutable artifact 12228379062. No separately serialized final package checksum receipt exists.'}
+print(json.dumps({'audit': 'passed', 'certifies': False, 'host': host, 'sourceArchiveSha256': CONFIG['successorArchiveSha256'], 'priorArtifact': CONFIG['artifact'], 'snapshots': snapshots, 'allTwentySnapshotRawDigestsIdentical': True, 'snapshotRawSha256': snapshot_digests[0], 'archiveRetention': archive_retention, 'runs': summary, 'scope': 'Independent retained artifact checks; no local evaluator execution. All three explicit unevaluated outcomes remain unevaluated.'}, indent=2))

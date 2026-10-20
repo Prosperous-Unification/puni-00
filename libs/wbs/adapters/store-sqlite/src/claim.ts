@@ -12,7 +12,7 @@ import {
 } from '@wbs/core';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 
-import { auditOnCreate } from './audit';
+import { auditOnCreate, auditOnUpdate } from './audit';
 import type { Drizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
@@ -187,6 +187,23 @@ export class ClaimRepository implements ClaimStore {
           [...claims, ...cleared].map(({ workItemId }) => workItemId),
           stamp,
         );
+      });
+    });
+  }
+
+  async moveAll(fromWorkItemId: string, toWorkItemId: string, stamp: WriteStamp): Promise<void> {
+    await this.gate.enter(async () => {
+      await Promise.resolve();
+      this.db.transaction((tx) => {
+        // An update, never a delete and insert: the `parent_claim_id` cascade
+        // would take every delegated claim under a moved one.
+        // Proof: with the update aimed at no row, the SQLite certification's
+        // `claims.moveAll:in-place` case failed; watched 2026-10-20.
+        tx.update(claim)
+          .set({ workItemId: toWorkItemId, ...auditOnUpdate(stamp) })
+          .where(eq(claim.workItemId, fromWorkItemId))
+          .run();
+        bumpWorkItems(tx, [fromWorkItemId, toWorkItemId], stamp);
       });
     });
   }

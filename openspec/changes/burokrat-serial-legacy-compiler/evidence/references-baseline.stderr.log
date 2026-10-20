@@ -1,0 +1,11 @@
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:
+(pass) serial preserves nested project references and their diagnostics [132.07ms]
+(pass) serial preserves cyclic project references and their diagnostics [65.85ms]
+(pass) serial preserves absent project references and their diagnostics [59.86ms]
+
+ 3 pass
+ 11 filtered out
+ 0 fail
+ 8 expect() calls
+Ran 3 tests across 1 file. [733.00ms]

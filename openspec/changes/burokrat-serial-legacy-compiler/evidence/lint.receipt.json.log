@@ -1,0 +1,25 @@
+{
+  "command": [
+    "env",
+    "NX_DAEMON=false",
+    "NX_ISOLATE_PLUGINS=false",
+    "bunx",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-compiler.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-project.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts",
+    "apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.fixture.ts",
+    "--max-warnings=0"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 788192,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 3.094,
+  "availableBeforeKiB": 22857664,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "source": "/tmp/wbs100-serial-compiler-20261019/commit.receipt.json",
+      "path": "commit.receipt.json.txt",
+      "rawBytes": 484,
+      "rawSha256": "2d212c8094227c689dd21b474a3c0aaf931663b062f2f80882f90c9db3bda2d5",
+      "displayBytes": 484,
+      "displaySha256": "2d212c8094227c689dd21b474a3c0aaf931663b062f2f80882f90c9db3bda2d5"
+    },
+    {
+      "source": "/tmp/wbs100-serial-compiler-20261019/commit.stdout",
+      "path": "commit.stdout.txt",
+      "rawBytes": 11350,
+      "rawSha256": "c3cd01d57ee571c6ffb8fb2890242fdb17217cdab5c8e4d8178a4fbb50e019c2",
+      "displayBytes": 11350,
+      "displaySha256": "c3cd01d57ee571c6ffb8fb2890242fdb17217cdab5c8e4d8178a4fbb50e019c2"
+    },
+    {
+      "source": "/tmp/wbs100-serial-compiler-20261019/commit.stderr",
+      "path": "commit.stderr.txt",
+      "rawBytes": 2174,
+      "rawSha256": "f2e5865875797e9c95a20e0a27bfee35199b0390708b09341fc56812c83b3074",
+      "displayBytes": 2167,
+      "displaySha256": "e08861d966256f989b0b861c54b2420044e0789794f226fa09e10036e353f112"
+    }
+  ]
+}

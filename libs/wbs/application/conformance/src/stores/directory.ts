@@ -327,6 +327,36 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       });
       expect((await port.listPeople()).map(({ id }) => id)).not.toContain(personId);
     }),
+    // A superagent's removal takes its workers' delegated claims by the parent
+    // cascade, so its usage names them and its removal reports their work items.
+    storeCase(
+      'directory',
+      'directory.removePerson:delegated-claims',
+      open,
+      async ({ port, seed }) => {
+        const [superagent, worker] = DELEGATED_CLAIMS;
+        const removal = await port.removePerson(superagent.personId, false, seed.stamps[1]);
+        expect(removal).toMatchObject({ ok: false, reason: 'in_use' });
+        if (removal.ok || removal.reason !== 'in_use')
+          throw new Error('the removal was not refused');
+        expect(removal.usage.claims).toEqual(
+          DELEGATED_CLAIMS.map(({ workItemId, stepId, personId }) => ({
+            workItemId,
+            stepId,
+            personId,
+          })),
+        );
+        expect(await port.usageOfPerson(superagent.personId)).toMatchObject({
+          claims: removal.usage.claims,
+        });
+        const removed = await port.removePerson(superagent.personId, true, seed.stamps[1]);
+        if (!removed.ok) throw new Error('the confirmed removal was refused');
+        expect([...removed.removal.workItemIds].sort()).toEqual(
+          [superagent.workItemId, worker.workItemId].sort(),
+        );
+        expect(await port.usageOfPerson(worker.personId)).toMatchObject({ claims: [] });
+      },
+    ),
     // A credential pinned to a person is usage: an unconfirmed removal is
     // refused naming the count, and a confirmed one revokes the credential with
     // the person, never leaving a pin to a person that is gone (nor unpinning
@@ -353,6 +383,32 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
     ),
   ];
 }
+
+/**
+ * The claims both sources seed for `directory.removePerson:delegated-claims`:
+ * the first person's subtree claim on one work item and the second person's
+ * step claim delegated under it on another.
+ */
+export const DELEGATED_CLAIMS = [
+  {
+    id: 'claim-superagent',
+    workItemId: 'work-a-one',
+    stepId: null,
+    personId: 'person-a',
+    runId: null,
+    parentClaimId: null,
+    accountId: 'owner-a',
+  },
+  {
+    id: 'claim-worker',
+    workItemId: 'work-a-two',
+    stepId: 'step-a-dev',
+    personId: 'person-b',
+    runId: 'agent:main:subagent:7f',
+    parentClaimId: 'claim-superagent',
+    accountId: 'owner-a',
+  },
+] as const;
 
 /**
  * The claim both sources seed for `directory.removePerson:claims-in-use`: a

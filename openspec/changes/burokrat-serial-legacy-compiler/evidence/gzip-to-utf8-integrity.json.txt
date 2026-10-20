@@ -1,0 +1,73 @@
+{
+  "kind": "Current transport integrity check, not historical command rerun or test pass",
+  "mappingSha256": "810a817047f52b33b7d615f768c6cb719518228fa2b0894bca5452c05acd8b2a",
+  "originalCommit": "0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5",
+  "checks": [
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-ambiguous-owner.stderr.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-diagnostic-refusal.stderr.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-missing-owner.stderr.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-recensus.stderr.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-reference-census.stderr.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/fault-rootless-owner.stderr.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/lint-before-fix.stdout.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/nx-graph.stdout.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    },
+    {
+      "carrier": "openspec/changes/burokrat-serial-legacy-compiler/evidence/request.json.log.json.txt",
+      "exactDecode": true,
+      "originalCommitCompressedDigest": true,
+      "whitespace": true
+    }
+  ],
+  "historicalIntegrityPreserved": true,
+  "topLevelGzipRemaining": 0,
+  "watchedNegative": "In-memory altered first carrier changed both carrier and decoded hashes; original files remained unchanged.",
+  "notRun": [
+    "pilot-policy regression (heavy lane occupied)",
+    "formatters",
+    "builds",
+    "full CI",
+    "canonical h2 gate"
+  ],
+  "decodedBytes": 16304,
+  "carrierBytes": 17218
+}

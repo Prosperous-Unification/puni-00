@@ -1,0 +1,11 @@
+
+ RUN  v5.0.0 /home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-recovery-20261019/apps/wbs/fe-01
+
+ ❯ src/components/wbs/plan-estimates.test.tsx (78 tests | 1 failed | 77 skipped) 505ms
+   ❯ assigning from a folded step’s cell with @ (17)
+     × says Final in days, whatever half-typed shorthand the cell is holding 503ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 77 skipped (78)
+   Start at  14:43:03
+   Duration  5.39s (import 47%, transform 35%, tests 10%, environment 7%, setup 1%)

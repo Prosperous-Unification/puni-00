@@ -84,7 +84,7 @@ describe('what a project subscriber receives', () => {
     await add('Cable');
     broadcast.published.length = 0;
 
-    await service.move(strip, OWNER, { parentId: null, afterId: null });
+    await service.move(strip, OWNER, { parentId: null, afterId: null }, { kind: 'legacy' });
 
     expect(latest()?.event.type).toBe('tree_replaced');
   });

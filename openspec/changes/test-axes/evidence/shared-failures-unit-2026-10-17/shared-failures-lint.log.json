@@ -1,0 +1,30 @@
+{
+  "command": [
+    "bunx",
+    "--no-install",
+    "eslint",
+    "tools/tool-devsync/src/test-levels.ts",
+    "tools/tool-devsync/src/test-levels.test.ts",
+    "tools/tool-devsync/src/shared-failures-level.test.ts"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 784244,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bunx",
+      "--no-install",
+      "eslint",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-failures-level.test.ts"
+    ],
+    [
+      "node",
+      "/tmp/puni-shared-failures-unit-oct17/node_modules/.bin/eslint",
+      "tools/tool-devsync/src/test-levels.ts",
+      "tools/tool-devsync/src/test-levels.test.ts",
+      "tools/tool-devsync/src/shared-failures-level.test.ts"
+    ]
+  ]
+}

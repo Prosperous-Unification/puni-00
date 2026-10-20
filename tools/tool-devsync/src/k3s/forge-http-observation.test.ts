@@ -108,16 +108,38 @@ test('convergence preserves immediate failure despite later success and uses GET
   expect(report.initial.status).toBe(403);
 });
 
-test('permanent denial converges to bounded refusal', async () => {
-  const started = Date.now();
-  const report = await observeConvergence(
-    serve(() => new Response('denied', { status: 403 })),
-    { windowMs: 70, intervalMs: 10, requestMs: 20 },
-  );
-  expect(report.initialPassed).toBe(false);
-  expect(report.observations.every((observation) => observation.failure === 'response')).toBe(true);
-  expect(Date.now() - started).toBeLessThan(1000);
-});
+test.each([0, 200])(
+  'permanent denial converges to bounded refusal with %dms retries',
+  async (delayMs) => {
+    let calls = 0;
+    const origin = serve(async () => {
+      calls += 1;
+      if (calls > 1) await Bun.sleep(delayMs);
+      return new Response('denied', { status: 403 });
+    });
+    const started = Date.now();
+    const report = await observeConvergence(origin, {
+      windowMs: 300,
+      intervalMs: 10,
+      requestMs: 100,
+    });
+    expect(report.initialPassed).toBe(false);
+    expect(report.initial).toMatchObject({ status: 403, failure: 'response' });
+    expect(report.observations.length).toBeGreaterThan(0);
+    // Proof: injecting a successful retry into observeConvergence fails this refusal assertion.
+    for (const observation of [report.initial, ...report.observations]) {
+      expect(
+        observation.failure === 'deadline' ||
+          (observation.failure === 'response' && observation.status === 403),
+      ).toBe(true);
+    }
+    if (delayMs > 0)
+      expect(report.observations.some((observation) => observation.failure === 'deadline')).toBe(
+        true,
+      );
+    expect(Date.now() - started).toBeLessThan(1000);
+  },
+);
 
 test('rejects external authority, credentials, non-root paths and invalid bounds before fetching', async () => {
   for (const origin of [

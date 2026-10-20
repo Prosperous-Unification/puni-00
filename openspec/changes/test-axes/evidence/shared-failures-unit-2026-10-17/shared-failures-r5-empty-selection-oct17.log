@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+tools/tool-devsync/src/shared-failures-level.test.ts:
+224 |   it('removes stale reports before refusing an empty selection', async () => {
+225 |     await withRunnerFixture(({ project, report, command }) => {
+226 |       writeFileSync(report, '<stale/>');
+227 |       const execution = runCommand(project, command);
+228 |       expect(execution.exitCode).toBe(1);
+229 |       expect(execution.stderr.toString()).toContain(`no-cases: ${QUALIFIED}`);
+                                                ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "no-cases: shared-failures:test:unit:level"
+Received: "No tests found!\n\nTests need \".test\", \"_test_\", \".spec\" or \"_spec_\" in the filename (ex: \"MyApp.test.ts\")\n\nLearn more about bun test: https://bun.com/docs/cli/test\n"
+
+      at <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:229:43)
+      at withRunnerFixture (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:52:11)
+      at async <anonymous> (/tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/shared-failures-level.test.ts:225:11)
+(fail) shared-failures isolated Unit level > removes stale reports before refusing an empty selection [11.25ms]
+
+ 0 pass
+ 9 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [174.00ms]

@@ -141,3 +141,18 @@ Local isolated clone `/tmp/puni-dns-referral-impl-sol-oct16` merges adapter head
 Architecture risk remains the explicit recursive routing trust boundary and narrower supported DNS response policy. Legitimate SOA-less negatives are unavailable by design. This correction adds no alias following or glue consumption. Full host gate, hosted CI, live DNS, deployment, operator resolver/egress configuration, controlled-domain acceptance, activation and retained-proof scheduling remain unrun or pending. WBS010.5.4 and parent task 5.2 remain open. Exact-SHA independent review is requested separately after the local commit.
 
 Final pre-commit receipts: scoped ESLint exited 0 (maximum RSS 1,327,288 KiB); all ten touched DNS source/packet files passed Prettier; staged and unstaged `git diff --check` exited 0. After the final test typing/lint correction, the 58-case referral matrix passed again, 0 failures (`/tmp/dns-referral-final.log`). No additional typecheck ran after the final catch-assertion cleanup; prior lib/spec receipts precede that test-only edit. This fresh clone contains only sample Git hooks, so no installed repository pre-commit hook is claimed; the scoped executable checks above were run directly. No hook bypass flag was used.
+
+## Source and merge reconciliation — 2026-10-19
+
+[The parent reconciliation](../organization-ownership-and-access/verify.md#source-and-merge-reconciliation--2026-10-19)
+verifies that PR #562 head `0f6f8f279`, its classification repair `5bc9c2b55`
+and recursive-negative correction `e9fbd7675` are already in main through
+PR #565. Current `bootBe01` binds the configured authoritative resolver; the
+older open PR is not an unimplemented adapter or outstanding classification fix.
+Earlier pending-publication statements retain their checkpoint meaning.
+
+Task 7 and live acceptance remain open: recursive resolver selection, UDP/TCP
+egress, a controlled disposable domain and attended positive/mismatch/outage/rotation
+evidence. Scheduling source has also landed; its live observation and
+organization/browser activation are separate obligations. This source-only
+reconciliation reruns none of the historical tests or release gates.

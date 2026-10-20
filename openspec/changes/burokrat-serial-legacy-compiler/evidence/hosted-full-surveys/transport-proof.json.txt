@@ -1,0 +1,10 @@
+{
+  "fault": "Same-length REL-EXTRACT -> REL-EXTRACX byte replacement in full-base stdout JSON carrier",
+  "refusalExitCode": 1,
+  "refusalStderr": "Traceback (most recent call last):\n  File \"/tmp/puni-wbs100-hosted-full-evidence-20261020/reconstruct.py\", line 16, in <module>\n    raise ValueError(\"raw stream digest mismatch: \" + entry[\"path\"])\nValueError: raw stream digest mismatch: full-base.stdout\n",
+  "restoredExitCode": 0,
+  "restoredStdout": "{\"validatedUtf8Streams\": 128, \"binaryBundle\": \"retained in referenced original artifact/proof commit\"}\n",
+  "artifactUtf8FilesReconstructedByteIdentically": 121,
+  "supplementaryUtf8Files": 7,
+  "originalCarrierRestoredSha256": "5d5abfea824d3aaa25c42b3920912cc79175385648ee86791eb3ccca815a2f8e"
+}

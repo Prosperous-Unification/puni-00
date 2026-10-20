@@ -1,0 +1,2588 @@
+{
+  "schemaVersion": 1,
+  "policyId": "wbs.plan-export.recovery.full.v1",
+  "ruleModes": [
+    {
+      "ruleId": "F1",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "F7",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K2",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K3",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K4",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K5",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K6",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "mode": "observe"
+    }
+  ],
+  "kindInventory": {
+    "path": "docs/code-organization/kinds.json"
+  },
+  "performance": {
+    "acceptedDeclarationSchema": 1,
+    "declarationPath": "apps/wbs/fe-01/playwright.performance.cases.json",
+    "config": "apps/wbs/fe-01/playwright.performance.config.ts",
+    "configDigest": "718a6078b785047f0f315fbb247ff724b261bae9f8ccad0a5eda16eba0f15ae4",
+    "project": "chromium",
+    "runnerVersion": "1.63.0",
+    "reviewedCases": []
+  },
+  "scenarios": {
+    "baseRevision": "53a87a60dd7a7da80ad929c44f36a9739e75e5bf"
+  },
+  "classificationPolicy": {
+    "schemaVersion": 1,
+    "policyId": "classification.puni-00.v1",
+    "selectorVersion": 1,
+    "contentClasses": [
+      "source",
+      "test",
+      "config",
+      "script",
+      "migration",
+      "fixture",
+      "generated",
+      "vendored",
+      "placeholder",
+      "document",
+      "openspec"
+    ],
+    "contentRules": [
+      {
+        "contentClass": "test",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".test.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".test.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".test.sh"
+          },
+          {
+            "kind": "segment",
+            "value": "e2e"
+          },
+          {
+            "kind": "segment",
+            "value": "test"
+          },
+          {
+            "kind": "segment",
+            "value": "tests"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "generated",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "generated"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "vendored",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "vendor"
+          },
+          {
+            "kind": "segment",
+            "value": "third-party"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "fixture",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "__fixtures__"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "migration",
+        "include": [
+          {
+            "kind": "segment",
+            "value": "migrations"
+          },
+          {
+            "kind": "segment",
+            "value": "drizzle"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "openspec",
+        "include": [
+          {
+            "kind": "prefix",
+            "value": "openspec"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "placeholder",
+        "include": [
+          {
+            "kind": "name",
+            "value": ".gitkeep"
+          },
+          {
+            "kind": "name",
+            "value": ".keep"
+          }
+        ],
+        "exclude": []
+      },
+      {
+        "contentClass": "script",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".sh"
+          },
+          {
+            "kind": "prefix",
+            "value": "bin"
+          },
+          {
+            "kind": "path",
+            "value": "ops/agent-trailer/prepare-commit-msg"
+          },
+          {
+            "kind": "path",
+            "value": "infra/ansible/roles/solver/files/puni-cri-peer"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "suffix",
+            "value": ".test.sh"
+          }
+        ]
+      },
+      {
+        "contentClass": "config",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".json"
+          },
+          {
+            "kind": "suffix",
+            "value": ".yaml"
+          },
+          {
+            "kind": "suffix",
+            "value": ".yml"
+          },
+          {
+            "kind": "suffix",
+            "value": ".toml"
+          },
+          {
+            "kind": "suffix",
+            "value": ".ndjson"
+          },
+          {
+            "kind": "suffix",
+            "value": ".config.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".lock"
+          },
+          {
+            "kind": "suffix",
+            "value": ".example"
+          },
+          {
+            "kind": "suffix",
+            "value": ".sops"
+          },
+          {
+            "kind": "suffix",
+            "value": ".service"
+          },
+          {
+            "kind": "suffix",
+            "value": ".caddy"
+          },
+          {
+            "kind": "suffix",
+            "value": ".candidate"
+          },
+          {
+            "kind": "suffix",
+            "value": ".bootstrap"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tmpl"
+          },
+          {
+            "kind": "suffix",
+            "value": ".Dockerfile"
+          },
+          {
+            "kind": "name",
+            "value": "Dockerfile"
+          },
+          {
+            "kind": "name",
+            "value": "Caddyfile"
+          },
+          {
+            "kind": "name",
+            "value": ".bun-version"
+          },
+          {
+            "kind": "name",
+            "value": ".dockerignore"
+          },
+          {
+            "kind": "name",
+            "value": ".editorconfig"
+          },
+          {
+            "kind": "name",
+            "value": ".gitignore"
+          },
+          {
+            "kind": "name",
+            "value": ".nxignore"
+          },
+          {
+            "kind": "name",
+            "value": ".prettierignore"
+          },
+          {
+            "kind": "path",
+            "value": ".agents/skills/.openspec-target"
+          },
+          {
+            "kind": "name",
+            "value": "Containerfile"
+          },
+          {
+            "kind": "suffix",
+            "value": ".cfg"
+          },
+          {
+            "kind": "suffix",
+            "value": ".j2"
+          },
+          {
+            "kind": "suffix",
+            "value": ".hcl"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tf"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "drizzle"
+          },
+          {
+            "kind": "segment",
+            "value": "migrations"
+          },
+          {
+            "kind": "prefix",
+            "value": "openspec"
+          },
+          {
+            "kind": "segment",
+            "value": "e2e"
+          },
+          {
+            "kind": "segment",
+            "value": "test"
+          },
+          {
+            "kind": "segment",
+            "value": "tests"
+          },
+          {
+            "kind": "prefix",
+            "value": "docs/review-evidence"
+          },
+          {
+            "kind": "prefix",
+            "value": "docs/experiment-evidence"
+          }
+        ]
+      },
+      {
+        "contentClass": "source",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".js"
+          },
+          {
+            "kind": "suffix",
+            "value": ".mjs"
+          },
+          {
+            "kind": "suffix",
+            "value": ".py"
+          },
+          {
+            "kind": "suffix",
+            "value": ".css"
+          },
+          {
+            "kind": "suffix",
+            "value": ".html"
+          },
+          {
+            "kind": "suffix",
+            "value": ".svg"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "suffix",
+            "value": ".test.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.ts"
+          },
+          {
+            "kind": "suffix",
+            "value": ".test.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".spec.tsx"
+          },
+          {
+            "kind": "suffix",
+            "value": ".config.ts"
+          },
+          {
+            "kind": "segment",
+            "value": "e2e"
+          },
+          {
+            "kind": "segment",
+            "value": "test"
+          },
+          {
+            "kind": "segment",
+            "value": "tests"
+          },
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          },
+          {
+            "kind": "segment",
+            "value": "generated"
+          },
+          {
+            "kind": "segment",
+            "value": "vendor"
+          }
+        ]
+      },
+      {
+        "contentClass": "document",
+        "include": [
+          {
+            "kind": "suffix",
+            "value": ".md"
+          },
+          {
+            "kind": "suffix",
+            "value": ".txt"
+          },
+          {
+            "kind": "name",
+            "value": "NOTICE"
+          },
+          {
+            "kind": "name",
+            "value": "LICENSE"
+          }
+        ],
+        "exclude": [
+          {
+            "kind": "prefix",
+            "value": "openspec"
+          },
+          {
+            "kind": "segment",
+            "value": "fixtures"
+          }
+        ]
+      }
+    ],
+    "evidenceRoots": [
+      {
+        "path": "docs/review-evidence",
+        "allowedRecordKinds": [
+          "review-receipt",
+          "opaque-transcript"
+        ]
+      },
+      {
+        "path": "docs/experiment-evidence",
+        "allowedRecordKinds": [
+          "benchmark-corpus",
+          "candidate-inventory",
+          "experiment-manifest"
+        ]
+      }
+    ],
+    "binaryDeclarations": [
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/pre-relocation-activation.tar",
+        "format": "application/x-tar",
+        "consumer": "apps/twilight-structure/twilight-dash/cli/src/activation/rollback.db.test.ts",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/twilight-structure/twilight-dash/cli/fixtures/activation/README.md"
+        }
+      },
+      {
+        "path": "apps/twilight-structure/twilight-dash/cli/fixtures/authority/pre-relocation-burokrat.tar",
+        "format": "application/x-tar",
+        "consumer": "apps/twilight-structure/twilight-dash/cli/src/authority/integration-races.test.ts",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/twilight-structure/twilight-dash/cli/fixtures/authority/README.md"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-A.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-B.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "docs/assistant/work-view-prototype-C.png",
+        "format": "image/png",
+        "consumer": "docs/assistant/work-view-prototype.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/assistant/work-view-prototype.html"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/ambiguity-1440.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/ambiguity-390.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/batch-1440.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "experiments/r6b-timeline/evidence/batch-390.png",
+        "format": "image/png",
+        "consumer": "docs/wbs/research/2026-10-05-day-to-minute-gantt-experiment.md",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "experiments/r6b-timeline/browser.ts"
+        }
+      },
+      {
+        "path": "infra/platform/charts/cert-manager-v1.21.2.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/cert-manager/release.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-elasticsearch-0.20.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/elastic/local/elasticsearch.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-kibana-0.20.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/kibana/kibana.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/eck-operator-3.5.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/eck/eck-operator.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/hcloud-cloud-controller-manager-1.37.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/storage/production/hcloud-ccm.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/hcloud-csi-2.23.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/storage/production/hcloud-csi.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/kube-prometheus-stack-91.4.1.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/prometheus/kube-prometheus-stack.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/opentelemetry-collector-0.173.1.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/observability/otel/collector.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/traefik-41.6.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/networking/traefik.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "infra/platform/charts/velero-12.2.0.tgz",
+        "format": "application/gzip",
+        "consumer": "infra/platform/backup/velero/local/velero.yaml",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "infra/versions/toolchain.json"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/apple-touch-icon.png",
+        "format": "image/png",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/website/app-icons.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/favicon-32.png",
+        "format": "image/png",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/website/app-icons.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/public/favicon.ico",
+        "format": "image/vnd.microsoft.icon",
+        "consumer": "apps/website/fe-01/index.html",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "docs/website/app-icons.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/src/assets/fonts/Geist-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/website/fe-01/src/assets/fonts/README.md"
+        }
+      },
+      {
+        "path": "apps/website/fe-01/src/assets/fonts/InterTight-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "apps/website/fe-01/src/style.css",
+        "regenerationAuthority": {
+          "kind": "source",
+          "path": "apps/website/fe-01/src/assets/fonts/README.md"
+        }
+      }
+    ],
+    "gitlinkBoundaries": [],
+    "symlinks": "inventory-only",
+    "gitlinks": "declared-external-boundary"
+  },
+  "relationshipRequest": {
+    "schemaVersion": 1,
+    "typescript": {
+      "configPaths": [
+        "apps/wbs/be-01/tsconfig.lib.json",
+        "apps/wbs/fe-01/tsconfig.app.json",
+        "apps/wbs/gw-01/tsconfig.lib.json",
+        "apps/wbs/mcp-01/tsconfig.lib.json",
+        "libs/shared/domain/failures/tsconfig.lib.json",
+        "libs/shared/domain/test-evidence/tsconfig.lib.json",
+        "libs/shared/domain/test-levels/tsconfig.lib.json",
+        "libs/shared/domain/validation/tsconfig.lib.json",
+        "libs/wbs/adapters/auth/tsconfig.lib.json",
+        "libs/wbs/adapters/config/tsconfig.lib.json",
+        "libs/wbs/adapters/observability/tsconfig.lib.json",
+        "libs/wbs/adapters/realtime/tsconfig.lib.json",
+        "libs/wbs/adapters/runtime-portable/tsconfig.lib.json",
+        "libs/wbs/adapters/solver-supervisor-protocol/tsconfig.lib.json",
+        "libs/wbs/adapters/store-memory/tsconfig.lib.json",
+        "libs/wbs/adapters/store-sqlite/tsconfig.lib.json",
+        "libs/wbs/application/conformance/tsconfig.lib.json",
+        "libs/wbs/application/core/tsconfig.lib.json",
+        "libs/wbs/domain/contracts/tsconfig.lib.json",
+        "libs/wbs/domain/domain/tsconfig.lib.json",
+        "libs/wbs/domain/validation/tsconfig.lib.json"
+      ],
+      "publicEntrypoints": [
+        "apps/wbs/be-01/src/main.ts",
+        "apps/wbs/fe-01/src/main.tsx",
+        "apps/wbs/gw-01/src/main.ts",
+        "apps/wbs/mcp-01/src/main.ts",
+        "libs/shared/domain/failures/src/index.ts",
+        "libs/shared/domain/test-evidence/src/index.ts",
+        "libs/shared/domain/test-levels/src/index.ts",
+        "libs/shared/domain/validation/src/index.ts",
+        "libs/wbs/adapters/auth/src/index.ts",
+        "libs/wbs/adapters/config/src/index.ts",
+        "libs/wbs/adapters/observability/src/index.ts",
+        "libs/wbs/adapters/realtime/src/index.ts",
+        "libs/wbs/adapters/runtime-portable/src/index.ts",
+        "libs/wbs/adapters/solver-supervisor-protocol/src/index.ts",
+        "libs/wbs/adapters/store-memory/src/index.ts",
+        "libs/wbs/adapters/store-sqlite/src/index.ts",
+        "libs/wbs/application/conformance/src/index.ts",
+        "libs/wbs/application/core/src/index.ts",
+        "libs/wbs/domain/contracts/src/index.ts",
+        "libs/wbs/domain/domain/src/index.ts",
+        "libs/wbs/domain/validation/src/index.ts"
+      ]
+    },
+    "declarationPaths": [
+      "docs/wiki-policy/relationships.json"
+    ]
+  },
+  "plainTypeScriptPaths": [
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/components/wbs/box-geometry.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/components/wbs/cell-card-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/components/wbs/dep-light-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/components/wbs/pointed-row-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/calendar-markers/calendar-markers.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/directory-management/directory-management.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/directory/directory.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-commands/plan-commands.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-feed/delivered-plan-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-feed/plan-feed.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-feed/plan-feed.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-feed/presence-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-writer/busy-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/plan-writer/plan-writer.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/preferences/preferences.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/preferences/preferences.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/project/project-catalog.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/saved-plans/saved-plans.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "apps/wbs/fe-01/src/modules/store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/case-manifest.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/case-runner.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/certification.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/failure-message.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/index.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/source-conformance.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/source-declaration.test-support.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/source-declaration.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/space-store-conformance.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/actuals.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/attempts.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/calendar-markers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/capacity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/dependencies.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/directory.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/estimates.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/event-log.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/history-batch.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/journal.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/measures.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/plan-events.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/priority-bands.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/progress.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/projects.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/saved-plan-capture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/saved-plans.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/steps.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/store-case.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/subtrees.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/typed-dependencies.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/users.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/stores/work-items.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/testing/broken-source.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/testing/faults.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/testing/source-revision.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/conformance/src/unit-of-work-conformance.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/playwright.config.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/compose.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/calendar-marker.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/capacity-body.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/capacity-mode.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/directory.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/domain.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/email-verification.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/endpoint.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/history.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/import.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/internal.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/invitation.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/join-request.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/onboarding.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/organization-refusal.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/organization.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/person-load.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/priority-ladder-body.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/project-rank.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/project.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/provisioning-token.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/recovery-write.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/route.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/saved-plan.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/session-policy.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/smoke.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/solution.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/space.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/sso-connection.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/step.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/timezone.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/http/work-item.routes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/index.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/authentication/account.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/authentication/authentication.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/authentication/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/authentication/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/authentication/login-throttle.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/authentication/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/bounded-replay-sweep/bounded-replay-sweep.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/bounded-replay-sweep/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/bounded-replay-sweep/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/bounded-replay-sweep/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/bounded-replay-sweep/retention-job.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/bounded-replay-sweep/retention-timer.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/calendar-marker/calendar-marker.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/calendar-marker/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/calendar-marker/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/calendar-marker/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/capacity/capacity.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/capacity/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/capacity/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/capacity/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/directory/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/directory/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/directory/directory.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/directory/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/directory/standalone-directory.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/event-log/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/event-log/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/event-log/event-log.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/event-log/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/admitted-scope.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/admitted-write.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/command-bindings.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/composition.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/plan-command-graph.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/run-command-batch.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/working-plan-directory.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/working-plan-edges.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/working-plan-rows.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/working-plan-subtrees.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/working-plan-values.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-document/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-document/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-document/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-document/plan-document.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-event/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-event/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-event/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-event/plan-event.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-history/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-history/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-history/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-history/plan-history.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/composition.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/imported-plan.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/plan-import.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/plan-import/prepare-import.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/priority-band/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/priority-band/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/priority-band/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/priority-band/priority-band.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/project/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/project/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/project/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/project/project.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/gateway-broadcaster.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/realtime.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/replay-buffer.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/realtime/replay-orchestrator.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/save-plan.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/saved-plan-integrity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/saved-plan-schedule.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/saved-plan-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/saved-plan.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/saved-plans/saved-plans.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/step/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/step/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/step/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/step/step.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/work-item/check.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/work-item/contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/work-item/module.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/work-item/step-addresses.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/module/work-item/work-item.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/account-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/actual-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/announcement-collector.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/calendar-marker-read.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/calendar-marker-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/capacity-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/chain-snapshot-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/clock.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/command-journal-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/command-journal-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/credential-rules.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/dependency-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/dependency-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/directory-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/directory-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/domain-challenges.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/edit-admission.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/email-delivery.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/email-verification.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/enterprise-connections.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/estimate-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/event-log-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/fanout-capture-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/invitation.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/join-request.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/measure-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/membership-administration.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/oidc-verifier.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/onboarding.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/organization-access.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/organization-audit.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/plan-event-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/plan-event-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/priority-band-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/progress-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/project-event.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/project-rank-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/project-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/project-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/provisioning-tokens.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/push-transport.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/recorded-event.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/runtime.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/saved-plan-capture-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/saved-plan-capture-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/saved-plan-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/saved-plan-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/scheduler.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/scim-users.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/session-policies.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/shared-people-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/source.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/space-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/step-node-attempt-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/step-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/stores.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/subtree-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/timers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/typed-dependency-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/unit-of-work.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/user-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/work-item-store.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/work-item-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/ports/write-stamp.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/runtime/deadline.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/auth.service.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/capacity-mode.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/command-normalizers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/committed-fanout.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/compensating.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/dependency-graph.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/directory-usage.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/domain-proof.service.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/list-query.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/node-readings.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/numbered-work-item.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/optimizer-trigger-broadcaster.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/person-load.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/plan-command.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/project-page.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/project-rank.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/provisioning-secret.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/saved-plan-schedule.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/saved-plan.service.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/scim-admission.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/scim.feature.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/shared-people-fanout.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/shared-people.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/space.resource.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/standalone-capacity-mode.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/standalone-rank.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/work-item-page.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/service/work-item-statuses.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/available-work-item-service.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/broadcast-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/clock-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/harness.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/import-service-source-contract.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/organization-access-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/plan-document-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/scheduler-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/work-item-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/src/testing/writes-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/application/core/testing/portable-composition.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/build-solver-edges.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/build-solver-pools.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/build-solver-request.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/build-solver-slices.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/materialise-optimized.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/optimized-result-dto.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/parse-solver-response.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/plan-infeasible-dto.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/quantise-elsewhere.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/quantised-baseline.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/solver-exit-outcome.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/solver-failure-disposition.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/solver-preflight.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/solver-request-pair.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/solver-units.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/stage-budget.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/wire-types.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/solver/src/wire-vocabulary.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/auth-methods.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/commands/definitions.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/errors.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/auth-oidc-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/auth-password-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/calendar-marker-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/capacity-mode-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/client-error.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/client-fetch.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/client-types.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/client.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/directory-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/document-from-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/domain-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/endpoint-shape.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/history-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/import-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/infrastructure-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/internal-http-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/invitation-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/join-request-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/onboarding-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/organization-refusal.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/organization-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/person-load-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/plan-command-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/plan-document-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/project-rank-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/project-response.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/project-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/provisioning-token-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/refusal.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/saved-plan-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/scheduler-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/schema-shape.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/session-policy-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/smoke-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/solution-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/space-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/sso-connection-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/step-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/timezone-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/work-item-fields.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/work-item-response.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/http/work-item-shapes.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/index.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/internal.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/logger.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/oidc-identity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/principal.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/ws-frames.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/contracts/src/ws.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/arrange-siblings.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/assignment.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/assumed-assignee.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/assumed-duration.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/attempt.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/blocked-by-proxy.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/canonical-schedule-input.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/capacity.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/clean-name.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/contract-version.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/deadline-offsets.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/dependency-reach.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/dependency.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/derive-numbers.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/effective-label.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/effective-service.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/effective-tag.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/effective-team.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/estimate.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/external-system.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/fast-golden-corpus.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/in-progress-now.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/index.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/is-within.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/label-mismatch.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/leaf-constraints.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/marker-color.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/marker-name.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/node-reading.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/not-before.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/on-time.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/organization-access.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/person-load.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/place-sibling.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/priority-band.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/priority-weight.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/progress.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/project-ownership.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/project-roll-up.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/public-email-domain.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/publication-guard.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/real-boundaries.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/roll-up.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan-capture-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan-default-name.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan-input.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan-quota.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan-schedule-body.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan/canonical-plan-input.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan/diff-plans.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan/index.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan/normalise-plan-input.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/saved-plan/plan-fixture.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/schedule-cache-dto.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/schedule-order.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/schedule.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/score-real.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/slice-edges.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/slice-groups.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/smoke-echo.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/solver-quantum-golden-corpus.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/solver-quantum.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/step-code.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/step-node.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/step-reference.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/step-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/step.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/store-values.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/stored-vocabularies.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/tree-order.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/typed-dependency.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/without-held-subtrees.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/domain/src/workday.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/validation/src/fixtures/clock.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/validation/src/fixtures/db.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/validation/src/fixtures/frame.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/validation/src/fixtures/index.ts"
+    },
+    {
+      "kind": "path",
+      "value": "libs/wbs/domain/validation/src/index.ts"
+    }
+  ],
+  "sizeCeilings": {
+    "ceiling": 800,
+    "roots": [
+      "apps/wbs/be-01/src",
+      "apps/wbs/gw-01/src",
+      "apps/wbs/mcp-01/src",
+      "apps/wbs/fe-01/src",
+      "libs/wbs",
+      "libs/shared"
+    ],
+    "pinned": []
+  },
+  "adoptedSet": {
+    "adoptedPrefixes": []
+  }
+}

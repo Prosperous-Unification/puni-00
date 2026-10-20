@@ -1,0 +1,21 @@
+{
+  "command": [
+    "/tmp/wbs100-reference-consumer-20261019/node_modules/.bin/twib",
+    "check",
+    "committed",
+    "/tmp/burokrat-serial-workload-GPtR91",
+    "afdb525fc13bc5e2b8147f2ab73edbf48a09035c",
+    "/tmp/puni-wbs100-survey-bindings-20261019/compatibility-missing-public-policy.json",
+    "--rule",
+    "REL-EXTRACT"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00",
+  "exitCode": 1,
+  "peakProcessTreeKiB": 1332864,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 60,
+  "seconds": 2.836,
+  "availableBeforeKiB": 23061236,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

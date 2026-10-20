@@ -1,6 +1,6 @@
 import type { RelationshipRequest } from '../contracts/records';
 import { createTrustedSystem } from './trusted-files';
-import { extractTypeScriptRelationshipsWithPolicy } from './typescript-core';
+import { extractSerialRelationships } from './typescript-serial';
 
 export type {
   ExtractorIdentity,
@@ -17,23 +17,18 @@ export function extractTypeScriptRelationships(
   workspace: string,
   request: RelationshipRequest['typescript'],
   trustedModules: string,
-): ReturnType<typeof extractTypeScriptRelationshipsWithPolicy> {
+): ReturnType<typeof extractSerialRelationships> {
   const system = createTrustedSystem(workspace, trustedModules);
-  return extractTypeScriptRelationshipsWithPolicy(
-    workspace,
-    request,
-    {
-      compilerLibraryDirectory: system.compilerLibraryDirectory,
-      useCaseSensitiveFileNames: system.useCaseSensitiveFileNames,
-      pathKind: (path) =>
-        system.directoryExists(path) ? 'directory' : system.fileExists(path) ? 'file' : 'absent',
-      readFile: (path) => system.readFile(path),
-      readDirectory: (path, extensions, exclude, include, depth) =>
-        system.readDirectory(path, extensions, exclude, include, depth),
-      getDirectories: (path) => system.getDirectories(path),
-      realpath: (path) => system.realpath(path),
-      getCurrentDirectory: () => system.getCurrentDirectory(),
-    },
-    { kind: 'legacy' },
-  );
+  return extractSerialRelationships(workspace, request, {
+    compilerLibraryDirectory: system.compilerLibraryDirectory,
+    useCaseSensitiveFileNames: system.useCaseSensitiveFileNames,
+    pathKind: (path) =>
+      system.directoryExists(path) ? 'directory' : system.fileExists(path) ? 'file' : 'absent',
+    readFile: (path) => system.readFile(path),
+    readDirectory: (path, extensions, exclude, include, depth) =>
+      system.readDirectory(path, extensions, exclude, include, depth),
+    getDirectories: (path) => system.getDirectories(path),
+    realpath: (path) => system.realpath(path),
+    getCurrentDirectory: () => system.getCurrentDirectory(),
+  });
 }

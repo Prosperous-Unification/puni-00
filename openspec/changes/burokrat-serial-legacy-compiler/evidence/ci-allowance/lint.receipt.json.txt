@@ -1,0 +1,16 @@
+{
+  "command": [
+    "bunx",
+    "eslint",
+    "apps/twilight-structure/twilight-burokrat/cli/src/policy/gate-entrypoints.test.ts"
+  ],
+  "cwd": "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+  "exitCode": 0,
+  "peakProcessTreeKiB": 744868,
+  "ceilingKiB": 2097152,
+  "timeoutSeconds": 360,
+  "seconds": 3.037,
+  "availableBeforeKiB": 23789412,
+  "minimumAvailableKiB": 12582912,
+  "stopReason": null
+}

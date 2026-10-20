@@ -1,0 +1,84 @@
+{
+  "command": [
+    "git",
+    "commit",
+    "-m",
+    "test(wbs): restore oversized estimate column for recovery proof"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 885672,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-estimate-fault-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/pre-commit"
+    ],
+    [
+      "/bin/sh",
+      "/home/df/wd/puni/puni-00/.git/hooks/prepare-commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-estimate-fault-20261019/COMMIT_EDITMSG",
+      "message"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "commit-msg",
+      "/home/df/wd/puni/puni-00/.git/worktrees/wbs100-estimate-fault-20261019/COMMIT_EDITMSG"
+    ],
+    [
+      "/home/df/wd/puni/plan-wbs-team-claims/node_modules/lefthook-linux-x64/bin/lefthook",
+      "run",
+      "pre-commit"
+    ],
+    [
+      "bunx",
+      "eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+    ],
+    [
+      "bunx",
+      "prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+    ],
+    [
+      "git",
+      "commit",
+      "-m",
+      "test(wbs): restore oversized estimate column for recovery proof"
+    ],
+    [
+      "git",
+      "status",
+      "--short",
+      "--porcelain",
+      "-z"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-fault-20261019/node_modules/.bin/eslint",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-estimate-fault-20261019/node_modules/.bin/prettier",
+      "--check",
+      "apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx"
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx eslint apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx "
+    ],
+    [
+      "sh",
+      "-c",
+      "bunx prettier --check apps/wbs/fe-01/src/components/wbs/plan-columns/estimates.tsx "
+    ]
+  ]
+}

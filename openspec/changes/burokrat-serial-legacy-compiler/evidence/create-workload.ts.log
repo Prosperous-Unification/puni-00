@@ -1,0 +1,12 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { writeSerialFixture } from '/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.fixture.ts';
+const repository = mkdtempSync('/tmp/burokrat-serial-workload-');
+const request = writeSerialFixture(repository, 80000, 24);
+for (const argv of [['init', '--initial-branch=main'], ['config','user.name','Serial Fixture'], ['config','user.email','serial@example.test'], ['add','.'], ['commit','-m','Shared declaration memory workload']]) {
+ const invocation = Bun.spawnSync(['git','-C',repository,...argv]);
+ if(invocation.exitCode !== 0) throw new Error(invocation.stderr.toString());
+}
+const revision = Bun.spawnSync(['git','-C',repository,'rev-parse','HEAD']);
+if(revision.exitCode !== 0) throw new Error(revision.stderr.toString());
+writeFileSync('/tmp/wbs100-serial-compiler-20261019/request.json', JSON.stringify({schemaVersion:1,typescript:request}));
+writeFileSync('/tmp/wbs100-serial-compiler-20261019/workload.json',JSON.stringify({repository,revision:revision.stdout.toString().trim(),declarations:80000,consumers:24},null,2)+'\n');

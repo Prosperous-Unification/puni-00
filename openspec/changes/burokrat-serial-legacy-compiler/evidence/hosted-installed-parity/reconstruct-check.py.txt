@@ -1,0 +1,14 @@
+import hashlib
+import json
+from pathlib import Path
+
+root = Path(__file__).resolve().parent
+streams = json.loads((root / 'raw-streams.json.txt').read_text(encoding='utf-8'))
+manifest = json.loads((root / 'original-file-manifest.json.txt').read_text(encoding='utf-8'))
+assert set(streams) == {entry['source'] for entry in manifest['utf8Files']}
+for entry in manifest['utf8Files']:
+    restored = streams[entry['source']].encode('utf-8')
+    assert len(restored) == entry['bytes'], entry['source']
+    # Proof: a same-length report-character mutation failed here; see reconstruction-proof.json.txt.
+    assert hashlib.sha256(restored).hexdigest() == entry['sha256'], entry['source']
+print(f"Verified {len(streams)} original UTF-8 files byte-for-byte")

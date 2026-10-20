@@ -1,0 +1,5 @@
+{
+  "sha256": "d19271185f75b73aacb4aa7f85a69512ef55b629be217a824c8af59da7170348",
+  "bytes": 404,
+  "text": "{\n  \"archive\": \"/tmp/wbs100-dns-closure-20261019/twilight-burokrat-0.1.0-serial-0e444.tgz\",\n  \"sha256\": \"c659b8cb416ef1853fbf12e7f3cde03f86a16fbf95ce7349d2a10ec5bed5ead9\",\n  \"source\": \"0e444bcc4ba7e5d7e30b1c220d51e25dd7e5ffc5\",\n  \"packageJsonSha256\": \"afa03fa222e62ed92698e3ce5af9b7638f9975fa510ec84cf81e2949621d38df\",\n  \"lockSha256\": \"e8d77926f9dac4ba4824486143872bdfb123cafd8bed45cca50c44b2e23298a4\"\n}\n"
+}

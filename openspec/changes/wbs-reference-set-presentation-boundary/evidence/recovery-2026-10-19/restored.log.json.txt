@@ -1,0 +1,43 @@
+{
+  "command": [
+    "bunx",
+    "vitest",
+    "run",
+    "src/components/wbs/reference-set-field.test.tsx",
+    "src/components/wbs/depends-card.test.tsx",
+    "--maxWorkers=1"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 508020,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "/home/df/.volta/tools/image/node/24.20.0/bin/node",
+      "--experimental-import-meta-resolve",
+      "--require",
+      "/home/df/wd/puni/puni-00/node_modules/vitest/suppress-warnings.cjs",
+      "--conditions",
+      "node",
+      "--conditions",
+      "development",
+      "/home/df/wd/puni/puni-00/node_modules/vitest/dist/workers/forks.js"
+    ],
+    [
+      "bunx",
+      "vitest",
+      "run",
+      "src/components/wbs/reference-set-field.test.tsx",
+      "src/components/wbs/depends-card.test.tsx",
+      "--maxWorkers=1"
+    ],
+    [
+      "node",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/node_modules/.bin/vitest",
+      "run",
+      "src/components/wbs/reference-set-field.test.tsx",
+      "src/components/wbs/depends-card.test.tsx",
+      "--maxWorkers=1"
+    ]
+  ]
+}

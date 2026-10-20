@@ -15,6 +15,7 @@ import {
   CLAIM_IN_USE,
   createFaultControl,
   defineFault,
+  DELEGATED_CLAIMS,
   DEPENDENCY_SURVIVOR_IDS,
   DETERMINISTIC_SEED,
   type ExistingStoreOpeners,
@@ -379,6 +380,8 @@ async function openSqliteCase<Family extends ExistingFamily>(
     }
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
+    if (caseId === 'directory.removePerson:delegated-claims')
+      await seeded.stores.claims.add([...DELEGATED_CLAIMS], [], DETERMINISTIC_SEED.stamps[0]);
     if (caseId === 'directory.removePerson:pinned-credential') {
       const { personId, issuer, subject } = PINNED_CREDENTIAL;
       const added = await seeded.stores.directory.addPerson(

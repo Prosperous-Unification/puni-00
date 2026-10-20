@@ -1,0 +1,11 @@
+{
+  "node_modules/twilight-burokrat/dist/package-manifest.json": {
+    "sha256": "f447e25c0aa11b7f891169abd690dc365c9dcfb9fcb84c35a537dc73110163be"
+  },
+  "node_modules/twilight-burokrat/dist/toolkit/toolkit.json": {
+    "sha256": "8e1a2a3395084a54a0c6ee42c29b873cb4cba7a87161ebe210e435f1abd9705e"
+  },
+  "node_modules/twilight-burokrat/dist/toolkit/validator.mjs": {
+    "sha256": "4f37339ad50af4ba58a94ea7e1a1ba84d55d87cab6e66c908511c5abd6658a57"
+  }
+}

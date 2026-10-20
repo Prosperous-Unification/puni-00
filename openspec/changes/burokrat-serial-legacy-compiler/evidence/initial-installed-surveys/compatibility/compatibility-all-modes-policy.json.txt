@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "policyId": "wbs100.serial-compiler.installed-compatibility.v1",
+  "ruleModes": [
+    {
+      "ruleId": "F1",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "F7",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "INV-CLASSIFY",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K2",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K3",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K4",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K5",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "K6",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-DIRECT-ENTRIES",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-INDEX",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "MOD-LAYOUT",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "PERF-THRESHOLD",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "REL-EXTRACT",
+      "mode": "observe"
+    },
+    {
+      "ruleId": "SPEC-SCENARIOS",
+      "mode": "observe"
+    }
+  ],
+  "relationshipRequest": {
+    "schemaVersion": 1,
+    "typescript": {
+      "configPaths": [
+        "config/provider.json",
+        "config/consumer-0.json"
+      ],
+      "publicEntrypoints": [
+        "src/index.ts"
+      ]
+    }
+  }
+}

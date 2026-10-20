@@ -1,0 +1,41 @@
+{
+  "command": [
+    "bun",
+    "/tmp/wbs100-reference-measure-20261019.mjs",
+    ".",
+    "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+    "d6026f83be7c0af4c325406961ebc3eacb58363c",
+    "openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-survey/recovery-full-policy.json.txt"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 619908,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [],
+    [
+      "bun",
+      "/tmp/wbs100-reference-measure-20261019.mjs",
+      ".",
+      "3e8d0742154e90a606b23d305dd6e424bb9c7d06",
+      "d6026f83be7c0af4c325406961ebc3eacb58363c",
+      "openspec/changes/wbs-plan-export-size-boundary/evidence/hosted-full-survey/recovery-full-policy.json.txt"
+    ],
+    [
+      "git",
+      "-C",
+      ".",
+      "cat-file",
+      "--batch"
+    ],
+    [
+      "git",
+      "-C",
+      "/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019",
+      "ls-tree",
+      "-r",
+      "-z",
+      "--full-tree",
+      "0bbdc22893e2f729219cf9bf14e143c80285fc4f"
+    ]
+  ]
+}

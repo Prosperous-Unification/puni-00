@@ -123,7 +123,12 @@ describe('a frozen work item moves, and keeps the number that left the tool', ()
     const cable = await add('Cable', strip);
     await service.freeze(projectId, OWNER);
 
-    const outcome = await service.move(cable, OWNER, { parentId: null, afterId: null });
+    const outcome = await service.move(
+      cable,
+      OWNER,
+      { parentId: null, afterId: null },
+      { kind: 'legacy' },
+    );
 
     expect(outcome.ok).toBe(true);
     // Both halves in one assertion, which is why it reads the order rather than
@@ -142,7 +147,12 @@ describe('a frozen work item moves, and keeps the number that left the tool', ()
     await service.freeze(projectId, OWNER);
     await service.unfreeze(cable, OWNER);
 
-    const outcome = await service.move(cable, OWNER, { parentId: null, afterId: null });
+    const outcome = await service.move(
+      cable,
+      OWNER,
+      { parentId: null, afterId: null },
+      { kind: 'legacy' },
+    );
 
     expect(outcome.ok).toBe(true);
     // `020`, where this answered `005` until ADR 0023 — a label fitted *below*

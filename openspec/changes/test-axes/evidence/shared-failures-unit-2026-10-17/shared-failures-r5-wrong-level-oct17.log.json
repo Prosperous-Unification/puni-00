@@ -1,0 +1,28 @@
+{
+  "command": [
+    "bun",
+    "test",
+    "tools/tool-devsync/src/shared-failures-level.test.ts",
+    "--timeout=30000",
+    "-t",
+    "refuses api files in the Unit collection"
+  ],
+  "exitCode": 1,
+  "peakProcessTreeKiB": 160668,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "--eval",
+      "\n      import { readFileSync } from 'node:fs';\n      import { WORKSPACE, verifyBunProjectCollection } from \"file:///tmp/puni-shared-failures-unit-oct17/tools/tool-devsync/src/test-levels.ts\";\n      WORKSPACE.pathname = \"/tmp/shared-failures-level-LZNlQ0/\";\n      await verifyBunProjectCollection(\"libs/shared/domain/failures\", JSON.parse(readFileSync(\"/tmp/shared-failures-level-LZNlQ0/libs/shared/domain/failures/project.json\", 'utf8')));\n    "
+    ],
+    [
+      "bun",
+      "test",
+      "tools/tool-devsync/src/shared-failures-level.test.ts",
+      "--timeout=30000",
+      "-t",
+      "refuses api files in the Unit collection"
+    ]
+  ]
+}

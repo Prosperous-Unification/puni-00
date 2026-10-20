@@ -1,0 +1,22 @@
+import json,os,subprocess
+from pathlib import Path
+root=Path('/tmp/wbs100-serial-compiler-20261019'); selection=json.loads((root/'workload.json').read_text())
+wrapper=Path('apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript.ts'); restored=wrapper.read_bytes()
+old=subprocess.check_output(['git','show','a82d6fa9b0d87105cdafcaef474ab51a73abebd8:'+str(wrapper)])
+env=dict(os.environ,TOOL_WIKI_TRUSTED_NODE_MODULES='/home/df/.codex/worktrees/e21c/puni-00/node_modules')
+def run(label):
+ command=['python3',str(root/'guard.py'),str(root/label),'bun','apps/twilight-structure/twilight-burokrat/cli/src/cli.ts','extract-relationships','committed',selection['repository'],selection['revision'],str(root/'request.json')]
+ return subprocess.call(command,env=env)
+try:
+ wrapper.write_bytes(old)
+ assert run('resource-fault')==1
+ receipt=json.loads((root/'resource-fault.receipt.json').read_text()); assert receipt['stopReason']=='rss_limit'
+ with (root/'resource-fault-oracle.log').open('w') as stream:
+  refused=subprocess.run(['python3',str(root/'resource-oracle.py'),'resource-fault'],stdout=stream,stderr=stream)
+ assert refused.returncode==1
+finally:
+ wrapper.write_bytes(restored)
+assert run('resource-restored')==0
+subprocess.run(['python3',str(root/'resource-oracle.py'),'resource-restored'],check=True)
+assert json.loads((root/'resource-green.stdout').read_text())==json.loads((root/'resource-restored.stdout').read_text())
+print('watched resource fault and restored report equality passed')

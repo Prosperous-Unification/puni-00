@@ -1,0 +1,23 @@
+{
+  "command": [
+    "bun",
+    "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+    "scenario",
+    "allocate",
+    ".",
+    "openspec/changes/test-axes/specs/test-axes/spec.md"
+  ],
+  "exitCode": 0,
+  "peakProcessTreeKiB": 369556,
+  "ceilingKiB": 921600,
+  "observedArgv": [
+    [
+      "bun",
+      "apps/twilight-structure/twilight-burokrat/cli/src/cli.ts",
+      "scenario",
+      "allocate",
+      ".",
+      "openspec/changes/test-axes/specs/test-axes/spec.md"
+    ]
+  ]
+}

@@ -58,3 +58,15 @@ Permission-unreadable file (chmod 000 as UID 1000), absent file without creation
 Astra-high final rereview found no outstanding P0–P3 defects or R5 proof gaps within this bounded scope. Its earlier P2 proof mismatch is corrected above. The reviewer independently read source and logs and ran no tests. Normal local commit hook outcome is recorded in the delivery report after this record is finalized. Evidence logs normalize trailing whitespace only.
 
 Skipped by authorized bounded scope: `bin/h2puni-gate.sh <sha>`, raw full Nx format/test/lint/typecheck/build, public CI, secrets CI scan, migration CI lint, deployment, production identity/access and MCP/old-process evidence. Local installed hooks will run normally at commit. No broad gate or rollout claim is made.
+
+## Source and merge reconciliation — 2026-10-19
+
+[The parent reconciliation](../organization-ownership-and-access/verify.md#source-and-merge-reconciliation--2026-10-19)
+verifies preflight checkpoint `a0ed2adf9` is in main through PR #565. The
+read-only CLI and snapshot report are merged source, not unpublished work to
+rebuild. Earlier skipped release checks describe their checkpoint.
+
+No production database was inspected by this reconciliation. Full identity/access
+inventory, opaque stored bodies, old-process drain, MCP credential epoch,
+activation and live acceptance remain outside this preflight's proved scope.
+No new runtime test or release-gate result is claimed.

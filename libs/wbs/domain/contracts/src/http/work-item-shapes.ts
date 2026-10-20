@@ -206,6 +206,7 @@ const batchRefusals = [
         type({ ...context, error: "'not_startable'", status: 'string' }),
         type({ ...context, error: "'step_done'", stepIds: 'string[]' }),
         type({ ...context, error: "'already_claimed'", holders: claimHolder.array() }),
+        type({ ...context, error: "'destination_claimed'", holders: claimHolder.array() }),
         type({ ...context, error: "'inside_subtree_claim'", holder: claimHolder }),
         type({ ...context, error: "'overlaps_subtree_claim'", holder: claimHolder }),
       ),

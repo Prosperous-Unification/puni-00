@@ -1,0 +1,9 @@
+{
+  "fault": "Changed the first character of the successor positive raw-report carrier value, preserving original byte length; checker failed its SHA-256 assertion naming that report. Only a temporary copy changed.",
+  "negativeExit": 1,
+  "negativeStdout": "",
+  "negativeStderr": "Traceback (most recent call last):\n  File \"/tmp/puni-hosted-carrier-negative-lvwwqfwh/reconstruct-check.py.txt\", line 12, in <module>\n    assert hashlib.sha256(restored).hexdigest() == entry['sha256'], entry['source']\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: artifact/successor-positive.stdout\n",
+  "restoredExit": 0,
+  "restoredStdout": "Verified 87 original UTF-8 files byte-for-byte\n",
+  "restoredStderr": ""
+}

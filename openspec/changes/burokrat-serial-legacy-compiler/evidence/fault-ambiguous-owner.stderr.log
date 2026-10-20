@@ -1,0 +1,93 @@
+
+apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:
+70 | }
+71 |
+72 | function compare(configure: Configure, modules = trustedModules) {
+73 |   const predecessor = observe('predecessor', configure, modules);
+74 |   const serial = observe('serial', configure, modules);
+75 |   expect(serial).toEqual(predecessor);
+                      ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "message": "TypeScript public entrypoint src/index.ts resolved by 4 emitting configs with 2 explicit root configs; expected exactly one: config/duplicate.json, config/provider.json",
+-   "ok": false,
++   "ok": true,
++   "report": {
++     "extractor": {
++       "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
++       "extractorId": "typescript.compiler",
++       "version": "v6.0.3",
++     },
++     "relationships": {
++       "imports": [
++         {
++           "extractor": {
++             "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
++             "extractorId": "typescript.compiler",
++             "version": "v6.0.3",
++           },
++           "identity": "c0ae76f27f5933121b14989c3225260b1afad88d371a2b3c0f8d952c616ccd0c",
++           "importKind": "value",
++           "source": "src/consumer.ts",
++           "specifier": "./index",
++           "target": "src/index.ts",
++         },
++       ],
++       "publicDeclarations": [
++         {
++           "configPath": "config/provider.json",
++           "configurationIdentity": "7c0e21079c03ac24f3b71b389212c4279d91823d5a586c7ad3b25fc44c97d355",
++           "declarations": [
++             {
++               "emittedPath": "src/index.d.ts",
++               "sourcePath": "src/index.ts",
++               "text":
++ "export declare const value = 1;
++ "
++ ,
++             },
++           ],
++           "entrypoint": "src/index.ts",
++           "extractor": {
++             "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
++             "extractorId": "typescript.compiler",
++             "version": "v6.0.3",
++           },
++           "identity": "0f31663964e46c5977148451f8944c2f0ec927101b7e1a9cc2813453cc55d297",
++         },
++       ],
++       "reverseEdges": [
++         {
++           "extractor": {
++             "blob": "9229db0c90d57f5412f15ba12d179be35f2111b09a8e152f18e4e8e69261f47e",
++             "extractorId": "typescript.compiler",
++             "version": "v6.0.3",
++           },
++           "identity": "e583130106246a29b9471032c85bcf6d3583a1f30bfb2c2619687fed1845fa48",
++           "importers": [
++             {
++               "importKind": "value",
++               "source": "src/consumer.ts",
++               "specifier": "./index",
++             },
++           ],
++           "provider": "src/index.ts",
++         },
++       ],
++     },
++   },
+  }
+
+- Expected  - 2
++ Received  + 65
+
+      at compare (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:75:18)
+      at <anonymous> (/home/df/wd/puni/puni-00/.worktrees/wbs100-reference-recovery-20261019/apps/twilight-structure/twilight-burokrat/cli/src/relationships/typescript-serial.test.ts:254:25)
+(fail) serial refuses ambiguous explicit roots with predecessor provenance [316.99ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [776.00ms]
