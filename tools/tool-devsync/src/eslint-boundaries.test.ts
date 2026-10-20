@@ -93,6 +93,34 @@ describe('the effective production and test boundaries', () => {
       );
   }, 30_000);
 
+  it('a UI kit reaches shared browser code and nothing of a product or of Bun', async () => {
+    // The design system's kits are `product:shared ring:adapter runtime:browser`
+    // (`openspec/changes/design-system-foundation`): a product may reach them, so
+    // they may reach no product back, and a browser package may reach no Bun one.
+    const path = 'libs/shared/adapters/ui-core-01/src/index.ts';
+    expect(await ruleIds(path, "await import('@shared/validation');")).not.toContain(
+      '@nx/enforce-module-boundaries',
+    );
+    // `@wbs/domain` is the product fence alone: it is `ring:domain runtime:isomorphic`, which
+    // every other rule admits, so only `product:shared` refuses it. The rest trip the ring and
+    // runtime fences as well and would pass a mistagged product.
+    // Proof: with the lib tagged `product:wbs` instead and the project graph refreshed
+    // (`nx show project shared-ui-core-01`; the in-process lint reads the cached graph, so a
+    // tag edit alone changes nothing), `@wbs/domain` linted clean and this case failed on
+    // `Expected to contain: "@nx/enforce-module-boundaries"` (2026-10-21).
+    for (const alias of [
+      '@wbs/domain',
+      '@wbs/core',
+      '@wbs/realtime',
+      '@wbs/store-sqlite',
+      '@tools/fleet-plan',
+    ]) {
+      expect(await ruleIds(path, `await import('${alias}');`), alias).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+    }
+  }, 30_000);
+
   it('keeps every root production boundary for the Dash planner except its exact local alias', async () => {
     const cliPath = 'apps/twilight-structure/twilight-dash/cli/src/cli.ts';
     const peerPath = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
