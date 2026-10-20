@@ -29,6 +29,7 @@ const EXPECTED_TOKENS = [
   '--border',
   '--input',
   '--ring',
+  '--control-edge',
   '--radius',
 ] as const;
 

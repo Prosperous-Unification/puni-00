@@ -35,6 +35,7 @@ Every kit assigns all of these, in both palettes. Utilities are the shadcn names
 | `--accent` / `--accent-foreground`           | hover and selection; one per surface                             |
 | `--destructive` / `--destructive-foreground` | an action that cannot be undone                                  |
 | `--border`, `--input`                        | hairlines on surfaces and fields                                 |
+| `--control-edge`                             | the edge of an outline control, 3:1 against what it stands on    |
 | `--ring`                                     | the keyboard focus ring                                          |
 | `--radius`                                   | the base corner; `rounded-md` and `-lg` derive                   |
 | `--font-body`, `--font-display`              | body and display faces; utilities `font-sans` and `font-heading` |
