@@ -2081,8 +2081,8 @@ test describes the earlier composition.
 
 | Command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Result                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test ./src/mcp-delegation.boot.db.test.ts ./src/runtime/mcp-delegation.test.ts ./src/app.routes.test.ts ./src/boot.db.test.ts ./src/runtime/delegation-issuer.test.ts ./src/controller/delegation.controller.db.test.ts ./src/controller/bearer-context.controller.db.test.ts ./src/organization-activation.boot.db.test.ts ./src/controller/organization-context.controller.db.test.ts ./src/test-tiers.test.ts ./src/module-boundaries.test.ts` | 99 pass, 0 fail, 1787 expect() calls  |
-| `cd apps/wbs/mcp-01 && env -u CLAUDECODE bun test` (includes `organization-delegation.boot.test.ts`, which boots be-01 in its own process)                                                                                                                                                                                                                                                                                                                                                    | 442 pass, 0 fail, 1930 expect() calls |
+| `cd apps/wbs/be-01 && env -u CLAUDECODE bun test ./src/mcp-delegation.boot.db.test.ts ./src/runtime/mcp-delegation.test.ts ./src/app.routes.test.ts ./src/boot.db.test.ts ./src/runtime/delegation-issuer.test.ts ./src/controller/delegation.controller.db.test.ts ./src/controller/bearer-context.controller.db.test.ts ./src/organization-activation.boot.db.test.ts ./src/controller/organization-context.controller.db.test.ts ./src/test-tiers.test.ts ./src/module-boundaries.test.ts` | 100 pass, 0 fail, 1793 expect() calls |
+| `cd apps/wbs/mcp-01 && env -u CLAUDECODE bun test` (includes `organization-delegation.boot.test.ts`, which boots be-01 in its own process)                                                                                                                                                                                                                                                                                                                                                    | 443 pass, 0 fail, 1932 expect() calls |
 | `cd libs/wbs/domain/contracts && env -u CLAUDECODE bun test ./src/http`                                                                                                                                                                                                                                                                                                                                                                                                                       | 133 pass, 0 fail                      |
 | `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test ./src/organization-credential-rules.db.test.ts`                                                                                                                                                                                                                                                                                                                                                                              | 3 pass, 0 fail                        |
 | `bunx tsc -p <config> --noEmit` for be-01 lib and spec, core, auth, store-sqlite and contracts; `bunx tsc --build --force apps/wbs/mcp-01/tsconfig.json`                                                                                                                                                                                                                                                                                                                                      | each exit 0, no output                |
@@ -2102,6 +2102,40 @@ activated by `organization-activation-cli.ts`. In order:
 6. An upstream token that expires under mcp-01 is refreshed once and the call succeeds with a
    new delegation.
 7. A removed member's next request answers 401, and its refresh answers `invalid_grant`.
+
+### Review fixes (Fable, 2026-10-21)
+
+No S1 or S2. Fixed:
+
+- S3-2: a be-01 401 counts as the user's token being refused only for `unauthenticated` or
+  `unknown_identity`. A Basic-gate or proxy 401 is now a deployment defect and no longer ends
+  sessions. Fault: the old deny-list made `reads each modeled delegation refusal and throws on
+the rest` read a Basic challenge as `upstream_rejected`.
+- S3-3: new negatives, each watched failing under its fault:
+  - `refuses a cookie beside the upstream token and a malformed body` failed with the cookie
+    refusal, the delegation body check or the authority body check removed.
+  - `lists nothing and issues nothing before activation` now seeds a pre-activation membership.
+    It failed with the authority marker check removed (admitted) and with the issue refusal
+    removed (403 `no_active_organization`).
+  - `answers delegation_inactive after activation without a key pair` failed with the list
+    no-key check removed (memberships listed) and with the issue refusal removed (signing
+    `TypeError`).
+  - `refuses to forward for a bound family when no organization authority is installed`
+    resolved `forwarded` with the throw replaced.
+  - `ends a removed member's session` resolved with the missing-session `UpstreamRejected`
+    replaced by forwarding.
+- S3-4: `wbs-mcp-01` declares `implicitDependencies: ["wbs-be-01"]`, so a be-01-only change
+  reruns the booted pair under `nx affected`.
+- S3-1 and S4: the auth-integration and verify statements on enforced SSO now say the SSO pair
+  is admitted. Proof wording, stale JSDoc in `oauth.ts` and `refresh-authority.ts`, and the
+  superseded Slice 27 sentence are corrected. `issue` reads the clock once for the expiry check
+  and the signer. The spec sentence now admits the implicit single membership.
+
+Not taken:
+
+- S4-4: narrowing each delegation to the tool's required scope. Some routes may check
+  `editor` inside the handler; this needs a route audit first.
+- The 3 s real sleep in the booted refresh-retry test.
 
 ### What 6.5 still needs
 
@@ -2125,5 +2159,6 @@ Until then, sessions consented before activation are refused by be-01 rather tha
 - Deployment wiring: no dev or prod environment, k8s overlay or `.env` sets mcp-01's
   `INTERNAL_AUTH_SECRET` or be-01's delegation key pair yet. Without them mcp-01 keeps
   forwarding and be-01 answers `delegation_inactive` after activation.
-- Gateway signed-bearer issuance (rest of 2.5). Organizations with enforced SSO or a session
-  policy refuse MCP delegations, because no trusted grant-lifecycle evidence exists.
+- Gateway signed-bearer issuance (rest of 2.5). An organization enforcing SSO admits only a
+  delegation whose upstream subject carries its connection; a session policy refuses every MCP
+  delegation, because no trusted grant-lifecycle evidence exists.

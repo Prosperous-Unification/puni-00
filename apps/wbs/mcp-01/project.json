@@ -4,6 +4,7 @@
   "sourceRoot": "apps/wbs/mcp-01/src",
   "projectType": "application",
   "tags": ["scope:app", "type:app", "runtime:bun", "ring:adapter", "product:wbs"],
+  "implicitDependencies": ["wbs-be-01"],
   "targets": {
     "serve": {
       "executor": "nx:run-commands",

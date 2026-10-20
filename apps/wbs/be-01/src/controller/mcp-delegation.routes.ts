@@ -53,6 +53,9 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
         return { ok: false, status: 401, body: { error: 'unauthenticated' } } as const;
       const named = body.scope.split(' ');
       const scopes = named.filter(isWbsScope);
+      // Proof: dropping this check made `refuses a cookie beside the upstream
+      // token and a malformed body` in `mcp-delegation.boot.db.test.ts` fail;
+      // watched 2026-10-21.
       if (
         [body.organizationId, body.userId, body.client, body.grant].some((field) => field === '') ||
         scopes.length !== named.length
@@ -85,6 +88,9 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
       }
     }),
     bind(readMcpAuthority, async ({ body }) => {
+      // Proof: dropping this check made `refuses a cookie beside the upstream
+      // token and a malformed body` in `mcp-delegation.boot.db.test.ts` fail;
+      // watched 2026-10-21.
       if (Object.values(body).some((field) => field === ''))
         return { ok: false, status: 400, body: { error: 'invalid_body' } } as const;
       const outcome = await authority.authorityOf(body);
@@ -119,6 +125,9 @@ export function mcpDelegationRoutes(authority: McpDelegationAuthority) {
  * resolver, so it is refused rather than ignored.
  */
 function upstreamBearerOf(headers: Headers): string | null {
+  // Proof: dropping this refusal made `refuses a cookie beside the upstream
+  // token and a malformed body` in `mcp-delegation.boot.db.test.ts` issue a
+  // delegation; watched 2026-10-21.
   if (headers.get('cookie') !== null) return null;
   const match = /^Bearer ([^\s]+)$/.exec(headers.get('authorization') ?? '');
   return match?.[1] ?? null;

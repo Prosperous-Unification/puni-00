@@ -98,12 +98,17 @@ describe('organization authority client', () => {
     }
     for (const [status, body] of [
       [401, { error: 'unauthorized' }],
+      [401, 'Unauthorized'],
       [403, { error: 'delegation_inactive' }],
       [403, { error: 'no_active_organization' }],
       [500, { error: 'internal' }],
       [200, { nope: true }],
     ] as const) {
-      const { authority } = client(() => Response.json(body, { status }));
+      const { authority } = client(() =>
+        typeof body === 'string'
+          ? new Response(body, { status, headers: { 'www-authenticate': 'Basic realm="wbs"' } })
+          : Response.json(body, { status }),
+      );
       expect(await rejection(authority.delegationFor('upstream', REQUEST))).toBeInstanceOf(
         OrganizationAuthorityDefect,
       );

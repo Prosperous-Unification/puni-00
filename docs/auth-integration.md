@@ -286,7 +286,9 @@ calls be-01 with a WBS-signed delegation instead
   `WBS_DELEGATION_VERIFY_KEY` (SPKI PEM). Without the secret mcp-01 keeps
   forwarding the upstream token; without the pair be-01 answers
   `403 delegation_inactive` after activation, and consent fails. Before
-  activation neither changes anything.
+  activation access is unchanged, but consent now asks be-01 once (so a
+  first-time user's account is resolved at consent, and a be-01 outage fails
+  the consent rather than the first tool call).
 - Consent asks be-01 (`POST /internal/mcp/organizations`, service secret plus
   the user's upstream token) for the user's admitted memberships. One is bound
   implicitly; several show a choice page. The organization, local user and
@@ -300,8 +302,9 @@ calls be-01 with a WBS-signed delegation instead
   and asks again; it never forwards the raw token for a bound session.
 - Every MCP request rereads the family's authority
   (`POST /internal/mcp/authority`); a removed member is refused with 401 and
-  cannot refresh. Organizations with an enforced SSO connection or a session
-  policy refuse MCP delegations until trusted grant-lifecycle evidence exists.
+  cannot refresh. An organization enforcing SSO admits only a delegation whose
+  upstream subject carries that connection; one with a session policy refuses
+  every MCP delegation until trusted grant-lifecycle evidence exists.
 - Sessions consented before activation stay unbound and are refused after it
   (task 6.5 will revoke them at the cutover).
 

@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { describe, expect, it } from 'bun:test';
 
@@ -10,6 +10,7 @@ import type {
   DelegationRequest,
   OrganizationAuthority,
 } from './organization-authority';
+import { McpSessionStore } from './session-store';
 import { DelegationRefused, UpstreamRejected } from './wbs-client';
 
 /**
@@ -342,5 +343,43 @@ describe('MCP organization binding', () => {
     expect(refused).toBeInstanceOf(DelegationRefused);
     expect((refused as DelegationRefused).endsSession).toBe(false);
     expect((refused as Error).message).toContain('sso_required');
+  });
+
+  it('refuses to forward for a bound family when no organization authority is installed', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    store.createFamily(
+      {
+        familyId: 'family-1',
+        clientId: 'client-1',
+        subject: 'auth0|ada',
+        scope: 'wbs:read',
+        upstreamAccessToken: 'upstream-token',
+        upstreamExpiresAt: Date.now() + 600_000,
+        idleExpiresAt: Date.now() + 600_000,
+        absoluteExpiresAt: Date.now() + 600_000,
+        binding: { organizationId: 'org-a', userId: 'u-ada', issuer: 'https://idp.example/' },
+      },
+      'session-1',
+      Date.now() + 600_000,
+      'refresh-1',
+    );
+    const unwired = new InMemoryMcpOAuth(
+      CONFIG,
+      {
+        authorizationUrl: () => Promise.reject(new Error('unused')),
+        exchange: () => Promise.reject(new Error('unused')),
+        refresh: () => Promise.reject(new Error('unused')),
+        revoke: () => Promise.resolve(),
+      },
+      { store },
+    );
+    // Proof: returning the upstream token here instead of throwing made this
+    // resolve to 'upstream-token'; watched 2026-10-21.
+    expect(
+      await unwired.bearerFor('session-1', 'upstream-token', ['read']).then(
+        () => 'forwarded',
+        (cause: unknown) => (cause instanceof Error ? cause.message : 'not an error'),
+      ),
+    ).toContain('INTERNAL_AUTH_SECRET');
   });
 });

@@ -202,6 +202,11 @@ const projectNames = (answer: { body: unknown }) =>
 describe('MCP delegation through the booted composition', () => {
   test('lists nothing and issues nothing before activation', async () => {
     be = await boot();
+    // A membership may exist before the marker (the bridge writes them); it grants nothing yet.
+    be.organization('org-a');
+    be.sqlite.run(
+      "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'u-ada', 'member', 1)",
+    );
     const organizations = await call(be, 'POST', '/internal/mcp/organizations', {
       ...INTERNAL,
       ...bearer(await upstreamToken('auth0|ada')),
@@ -223,6 +228,30 @@ describe('MCP delegation through the booted composition', () => {
     expect(
       (await call(be, 'GET', '/api/projects', bearer(await upstreamToken('auth0|ada')))).status,
     ).toBe(200);
+  });
+
+  test('refuses a cookie beside the upstream token and a malformed body', async () => {
+    be = await boot();
+    await activateTwoOrganizations(be);
+    expect(
+      await requestDelegation(be, 'auth0|ada', {}, { cookie: '__Host-wbs_access=anything' }),
+    ).toEqual({ status: 401, body: { error: 'unauthenticated' } });
+    expect(await requestDelegation(be, 'auth0|ada', { scope: 'read admin' })).toEqual({
+      status: 400,
+      body: { error: 'invalid_body' },
+    });
+    expect(await requestDelegation(be, 'auth0|ada', { grant: '' })).toEqual({
+      status: 400,
+      body: { error: 'invalid_body' },
+    });
+    expect(
+      await call(be, 'POST', '/internal/mcp/authority', INTERNAL, {
+        issuer: ISSUER,
+        subject: '',
+        userId: 'u-ada',
+        organizationId: 'org-a',
+      }),
+    ).toEqual({ status: 400, body: { error: 'invalid_body' } });
   });
 
   test('refuses every route without the service secret', async () => {

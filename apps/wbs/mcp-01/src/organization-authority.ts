@@ -113,7 +113,8 @@ export function organizationAuthority(
     async organizationsFor(upstreamToken) {
       const response = await post('organizations', undefined, upstreamToken);
       const text = await response.text();
-      if (response.status === 401 && errorOf(text) !== 'unauthorized') return { kind: 'refused' };
+      // Same allow-list as the delegation route below.
+      if (response.status === 401 && isUserRefusal(errorOf(text))) return { kind: 'refused' };
       if (response.status !== 200) throw unmodeled('organizations', response.status, text);
       const listed = parsed(ORGANIZATIONS, text, 'organizations');
       return listed.state === 'pre_activation'
@@ -137,8 +138,14 @@ export function organizationAuthority(
       if (response.status === 200)
         return { kind: 'issued', token: parsed(DELEGATION, text, 'delegation').token };
       const error = errorOf(text);
-      // `unauthorized` is mcp-01's own service secret, a deployment defect.
-      if (response.status === 401 && error !== 'unauthorized') return { kind: 'upstream_rejected' };
+      // Only be-01's own verdicts on the user's token. `unauthorized` (mcp-01's
+      // service secret) and a proxy or Basic-gate 401 are deployment defects:
+      // reading them as the user's token would end every session.
+      // Proof: admitting any non-`unauthorized` 401 made `reads each modeled
+      // delegation refusal and throws on the rest` in
+      // `organization-authority.test.ts` read a Basic-gate challenge as
+      // upstream_rejected; watched 2026-10-21.
+      if (response.status === 401 && isUserRefusal(error)) return { kind: 'upstream_rejected' };
       if (response.status === 403 && (error === 'not_a_member' || error === 'binding_changed'))
         return { kind: 'membership_ended' };
       if (
@@ -194,6 +201,11 @@ export function organizationAuthority(
       };
     },
   };
+}
+
+/** be-01's two 401 codes about the presented upstream token itself. */
+function isUserRefusal(error: string | undefined): boolean {
+  return error === 'unauthenticated' || error === 'unknown_identity';
 }
 
 function errorOf(text: string): string | undefined {

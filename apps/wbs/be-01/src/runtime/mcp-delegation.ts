@@ -131,6 +131,8 @@ export function mcpDelegationAuthority(deps: {
       // nothing and issues nothing before activation` in
       // `mcp-delegation.boot.db.test.ts` answer `activated`; watched 2026-10-21.
       if (listed === 'inactive') return { kind: 'pre_activation' };
+      // Proof: dropping this made `answers delegation_inactive after activation
+      // without a key pair` list memberships; watched 2026-10-21.
       if (deps.signingKey === null) return { kind: 'inactive' };
       const memberships = [];
       for (const membership of listed) {
@@ -150,11 +152,15 @@ export function mcpDelegationAuthority(deps: {
       const verified = await verifiedUpstream(deps.authenticate, upstreamToken);
       if (verified.kind !== 'verified') return verified;
       const { principal, expiresAt, upstream } = verified;
+      // Proof: dropping this refusal failed `lists nothing and issues nothing
+      // before activation` (403 no_active_organization) and `answers
+      // delegation_inactive after activation without a key pair` (a signing
+      // TypeError) in `mcp-delegation.boot.db.test.ts`; watched 2026-10-21.
       if (deps.activationState() === 'pre_activation' || deps.signingKey === null)
         return { kind: 'inactive' };
       // Proof: dropping this comparison made `refuses a token that now maps
-      // to another account` in `mcp-delegation.boot.db.test.ts` issue a
-      // delegation for grace under ada's binding; watched 2026-10-21.
+      // to another account` in `mcp-delegation.boot.db.test.ts` issue ada a
+      // delegation under the binding grace's session claimed; watched 2026-10-21.
       if (principal.id !== request.userId) return { kind: 'binding_changed' };
       // The client's grant only narrows what the token's own account holds.
       // Proof: requesting the grant's scopes unnarrowed, and separately
@@ -173,9 +179,12 @@ export function mcpDelegationAuthority(deps: {
         delegatedPrincipal(principal, request.organizationId, request.client, request.grant),
       );
       if (!resolved.ok) return { kind: 'refused', refusal: resolved };
+      // One clock reading for this check and the signer, so a token cannot
+      // expire between them and be reported as a removed member below.
+      const issuedAt = now();
       // Proof: see `mcp-delegation.test.ts`; without this the signer refuses an
       // expired source as ineligible, read below as a removed member.
-      if (expiresAt <= now()) return { kind: 'unauthenticated' };
+      if (expiresAt <= issuedAt) return { kind: 'unauthenticated' };
       try {
         const token = await signDelegation(
           deps.signingKey,
@@ -194,7 +203,7 @@ export function mcpDelegationAuthority(deps: {
           MCP_DELEGATION_AUDIENCE,
           scopes,
           deps.isMember,
-          now,
+          () => issuedAt,
         );
         return { kind: 'issued', token };
       } catch (cause) {
@@ -207,6 +216,8 @@ export function mcpDelegationAuthority(deps: {
     },
 
     async authorityOf(request) {
+      // Proof: dropping this made `lists nothing and issues nothing before
+      // activation` admit a pre-activation membership; watched 2026-10-21.
       if (deps.activationState() === 'pre_activation') return { kind: 'denied' };
       const mapped = await deps.mappedUserOf({ issuer: request.issuer, subject: request.subject });
       // Proof: dropping this comparison made `denies a family whose upstream
@@ -221,7 +232,8 @@ export function mcpDelegationAuthority(deps: {
         request.organizationId,
       );
       // Proof: answering admitted without this membership read made `denies a
-      // removed member's family` in `mcp-delegation.boot.db.test.ts`
+      // removed member's family and refuses its next delegation` in
+      // `mcp-delegation.boot.db.test.ts`
       // answer admitted; watched 2026-10-21.
       if (read === null) return { kind: 'denied' };
       return {

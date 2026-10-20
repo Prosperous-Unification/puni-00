@@ -16,8 +16,9 @@ export interface McpRefreshAuthority {
  * Reads current membership and verified issuer-subject ownership together with current
  * proven SSO connections, policy and independently trusted grant lifecycle evidence.
  * An admitted read must echo the identity it actually verified. Missing/malformed trusted
- * state throws; only a modeled service outage returns unavailable. This port is absent
- * from production composition until binding issuance and final delegation are implemented.
+ * state throws; only a modeled service outage returns unavailable. Production composes
+ * be-01's family authority read (`organization-authority.ts`) when mcp-01 has
+ * `INTERNAL_AUTH_SECRET`.
  */
 export type McpRefreshAuthorityReader = (authority: McpRefreshAuthority) => Promise<
   | { readonly outcome: 'denied' }

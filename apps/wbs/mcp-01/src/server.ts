@@ -209,7 +209,7 @@ export function createServer(deps: ServerDeps): Server {
     } catch (firstCause) {
       let cause = firstCause;
       if (firstCause instanceof UpstreamRejected) {
-        const sessionId = extraSessionId(extra.authInfo);
+        const sessionId = sessionOfCall;
         let refreshedToken: string | null = null;
         if (sessionId !== null && refreshSession !== undefined) {
           try {
@@ -265,7 +265,7 @@ export function createServer(deps: ServerDeps): Server {
         }
       }
       if (cause instanceof DelegationRefused) {
-        const sessionId = extraSessionId(extra.authInfo);
+        const sessionId = sessionOfCall;
         if (cause.endsSession && sessionId !== null) {
           try {
             await endSession?.(sessionId);

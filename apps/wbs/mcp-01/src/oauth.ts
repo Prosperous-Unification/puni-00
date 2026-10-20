@@ -392,6 +392,9 @@ export class InMemoryMcpOAuth implements McpOAuthHandler {
   ): Promise<string> {
     if (mcpSessionId === null) return upstreamToken;
     const family = this.store.familyForSession(mcpSessionId, this.now());
+    // Proof: forwarding the upstream token for a missing session made `ends a
+    // removed member's session` in `organization-delegation.test.ts` resolve
+    // instead of rejecting with UpstreamRejected; watched 2026-10-21.
     if (family === null)
       throw new UpstreamRejected('MCP OAuth session is missing, expired, or revoked');
     // Proof: forwarding the upstream token for a bound family too (dropping the
@@ -1718,9 +1721,10 @@ function oauthError(error: string, setCookie?: string, status = 400): Response {
 
 /**
  * Distinguishes pre-cutover families from durable organization authority. Only an
- * unbound epoch-0 family belongs to this release's legacy path. Bound families
- * need an authoritative membership and credential-rule reader before use; this
- * release deliberately installs none. A future epoch is refused even with an injected reader.
+ * unbound epoch-0 family belongs to the legacy path. Bound families need an
+ * authoritative membership and credential-rule reader before use; production installs
+ * be-01's (`organization-authority.ts`) when `INTERNAL_AUTH_SECRET` is set, and without
+ * it a bound family is refused. A future epoch is refused even with an injected reader.
  */
 function readFamilyAuthority(family: FamilyRecord): 'legacy' | 'organization' | 'unsupported' {
   // Proof: 2026-10-13, removing this test let a bound epoch-1 read disclose a fresh
