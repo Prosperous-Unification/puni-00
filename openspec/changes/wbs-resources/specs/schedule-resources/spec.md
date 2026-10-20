@@ -32,8 +32,7 @@ claim and no occupancy.
 ### Requirement: Waits are explained by the resource
 
 The Gantt hover sentence and the plan's bound reads SHALL name the resource a block waited
-for, as the capacity floor sentence names a team, and a filter facet per resource SHALL
-exist.
+for, as the capacity floor sentence names a team, and a filter facet per resource is deferred to a later change (the tree read carries no demands to filter rows by).
 
 #### Scenario: Hover names the resource
 

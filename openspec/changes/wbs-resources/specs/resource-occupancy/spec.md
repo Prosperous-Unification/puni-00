@@ -13,7 +13,7 @@ resource. A second claim on another step of the same leaf SHALL acquire nothing 
 release of the last claim of a leaf SHALL free its occupancy. A subtree claim SHALL acquire
 nothing. Occupancy SHALL be readable per project and per resource at the service level; the startable read (`startable-work`) exposes free units.
 
-The two occupancy refusals SHALL be checked after `already_claimed` and before
+The three occupancy refusals SHALL be checked after `already_claimed` and before
 `inside_subtree_claim` in the claim's refusal order (`wbs-team-claims`), `below_declared_demand`
 first. An unstated capacity SHALL never refuse; a stated 0 refuses any units. A claim that
 names `resources` on a non-leaf SHALL be refused `resources_on_subtree`. A redo of a claim or

@@ -537,9 +537,10 @@ data: levelled by the engines, acquired by a claim. Not inherited down the tree.
 _Avoid_: Requirement, reservation, claim
 
 **Occupancy**:
-The units of a resource a leaf's claims hold right now, acquired whole when the first step
-of the leaf is claimed and freed when its last claim is released. Clockless; read by the
-claim path and the startable read, never by a schedule.
+The units of a resource a leaf's claims hold right now: every claim on the leaf carries a copy
+of the leaf's units, the leaf holds the largest copy, a later claim may raise it and releasing
+that claim lowers it, and the last release frees it. Clockless; read by the claim path and the
+startable read, never by a schedule.
 _Avoid_: Lease, hold, lock, allocation
 
 **Directory usage**:

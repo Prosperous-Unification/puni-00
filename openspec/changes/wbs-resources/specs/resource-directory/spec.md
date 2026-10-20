@@ -39,13 +39,24 @@ that work item, null removing it; `exclusive` resources SHALL refuse any units o
 with `exclusive_demand_is_one`. A demand SHALL move the work item's revision, be undoable
 through the journal with preconditions, be carried by the plan export and the plan document
 as an additive field, and be removed when the work item is deleted. Demands SHALL NOT be
-inherited down the tree.
+inherited down the tree. When a leaf gains its first child by `createWorkItem`, its demand moves to that child; when a delete promotes the parent back to a leaf, the child's demand moves back up; when `moveWorkItem` turns an unclaimed demanded leaf into a parent, the parent's demand is cleared with its other statements and the moved child keeps only its own; each of these is journalled and undone exactly.
 
 #### Scenario: A demand on a parent does not reach its leaves
 
 - **WHEN** a non-leaf carries a demand of 2 on a resource
 - **THEN** its leaves' effective demands are their own only, and the parent's demand charges
   nothing in the schedule or the claim path
+
+#### Scenario: A demand follows a split and a promotion
+
+- **WHEN** leaf `L` demands 4 GB, a first child `C` is created under it, and later `C` is deleted
+- **THEN** after the create `C` demands 4 GB and `L` none; after the delete `L` demands 4 GB again
+  and a claim on `L` acquires 4 GB; undo and redo of each step restore the previous state
+
+#### Scenario: A move under a demanded leaf clears its demand
+
+- **WHEN** unclaimed leaf `P` demands 4 GB and `X` is moved under it
+- **THEN** `P` carries no demand, `X` keeps its own, and undo of the move restores `P`'s 4 GB
 
 #### Scenario: Export round trip
 
