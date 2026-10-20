@@ -44,7 +44,7 @@ nothing and answer `alreadyHeld: true`.
 
 When a leaf that holds step claims gains its first child, the claims SHALL move to that child
 with the other step facts (estimates, progress, assignments), so they stay releasable, keep
-fencing, and appear in the startable read; undoing the first child SHALL move them back.
+fencing, and appear in the startable read; undoing the first child SHALL move them back. Moving an existing work item under a leaf that holds step claims SHALL be refused `destination_claimed` carrying the holders, because the moved row is other work and the claims must not change hands.
 
 #### Scenario: A whole leaf is claimed by default
 
@@ -108,6 +108,12 @@ fencing, and appear in the startable read; undoing the first child SHALL move th
 - **THEN** the claim sits on the child with the same step, `releaseWorkItem` on the child
   succeeds, a stranger's claim on the child is refused `already_claimed`, and the startable
   read lists the child under claimed steps
+
+#### Scenario: A row is moved under a claimed leaf
+
+- **WHEN** `claire` holds `Dev` of leaf `090` and `moveWorkItem` places `091` under `090`
+- **THEN** the batch is refused `destination_claimed` naming `claire`, nothing moves, and after
+  `releaseWorkItem` the same move is applied
 
 #### Scenario: A repeated claim by the holder
 
