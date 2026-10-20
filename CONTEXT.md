@@ -407,8 +407,9 @@ and there is no global number behind either. Absent is _unstated_ and constrains
 _Avoid_: team size, headcount, allocation, availability
 
 **Pool**:
-The slots one team's capacity provides on one plan, and the thing work labelled with that
-team competes for. Keyed on the work item's team, never on the assignee's memberships.
+The units one capacity provides on one plan, and the thing work competes for: a team's
+slots (keyed on the work item's team, never on the assignee's memberships) or a resource's
+units (keyed on the work item's demand).
 _Avoid_: bucket, resource pool, team capacity, queue
 
 **Slot**:
@@ -430,9 +431,10 @@ duration.
 _Avoid_: parallelism, size, slots used
 
 **Block**:
-One slice as the pool sees it — its width for its whole duration, taken indivisibly. It
-starts only where every one of its slots is free for all of it; it never starts narrow and
-widens later.
+One slice as the pools see it — its width in team slots and its demanded units in each
+resource, for its whole duration, taken indivisibly at one instant. It starts only where
+every one of its slots and units is free for all of it; it never starts narrow and widens
+later, and never takes one pool while waiting for another.
 _Avoid_: reservation, chunk, allocation
 
 **Blocking set**:
@@ -876,9 +878,10 @@ _Avoid_: ready, available, unblocked, frontier
 
 **Binding floor**:
 The one thing a slice's start is set by, out of the day the project starts, a dependency,
-its work item's earlier step, a manual date, its assignee's last finish, and its team's
-capacity. A tie is never the person and never the capacity: somebody — or some slot —
-free exactly when the dependency clears is holding nothing up.
+its work item's earlier step, a manual date, its assignee's last finish, its team's
+capacity, and a resource's capacity. A tie is never the person and never a capacity:
+somebody — or some slot or unit — free exactly when the dependency clears is holding
+nothing up.
 _Avoid_: constraint, reason, blocker, driver
 
 **Resource predecessor**:

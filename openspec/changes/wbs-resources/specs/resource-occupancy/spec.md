@@ -9,7 +9,7 @@ project SHALL cover the units, else the whole batch is refused `resources_exhaus
 carrying the resource, the units asked, the units free, and the holders (person, run, work
 item) of the occupying claims. Units asked are the declared demand, or the claim's
 `resources` entries when given, each of which MUST be ≥ the declared units for that
-resource. A second claim on another step of the same leaf SHALL acquire nothing more unless it asks for more: each asked resource MUST be at least the standing occupancy (else `below_held_occupancy`), and units above it are acquired through the same check or refused `resources_exhausted`; the claim then holds the asked units while it stands, and the leaf's occupancy is the largest standing copy. The
+resource. A second claim on another step of the same leaf SHALL acquire nothing more unless it asks for more: each asked resource MUST be at least the standing occupancy (else `below_held_occupancy`), and units above it are acquired through the same check or refused `resources_exhausted`; the claim then holds the asked units while it stands, and the leaf's occupancy is the largest standing copy. The occupancy refusals are checked after `already_claimed` and before `inside_subtree_claim`, in the order `below_declared_demand`, `below_held_occupancy`, `resources_exhausted`; `resources_on_subtree` is checked with the other subtree refusals before `item_done`. The
 release of the last claim of a leaf SHALL free its occupancy. A subtree claim SHALL acquire
 nothing. Occupancy SHALL be readable per project and per resource at the service level; the startable read (`startable-work`) exposes free units.
 
