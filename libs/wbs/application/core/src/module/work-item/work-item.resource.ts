@@ -3568,6 +3568,7 @@ export class WorkItemService {
   private async refuseReacquiring(
     projectId: string,
     command: { claims: readonly Claim[]; occupancy?: readonly ClaimOccupancy[] },
+    access: ResourceAccess,
   ): Promise<string | null> {
     const asked = command.occupancy ?? [];
     if (asked.length === 0) return null;
@@ -3606,9 +3607,16 @@ export class WorkItemService {
         }
         continue;
       }
-      const resource = (await this.opts.directory.listResources()).find(
-        (each) => each.id === exhausted.resourceId,
-      );
+      // Named as the caller's directory names it, as {@link resourcesWithin}
+      // does: under scoped access the root catalog holds the opaque id.
+      // Proof: with the root catalog read here, `names the organization's
+      // resource in a refused undo's detail` (resource-organization.controller.db.test.ts)
+      // read the opaque id; watched 2026-10-20.
+      const catalog =
+        access.kind === 'scoped'
+          ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
+          : await this.opts.directory.listResources();
+      const resource = catalog.find((each) => each.id === exhausted.resourceId);
       if (resource === undefined)
         throw new Error(`a stated capacity names absent resource ${exhausted.resourceId}`);
       const label = resource.unitLabel === '' ? '' : ` ${resource.unitLabel}`;
@@ -6734,7 +6742,7 @@ export class WorkItemService {
     // undo is not itself journalled — so this stamp is spent only on the rows
     // {@link apply} rewrites.
     const stamp = this.clock.stampFor(actorId);
-    const applied = await this.apply(projectId, command, stamp);
+    const applied = await this.apply(projectId, command, stamp, access);
     if (!applied.ok) {
       await this.opts.journal.discard(entry.id);
       return { ok: false, reason: 'stale_undo', detail: applied.detail, entryId: entry.id };
@@ -6994,6 +7002,9 @@ export class WorkItemService {
     projectId: string,
     command: CompensatingCommand,
     stamp: WriteStamp,
+    // The replay's access, which names what a refusal detail shows; absent on
+    // a forward write, which never puts claims back.
+    access?: ResourceAccess,
   ): Promise<ApplyOutcome> {
     switch (command.do) {
       case 'patch': {
@@ -7214,7 +7225,9 @@ export class WorkItemService {
         for (const personId of new Set(command.claims.map((each) => each.personId)))
           if (!(await this.holdsPerson(personId)))
             return { ok: false, detail: 'a person who held it is no longer in the directory.' };
-        const exhausted = await this.refuseReacquiring(projectId, command);
+        if (access === undefined)
+          throw new Error('claims are put back only by a replay, which names its access');
+        const exhausted = await this.refuseReacquiring(projectId, command, access);
         if (exhausted !== null) return { ok: false, detail: exhausted };
         const added = await claims.add(
           command.claims,
@@ -7464,7 +7477,7 @@ export class WorkItemService {
         // The batch's own stamp, passed down rather than one per step: undoing a
         // batch is one act, exactly as running it was one request.
         for (const step of command.steps) {
-          const applied = await this.apply(projectId, step, stamp);
+          const applied = await this.apply(projectId, step, stamp, access);
           if (!applied.ok) return applied;
         }
         return { ok: true, detail: null };

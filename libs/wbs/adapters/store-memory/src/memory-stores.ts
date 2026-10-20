@@ -361,15 +361,45 @@ export function bindStores(
         return removed.reason === 'in_use'
           ? { ...removed, usage: { ...removed.usage, rows, occupancies } }
           : removed;
+      // Read before the cascade takes the occupancy: a project whose only link
+      // is a standing claim's units is told too.
+      // Proof: with this left out, `refuses deleting a resource a claim holds,
+      // counting it, and cascades on confirmation` (resource-occupancy.db.test.ts)
+      // announced no project on memory; watched 2026-10-20.
+      const occupying = occupyingProjectsOf(resourceId);
       cascadeOccupancy(state.tables.claims, resourceId);
       return {
         ok: true,
         removal: {
           ...removed.removal,
-          projectIds: [...new Set([...removed.removal.projectIds, ...projectIds])].sort(),
+          projectIds: [
+            ...new Set([...removed.removal.projectIds, ...projectIds, ...occupying]),
+          ].sort(),
         },
       };
     },
+  };
+  /** The projects whose claims hold units of the resource. */
+  const occupyingProjectsOf = (resourceId: string): string[] => {
+    const projectOfClaim = new Map(
+      state.tables.claims.rows.map(({ id, workItemId }) => {
+        const projectId = state.tables.workItems.byId.get(workItemId)?.projectId;
+        if (projectId === undefined)
+          throw new Error(`claim ${id} names absent work item ${workItemId}`);
+        return [id, projectId] as const;
+      }),
+    );
+    return [
+      ...new Set(
+        state.tables.claims.occupancy
+          .filter((row) => row.resourceId === resourceId)
+          .map(({ claimId }) => {
+            const projectId = projectOfClaim.get(claimId);
+            if (projectId === undefined) throw new Error(`occupancy names absent claim ${claimId}`);
+            return projectId;
+          }),
+      ),
+    ];
   };
   /** How many leaves hold units of the resource through their claims. */
   const occupyingLeavesOf = (resourceId: string): number => {

@@ -161,6 +161,7 @@ async function seeded(store: (typeof STORES)[number]) {
   };
   return {
     source,
+    broadcast: options.broadcast,
     graph,
     runner,
     projectId,
@@ -356,6 +357,37 @@ for (const store of STORES) {
           reason: 'resources_exhausted',
           detail: { resourceId: RAM, asked: 3, free: 2 },
         });
+      } finally {
+        await close();
+      }
+    });
+
+    it('assigns the claimant and holds the asked units when a claim names both assign and resources', async () => {
+      const { source, run, claim, dev, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 2 },
+        ]);
+        expect(
+          await run([
+            claim(0, 'a0', {
+              steps: [dev],
+              assign: true,
+              resources: [{ resourceId: RAM, units: 6 }],
+            }),
+          ]),
+        ).toMatchObject({
+          ok: true,
+          results: [{ kind: 'claimWorkItem', acquired: [{ resourceId: RAM, units: 6 }] }],
+        });
+        expect(await occupied(RAM)).toBe(6);
+        expect(
+          (await source.stores.directory.assignmentsFor(leaf(0))).map(({ stepId, personId }) => ({
+            stepId,
+            personId,
+          })),
+        ).toEqual([{ stepId: dev, personId: 'a0' }]);
       } finally {
         await close();
       }
@@ -650,7 +682,7 @@ for (const store of STORES) {
     });
 
     it('refuses deleting a resource a claim holds, counting it, and cascades on confirmation', async () => {
-      const { runner, run, claim, occupied, close } = await seeded(store);
+      const { broadcast, projectId, runner, run, claim, occupied, close } = await seeded(store);
       try {
         await run([claim(0, 'a0', { resources: [{ resourceId: WORKTREE, units: 1 }] })]);
         expect(
@@ -661,12 +693,17 @@ for (const store of STORES) {
           detail: { counts: { demands: 0, capacities: 0, occupancies: 1 } },
         });
         expect(await occupied(WORKTREE)).toBe(1);
+        const announced = broadcast.published.length;
         expect(
           await runner.runDirectory(F, [
             { kind: 'deleteResource', resourceId: WORKTREE, cascade: true },
           ]),
         ).toMatchObject({ ok: true });
         expect(await occupied(WORKTREE)).toBe(0);
+        // Its only link to the project was the occupancy, and still it is told.
+        expect(broadcast.published.slice(announced).map((each) => each.projectId)).toEqual([
+          projectId,
+        ]);
       } finally {
         await close();
       }
