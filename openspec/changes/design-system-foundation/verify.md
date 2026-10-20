@@ -1,16 +1,32 @@
 # Verification
 
-Not started. The intent, specs, design and tasks were drafted on 2026-10-20 and reshaped on 2026-10-21 (core plus numbered kits) in worktree `wt-design-system` from `main` a1a33b2cc. Slices 5 and 6 are recorded below.
-
-## Failure-proof table
-
-| Check   | Fault injected | Test that observed it | Result |
-| ------- | -------------- | --------------------- | ------ |
-| pending |                |                       |        |
+Drafted 2026-10-20, reshaped 2026-10-21 (core plus numbered kits), implemented 2026-10-21 in worktree `wt-design-system` on `feat/design-system-foundation` from `main` a1a33b2cc, merged with `main` f0cc432d7 before the gate. Slices 1 to 4 were run by the planning session; slices 5 to 10 by two Opus workers; every section below names its commands and the fault each check was watched failing under.
 
 ## Gate
 
-pending
+See the last section. The h2puni gate ran on the merged head under the host-wide heavy lock.
+
+## Slices 1 to 4
+
+Run 2026-10-21, every command with `env -u CLAUDECODE NX_DAEMON=false NX_ISOLATE_PLUGINS=false`.
+
+| Command                                                                                                                                                                                                                                | Result                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `bunx nx run-many -t typecheck lint test -p shared-ui-core-01 --skip-nx-cache` (slices 1 to 3)                                                                                                                                         | pass; core `bun test` 13 pass 0 fail after slice 3 |
+| `bunx nx run-many -t typecheck lint test -p shared-ui-core-01,shared-ui-saas-01 --skip-nx-cache` (slice 4)                                                                                                                             | pass; kit `bun test` 6 pass 0 fail                 |
+| `bun test src/namespace-layout.test.ts src/workspace-projects.test.ts src/product-constraints.test.ts src/lint-policy-cache.test.ts src/toolchain-pins.test.ts src/workspace-targets.test.ts --timeout=120000` in `tools/tool-devsync` | 95 pass 0 fail                                     |
+| `bun test src/eslint-boundaries.test.ts -t "product lint policy                                                                                                                                                                        | UI kit"`in`tools/tool-devsync`                     | 8 pass 0 fail (the new UI-kit case and the seven policy-discovery cases) |
+| `openspec validate design-system-foundation --json` (1.14.3)                                                                                                                                                                           | valid, no warnings                                 |
+
+| Check                                  | Fault injected                                                                                | Test that observed it                                                                                                                  | Result                                                                                                                                                                                             |
+| -------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| kit boundary, product fence            | core tagged `product:wbs` and the Nx graph refreshed with `nx show project shared-ui-core-01` | `eslint-boundaries.test.ts` `a UI kit reaches shared browser code and nothing of a product or of Bun`                                  | failed on `@wbs/domain`: `Expected to contain: "@nx/enforce-module-boundaries"`. With the tag edited but the graph not refreshed the case stayed green: the in-process lint reads the cached graph |
+| product oracle                         | the new root absent from `EXPECTED_PRODUCT_PROJECTS`                                          | `workspace-projects.test.ts` `pins every product root and qualified Nx identity in the destination map`, `activates the product axis…` | failed on the extra `["libs/shared/adapters/ui-core-01", "shared-ui-core-01"]` tuple (and the product-tag twin)                                                                                    |
+| vocabulary assigns no value            | `--color-background: oklch(1 0 0)` in `@theme inline`                                         | `vocabulary.test.ts` `assigns no value: every theme key is a var() reference`, `names exactly the tokens a kit must assign`            | both failed; received `["--color-background: oklch(1 0 0)"]` and a token list missing `--background`                                                                                               |
+| core has no component                  | an empty `src/probe.tsx`                                                                      | `surface.test.ts` `carries no component: no .tsx file under src`                                                                       | failed: received `["probe.tsx"]`                                                                                                                                                                   |
+| fonts ship with their documented bytes | `Geist-variable.ttf` truncated by one byte                                                    | `brand.test.ts` `ships every font with its OFL notice and the documented digest`                                                       | failed: `Expected: "73894e04…" Received: "27501768…"`                                                                                                                                              |
+| core spec names every kit              | the `@ui/saas-01` row deleted from core `DESIGN.md`                                           | `design-spec.test.ts` `names every kit beside it`                                                                                      | failed: received `["@ui/saas-01"]`                                                                                                                                                                 |
+| dark palette parity                    | `--ring` deleted from the kit's `.dark`                                                       | kit `theme.test.ts` `re-points every colour token in the dark palette`                                                                 | failed: received `["--ring"]`                                                                                                                                                                      |
 
 ## Slices 5 and 6
 
