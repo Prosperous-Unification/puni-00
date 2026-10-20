@@ -219,7 +219,7 @@ export function askedUnitsOf(
  * the write coordinator orders two claims and the second reads the first's units.
  *
  * Proof: with the comparison answering null, `refuses the ninth of eight 4 GB
- * claims on 32 GB` (claim.test.ts) claimed, and `admits one of two concurrent
+ * claims on 32 GB` (claim-occupancy.test.ts) claimed, and `admits one of two concurrent
  * claims over capacity, the other refused resources_exhausted`
  * (claim-occupancy-race.db.test.ts) stored both claims, over 6 GB; watched 2026-10-20.
  */

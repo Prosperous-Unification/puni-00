@@ -161,6 +161,7 @@ async function seeded(store: (typeof STORES)[number]) {
   };
   return {
     source,
+    broadcast: options.broadcast,
     graph,
     runner,
     projectId,
@@ -361,6 +362,37 @@ for (const store of STORES) {
       }
     });
 
+    it('assigns the claimant and holds the asked units when a claim names both assign and resources', async () => {
+      const { source, run, claim, dev, leaf, occupied, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 2 },
+        ]);
+        expect(
+          await run([
+            claim(0, 'a0', {
+              steps: [dev],
+              assign: true,
+              resources: [{ resourceId: RAM, units: 6 }],
+            }),
+          ]),
+        ).toMatchObject({
+          ok: true,
+          results: [{ kind: 'claimWorkItem', acquired: [{ resourceId: RAM, units: 6 }] }],
+        });
+        expect(await occupied(RAM)).toBe(6);
+        expect(
+          (await source.stores.directory.assignmentsFor(leaf(0))).map(({ stepId, personId }) => ({
+            stepId,
+            personId,
+          })),
+        ).toEqual([{ stepId: dev, personId: 'a0' }]);
+      } finally {
+        await close();
+      }
+    });
+
     it('refuses resources naming an absent resource, or more than one unit of an exclusive one', async () => {
       const { source, run, claim, occupied, close } = await seeded(store);
       try {
@@ -533,8 +565,127 @@ for (const store of STORES) {
       }
     });
 
+    it('hands the last child’s demand back up when its delete promotes the parent, and back on undo', async () => {
+      const { graph, source, runner, projectId, run, claim, leaf, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+        ]);
+        const split = await run([
+          { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
+        ]);
+        if (!split.ok) throw new Error(`the split was refused: ${JSON.stringify(split)}`);
+        const child = split.results[0]?.id;
+        if (child === undefined) throw new Error('the split created no child');
+        const demands = async () =>
+          (await graph.workItems.demandsOf(projectId)).map(({ workItemId, resourceId, units }) => ({
+            owner: workItemId === leaf(0) ? 'L' : workItemId === child ? 'C' : workItemId,
+            resourceId,
+            units,
+          }));
+        expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
+        expect(await run([{ kind: 'deleteWorkItem', workItemId: child }])).toMatchObject({
+          ok: true,
+        });
+        expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
+        expect(await source.stores.demands.listByProject(projectId)).toHaveLength(1);
+        expect(await run([claim(0, 'a0')])).toMatchObject({
+          ok: true,
+          results: [{ kind: 'claimWorkItem', acquired: [{ resourceId: RAM, units: 4 }] }],
+        });
+      } finally {
+        await close();
+      }
+    });
+
+    it('hands up the largest units any former leaf of a deleted last branch demanded', async () => {
+      const { graph, runner, projectId, run, leaf, close } = await seeded(store);
+      try {
+        const tree = await run([
+          { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: leaf(0), afterId: null },
+          {
+            kind: 'createWorkItem',
+            ref: 'X',
+            name: 'X',
+            parentId: null,
+            parentRef: 'B',
+            afterId: null,
+          },
+          {
+            kind: 'createWorkItem',
+            ref: 'Y',
+            name: 'Y',
+            parentId: null,
+            parentRef: 'B',
+            afterId: null,
+          },
+          { kind: 'setDemand', workItemRef: 'X', resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemRef: 'Y', resourceId: RAM, units: 6 },
+          { kind: 'setDemand', workItemRef: 'Y', resourceId: WORKTREE, units: 1 },
+          // Stated on the parent while it was one, so it charged nothing.
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 2 },
+        ]);
+        if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
+        const branchId = tree.results[0]?.id;
+        if (branchId === undefined) throw new Error('no branch');
+        const onParent = async () =>
+          (await graph.workItems.demandsOf(projectId))
+            .filter(({ workItemId }) => workItemId === leaf(0))
+            .map(({ resourceId, units }) => ({ resourceId, units }));
+        expect(
+          await run([{ kind: 'deleteWorkItem', workItemId: branchId, strategy: 'cascade' }]),
+        ).toMatchObject({ ok: true });
+        expect(await onParent()).toEqual([
+          { resourceId: RAM, units: 6 },
+          { resourceId: WORKTREE, units: 1 },
+        ]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await onParent()).toEqual([{ resourceId: RAM, units: 2 }]);
+      } finally {
+        await close();
+      }
+    });
+
+    it('clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo', async () => {
+      const { graph, runner, projectId, run, leaf, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
+        ]);
+        const demands = async () =>
+          (await graph.workItems.demandsOf(projectId))
+            .map(({ workItemId, units }) => ({
+              owner: workItemId === leaf(0) ? 'P' : workItemId === leaf(1) ? 'X' : workItemId,
+              units,
+            }))
+            // Ordered by work item id, which is random: sorted by role instead.
+            .sort((left, right) => left.owner.localeCompare(right.owner));
+        expect(
+          await run([
+            { kind: 'moveWorkItem', workItemId: leaf(1), parentId: leaf(0), afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'X', units: 2 }]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([
+          { owner: 'P', units: 4 },
+          { owner: 'X', units: 2 },
+        ]);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'X', units: 2 }]);
+      } finally {
+        await close();
+      }
+    });
+
     it('refuses deleting a resource a claim holds, counting it, and cascades on confirmation', async () => {
-      const { runner, run, claim, occupied, close } = await seeded(store);
+      const { broadcast, projectId, runner, run, claim, occupied, close } = await seeded(store);
       try {
         await run([claim(0, 'a0', { resources: [{ resourceId: WORKTREE, units: 1 }] })]);
         expect(
@@ -545,12 +696,17 @@ for (const store of STORES) {
           detail: { counts: { demands: 0, capacities: 0, occupancies: 1 } },
         });
         expect(await occupied(WORKTREE)).toBe(1);
+        const announced = broadcast.published.length;
         expect(
           await runner.runDirectory(F, [
             { kind: 'deleteResource', resourceId: WORKTREE, cascade: true },
           ]),
         ).toMatchObject({ ok: true });
         expect(await occupied(WORKTREE)).toBe(0);
+        // Its only link to the project was the occupancy, and still it is told.
+        expect(broadcast.published.slice(announced).map((each) => each.projectId)).toEqual([
+          projectId,
+        ]);
       } finally {
         await close();
       }

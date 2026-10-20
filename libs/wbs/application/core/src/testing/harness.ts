@@ -112,14 +112,27 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
   // Proof: with this cascade removed, `takes a removed row's demands, so a row
   // put back without them reads none` (harness.test.ts) read the demand back
   // after the reinsert; watched 2026-10-20.
-  const workItems: typeof rowsOnlyWorkItems = {
-    ...rowsOnlyWorkItems,
-    async remove(ids, promoted, stamp) {
-      await rowsOnlyWorkItems.remove(ids, promoted, stamp);
-      const removed = new Set(ids);
-      cascadeDemands(resourceTables, (workItemId) => removed.has(workItemId));
-    },
+  //
+  // A proxy, not a spread: an overriding store may be a class instance (the
+  // SQLite `WorkItemRepository` the scope tests pass), whose reads live on its
+  // prototype, which a spread drops.
+  // Proof: with the spread, the six scope tests in `assignment-scope`,
+  // `startable-scope` and `person-work-scope.db.test.ts` threw
+  // `this.opts.workItems.listByProject is not a function`; watched 2026-10-20.
+  const removeCascading: typeof rowsOnlyWorkItems.remove = async (ids, promoted, stamp) => {
+    await rowsOnlyWorkItems.remove(ids, promoted, stamp);
+    const removed = new Set(ids);
+    cascadeDemands(resourceTables, (workItemId) => removed.has(workItemId));
   };
+  const workItems = new Proxy(rowsOnlyWorkItems, {
+    get(target, key) {
+      if (key === 'remove') return removeCascading;
+      const member: unknown = Reflect.get(target, key);
+      if (typeof member !== 'function') return member;
+      const bound: unknown = member.bind(target);
+      return bound;
+    },
+  });
   const estimates = overrides.estimates ?? inMemoryEstimates(workItems);
   const actuals = overrides.actuals ?? inMemoryActuals(workItems);
   const measures = overrides.measures ?? inMemoryMeasures(workItems);

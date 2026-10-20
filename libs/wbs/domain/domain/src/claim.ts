@@ -230,11 +230,14 @@ function refuseIdentity(
  * fires for descendants.
  *
  * Occupancy (`wbs-resources` R3, R4) comes after `already_claimed` and before
- * `inside_subtree_claim`: `below_declared_demand` when `resources` asks less
- * than the leaf declares, then `resources_exhausted` from
- * {@link refuseOccupancy}. Only a leaf's first claim acquires; a claim on a
- * leaf some claim already holds copies the standing occupancy and acquires
- * nothing, whatever `resources` asks beyond it.
+ * `inside_subtree_claim`, in this order: `below_declared_demand` when
+ * `resources` asks less than the leaf declares, `below_held_occupancy` when it
+ * asks less than the leaf's standing occupancy, then `resources_exhausted` from
+ * {@link refuseOccupancy}. A leaf's first claim acquires its whole vector. A
+ * claim on a leaf some claim already holds copies the standing occupancy and
+ * acquires nothing more unless `resources` asks more: the units above the
+ * standing copy are acquired through the same check, or the claim is refused
+ * `resources_exhausted`; the leaf then holds its largest standing copy.
  *
  * Beyond the spec's list: steps named on a non-leaf answer `steps_on_subtree`
  * (a subtree claim has no step), `resources` named on a non-leaf answer

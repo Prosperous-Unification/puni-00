@@ -932,6 +932,18 @@ export class DirectoryRepository implements DirectoryStore {
         if (!cascade && inUse) return { ok: false, reason: 'in_use', usage };
         const demanded = [...new Set(usage.demands.map((each) => each.workItemId))];
         bumpWorkItems(tx, demanded, stamp);
+        // Read before the delete cascades the occupancy away: a project whose
+        // only link is a standing claim's units is told too.
+        // Proof: with this left out, `refuses deleting a resource a claim holds,
+        // counting it, and cascades on confirmation` (resource-occupancy.db.test.ts)
+        // announced no project on SQLite; watched 2026-10-20.
+        const occupying = tx
+          .selectDistinct({ projectId: workItem.projectId })
+          .from(claimOccupancy)
+          .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+          .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+          .where(eq(claimOccupancy.resourceId, resourceId))
+          .all();
         const removed = tx
           .delete(resource)
           .where(eq(resource.id, resourceId))
@@ -946,6 +958,7 @@ export class DirectoryRepository implements DirectoryStore {
               ...new Set([
                 ...usage.rows.projects.map((each) => each.id),
                 ...usage.capacities.map((each) => each.projectId),
+                ...occupying.map((each) => each.projectId),
               ]),
             ].sort(),
           },

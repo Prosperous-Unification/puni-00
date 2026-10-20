@@ -250,6 +250,53 @@ describe('resources in an organization', () => {
     },
   );
 
+  it('names the organization’s resource in a refused undo’s detail', async () => {
+    h.member('org-a', 'nell', 'member');
+    h.bind('nell', 'org-a');
+    const ram = await declare('ada', 'h2puni ram');
+    h.sqlite.run(
+      "INSERT INTO work_item (id, project_id, parent_id, position, name) VALUES ('w-b', ?, NULL, 1, 'Test')",
+      [own],
+    );
+    for (const [id, username] of [
+      ['agent-a', 'ada'],
+      ['agent-n', 'nell'],
+    ] as const) {
+      h.sqlite.run('INSERT INTO person (id, name, kind, account_id) VALUES (?, ?, ?, ?)', [
+        id,
+        `root-${id}`,
+        'agent',
+        h.userId(username),
+      ]);
+      h.sqlite.run(
+        'INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, ?, ?)',
+        [id, 'org-a', id],
+      );
+    }
+    const batch = (username: string, commands: unknown[]) =>
+      h.call(username, 'POST', `/api/projects/${own}/commands`, { commands });
+    expect(
+      await batch('ada', [
+        { kind: 'setResourceCapacity', resourceId: ram, units: 4 },
+        { kind: 'setDemand', workItemId: 'w-a', resourceId: ram, units: 4 },
+        { kind: 'setDemand', workItemId: 'w-b', resourceId: ram, units: 4 },
+      ]),
+    ).toMatchObject({ status: 200 });
+    for (const command of [
+      { kind: 'claimWorkItem', workItemId: 'w-a', personId: 'agent-a' },
+      { kind: 'releaseWorkItem', workItemId: 'w-a', personId: 'agent-a' },
+    ])
+      expect(await batch('ada', [command])).toMatchObject({ status: 200 });
+    expect(
+      await batch('nell', [{ kind: 'claimWorkItem', workItemId: 'w-b', personId: 'agent-n' }]),
+    ).toMatchObject({ status: 200 });
+    const undone = await h.call('ada', 'POST', `/api/projects/${own}/undo`);
+    expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+    const { detail } = undone.body as { detail: string };
+    expect(detail).toBe('resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.');
+    expect(detail).not.toContain(ram);
+  });
+
   it('refuses an unbound session and a stranger alike', async () => {
     expect(await h.call('ada', 'GET', `/api/projects/${foreign}/resources`)).toEqual({
       status: 404,

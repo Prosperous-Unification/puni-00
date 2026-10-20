@@ -758,3 +758,78 @@ mcp-01 423, five store-sqlite files 142, eight be-01 files 242; 0 fail everywher
 gantt-panel, gantt-panel-fill, plan-chart-seam, plan-table, wbs-api, plan-refresh,
 project-page, attempt-actions): 808 pass. `bunx nx run wbs-solver-py:test` with the
 worktree venv on PATH: Ran 259 tests, OK.
+
+## Whole-change follow-ups
+
+Branch `feat/wbs-resources-followups` (worktree `/home/df/wd/puni/wt-resources-followups`), on
+`plan/wbs-resources` 2ccaafe65. Closes the whole-change review's S2 to S4 findings and the
+h2puni gate's six store-sqlite failures on fb4442286.
+
+### What shipped, and the decisions it had to make
+
+- **S2 promotion.** A delete that makes the parent a leaf again hands the demands up with the
+  estimate totals, as `set_demand` steps after the `delete_subtree` (forward) and before the
+  `restore_subtree` (inverse, writing the parent's previous value back). **Assumed:** from a
+  deleted branch, per resource the **largest** units any former leaf demanded, not the sum: a
+  leaf's demand is held while one of its steps runs, the leaves need not run at once, and an
+  `exclusive` resource stays at its one unit. The handed-up value replaces what the parent
+  stated while it was a parent (that charged nothing). The spec sentence carries both.
+- **S2 move.** When `moveWorkItem` turns an unclaimed leaf into a parent, the destination's
+  demands are cleared before the store move, with its progress and blockages, as `set_demand
+… null` steps in the move's journal entry; the inverse puts them back after the move back.
+  The moved row keeps its own demands and never inherits the parent's. `destination_claimed`
+  is unchanged. Not done: a move that takes a parent's **last** child away does not hand the
+  child's demand up (progress is not handed up on a move either; the brief named the
+  destination only).
+- **S3 scoped detail.** `refuseReacquiring` names the exhausting resource from the caller's
+  directory: the replay's access now reaches `apply` (an optional parameter the forward writes
+  leave absent; `add_claims` throws without it), and scoped access reads
+  `listInOrganization('resources', …)`, as `resourcesWithin` does.
+- **S3 JSDoc.** `decideClaim`'s occupancy paragraph states `below_held_occupancy` and the
+  raise-or-refuse rule of a later claim.
+- **S4.** `refuseOccupancy`'s Proof names `claim-occupancy.test.ts`; one case combines
+  `assign: true` with `resources`; `deleteResource` with `cascade` announces the projects
+  whose only link is standing occupancy (both stores read them before the cascade); the
+  runbook's "Team claims swap window and rollback" names the plan-document v10/v9 behaviour:
+  the outgoing be-01 refuses a v10 file with 400 `unsupported_version` at `document.version`.
+- **Gate failure (fb4442286).** Not a production regression: the core harness
+  (`inMemoryServices`) wrapped an overriding `workItems` store in an object spread to cascade
+  demands, which drops a class instance's prototype methods, so the three scope tests passing
+  SQLite's `WorkItemRepository` lost `listByProject` and `findById`. The wrapper is now a
+  proxy that binds the instance's own members. No read gained a whole-project scan: the scope
+  assertions are unchanged and pass.
+
+### Commands and results (fresh, after the last edit)
+
+All with `env -u CLAUDECODE`, explicit `./` paths; no full suites and no h2puni gate.
+
+| Command                                                                                                                                                                                                                                                                         | Result                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `bun test ./libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts` (memory and SQLite), five runs                                                                                                                                                                    | 60 pass, 0 fail each        |
+| `bun test` over 13 store-sqlite files (resource-occupancy, the three scope files, claim, both races, directory, resource, organization-bridge, organization-ownership, work-item, step-parallel-conformance)                                                                    | 237 pass, 0 fail            |
+| `bun test` over the 11 store-memory test files                                                                                                                                                                                                                                  | 112 pass, 0 fail            |
+| `bun test` over core `module/work-item`, `module/plan-commands`, `module/plan-document`, `module/directory`, `service`, `testing`                                                                                                                                               | 912 pass, 0 fail (60 files) |
+| `bun test ./libs/wbs/application/conformance`                                                                                                                                                                                                                                   | 35 pass, 0 fail             |
+| `bun test` over domain `claim.test.ts`, `claim-occupancy.test.ts`                                                                                                                                                                                                               | 74 pass, 0 fail             |
+| `bun test` over 12 be-01 controller files (resource-organization, claim-identity, command-organization, directory-command-organization, import-export-organization, move/delete-step-parallel, person-work-organization, resource-schedule, startable-organization, step, undo) | 236 pass, 0 fail            |
+| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                                                                                                                                                                                                            | 15 pass, 0 fail             |
+| `bunx tsc -p <lib and spec> --noEmit` for core, store-memory, store-sqlite, conformance, be-01, domain                                                                                                                                                                          | exit 0 (12 configs)         |
+| `bunx nx run wbs-solver-py:setup-local-solver`, then `PATH=.venv-solver/bin:$PATH bunx nx run wbs-solver-py:test` on this head                                                                                                                                                  | Ran 259 tests, OK           |
+| `bunx @fission-ai/openspec@1.12.0 validate wbs-resources --json`                                                                                                                                                                                                                | 1 passed, 0 failed          |
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Check                                           | Fault injected                        | Failing test (both stores unless named)                                                                            |
+| ----------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| promotion writes the demand up                  | write loop skipped                    | `hands the last child’s demand back up when its delete promotes the parent, and back on undo` (none on the parent) |
+| promotion's forward step                        | `set_demand` steps left out           | the same test, after the redo                                                                                      |
+| promotion's inverse step                        | clearing steps left out               | the same test, after the undo (demand on both rows)                                                                |
+| largest, not sum                                | units summed                          | `hands up the largest units any former leaf of a deleted last branch demanded` (10 where 6)                        |
+| the parent's previous value on undo             | `previous` written as null            | the same test's undo                                                                                               |
+| move clears the destination's demand            | clear skipped                         | `clears the demand of an unclaimed leaf another row moves under…`                                                  |
+| move's forward step                             | left out                              | the same test, after the redo                                                                                      |
+| move's inverse step                             | left out                              | the same test, after the undo                                                                                      |
+| scoped name in `stale_undo` detail              | root catalog read under scoped access | `names the organization’s resource in a refused undo’s detail` (be-01; read the opaque id)                         |
+| occupancy-only projects announced on cascade    | absent (before the change)            | `refuses deleting a resource a claim holds, counting it, and cascades on confirmation` (announced `[]`)            |
+| harness keeps prototype reads                   | the object spread                     | the six scope tests (`listByProject is not a function`)                                                            |
+| harness cascade still reached through the proxy | `remove` not intercepted              | `takes a removed row’s demands, so a row put back without them reads none` (harness.test.ts)                       |
