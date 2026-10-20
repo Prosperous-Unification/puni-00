@@ -178,7 +178,14 @@ export class CommandContext {
       return this.refuse({ reason: 'taken', detail: { name: outcome.name } });
     }
     if (outcome.reason === 'in_use') {
-      return this.refuse({ reason: 'in_use', detail: { usage: outcome.usage } });
+      // Proof: with the counts dropped here, `refuses removing a demanded resource,
+      // naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)
+      // received no counts; watched 2026-10-20.
+      return this.refuse(
+        'counts' in outcome
+          ? { reason: 'in_use', detail: { usage: outcome.usage, counts: outcome.counts } }
+          : { reason: 'in_use', detail: { usage: outcome.usage } },
+      );
     }
     if (outcome.reason === 'deadline_before_project_start') {
       // Proof: deleting this guard threw Malformed deadline refusal resolved in the runner negative.
@@ -604,6 +611,28 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
       );
       return { ...context.plain(), kind: command.kind };
     },
+    setResourceCapacity: async (command, context) => {
+      context.value(
+        await capacity.setForResource(
+          context.requireProjectId(),
+          context.actorId,
+          context.required(command.resourceId, command.resourceRef),
+          command.units,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
+    setDemand: async (command, context) => {
+      context.value(
+        await workItems.setDemand(
+          context.required(command.workItemId, command.workItemRef),
+          context.actorId,
+          context.required(command.resourceId, command.resourceRef),
+          command.units,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
     setStepAllowance: async (command, context) => {
       context.value(
         await workItems.setStepAllowance(
@@ -751,6 +780,39 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
         (id, actorId, cascade) =>
           directory.removeWithin('services', id, actorId, cascade, context.access),
       ),
+    createResource: async (command, context) => {
+      context.assertRefAvailable(command.ref);
+      const resource = context.value(
+        await directory.addResourceWithin(
+          context.actorId,
+          { name: command.name, kind: command.resourceKind, unitLabel: command.unitLabel },
+          context.access,
+        ),
+      );
+      return { ...context.mint(command.ref, resource.id), kind: command.kind, entity: resource };
+    },
+    patchResource: async (command, context) => {
+      const resource = context.value(
+        await directory.patchResourceWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.patch,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind, entity: resource };
+    },
+    deleteResource: async (command, context) => {
+      context.accept(
+        await directory.removeResourceWithin(
+          context.required(command.resourceId, command.resourceRef),
+          context.actorId,
+          command.cascade ?? false,
+          context.access,
+        ),
+      );
+      return { ...context.plain(), kind: command.kind };
+    },
   };
 }
 

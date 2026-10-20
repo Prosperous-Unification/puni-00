@@ -19,6 +19,7 @@ const effect = type({ kind: "'assignment_dropped'", step: named })
   .or({ kind: "'label_nulled'" })
   .or({ kind: "'label_removed'" })
   .or({ kind: "'capacity_released'", size: 'number', fromId: 'string' })
+  .or({ kind: "'demand_removed'", units: 'number' })
   .or({
     kind: "'assumed_assignee_changed'",
     assumedNow: 'string | null',
@@ -52,9 +53,11 @@ const appliedResults = type({
     'entity?': {
       id: 'string',
       name: 'string',
-      'kind?': "'person' | 'agent'",
+      // A person's kind, or a resource's (`createResource`, `patchResource`).
+      'kind?': "'person' | 'agent' | 'exclusive' | 'divisible'",
       'serviceIds?': 'string[]',
       'teamIds?': 'string[]',
+      'unitLabel?': 'string',
     },
     // A `claimWorkItem` result: whether it wrote nothing, and the claims holding the steps.
     'alreadyHeld?': 'boolean',
@@ -152,6 +155,7 @@ const batchRefusals = [
         type({ ...context, error: "'unknown_service'" }),
         type({ ...context, error: "'unknown_type'" }),
         type({ ...context, error: "'unknown_system'" }),
+        type({ ...context, error: "'unknown_resource'" }),
         type({ ...context, error: "'unknown_attempt'" }),
       ),
     ),
@@ -206,7 +210,18 @@ const batchRefusals = [
     ),
   },
   { status: 409, schema: responseSchema(type({ ...context, error: "'taken'", name: 'string' })) },
-  { status: 409, schema: responseSchema(type({ ...context, error: "'in_use'", usage })) },
+  {
+    status: 409,
+    schema: responseSchema(
+      type({
+        ...context,
+        error: "'in_use'",
+        usage,
+        // Present on a resource removal (`wbs-resources` R8), absent on every other.
+        'counts?': { demands: 'number', capacities: 'number', occupancies: 'number' },
+      }),
+    ),
+  },
   {
     status: 409,
     schema: responseSchema(
@@ -233,6 +248,7 @@ const batchRefusals = [
         type({ ...context, error: "'unsupported_relationship_type'" }),
         type({ ...context, error: "'attempt_in_future'" }),
         type({ ...context, error: "'attempt_ends_before_start'" }),
+        type({ ...context, error: "'exclusive_demand_is_one'" }),
         type({
           ...context,
           error: "'deadline_before_project_start'",

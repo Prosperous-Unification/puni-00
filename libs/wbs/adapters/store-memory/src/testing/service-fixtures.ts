@@ -9,6 +9,7 @@ import type {
   PlanEventStore,
   PriorityBandStore,
   ProjectStore,
+  ResourceCapacityStore,
   StepStore,
   WorkItemService,
 } from '@wbs/core';
@@ -39,6 +40,7 @@ import { inMemoryStores } from '../in-memory-source';
 import { inMemoryPriorityBands } from '../priority-band-fixture';
 import { inMemoryProjects } from '../project-fixture';
 import { inMemoryEventLog } from '../replay-fixture';
+import { inMemoryResourceCapacity, memoryResourceTables } from '../resource-fixture';
 import { inMemorySteps } from '../step-fixture';
 
 export function testProjectService(projects: ProjectStore = inMemoryProjects()): ProjectService {
@@ -76,12 +78,17 @@ export function testCapacityService(
   projects: ProjectStore = inMemoryProjects(),
   capacity: CapacityStore = inMemoryCapacity(),
   broadcast: Broadcaster = recordingBroadcaster(),
+  resourceCapacity: ResourceCapacityStore = inMemoryResourceCapacity(
+    memoryResourceTables(),
+    async (projectId) => (await projects.findById(projectId)) !== null,
+  ),
 ): CapacityService {
   return new CapacityService({
     admission: CREATOR_ADMISSION,
     clock: testClock,
     projects,
     capacity,
+    resourceCapacity,
     broadcast,
   });
 }

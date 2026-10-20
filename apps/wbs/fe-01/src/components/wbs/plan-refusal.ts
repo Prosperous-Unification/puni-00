@@ -498,6 +498,21 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'overlaps_subtree_claim':
     case 'not_claimed_by':
       return refusal.error;
+    // Resources (`wbs-resources`): the table sends none of these until 1.5, so
+    // they arrive only from a batch another client wrote.
+    case 'kind_is_immutable':
+    case 'resourceKind_must_be_exclusive_or_divisible':
+    case 'units_required':
+    case 'units_must_be_a_whole_number_from_0':
+    case 'units_must_be_a_whole_number_from_1':
+    case 'units_must_be_at_most_1000000000':
+    case 'unitLabel_must_be_text':
+    case 'unitLabel_must_be_at_most_40_characters':
+    case 'resourceId_must_be_an_id':
+    case 'resourceRef_must_be_an_id':
+    case 'unknown_resource':
+    case 'exclusive_demand_is_one':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }

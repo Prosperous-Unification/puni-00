@@ -1,4 +1,10 @@
-import { cleanName, type OrganizationScope, PERSON_KINDS, type PersonKind } from '@wbs/domain';
+import {
+  cleanName,
+  type OrganizationScope,
+  PERSON_KINDS,
+  type PersonKind,
+  type ResourceKind,
+} from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
 import type { DirectoryOutcome } from '../../ports/directory-outcome';
@@ -12,6 +18,9 @@ import type {
   Person,
   PersonPatch,
   PersonWithTeams,
+  Resource,
+  ResourcePatch,
+  ResourceUsageRows,
   ServiceTeam,
   TeamPatch,
   TeamWithServices,
@@ -28,10 +37,12 @@ import type { WriteStamp } from '../../ports/write-stamp';
 import {
   type DirectoryUsage,
   directoryUsageOfPerson,
+  directoryUsageOfResource,
   directoryUsageOfService,
   directoryUsageOfTag,
   directoryUsageOfTeam,
   directoryUsageOfWorkItemType,
+  type ResourceUsageCounts,
 } from '../../service/directory-usage';
 
 export type { DirectoryOutcome, DirectoryRefusal } from '../../ports/directory-outcome';
@@ -95,6 +106,22 @@ export type RemoveDirectoryOutcome =
   | { ok: true }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+
+/**
+ * How a resource removal answered: `in_use` names the rows that lose a demand
+ * and counts the demands, capacities and occupancies (`wbs-resources` R8).
+ */
+export type RemoveResourceOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'not_found' }
+  | { ok: false; reason: 'in_use'; usage: DirectoryUsage; counts: ResourceUsageCounts };
+
+/** What a resource create names; the kind is fixed here and never patched. */
+export interface ResourceInput {
+  name: string;
+  kind: ResourceKind;
+  unitLabel: string;
+}
 
 /**
  * One **named vocabulary** of the directory — a tag, a work item type, a
@@ -301,8 +328,177 @@ export class DirectoryService {
       tags: () => this.listTags(),
       workItemTypes: () => this.listWorkItemTypes(),
       externalSystems: () => this.listExternalSystems(),
+      resources: () => this.listResources(),
     };
     return legacy[catalog]();
+  }
+
+  /** Every resource in the global directory, by name. */
+  listResources(): Promise<Resource[]> {
+    return this.opts.directory.listResources();
+  }
+
+  /**
+   * Resource writes run inside a command batch and nowhere else: no public
+   * standalone route writes one, so a standalone-built service reaching here is
+   * a composition fault, not a request.
+   *
+   * @throws when this service was built for standalone writes.
+   */
+  private refuseStandaloneResourceWrite(): void {
+    if (this.opts.standaloneWrite !== undefined)
+      throw new Error('resource writes run only inside a command batch');
+  }
+
+  /**
+   * Adds a resource through the caller's access, refusing a name the directory
+   * (legacy) or the organization (scoped) already holds as `taken` — never
+   * answering the existing row, whose kind and unit may differ from the ones
+   * asked for. Under scoped access the root takes an opaque name and the
+   * organization's side row carries the display name, as a team's does.
+   *
+   * Proof: with the memory store answering an existing name's row instead of
+   * refusing, `declares a host’s RAM, lists it, and refuses a second of one name
+   * as taken` (resource-command.test.ts) failed on `ok: true`; watched 2026-10-20.
+   */
+  async addResourceWithin(
+    actorId: string,
+    input: ResourceInput,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<Resource>> {
+    this.refuseStandaloneResourceWrite();
+    const clean = cleanName(input.name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const stamp = this.clock.stampFor(actorId);
+    const fields = { kind: input.kind, unitLabel: input.unitLabel };
+    if (access.kind === 'legacy') {
+      const added = await this.opts.directory.addResource(
+        { id: this.clock.newId(), name: clean, ...fields },
+        stamp,
+      );
+      return added.ok
+        ? { ok: true, value: added.resource }
+        : { ok: false, reason: 'taken', name: clean };
+    }
+    const organizationId = access.scope.organizationId;
+    const held = await this.opts.directory.listInOrganization('resources', organizationId);
+    if (held.some((entry) => entry.name === clean))
+      return { ok: false, reason: 'taken', name: clean };
+    for (let attempt = 0; attempt < OPAQUE_NAME_ATTEMPTS; attempt += 1) {
+      const id = this.clock.newId();
+      const added = await this.opts.directory.addResource({ id, name: id, ...fields }, stamp);
+      if (!added.ok) continue;
+      await this.opts.directory.mapInOrganization('resources', id, organizationId, clean);
+      return { ok: true, value: { id, name: clean, ...fields } };
+    }
+    throw new Error(`no free opaque resource name after ${String(OPAQUE_NAME_ATTEMPTS)} ids`);
+  }
+
+  /**
+   * Renames a resource or changes its unit label through the caller's access,
+   * announcing to every project whose demands or capacities name it. Under
+   * scoped access only the organization's own resource is found, and the name
+   * moves in the organization alone.
+   */
+  async patchResourceWithin(
+    resourceId: string,
+    actorId: string,
+    patch: ResourcePatch,
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<Resource>> {
+    this.refuseStandaloneResourceWrite();
+    if (patch.name === undefined && patch.unitLabel === undefined)
+      return { ok: false, reason: 'nothing_to_change' };
+    const clean = patch.name === undefined ? undefined : cleanName(patch.name);
+    if (clean === null) return { ok: false, reason: 'name_required' };
+    const stamp = this.clock.stampFor(actorId);
+    if (access.kind === 'legacy') {
+      const written = await this.opts.directory.patchResource(
+        resourceId,
+        {
+          ...(clean === undefined ? {} : { name: clean }),
+          ...(patch.unitLabel === undefined ? {} : { unitLabel: patch.unitLabel }),
+        },
+        stamp,
+      );
+      if (!written.ok)
+        return written.reason === 'taken' && clean !== undefined
+          ? { ok: false, reason: 'taken', name: clean }
+          : { ok: false, reason: 'not_found' };
+      await this.announce(written.projectIds);
+      return { ok: true, value: written.resource };
+    }
+    const { scope } = access;
+    if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+      return { ok: false, reason: 'not_found' };
+    await this.refuseForeignReach('resources', resourceId, scope);
+    if (clean !== undefined) {
+      const renamed = await this.renameLocal('resources', resourceId, clean, actorId, scope);
+      if (!renamed.ok) return renamed;
+    }
+    if (patch.unitLabel !== undefined) {
+      const written = await this.opts.directory.patchResource(
+        resourceId,
+        { unitLabel: patch.unitLabel },
+        stamp,
+      );
+      if (!written.ok) return { ok: false, reason: 'not_found' };
+      await this.refuseForeignProjects(written.projectIds, scope);
+      await this.announce(written.projectIds);
+    }
+    const resource = await this.ownEntry('resources', resourceId, scope);
+    if (resource === undefined) throw new Error(`resource "${resourceId}" vanished mid-patch`);
+    return { ok: true, value: resource };
+  }
+
+  /**
+   * Removes a resource through the caller's access, refusing an unconfirmed
+   * removal while any demand, capacity or occupancy names it — `in_use` with
+   * the rows and the counts. With `cascade` its demands and capacities go in the
+   * same transaction. Under scoped access a foreign resource is `not_found` and
+   * a foreign project naming it fails closed.
+   *
+   * The unconfirmed read is only a fast path; the store's own count inside its
+   * transaction decides.
+   *
+   * Proof: with both in-use checks answering "unused" (this service's and the
+   * memory store's), `refuses removing a demanded resource, naming 2 demands, 0
+   * capacities, 0 occupancies` (resource-command.test.ts) deleted the resource
+   * and both demands with it; watched 2026-10-20.
+   */
+  async removeResourceWithin(
+    resourceId: string,
+    actorId: string,
+    cascade: boolean,
+    access: ResourceAccess,
+  ): Promise<RemoveResourceOutcome> {
+    this.refuseStandaloneResourceWrite();
+    const scope = access.kind === 'scoped' ? access.scope : null;
+    if (scope !== null) {
+      if ((await this.ownEntry('resources', resourceId, scope)) === undefined)
+        return { ok: false, reason: 'not_found' };
+      await this.refuseForeignReach('resources', resourceId, scope);
+    }
+    const shown = async (rows: ResourceUsageRows) =>
+      directoryUsageOfResource(
+        scope === null ? rows : { ...rows, rows: await this.localUsage(rows.rows, scope) },
+      );
+    if (!cascade) {
+      const seen = await this.opts.directory.usageOfResource(resourceId);
+      if (isResourceInUse(seen)) return { ok: false, reason: 'in_use', ...(await shown(seen)) };
+    }
+    const removed = await this.opts.directory.removeResource(
+      resourceId,
+      cascade,
+      this.clock.stampFor(actorId),
+    );
+    if (!removed.ok) {
+      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+      return { ok: false, reason: 'in_use', ...(await shown(removed.usage)) };
+    }
+    if (scope !== null) await this.refuseForeignProjects(removed.removal.projectIds, scope);
+    await this.announce(removed.removal.projectIds);
+    return { ok: true };
   }
 
   /** One organization's catalog, as {@link DirectoryStore.listInOrganization} reads it. */
@@ -1161,7 +1357,7 @@ export class DirectoryService {
    * @throws when a foreign project names the entry: corrupt trusted state.
    */
   async removeWithin(
-    catalog: NamedCatalog,
+    catalog: Exclude<NamedCatalog, 'resources'>,
     id: string,
     actorId: string,
     cascade: boolean,
@@ -1333,4 +1529,9 @@ export class DirectoryService {
       await this.opts.broadcast.publish(projectId, { type: 'directory_changed' });
     }
   }
+}
+
+/** Whether anything still names a resource: a demand, a stated capacity or an occupancy. */
+function isResourceInUse(rows: ResourceUsageRows): boolean {
+  return rows.demands.length > 0 || rows.capacities.length > 0 || rows.occupancies > 0;
 }

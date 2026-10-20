@@ -89,10 +89,14 @@ function coordinatedStores(
         'removePerson',
         'removeTeam',
         'assign',
+        'addResource',
+        'patchResource',
+        'removeResource',
       ],
       coordinator,
     ),
     capacity: coordinatedStore(stores.capacity, ['set'], coordinator),
+    resourceCapacity: coordinatedStore(stores.resourceCapacity, ['set'], coordinator),
     priorityBands: coordinatedStore(stores.priorityBands, ['replace'], coordinator),
     calendarMarkers: coordinatedStore(
       stores.calendarMarkers,
@@ -119,6 +123,7 @@ function coordinatedStores(
     blockages: coordinatedStore(stores.blockages, ['set', 'remove', 'moveAll'], coordinator),
     stepParallels: coordinatedStore(stores.stepParallels, ['set', 'remove'], coordinator),
     claims: coordinatedStore(stores.claims, ['add', 'remove'], coordinator),
+    demands: coordinatedStore(stores.demands, ['set'], coordinator),
     dependencies: coordinatedStore(
       stores.dependencies,
       ['add', 'remove', 'removeAllFor'],

@@ -350,6 +350,10 @@ describe('toolsFromDocument, on the generated document', () => {
       'unfreezeProject',
       'unfreezeWorkItem',
       'setCapacity',
+      // `wbs-resources`: the batch tool carries the five resource kinds; the
+      // project resource read is the one tool the change adds.
+      'setResourceCapacity',
+      'setDemand',
       'setStepAllowance',
       'setPriorityBands',
       'createTeam',
@@ -367,6 +371,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'createWorkItemType',
       'patchWorkItemType',
       'deleteWorkItemType',
+      'createResource',
+      'patchResource',
+      'deleteResource',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
     const emittedCounts = Object.fromEntries(

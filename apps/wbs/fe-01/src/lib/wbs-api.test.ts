@@ -853,6 +853,7 @@ describe('the directory client', () => {
       label_nulled: { kind: 'label_nulled' },
       label_removed: { kind: 'label_removed' },
       capacity_released: { kind: 'capacity_released', size: 4, fromId: 'w7' },
+      demand_removed: { kind: 'demand_removed', units: 4 },
       assumed_assignee_changed: {
         kind: 'assumed_assignee_changed',
         assumedNow: 'Kat',

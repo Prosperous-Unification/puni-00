@@ -453,6 +453,56 @@ const parserArms = {
     at: 'number',
     kind: commandKindsType,
   }),
+  kind_is_immutable: type({
+    error: "'kind_is_immutable'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_required: type({
+    error: "'units_required'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_must_be_a_whole_number_from_0: type({
+    error: "'units_must_be_a_whole_number_from_0'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_must_be_a_whole_number_from_1: type({
+    error: "'units_must_be_a_whole_number_from_1'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  units_must_be_at_most_1000000000: type({
+    error: "'units_must_be_at_most_1000000000'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unitLabel_must_be_at_most_40_characters: type({
+    error: "'unitLabel_must_be_at_most_40_characters'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  unitLabel_must_be_text: type({
+    error: "'unitLabel_must_be_text'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resourceId_must_be_an_id: type({
+    error: "'resourceId_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resourceRef_must_be_an_id: type({
+    error: "'resourceRef_must_be_an_id'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
+  resourceKind_must_be_exclusive_or_divisible: type({
+    error: "'resourceKind_must_be_exclusive_or_divisible'",
+    at: 'number',
+    kind: commandKindsType,
+  }),
 } satisfies Record<ParserRefusalCode, Type>;
 /** Validates the finite legacy parser vocabulary before any string becomes a wire refusal. */
 // Proof: removing forbidden context fields admitted at:text,400 instead of500 in the mounted parser-refusal case.

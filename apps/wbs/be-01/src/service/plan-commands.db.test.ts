@@ -31,6 +31,7 @@ import {
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
+import { ResourceCapacityRepository } from '@wbs/store-sqlite';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -176,6 +177,7 @@ beforeEach(async () => {
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({

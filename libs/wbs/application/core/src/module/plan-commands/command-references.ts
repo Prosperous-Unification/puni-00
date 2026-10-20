@@ -96,6 +96,16 @@ export async function refuseForeignReferences(
     // `not_found`, the answer the capacity service gives a team nobody holds.
     if (!owned.some((team) => team.id === teamId)) context.refuse({ reason: 'not_found' });
   }
+  // Proof: skipping this check made `refuses a foreign resource exactly as an
+  // absent one` (resource-organization.controller.db.test.ts) answer 200 to a
+  // clear naming B's resource from A's plan, where the closure check afterwards
+  // has nothing to see; watched 2026-10-20.
+  if (command.kind === 'setResourceCapacity' || command.kind === 'setDemand') {
+    const resourceId = context.required(command.resourceId, command.resourceRef);
+    const owned = await graph.directory.listWithin('resources', { kind: 'scoped', scope });
+    if (!owned.some((resource) => resource.id === resourceId))
+      context.refuse({ reason: 'unknown_resource' });
+  }
   // Proof: skipping the step check alone made the same test answer 200 instead
   // of 404 `unknown_step` for the foreign-step `clearEstimate`; watched
   // 2026-09-27.
@@ -182,6 +192,9 @@ export function crossingRefusal(kind: ProjectCrossReferenceKind): PlainReason {
       return 'unknown_service';
     case 'work_item_external_ref':
       return 'unknown_system';
+    case 'project_resource_capacity':
+    case 'work_item_resource_demand':
+      return 'unknown_resource';
     case 'work_item_parent':
     case 'dependency_endpoint':
     case 'incoming_step_row':

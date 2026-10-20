@@ -8,6 +8,7 @@ import {
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readProjectResources,
   readStartableWork,
   redoProject,
   responseSchema,
@@ -297,6 +298,11 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_system':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_resource':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The resource's kind refuses the units whatever the plan holds.
+    case 'exclusive_demand_is_one':
+      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'schedule_not_ready':
@@ -678,6 +684,19 @@ export function workItemRoutes(
         if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
         return { ok: true, status: 200, body: startable };
+      },
+    ),
+    bind(
+      readProjectResources,
+      async ({ params, principal }): Promise<HttpReply<typeof readProjectResources>> => {
+        // Proof: reading without resolving access made `refuses an unbound session
+        // and a stranger alike` (resource-organization.controller.db.test.ts)
+        // answer 200; watched 2026-10-20.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const read = await workItems.resourcesWithin(params.id, resolved.access);
+        if (read === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: read };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {

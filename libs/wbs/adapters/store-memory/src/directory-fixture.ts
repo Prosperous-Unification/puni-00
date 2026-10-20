@@ -13,6 +13,8 @@ import type {
   WorkItemType,
 } from '@wbs/core';
 
+import { type MemoryResourceTables, memoryResourceTables } from './resource-fixture';
+
 /** The empty usage, both halves present — what this fixture can honestly say. */
 const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   workItems: [],
@@ -73,6 +75,8 @@ export interface MemoryDirectoryTables {
   readonly assignments: Map<string, Assignment>;
   /** Which organization owns each catalog entry, by entry id, as the side tables hold it. */
   readonly organizationOf: Map<string, string>;
+  /** The resources and what plans state about them (`wbs-resources`). */
+  readonly resources: MemoryResourceTables;
 }
 
 export function memoryDirectoryTables(): MemoryDirectoryTables {
@@ -93,6 +97,7 @@ export function memoryDirectoryTables(): MemoryDirectoryTables {
     owned: new Map(),
     assignments: new Map(),
     organizationOf: new Map(),
+    resources: memoryResourceTables(),
   };
 }
 
@@ -111,6 +116,7 @@ export function inMemoryDirectory(
     owned,
     assignments,
     organizationOf,
+    resources: resourceTables,
   } = tables;
   /** The ownership map, by team — `memberships`' shape, one dimension over. */
   const key = (workItemId: string, stepId: string) => `${workItemId}::${stepId}`;
@@ -162,8 +168,67 @@ export function inMemoryDirectory(
           (await store.listWorkItemTypes()).filter((each) => inOrganization(each.id)),
         externalSystems: async () =>
           (await store.listExternalSystems()).filter((each) => inOrganization(each.id)),
+        resources: async () =>
+          (await store.listResources()).filter((each) => inOrganization(each.id)),
       };
       return readers[catalog]();
+    },
+    listResources: () =>
+      Promise.resolve(
+        [...resourceTables.resources.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      ),
+    // Refused by name, as the repository is at its unique index: a resource
+    // create is not idempotent, because the row holding the name may carry
+    // another kind and unit.
+    addResource(toAdd, _stamp) {
+      const held = [...resourceTables.resources.values()].some((each) => each.name === toAdd.name);
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      resourceTables.resources.set(toAdd.id, { ...toAdd });
+      return Promise.resolve({ ok: true, resource: { ...toAdd } });
+    },
+    // The projects a demand sits in are not known to these Maps, which hold no
+    // work items; the bound source answers them (`memory-stores.ts`).
+    patchResource(resourceId, patch, _stamp) {
+      const found = resourceTables.resources.get(resourceId);
+      if (found === undefined) return Promise.resolve({ ok: false, reason: 'not_found' });
+      const held =
+        patch.name !== undefined &&
+        [...resourceTables.resources.values()].some(
+          (each) => each.name === patch.name && each.id !== resourceId,
+        );
+      if (held) return Promise.resolve({ ok: false, reason: 'taken' });
+      const patched = { ...found, ...patch };
+      resourceTables.resources.set(resourceId, patched);
+      const projectIds = [
+        ...new Set(
+          [...resourceTables.capacities.values()]
+            .filter((each) => each.resourceId === resourceId)
+            .map((each) => each.projectId),
+        ),
+      ].sort();
+      return Promise.resolve({ ok: true, resource: { ...patched }, projectIds });
+    },
+    // The counts are the tables' own; the rows naming a demand's project are
+    // not, for `usageOfTag`'s reason, and the bound source answers them.
+    usageOfResource: (resourceId) => Promise.resolve(resourceUsageOf(resourceTables, resourceId)),
+    removeResource(resourceId, cascade, _stamp) {
+      if (!resourceTables.resources.has(resourceId))
+        return Promise.resolve({ ok: false, reason: 'not_found' });
+      const usage = resourceUsageOf(resourceTables, resourceId);
+      if (!cascade && (usage.demands.length > 0 || usage.capacities.length > 0))
+        return Promise.resolve({ ok: false, reason: 'in_use', usage });
+      for (const [key, each] of resourceTables.demands)
+        if (each.resourceId === resourceId) resourceTables.demands.delete(key);
+      for (const [key, each] of resourceTables.capacities)
+        if (each.resourceId === resourceId) resourceTables.capacities.delete(key);
+      resourceTables.resources.delete(resourceId);
+      return Promise.resolve({
+        ok: true,
+        removal: {
+          workItemIds: [...new Set(usage.demands.map((each) => each.workItemId))],
+          projectIds: [...new Set(usage.capacities.map((each) => each.projectId))].sort(),
+        },
+      });
     },
     listTeams: () =>
       Promise.resolve(
@@ -483,4 +548,19 @@ export function inMemoryDirectory(
     },
   };
   return store;
+}
+
+/** What names one resource in the memory tables; occupancies are 0 until claims hold units. */
+function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
+  return {
+    rows: NOTHING_POINTS_AT_IT,
+    demands: [...tables.demands.values()]
+      .filter((each) => each.resourceId === resourceId)
+      .sort((left, right) => left.workItemId.localeCompare(right.workItemId)),
+    capacities: [...tables.capacities.values()]
+      .filter((each) => each.resourceId === resourceId)
+      .map(({ projectId, units }) => ({ projectId, units }))
+      .sort((left, right) => left.projectId.localeCompare(right.projectId)),
+    occupancies: 0,
+  };
 }

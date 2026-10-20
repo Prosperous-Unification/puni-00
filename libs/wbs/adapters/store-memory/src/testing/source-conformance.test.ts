@@ -31,6 +31,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedResourceCase,
   seedSavedPlanCapture,
   sourceConformanceRegistrations,
   type SourceDeclaration,
@@ -358,6 +359,7 @@ async function openMemoryCase<Family extends ExistingFamily>(
     if (family === 'subtrees') await seedSubtreeRecords(seeded);
     if (caseId === 'directory.removePerson:claims-in-use')
       await seeded.stores.claims.add([CLAIM_IN_USE], [], DETERMINISTIC_SEED.stamps[0]);
+    await seedResourceCase(seeded.stores, caseId, DETERMINISTIC_SEED);
   });
   if (family === 'subtrees') {
     return {
@@ -835,6 +837,7 @@ const openers: ExistingStoreOpeners = {
   projects: (caseId) => openMemoryCase('projects', caseId),
   users: (caseId) => openMemoryCase('users', caseId),
   capacity: (caseId) => openMemoryCase('capacity', caseId),
+  resourceCapacity: (caseId) => openMemoryCase('resourceCapacity', caseId),
   priorityBands: (caseId) => openMemoryCase('priorityBands', caseId),
   calendarMarkers: (caseId) => openMemoryCase('calendarMarkers', caseId),
   workItems: (caseId) => openMemoryCase('workItems', caseId),
@@ -847,6 +850,7 @@ const openers: ExistingStoreOpeners = {
   blockages: (caseId) => openMemoryCase('blockages', caseId),
   stepParallels: (caseId) => openMemoryCase('stepParallels', caseId),
   claims: (caseId) => openMemoryCase('claims', caseId),
+  demands: (caseId) => openMemoryCase('demands', caseId),
   dependencies: (caseId) => openMemoryCase('dependencies', caseId),
   typedDependencies: (caseId) => openMemoryCase('typedDependencies', caseId),
   directory: (caseId) => openMemoryCase('directory', caseId),
@@ -974,6 +978,7 @@ const declaration: SourceDeclaration = {
       gaps: [capacityMissingReferenceGap],
       open: openers.capacity,
     },
+    resourceCapacity: { kind: 'offered', gaps: [], open: openers.resourceCapacity },
     priorityBands: {
       kind: 'offered',
       gaps: [priorityMissingProjectGap],
@@ -990,6 +995,7 @@ const declaration: SourceDeclaration = {
     blockages: { kind: 'offered', gaps: [], open: openers.blockages },
     stepParallels: { kind: 'offered', gaps: [], open: openers.stepParallels },
     claims: { kind: 'offered', gaps: [], open: openers.claims },
+    demands: { kind: 'offered', gaps: [], open: openers.demands },
     dependencies: { kind: 'offered', gaps: [], open: openers.dependencies },
     typedDependencies: { kind: 'offered', gaps: [], open: openers.typedDependencies },
     directory: { kind: 'offered', gaps: [], open: openers.directory },
@@ -4274,6 +4280,7 @@ async function proveFault(
         projects: (caseId) => takeFixture('projects', caseId),
         users: (caseId) => takeFixture('users', caseId),
         capacity: (caseId) => takeFixture('capacity', caseId),
+        resourceCapacity: (caseId) => takeFixture('resourceCapacity', caseId),
         priorityBands: (caseId) => takeFixture('priorityBands', caseId),
         calendarMarkers: (caseId) => takeFixture('calendarMarkers', caseId),
         workItems: (caseId) => takeFixture('workItems', caseId),
@@ -4286,6 +4293,7 @@ async function proveFault(
         blockages: (caseId) => takeFixture('blockages', caseId),
         stepParallels: (caseId) => takeFixture('stepParallels', caseId),
         claims: (caseId) => takeFixture('claims', caseId),
+        demands: (caseId) => takeFixture('demands', caseId),
         dependencies: (caseId) => takeFixture('dependencies', caseId),
         typedDependencies: (caseId) => takeFixture('typedDependencies', caseId),
         directory: (caseId) => takeFixture('directory', caseId),

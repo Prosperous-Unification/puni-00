@@ -37,17 +37,23 @@ export type BeforeImport = (
   access: ResourceAccess,
 ) => Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: 'forbidden' }>;
 
+/**
+ * The catalogs a standalone directory act may address. Resources are written
+ * only inside a command batch (`wbs-resources`), so no standalone act names one.
+ */
+type StandaloneCatalog = Exclude<NamedCatalog, 'resources'>;
+
 /** Caller-addressed standalone directory act; access is supplied by the invocation. */
 export type DirectoryWriteAddress =
   | {
       readonly kind: 'remove' | 'rename';
-      readonly catalog: NamedCatalog;
+      readonly catalog: StandaloneCatalog;
       readonly resourceId: string;
       readonly access: ResourceAccess;
     }
   | {
       readonly kind: 'add';
-      readonly catalog: NamedCatalog | 'externalSystems';
+      readonly catalog: StandaloneCatalog | 'externalSystems';
       readonly access: ResourceAccess;
     }
   | {

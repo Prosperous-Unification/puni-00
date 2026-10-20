@@ -87,3 +87,68 @@ describe('an opaque root name', () => {
     expect(once.mapped).toEqual(['id-2']);
   });
 });
+
+describe('resource writes', () => {
+  // Proof: with refuseStandaloneResourceWrite answering nothing, all three writes
+  // below resolved against the standalone service; watched 2026-10-20.
+  test('run only inside a command batch, never through a standalone-built service', () => {
+    const service = new DirectoryService({
+      directory: inMemoryDirectory(),
+      broadcast: { publish: () => Promise.resolve(), latestSeq: () => Promise.resolve(-1) },
+      clock: clockOf({ now: () => 0, newId: () => 'id' }),
+      standaloneWrite: () => Promise.reject(new Error('standalone owner reached')),
+    });
+    const legacy: ResourceAccess = { kind: 'legacy' };
+    for (const write of [
+      () =>
+        service.addResourceWithin('u', { name: 'ram', kind: 'divisible', unitLabel: 'GB' }, legacy),
+      () => service.patchResourceWithin('r', 'u', { unitLabel: 'MB' }, legacy),
+      () => service.removeResourceWithin('r', 'u', false, legacy),
+    ])
+      expect(write()).rejects.toThrow('resource writes run only inside a command batch');
+  });
+
+  test('creates a scoped resource under an opaque root name, refusing a local name held', async () => {
+    const base = inMemoryDirectory();
+    const mapped: { id: string; name: string }[] = [];
+    const directory: DirectoryStore = {
+      ...base,
+      listInOrganization: async (catalog) =>
+        // A test double answering one catalog's rows for the generic signature.
+        (catalog === 'resources'
+          ? (await base.listResources())
+              .filter(({ id }) => mapped.some((each) => each.id === id))
+              .map((each) => ({
+                ...each,
+                name: mapped.find(({ id }) => id === each.id)?.name ?? each.name,
+              }))
+          : []) as never,
+      mapInOrganization: (_catalog, resourceId, _organizationId, name) => {
+        mapped.push({ id: resourceId, name });
+        return Promise.resolve();
+      },
+    };
+    const service = new DirectoryService({
+      directory,
+      broadcast: { publish: () => Promise.resolve(), latestSeq: () => Promise.resolve(-1) },
+      clock: clockOf({ now: () => 0, newId: () => 'root-1' }),
+    });
+    const input = { name: 'h2puni ram', kind: 'divisible' as const, unitLabel: 'GB' };
+    expect(await service.addResourceWithin('u', input, scoped)).toEqual({
+      ok: true,
+      value: { id: 'root-1', ...input },
+    });
+    // The root carries its own id as its name; the organization's row carries the name.
+    expect(await base.listResources()).toEqual([
+      { id: 'root-1', name: 'root-1', kind: 'divisible', unitLabel: 'GB' },
+    ]);
+    expect(mapped).toEqual([{ id: 'root-1', name: 'h2puni ram' }]);
+    // Proof: with the organization-local name check removed, this second create
+    // collided on the opaque id and threw instead of answering taken; watched 2026-10-20.
+    expect(await service.addResourceWithin('u', input, scoped)).toEqual({
+      ok: false,
+      reason: 'taken',
+      name: 'h2puni ram',
+    });
+  });
+});

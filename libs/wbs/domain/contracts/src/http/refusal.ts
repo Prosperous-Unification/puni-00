@@ -56,8 +56,8 @@ export type ParserRefusalCode =
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
   | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId'}_must_be_an_id`
+  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -71,7 +71,7 @@ export type ParserRefusalCode =
   | 'deadline_must_be_a_date'
   | 'on_must_be_a_date'
   | `${'factStart' | 'factEnd'}_must_be_a_date`
-  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber'}_must_be_a_whole_number_from_1`
+  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber' | 'units'}_must_be_a_whole_number_from_1`
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
   | 'startNoEarlierThanReason_must_be_at_most_200_characters'
@@ -82,7 +82,16 @@ export type ParserRefusalCode =
   | 'steps_must_be_a_list_of_ids'
   | 'steps_must_be_at_most_50'
   /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
-  | 'steps_must_name_a_step';
+  | 'steps_must_name_a_step'
+  // Resources (`wbs-resources`): a `patchResource` naming the kind, a capacity or
+  // demand without its units, a capacity below 0, a figure above the product
+  // bound, and a unit label too long to sit beside a number.
+  | 'kind_is_immutable'
+  | 'resourceKind_must_be_exclusive_or_divisible'
+  | 'units_required'
+  | 'units_must_be_a_whole_number_from_0'
+  | 'units_must_be_at_most_1000000000'
+  | 'unitLabel_must_be_at_most_40_characters';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -142,6 +151,10 @@ export type CommandRefusalCode =
   | 'unknown_service'
   | 'unknown_type'
   | 'unknown_system'
+  /** A resource the directory does not hold, or one another organization owns (`wbs-resources`). */
+  | 'unknown_resource'
+  /** `setDemand` of other than 1 unit on an `exclusive` resource. */
+  | 'exclusive_demand_is_one'
   /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
   | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
@@ -209,7 +222,16 @@ export type DirectoryEffect =
   | { kind: 'label_nulled' }
   | { kind: 'label_removed' }
   | { kind: 'capacity_released'; size: number; fromId: string }
+  /** The row's demand on the resource being removed goes with it (`wbs-resources`). */
+  | { kind: 'demand_removed'; units: number }
   | { kind: 'assumed_assignee_changed'; assumedNow: string | null; assumedAfter: string | null };
+
+/** What a resource removal would take, counted (`wbs-resources` R8). */
+export interface ResourceUsageCounts {
+  demands: number;
+  capacities: number;
+  occupancies: number;
+}
 
 /** Both affected-project and directory-member lists are present, including when empty. */
 export interface DirectoryUsage {
@@ -286,7 +308,7 @@ export type CommandRefusalDetail = {
         : C extends 'node_on_parent' | 'descendant_step_on_leaf'
           ? { dependencyIds: string[] }
           : C extends 'in_use'
-            ? { usage: DirectoryUsage }
+            ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
             : C extends 'taken'
               ? { name?: string }
               : C extends 'not_startable'

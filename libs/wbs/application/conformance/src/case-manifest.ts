@@ -8,6 +8,7 @@ export const PORT_NAMES = [
   'users',
   'directory',
   'capacity',
+  'resourceCapacity',
   'priorityBands',
   'calendarMarkers',
   'eventLog',
@@ -22,6 +23,7 @@ export const PORT_NAMES = [
   'blockages',
   'stepParallels',
   'claims',
+  'demands',
   'dependencies',
   'typedDependencies',
   'subtrees',
@@ -47,11 +49,17 @@ export const CASE_MANIFEST = {
     'directory.assign:scope-replace-clear',
     'directory.patchTeam:atomic-refusal',
     'directory.removePerson:claims-in-use',
+    'directory.addResource:taken',
+    'directory.removeResource:in-use-cascade',
   ],
   capacity: [
     'capacity.set:project-team-key',
     'capacity.set:clear',
     'capacity.set:missing-reference',
+  ],
+  resourceCapacity: [
+    'resourceCapacity.set:stated-zero-cleared',
+    'resourceCapacity.set:missing-reference',
   ],
   priorityBands: [
     'priorityBands.listFor:defaults',
@@ -123,6 +131,7 @@ export const CASE_MANIFEST = {
     'claims.listStampedByProject:write-instant',
     'claims.remove:delegated-cascade',
   ],
+  demands: ['demands.set:replace-clear-scope', 'demands.set:missing-reference'],
   dependencies: [
     'dependencies.listByWorkItems:incident-scope',
     'dependencies.add:idempotent-pair',
