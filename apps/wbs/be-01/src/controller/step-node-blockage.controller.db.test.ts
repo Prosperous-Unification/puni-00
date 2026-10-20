@@ -367,7 +367,7 @@ describe('public step blockage commands with disabled writer admission', () => {
     const exported = await h.call('ada', 'GET', `/api/projects/${project}/export?format=json`);
     expect(exported.status).toBe(200);
     expect(exported.body).toMatchObject({
-      document: { version: 9 },
+      document: { version: 10 },
       stepBlockages: [{ workItemId: strip, stepId: dev, blockedAt: blocked[0]?.blocked_at }],
     });
     expect(await h.call('ada', 'POST', '/api/projects/import', exported.body)).toEqual({

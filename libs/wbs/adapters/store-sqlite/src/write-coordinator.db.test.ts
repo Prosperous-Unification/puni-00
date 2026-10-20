@@ -35,6 +35,7 @@ import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
+import { ResourceCapacityRepository } from './resource';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
@@ -177,6 +178,7 @@ beforeEach(async () => {
       clock: testClock,
       projects: projectStore,
       capacity: capacityStore,
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       broadcast: selectedBroadcast,
     }),
     priorityBands: new PriorityBandService({

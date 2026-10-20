@@ -168,8 +168,9 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   expect(JSON.stringify(descriptor)).not.toContain('"$ref"');
   const branches = descriptor.properties?.['commands']?.items?.anyOf;
   // Includes the public step blockage command, claimWorkItem/releaseWorkItem
-  // and assignSubtree.
-  expect(branches).toHaveLength(49);
+  // and assignSubtree (49). 49 to 54 with `wbs-resources`: setResourceCapacity,
+  // setDemand and the resource trio.
+  expect(branches).toHaveLength(54);
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);

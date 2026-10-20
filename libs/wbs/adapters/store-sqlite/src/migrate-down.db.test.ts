@@ -683,6 +683,7 @@ describe('readMigrationFolders', () => {
       '20261019120000_add_claim',
       '20261019130000_add_person_account',
       '20261019130100_add_external_identity_person',
+      '20261020120000_add_resources',
     ]);
     for (const f of folders) expect(f.downSql.trim()).not.toBe('');
   });
@@ -758,7 +759,7 @@ describe('rollbackTo, against a real database', () => {
       cpSync(FOLDER, candidateFolder, { recursive: true });
       runMigrations(db.path, FOLDER);
       const originalNames = appliedNames(db.path);
-      expect(originalNames.at(-1)).toBe('20261019130100_add_external_identity_person');
+      expect(originalNames.at(-1)).toBe('20261020120000_add_resources');
       const candidate = join(candidateFolder, candidateName);
       mkdirSync(candidate);
       writeFileSync(
@@ -869,11 +870,13 @@ describe('rollbackTo, against a real database', () => {
         '20261019120000_add_claim',
         '20261019130000_add_person_account',
         '20261019130100_add_external_identity_person',
+        '20261020120000_add_resources',
       ]);
 
       const reversed = rollbackTo(db.path, FOLDER, INIT);
 
       expect(reversed).toEqual([
+        '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
         '20261019130000_add_person_account',
         '20261019120000_add_claim',
@@ -1052,6 +1055,7 @@ describe('rollbackTo, against a real database', () => {
         '20261019120000_add_claim',
         '20261019130000_add_person_account',
         '20261019130100_add_external_identity_person',
+        '20261020120000_add_resources',
       ]);
     } finally {
       db.cleanup();
@@ -1123,6 +1127,7 @@ describe('rollbackTo, against a real database', () => {
 
       // Proof: omitting restore approvals from production rollback selection failed this complete descending order.
       expect(reversed).toEqual([
+        '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
         '20261019130000_add_person_account',
         '20261019120000_add_claim',
@@ -1246,6 +1251,7 @@ describe('rollbackTo, against a real database', () => {
       expect(newest).toBeDefined();
       expect(rollbackTo(db.path, FOLDER, newest ?? '')).toEqual([]);
       expect(rollbackTo(db.path, FOLDER, AUDIT_COLUMNS)).toEqual([
+        '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
         '20261019130000_add_person_account',
         '20261019120000_add_claim',
@@ -1354,6 +1360,7 @@ describe('rollbackTo, against a real database', () => {
       // Descending — newest reversed first — so the audit columns come off
       // before the rename they were written against.
       expect(rollbackTo(db.path, FOLDER, WEIGHTS_AND_ROUNDING)).toEqual([
+        '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
         '20261019130000_add_person_account',
         '20261019120000_add_claim',

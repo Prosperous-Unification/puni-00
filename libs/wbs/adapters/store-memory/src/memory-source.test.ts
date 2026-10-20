@@ -18,6 +18,7 @@ const STORE_BINDINGS = [
   'calendarMarkers',
   'capacity',
   'claims',
+  'demands',
   'dependencies',
   'directory',
   'estimates',
@@ -28,6 +29,7 @@ const STORE_BINDINGS = [
   'priorityBands',
   'progress',
   'projects',
+  'resourceCapacity',
   'stepParallels',
   'steps',
   'subtrees',
@@ -245,6 +247,12 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     [],
     stamp,
   );
+  await stores.directory.addResource(
+    { id: 'resource-1', name: 'Stored resource', kind: 'divisible', unitLabel: 'GB' },
+    stamp,
+  );
+  await stores.resourceCapacity.set('p1', 'resource-1', 8, stamp);
+  await stores.demands.set('wi-1', 'resource-1', 2, stamp);
   const recorded = await stores.eventLog.recordEvent(
     'project:p1',
     { nested: { label: 'stored message' } },
@@ -399,6 +407,16 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
       name: 'claims',
       returned: await stores.claims.listByProject('p1'),
       reread: () => stores.claims.listByProject('p1'),
+    },
+    {
+      name: 'resource capacities',
+      returned: await stores.resourceCapacity.listFor('p1'),
+      reread: () => stores.resourceCapacity.listFor('p1'),
+    },
+    {
+      name: 'demands',
+      returned: await stores.demands.listByProject('p1'),
+      reread: () => stores.demands.listByProject('p1'),
     },
     {
       name: 'attempts',

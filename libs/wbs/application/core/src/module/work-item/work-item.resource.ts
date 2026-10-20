@@ -19,6 +19,7 @@ import {
   deadlineOffsetsOf,
   decideClaim,
   decideRelease,
+  type Demand,
   type DependencyEndpoint,
   deriveNumbers,
   effectiveTeamsOf,
@@ -50,7 +51,10 @@ import {
   POSITION_STEP,
   type PriorityBand,
   type Readiness,
+  refuseDemand,
   resolveStepResources,
+  type Resource,
+  type ResourceCapacity,
   rollUp,
   rollUpActuals,
   rollUpCharged,
@@ -94,6 +98,7 @@ import type {
   JournalEntry,
   UndoState,
 } from '../../ports/command-journal-store';
+import type { DemandStore } from '../../ports/demand-store';
 import type { DependencyStore, StoredDependency } from '../../ports/dependency-store';
 import type { Assignment, DirectoryCatalog, DirectoryStore } from '../../ports/directory-store';
 import type { EditAdmission } from '../../ports/edit-admission';
@@ -114,6 +119,7 @@ import type { PriorityBandStore } from '../../ports/priority-band-store';
 import type { StepProgressStore, StoredProgress } from '../../ports/progress-store';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
+import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
 import type {
   EngineUnavailable,
   OptimizedScheduleRead,
@@ -807,6 +813,14 @@ export type WorkItemRefusal =
    */
   | 'unknown_system'
   /**
+   * A resource the directory no longer holds, decided inside the write's own
+   * transaction (`wbs-resources`). Its own reason for `unknown_tag`'s argument:
+   * a reader has to know which picker to reopen.
+   */
+  | 'unknown_resource'
+  /** `setDemand` of other than 1 unit on an `exclusive` resource. */
+  | 'exclusive_demand_is_one'
+  /**
    * A patch that would leave a work item holding a reason with no not-before
    * date for it to be a reason about, decided inside the write's own
    * transaction — see {@link WorkItemPatched}.
@@ -1008,6 +1022,17 @@ export interface WorkItemServiceOptions {
    * release, or the replay of either throws rather than answering.
    */
   claims?: ClaimStore;
+  /**
+   * What each work item needs of each resource (`wbs-resources`). Optional only
+   * for fixtures that predate resources: without it a demand write, read or
+   * replay throws rather than answering.
+   */
+  demands?: DemandStore;
+  /**
+   * The project's stated resource capacities, read by {@link WorkItemService.resourcesWithin}.
+   * Optional for the fixtures `demands` is optional for, and throws alike.
+   */
+  resourceCapacity?: ResourceCapacityStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -1994,6 +2019,7 @@ export class WorkItemService {
       ['tags', references.tags],
       ['workItemTypes', references.types],
       ['externalSystems', references.systems],
+      ['resources', references.resources],
     ];
     for (const [catalog, ids] of catalogs) {
       if (ids.length === 0) continue;
@@ -2921,6 +2947,115 @@ export class WorkItemService {
       },
     );
     return { ok: true, value: null };
+  }
+
+  /**
+   * States one work item's demand on one resource, or removes it on `null`
+   * (`wbs-resources` R1): a satellite write that moves the item's revision and
+   * journals one undoable entry pinned to it. Any work item may carry one; a
+   * parent's charges nothing, because a demand is never inherited. Units are
+   * bounded at the boundary; the kind's rule is {@link refuseDemand}'s, read off
+   * the resource here because a kind never changes.
+   *
+   * Proof: with the kind check removed, `refuses 2 units on an exclusive resource,
+   * writing nothing` (resource-command.test.ts) stored the demand; watched 2026-10-20.
+   */
+  async setDemand(
+    id: string,
+    actorId: string,
+    resourceId: string,
+    units: number | null,
+  ): Promise<WorkItemOutcome<null>> {
+    const context = await this.contextFor(id, actorId);
+    if (!context.ok) return context;
+    const { workItem } = context.value;
+    const demands = this.demanding();
+    const resource = (await this.opts.directory.listResources()).find(
+      (each) => each.id === resourceId,
+    );
+    if (resource === undefined) return { ok: false, reason: 'unknown_resource' };
+    if (units !== null) {
+      const refusal = refuseDemand(resource.kind, units);
+      if (refusal !== null) return { ok: false, reason: refusal };
+    }
+    const before =
+      (await demands.listByProject(workItem.projectId)).find(
+        (each) => each.workItemId === id && each.resourceId === resourceId,
+      )?.units ?? null;
+    const stamp = this.clock.stampFor(actorId);
+    const written = await demands.set(id, resourceId, units, stamp);
+    if (written === 'unknown_resource') return { ok: false, reason: 'unknown_resource' };
+    if (written === 'unknown_work_item') return { ok: false, reason: 'not_found' };
+    await this.announceTree(workItem.projectId);
+    await this.record(
+      workItem.projectId,
+      stamp,
+      units === null ? 'clear_demand' : 'set_demand',
+      units === null
+        ? `clear what ${quoteName(workItem.name)} needs`
+        : `state what ${quoteName(workItem.name)} needs`,
+      {
+        forward: { do: 'set_demand', workItemId: id, resourceId, units },
+        inverse: { do: 'set_demand', workItemId: id, resourceId, units: before },
+        touched: [id],
+        before: context.value.rows,
+      },
+    );
+    return { ok: true, value: null };
+  }
+
+  /** Every demand stated on a work item of the project, by work item then resource. */
+  demandsOf(projectId: string): Promise<Demand[]> {
+    return this.demanding().listByProject(projectId);
+  }
+
+  /** The project's stated resource capacities, in resource-id order. */
+  resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]> {
+    const { resourceCapacity } = this.opts;
+    if (resourceCapacity === undefined)
+      throw new Error('this work-item service was built without a resource capacity store');
+    return resourceCapacity.listFor(projectId);
+  }
+
+  /**
+   * The project's resource read (`wbs-resources`): the resources the caller's
+   * directory holds, the project's stated capacities and every demand on its
+   * work items. Refused as the tree read refuses: null for a project the
+   * caller cannot read, alike foreign and absent.
+   *
+   * Proof: with the scoped branch reading the root catalog, `creates the same
+   * name in two organizations, each finding only its own`
+   * (resource-organization.controller.db.test.ts) listed both organizations'
+   * roots under their opaque names; watched 2026-10-20.
+   */
+  async resourcesWithin(
+    projectId: string,
+    access: ResourceAccess,
+  ): Promise<{
+    resources: Resource[];
+    capacities: ResourceCapacity[];
+    demands: Demand[];
+  } | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    const { resourceCapacity } = this.opts;
+    if (resourceCapacity === undefined)
+      throw new Error('this work-item service was built without a resource capacity store');
+    const resources =
+      access.kind === 'scoped'
+        ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
+        : await this.opts.directory.listResources();
+    return {
+      resources,
+      capacities: await resourceCapacity.listFor(projectId),
+      demands: await this.demanding().listByProject(projectId),
+    };
+  }
+
+  private demanding(): DemandStore {
+    const { demands } = this.opts;
+    if (demands === undefined)
+      throw new Error('this work-item service was built without a demand store');
+    return demands;
   }
 
   /**
@@ -6443,6 +6578,22 @@ export class WorkItemService {
       case 'clear_progress':
         await this.opts.progress.remove(command.workItemId, command.stepId, stamp);
         return { ok: true, detail: null };
+      case 'set_demand': {
+        // A demand is a fact about one work item and one resource: the item's
+        // revision precondition already refused a row that moved, so what is
+        // left to refuse is a resource the directory no longer holds.
+        const written = await this.demanding().set(
+          command.workItemId,
+          command.resourceId,
+          command.units,
+          stamp,
+        );
+        if (written === 'unknown_resource')
+          return { ok: false, detail: 'that resource is no longer in the directory.' };
+        if (written === 'unknown_work_item')
+          return { ok: false, detail: 'that work item is no longer in this project.' };
+        return { ok: true, detail: null };
+      }
       case 'add_claims': {
         const added = await this.claiming().claims.add(command.claims, command.stated, stamp);
         // Proof: answering ok here made `refuses a redo of a claim once another

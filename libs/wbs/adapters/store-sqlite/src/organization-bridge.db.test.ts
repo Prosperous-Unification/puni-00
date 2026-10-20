@@ -71,7 +71,16 @@ function writeRoots(suffix: string): string[] {
     `INSERT INTO external_system (id, name) VALUES ('e${suffix}', 'Jira ${suffix}')`,
     `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp${suffix}', 'p${suffix}', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
+    `INSERT INTO resource (id, name, kind, unit_label) VALUES ('r${suffix}', 'RAM ${suffix}', 'divisible', 'GB')`,
   ];
+}
+
+/**
+ * {@link writeRoots} without the resource, the one root whose table
+ * (`20261020120000_add_resources`) a rollback below the bridge takes away.
+ */
+function writeRootsBeforeResources(suffix: string): string[] {
+  return writeRoots(suffix).filter((statement) => !statement.startsWith('INSERT INTO resource '));
 }
 
 const LEGACY =
@@ -126,7 +135,7 @@ describe('the legacy bridge before activation', () => {
     ]);
     for (const kind of OWNED_ROOT_KINDS)
       expect(rows(`SELECT * FROM ${kind}_organization`)).toEqual([]);
-    expect(await unmappedWritten()).toEqual(['e1', 'p1', 'pe1', 's1', 'sp1', 'st1', 'w1']);
+    expect(await unmappedWritten()).toEqual(['e1', 'p1', 'pe1', 'r1', 's1', 'sp1', 'st1', 'w1']);
     expect(await readRefusal(repository().backfillLegacyOwnership())).toBeInstanceOf(
       LegacyBackfillRefused,
     );
@@ -143,6 +152,7 @@ describe('the legacy bridge before activation', () => {
       work_item_type: [{ organization_id: 'legacy', name: 'Bug 1' }],
       external_system: [{ organization_id: 'legacy', name: 'Jira 1' }],
       saved_plan: [{ organization_id: 'legacy' }],
+      resource: [{ organization_id: 'legacy', name: 'RAM 1' }],
     });
   });
 
@@ -150,7 +160,7 @@ describe('the legacy bridge before activation', () => {
     run(writeRoots('1'));
     run([LEGACY]);
     const unmapped = (await repository().findUnmappedRoots()).length;
-    expect(unmapped).toBeGreaterThanOrEqual(8);
+    expect(unmapped).toBeGreaterThanOrEqual(9);
     expect(total(await repository().backfillLegacyOwnership())).toBe(unmapped);
     // An old writer on its own connection, between two backfill passes.
     run(writeRoots('2'));
@@ -178,6 +188,7 @@ describe('the legacy bridge before activation', () => {
       work_item_type: [],
       external_system: [],
       saved_plan: [],
+      resource: [],
     });
   });
 
@@ -323,14 +334,25 @@ describe('the legacy bridge after activation', () => {
     expect(await readRefusal(repository().backfillLegacyOwnership())).toBeInstanceOf(
       LegacyBackfillRefused,
     );
-    expect(await unmappedWritten()).toEqual(['e1', 'p1', 'pe1', 's1', 'sp1', 'st1', 't1', 'w1']);
+    expect(await unmappedWritten()).toEqual([
+      'e1',
+      'p1',
+      'pe1',
+      'r1',
+      's1',
+      'sp1',
+      'st1',
+      't1',
+      'w1',
+    ]);
   });
 });
 
 describe('20260927190000_add_organization_bridge', () => {
-  it('rolls back to no triggers, keeping mappings and legacy writes working', async () => {
-    run([LEGACY, ...writeRoots('1')]);
+  it('rolls back to no triggers, keeping mappings and legacy writes working', () => {
+    run([LEGACY, ...writeRootsBeforeResources('1')]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_ACTIVATION)).toEqual([
+      '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
       '20261019120000_add_claim',
@@ -364,8 +386,21 @@ describe('20260927190000_add_organization_bridge', () => {
     expect(
       rows("SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_bridge'"),
     ).toEqual([]);
-    run([...writeRoots('2'), "UPDATE tag SET name = 'renamed' WHERE id = 't1'"]);
-    expect(owners('1')['tag']).toEqual([{ organization_id: 'legacy', name: 'urgent 1' }]);
-    expect(await unmappedWritten()).toEqual(['e2', 'p2', 'pe2', 's2', 'sp2', 'st2', 't2', 'w2']);
+    run([...writeRootsBeforeResources('2'), "UPDATE tag SET name = 'renamed' WHERE id = 't1'"]);
+    expect(
+      rows("SELECT organization_id, name FROM tag_organization WHERE resource_id = 't1'"),
+    ).toEqual([{ organization_id: 'legacy', name: 'urgent 1' }]);
+    // Read per table: the repository also walks `resource`, which this rollback removed.
+    const unmapped = OWNED_ROOT_KINDS.filter((kind) => kind !== 'resource')
+      .flatMap((kind) =>
+        rows(
+          `SELECT r.id AS id FROM ${kind} AS r LEFT JOIN ${kind}_organization AS o
+            ON o.resource_id = r.id WHERE o.resource_id IS NULL`,
+        ),
+      )
+      .map((row) => (row as { id: string }).id)
+      .filter((id) => /\d$/.test(id))
+      .sort();
+    expect(unmapped).toEqual(['e2', 'p2', 'pe2', 's2', 'sp2', 'st2', 't2', 'w2']);
   });
 });

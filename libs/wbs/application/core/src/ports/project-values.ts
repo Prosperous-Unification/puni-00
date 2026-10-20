@@ -158,6 +158,8 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
   'work_item_parent',
   'dependency_endpoint',
   'project_team_capacity',
+  'project_resource_capacity',
+  'work_item_resource_demand',
   'incoming_step_row',
   'incoming_parent',
   'incoming_dependency',

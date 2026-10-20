@@ -89,6 +89,7 @@ const COMMANDS = [
   'clear_progress',
   ...STEP_BLOCKAGE_REPLAY_KINDS,
   'assign',
+  'set_demand',
   'add_claims',
   'remove_claims',
   'restore_attempt',
@@ -149,6 +150,19 @@ export function readCommand(value: unknown): CompensatingCommand {
       !blockedTime(value.replacementBlockedAt)
     )
       throw new Error('a journal blockage replacement is malformed');
+  }
+  if (named === 'set_demand') {
+    const units: unknown = 'units' in value ? value.units : undefined;
+    // Proof: with this check removed, `refuses a malformed demand replay` in
+    // compensating.test.ts read a demand of 0 units back; watched 2026-10-20.
+    if (
+      !('workItemId' in value) ||
+      typeof value.workItemId !== 'string' ||
+      !('resourceId' in value) ||
+      typeof value.resourceId !== 'string' ||
+      !(units === null || (typeof units === 'number' && Number.isSafeInteger(units) && units >= 1))
+    )
+      throw new Error('a journal demand replay is malformed');
   }
   if (named === 'add_claims' || named === 'remove_claims') {
     // Proof: with this call removed, `refuses a malformed claim replay` in
@@ -444,6 +458,7 @@ export function touchedBy(command: CompensatingCommand): string[] {
     case 'clear_progress':
     case 'replace_blockage':
     case 'assign':
+    case 'set_demand':
     case 'remove_attempt':
       // Proof: omitting assignment owners made the SQLite assignment-only redo
       // conflict test fail at `Expected: 409, Received: 200`; watched 2026-09-27.
@@ -547,6 +562,7 @@ export interface CompensatingReferences {
   tags: string[];
   types: string[];
   systems: string[];
+  resources: string[];
 }
 
 /** {@link CompensatingReferences} of one command. */
@@ -561,6 +577,7 @@ export function referencesOf(command: CompensatingCommand): CompensatingReferenc
     tags: [],
     types: [],
     systems: [],
+    resources: [],
   };
   collectReferences(command, found);
   return found;
@@ -622,6 +639,10 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     case 'assign':
       onStep(command);
       if (command.personId !== null) found.people.push(command.personId);
+      return;
+    case 'set_demand':
+      rows(command.workItemId);
+      found.resources.push(command.resourceId);
       return;
     case 'add_claims':
     case 'remove_claims':
@@ -735,6 +756,8 @@ export function subjectOf(command: CompensatingCommand): CommandSubject {
     case 'assign':
     case 'remove_attempt':
       return { workItemId: command.workItemId, stepId: command.stepId };
+    case 'set_demand':
+      return { workItemId: command.workItemId, stepId: null };
     case 'add_claims':
     case 'remove_claims': {
       // One claim command addresses one work item; several steps of it name none.

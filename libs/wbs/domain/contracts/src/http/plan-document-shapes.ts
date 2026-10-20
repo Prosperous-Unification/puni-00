@@ -7,18 +7,19 @@ import { numberedWorkItem, workItemTree } from './work-item-response';
 /**
  * The plan document version this release writes.
  *
- * `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
+ * `10` carries resources, their per-project capacities and per-work-item demands
+ * (`wbs-resources`). `9` carries direct step blockage facts separately from rows. `8` carries each step’s estimate unit. `7` carries the project's timezone and each leaf's attempts by step code
  * (`step-node-attempts` D5); `6` each leaf's readiness and hold
  * (`add-work-item-statuses`); `5`
  * extends typed dependencies to SS/FF; `4` added FS separately from
  * legacy `dependsOn`; `3` added step codes and `2` step allowances. The
  * classifier converts earlier versions explicitly.
  */
-export const PLAN_DOCUMENT_VERSION = 9;
+export const PLAN_DOCUMENT_VERSION = 10;
 
 const planHeader = type({
   format: "'wbs-plan'",
-  version: '9',
+  version: '10',
   exportedAt: 'string',
 });
 
@@ -58,6 +59,23 @@ const directory = type({
   types: named.array(),
   externalSystems: named.array(),
 });
+
+/** A resource as the document writes it (`wbs-resources`): file-local id, name, kind, unit. */
+export const documentResource = type({
+  id: 'string',
+  name: 'string',
+  kind: "'exclusive' | 'divisible'",
+  unitLabel: 'string',
+});
+export type DocumentResource = (typeof documentResource)['infer'];
+
+/** One stated resource capacity of the exported project, by file-local resource id. */
+export const documentResourceCapacity = type({ resourceId: 'string', units: 'number' });
+export type DocumentResourceCapacity = (typeof documentResourceCapacity)['infer'];
+
+/** One work item's demand on one resource, both by file-local id. */
+export const documentDemand = type({ workItemId: 'string', resourceId: 'string', units: 'number' });
+export type DocumentDemand = (typeof documentDemand)['infer'];
 
 const authoredMarker = type({
   id: 'string',
@@ -146,8 +164,10 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
   document: planHeader,
   settings: planSettings,
   capacity: type({ teamId: 'string', size: 'number' }).array(),
+  resourceCapacities: documentResourceCapacity.array(),
+  demands: documentDemand.array(),
   calendarMarkers: authoredMarker.array(),
-  directory,
+  directory: directory.and({ resources: documentResource.array() }),
 });
 
 export type PlanDocument = (typeof planDocument)['infer'];
@@ -216,7 +236,11 @@ const writablePlanDocument = type({
   capacity: type({ teamId: 'string', size: 'number' }).array(),
   priorityBands: type({ startsAt: 'number', defaultValue: 'number', label: 'string' }).array(),
   calendarMarkers: authoredMarker.array(),
-  directory,
+  // Opaque until the version is read: version 10 must state resources, their
+  // capacities and demands, and earlier versions carry none — see `classifyPlanDocument`.
+  directory: directory.and({ 'resources?': 'unknown' }),
+  'resourceCapacities?': 'unknown',
+  'demands?': 'unknown',
   workItems: authoredWorkItem.array(),
   // Optional structurally because version 1 has no allowance and versions 1
   // and 2 carry no code the import keeps; the version decides what each field
@@ -250,8 +274,21 @@ export type PlanDocumentRequest = (typeof writablePlanDocument)['infer'];
  */
 export type PlanDocumentImport = Omit<
   PlanDocumentRequest,
-  'settings' | 'steps' | 'typedDependencies' | 'workItems' | 'stepBlockages'
+  | 'settings'
+  | 'steps'
+  | 'typedDependencies'
+  | 'workItems'
+  | 'stepBlockages'
+  | 'directory'
+  | 'resourceCapacities'
+  | 'demands'
 > & {
+  /** The file's directory, its resources as version 10 states them and none before. */
+  directory: Omit<PlanDocumentRequest['directory'], 'resources'> & {
+    resources: DocumentResource[];
+  };
+  resourceCapacities: DocumentResourceCapacity[];
+  demands: DocumentDemand[];
   /** The zone as version 7 names it, `UTC` for an earlier version. */
   settings: Omit<PlanDocumentRequest['settings'], 'timezone'> & { timezone: string };
   typedDependencies: DocumentTypedDependency[];

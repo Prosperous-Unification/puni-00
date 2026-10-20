@@ -83,6 +83,11 @@ export type CompensatingCommand =
     }
   | { do: 'assign'; workItemId: string; stepId: string; personId: string | null }
   /**
+   * One work item's demand on one resource written back, or removed on `null`
+   * (`wbs-resources`): `setDemand`'s forward and inverse alike.
+   */
+  | { do: 'set_demand'; workItemId: string; resourceId: string; units: number | null }
+  /**
    * Claims written back verbatim — id, run, parent and writing account — with
    * the `in_progress` statements the claim made on steps nobody had spoken
    * about: the redo of a claim and the undo of a release (`wbs-team-claims`).

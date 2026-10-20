@@ -144,6 +144,34 @@ export class ImportedPlanResource {
     if (!written.ok) throw new Error(`created project refused its capacity: ${projectId}`);
   }
 
+  /** @throws when the created project refuses the resource's capacity (`wbs-resources`). */
+  async setResourceCapacity(
+    projectId: string,
+    resourceId: string,
+    units: number,
+    stamp: WriteStamp,
+  ): Promise<void> {
+    const written = await this.#scope.stores.resourceCapacity.set(
+      projectId,
+      resourceId,
+      units,
+      stamp,
+    );
+    if (!written.ok)
+      throw new Error(`created project refused its resource capacity: ${written.reason}`);
+  }
+
+  /** @throws when a created row refuses its demand (`wbs-resources`). */
+  async setDemand(
+    workItemId: string,
+    resourceId: string,
+    units: number,
+    stamp: WriteStamp,
+  ): Promise<void> {
+    const written = await this.#scope.stores.demands.set(workItemId, resourceId, units, stamp);
+    if (written !== 'written') throw new Error(`created row refused its demand: ${written}`);
+  }
+
   /** @throws when the created project refuses the marker, naming the store's reason. */
   async createCalendarMarker(marker: CalendarMarker): Promise<void> {
     const written = await this.#scope.stores.calendarMarkers.create(marker);

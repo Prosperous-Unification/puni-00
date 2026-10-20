@@ -8,7 +8,7 @@ import { inMemoryCapacity } from './capacity-fixture';
 import { inMemoryClaims, memoryClaimTable } from './claim-fixture';
 import { inMemoryCommandJournal } from './command-journal-fixture';
 import { inMemoryDependencies } from './dependency-fixture';
-import { inMemoryDirectory } from './directory-fixture';
+import { inMemoryDirectory, memoryDirectoryTables } from './directory-fixture';
 import { inMemoryEstimates, memoryEstimateTable } from './estimate-fixture';
 import { inMemoryPlanEvents } from './history-fixture';
 import { inMemoryMeasures } from './measure-fixture';
@@ -17,6 +17,7 @@ import { inMemoryPriorityBands } from './priority-band-fixture';
 import { inMemoryProgress, memoryProgressTable } from './progress-fixture';
 import { inMemoryProjects } from './project-fixture';
 import { inMemoryEventLog } from './replay-fixture';
+import { inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import { inMemoryStepBlockages } from './step-blockage-fixture';
 import { inMemorySteps } from './step-fixture';
 import { inMemoryStepParallels, memoryStepParallelTable } from './step-parallel-fixture';
@@ -34,8 +35,10 @@ import { inMemoryTypedDependencies } from './typed-dependency-fixture';
  */
 export function inMemoryStores(): TransactionalStores {
   const users = inMemoryUsers();
-  const directory = inMemoryDirectory((projectId): Promise<readonly { id: string }[]> =>
-    workItems.listByProject(projectId),
+  const directoryTables = memoryDirectoryTables();
+  const directory = inMemoryDirectory(
+    (projectId): Promise<readonly { id: string }[]> => workItems.listByProject(projectId),
+    directoryTables,
   );
   const workItems = inMemoryWorkItems(directory);
   const estimateTable = memoryEstimateTable();
@@ -83,6 +86,11 @@ export function inMemoryStores(): TransactionalStores {
     dependencies,
     typedDependencies: inMemoryTypedDependencies(),
     capacity: inMemoryCapacity(),
+    resourceCapacity: inMemoryResourceCapacity(
+      directoryTables.resources,
+      async (projectId) => (await projects.findById(projectId)) !== null,
+    ),
+    demands: inMemoryDemands(directoryTables.resources, workItems),
     priorityBands: inMemoryPriorityBands(),
     calendarMarkers: inMemoryCalendarMarkers(),
     steps,

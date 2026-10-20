@@ -63,6 +63,7 @@ import {
   type MemoryEventLogTables,
   memoryEventLogTables,
 } from './replay-fixture';
+import { cascadeDemands, inMemoryDemands, inMemoryResourceCapacity } from './resource-fixture';
 import {
   inMemoryStepBlockages,
   type MemoryStepBlockageTable,
@@ -209,6 +210,18 @@ export class MemoryState {
       next.tables.directory.organizationMembers,
     );
     replaceMap(this.tables.directory.credentialPins, next.tables.directory.credentialPins);
+    // Proof: with the resource copy removed, ten of resource-command.test.ts's
+    // thirteen cases read no resource after the batch that declared it had
+    // committed; watched 2026-10-20.
+    replaceMap(
+      this.tables.directory.resources.resources,
+      next.tables.directory.resources.resources,
+    );
+    replaceMap(
+      this.tables.directory.resources.capacities,
+      next.tables.directory.resources.capacities,
+    );
+    replaceMap(this.tables.directory.resources.demands, next.tables.directory.resources.demands);
     replaceArray(this.tables.steps.rows, next.tables.steps.rows);
     replaceArray(this.tables.dependencies.rows, next.tables.dependencies.rows);
     // Proof: omitting this copy left `commits all mixed-store writes together`
@@ -299,6 +312,76 @@ export function bindStores(
       if (removed.ok) cascadeClaims(state.tables.claims, (each) => each.personId === personId);
       return removed;
     },
+    // The fixture's resource answers, with the projects a demand sits in read
+    // off the source's own work items, which the fixture cannot see.
+    async patchResource(resourceId, patch, stamp) {
+      const written = await fixtureDirectory.patchResource(resourceId, patch, stamp);
+      if (!written.ok) return written;
+      return {
+        ...written,
+        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+      };
+    },
+    async usageOfResource(resourceId) {
+      const usage = await fixtureDirectory.usageOfResource(resourceId);
+      return { ...usage, rows: await demandRowsOf(resourceId) };
+    },
+    async removeResource(resourceId, cascade, stamp) {
+      const projectIds = demandProjectsOf(resourceId);
+      const rows = await demandRowsOf(resourceId);
+      const removed = await fixtureDirectory.removeResource(resourceId, cascade, stamp);
+      if (!removed.ok)
+        return removed.reason === 'in_use'
+          ? { ...removed, usage: { ...removed.usage, rows } }
+          : removed;
+      return {
+        ok: true,
+        removal: {
+          ...removed.removal,
+          projectIds: [...new Set([...removed.removal.projectIds, ...projectIds])].sort(),
+        },
+      };
+    },
+  };
+  /** The projects whose work items demand the resource. */
+  const demandProjectsOf = (resourceId: string): string[] => {
+    const projectOf = new Map(
+      [...state.tables.workItems.byId.values()].map((row) => [row.id, row.projectId]),
+    );
+    return [
+      ...new Set(
+        [...state.tables.directory.resources.demands.values()]
+          .filter((each) => each.resourceId === resourceId)
+          .flatMap((each) => {
+            const projectId = projectOf.get(each.workItemId);
+            if (projectId === undefined)
+              throw new Error(`demand names absent work item ${each.workItemId}`);
+            return [projectId];
+          }),
+      ),
+    ].sort();
+  };
+  /** A usage's rows for the demanding projects: their labelled work items and names. */
+  const demandRowsOf = async (resourceId: string) => {
+    if (workItems === null) throw new Error('work-item table was read before it was bound');
+    const bound = workItems;
+    const projectIds = demandProjectsOf(resourceId);
+    const rows = await Promise.all(projectIds.map((projectId) => bound.listByProject(projectId)));
+    return {
+      assignments: [],
+      steps: [],
+      people: [],
+      members: [],
+      claims: [],
+      pinnedCredentials: 0,
+      capacityOf: new Map<string, number>(),
+      workItems: rows.flat(),
+      projects: projectIds.map((id) => {
+        const project = state.tables.projects.projects.get(id);
+        if (project === undefined) throw new Error(`demand names absent project ${id}`);
+        return { id, name: project.name };
+      }),
+    };
   };
   workItems = inMemoryWorkItems(directory, state.tables.workItems);
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
@@ -374,6 +457,8 @@ export function bindStores(
       removeSatelliteRows(state.tables.attempts.issued);
       // SQLite cascades claims with their work item and delegated claims with their parent.
       cascadeClaims(state.tables.claims, ({ workItemId }) => removed.has(workItemId));
+      // And a work item's demands with it (`work_item_resource_demand`).
+      cascadeDemands(state.tables.directory.resources, (workItemId) => removed.has(workItemId));
     },
   };
   const stores: TransactionalStores = {
@@ -398,6 +483,10 @@ export function bindStores(
     dependencies,
     typedDependencies,
     capacity: inMemoryCapacity({}, state.tables.capacity),
+    resourceCapacity: inMemoryResourceCapacity(state.tables.directory.resources, (projectId) =>
+      Promise.resolve(state.tables.projects.projects.has(projectId)),
+    ),
+    demands: inMemoryDemands(state.tables.directory.resources, workItems),
     priorityBands: inMemoryPriorityBands({}, state.tables.priorityBands),
     calendarMarkers: inMemoryCalendarMarkers([], state.tables.calendarMarkers),
     planEvents: inMemoryPlanEvents([], { held: state.tables.journal.events }),
