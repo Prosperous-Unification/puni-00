@@ -23,8 +23,14 @@ import { type Schedule, type Scheduled, type ScheduledSlice, sliceKey } from './
  * `elsewhereHolder` and the schedule's `waitingElsewhere`. A version-2 reader
  * cast the first into a floor it has no words for, so the fence moves and those
  * rows are recomputed.
+ *
+ * **4 since 2026-10-20** (`wbs-resources` R5), because a stored schedule may
+ * now hold a capacity-floored slice whose binding pool is a resource: it
+ * carries {@link ScheduledSlice.capacityResource} and a null `capacityTeamId`.
+ * A version-3 reader cast that into a capacity wait naming no team, so the
+ * fence moves and those rows are recomputed.
  */
-export const CACHE_DTO_VERSION = 3;
+export const CACHE_DTO_VERSION = 4;
 
 /**
  * One `Map` entry, as JSON can carry it.

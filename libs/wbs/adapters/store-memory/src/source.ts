@@ -659,6 +659,8 @@ async function capturePlanInput(
     typedDependencies,
     assignmentRows,
     capacity,
+    demands,
+    resourceCapacities,
     priorityBands,
     people,
     teams,
@@ -681,6 +683,8 @@ async function capturePlanInput(
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
+    stores.demands.listByProject(projectId),
+    stores.resourceCapacity.listFor(projectId),
     stores.priorityBands.listFor(projectId),
     stores.directory.listPeople(),
     stores.directory.listTeams(),
@@ -708,6 +712,11 @@ async function capturePlanInput(
     })),
     assignments: assignmentRows.assignments,
     capacity,
+    // Proof: both reads replaced with `[]` made `captures demands and resource
+    // capacities detached from later memory writes` (memory-source.test.ts)
+    // capture none; watched 2026-10-20.
+    demands,
+    resourceCapacities,
     priorityBands,
     people,
     teams,

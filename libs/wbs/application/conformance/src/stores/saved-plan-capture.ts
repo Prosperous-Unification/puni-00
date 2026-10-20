@@ -19,6 +19,8 @@ type CaptureSeedStores = Pick<
   | 'typedDependencies'
   | 'directory'
   | 'capacity'
+  | 'demands'
+  | 'resourceCapacity'
   | 'priorityBands'
 >;
 
@@ -348,6 +350,8 @@ async function readSeededPlanInput(
     typedDependencies,
     assignmentRows,
     capacity,
+    demands,
+    resourceCapacities,
     priorityBands,
     people,
     teams,
@@ -369,6 +373,8 @@ async function readSeededPlanInput(
     stores.typedDependencies.listByProject(projectId),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
+    stores.demands.listByProject(projectId),
+    stores.resourceCapacity.listFor(projectId),
     stores.priorityBands.listFor(projectId),
     stores.directory.listPeople(),
     stores.directory.listTeams(),
@@ -399,6 +405,8 @@ async function readSeededPlanInput(
     })),
     assignments: assignmentRows.assignments,
     capacity,
+    demands,
+    resourceCapacities,
     priorityBands,
     people,
     teams,

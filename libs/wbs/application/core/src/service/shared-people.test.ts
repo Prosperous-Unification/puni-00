@@ -87,6 +87,8 @@ function plan(
     stepBlockages: [],
     stepParallels: [],
     capacity: new Map(),
+    demands: [],
+    resourceCapacities: [],
     priorityBands: [],
     people: people.map((id) => ({ id, name: id, teamIds: [] })),
     teams: [],
@@ -384,7 +386,7 @@ describe('readSharedPeople', () => {
               optimization: {
                 inputHash: 'captured',
                 generation: null,
-                contractVersion: '16+0.2.0',
+                contractVersion: '17+0.3.0',
                 budgetMs: 1000,
                 variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
                 schedules: { pri: null, time: null },

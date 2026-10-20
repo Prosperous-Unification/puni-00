@@ -947,6 +947,35 @@ it('captures sparse parallel facts detached from later memory writes', async () 
   }
 });
 
+it('captures demands and resource capacities detached from later memory writes', async () => {
+  // The shared plan read schedules from this capture (`wbs-resources` R5), so a
+  // capture without them would level nothing.
+  const source = await seededSource();
+  try {
+    await source.stores.workItems.insert(
+      workItemRow({ id: 'wi-demand', projectId: 'p1' }),
+      [],
+      stamp,
+    );
+    const added = await source.stores.directory.addResource(
+      { id: 'staging', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+      stamp,
+    );
+    expect(added.ok).toBe(true);
+    await source.stores.resourceCapacity.set('p1', 'staging', 1, stamp);
+    await source.stores.demands.set('wi-demand', 'staging', 1, stamp);
+    const captured = await source.history.savedPlanCapture.readPlanInput('p1');
+    expect(captured?.demands).toEqual([
+      { workItemId: 'wi-demand', resourceId: 'staging', units: 1 },
+    ]);
+    expect(captured?.resourceCapacities).toEqual([{ resourceId: 'staging', units: 1 }]);
+    await source.stores.demands.set('wi-demand', 'staging', null, stamp);
+    expect(captured?.demands).toHaveLength(1);
+  } finally {
+    await source.close();
+  }
+});
+
 it('captures sparse parallel facts from the memory epoch before concurrent clear', async () => {
   const fact = { workItemId: 'wi-parallel', stepId: 'st-1', maxParallel: 1 };
   const fixture = openMemorySourceWithCaptureReadSeam({

@@ -19,7 +19,7 @@ import {
 } from '@wbs/domain';
 
 import { buildSolverEdges } from './build-solver-edges';
-import { buildSolverPools } from './build-solver-pools';
+import { buildSolverPools, buildSolverResources } from './build-solver-pools';
 import { buildSolverSlices } from './build-solver-slices';
 import { quantiseElsewhere } from './quantise-elsewhere';
 import { preflightSolverRequest, type SolverPreflightFailure } from './solver-preflight';
@@ -63,6 +63,11 @@ export interface SolverRequestPlan {
    * onto wire 3 by {@link quantiseElsewhere}.
    */
   readonly elsewhere?: Elsewhere;
+  /**
+   * The project's stated resource capacities (wire 4, `wbs-resources` R5);
+   * absent means none, as in `ScheduleInput`. The demands ride the slices.
+   */
+  readonly resourceCapacities?: PoolSizes;
 }
 
 /**
@@ -171,11 +176,11 @@ export function buildSolverRequest(
   }
   // Proof: removing compatibility preflight failed all three SQLite initial,
   // queued and manual Retry negatives (0 pass / 3 fail).
-  if (spawn.solverVersion !== '0.2.0') {
+  if (spawn.solverVersion !== '0.3.0') {
     return {
       ok: false,
       failure: 'incompatible-solver',
-      detail: `solver ${spawn.solverVersion} does not accept wire 3; expected 0.2.0`,
+      detail: `solver ${spawn.solverVersion} does not accept wire 4; expected 0.3.0`,
     };
   }
   const bookings = quantiseElsewhere(plan.elsewhere);
@@ -209,6 +214,7 @@ export function buildSolverRequest(
     leavesUnder: leavesUnderOf(index),
   });
   const pools = buildSolverPools(slices, plan.poolSizes);
+  const resources = buildSolverResources(slices, plan.resourceCapacities ?? new Map());
 
   const named = new Set(slices.map((slice) => slice.key));
   for (const key of Object.keys(spawn.baselineOffsets)) {
@@ -258,6 +264,9 @@ export function buildSolverRequest(
       // Proof: replacing this wire map with {} failed four mounted initial,
       // edit, queued and Retry request assertions while canonical input stayed intact.
       elsewhere: bookings.wire,
+      // Proof: `{}` here made the golden-bytes and carried-capacity cases of
+      // resource-wire.test.ts fail on the map; watched 2026-10-20.
+      resources,
     },
   };
 }

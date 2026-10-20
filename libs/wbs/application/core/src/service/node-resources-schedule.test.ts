@@ -50,6 +50,7 @@ it('preserves base schedule slice bytes, pool order, canonical hash and Fast sch
     assignments,
     effectiveTeamsOf(rows),
     capacity,
+    new Map(),
   );
   const expected = ['a', 'b', 'c'].flatMap((workItemId) =>
     steps.map(({ id: stepId }) => ({

@@ -10,6 +10,7 @@ import {
   CalendarRangeError,
   canDepend,
   canReparent,
+  chargedDemandsOf,
   type ChargedEstimate,
   chargedWorkdays,
   chargedWorkdaysOf,
@@ -55,6 +56,7 @@ import {
   resolveStepResources,
   type Resource,
   type ResourceCapacity,
+  type ResourceDemand,
   rollUp,
   rollUpActuals,
   rollUpCharged,
@@ -323,6 +325,13 @@ export function slicesOf(
    * has sized is simply absent, and its work draws from no pool.
    */
   teamSizes: ReadonlyMap<string, number>,
+  /**
+   * Each leaf's charged demand vector, from `chargedDemandsOf`: its own
+   * demands on resources the project states a capacity for, clamped to it.
+   * Charged on **every** step's slice of the leaf (`wbs-resources` R2), as the
+   * team pools are; a leaf absent from the map demands nothing.
+   */
+  demandsOf: ReadonlyMap<string, readonly ResourceDemand[]>,
 ): Slice[] {
   const inProject = new Set(rows.map((row) => row.id));
   const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
@@ -361,6 +370,13 @@ export function slicesOf(
         teamOf.get(row.id)?.teamIds ?? [],
         teamSizes,
       );
+    // Present only on a leaf that demands something, so a plan with no
+    // demand hands the engines the slices it always did.
+    // Proof: `{}` in place of the vector made `serialises two leaves on the
+    // one staging environment and names it` (resource-schedule.test.ts) place
+    // demanding blocks on top of each other; watched 2026-10-20.
+    const vector = demandsOf.get(row.id) ?? [];
+    const demands = vector.length === 0 ? {} : { demands: vector };
     if (order.length === 0) {
       const { personId, width, poolIds } = resourcesFor(null);
       slices.push({
@@ -370,6 +386,7 @@ export function slicesOf(
         personId,
         width,
         poolIds,
+        ...demands,
       });
       continue;
     }
@@ -382,6 +399,7 @@ export function slicesOf(
         personId,
         width,
         poolIds,
+        ...demands,
       });
     }
   }
@@ -448,8 +466,15 @@ function canonicalScheduleParts(
   assignments: readonly Assignment[],
   steps: readonly Step[],
   poolSizes: ReadonlyMap<string, number>,
+  /** Every demand on a work item of the project; a parent's charges nothing. */
+  demands: readonly Demand[],
+  /** The project's stated resource capacities. */
+  resourceCapacities: readonly ResourceCapacity[],
 ): CanonicalScheduleParts {
   const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const capacityByResource = new Map(
+    resourceCapacities.map(({ resourceId, units }) => [resourceId, units] as const),
+  );
   const assigneesOf = new Map<string, Record<string, string>>();
   for (const assignment of assignments) {
     assigneesOf.set(assignment.workItemId, {
@@ -471,6 +496,7 @@ function canonicalScheduleParts(
     assigneesOf,
     effectiveTeamsOf(rows),
     poolSizes,
+    chargedDemandsOf(demands, capacityByResource),
   );
   const notBefore = new Map<string, number>();
   if (project.startDate !== null) {
@@ -510,6 +536,11 @@ function canonicalScheduleParts(
         reach: project.depReach,
         deadlines,
         typed,
+        // Stated only when the project states one, so every plan with no
+        // resource keeps the input, and the hash, it had before.
+        // Proof: left out, both levelling cases of resource-schedule.test.ts
+        // threw `no capacity for resource …`; watched 2026-10-20.
+        ...(capacityByResource.size === 0 ? {} : { resourceCapacities: capacityByResource }),
       },
       heldLeafIds,
     ),
@@ -1023,16 +1054,15 @@ export interface WorkItemServiceOptions {
    */
   claims?: ClaimStore;
   /**
-   * What each work item needs of each resource (`wbs-resources`). Optional only
-   * for fixtures that predate resources: without it a demand write, read or
-   * replay throws rather than answering.
+   * What each work item needs of each resource (`wbs-resources`). Required
+   * since both engines level demands (R5): every plan read reads them.
    */
-  demands?: DemandStore;
+  demands: DemandStore;
   /**
-   * The project's stated resource capacities, read by {@link WorkItemService.resourcesWithin}.
-   * Optional for the fixtures `demands` is optional for, and throws alike.
+   * The project's stated resource capacities, read by {@link WorkItemService.resourcesWithin}
+   * and by every plan read, which levels demands against them.
    */
-  resourceCapacity?: ResourceCapacityStore;
+  resourceCapacity: ResourceCapacityStore;
   directory: DirectoryStore;
   /**
    * How many of each team this project may have at work at once — C1's `slotsOf`
@@ -2127,6 +2157,8 @@ export class WorkItemService {
       assignments,
       steps,
       poolSizes,
+      await this.opts.demands.listByProject(projectId),
+      await this.opts.resourceCapacity.listFor(projectId),
     ).input;
   }
 
@@ -2184,6 +2216,13 @@ export class WorkItemService {
       await this.opts.directory.assignmentsInProject(projectId);
     const steps = await this.opts.projects.stepsOf(projectId);
     const slotsOf = await this.opts.capacity.slotsFor(projectId);
+    // Plan data both engines level (`wbs-resources` R5). Never a claim and never
+    // an occupancy: a schedule reads what the plan states, not who holds what.
+    // Proof: `[]` for both at the canonical call made `levels a demanded
+    // resource (isolated)` (resource-schedule.controller.db.test.ts) schedule
+    // overlapping blocks; watched 2026-10-20.
+    const demands = await this.opts.demands.listByProject(projectId);
+    const resourceCapacities = await this.opts.resourceCapacity.listFor(projectId);
     const priorityBands = await this.opts.priorityBands.listFor(projectId);
     const canonical = canonicalScheduleParts(
       project,
@@ -2196,6 +2235,8 @@ export class WorkItemService {
       assigned,
       steps,
       slotsOf,
+      demands,
+      resourceCapacities,
     );
     let scheduling: TreeSchedule;
     try {
@@ -2234,6 +2275,8 @@ export class WorkItemService {
         seq,
         steps,
         slotsOf,
+        demands,
+        resourceCapacities,
         priorityBands,
         // An isolated input carries no bookings elsewhere, so no slice names a holder.
         elsewhereHolders: [],
@@ -2969,7 +3012,7 @@ export class WorkItemService {
     const context = await this.contextFor(id, actorId);
     if (!context.ok) return context;
     const { workItem } = context.value;
-    const demands = this.demanding();
+    const { demands } = this.opts;
     const resource = (await this.opts.directory.listResources()).find(
       (each) => each.id === resourceId,
     );
@@ -3006,14 +3049,12 @@ export class WorkItemService {
 
   /** Every demand stated on a work item of the project, by work item then resource. */
   demandsOf(projectId: string): Promise<Demand[]> {
-    return this.demanding().listByProject(projectId);
+    return this.opts.demands.listByProject(projectId);
   }
 
   /** The project's stated resource capacities, in resource-id order. */
   resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]> {
     const { resourceCapacity } = this.opts;
-    if (resourceCapacity === undefined)
-      throw new Error('this work-item service was built without a resource capacity store');
     return resourceCapacity.listFor(projectId);
   }
 
@@ -3038,8 +3079,6 @@ export class WorkItemService {
   } | null> {
     if (!(await this.admits(projectId, access))) return null;
     const { resourceCapacity } = this.opts;
-    if (resourceCapacity === undefined)
-      throw new Error('this work-item service was built without a resource capacity store');
     const resources =
       access.kind === 'scoped'
         ? await this.opts.directory.listInOrganization('resources', access.scope.organizationId)
@@ -3047,15 +3086,8 @@ export class WorkItemService {
     return {
       resources,
       capacities: await resourceCapacity.listFor(projectId),
-      demands: await this.demanding().listByProject(projectId),
+      demands: await this.opts.demands.listByProject(projectId),
     };
-  }
-
-  private demanding(): DemandStore {
-    const { demands } = this.opts;
-    if (demands === undefined)
-      throw new Error('this work-item service was built without a demand store');
-    return demands;
   }
 
   /**
@@ -4425,6 +4457,8 @@ export class WorkItemService {
       assigned,
       steps,
       slotsOf,
+      await this.opts.demands.listByProject(projectId),
+      await this.opts.resourceCapacity.listFor(projectId),
     );
 
     const captured =
@@ -6582,7 +6616,7 @@ export class WorkItemService {
         // A demand is a fact about one work item and one resource: the item's
         // revision precondition already refused a row that moved, so what is
         // left to refuse is a resource the directory no longer holds.
-        const written = await this.demanding().set(
+        const written = await this.opts.demands.set(
           command.workItemId,
           command.resourceId,
           command.units,
@@ -7717,6 +7751,9 @@ interface TreeReads {
   seq: number;
   steps: Step[];
   slotsOf: ReadonlyMap<string, number>;
+  /** The demands and resource capacities both engines level (`wbs-resources` R5). */
+  demands: readonly Demand[];
+  resourceCapacities: readonly ResourceCapacity[];
   priorityBands: PriorityBand[];
   /** The shared chain's holder labels; empty for an isolated read. */
   elsewhereHolders: readonly ElsewhereHolderLabel[];
@@ -7765,6 +7802,11 @@ function projectSharedTree(
       // downstream root (shared)`; watched 2026-10-13.
       blockages: captured.blockages,
       slotsOf: reads.capacity,
+      // The schedule itself was computed on the snapshot (`chain.scheduled`);
+      // these reach the one canonical seam so it reads the snapshot's facts and
+      // not a second, empty answer. Not a check: `[]` here schedules the same.
+      demands: reads.demands,
+      resourceCapacities: reads.resourceCapacities,
       priorityBands: [...reads.priorityBands],
       elsewhereHolders: chain.kind === 'scheduled' ? chain.holders : [],
     },
@@ -7793,6 +7835,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     seq,
     steps,
     slotsOf,
+    demands,
+    resourceCapacities,
     priorityBands,
   } = reads;
   const numbers = deriveNumbers(rows);
@@ -7891,6 +7935,8 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
     assigned,
     steps,
     slotsOf,
+    demands,
+    resourceCapacities,
   );
   const { assigneesOf, hasChildren, rule } = canonical;
   // Proof: passing canonical.input.rows dropped held leaf resources and

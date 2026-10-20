@@ -421,7 +421,7 @@ describe('bootBe01', () => {
       raw.close();
     }
     const observer = openDrizzle(dbPath);
-    const contractVersion = '7+0.2.0';
+    const contractVersion = '7+0.3.0';
     allocateGeneration(observer, 'p-1', contractVersion, 'abandoned', 1);
     const state = openDatabase(dbPath);
     try {
@@ -443,7 +443,7 @@ describe('bootBe01', () => {
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
       optimizer: {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('startup reconciliation must not spawn');
@@ -482,7 +482,7 @@ describe('bootBe01', () => {
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
       optimizer: {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('the settings write must not spawn');
@@ -750,7 +750,7 @@ describe('bootBe01', () => {
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled' as const,
         optimizer: {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('shutdown ordering must not spawn');
@@ -890,7 +890,7 @@ describe('bootBe01', () => {
       {
         ...bootOptions(dbPath, 0),
         optimizer: {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('this case must not spawn');

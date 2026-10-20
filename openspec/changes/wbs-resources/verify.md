@@ -227,3 +227,126 @@ null, through the command boundary and the runner).
   `SubtreeCopy`/`restore_subtree` to carry demands; not in this slice.
 - Saved plans and the canonical schedule input carry no demands (slice 3.1); the tree read
   carries none (the resource read does); fe-01 is task 1.5.
+
+## Slice 3: the engines level demands (tasks 3.1 to 3.3)
+
+Run on the laptop 2026-10-20 on `feat/wbs-resource-levelling` (branched from
+`plan/wbs-resources` 13bc46dbc with `feat/wbs-resources-declaration` merged in), every Bun
+test under `env -u CLAUDECODE`, per project and per file, not the full gate.
+
+### What shipped
+
+- **3.1** `chargedDemandsOf` (`@wbs/domain`) turns stored demands into each leaf's vector;
+  `slicesOf` puts it on every step's slice (`Slice.demands`, absent when empty).
+  `ScheduleInput.resourceCapacities` and `schedule()`'s eleventh argument carry the stated
+  capacities; the canonicaliser hashes a slice's `demands` and `resourceCapacities` only
+  when non-empty, so a plan stating neither keeps its exact string. The live read, the
+  restart pump (`scheduleInput`), arrange, the shared snapshot (`PlanInputReads.demands`,
+  `.resourceCapacities`, read by both stores' capture) and the publication guard all pass
+  them. `SCHEDULER_CONTRACT_VERSION` 16 to 17; `CACHE_DTO_VERSION` 3 to 4.
+- **3.2** Fast: a block's claim list is its team pools at `width` and its resources at their
+  units; `jointWindowFor`, `reserve`, the weighted replay, the pinned-start refusals and the
+  chronological resource edges all read that one list, so the whole vector is acquired at
+  one instant. A start a resource pool bound reads `boundBy: 'capacity'`,
+  `capacityTeamId: null` and `capacityResource: { resourceId, units }` (absent otherwise).
+- **3.3** Solver wire 4 (`solver-wire.v4.json`, both copies): every slice carries `demands`
+  and the request carries `resources`, both required; invariant (10) is checked by the Bun
+  builder and by `validate.py`. `model.py` clause 4 adds one `add_cumulative` per resource
+  with demand = units over the slice's one interval. The re-validator sweeps each resource
+  (`pool-overcapacity` naming it). `wbs-solver` 0.2.0 to 0.3.0, so `contractVersion` is
+  `17+0.3.0`; the supervisor protocol admits wire 4. Fixtures `valid-staging-resource`,
+  `valid-divisible-resource` (built by the Bun builder, pinned byte for byte in
+  `resource-wire.test.ts`) and `invalid-zero-demand-units`.
+- The R5 falsifier: `moves neither the schedule key nor a date when a leaf is claimed`
+  (`resource-schedule.test.ts`, through `claimWorkItem`).
+
+### Golden corpus no-op proof
+
+`fast-golden-corpus.json` and `solver-quantum-golden-corpus.json` changed their
+`contractVersion` line only (16 to 17); every case is byte-identical (`git diff` shows one
+line each). `keeps every golden corpus case byte for byte, no resource stated` replays the
+corpus with the eleventh argument supplied empty, and its twin with a remembered capacity
+nothing demands. The canonical string of a plan with `demands: []` and an empty capacity map
+equals the string without them (`keeps the bytes of a plan that states no demand and no
+capacity`). The honest limit: the hash of a no-resource plan is unchanged on purpose, and the
+contract bump is what evicts rows cached under 16.
+
+### Decisions this slice had to make (assumed; R1 to R8 unchanged)
+
+- **A demand above the stated capacity is clamped to it**, as `width` is clamped to its
+  narrowest team, so the block holds the whole pool rather than never fitting. A stated
+  capacity of **0 therefore constrains nothing in the schedule**, which reads against
+  resource-directory's "a stated 0 means the plan may use none": a block that may never
+  start has no date. Flagged for Dany; the claim path (slice 2) is where "none" can bite.
+- **Each step's block acquires and releases on its own** (R2 read literally, as team slots
+  do), so two leaves on a capacity-1 resource interleave step by step (`080.25` Dev, `090`
+  Dev, `080.25` QA, `090` QA in `resource-schedule.test.ts`). Blocks never overlap, which
+  is the spec's scenario; a leaf does not keep the resource across its steps.
+- `boundBy` stays `'capacity'`; the resource is named by the new optional
+  `capacityResource`. The HTTP slice contract admits it (additive); fe-01 shows no resource
+  words until 3.4.
+- The wire keeps `poolIds`/`width`/`pools` for teams and adds `demands`/`resources` beside
+  them, rather than Claire's single per-pool demand list: one new cumulative loop, no
+  change to the team clause.
+- `WorkItemServiceOptions.demands` and `.resourceCapacity` are required now (every plan read
+  levels demands); 26 test fixtures that built the service without them were given the
+  SQLite repositories or `testResourceStores`.
+- Done work: nothing reads progress; a step stated done still holds its units as it still
+  holds its team slots (proposal non-goal). Documented on `Slice.demands`.
+- Saved plan bodies still carry no demands (slice 1's open item); a capture's own schedule
+  levels them because the capture reads them.
+
+### Commands and results (fresh, after the last edit)
+
+| Command (cwd)                                                                        | Result                    |
+| ------------------------------------------------------------------------------------ | ------------------------- |
+| `bun test ./src` (libs/wbs/domain/domain)                                            | 1169 pass, 1 skip, 0 fail |
+| `bun test ./` (libs/wbs/domain/contracts, http and solver)                           | 491 pass, 0 fail          |
+| `bun test ./src` (libs/wbs/application/core)                                         | 1128 pass, 0 fail         |
+| `bun test ./src` (store-memory / conformance / runtime-portable / supervisor-proto)  | 193 / 35 / 34 / 12 pass   |
+| `bun test ./src` (apps/wbs/mcp-01)                                                   | 423 pass, 0 fail          |
+| `bun test` over 39 be-01 files (every touched test, OpenAPI, resource controllers)   | 780 pass, 0 fail          |
+| `bun test` over 9 store-sqlite files (touched, capture, chain, fanout, cache)        | 201 pass, 0 fail          |
+| `PATH=.venv-solver/bin:$PATH bunx nx run wbs-solver-py:test --skip-nx-cache`         | Ran 258 tests, OK         |
+| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts` (root)          | 15 pass, 0 fail           |
+| `bunx tsc -p <tsconfig.lib/spec/app>.json --noEmit` over 11 projects and be-01 tools | no diagnostics            |
+| `bunx @fission-ai/openspec@1.12.0 validate --all --json`                             | 258 passed, 0 failed      |
+
+`.venv-solver` is the worktree's own solver environment from `tools/dev/solver-setup-cli.ts`
+(gitignored); nothing was installed globally. **`tsc --build` is not evidence for be-01**:
+it reported be-01 up to date while 26 of its test files no longer typechecked, because be-01
+has no project reference to core and only its own inputs were older than its outputs. Every
+typecheck above is `tsc -p … --noEmit`.
+
+### Proofs (each fault injected alone, the named test watched failing, restored)
+
+| Check                                               | Fault                        | Failing test (result)                                                                               |
+| --------------------------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| resource claims in `claimsOf`                       | resource half `[]`           | five `schedule-resources.test.ts` cases (staging both paths, 32 GB, vector, pinned overlap)         |
+| `capacityResource` absent when unbound              | `null` on every slice        | both corpus byte cases and the staging case                                                         |
+| `capacityResource` named                            | `null` for a resource        | the five cases naming a resource                                                                    |
+| `refuseMalformedDemands`                            | call removed                 | `refuses a demand below one unit, a resource named twice and an unsorted vector`                    |
+| `chargedDemandsOf` unstated skip                    | demand charged unclamped     | `leaves a demand on an unstated capacity unconstrained`                                             |
+| canonical `demands` entry                           | left out                     | `hashes a demand…` (1 key for 5 plans), `moves the key when a demand edit moves a placement` (39/2) |
+| canonical `resourceCapacities` entry                | left out                     | `hashes a resource capacity` (40/1)                                                                 |
+| `slicesOf` vector                                   | `{}`                         | `serialises two leaves on the one staging environment and names it`                                 |
+| `canonicalScheduleParts` capacities                 | left out                     | both levelling cases of `resource-schedule.test.ts` threw `no capacity for resource`                |
+| isolated tree read demands                          | `[]`                         | `levels a demanded resource (isolated)` (resource-schedule.controller.db.test.ts)                   |
+| SQLite capture demands                              | `[]`                         | `levels a demanded resource (shared)`; isolated twin passed                                         |
+| memory capture demands and capacities               | `[]`                         | `captures demands and resource capacities detached from later memory writes`                        |
+| runtime-portable forwards capacities                | `NO_CAPACITIES`              | `hands the resource capacities to Fast`, `forwards all … Fast arguments`                            |
+| builder `demands` / `resources` / no-capacity throw | `[]` / `{}` / skip           | `resource-wire.test.ts` golden bytes, carried vector, no-capacity refusal (3, 2 and 1 fail)         |
+| re-validator resource sweep / capacity presence     | loop emptied / check emptied | staging and divisible overload cases accepted (50/2); unstated resource accepted (51/1)             |
+| supervisor admits wire 4                            | list back to 1 to 3          | `carries resource demands and capacities on solver wire 4 unchanged`                                |
+| `model.py` resource cumulative                      | loop over `{}`               | `test_resources.py`: staging and 32 GB at makespan 10, vector overlap (3/13); parity cases (3 fail) |
+| `validate.py` invariant (10)                        | loop over `[]`               | the four invariant cases, `RequestRejected not raised` (4/13)                                       |
+
+Not a check, recorded so it is not mistaken for one: `projectSharedTree` hands the snapshot's
+demands to the canonical seam, but the shared schedule was computed on the snapshot; `[]`
+there changed no test.
+
+### Not run, and why
+
+- The h2puni gate (the orchestrator gates the plan head), the full Nx suites, the whole
+  be-01 and store-sqlite suites (39 and 9 files instead), fe-01 tests (fe-01 typechecks; no
+  fe-01 source changed; 3.4 is not this slice).

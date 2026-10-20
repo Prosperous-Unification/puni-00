@@ -36,6 +36,10 @@ async function seeded() {
       progress: stores.progress,
       attempts: stores.attempts,
       blockages: stores.blockages,
+      // Every plan read levels demands now (`wbs-resources` R5), so a write that
+      // announces and re-reads the plan needs both.
+      demands: stores.demands,
+      resourceCapacity: stores.resourceCapacity,
       directory: stores.directory,
       capacity: stores.capacity,
       priorityBands: stores.priorityBands,

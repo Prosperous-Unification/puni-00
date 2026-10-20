@@ -36,6 +36,12 @@ Six clauses, in the re-validator's own order:
 4. **Pools** — one `AddCumulative` per pool, demand `width`, capacity
    `pools[poolId]` (`pool-overcapacity`). The whole width is spent in *every*
    pool a slice names, so a two-pool slice is counted at full width in both.
+   Wire 4 adds one `AddCumulative` per demanded **resource**, demand = the
+   slice's units of it, capacity `resources[resourceId]` (`wbs-resources` R5;
+   the re-validator reports an overload as `pool-overcapacity` naming the
+   resource). The same interval feeds every cumulative a slice is in, so its
+   team slots and resource units are held over one span from one start: the
+   whole vector at one instant, never one piece at a time.
 5. **Assignees** — one `AddNoOverlap` per non-null `personId`
    (`assignee-double-booked`). A person is not a quantity: two slices naming one
    person overlap or they do not, whatever their widths.
@@ -81,7 +87,7 @@ from typing import Any, Mapping, Sequence
 
 from ortools.sat.python import cp_model
 
-# The three term names, spelled exactly as `solver-wire.v3.json`'s
+# The three term names, spelled exactly as `solver-wire.v4.json`'s
 # `objectiveValues` spells them. Lowercase is derived rather than chosen: the
 # schema's own `$comment` records that `MAKESPAN`/`PRIORITY`/`MOVEMENT` in
 # design.md are mathematical names and these are the JSON keys.
@@ -92,7 +98,7 @@ MOVEMENT = "movement"
 TERMS: tuple[str, str, str] = (MAKESPAN, PRIORITY, MOVEMENT)
 
 # The lexicographic order each objective minimises, from the request's
-# `objective` enum. `solver-wire.v3.json`: "pri minimises (PRIORITY, MAKESPAN,
+# `objective` enum. `solver-wire.v4.json`: "pri minimises (PRIORITY, MAKESPAN,
 # MOVEMENT) lexicographically; time minimises (MAKESPAN, PRIORITY, MOVEMENT)".
 # MOVEMENT is last in both, which is why it is a tie-breaker and never a driver.
 STAGE_ORDER: Mapping[str, tuple[str, str, str]] = {
@@ -228,6 +234,28 @@ def build_model(request: Mapping[str, Any]) -> BuiltModel:
             model.add_cumulative(
                 [interval for interval, _ in members],
                 [width for _, width in members],
+                int(capacity),
+            )
+
+    # Clause 4, resources. One cumulative per resource some slice demands, each
+    # member at its own units over the slice's one interval, so a block holds
+    # its team slots and every resource from the same start (Claire's design
+    # note §4: exclusive is capacity 1, divisible is capacity N, one code path).
+    # Proof: with this loop iterating nothing, test_resources.py failed three
+    # cases: the staging pair and the 32 GB trio each came back at makespan 10
+    # instead of 20, and `z` overlapped `x` (3 fail / 13); watched 2026-10-20.
+    for resource_id, capacity in request["resources"].items():
+        holders = [
+            (intervals[str(entry["key"])], int(demand["units"]))
+            for entry in slices
+            if str(entry["key"]) in intervals
+            for demand in entry["demands"]
+            if demand["resourceId"] == resource_id
+        ]
+        if holders:
+            model.add_cumulative(
+                [interval for interval, _ in holders],
+                [units for _, units in holders],
                 int(capacity),
             )
 

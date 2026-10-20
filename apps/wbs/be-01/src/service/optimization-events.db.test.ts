@@ -15,7 +15,7 @@ import { createOptimizationRepository } from '../repository/optimization';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.2.0';
+const CONTRACT = '7+0.3.0';
 const BUDGET = 60_000;
 const INPUT: ScheduleInput = {
   rows: [{ id: 'w-1', parentId: null, position: 10, frozenNumber: null, priority: null }],
@@ -42,7 +42,7 @@ const DEADLINED_INPUT: ScheduleInput = {
   deadlines: new Map([['w-1', 0]]),
 };
 const RESPONSE = `${JSON.stringify({
-  wireVersion: 3,
+  wireVersion: 4,
   status: 'feasible',
   offsets: { 'w-1\u0000step-dev': 0 },
   objectiveValues: {
@@ -52,7 +52,7 @@ const RESPONSE = `${JSON.stringify({
   },
 })}\n`;
 const INFEASIBLE_RESPONSE = `${JSON.stringify({
-  wireVersion: 3,
+  wireVersion: 4,
   status: 'infeasible',
 })}\n`;
 const dirs: string[] = [];
@@ -91,7 +91,7 @@ describe('optimized outcome events', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -136,7 +136,7 @@ describe('optimized outcome events', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -191,7 +191,7 @@ describe('optimized outcome events', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,
@@ -296,7 +296,7 @@ describe('optimized outcome events', () => {
       repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
       hashInput: scheduleInputHash,
       contractVersion: CONTRACT,
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: BUDGET,
       ownerId: 'blue',
       now: () => 10,

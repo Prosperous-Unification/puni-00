@@ -108,6 +108,8 @@ const reads = {
   typedDependencies: [],
   assignments: [{ workItemId: 'w1', stepId: 's1', personId: 'per-1' }],
   capacity: new Map([['team-2', 3]]),
+  demands: [],
+  resourceCapacities: [],
   priorityBands: [{ startsAt: 1, label: 'Critical', defaultValue: 10 }],
   people: [
     { id: 'per-1', name: 'Ada', teamIds: ['team-1'] },

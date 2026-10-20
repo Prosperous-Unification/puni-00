@@ -1,7 +1,7 @@
 {
-  "wireVersion": 3,
-  "contractVersion": "16+0.2.0",
-  "solverVersion": "0.2.0",
+  "wireVersion": 4,
+  "contractVersion": "17+0.3.0",
+  "solverVersion": "0.3.0",
   "objective": "time",
   "budgetMs": 1000,
   "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -18,7 +18,8 @@
       "priorityWeight": 0,
       "notBeforeUnits": 0,
       "deadlineUnits": null,
-      "workItemIsMilestone": false
+      "workItemIsMilestone": false,
+      "demands": []
     },
     {
       "workItemKey": "B",
@@ -30,7 +31,8 @@
       "priorityWeight": 0,
       "notBeforeUnits": 0,
       "deadlineUnits": null,
-      "workItemIsMilestone": false
+      "workItemIsMilestone": false,
+      "demands": []
     }
   ],
   "edges": [
@@ -42,6 +44,7 @@
     }
   ],
   "pools": {},
+  "resources": {},
   "baselineOffsets": {
     "A\u0000": 0,
     "B\u0000": 2

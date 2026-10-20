@@ -83,6 +83,54 @@ export interface Slice {
    * layer down).
    */
   poolIds: readonly string[];
+  /**
+   * The units of each resource this block holds while it runs (`wbs-resources`
+   * R2 and R5): the leaf's own demands, charged on every one of its steps'
+   * blocks, **resolved by the caller** for `width`'s reason.
+   *
+   * Only resources the project states a capacity for appear here, each with
+   * its units already clamped to that capacity, exactly as `poolIds` holds only
+   * sized teams and `width` is clamped to the narrowest of them. An unstated
+   * capacity constrains nothing, and a demand larger than the capacity would
+   * otherwise be a block no window can hold.
+   *
+   * Spent **beside** the team slots, at the same instant: the block starts
+   * only where every team pool has `width` slots and every resource pool has
+   * its units free for the whole of its duration, and it takes all of them
+   * together. Nothing is acquired incrementally, which is what keeps
+   * hold-and-wait out of the plan (Claire's design note, §3). Resource units
+   * never change the duration; only `width` divides effort.
+   *
+   * Each step's block acquires and releases on its own, as team slots do, so
+   * two leaves sharing a capacity-1 resource interleave step by step rather
+   * than one keeping it from its first step to its last. A step stated done
+   * still holds its units exactly as it still holds its team slots: whether
+   * done work releases schedule occupancy is its own change (`wbs-resources`
+   * proposal, non-goals), and nothing here reads progress.
+   *
+   * **Absent and empty are one plan**, and absent is what every plan stating
+   * no demand carries, so such a plan places and serializes byte for byte as
+   * it did before resources existed (`fast-golden-corpus.test.ts`). Sorted by
+   * resource id with no resource twice; {@link groupSlicesByLeaf} refuses
+   * anything else.
+   */
+  demands?: readonly ResourceDemand[];
+}
+
+/** One resource's units held by one block — see {@link Slice.demands}. */
+export interface ResourceDemand {
+  readonly resourceId: string;
+  /** Whole units, from 1 up to the project's stated capacity for the resource. */
+  readonly units: number;
+}
+
+/**
+ * The resource pool a capacity-bound slice waited for, and the units it held
+ * there — {@link ScheduledSlice.capacityResource}.
+ */
+export interface CapacityResource {
+  readonly resourceId: string;
+  readonly units: number;
 }
 
 /**
@@ -99,6 +147,48 @@ export interface Slice {
  * here would be a pool constraint silently not applied.
  */
 export type PoolSizes = ReadonlyMap<string, number>;
+
+/**
+ * Every pool one placement can spend, the teams' slots and the resources'
+ * units kept apart: a team id and a resource id are ids in two different
+ * tables, and one map keyed by both would let one stand for the other.
+ */
+interface ProfileSizes {
+  readonly teams: PoolSizes;
+  readonly resources: PoolSizes;
+}
+
+/**
+ * What one block spends in one pool: a team's slots at the block's width, or
+ * a resource's units at the leaf's demand. The joint search and the
+ * reservation read only these, so the two kinds of pool are one ledger rule.
+ */
+interface PoolClaim {
+  readonly kind: 'team' | 'resource';
+  readonly poolId: string;
+  readonly units: number;
+}
+
+/**
+ * The block's whole vector: every team pool at `width` (Dany, 2026-08-13:
+ * each named team spends the whole width) and every demanded resource at its
+ * units. Acquired together at one instant by {@link capacityProfile}'s joint
+ * search, never one at a time.
+ */
+// Proof: the resource half replaced by `[]` made five schedule-resources.test.ts
+// cases fail — the staging pair overlapped on both paths, the 32 GB trio and the
+// vector case all started at 0, and the pinned overlap was accepted; watched
+// 2026-10-20.
+function claimsOf(slice: Slice): PoolClaim[] {
+  return [
+    ...slice.poolIds.map((poolId) => ({ kind: 'team' as const, poolId, units: slice.width })),
+    ...(slice.demands ?? []).map(({ resourceId, units }) => ({
+      kind: 'resource' as const,
+      poolId: resourceId,
+      units,
+    })),
+  ];
+}
 
 /**
  * The key one slice is held under. Opaque: read {@link ScheduledSlice}'s own
@@ -305,6 +395,22 @@ export interface ScheduledSlice extends Scheduled {
    * blocking *slices*, which {@link capacityPredecessorIds} already holds.
    */
   capacityTeamId: string | null;
+  /**
+   * Which **resource** ran out, and the units this slice needed of it, where
+   * the pool that bound the start is a resource's rather than a team's
+   * (`wbs-resources` R5).
+   *
+   * **Present exactly when `boundBy` is `'capacity'` and the binding pool is
+   * a resource, and then {@link capacityTeamId} is null**: one pool binds,
+   * and it is either a team or a resource. Absent on every other slice rather
+   * than null, for {@link elsewhereHolder}'s reason: a plan stating no demand
+   * serializes byte for byte as it did before resources existed.
+   *
+   * Chosen among the binding pools by {@link capacityTeamId}'s own rule —
+   * the latest valid finisher, then the pool id — so the resource named and
+   * the slice pointed at answer one question.
+   */
+  capacityResource?: CapacityResource;
   /**
    * How many slots this slice held while it ran — the caller's
    * {@link Slice.width}, carried out so a reader can see why the duration is
@@ -753,6 +859,8 @@ interface Placed {
   capacityPredecessors: number[];
   /** Which pool ran out — see {@link ScheduledSlice.capacityTeamId}. */
   capacityTeamId: string | null;
+  /** Which resource ran out instead — see {@link ScheduledSlice.capacityResource}. */
+  capacityResource: CapacityResource | null;
   /** Who held the person elsewhere; non-null exactly when `boundBy` is `'elsewhere'`. */
   elsewhereHolder: ElsewhereHolder | null;
 }
@@ -841,8 +949,8 @@ class CapacityTooNarrowError extends Error {
  * makes the placement visit, and a module-level counter would be a number about
  * whatever else the suite had run.
  */
-function capacityProfile(sizes: PoolSizes) {
-  const pools = new Map<string, Pool>();
+function capacityProfile(sizes: ProfileSizes) {
+  const pools = { team: new Map<string, Pool>(), resource: new Map<string, Pool>() };
   /**
    * How many aggregated events every window search has visited, together.
    *
@@ -852,10 +960,10 @@ function capacityProfile(sizes: PoolSizes) {
    */
   let visited = 0;
 
-  const poolFor = (poolId: string): Pool => {
-    const already = pools.get(poolId);
+  const poolFor = ({ kind, poolId }: PoolClaim): Pool => {
+    const already = pools[kind].get(poolId);
     if (already !== undefined) return already;
-    const size = sizes.get(poolId);
+    const size = (kind === 'team' ? sizes.teams : sizes.resources).get(poolId);
     // R5: the caller sets `poolId` only for a team that has a size, so an
     // absent entry means the adapter's reading and this map came apart. A
     // default here would be a capacity constraint quietly not applied.
@@ -863,9 +971,16 @@ function capacityProfile(sizes: PoolSizes) {
     // Proof: replaced with `?? Infinity` and `refuses a pooled slice whose pool
     // has no size` failed on `expected [Function] to throw` — the pool bounded
     // nothing and the plan came back unconstrained; watched 2026-08-12.
-    if (size === undefined) throw new Error(`no size for pool ${poolId}`);
+    //
+    // A resource is the same rule: the caller puts a demand on a slice only for
+    // a resource the project states a capacity for.
+    if (size === undefined) {
+      throw new Error(
+        kind === 'team' ? `no size for pool ${poolId}` : `no capacity for resource ${poolId}`,
+      );
+    }
     const fresh: Pool = { size, events: [] };
-    pools.set(poolId, fresh);
+    pools[kind].set(poolId, fresh);
     return fresh;
   };
 
@@ -923,16 +1038,17 @@ function capacityProfile(sizes: PoolSizes) {
      * above guarantees.
      */
     windowFor(
-      poolId: string | null,
-      width: number,
+      claim: PoolClaim,
       duration: number,
       floor: number,
     ): { start: number; blocking: number[] } {
+      // `width` is the claim's units: a team's slots or a resource's units,
+      // counted by one rule.
+      const { poolId, units: width } = claim;
       // Reserves nothing and waits for nothing: a slice of no length is not
-      // work and a slice on no pool spends nobody's slots. The twin of the
-      // existing person rule and of its watched proof.
-      if (poolId === null || duration === 0 || width === 0) return { start: floor, blocking: [] };
-      const pool = poolFor(poolId);
+      // work. The twin of the existing person rule and of its watched proof.
+      if (duration === 0 || width === 0) return { start: floor, blocking: [] };
+      const pool = poolFor(claim);
       // Refused here rather than found out at the end of the scan: this is the
       // statement that the caller's clamp and these sizes are one reading, and
       // it says so before any work is done. The backstop in `advancePast` holds
@@ -1072,24 +1188,23 @@ function capacityProfile(sizes: PoolSizes) {
      * paid for a uniformity nothing reads.
      */
     jointWindowFor(
-      poolIds: readonly string[],
-      width: number,
+      claims: readonly PoolClaim[],
       duration: number,
       floor: number,
     ): {
       start: number;
       blocking: number[];
-      binding: { poolId: string; blocking: number[] }[];
+      binding: { claim: PoolClaim; blocking: number[] }[];
     } {
       // Spends nothing and waits for nothing — the `poolId === null` line,
       // under a set, and **only** that line: a zero duration and a zero width
       // are left to `windowFor`'s own short-circuit below rather than repeated
       // here, so that check keeps firing and the proof it carries keeps being
       // about a path something takes.
-      if (poolIds.length === 0) return { start: floor, blocking: [], binding: [] };
-      if (poolIds.length === 1) {
-        const only = poolIds[0];
-        const window = searches.windowFor(only, width, duration, floor);
+      if (claims.length === 0) return { start: floor, blocking: [], binding: [] };
+      if (claims.length === 1) {
+        const only = claims[0];
+        const window = searches.windowFor(only, duration, floor);
         return {
           start: window.start,
           blocking: window.blocking,
@@ -1097,24 +1212,24 @@ function capacityProfile(sizes: PoolSizes) {
           // At the floor it is the placement's tie rule that decides, and
           // `capacity` loses a tie — see {@link ScheduleFloor} — so a binding
           // entry there would be a team named on a slice nothing held up.
-          binding: window.start > floor ? [{ poolId: only, blocking: window.blocking }] : [],
+          binding: window.start > floor ? [{ claim: only, blocking: window.blocking }] : [],
         };
       }
 
       const blocking = new Set<number>();
       let candidate = floor;
-      let binding: { poolId: string; blocking: number[] }[] = [];
+      let binding: { claim: PoolClaim; blocking: number[] }[] = [];
       for (;;) {
         let best = candidate;
-        let reached: { poolId: string; blocking: number[] }[] = [];
-        for (const poolId of poolIds) {
-          const window = searches.windowFor(poolId, width, duration, candidate);
+        let reached: { claim: PoolClaim; blocking: number[] }[] = [];
+        for (const claim of claims) {
+          const window = searches.windowFor(claim, duration, candidate);
           for (const node of window.blocking) blocking.add(node);
           if (window.start > best) {
             best = window.start;
-            reached = [{ poolId, blocking: window.blocking }];
+            reached = [{ claim, blocking: window.blocking }];
           } else if (window.start === best && window.start > candidate) {
-            reached.push({ poolId, blocking: window.blocking });
+            reached.push({ claim, blocking: window.blocking });
           }
         }
         if (best === candidate) return { start: candidate, blocking: [...blocking], binding };
@@ -1123,26 +1238,24 @@ function capacityProfile(sizes: PoolSizes) {
       }
     },
 
-    /** Writes a placed block's two events onto every pool it spends, tagged with the node holding them. */
-    reserve(
-      poolIds: readonly string[],
-      node: number,
-      width: number,
-      start: number,
-      finish: number,
-    ): void {
-      if (width === 0 || finish === start) return;
-      // One reservation per pool, of the block's **whole** width: every named
-      // team spends its own days (Dany, 2026-08-13, decision 3). Splitting the
-      // width between them would be the other reading of "three teams on a
-      // five-day slice", and it is the one he ruled out.
-      for (const poolId of poolIds) {
-        const pool = poolFor(poolId);
+    /**
+     * Writes a placed block's two events onto every pool it spends, tagged with
+     * the node holding them: the whole vector at one start and one finish.
+     */
+    reserve(claims: readonly PoolClaim[], node: number, start: number, finish: number): void {
+      if (finish === start) return;
+      // One reservation per pool, of the block's **whole** width on a team:
+      // every named team spends its own days (Dany, 2026-08-13, decision 3).
+      // Splitting the width between them would be the other reading of "three
+      // teams on a five-day slice", and it is the one he ruled out. A resource
+      // pool takes the demand's units instead.
+      for (const claim of claims) {
+        const pool = poolFor(claim);
         const opens = eventAt(pool, start);
-        opens.delta += width;
+        opens.delta += claim.units;
         opens.acquires.push(node);
         const closes = eventAt(pool, finish);
-        closes.delta -= width;
+        closes.delta -= claim.units;
         closes.releases.push(node);
       }
     },
@@ -1514,7 +1627,7 @@ function tileFinish(
 interface JointWindow {
   start: number;
   blocking: number[];
-  binding: { poolId: string; blocking: number[] }[];
+  binding: { claim: PoolClaim; blocking: number[] }[];
 }
 
 /**
@@ -1547,7 +1660,12 @@ function annotateCapacity(
   window: JointWindow,
   finishOf: (node: number) => number,
   placedAtOf: (node: number) => number,
-): { capacityPredecessors: number[]; capacityTeamId: string | null; referent: number } {
+): {
+  capacityPredecessors: number[];
+  capacityTeamId: string | null;
+  capacityResource: CapacityResource | null;
+  referent: number;
+} {
   // Only where the pool is what held it: a set carried on a slice the pool
   // let through would be a wait that is not there, in the same way an arrow
   // for a resource edge that did not bind would be.
@@ -1571,7 +1689,11 @@ function annotateCapacity(
    * empty blocking set: a team named on a slice nothing held up is a wait
    * that is not there, in the same way a resource arrow would be.
    */
-  let capacityTeamId: string | null = null;
+  //
+  // A resource pool competes for the name under the same rule (`wbs-resources`
+  // R5): the chosen pool is a team or a resource, never both, and ties past
+  // the finish go to the pool id whichever kind it is.
+  let chosen: PoolClaim | null = null;
   let capacityTeamBlockers: number[] = [];
   let bestFinish = -Infinity;
   for (const pool of window.binding) {
@@ -1580,13 +1702,18 @@ function annotateCapacity(
     for (const blocker of validBlockers) finish = Math.max(finish, finishOf(blocker));
     if (
       finish > bestFinish ||
-      (finish === bestFinish && capacityTeamId !== null && pool.poolId < capacityTeamId)
+      (finish === bestFinish && chosen !== null && pool.claim.poolId < chosen.poolId)
     ) {
       bestFinish = finish;
-      capacityTeamId = pool.poolId;
+      chosen = pool.claim;
       capacityTeamBlockers = validBlockers;
     }
   }
+  const capacityTeamId = chosen?.kind === 'team' ? chosen.poolId : null;
+  // Proof: answering null for a resource made the five schedule-resources.test.ts
+  // cases naming a resource fail on `capacityResource`; watched 2026-10-20.
+  const capacityResource =
+    chosen?.kind === 'resource' ? { resourceId: chosen.poolId, units: chosen.units } : null;
   /**
    * Which of the blocking set the arrow points at: the latest finisher, ties
    * to the one placed first.
@@ -1638,14 +1765,14 @@ function annotateCapacity(
   // shape of a pool that had room being called the reason — and `names no
   // team on a slice no pool held up` failed here on `first step-dev names
   // team-alpha with no pool binding it`; watched 2026-08-14.
-  if ((boundBy === 'capacity') !== (capacityTeamId !== null)) {
+  if ((boundBy === 'capacity') !== (chosen !== null)) {
     throw new Error(
-      capacityTeamId === null
+      chosen === null
         ? `${key} waited for capacity with no pool binding it`
-        : `${key} names ${capacityTeamId} with no pool binding it`,
+        : `${key} names ${chosen.poolId} with no pool binding it`,
     );
   }
-  return { capacityPredecessors, capacityTeamId, referent };
+  return { capacityPredecessors, capacityTeamId, capacityResource, referent };
 }
 
 /**
@@ -1691,7 +1818,7 @@ function placeSlices(
    * capacity, which is a placement decision.
    */
   withResources: boolean,
-  sizes: PoolSizes,
+  sizes: ProfileSizes,
   /**
    * The people's bookings elsewhere, placed around only when `withResources`.
    * A person absent from it takes the path this pass always took, unchanged.
@@ -1779,8 +1906,10 @@ function placeSlices(
     // spends nobody's slots, and neither does one no sized team labels. The run
     // with the resources taken out is the critical path, and it has no pools in
     // it at all.
-    const poolIds = withResources ? node.slice.poolIds : [];
-    const { width } = node.slice;
+    //
+    // A resource demand is the same kind of fact and rides the same claim
+    // list, so the block's teams and resources are one vector.
+    const claims = withResources ? claimsOf(node.slice) : [];
     // Where the plan alone would put it: the floors that do not depend on a
     // resource, plus the person's queue. The pool is asked **from** here, which
     // is what "at or after the floor" means.
@@ -1800,7 +1929,7 @@ function placeSlices(
     // The pool's own evidence: the search that moved the start, when one did.
     let pushed: JointWindow | null = null;
     if (booked === undefined) {
-      window = profile.jointWindowFor(poolIds, width, duration, planFloor);
+      window = profile.jointWindowFor(claims, duration, planFloor);
     } else {
       // The search is asked for `[start, start + duration)`, and the slice then
       // reserves up to {@link tileFinish}'s finish, which can exceed that by
@@ -1813,8 +1942,7 @@ function placeSlices(
       ({ window, pushed, away } = windowAroundElsewhere(
         booked,
         profile,
-        poolIds,
-        width,
+        claims,
         duration,
         planFloor,
       ));
@@ -1868,8 +1996,8 @@ function placeSlices(
       // (1 pass / 1 fail for the FS/SS negatives in elsewhere-wire.test.ts).
       window =
         booked === undefined
-          ? profile.jointWindowFor(poolIds, width, duration, from)
-          : windowAroundElsewhere(booked, profile, poolIds, width, duration, from).window;
+          ? profile.jointWindowFor(claims, duration, from)
+          : windowAroundElsewhere(booked, profile, claims, duration, from).window;
       return window;
     });
 
@@ -1881,7 +2009,7 @@ function placeSlices(
     // nothing holding the pool`; handing `pushed` for every floor made `names
     // the booking when it pushes past the pool` throw `names t with no pool
     // binding it`; watched 2026-09-29.
-    const { capacityPredecessors, capacityTeamId, referent } = annotateCapacity(
+    const { capacityPredecessors, capacityTeamId, capacityResource, referent } = annotateCapacity(
       node.key,
       boundBy,
       start,
@@ -1896,6 +2024,7 @@ function placeSlices(
       resourcePredecessor: resourcePredecessorOf(boundBy, busy, referent),
       capacityPredecessors,
       capacityTeamId,
+      capacityResource,
       elsewhereHolder: boundBy === 'elsewhere' ? holderOf(node.key, away) : null,
     };
     placedAt[taken] = order.length;
@@ -1904,7 +2033,7 @@ function placeSlices(
     // The reservation, written once and never moved — which is what makes the
     // scan above read a profile that cannot change under it, and therefore what
     // makes the placement terminate.
-    profile.reserve(poolIds, taken, width, start, finish);
+    profile.reserve(claims, taken, start, finish);
     // The edges the pool chose: every reservation that had to end for this
     // block to fit, each pointing at the block. The **whole** set, because a
     // single edge reports float that is not there — see
@@ -2036,8 +2165,7 @@ function latestStartAroundElsewhere(
 function windowAroundElsewhere(
   bookings: readonly ElsewhereBooking[],
   profile: ReturnType<typeof capacityProfile>,
-  poolIds: readonly string[],
-  width: number,
+  claims: readonly PoolClaim[],
   duration: number,
   floor: number,
 ): {
@@ -2051,7 +2179,7 @@ function windowAroundElsewhere(
   for (;;) {
     const found = elsewhereWindow(bookings, from, duration);
     if (found.holder !== null) away = { start: found.start, holder: found.holder };
-    const window = profile.jointWindowFor(poolIds, width, duration, found.start);
+    const window = profile.jointWindowFor(claims, duration, found.start);
     if (window.start === found.start) return { window, pushed, away };
     pushed = window;
     from = window.start;
@@ -2108,14 +2236,13 @@ export function checkElsewhere(elsewhere: Elsewhere): void {
 function findResourceWindow(
   intervals: readonly { node: number; start: number; finish: number }[],
   profile: ReturnType<typeof capacityProfile>,
-  poolIds: readonly string[],
-  width: number,
+  claims: readonly PoolClaim[],
   floor: number,
   duration: number,
 ): { start: number; person: ReturnType<typeof findPersonWindow>; pool: JointWindow } {
   let start = floor;
   let person = findPersonWindow(intervals, start, duration);
-  let pool = profile.jointWindowFor(poolIds, width, duration, start);
+  let pool = profile.jointWindowFor(claims, duration, start);
   let personEvidence = person;
   let poolEvidence = pool;
   for (;;) {
@@ -2128,7 +2255,7 @@ function findResourceWindow(
     if (next === start) return { start, person: personEvidence, pool: poolEvidence };
     start = next;
     person = findPersonWindow(intervals, start, duration);
-    pool = profile.jointWindowFor(poolIds, width, duration, start);
+    pool = profile.jointWindowFor(claims, duration, start);
   }
 }
 
@@ -2146,12 +2273,11 @@ function holdPinnedResources(
   key: string,
   intervals: readonly { node: number; start: number; finish: number }[],
   profile: ReturnType<typeof capacityProfile>,
-  poolIds: readonly string[],
-  width: number,
+  claims: readonly PoolClaim[],
   start: number,
   duration: number,
 ): number {
-  const held = findResourceWindow(intervals, profile, poolIds, width, start, duration).start;
+  const held = findResourceWindow(intervals, profile, claims, start, duration).start;
   // Proof: comparing these three with `===`/`!==` instead of drift made
   // `accepts every person-abutting answer on the solver axis` and `…every
   // pool-abutting answer…` each report 1438 of 9216 refusals through
@@ -2167,12 +2293,16 @@ function holdPinnedResources(
   if (!withinDrift(findPersonWindow(intervals, start, duration).start, start)) {
     throw new ScheduleInvalidOptimizedStartError(key, 'overlaps a resource reservation');
   }
-  const blocked = poolIds.find(
-    (poolId) => !withinDrift(profile.jointWindowFor([poolId], width, duration, start).start, start),
+  const blocked = claims.find(
+    (claim) => !withinDrift(profile.jointWindowFor([claim], duration, start).start, start),
   );
   throw new ScheduleInvalidOptimizedStartError(
     key,
-    blocked === undefined ? 'overlaps its joint pools' : `overlaps pool ${blocked}`,
+    blocked === undefined
+      ? 'overlaps its joint pools'
+      : blocked.kind === 'team'
+        ? `overlaps pool ${blocked.poolId}`
+        : `overlaps resource ${blocked.poolId}`,
   );
 }
 
@@ -2180,7 +2310,7 @@ function holdPinnedResources(
 function rebuildResourceOrder(
   graph: SliceGraph,
   placed: readonly Placed[],
-  sizes: PoolSizes,
+  sizes: ProfileSizes,
 ): WeightedEdge[] {
   const edges: WeightedEdge[] = [];
   const seen = new Set<string>();
@@ -2198,7 +2328,9 @@ function rebuildResourceOrder(
     });
   };
   const byPerson = new Map<string, number[]>();
-  const byPool = new Map<string, number[]>();
+  // Keyed by kind and id together, so a team and a resource never share a
+  // ledger; each entry keeps the claim its units are read from.
+  const byPool = new Map<string, { claim: PoolClaim; reserved: { at: number; units: number }[] }>();
   graph.nodes.forEach((node, at) => {
     if (placed[at].finish <= placed[at].start) return;
     if (node.slice.personId !== null) {
@@ -2206,10 +2338,11 @@ function rebuildResourceOrder(
       assigned.push(at);
       byPerson.set(node.slice.personId, assigned);
     }
-    for (const poolId of node.slice.poolIds) {
-      const reserved = byPool.get(poolId) ?? [];
-      reserved.push(at);
-      byPool.set(poolId, reserved);
+    for (const claim of claimsOf(node.slice)) {
+      const poolKey = `${claim.kind}:${claim.poolId}`;
+      const pool = byPool.get(poolKey) ?? { claim, reserved: [] };
+      pool.reserved.push({ at, units: claim.units });
+      byPool.set(poolKey, pool);
     }
   });
   const chronological = (left: number, right: number): number =>
@@ -2224,24 +2357,29 @@ function rebuildResourceOrder(
     // of 9, and the longer cycle report 20 instead of 9; watched 2026-09-28.
     for (let at = 1; at < assigned.length; at += 1) add(assigned[at - 1], assigned[at]);
   }
-  for (const [poolId, reserved] of byPool) {
-    const size = sizes.get(poolId);
-    if (size === undefined) throw new Error(`no size for pool ${poolId}`);
+  for (const { claim, reserved } of byPool.values()) {
+    const { kind, poolId } = claim;
+    const size = (kind === 'team' ? sizes.teams : sizes.resources).get(poolId);
+    if (size === undefined) {
+      throw new Error(
+        kind === 'team' ? `no size for pool ${poolId}` : `no capacity for resource ${poolId}`,
+      );
+    }
     const slots = Array.from(
       { length: size },
       (): { owner: number; finish: number } | null => null,
     );
-    reserved.sort(chronological);
-    for (const at of reserved) {
+    reserved.sort((left, right) => chronological(left.at, right.at));
+    for (const { at, units } of reserved) {
       let taken = 0;
-      for (let slot = 0; slot < size && taken < graph.nodes[at].slice.width; slot += 1) {
+      for (let slot = 0; slot < size && taken < units; slot += 1) {
         const previous = slots[slot];
         if (previous !== null && previous.finish > placed[at].start) continue;
         if (previous !== null) add(previous.owner, at);
         slots[slot] = { owner: at, finish: placed[at].finish };
         taken += 1;
       }
-      if (taken !== graph.nodes[at].slice.width) {
+      if (taken !== units) {
         // An invariant now, not the refusal: {@link holdPinnedResources}
         // refuses a pinned pool overlap during the replay, before this runs.
         // Disabling this branch left wbs-domain and wbs-contracts green
@@ -2249,7 +2387,7 @@ function rebuildResourceOrder(
         // R5-29 in docs/findings/checks-that-cannot-fail.md.
         throw new ScheduleInvalidOptimizedStartError(
           graph.nodes[at].key,
-          `overlaps pool ${poolId}`,
+          kind === 'team' ? `overlaps pool ${poolId}` : `overlaps resource ${poolId}`,
         );
       }
     }
@@ -2280,7 +2418,7 @@ function placeWeightedSlices(
   edges: readonly WeightedEdge[],
   goesFirst: (left: number, right: number) => boolean,
   withResources: boolean,
-  sizes: PoolSizes,
+  sizes: ProfileSizes,
   /** See {@link placeSlices}; seeded into each person's interval list as fixed intervals. */
   elsewhere: Elsewhere,
   pinned?: readonly number[],
@@ -2355,14 +2493,7 @@ function placeWeightedSlices(
       if (pinned === undefined && withResources) {
         const personId = duration > 0 ? node.slice.personId : null;
         const intervals = personId === null ? [] : (people.get(personId) ?? []);
-        start = findResourceWindow(
-          intervals,
-          profile,
-          node.slice.poolIds,
-          node.slice.width,
-          start,
-          duration,
-        ).start;
+        start = findResourceWindow(intervals, profile, claimsOf(node.slice), start, duration).start;
       }
       const candidate = tileFinish(anchors[node.item], start, node.at, node.offsets);
       let required = start;
@@ -2376,8 +2507,7 @@ function placeWeightedSlices(
         required = findResourceWindow(
           intervals,
           profile,
-          node.slice.poolIds,
-          node.slice.width,
+          claimsOf(node.slice),
           start,
           candidate.finish - start,
         ).start;
@@ -2422,6 +2552,7 @@ function placeWeightedSlices(
       resourcePredecessor: NOBODY,
       capacityPredecessors: [],
       capacityTeamId: null,
+      capacityResource: null,
       elsewhereHolder: null,
     };
     order.push(taken);
@@ -2432,7 +2563,7 @@ function placeWeightedSlices(
         intervals.sort((left, right) => left.start - right.start);
         people.set(node.slice.personId, intervals);
       }
-      profile.reserve(node.slice.poolIds, taken, node.slice.width, start, tiled.finish);
+      profile.reserve(claimsOf(node.slice), taken, start, tiled.finish);
     }
     for (const next of node.successors) {
       waitingOn[next] -= 1;
@@ -2466,7 +2597,7 @@ function placeWeightedSlices(
           assigned.sort((left, right) => left.start - right.start);
         replayPeople.set(slice.personId, assigned);
       }
-      replayProfile.reserve(slice.poolIds, at, slice.width, from, until);
+      replayProfile.reserve(claimsOf(slice), at, from, until);
     };
     const moved = new Map<number, number>();
     for (const taken of chronology) {
@@ -2491,8 +2622,7 @@ function placeWeightedSlices(
               node.key,
               intervals,
               replayProfile,
-              node.slice.poolIds,
-              node.slice.width,
+              claimsOf(node.slice),
               start,
               actualDuration,
             );
@@ -2533,8 +2663,7 @@ function placeWeightedSlices(
       const { person, pool } = findResourceWindow(
         intervals,
         replayProfile,
-        node.slice.poolIds,
-        node.slice.width,
+        claimsOf(node.slice),
         planFloor,
         actualDuration,
       );
@@ -2574,6 +2703,7 @@ function placeWeightedSlices(
         );
         placed[taken].capacityPredecessors = annotation.capacityPredecessors;
         placed[taken].capacityTeamId = annotation.capacityTeamId;
+        placed[taken].capacityResource = annotation.capacityResource;
         placed[taken].resourcePredecessor = annotation.referent;
       }
       reserveReplayed(taken, start, placed[taken].finish);
@@ -3240,8 +3370,30 @@ export function schedule(
    * pinned start (see {@link ScheduleInvalidOptimizedStartError}).
    */
   elsewhere: Elsewhere = new Map(),
+  /**
+   * How many units of each resource this project's plan may use, by resource
+   * id — the project's stated resource capacities (`wbs-resources` R1 and R5),
+   * the tenth field of {@link ScheduleInput} and the eleventh argument here.
+   *
+   * A resource is a pool exactly as a sized team is: every slice demanding it
+   * (see {@link Slice.demands}) holds its units for its whole duration,
+   * acquired with its team slots at one instant, and a block that cannot get
+   * them waits with `boundBy: 'capacity'` and
+   * {@link ScheduledSlice.capacityResource} naming the resource. A demanded
+   * resource absent from this map is a caller fault and throws, `poolSizes`'
+   * rule: the caller only puts a demand on a slice for a stated capacity.
+   *
+   * **Empty by default, and empty places byte for byte as before**: no slice
+   * can then carry a demand, so the claim lists are the team ones alone.
+   * `schedule-resources.test.ts` holds the whole golden corpus to that.
+   *
+   * Claims and occupancy never enter here or anywhere in this pass: a schedule
+   * reads plan data only (design R5, Claire's falsifier).
+   */
+  resourceCapacities: PoolSizes = new Map(),
 ): Schedule {
   checkElsewhere(elsewhere);
+  const sizes: ProfileSizes = { teams: poolSizes, resources: resourceCapacities };
 
   const index = indexTree(rows);
   const { leafIds } = index;
@@ -3399,10 +3551,10 @@ export function schedule(
         weightedEdges,
         (left, right) => left < right,
         false,
-        poolSizes,
+        sizes,
         NOWHERE,
       )
-    : placeSlices(graph, (left, right) => left < right, false, poolSizes, NOWHERE);
+    : placeSlices(graph, (left, right) => left < right, false, sizes, NOWHERE);
   const criticalPath = isWeighted
     ? weightedLateTimes(
         graph,
@@ -3562,16 +3714,8 @@ export function schedule(
             : pinnedByNode[left] < pinnedByNode[right];
 
   const leveled = isWeighted
-    ? placeWeightedSlices(
-        graph,
-        weightedEdges,
-        levelOrder,
-        true,
-        poolSizes,
-        elsewhere,
-        pinnedByNode,
-      )
-    : placeSlices(graph, levelOrder, true, poolSizes, elsewhere, pinnedByNode);
+    ? placeWeightedSlices(graph, weightedEdges, levelOrder, true, sizes, elsewhere, pinnedByNode)
+    : placeSlices(graph, levelOrder, true, sizes, elsewhere, pinnedByNode);
   const projectFinish = Math.max(0, ...leveled.placed.map((each) => each.finish));
   // The augmented graph: the plan's edges and the ones the placement chose. A
   // slice held off by a person cannot slip without moving what that person does
@@ -3678,6 +3822,10 @@ export function schedule(
         placed.resourcePredecessor === NOBODY ? null : nodes[placed.resourcePredecessor].key,
       capacityPredecessorIds: placed.capacityPredecessors.map((blocker) => nodes[blocker].key),
       capacityTeamId: placed.capacityTeamId,
+      // Proof: present on every slice as `null` made `keeps every golden corpus
+      // case byte for byte, no resource stated` and its remembered-capacity twin
+      // (schedule-resources.test.ts) fail on the extra key; watched 2026-10-20.
+      ...(placed.capacityResource === null ? {} : { capacityResource: placed.capacityResource }),
       ...(placed.elsewhereHolder === null ? {} : { elsewhereHolder: placed.elsewhereHolder }),
       lateBy: missed === 0 ? null : missed,
     });
