@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { JwksTokenVerifier } from '@wbs/auth';
 import { readOrganizationActivation } from '@wbs/store-sqlite';
 import { openExistingConnection } from '@wbs/store-sqlite/db';
+import { activateTestStepBlockages } from '@wbs/store-sqlite/testing/step-blockage-activation';
 import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from 'bun:test';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
@@ -1026,8 +1027,14 @@ describe('a swarm of two fleets on one plan', () => {
     expectStartableAgrees(await startableFor('claire', 'claire'), 'claire');
   });
 
-  /** The claims of test 5's leaf before its split and after the delete promoted it back. */
-  const promotion: { held: string[]; promoted: string[] } = { held: [], promoted: [] };
+  /** Test 5's leaf, its claims before the split and the occupancy before it. */
+  const promotion: {
+    key: string;
+    parent: string;
+    child: string;
+    held: string[];
+    occupied: Record<string, number>;
+  } = { key: '', parent: '', child: '', held: [], occupied: {} };
 
   test('5. a claimed, demanded leaf split and promoted keeps its claim and its demand', async () => {
     const key = nth(claimedLeafKeys(), 0);
@@ -1100,21 +1107,65 @@ describe('a swarm of two fleets on one plan', () => {
     const deleted = await commandsAs('dany', [{ kind: 'deleteWorkItem', workItemId: child }]);
     expect(deleted.status).toBe(200);
     expect(await demandsOn(parent)).toEqual(demanded);
-    promotion.held = held;
-    promotion.promoted = claimsOn(parent);
+    Object.assign(promotion, { key, parent, child, held, occupied: occupiedBefore });
   });
 
-  // Finding (2026-10-20 rehearsal): deleting the only child of a claimed, demanded leaf answers
-  // 200 and returns the demand to the parent, but removes the child's claim rows instead of
-  // moving them back, so the leaf is left unclaimed and its occupancy (RAM, disk and the staging
-  // slot) is freed without a release. `wbs-team-claims` specifies only that undoing the first
-  // child moves claims back; the delete-promotion path is unspecified for claims.
-  test.todo(
-    '5b. deleting the only child of a claimed leaf returns the claims to the parent (finding: they are removed and the occupancy freed)',
-    () => {
-      expect(promotion.promoted).toEqual(promotion.held);
-    },
-  );
+  // The 2026-10-20 rehearsal's finding, closed: the delete used to remove the child's claims,
+  // leaving the leaf unclaimed and its occupancy freed without a release.
+  test('5b. deleting the only child of a claimed leaf returns the claims and occupancy to the parent', async () => {
+    const { key, parent, child, held } = promotion;
+    const plan = planOf(key);
+    const claimsOn = (workItemId: string) =>
+      h.sqlite
+        .query<{ id: string }, [string]>('SELECT id FROM claim WHERE work_item_id = ? ORDER BY id')
+        .all(workItemId)
+        .map((row) => row.id);
+    const occupancyOn = (workItemId: string) =>
+      h.sqlite
+        .query<{ claim_id: string; resource_id: string; units: number }, [string]>(
+          `SELECT o.claim_id, o.resource_id, o.units FROM claim_occupancy AS o
+           JOIN claim AS c ON c.id = o.claim_id WHERE c.work_item_id = ?
+           ORDER BY o.claim_id, o.resource_id`,
+        )
+        .all(workItemId);
+    expect(held.length).toBeGreaterThan(0);
+    // `plan-command-registry`: the delete that promoted the parent handed the claims up, and the
+    // occupancy rows followed them by claim id.
+    expect(claimsOn(parent)).toEqual(held);
+    const occupancy = occupancyOn(parent);
+    expect(occupancy.length).toBeGreaterThan(0);
+    expect(occupied()).toEqual(promotion.occupied);
+
+    // Undo hands them back down to the restored child; redo hands them up again. A delete's
+    // entry journals its blockage facts, and a database whose blockage authority was never
+    // activated refuses replaying it `step_blockage_inactive` whatever the claims do, so the
+    // authority is enabled here as the attended activation would.
+    activateTestStepBlockages(h.databasePath());
+    const undo = () => send(sessionOf('dany'), 'POST', `/api/projects/${ids.projectId}/undo`);
+    const redo = () => send(sessionOf('dany'), 'POST', `/api/projects/${ids.projectId}/redo`);
+    expect((await undo()).status).toBe(200);
+    expect(claimsOn(child)).toEqual(held);
+    expect(claimsOn(parent)).toEqual([]);
+    expect(occupancyOn(child)).toEqual(occupancy);
+    expect(occupied()).toEqual(promotion.occupied);
+    expect((await redo()).status).toBe(200);
+    expect(claimsOn(parent)).toEqual(held);
+    expect(occupancyOn(parent)).toEqual(occupancy);
+    expect(occupied()).toEqual(promotion.occupied);
+
+    // The worker releases the leaf normally, which frees exactly its units.
+    const released = await commandsAs(plan.fleet, [
+      { kind: 'releaseWorkItem', workItemId: parent, personId: personOf(plan.worker) },
+    ]);
+    expect(released.status).toBe(200);
+    expect(claimsOn(parent)).toEqual([]);
+    const freed: Record<string, number> = {};
+    for (const row of occupancy)
+      freed[row.resource_id] = Math.max(freed[row.resource_id] ?? 0, row.units);
+    const after = occupied();
+    for (const [resourceId, units] of Object.entries(promotion.occupied))
+      expect(after[resourceId] ?? 0).toBe(units - (freed[resourceId] ?? 0));
+  });
 
   test('6. an unlinked fleet credential is refused and mints no account', async () => {
     const before = usersTable();

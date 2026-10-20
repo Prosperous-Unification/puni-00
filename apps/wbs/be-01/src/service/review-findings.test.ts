@@ -85,7 +85,7 @@ describe('review finding: promote must not duplicate a frozen number', () => {
     await service.freeze(projectId, OWNER);
     await service.unfreeze(mid, OWNER);
 
-    await service.remove(mid, OWNER, 'promote');
+    await service.remove(mid, OWNER, 'promote', { kind: 'legacy' });
 
     const numbers = Object.values(await numbersByName());
     expect(new Set(numbers).size).toBe(numbers.length);
@@ -103,7 +103,7 @@ describe('review finding: a last child carries its descendants’ estimates up',
       pessimistic: 3,
     });
 
-    await service.remove(onlyChild, OWNER, 'cascade');
+    await service.remove(onlyChild, OWNER, 'cascade', { kind: 'legacy' });
 
     const tree = await service.tree(projectId);
     expect(tree?.workItems.find((w) => w.name === 'Parent')?.estimates['step-dev']).toEqual({

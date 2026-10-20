@@ -48,7 +48,9 @@ describe('the in-memory harness', () => {
     const { service, stores } = plan;
     expect(await service.setDemand(leafId, OWNER, RAM, 4)).toMatchObject({ ok: true });
     const stated = [{ workItemId: leafId, resourceId: RAM, units: 4 }];
-    expect(await service.remove(leafId, OWNER, null)).toMatchObject({ ok: true });
+    expect(await service.remove(leafId, OWNER, null, { kind: 'legacy' })).toMatchObject({
+      ok: true,
+    });
     expect(await stores.demands.listByProject(projectId)).toEqual([]);
     expect(await service.undo(projectId, OWNER)).toMatchObject({ ok: true });
     expect(await stores.demands.listByProject(projectId)).toEqual(stated);

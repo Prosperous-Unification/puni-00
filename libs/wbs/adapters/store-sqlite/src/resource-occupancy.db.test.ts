@@ -603,6 +603,84 @@ for (const store of STORES) {
       }
     });
 
+    it('hands the only child’s claims and occupancy back up when its delete promotes the parent, and back on undo', async () => {
+      const { source, runner, projectId, run, claim, release, leaf, occupied, close } =
+        await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+        ]);
+        expect(await run([claim(0, 'a0', { runId: 'run-0' })])).toMatchObject({ ok: true });
+        const held = await source.stores.claims.listByProject(projectId);
+        expect(held).toHaveLength(2);
+        const split = await run([
+          { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
+        ]);
+        const child = split.ok ? split.results[0]?.id : undefined;
+        if (child === undefined) throw new Error('the split created no child');
+        /** Where each claim and each occupancy row sits, by the names `L` and `C`. */
+        const placed = async () => {
+          const name = (workItemId: string) =>
+            workItemId === leaf(0) ? 'L' : workItemId === child ? 'C' : workItemId;
+          return {
+            claims: (await source.stores.claims.listByProject(projectId)).map((each) => ({
+              ...each,
+              workItemId: name(each.workItemId),
+            })),
+            occupancy: (await source.stores.claims.occupancyOf(projectId)).map(
+              ({ claimId, workItemId, resourceId, units }) => ({
+                claimId,
+                workItemId: name(workItemId),
+                resourceId,
+                units,
+              }),
+            ),
+          };
+        };
+        const on = (owner: string) => ({
+          claims: held.map((each) => ({ ...each, workItemId: owner })),
+          occupancy: held.map(({ id }) => ({
+            claimId: id,
+            workItemId: owner,
+            resourceId: RAM,
+            units: 4,
+          })),
+        });
+        const sorted = async () => {
+          const { claims, occupancy } = await placed();
+          return {
+            claims,
+            occupancy: occupancy.toSorted((a, b) => a.claimId.localeCompare(b.claimId)),
+          };
+        };
+        const expected = (owner: string) => {
+          const { claims, occupancy } = on(owner);
+          return {
+            claims,
+            occupancy: occupancy.toSorted((a, b) => a.claimId.localeCompare(b.claimId)),
+          };
+        };
+        expect(await sorted()).toEqual(expected('C'));
+        expect(await run([{ kind: 'deleteWorkItem', workItemId: child }])).toMatchObject({
+          ok: true,
+        });
+        expect(await sorted()).toEqual(expected('L'));
+        expect(await occupied(RAM)).toBe(4);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await sorted()).toEqual(expected('C'));
+        expect(await occupied(RAM)).toBe(4);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await sorted()).toEqual(expected('L'));
+        expect(await occupied(RAM)).toBe(4);
+        expect(await run([release(0, 'a0')])).toMatchObject({ ok: true });
+        expect(await source.stores.claims.listByProject(projectId)).toEqual([]);
+        expect(await occupied(RAM)).toBe(0);
+      } finally {
+        await close();
+      }
+    });
+
     it('hands up the largest units any former leaf of a deleted last branch demanded', async () => {
       const { graph, runner, projectId, run, leaf, close } = await seeded(store);
       try {
@@ -960,6 +1038,151 @@ for (const store of STORES) {
       }
     });
 
+    it('hands a delegated claim up with its parent claim id when its leaf’s delete promotes the parent', async () => {
+      const { source, runner, projectId, run, close } = await seeded(store);
+      try {
+        const { parent, x } = await branch(run);
+        const nested = await run([
+          { kind: 'createWorkItem', ref: 'Z', name: 'Z', parentId: x, afterId: null },
+        ]);
+        const z = nested.ok ? nested.results[0]?.id : undefined;
+        if (z === undefined) throw new Error('the grandchild was refused');
+        const subtree = await run([{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }]);
+        const applied = subtree.ok ? subtree.results[0] : undefined;
+        const parentClaim = applied?.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+        if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+        expect(
+          await run([{ kind: 'claimWorkItem', workItemId: z, personId: 'a1', parentClaim }]),
+        ).toMatchObject({ ok: true });
+        const before = await source.stores.claims.listByProject(projectId);
+        const delegated = before.filter(({ workItemId }) => workItemId === z);
+        expect(delegated.length).toBeGreaterThan(0);
+        expect(delegated.every((each) => each.parentClaimId === parentClaim)).toBe(true);
+        /** The claims, parents and ids kept, with the delegated ones expected on `owner`. */
+        const movedTo = (owner: string) =>
+          before.map((each) => (each.workItemId === z ? { ...each, workItemId: owner } : each));
+        const claims = async () =>
+          (await source.stores.claims.listByProject(projectId)).toSorted((a, b) =>
+            a.id.localeCompare(b.id),
+          );
+        const sorted = (list: typeof before) => list.toSorted((a, b) => a.id.localeCompare(b.id));
+        expect(await run([{ kind: 'deleteWorkItem', workItemId: z }])).toMatchObject({
+          ok: true,
+        });
+        expect(await claims()).toEqual(sorted(movedTo(x)));
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await claims()).toEqual(sorted(before));
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await claims()).toEqual(sorted(movedTo(x)));
+      } finally {
+        await close();
+      }
+    });
+
+    it('refuses a promoting delete whose claims sit on two former leaves, naming every holder', async () => {
+      const { source, projectId, run, close } = await seeded(store);
+      try {
+        // `R` above one branch `B` whose two leaves are both claimed: deleting
+        // `B` promotes `R`, and both leaves' Dev claims cannot sit on it.
+        const tree = await run([
+          { kind: 'createWorkItem', ref: 'R', name: 'R', parentId: null, afterId: null },
+          {
+            kind: 'createWorkItem',
+            ref: 'B',
+            name: 'B',
+            parentId: null,
+            parentRef: 'R',
+            afterId: null,
+          },
+          {
+            kind: 'createWorkItem',
+            ref: 'Y1',
+            name: 'Y1',
+            parentId: null,
+            parentRef: 'B',
+            afterId: null,
+          },
+          {
+            kind: 'createWorkItem',
+            ref: 'Y2',
+            name: 'Y2',
+            parentId: null,
+            parentRef: 'B',
+            afterId: null,
+          },
+        ]);
+        if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
+        const [, b, y1, y2] = tree.results.map(({ id }) => id ?? '');
+        expect(
+          await run([
+            { kind: 'claimWorkItem', workItemId: y1, personId: 'a0' },
+            { kind: 'claimWorkItem', workItemId: y2, personId: 'a1' },
+          ]),
+        ).toMatchObject({ ok: true });
+        const held = await source.stores.claims.listByProject(projectId);
+        const rows = await source.stores.workItems.listByProject(projectId);
+        const refused = await run([{ kind: 'deleteWorkItem', workItemId: b, strategy: 'cascade' }]);
+        expect(refused).toMatchObject({
+          ok: false,
+          kind: 'deleteWorkItem',
+          reason: 'children_claimed',
+        });
+        if (refused.ok || refused.reason !== 'children_claimed')
+          throw new Error(
+            `the delete was not refused children_claimed: ${JSON.stringify(refused)}`,
+          );
+        const { holders } = refused.detail;
+        expect(holders.map(({ claimId }) => claimId).toSorted()).toEqual(
+          held.map(({ id }) => id).toSorted(),
+        );
+        expect(new Set(holders.map(({ name }) => name))).toEqual(new Set(['agent a0', 'agent a1']));
+        expect(await source.stores.claims.listByProject(projectId)).toEqual(held);
+        expect(await source.stores.workItems.listByProject(projectId)).toEqual(rows);
+      } finally {
+        await close();
+      }
+    });
+
+    it('refuses a promoting delete handing claims up to a parent that holds its own subtree claim', async () => {
+      const { source, projectId, run, close } = await seeded(store);
+      try {
+        const tree = await run([
+          { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },
+          {
+            kind: 'createWorkItem',
+            ref: 'X',
+            name: 'X',
+            parentId: null,
+            parentRef: 'P',
+            afterId: null,
+          },
+        ]);
+        if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
+        const [parent, x] = tree.results.map(({ id }) => id ?? '');
+        const subtree = await run([{ kind: 'claimWorkItem', workItemId: parent, personId: 'a0' }]);
+        const applied = subtree.ok ? subtree.results[0] : undefined;
+        const parentClaim = applied?.kind === 'claimWorkItem' ? applied.claimIds[0] : undefined;
+        if (parentClaim === undefined) throw new Error('the subtree claim wrote no claim');
+        expect(
+          await run([{ kind: 'claimWorkItem', workItemId: x, personId: 'a1', parentClaim }]),
+        ).toMatchObject({ ok: true });
+        const held = await source.stores.claims.listByProject(projectId);
+        const refused = await run([{ kind: 'deleteWorkItem', workItemId: x }]);
+        expect(refused).toMatchObject({ ok: false, reason: 'children_claimed' });
+        if (refused.ok || refused.reason !== 'children_claimed')
+          throw new Error(
+            `the delete was not refused children_claimed: ${JSON.stringify(refused)}`,
+          );
+        const { holders } = refused.detail;
+        expect(holders.map(({ claimId }) => claimId).toSorted()).toEqual(
+          held.map(({ id }) => id).toSorted(),
+        );
+        expect(await source.stores.claims.listByProject(projectId)).toEqual(held);
+      } finally {
+        await close();
+      }
+    });
+
     it('refuses an undo of a delete once the claim it was delegated under was released', async () => {
       const { source, runner, projectId, run, close } = await seeded(store);
       try {
@@ -967,8 +1190,11 @@ for (const store of STORES) {
         // A grandchild, so the subtree claim sits above the deleted leaf's
         // parent: the delete's revision preconditions name the parent `X`, never
         // `P`, and only the claim guard can refuse the undo.
+        // And a sibling `W`, so deleting `Z` does not promote `X` (which would
+        // hand `Z`'s claim up rather than take it).
         const nested = await run([
           { kind: 'createWorkItem', ref: 'Z', name: 'Z', parentId: x, afterId: null },
+          { kind: 'createWorkItem', ref: 'W', name: 'W', parentId: x, afterId: null },
         ]);
         const z = nested.ok ? nested.results[0]?.id : undefined;
         if (z === undefined) throw new Error('the grandchild was refused');

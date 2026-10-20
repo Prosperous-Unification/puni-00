@@ -112,7 +112,7 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteWorkItem'", ...target, 'strategy?': "'cascade' | 'promote'" }),
     scope: 'project',
     description:
-      'Remove a work item. A parent needs a strategy: cascade its children or promote them.',
+      'Remove a work item. A parent needs a strategy: cascade its children or promote them. Deleting the only child hands its claims back up to the parent; refused children_claimed (names holders) when claims sit on more than one deleted row or on that parent too.',
   }),
   setEstimate: defineCommand('setEstimate', {
     schema: type({

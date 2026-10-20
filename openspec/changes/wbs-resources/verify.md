@@ -885,3 +885,36 @@ Findings, each with the exact response:
   refusals precede `inside_subtree_claim`; and a fleet A worker claiming inside fleet B's subtree
   through fleet A's credential without a parent claim is refused `credential_not_for_person`
   before the fence. The fence is shown on a held leaf's free step, which acquires nothing.
+
+## Swarm rehearsal follow-up (2026-10-20)
+
+The delete-promotion finding is closed: a delete that promotes the parent back to a leaf moves
+the deleted former leaf's claims up in place (`ClaimStore.moveAll`, journalled `move_claims`
+before the `delete_subtree` and inverted after the `restore_subtree`), so ids, holders, runs and
+parent claim ids are kept and the occupancy rows follow by claim id. The honest rule for a
+branch: when claims sit on more than one deleted row, or the receiving parent holds a claim of
+its own, the delete is refused `children_claimed` naming every holder, because two leaves' step
+claims clash on the parent's (work item, step) key, a claim delegated under a deleted subtree
+claim would cascade with it, and the undo could not tell a parent's own claim from the ones it
+was handed. A lone subtree claim on a deleted parent with no claimed leaf goes with the delete as
+before.
+
+| Command                                                                                         | Result                                                    |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `env -u CLAUDECODE bun test ./libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts` | 68 pass, 0 fail, 382 `expect()` calls (memory and SQLite) |
+| `env -u CLAUDECODE bun test ./apps/wbs/be-01/src/swarm-rehearsal.boot.db.test.ts`, three runs   | 8 pass, 0 todo, 0 fail, 210 `expect()` calls each         |
+
+Proofs, each watched failing on both stores and restored:
+
+| Injected fault                        | Observed                                                                                                                                                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `moveAll` in the promotion skipped    | `hands the only child’s claims and occupancy back up …` read no claim and no occupancy after the delete; `hands a delegated claim up with its parent claim id …` lost the claim; rehearsal 5b read `[]` on the parent                                                                      |
+| `children_claimed` refusal disabled   | `refuses a promoting delete whose claims sit on two former leaves …` threw `already holds a claim` (memory) and a `DrizzleQueryError` on the `claim` update (SQLite unique index); `refuses a promoting delete handing claims up to a parent that holds its own subtree claim` answered ok |
+| `move_claims` left out of the forward | both hand-up cases read the claims on the restored child after the redo                                                                                                                                                                                                                    |
+| `move_claims` left out of the inverse | both hand-up cases read the claims on the parent after the undo                                                                                                                                                                                                                            |
+
+Rehearsal 5b undoes a delete, which a database whose blockage authority was never activated
+refuses `409 step_blockage_inactive` whatever the claims do; the step enables it with
+`activateTestStepBlockages` as the attended activation would. `refuses an undo of a delete once
+the claim it was delegated under was released` gained a sibling `W` so its delete no longer
+promotes (it would now hand the claim up rather than take it).

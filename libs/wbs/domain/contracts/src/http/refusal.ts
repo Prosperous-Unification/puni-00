@@ -209,7 +209,12 @@ export type CommandRefusalCode =
   | 'overlaps_subtree_claim'
   | 'not_claimed_by'
   /** `moveWorkItem` under a leaf whose steps are claimed; names the holders. */
-  | 'destination_claimed';
+  | 'destination_claimed'
+  /**
+   * `deleteWorkItem` promoting the parent while claims sit on more than one
+   * deleted row, or on that parent as well; names the holders.
+   */
+  | 'children_claimed';
 
 /** One claim a claim refusal names: the claim, its person by id and name, and its run. */
 export interface ClaimRefusalHolder {
@@ -343,7 +348,7 @@ export type CommandRefusalDetail = {
                 ? { status: string }
                 : C extends 'step_done'
                   ? { stepIds: string[] }
-                  : C extends 'already_claimed' | 'destination_claimed'
+                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
                     ? { holders: ClaimRefusalHolder[] }
                     : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
                       ? { holder: ClaimRefusalHolder }
