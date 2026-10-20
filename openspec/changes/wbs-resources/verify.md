@@ -506,16 +506,17 @@ Closes the gap PR #585's review found and the claims change's whole-change revie
 All with `env -u CLAUDECODE`, from the worktree root, explicit `./` paths; no full suites and
 no h2puni gate (laptop, other workers running).
 
-| Command                                                                                                                                                                                                                                                                                                                                                    | Result                      |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `bun test ./libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts` (memory and SQLite)                                                                                                                                                                                                                                                          | 50 pass, 0 fail             |
-| `bun test` over the 57 core files in `module/work-item`, `module/plan-commands`, `module/plan-import`, `service`, `testing`                                                                                                                                                                                                                                | 828 pass, 0 fail            |
-| `bun test` over 13 store files (resource-occupancy, organization-bridge, organization-ownership, work-item, working-plan-order, both `faults.test.ts`, both source-conformance files, claim-race, claim-occupancy-race, step-blockage-activation, memory-source)                                                                                           | 404 pass, 0 fail            |
-| `bun test` over 18 conformance and be-01 files (certification, case-manifest, existing, undo, undo.controller, command-organization, typed-dependency-copy, delete/duplicate/restore-step-parallel, step-node-attempt, step-node-blockage, revision, plan-commands, priority-band-identity, capacity-migration-identity, resource-schedule, migration-cli) | 475 pass, 0 fail            |
-| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                                                                                                                                                                                                                                                                                       | 15 pass, 0 fail             |
-| `bunx tsc -p <tsconfig.lib.json and tsconfig.spec.json> --noEmit` for core, store-memory, store-sqlite, conformance, be-01                                                                                                                                                                                                                                 | no diagnostics (10 configs) |
-| `bunx eslint` over every changed `.ts` file                                                                                                                                                                                                                                                                                                                | no problems                 |
-| `bunx @fission-ai/openspec@1.12.0 validate wbs-resources --json`                                                                                                                                                                                                                                                                                           | 1 passed, 0 failed          |
+| Command                                                                                                                                                                                                                                                                                                                                                                     | Result                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `bun test ./libs/wbs/adapters/store-sqlite/src/resource-occupancy.db.test.ts` (memory and SQLite)                                                                                                                                                                                                                                                                           | 52 pass, 0 fail             |
+| `bun test` over the 57 core files in `module/work-item`, `module/plan-commands`, `module/plan-import`, `service`, `testing`                                                                                                                                                                                                                                                 | 828 pass, 0 fail            |
+| `bun test` over 13 store files (resource-occupancy, organization-bridge, organization-ownership, work-item, working-plan-order, both `faults.test.ts`, both source-conformance files, claim-race, claim-occupancy-race, step-blockage-activation, memory-source)                                                                                                            | 406 pass, 0 fail            |
+| `bun test` over 19 conformance and be-01 files (step.controller, certification, case-manifest, existing, undo, undo.controller, command-organization, typed-dependency-copy, delete/duplicate/restore-step-parallel, step-node-attempt, step-node-blockage, revision, plan-commands, priority-band-identity, capacity-migration-identity, resource-schedule, migration-cli) | 529 pass, 0 fail            |
+| `bun test` over core `module/step` and memory step test files                                                                                                                                                                                                                                                                                                               | 35 pass, 0 fail             |
+| `bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts`                                                                                                                                                                                                                                                                                                        | 15 pass, 0 fail             |
+| `bunx tsc -p <tsconfig.lib.json and tsconfig.spec.json> --noEmit` for core, store-memory, store-sqlite, conformance, be-01                                                                                                                                                                                                                                                  | no diagnostics (10 configs) |
+| `bunx eslint` over every changed `.ts` file                                                                                                                                                                                                                                                                                                                                 | no problems                 |
+| `bunx @fission-ai/openspec@1.12.0 validate wbs-resources --json`                                                                                                                                                                                                                                                                                                            | 1 passed, 0 failed          |
 
 ### Proofs (each fault injected alone, the named test watched failing on the stores named, restored)
 
@@ -531,6 +532,9 @@ no h2puni gate (laptop, other workers running).
 | delegation closure                                 | closure skipped                           | `undo of a promoting delete puts back the subtree claim and the claims delegated under it` (memory, SQLite)                                                                                  |
 | parent-claim guard on `add_claims`                 | guard off                                 | `refuses an undo of a delete once the claim it was delegated under was released` (SQLite: FOREIGN KEY failure; memory: answered ok)                                                          |
 | claimant guard on `add_claims`                     | guard off                                 | `refuses an undo of a delete once the claimant was removed from the directory` (SQLite: FOREIGN KEY failure; memory: answered ok)                                                            |
+| step guard in `applyRestore`                       | refusal removed                           | `refuses an undo of a delete once a step its claims and progress name was removed` (SQLite: FOREIGN KEY failure; memory still refused by the `add_claims` guard)                             |
+| step guard in the `add_claims` replay              | both step refusals removed                | the same case (SQLite: FOREIGN KEY failure; memory: `progress for unknown step` thrown)                                                                                                      |
+| memory step removal takes the project's step       | removal skipped                           | the same case, memory only (answered ok)                                                                                                                                                     |
 | decoder: restored demands                          | call removed                              | `refuses a malformed restored demand` (compensating.test.ts)                                                                                                                                 |
 | `referencesOf`: restored demands' resources        | loop removed                              | `names the resources a restore’s demands name` (compensating.test.ts)                                                                                                                        |
 | harness demand cascade                             | cascade removed                           | `takes a removed row’s demands, so a row put back without them reads none` (harness.test.ts)                                                                                                 |
@@ -541,16 +545,27 @@ stands, and the new case watched it answer the undo of a delete.
 
 ### What it leaves open
 
-- **A restored claim on a step removed since** has no replay guard of its own: once the
-  delete took the claims, nothing holds the step, so its removal may succeed and the undo then
-  meets the claim's step foreign key. Unverified here, and the same holds for the existing undo
-  of a release.
+- ~~**A restored claim on a step removed since.**~~ Reproduced in review of `de196126b` and
+  wider than claims: claim leaf 0, delete it, `steps.remove(…, cascade)` answers ok, and the
+  undo threw a FOREIGN KEY failure on SQLite (the `restore_subtree` progress write, before
+  `add_claims`) and silently restored the progress and two claims onto the removed step on
+  memory. Only estimates were guarded (`estimateStepsOf`). Now guarded: `applyRestore` and the
+  `add_claims` replay refuse `stale_undo` (`step <id> has been removed from this project
+since.`) for any step `referencesOf` reads off the command (progress, assignments, attempts,
+  blockages, claims). Memory needed one more change: its step removal now also takes the step
+  off the project's own step list, as SQLite's single `step` table does; before, the service's
+  `projects.stepsOf` read kept listing a removed step.
 - **The conformance suite's `subtrees.insertSubtree:complete-copy` case carries no demand**
   (its seed declares no resource); both stores' demand writes are proved through the runner
   cases above instead.
-- **`inMemoryStores` (`in-memory-source.ts`)** passes its demand store to the subtree write but,
-  like before, does not cascade demands or claims on removal; only `bindStores` (the memory
-  source) and the core harness do.
+- S4, recorded: **`inMemoryStores` (`in-memory-source.ts`)** passes its demand store to the
+  subtree write but, like before, does not cascade demands or claims on removal; only
+  `bindStores` (the memory source) and the core harness do.
+- S4, recorded: **the harness cascade ignores an overriding demand store**: `inMemoryServices`
+  cascades its own resource tables, so a caller passing `demands` over other tables gets no
+  cascade.
+- S4, recorded: **`apps/wbs/be-01/tools/capture-capacity-oracle.ts` is dead code** excluded from
+  every tsconfig; its `inMemorySubtrees` call was left as it was.
 - **PR #582's activation test** iterates `OWNED_ROOT_KINDS`, but its fixture seeds no
   `resource` (nor `saved_plan`) row, so those iterations compare 0 with 0. When it lands beside
   this change it should seed one row of each kind and assert a non-zero mapped count per kind;

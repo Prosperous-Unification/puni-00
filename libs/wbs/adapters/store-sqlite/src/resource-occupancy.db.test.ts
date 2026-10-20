@@ -842,6 +842,26 @@ for (const store of STORES) {
       }
     });
 
+    it('refuses an undo of a delete once a step its claims and progress name was removed', async () => {
+      const { source, graph, runner, projectId, run, claim, leaf, review, close } =
+        await seeded(store);
+      try {
+        await run([claim(0, 'a0')]);
+        await run([{ kind: 'deleteWorkItem', workItemId: leaf(0) }]);
+        expect(await graph.steps.remove(projectId, review, F, true)).toMatchObject({ ok: true });
+        const undone = await runner.undo(projectId, F);
+        expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
+        expect(undone.ok ? null : undone.detail).toBe(
+          `step ${review} has been removed from this project since.`,
+        );
+        const rows = await source.stores.workItems.listByProject(projectId);
+        expect(rows.some(({ id }) => id === leaf(0))).toBe(false);
+        expect(await source.stores.claims.listByProject(projectId)).toEqual([]);
+      } finally {
+        await close();
+      }
+    });
+
     it('refuses an undo of a delete once the claimant was removed from the directory', async () => {
       const { source, runner, projectId, run, claim, leaf, close } = await seeded(store);
       try {

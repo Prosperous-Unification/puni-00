@@ -3658,6 +3658,25 @@ export class WorkItemService {
     return { claims: ordered, occupancy };
   }
 
+  /**
+   * Refuses a replay naming a step the project no longer holds: every step
+   * {@link referencesOf} reads off `command` (progress, assignments, attempts,
+   * blockages, claims). Removing a step with `cascade` takes only the rows it
+   * can see; the ones an undo is about to put back are in the journal.
+   */
+  private async stepRemovedSince(
+    projectId: string,
+    command: CompensatingCommand,
+  ): Promise<ApplyOutcome | null> {
+    const named = referencesOf(command).steps;
+    if (named.length === 0) return null;
+    const held = new Set((await this.opts.projects.stepsOf(projectId)).map(({ id }) => id));
+    const gone = named.find((stepId) => !held.has(stepId));
+    return gone === undefined
+      ? null
+      : { ok: false, detail: `step ${gone} has been removed from this project since.` };
+  }
+
   private claiming(): { claims: ClaimStore; identity: ClaimIdentity } {
     const { claims } = this.opts;
     if (claims === undefined)
@@ -7076,6 +7095,12 @@ export class WorkItemService {
         // claim it was delegated under was released` (resource-occupancy.db.test.ts)
         // threw a foreign key failure on SQLite and answered ok on memory;
         // watched 2026-10-20.
+        // Proof: with this refusal and the restore's both removed, the same case
+        // threw a FOREIGN KEY failure on SQLite and `progress for unknown step` on
+        // memory; with the restore's alone removed, memory was refused here.
+        // Watched 2026-10-20.
+        const stepGone = await this.stepRemovedSince(projectId, command);
+        if (stepGone !== null) return stepGone;
         const replayed = new Set(command.claims.map(({ id }) => id));
         const held = new Set((await claims.listByProject(projectId)).map(({ id }) => id));
         if (
@@ -7696,6 +7721,12 @@ export class WorkItemService {
       .sort((a, b) => a.position - b.position)
       .at(-1);
     const placed = placeAfter(projected, wasAfter?.id ?? null);
+    // Proof: with this refusal removed, `refuses an undo of a delete once a step
+    // its claims and progress name was removed` (resource-occupancy.db.test.ts)
+    // threw a FOREIGN KEY failure on SQLite (memory was still refused by the
+    // `add_claims` guard below); watched 2026-10-20.
+    const stepGone = await this.stepRemovedSince(projectId, command);
+    if (stepGone !== null) return stepGone;
     const attemptsRefused = await this.attemptsRefusal(projectId, command.attempts ?? []);
     if (attemptsRefused !== null) return attemptsRefused;
     const demands = command.demands ?? [];

@@ -424,10 +424,31 @@ export function bindStores(
   const dependencies = inMemoryDependencies([], state.tables.dependencies, workItems);
   const typedDependencies = inMemoryTypedDependencies([], state.tables.typedDependencies);
   // Proof: a separate parallel table let source removal erase the step; mixed rollback tests failed, 2026-10-17.
-  const steps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
+  const tableSteps = inMemorySteps([], state.tables.steps, state.tables.estimates, {
     table: state.tables.stepParallels,
     workItems,
   });
+  // A removed step leaves the project's own step list too, as SQLite's one
+  // `step` table does: the work-item service reads `projects.stepsOf`, and a
+  // step still listed there after its removal let a replay restore rows onto it.
+  // Proof: with this removal skipped, `refuses an undo of a delete once a step
+  // its claims and progress name was removed` (resource-occupancy.db.test.ts)
+  // answered the undo ok on memory; watched 2026-10-20.
+  const steps: typeof tableSteps = {
+    ...tableSteps,
+    async remove(projectId, stepId, cascade, stamp) {
+      const removed = await tableSteps.remove(projectId, stepId, cascade, stamp);
+      if (removed.ok) {
+        const listed = state.tables.projects.steps.get(projectId);
+        if (listed !== undefined)
+          state.tables.projects.steps.set(
+            projectId,
+            listed.filter(({ id }) => id !== stepId),
+          );
+      }
+      return removed;
+    },
+  };
   const projects = inMemoryProjects(users, state.tables.projects);
   const estimates = inMemoryEstimates(workItems, state.tables.estimates, steps);
   const actuals = inMemoryActuals(workItems, state.tables.actuals, steps);
