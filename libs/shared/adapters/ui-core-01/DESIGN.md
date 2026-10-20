@@ -52,6 +52,11 @@ faces, Geist for body and Inter Tight for display, with their OFL notices in `sr
 | `@ui/saas-01`        | dense application chrome: WBS and future product UIs        | planned |
 | `@ui/agency-site-01` | the agency site look: big radius, display type, gold accent | later   |
 
+## Designing screens
+
+Screens are explored on Claude Design, settled as screen stories and built in the app:
+[runbook](../../../../docs/runbook-screen-design.md).
+
 ## For agents
 
 - Find the app's kit in its `styles.css` import, then read that kit's `DESIGN.md`.
