@@ -77,13 +77,16 @@ afterEach(() => {
 });
 
 /**
- * An access token for `subject`, with no email. `groups` adds `wbs_groups` as a
- * browser token carries it; a real Auth0 machine-to-machine token carries none
- * (slice 0), which is the default here.
+ * An access token for `subject`, with no email unless `claims` adds one.
+ * `groups` adds `wbs_groups` as a browser token carries it; a real Auth0
+ * machine-to-machine token carries none (slice 0), which is the default here.
  */
-function token(subject: string, groups = false): Promise<string> {
+function token(subject: string, groups = false, claims: Record<string, unknown> = {}) {
   const seconds = Math.floor(Date.now() / 1000);
-  return new SignJWT(groups ? { wbs_groups: ['dev:wbs:read', 'dev:wbs:write'] } : {})
+  return new SignJWT({
+    ...claims,
+    ...(groups ? { wbs_groups: ['dev:wbs:read', 'dev:wbs:write'] } : {}),
+  })
     .setProtectedHeader({ alg: 'RS256', kid: 'fleet' })
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -131,6 +134,23 @@ describe('a linked fleet credential', () => {
     expect(usersTable()).toEqual(before);
   }, 30_000);
 
+  // A groups-less token naming another verified address must not refresh the
+  // owner's email: both the bearer path and the organization-credential
+  // evidence read the link only.
+  it('leaves the owner’s email alone under a groups-less token carrying an email', async () => {
+    expect(await link('dany', 'claire')).toBe(0);
+    const before = usersTable();
+    const bearer = await token(FLEET, false, {
+      email: 'fleet@elsewhere.example',
+      email_verified: true,
+    });
+
+    const answer = await as(bearer, 'GET', '/api/projects');
+    expect(answer.status).toBe(200);
+    expect(JSON.stringify(answer.body)).toContain('Fleet plan');
+    expect(usersTable()).toEqual(before);
+  }, 30_000);
+
   it('refuses an unlinked machine token as unknown_identity, minting no account', async () => {
     const before = usersTable();
     expect(await as(await token(FLEET), 'GET', '/api/projects')).toEqual({
@@ -155,8 +175,6 @@ describe('a linked fleet credential', () => {
     expect(await link('dany', 'claire')).toBe(0);
   }, 30_000);
 
-  // Proof: `scopesOfRoles` answering [] for every role made the member's read
-  // answer 403 insufficient_scope (watched 2026-10-20).
   it('scopes a linked token without groups from its account’s membership: a member', async () => {
     expect(await link('mem', 'mem-agent')).toBe(0);
     const bearer = await token(FLEET);

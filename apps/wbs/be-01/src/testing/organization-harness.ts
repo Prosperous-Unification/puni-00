@@ -641,11 +641,19 @@ export class OrganizationHarness {
           return access;
         },
       },
-      ...(selection === undefined
+      ...(selection === undefined ? {} : { organizationSelection: selection.endpoints }),
+      // As `boot.ts` wires it: an upstream Bearer is judged as evidence on
+      // every request, so a machine token reaches that path here too.
+      ...(selection === undefined && upstreamCredential === undefined
         ? {}
         : {
-            organizationSelection: selection.endpoints,
-            credentialEvidence: organizationCredentialEvidence(services.auth, TEST_JWT_KEY),
+            credentialEvidence: organizationCredentialEvidence(
+              services.auth,
+              TEST_JWT_KEY,
+              upstreamCredential === undefined
+                ? undefined
+                : oidcCredentialEvidence(upstreamCredential.verifier, upstreamCredential),
+            ),
           }),
       memberships: new OrganizationRepository(source.db, services.gate),
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
