@@ -149,6 +149,37 @@ export function inMemoryClaims(
 }
 
 /**
+ * Every claim deleting `personId` would take: their own and every claim
+ * delegated under one, transitively, ordered by work item then step.
+ *
+ * Proof: with the loop never entered, the memory certification's
+ * `directory.removePerson:delegated-claims` case read the superagent's claim
+ * alone in the usage; watched 2026-10-20.
+ */
+export function claimsTakenWith(table: MemoryClaimTable, personId: string): Claim[] {
+  const taken = new Set(
+    table.rows.filter((each) => each.personId === personId).map(({ id }) => id),
+  );
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const row of table.rows) {
+      if (!taken.has(row.id) && row.parentClaimId !== null && taken.has(row.parentClaimId)) {
+        taken.add(row.id);
+        grew = true;
+      }
+    }
+  }
+  return table.rows
+    .filter(({ id }) => taken.has(id))
+    .map(unstampClaim)
+    .sort(
+      (left, right) =>
+        compare(left.workItemId, right.workItemId) ||
+        compare(left.stepId ?? '', right.stepId ?? ''),
+    );
+}
+
+/**
  * Removes every claim `gone` selects and every claim delegated under one, as the
  * SQLite cascades do for a deleted work item, person or parent claim.
  */
