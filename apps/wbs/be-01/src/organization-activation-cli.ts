@@ -13,7 +13,7 @@
 //
 // Without `--apply` it rehearses the whole transaction and rolls it back,
 // printing the plan. Prints one JSON document on stdout; a refusal prints one
-// on stderr and exits with its own code (3 activated, 4 organization exists,
+// JSON line on stderr and exits with its own code (3 activated, 4 organization exists,
 // 5 super-admin unresolved, 6 reconciliation failed). A broken marker, a
 // malformed legacy pair or bad arguments throw.
 //
@@ -75,11 +75,15 @@ try {
   });
   if (outcome.ok) {
     const { mappedRoots, ...activation } = outcome.activation;
-    console.log(
-      JSON.stringify({ ...activation, mappedRoots: Object.fromEntries(mappedRoots) }, null, 2),
+    process.stdout.write(
+      `${JSON.stringify({ ...activation, mappedRoots: Object.fromEntries(mappedRoots) }, null, 2)}\n`,
     );
   } else {
-    console.error(JSON.stringify(outcome.refused, null, 2));
+    // Raw bytes, one line: Bun's console.error wraps its output in red ANSI escapes under
+    // FORCE_COLOR, which Nx sets, and the caller parses this line.
+    // Proof: 2026-10-20, console.error here failed the seven refusal-parsing cases of
+    // `organization-activation-cli.db.test.ts` under FORCE_COLOR=1, stderr beginning `\x1b[0m\x1b[31m`.
+    process.stderr.write(`${JSON.stringify(outcome.refused)}\n`);
     process.exitCode = REFUSAL_EXIT_CODES[outcome.refused.refusal];
   }
 } finally {

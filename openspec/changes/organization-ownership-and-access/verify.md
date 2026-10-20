@@ -2016,3 +2016,17 @@ The queued gate on `419f8fe4` was cancelled before it started.
 | `cd libs/wbs/adapters/store-sqlite && env -u CLAUDECODE bun test src/organization-legacy-activation.db.test.ts src/audit.test.ts src/organization-bridge.db.test.ts src/organization-ownership-preflight.db.test.ts src/organization-records.db.test.ts` | 104 pass, 0 fail                    |
 | `cd apps/wbs/be-01 && env -u CLAUDECODE bun test src/test-tiers.test.ts src/module-boundaries.test.ts src/organization-ownership-preflight-cli.db.test.ts src/boot-browser-session.db.test.ts`                                                           | 19 pass, 0 fail                     |
 | `NX_DAEMON=false bunx nx run-many -t lint:fast typecheck -p wbs-store-sqlite wbs-be-01`                                                                                                                                                                  | succeeded                           |
+
+### Gate on `fde00049` and the stderr fix
+
+`h2puni gate: running on fde00049a830335f74097ea2f554b447ba60fe27` ended `GATE_EXIT=1`. The
+only failed task was `wbs-be-01:test`, which had 7 failures. All of them were refusal cases
+in `organization-activation-cli.db.test.ts`, each failing with
+`JSON Parse error: Unrecognized token '\x1b'`. Under Nx, `FORCE_COLOR` is set, and Bun's
+`console.error` wraps its output in `\x1b[0m\x1b[31m`. The local raw stderr of a refusal,
+captured with `od -c`, began `033 [ 0 m 033 [ 3 1 m {` even with `FORCE_COLOR` empty. The CLI
+now writes each refusal as one raw JSON line through `process.stderr.write`, and the plan
+through `process.stdout.write`. The test runs the CLI with `FORCE_COLOR=1` and requires
+stderr to be exactly one JSON object line. Fault: restoring `console.error` failed the same
+7 tests locally, with 13 passing. Fixed run: the CLI and boot files gave 23 pass, 0 fail,
+154 expect() calls.

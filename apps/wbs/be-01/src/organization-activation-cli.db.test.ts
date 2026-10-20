@@ -91,7 +91,11 @@ function run(args: readonly string[], dbPath: string | null = path) {
     Object.entries(process.env).filter(([key]) => key !== 'DB_PATH'),
   );
   const spawned = Bun.spawnSync([process.execPath, cli, ...args], {
-    env: dbPath === null ? inherited : { ...inherited, DB_PATH: dbPath },
+    // FORCE_COLOR as Nx sets it in the gate, so terminal styling on either stream fails here.
+    env:
+      dbPath === null
+        ? { ...inherited, FORCE_COLOR: '1' }
+        : { ...inherited, FORCE_COLOR: '1', DB_PATH: dbPath },
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -100,6 +104,18 @@ function run(args: readonly string[], dbPath: string | null = path) {
     stdout: spawned.stdout.toString(),
     stderr: spawned.stderr.toString(),
   };
+}
+
+/**
+ * The refusal JSON a CLI run wrote: stderr must be exactly one JSON line, so anything else an
+ * environment adds (escapes, logger lines, warnings) fails here, named, instead of being parsed.
+ */
+function refusalOf(stderr: string): unknown {
+  const lines = stderr.split('\n').filter((line) => line !== '');
+  expect(lines).toHaveLength(1);
+  const line = lines.at(0) ?? '';
+  expect(line).toMatch(/^\{.*\}$/);
+  return JSON.parse(line);
 }
 
 const APPLY = ['--name', 'default', '--super-admin', 'dany', '--apply'];
@@ -217,7 +233,7 @@ describe('organization-activation-cli', () => {
     // Proof: 2026-10-20, with the marker check in `activateLegacyOrganization` removed this
     // answered exit 4 `organization_exists` instead.
     expect(second.exitCode).toBe(3);
-    expect(JSON.parse(second.stderr)).toEqual({ refusal: 'already_activated' });
+    expect(refusalOf(second.stderr)).toEqual({ refusal: 'already_activated' });
     expect(second.stdout).toBe('');
     expect(writable()).toEqual(after);
   });
@@ -231,7 +247,7 @@ describe('organization-activation-cli', () => {
     const refused = run(APPLY);
 
     expect(refused.exitCode).toBe(3);
-    expect(JSON.parse(refused.stderr)).toEqual({ refusal: 'already_activated' });
+    expect(refusalOf(refused.stderr)).toEqual({ refusal: 'already_activated' });
     expect(writable()).toEqual(before);
   });
 
@@ -252,7 +268,7 @@ describe('organization-activation-cli', () => {
     const refused = run(APPLY);
 
     expect(refused.exitCode).toBe(4);
-    expect(JSON.parse(refused.stderr)).toEqual({
+    expect(refusalOf(refused.stderr)).toEqual({
       refusal: 'organization_exists',
       organizations: 1,
     });
@@ -263,7 +279,7 @@ describe('organization-activation-cli', () => {
     const before = writable();
     const unknown = run(['--name', 'default', '--super-admin', 'dan', '--apply']);
     expect(unknown.exitCode).toBe(5);
-    expect(JSON.parse(unknown.stderr)).toEqual({
+    expect(refusalOf(unknown.stderr)).toEqual({
       refusal: 'super_admin_unresolved',
       candidates: [],
     });
@@ -273,10 +289,10 @@ describe('organization-activation-cli', () => {
     const ambiguous = run(['--name', 'default', '--super-admin', 'u-dany', '--apply']);
 
     expect(ambiguous.exitCode).toBe(5);
-    expect(JSON.parse(ambiguous.stderr)).toMatchObject({ refusal: 'super_admin_unresolved' });
-    expect(
-      (JSON.parse(ambiguous.stderr) as { candidates: string[] }).candidates.toSorted(),
-    ).toEqual(['u-dany', 'u-impostor']);
+    expect(refusalOf(ambiguous.stderr)).toMatchObject({ refusal: 'super_admin_unresolved' });
+    expect((refusalOf(ambiguous.stderr) as { candidates: string[] }).candidates.toSorted()).toEqual(
+      ['u-dany', 'u-impostor'],
+    );
     expect(writable()).toEqual({ ...before });
   });
 
@@ -295,7 +311,7 @@ describe('organization-activation-cli', () => {
     // Proof: 2026-10-20, with the reconciliation check in `activateLegacyOrganization` removed
     // this exited 0 and committed the marker with the `orphan` tag unmapped.
     expect(refused.exitCode).toBe(6);
-    expect(JSON.parse(refused.stderr)).toEqual({
+    expect(refusalOf(refused.stderr)).toEqual({
       refusal: 'reconciliation_failed',
       unmappedRoots: [{ kind: 'tag', id: 'orphan' }],
       catalogNameDrift: [],
@@ -312,7 +328,7 @@ describe('organization-activation-cli', () => {
     const refused = run(APPLY);
 
     expect(refused.exitCode).toBe(6);
-    expect(JSON.parse(refused.stderr)).toMatchObject({
+    expect(refusalOf(refused.stderr)).toMatchObject({
       refusal: 'reconciliation_failed',
       unmappedRoots: [],
       ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
@@ -339,7 +355,7 @@ describe('organization-activation-cli', () => {
     const before = writable();
     const rehearsed = run(['--name', 'default', '--super-admin', 'dany']);
     expect(rehearsed.exitCode).toBe(6);
-    expect(JSON.parse(rehearsed.stderr)).toMatchObject({
+    expect(refusalOf(rehearsed.stderr)).toMatchObject({
       ownershipConflicts: [{ kind: 'event_stream', id: 'project:gone' }],
     });
 
