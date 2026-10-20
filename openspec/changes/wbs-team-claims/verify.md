@@ -667,3 +667,12 @@ Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the f
 
 Swarm rehearsal (2026-10-20): both changes exercised together for two fleets on a booted be-01,
 with the findings it raised, in `openspec/changes/wbs-resources/verify.md`, "Swarm rehearsal".
+
+## Final gate on the merged head (2026-10-20)
+
+`bin/h2puni-gate.sh dd0a5749091dbcdfc6bfe9ee4ecf9cea2b9dc104` from `/home/puni1/puni-00-gate-tbf`
+(log `~/gate-claims-plan-final.log`): printed
+`h2puni gate: running on dd0a5749091dbcdfc6bfe9ee4ecf9cea2b9dc104`, 47 projects passed, Burokrat
+and Dash suites passed, `GATE_EXIT=0`. That head contains slices 1–3, the slice 2 follow-ups, the
+whole-change follow-ups (PR #589) and `origin/main` at 0e8909294. This commit changes only
+verify.md.
