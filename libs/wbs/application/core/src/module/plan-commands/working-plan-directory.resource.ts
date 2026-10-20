@@ -86,6 +86,7 @@ export function createWorkingPlanDirectory(
     removePerson: afterWrite((...parameters) => source().removePerson(...parameters), ok),
     removeTeam: afterWrite((...parameters) => source().removeTeam(...parameters), ok),
     assignmentsInProject: (projectId) => source().assignmentsInProject(projectId),
+    namesOf: (catalog, ids) => source().namesOf(catalog, ids),
     assignmentsFor: (workItemId) => source().assignmentsFor(workItemId),
     assignmentsOf: (workItemIds) => source().assignmentsOf(workItemIds),
     assign: async (...parameters) => {

@@ -108,6 +108,30 @@ describe('ClaimRepository', () => {
     expect(await failureOf(store.listByProject('p'))).toContain('claim a has no writing account');
   });
 
+  it('refuses a stamped read of a claim with no write instant', async () => {
+    insert('a', 'leaf', 'dev');
+    connection.db.run("UPDATE claim SET created_at=NULL WHERE id='a'");
+    expect(await failureOf(store.listStampedByProject('p'))).toContain(
+      'claim a has no write instant',
+    );
+    // The unstamped reads the claim rules use do not need the instant.
+    expect(await store.listByProject('p')).toHaveLength(1);
+  });
+
+  it('answers the write instant of each claim', async () => {
+    const claim = {
+      id: 'a',
+      workItemId: 'leaf',
+      stepId: 'dev',
+      personId: 'claire',
+      runId: null,
+      parentClaimId: null,
+      accountId: 'u',
+    };
+    expect(await store.add([claim], [], { at: 7, by: 'u' })).toBe('written');
+    expect(await store.listStampedByProject('p')).toEqual([{ ...claim, claimedAt: 7 }]);
+  });
+
   it('writes the claim as its claimant’s account, whoever applies it', async () => {
     connection.db.run(
       "INSERT INTO users (id,username,password_hash,created_at) VALUES ('admin','admin','x',1)",

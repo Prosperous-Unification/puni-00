@@ -6,6 +6,8 @@ import {
   type ClaimWriteOutcome,
   type CredentialPair,
   type ProgressKey,
+  type StampedClaim,
+  unstampClaim,
   type WriteStamp,
 } from '@wbs/core';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
@@ -29,8 +31,9 @@ import { claim, stepProgress, workItem } from './schema';
  * The identity reads are the directory's: `person.account_id` and
  * `external_identity.person_id` (`wbs-team-claims` D5, D6).
  *
- * @throws for a stored claim with no writing account, a removal of a claim
- * that is not stored, and every database failure.
+ * @throws for a stored claim with no writing account, a stamped read of a claim
+ * with no write instant, a removal of a claim that is not stored, and every
+ * database failure.
  */
 export class ClaimRepository implements ClaimStore {
   private readonly identity: ClaimIdentity;
@@ -42,12 +45,22 @@ export class ClaimRepository implements ClaimStore {
     this.identity = claimIdentityOf(new DirectoryRepository(db, gate));
   }
 
-  listByProject(projectId: string): Promise<Claim[]> {
-    return this.read(projectId);
+  async listByProject(projectId: string): Promise<Claim[]> {
+    return (await this.read(projectId)).map(unstampClaim);
+  }
+
+  async listStampedByProject(projectId: string): Promise<StampedClaim[]> {
+    return (await this.read(projectId)).map(({ claimedAt, ...each }) => {
+      // Proof: with this check removed, `refuses a stamped read of a claim with
+      // no write instant` read it with a null instant; watched 2026-10-19.
+      if (claimedAt === null) throw new Error(`claim ${each.id} has no write instant`);
+      return { ...each, claimedAt };
+    });
   }
 
   async findById(projectId: string, claimId: string): Promise<Claim | null> {
-    return (await this.read(projectId, claimId)).at(0) ?? null;
+    const found = (await this.read(projectId, claimId)).at(0);
+    return found === undefined ? null : unstampClaim(found);
   }
 
   boundAccountOf(personId: string): Promise<string | null> {
@@ -58,7 +71,11 @@ export class ClaimRepository implements ClaimStore {
     return this.identity.pinnedPersonOf(credential);
   }
 
-  private async read(projectId: string, claimId?: string): Promise<Claim[]> {
+  /** Claims with their write instant as stored, null for a row written outside {@link add}. */
+  private async read(
+    projectId: string,
+    claimId?: string,
+  ): Promise<(Claim & { readonly claimedAt: number | null })[]> {
     const rows = await this.db
       .select({
         id: claim.id,
@@ -68,6 +85,7 @@ export class ClaimRepository implements ClaimStore {
         runId: claim.runId,
         parentClaimId: claim.parentClaimId,
         accountId: claim.createdBy,
+        claimedAt: claim.createdAt,
       })
       .from(claim)
       .innerJoin(workItem, eq(workItem.id, claim.workItemId))
@@ -78,11 +96,11 @@ export class ClaimRepository implements ClaimStore {
         ),
       )
       .orderBy(asc(claim.workItemId), asc(claim.stepId), asc(claim.id));
-    return rows.map(({ accountId, ...row }) => {
+    return rows.map(({ accountId, claimedAt, ...row }) => {
       // Proof: with this check removed, `refuses a stored claim with no writing
       // account` read it with a null account; watched 2026-10-19.
       if (accountId === null) throw new Error(`claim ${row.id} has no writing account`);
-      return { ...row, accountId };
+      return { ...row, accountId, claimedAt };
     });
   }
 

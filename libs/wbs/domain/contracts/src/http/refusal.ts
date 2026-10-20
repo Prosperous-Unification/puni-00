@@ -426,7 +426,8 @@ type SharedCommandCode =
   | 'in_use'
   | 'calendar_range'
   | 'referenced_by_step_parallel'
-  | 'already_claimed';
+  | 'already_claimed'
+  | 'unknown_team';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -453,6 +454,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     taken: undefined | { field?: 'markerId' } | CommandRefusalDetail['taken'];
     /** Bare from a domain claim; with its holders from a `claimWorkItem` batch. */
     already_claimed: undefined | CommandRefusalDetail['already_claimed'];
+    /** Bare from the startable read's `team` filter; with its command context from a batch. */
+    unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };

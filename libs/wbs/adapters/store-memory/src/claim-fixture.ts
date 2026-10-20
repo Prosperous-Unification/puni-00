@@ -1,10 +1,17 @@
-import { type Claim, type ClaimIdentity, type ClaimStore, type WorkItemStore } from '@wbs/core';
+import {
+  type Claim,
+  type ClaimIdentity,
+  type ClaimStore,
+  type StampedClaim,
+  unstampClaim,
+  type WorkItemStore,
+} from '@wbs/core';
 
 import type { MemoryProgressTable } from './progress-fixture';
 
-/** Cloneable claims owned by the memory source. */
+/** Cloneable claims owned by the memory source, each with the instant it was written. */
 export interface MemoryClaimTable {
-  readonly rows: Claim[];
+  readonly rows: StampedClaim[];
 }
 export function memoryClaimTable(): MemoryClaimTable {
   return { rows: [] };
@@ -16,6 +23,9 @@ export function memoryClaimTable(): MemoryClaimTable {
  * and a removed claim taking every claim delegated under it (the parent
  * reference cascades). The `in_progress` statements it makes and clears live
  * in the source's own progress table, so the progress store reads them.
+ *
+ * Each claim keeps the instant of the write that stored it, as SQLite's
+ * `created_at` does; {@link ClaimStore.listStampedByProject} answers it.
  *
  * `identity` answers the bound-account and credential-pin reads: the source's
  * directory, through `claimIdentityOf`, as SQLite's claims read theirs.
@@ -29,9 +39,9 @@ export function inMemoryClaims(
   table: MemoryClaimTable,
   identity: ClaimIdentity,
 ): ClaimStore {
-  const inProject = async (projectId: string): Promise<Claim[]> => {
+  const inProject = async (projectId: string): Promise<StampedClaim[]> => {
     const ids = new Set((await workItems.listByProject(projectId)).map(({ id }) => id));
-    const found: Claim[] = [];
+    const found: StampedClaim[] = [];
     for (const claim of table.rows) {
       if (ids.has(claim.workItemId)) {
         found.push({ ...claim });
@@ -48,9 +58,11 @@ export function inMemoryClaims(
     );
   };
   return {
-    listByProject: inProject,
+    listByProject: async (projectId) => (await inProject(projectId)).map(unstampClaim),
+    listStampedByProject: inProject,
     async findById(projectId, claimId) {
-      return (await inProject(projectId)).find(({ id }) => id === claimId) ?? null;
+      const found = (await inProject(projectId)).find(({ id }) => id === claimId);
+      return found === undefined ? null : unstampClaim(found);
     },
     boundAccountOf: (personId) => identity.boundAccountOf(personId),
     pinnedPersonOf: (credential) => identity.pinnedPersonOf(credential),
@@ -68,7 +80,10 @@ export function inMemoryClaims(
         progress.rows.some((row) => row.workItemId === workItemId && row.stepId === stepId),
       );
       if (spoken) return Promise.resolve('progress_stated' as const);
-      table.rows.push(...claims.map((claim) => ({ ...claim })));
+      // The instant stored is this write's, as SQLite's `created_at` is.
+      // Proof: storing 0 here failed the memory certification's
+      // `claims.listStampedByProject:write-instant` case; watched 2026-10-19.
+      table.rows.push(...claims.map((claim) => ({ ...claim, claimedAt: stamp.at })));
       progress.rows.push(
         ...stated.map(({ workItemId, stepId }) => ({
           workItemId,

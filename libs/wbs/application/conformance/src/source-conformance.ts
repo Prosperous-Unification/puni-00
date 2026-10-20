@@ -224,6 +224,39 @@ export function existingStoreRegistrations(
     ),
     storeCase(
       'claims',
+      'claims.listStampedByProject:write-instant',
+      openers.claims,
+      async ({ port, seed }) => {
+        const [workItemId] = seed.workItemIds[0];
+        const [stepId, otherStepId] = seed.stepIds[0];
+        const first = {
+          id: 'claim-first',
+          workItemId,
+          stepId,
+          personId: seed.personIds[0],
+          runId: null,
+          parentClaimId: null,
+          accountId: seed.ownerIds[0],
+        };
+        const second = { ...first, id: 'claim-second', stepId: otherStepId };
+        expect(await port.add([first], [], seed.stamps[0])).toBe('written');
+        expect(await port.add([second], [], seed.stamps[1])).toBe('written');
+        expect(await port.listStampedByProject(seed.projectIds[0])).toEqual(
+          [
+            { ...first, claimedAt: seed.stamps[0].at },
+            { ...second, claimedAt: seed.stamps[1].at },
+          ].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
+        );
+        expect(await port.listStampedByProject(seed.projectIds[1])).toEqual([]);
+        // The plain reads stay unstamped: the journal stores what they answer.
+        expect(await port.listByProject(seed.projectIds[0])).toEqual(
+          [first, second].sort((left, right) => (left.stepId < right.stepId ? -1 : 1)),
+        );
+        expect(await port.findById(seed.projectIds[0], first.id)).toEqual(first);
+      },
+    ),
+    storeCase(
+      'claims',
       'claims.remove:delegated-cascade',
       openers.claims,
       async ({ port, seed }) => {

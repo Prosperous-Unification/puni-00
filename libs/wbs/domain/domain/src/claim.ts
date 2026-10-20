@@ -104,6 +104,16 @@ const NOT_STARTABLE: ReadonlySet<WorkItemStatus> = new Set([
   'blocked_by_proxy',
 ]);
 
+/**
+ * Whether a leaf whose derived status is `status` may be started: none of
+ * `blocked`, `on_hold`, `blocked_by_proxy` or `done` (D3). The one test both
+ * {@link decideClaim} and the startable read apply, so a step the read lists is
+ * never one a claim would refuse as `not_startable` or `item_done`.
+ */
+export function isStartableStatus(status: WorkItemStatus): boolean {
+  return status !== 'done' && !NOT_STARTABLE.has(status);
+}
+
 function holderOf(claim: Claim): ClaimHolder {
   return { claimId: claim.id, personId: claim.personId, runId: claim.runId };
 }
@@ -201,7 +211,7 @@ export function decideClaim(request: ClaimRequest): ClaimDecision {
   if (!target.isLeaf && request.stepIds !== null) return refused({ reason: 'steps_on_subtree' });
   if (target.status === 'done') return refused({ reason: 'item_done' });
   if (target.isLeaf && target.steps.length === 0) return refused({ reason: 'no_steps' });
-  if (target.isLeaf && NOT_STARTABLE.has(target.status)) {
+  if (target.isLeaf && !isStartableStatus(target.status)) {
     return refused({ reason: 'not_startable', status: target.status });
   }
 

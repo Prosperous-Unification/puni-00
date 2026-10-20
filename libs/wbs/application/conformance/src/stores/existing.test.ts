@@ -118,6 +118,7 @@ describe('the migrated existing store kits', () => {
       'blockages.set:read-remove',
       'stepParallels.set:sparse-replace-remove',
       'claims.add:taken-stated-remove',
+      'claims.listStampedByProject:write-instant',
       'claims.remove:delegated-cascade',
       'dependencies.listByWorkItems:incident-scope',
       'dependencies.add:idempotent-pair',

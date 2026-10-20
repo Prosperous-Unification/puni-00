@@ -8,6 +8,7 @@ import {
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readStartableWork,
   redoProject,
   responseSchema,
   type SchemaShape,
@@ -660,6 +661,31 @@ export function workItemRoutes(
             projectRevision: tree.projectRevision,
           },
         };
+      },
+    ),
+    bind(
+      readStartableWork,
+      async ({
+        params,
+        query,
+        request,
+        principal,
+      }): Promise<HttpReply<typeof readStartableWork>> => {
+        // Proof: with this check removed, `refuses a repeated team and an
+        // undeclared key` (startable-organization.controller.db.test.ts)
+        // failed; watched 2026-10-19.
+        if (hasRepeatedKey(request.url))
+          return { ok: false, status: 400, body: { error: 'invalid_query' } };
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const startable = await workItems.startableWithin(
+          params.id,
+          resolved.access,
+          query.team ?? null,
+        );
+        if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
+        return { ok: true, status: 200, body: startable };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {

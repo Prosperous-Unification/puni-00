@@ -5,6 +5,7 @@ import {
   assumedAssignee,
   type Attempt,
   type AttemptOutcome,
+  type AuthoredDependencyGraph,
   byTreeOrder,
   CalendarRangeError,
   canDepend,
@@ -179,6 +180,7 @@ import {
   refusalOf,
   type ReleaseInput,
 } from './claims';
+import { findStartableWork, type StartableWork } from './startable';
 
 /**
  * A row's folded status. Every row of the tree is folded, so a miss is a row
@@ -1723,6 +1725,67 @@ export class WorkItemService {
     return this.opts.workItems.listUpdateInstants(projectId);
   }
 
+  /**
+   * The **Startable** steps of a project through the caller's access, filtered
+   * to one team's allotment when `teamId` is given ({@link findStartableWork}).
+   * Statuses come from {@link statusReadsOf}, the fold the claim command uses.
+   *
+   * Names are the organization's own under scoped access, as {@link treeWithin}
+   * names assignees. Under legacy access no directory-wide list is read: the
+   * assignees' names come with the project's assignments and every other
+   * person or team is read by id (`DirectoryStore.namesOf`).
+   *
+   * Null for a project the caller cannot read, refused alike with an absent one;
+   * `unknown_team` for a team the caller's directory does not hold.
+   */
+  async startableWithin(
+    projectId: string,
+    access: ResourceAccess,
+    teamId: string | null,
+  ): Promise<StartableWork | { readonly kind: 'unknown_team' } | null> {
+    if (!(await this.admits(projectId, access))) return null;
+    const { directory } = this.opts;
+    const rows = await this.opts.workItems.listByProject(projectId);
+    const claims = await this.claiming().claims.listStampedByProject(projectId);
+    const { assignments, people: assigned } = await directory.assignmentsInProject(projectId);
+    const unassigned = claims
+      .map((each) => each.personId)
+      .filter((id) => !assigned.some((person) => person.id === id));
+    const labelled = [...rows.flatMap((row) => row.teamIds), ...(teamId === null ? [] : [teamId])];
+    // Proof: reading the root catalogs under scoped access too made `answers a
+    // member and a viewer alike, with the organization's own names` and
+    // `refuses a team the caller's organization does not hold`
+    // (startable-organization.controller.db.test.ts) fail; watched 2026-10-19.
+    // Proof: `listPeople()` in place of the legacy `namesOf` made `materializes
+    // only the assignee and the claim holder during a tiny startable read`
+    // (startable-scope.db.test.ts) fail on a `SCAN person`; watched 2026-10-20.
+    const [people, teams] =
+      access.kind === 'scoped'
+        ? await Promise.all([
+            directory.listInOrganization('people', access.scope.organizationId),
+            directory.listInOrganization('teams', access.scope.organizationId),
+          ])
+        : await Promise.all([
+            directory.namesOf('people', unassigned).then((found) => [...assigned, ...found]),
+            directory.namesOf('teams', labelled),
+          ]);
+    const teamNames = new Map(teams.map((team) => [team.id, team.name] as const));
+    if (teamId !== null && !teamNames.has(teamId)) return { kind: 'unknown_team' };
+    const { statuses, stated, dependencies } = await this.statusReadsOf(projectId, rows);
+    return findStartableWork({
+      rows,
+      statuses,
+      stepIds: (await this.opts.projects.stepsOf(projectId)).map((step) => step.id),
+      stated,
+      claims,
+      assignments,
+      dependencies,
+      personNames: new Map(people.map((person) => [person.id, person.name] as const)),
+      teamNames,
+      teamId,
+    });
+  }
+
   /** {@link tree} through the caller's access; see {@link scheduleInputWithin}. */
   async treeWithin(
     projectId: string,
@@ -2905,6 +2968,21 @@ export class WorkItemService {
     projectId: string,
     rows: readonly LabelledWorkItem[],
   ): Promise<Map<string, WorkItemStatus>> {
+    return (await this.statusReadsOf(projectId, rows)).statuses;
+  }
+
+  /**
+   * {@link statusesOf} with the reads it folded, so a caller that needs the
+   * same progress statements and dependency edges reads them once.
+   */
+  private async statusReadsOf(
+    projectId: string,
+    rows: readonly LabelledWorkItem[],
+  ): Promise<{
+    statuses: Map<string, WorkItemStatus>;
+    stated: StoredProgress[];
+    dependencies: AuthoredDependencyGraph;
+  }> {
     const stated = await this.opts.progress.listByProject(projectId);
     const attempted = await this.opts.attempts.listByProject(projectId);
     const progress = rollUpWorkItemStatuses(
@@ -2922,12 +3000,13 @@ export class WorkItemService {
       ),
     );
     const rowIds = new Set(rows.map((row) => row.id));
-    return workItemStatusesOf(rows, progress, {
+    const dependencies = {
       edges: (await this.opts.dependencies.listByProject(projectId)).filter(
         (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
       ),
       typed: await this.opts.typedDependencies.listByProject(projectId),
-    });
+    };
+    return { statuses: workItemStatusesOf(rows, progress, dependencies), stated, dependencies };
   }
 
   /**
