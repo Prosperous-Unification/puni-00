@@ -190,7 +190,7 @@ function captureSharedDisplay(source: SqliteSource, organizationId: string) {
               },
             },
       ).scheduler,
-    optimization: { contractVersion: contractVersionOf('0.2.0'), budgetMs: 1000, now: Date.now },
+    optimization: { contractVersion: contractVersionOf('0.3.0'), budgetMs: 1000, now: Date.now },
   });
   return bound.uow.run(async (scope) => {
     if (scope.fanoutCapture === undefined) throw new Error('shared display capture unavailable');
@@ -405,7 +405,7 @@ async function seedReadyRetirement(
   fastStart: number | undefined;
   selectedStart: number | undefined;
 }> {
-  const contractVersion = contractVersionOf('0.2.0');
+  const contractVersion = contractVersionOf('0.3.0');
   db.run(
     sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
   );
@@ -473,7 +473,7 @@ async function seedReadyRetirement(
 
 function seedLifecycleSlot(
   db: ReturnType<typeof openDrizzle>,
-  contractVersion = contractVersionOf('0.2.0'),
+  contractVersion = contractVersionOf('0.3.0'),
   generation = allocateGeneration(db, 'A', contractVersion, 'release-input', 1),
   objective: 'pri' | 'time' = 'pri',
 ) {
@@ -505,7 +505,7 @@ async function sharedOutcomeWrite(
   services: ReturnType<typeof buildServices>,
   objective: 'pri' | 'time' = 'pri',
 ): Promise<OptimizationOutcomeWrite> {
-  const contractVersion = contractVersionOf('0.2.0');
+  const contractVersion = contractVersionOf('0.3.0');
   db.run(
     sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
   );
@@ -558,7 +558,7 @@ function completedSelectedChild(
   onBound: () => void = () => undefined,
 ): ReturnType<ReservedSpawner> {
   const response = {
-    wireVersion: 3 as const,
+    wireVersion: 4 as const,
     status: 'feasible' as const,
     offsets: { [sliceKey('A', 'A-step')]: 48, [sliceKey('long', 'A-step')]: 0 },
     objectiveValues: {
@@ -613,7 +613,7 @@ async function enqueueSelectedOutcome(
   );
   const captured = await services.workItems.optimizationInput('A');
   if (captured.kind !== 'scheduled') throw new Error('installed child input unavailable');
-  const contractVersion = contractVersionOf('0.2.0');
+  const contractVersion = contractVersionOf('0.3.0');
   const generation = allocateGeneration(
     db,
     'A',
@@ -639,7 +639,7 @@ function seedOtherLifecycleSlot(
   projectId: string,
   admittedDeadlineAt: number,
 ): void {
-  const contractVersion = contractVersionOf('0.2.0');
+  const contractVersion = contractVersionOf('0.3.0');
   const generation = allocateGeneration(db, projectId, contractVersion, `${projectId}-input`, 1);
   db.insert(solverSlot)
     .values({
@@ -665,7 +665,7 @@ describe('buildServices', () => {
     let captures = 0;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
       },
@@ -702,7 +702,7 @@ describe('buildServices', () => {
     const delivered: string[] = [];
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('outcome delivery fixture must not launch')),
       },
@@ -780,7 +780,7 @@ describe('buildServices', () => {
     const pushed: { subscription: string; seq: number; message: { type: string } }[] = [];
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: (request) => {
           launches.push(request);
@@ -923,7 +923,7 @@ describe('buildServices', () => {
       const releaseRejected = signal();
       const { db, path, services } = bootstrap(
         {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 1000,
           spawn: (request) => {
             launches.push(request);
@@ -1005,7 +1005,7 @@ describe('buildServices', () => {
 
   it('stores an eligible H1 outcome silently while current shared input is H2', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -1025,7 +1025,7 @@ describe('buildServices', () => {
 
   it('records selected-budget eviction after the complete installed outcome mutation', async () => {
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('eviction fixture must not launch')),
     });
@@ -1144,7 +1144,7 @@ describe('buildServices', () => {
   it('records selected-display eviction when an installed stale observation advances generation', async () => {
     let launches = 0;
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -1259,7 +1259,7 @@ describe('buildServices', () => {
   it('reuses an equal-hash selected observation without changing cache, queue or recipients', async () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -1302,7 +1302,7 @@ describe('buildServices', () => {
     let captures = 0;
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('cache-hit observation reached launcher')),
       },
@@ -1340,7 +1340,7 @@ describe('buildServices', () => {
 
   it('keeps an old unselected cache removal silent during installed generation observation', async () => {
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('unselected observation reached launcher')),
     });
@@ -1368,7 +1368,7 @@ describe('buildServices', () => {
   it('refuses an installed generation observation without borrowed capture before eviction', async () => {
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('missing observation capture reached launcher')),
       },
@@ -1402,7 +1402,7 @@ describe('buildServices', () => {
   it('rolls back generation, cache, queue, slot cancellation and events on the second observation recipient', async () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -1468,7 +1468,7 @@ describe('buildServices', () => {
 
   it('waits for a held source writer before returning the installed generation and pair', async () => {
     const { db, path, services, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('held observation reached launcher')),
     });
@@ -1525,7 +1525,7 @@ describe('buildServices', () => {
   it('keeps absent, disabled, empty and zero-duration observation branches idle and silent', async () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -1569,7 +1569,7 @@ describe('buildServices', () => {
     let captures = 0;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('capture rollback reached launcher')),
       },
@@ -1616,7 +1616,7 @@ describe('buildServices', () => {
     const pushed: string[] = [];
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('held observation reached launcher')),
       },
@@ -1686,7 +1686,7 @@ describe('buildServices', () => {
       const releaseDelivery = signal();
       const { db, path, services } = bootstrap(
         {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 1000,
           spawn: () => Promise.reject(new Error('observation delivery reached launcher')),
         },
@@ -1763,10 +1763,10 @@ describe('buildServices', () => {
     let armed = false;
     let inserted = false;
     let inputHash = '';
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('postcommit observation reached launcher')),
       },
@@ -1833,7 +1833,7 @@ describe('buildServices', () => {
   it('replaces an older failed marker through installed Retry before selected fan-out', async () => {
     const launches: ReservedSpawnRequest[] = [];
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: (request) => {
         launches.push(request);
@@ -1858,7 +1858,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('Retry replacement input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -1930,7 +1930,7 @@ describe('buildServices', () => {
 
   it('rolls back selected-budget eviction and outcome rows after the second recipient insert fails', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('rollback fixture must not launch')),
     });
@@ -1980,7 +1980,7 @@ describe('buildServices', () => {
   it('keeps unselected and Fast-equivalent budget eviction silent for recipients', async () => {
     for (const mode of ['unselected', 'fast-equivalent'] as const) {
       const { db, path, services, pushUrls } = bootstrap({
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('silent eviction fixture must not launch')),
       });
@@ -2030,7 +2030,7 @@ describe('buildServices', () => {
 
   it('replaces a genuinely corrupt older marker through installed Retry', async () => {
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: completedSelectedChild,
     });
@@ -2052,7 +2052,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('corrupt Retry input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -2098,7 +2098,7 @@ describe('buildServices', () => {
   it('keeps accepted Retry admission but rolls back failed-marker replacement after event insertion fails', async () => {
     const logs: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
-      { solverVersion: '0.2.0', budgetMs: 1000, spawn: completedSelectedChild },
+      { solverVersion: '0.3.0', budgetMs: 1000, spawn: completedSelectedChild },
       undefined,
       undefined,
       false,
@@ -2130,7 +2130,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('Retry rollback input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -2193,7 +2193,7 @@ describe('buildServices', () => {
 
   it('records empty-booking availability loss from an admitted selected outcome at unchanged canonical input', async () => {
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -2230,7 +2230,7 @@ describe('buildServices', () => {
                 },
               },
         ).scheduler,
-      optimization: { contractVersion: contractVersionOf('0.2.0'), budgetMs: 1000, now: Date.now },
+      optimization: { contractVersion: contractVersionOf('0.3.0'), budgetMs: 1000, now: Date.now },
     });
     const captureOrganization = () =>
       bound.uow.run(async (scope) => {
@@ -2238,10 +2238,10 @@ describe('buildServices', () => {
         return { commit: false, value: await scope.fanoutCapture.capture('org-a') };
       });
     const before = await captureOrganization();
-    const built = buildSolverRequestPair(input, '0.2.0', 1000).pri;
+    const built = buildSolverRequestPair(input, '0.3.0', 1000).pri;
     if (!built.ok) throw new Error(`availability request refused: ${built.failure}`);
     const response = JSON.stringify({
-      wireVersion: 3,
+      wireVersion: 4,
       status: 'feasible',
       offsets: { [sliceKey('A', 'A-step')]: 0, [sliceKey('long', 'A-step')]: 1_920_000_000 },
       objectiveValues: {
@@ -2256,7 +2256,7 @@ describe('buildServices', () => {
     });
     if (evaluated.kind !== 'ok')
       throw new Error(`admitted availability result was ${evaluated.kind}`);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     const slot = seedLifecycleSlot(db, contractVersion, generation);
     const write: OptimizationOutcomeWrite = {
@@ -2301,7 +2301,7 @@ describe('buildServices', () => {
 
   it('keeps a nonselected objective and repeated or stale outcomes silent for B', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -2326,7 +2326,7 @@ describe('buildServices', () => {
 
   it('keeps a stale selected token silent before cache and fan-out writes', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -2348,7 +2348,7 @@ describe('buildServices', () => {
 
   it('rolls back a selected outcome, all recipients and sequences when the second event insert fails', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -2380,7 +2380,7 @@ describe('buildServices', () => {
     let captures = 0;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
       },
@@ -2405,7 +2405,7 @@ describe('buildServices', () => {
   it('refuses a selected outcome without borrowed capture before any cache or event write', async () => {
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
       },
@@ -2429,7 +2429,7 @@ describe('buildServices', () => {
     const writerEntered = signal();
     const releaseWriter = signal();
     const { db, path, services, source, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -2474,7 +2474,7 @@ describe('buildServices', () => {
 
   it('rejects malformed active outcome ownership before any durable write', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
     });
@@ -2496,7 +2496,7 @@ describe('buildServices', () => {
   for (const mode of ['legacy', 'isolated'] as const) {
     it(`retains only the own outcome event for ${mode} organization mode`, async () => {
       const { db, path, services, pushUrls } = bootstrap({
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('outcome fixture must not launch')),
       });
@@ -2519,7 +2519,7 @@ describe('buildServices', () => {
     const releaseChildren = signal();
     const launched: ReservedSpawnRequest[] = [];
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: async (request) => {
         launched.push(request);
@@ -2588,7 +2588,7 @@ describe('buildServices', () => {
 
   it('keeps capacity enqueue status-only for the installed shared display', async () => {
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('capacity enqueue must not launch')),
     });
@@ -2603,7 +2603,7 @@ describe('buildServices', () => {
       db.insert(solverSlot)
         .values({
           projectId: 'A',
-          contractVersion: contractVersionOf('0.2.0'),
+          contractVersion: contractVersionOf('0.3.0'),
           generation: seat,
           objective: 'time',
           budgetMs: 1000,
@@ -2652,7 +2652,7 @@ describe('buildServices', () => {
   it('keeps accepted Retry status-only for the shared display while its child is held', async () => {
     const releaseChild = signal();
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: async () => {
         await releaseChild.promise;
@@ -2679,7 +2679,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('Retry status input unavailable');
     const inputHash = scheduleInputHash(captured.input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -2728,7 +2728,7 @@ describe('buildServices', () => {
   it('keeps valid installed FIFO dequeue status-only while its child is held', async () => {
     const releaseChild = signal();
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: async () => {
         await releaseChild.promise;
@@ -2754,7 +2754,7 @@ describe('buildServices', () => {
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('FIFO status input unavailable');
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const inputHash = scheduleInputHash(captured.input);
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(solverQueue)
@@ -2795,7 +2795,7 @@ describe('buildServices', () => {
 
   it('consumes an invalid FIFO head without changing the installed shared display', async () => {
     const { db, path, services, pushUrls, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('invalid FIFO head must not launch')),
     });
@@ -2805,7 +2805,7 @@ describe('buildServices', () => {
     );
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('invalid FIFO input unavailable');
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     allocateGeneration(db, 'A', contractVersion, scheduleInputHash(captured.input), 1);
     db.insert(solverQueue)
       .values({
@@ -2841,7 +2841,7 @@ describe('buildServices', () => {
   it('records a victim shared-person event when initial admission reclaims its last expired slot', async () => {
     let launches = 0;
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -2891,7 +2891,7 @@ describe('buildServices', () => {
     let observed = false;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('missing capture reached launcher')),
       },
@@ -2946,7 +2946,7 @@ describe('buildServices', () => {
   it('captures two foreign victim organizations before initial reservation reclaims either', async () => {
     let launches = 0;
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -3020,7 +3020,7 @@ describe('buildServices', () => {
   it('addresses a selected contract retired by initial global reclaim without deleting its project', async () => {
     let launches = 0;
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -3080,7 +3080,7 @@ describe('buildServices', () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => {
           launches += 1;
@@ -3146,7 +3146,7 @@ describe('buildServices', () => {
       let launches = 0;
       const { db, path, services, pushUrls } = bootstrap(
         {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 1000,
           spawn: () => {
             launches += 1;
@@ -3244,7 +3244,7 @@ describe('buildServices', () => {
       });
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: (request) => {
           let finish: (code: number) => void = () => {
@@ -3355,7 +3355,7 @@ describe('buildServices', () => {
   it('records a foreign victim event when an installed Retry reclaims its expired last slot', async () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -3379,7 +3379,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -3413,7 +3413,7 @@ describe('buildServices', () => {
   it('addresses selected contract retirement during Retry when local input facts stay equal', async () => {
     let launches = 0;
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -3445,7 +3445,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -3478,7 +3478,7 @@ describe('buildServices', () => {
   it('captures all Retry victim organizations across the adjusted failure-marker cutoff', async () => {
     let launches = 0;
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -3511,7 +3511,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -3568,7 +3568,7 @@ describe('buildServices', () => {
 
   it('records one recovery audit with an installed accepted Retry and victim fan-out', async () => {
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('recovery fixture reached launcher')),
     });
@@ -3592,7 +3592,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -3632,7 +3632,7 @@ describe('buildServices', () => {
 
   it('commits a capacity-queued recovery Retry and reclaimed victim event with one audit', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('queued recovery fixture reached launcher')),
     });
@@ -3656,7 +3656,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -3727,7 +3727,7 @@ describe('buildServices', () => {
       let launches = 0;
       const { db, path, services, pushUrls } = bootstrap(
         {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 1000,
           spawn: () => {
             launches += 1;
@@ -3766,7 +3766,7 @@ describe('buildServices', () => {
       if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
       const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
       const inputHash = scheduleInputHash(input);
-      const contractVersion = contractVersionOf('0.2.0');
+      const contractVersion = contractVersionOf('0.3.0');
       const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
       db.insert(optimizedScheduleCache)
         .values({
@@ -3858,7 +3858,7 @@ describe('buildServices', () => {
       let launches = 0;
       const { db, path, services, pushUrls } = bootstrap(
         {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 1000,
           spawn: () => {
             launches += 1;
@@ -3920,7 +3920,7 @@ describe('buildServices', () => {
       if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
       const input = { ...captured.input, notBefore: new Map([['B', 50_000_000]]) };
       const inputHash = scheduleInputHash(input);
-      const contractVersion = contractVersionOf('0.2.0');
+      const contractVersion = contractVersionOf('0.3.0');
       const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
       closure.contractVersion = contractVersion;
       closure.generation = generation;
@@ -3988,7 +3988,7 @@ describe('buildServices', () => {
       });
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: (request) => {
           let finish: (code: number) => void = () => {
@@ -4042,7 +4042,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -4120,7 +4120,7 @@ describe('buildServices', () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => {
           launches += 1;
@@ -4148,7 +4148,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -4256,7 +4256,7 @@ describe('buildServices', () => {
   it('rejects installed eligible Retry when the borrowed fan-out capability is absent', async () => {
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('missing-capability Retry reached launcher')),
       },
@@ -4281,7 +4281,7 @@ describe('buildServices', () => {
     if (captured.kind !== 'scheduled') throw new Error('victim comparison input unavailable');
     const input = captured.input;
     const inputHash = scheduleInputHash(input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, requester.projectId, contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
       .values({
@@ -4396,7 +4396,7 @@ describe('buildServices', () => {
         },
       });
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () =>
         Promise.resolve({
@@ -4450,7 +4450,7 @@ describe('buildServices', () => {
       });
     let killed = false;
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () =>
         Promise.resolve({
@@ -4536,7 +4536,7 @@ describe('buildServices', () => {
 
   it('retires only the selected contract after its exact last-slot release', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('retirement fixture must not launch')),
     });
@@ -4645,7 +4645,7 @@ describe('buildServices', () => {
     let armed = true;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('preflight refusal reached launcher')),
       },
@@ -4692,7 +4692,7 @@ describe('buildServices', () => {
     let armed = true;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('Retry preflight refusal reached launcher')),
       },
@@ -4722,7 +4722,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('A');
     if (captured.kind !== 'scheduled') throw new Error('shared input was not scheduled');
     const input = { ...captured.input, notBefore: new Map([['A', 50_000_000]]) };
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const inputHash = scheduleInputHash(input);
     const generation = allocateGeneration(db, 'A', contractVersion, inputHash, 1);
     db.insert(optimizedScheduleCache)
@@ -4758,7 +4758,7 @@ describe('buildServices', () => {
     let armed = true;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('stale queued seat reached launcher')),
       },
@@ -4785,7 +4785,7 @@ describe('buildServices', () => {
     db.run(
       sql`UPDATE project SET optimization_enabled = 1, schedule_engine = 'optimized' WHERE id = 'A'`,
     );
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'A', contractVersion, 'stale-queue-input', 1);
     db.insert(solverQueue)
       .values({
@@ -4815,7 +4815,7 @@ describe('buildServices', () => {
 
   it('records a foreign victim event when the installed FIFO dequeue reclaims a drained slot', async () => {
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('dequeue fixture reached launcher')),
     });
@@ -4828,7 +4828,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('queued comparison input unavailable');
     const inputHash = scheduleInputHash(captured.input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
@@ -4861,7 +4861,7 @@ describe('buildServices', () => {
 
   it('records a populated final-drain event through installed startup reconciliation', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('startup reconciliation must not launch')),
     });
@@ -4882,7 +4882,7 @@ describe('buildServices', () => {
 
   it('records a populated final-drain event through the installed periodic reconciliation tick', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('periodic reconciliation must not launch')),
     });
@@ -4925,7 +4925,7 @@ describe('buildServices', () => {
     let armed = false;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('reconciliation rollback must not launch')),
       },
@@ -4991,7 +4991,7 @@ describe('buildServices', () => {
 
   it('keeps a future-deadline counted child while retiring a different expired project', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('deadline reconciliation must not launch')),
     });
@@ -5025,7 +5025,7 @@ describe('buildServices', () => {
 
   it('addresses selected contract retirement during startup reconciliation', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('selected reconciliation must not launch')),
     });
@@ -5057,7 +5057,7 @@ describe('buildServices', () => {
 
   it('observes selected retirement before project deletion in separate startup sweeps', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('ordered reconciliation must not launch')),
     });
@@ -5087,7 +5087,7 @@ describe('buildServices', () => {
     let removedMarker = false;
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('stale reconciliation must not launch')),
       },
@@ -5135,7 +5135,7 @@ describe('buildServices', () => {
     const writerEntered = signal();
     const releaseWriter = signal();
     const { db, path, services, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('enumeration fixture must not launch')),
     });
@@ -5189,7 +5189,7 @@ describe('buildServices', () => {
     const writerEntered = signal();
     const releaseWriter = signal();
     const { db, path, services, source } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('project enumeration must not launch')),
     });
@@ -5244,7 +5244,7 @@ describe('buildServices', () => {
     const pushes: string[] = [];
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('held reconciliation must not launch')),
       },
@@ -5294,7 +5294,7 @@ describe('buildServices', () => {
     const errors: unknown[] = [];
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('missing owner must not launch')),
       },
@@ -5326,7 +5326,7 @@ describe('buildServices', () => {
     const releaseDelivery = signal();
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('coalesced reconciliation must not launch')),
       },
@@ -5384,7 +5384,7 @@ describe('buildServices', () => {
     const errors: unknown[] = [];
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('capture rollback must not launch')),
       },
@@ -5427,7 +5427,7 @@ describe('buildServices', () => {
     let held = false;
     const { db, path, services, pushUrls, source } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('held capture must not launch')),
       },
@@ -5471,7 +5471,7 @@ describe('buildServices', () => {
 
   it('uses a later FIFO entry cutoff after consuming an invalid head', async () => {
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('later FIFO fixture reached launcher')),
     });
@@ -5491,7 +5491,7 @@ describe('buildServices', () => {
     );
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('later FIFO input unavailable');
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const inputHash = scheduleInputHash(captured.input);
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
@@ -5546,7 +5546,7 @@ describe('buildServices', () => {
   it('rejects missing borrowed FIFO capture before touching an old slot', async () => {
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('unexpected launch')),
       },
@@ -5570,7 +5570,7 @@ describe('buildServices', () => {
     const captures: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('unexpected launch')),
       },
@@ -5602,7 +5602,7 @@ describe('buildServices', () => {
     const captures: string[] = [];
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('unexpected launch')),
       },
@@ -5625,7 +5625,7 @@ describe('buildServices', () => {
 
   it('delivers reclaimed victim fan-out when dequeue retains a capacity-blocked head', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('capacity-blocked dequeue reached launcher')),
     });
@@ -5638,7 +5638,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('blocked FIFO input unavailable');
     const inputHash = scheduleInputHash(captured.input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
@@ -5684,7 +5684,7 @@ describe('buildServices', () => {
 
   it('delivers reclaimed victim fan-out when dequeue consumes a closed head and returns empty', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('closed dequeue reached launcher')),
     });
@@ -5697,7 +5697,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('closed FIFO input unavailable');
     const inputHash = scheduleInputHash(captured.input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
@@ -5726,7 +5726,7 @@ describe('buildServices', () => {
 
   it('addresses selected contract retirement during FIFO dequeue with unchanged victim input hash', async () => {
     const { db, path, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('selected dequeue reached launcher')),
     });
@@ -5784,7 +5784,7 @@ describe('buildServices', () => {
   it('rolls back the full FIFO loop and two victim events when the second insert fails', async () => {
     let launches = 0;
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => {
         launches += 1;
@@ -5808,7 +5808,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('B');
     if (captured.kind !== 'scheduled') throw new Error('rollback FIFO input unavailable');
     const inputHash = scheduleInputHash(captured.input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'B', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values([
@@ -5890,7 +5890,7 @@ describe('buildServices', () => {
       });
     const { db, path, services, pushUrls } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: (request) => {
           launches.push(request);
@@ -5928,7 +5928,7 @@ describe('buildServices', () => {
     const captured = await services.workItems.optimizationInput('C');
     if (captured.kind !== 'scheduled') throw new Error('held FIFO input unavailable');
     const inputHash = scheduleInputHash(captured.input);
-    const contractVersion = contractVersionOf('0.2.0');
+    const contractVersion = contractVersionOf('0.3.0');
     const generation = allocateGeneration(db, 'C', contractVersion, inputHash, 1);
     db.insert(solverQueue)
       .values({
@@ -6415,7 +6415,7 @@ describe('buildServices', () => {
       } finally {
         settings.close();
       }
-      const contractVersion = '7+0.2.0';
+      const contractVersion = '7+0.3.0';
       db.run(sql`UPDATE project SET optimization_enabled = 1 WHERE id = 'A'`);
       allocateGeneration(db, 'A', contractVersion, 'mode-silence', 1);
       const events = new DrizzleEventLogStore(db, OPEN);
@@ -6531,7 +6531,7 @@ describe('buildServices', () => {
 
   it('retires a selected ready contract at an unchanged shared input hash', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('retirement fixture must not launch')),
     });
@@ -6544,7 +6544,7 @@ describe('buildServices', () => {
     expect(fastStart).toBe(0);
     expect(selectedStart).toBe(1);
     const events = new DrizzleEventLogStore(db, OPEN);
-    const siblingVersion = contractVersionOf('0.3.0');
+    const siblingVersion = contractVersionOf('0.4.0');
     allocateGeneration(db, 'A', siblingVersion, inputHash, 1);
     expect(
       await services.optimizationLifecycle.beginDrain('A', { at: 2, by: 'ada' }, siblingVersion),
@@ -6567,7 +6567,7 @@ describe('buildServices', () => {
 
   it('keeps equal-display selected retirement silent', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('equal-display fixture must not launch')),
     });
@@ -6589,7 +6589,7 @@ describe('buildServices', () => {
 
   it('rolls back a later recipient event failure with selected contract retirement', async () => {
     const { db, path, services, pushUrls } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 1000,
       spawn: () => Promise.reject(new Error('rollback fixture must not launch')),
     });
@@ -6641,7 +6641,7 @@ describe('buildServices', () => {
     const calls: string[] = [];
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('held-delivery fixture must not launch')),
       },
@@ -6678,7 +6678,7 @@ describe('buildServices', () => {
   it('keeps the committed event replayable after transport refusal', async () => {
     const { db, path, services } = bootstrap(
       {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 1000,
         spawn: () => Promise.reject(new Error('replay fixture must not launch')),
       },
@@ -6712,13 +6712,13 @@ describe('buildServices', () => {
     const seed = openDatabase(path);
     try {
       seed.run(
-        "INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES ('A', '16+0.2.0', 1, 'old', 1)",
+        "INSERT INTO optimization_generation (project_id, contract_version, generation, input_hash, updated_at) VALUES ('A', '17+0.3.0', 1, 'old', 1)",
       );
       seed.run(
         `INSERT INTO solver_slot
          (project_id, contract_version, generation, objective, budget_ms, owner_id,
           attempt_token, lifecycle, pid, started_at, heartbeat_at, admitted_deadline_at)
-         VALUES ('A', '16+0.2.0', 1, 'pri', 60000, 'worker', 'token', 'running', 4242, 1, 1, 60001)`,
+         VALUES ('A', '17+0.3.0', 1, 'pri', 60000, 'worker', 'token', 'running', 4242, 1, 1, 60001)`,
       );
     } finally {
       seed.close();
@@ -7281,7 +7281,7 @@ describe('buildServices', () => {
     // launch arrives here.
     const spawned: ReservedSpawnRequest[] = [];
     const { db, services } = bootstrap({
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: 60_000,
       spawn: (request) => {
         spawned.push(request);
@@ -7326,13 +7326,13 @@ describe('buildServices', () => {
       ]),
     ).toEqual([
       // The current solver release composes with the current scheduler contract.
-      ['0.2.0', '16+0.2.0', 60_000],
-      ['0.2.0', '16+0.2.0', 60_000],
+      ['0.3.0', '17+0.3.0', 60_000],
+      ['0.3.0', '17+0.3.0', 60_000],
     ]);
   });
 
   it('starts current solves instead of reading a pre-fix failed pair', async () => {
-    const legacyContract = '7+0.2.0';
+    const legacyContract = '7+0.3.0';
     const currentSolver = readRuntimeSolverVersion('development');
     const spawned: ReservedSpawnRequest[] = [];
     const { db, services } = bootstrap({
@@ -7392,12 +7392,12 @@ describe('buildServices', () => {
     await services.workItems.tree(projectId);
     await services.optimizer?.drain();
 
-    expect(currentSolver).toBe('0.2.0');
-    // Proof: hard-coding `services.ts`'s coordinator key to `7+0.2.0` read the
+    expect(currentSolver).toBe('0.3.0');
+    // Proof: hard-coding `services.ts`'s coordinator key to `7+0.3.0` read the
     // seeded failed pair and failed here with `Expected ["pri", "time"] /
     // Received []`; watched 2026-09-07.
     expect(spawned.map(({ objective }) => objective)).toEqual(['pri', 'time']);
-    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['16+0.2.0', '16+0.2.0']);
+    expect(spawned.map(({ key }) => key.contractVersion)).toEqual(['17+0.3.0', '17+0.3.0']);
     expect(
       db
         .select({ contractVersion: optimizedScheduleCache.contractVersion })
@@ -7463,7 +7463,7 @@ describe('buildServices', () => {
 describe('shared-person replay closure (6l)', () => {
   const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
   const READY_DRAIN = {
-    solverVersion: '0.2.0',
+    solverVersion: '0.3.0',
     budgetMs: 1000,
     spawn: () => Promise.reject(new Error('replay closure fixture must not launch')),
   } satisfies Parameters<typeof bootstrap>[0];

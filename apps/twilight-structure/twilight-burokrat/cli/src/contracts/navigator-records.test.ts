@@ -120,11 +120,11 @@ describe('Navigator record kinds', () => {
       /planDocumentVersion/,
     );
     expect(() =>
-      decodeRecord('plan-reference', planReference({ planDocumentVersion: 10 })),
+      decodeRecord('plan-reference', planReference({ planDocumentVersion: 11 })),
     ).toThrow(/planDocumentVersion/);
   });
 
-  test.each([6, 7, 8, 9])(
+  test.each([6, 7, 8, 9, 10])(
     'decodes a version-%s plan reference without rewriting its digest',
     (version) => {
       const record = planReference({ planDocumentVersion: version });

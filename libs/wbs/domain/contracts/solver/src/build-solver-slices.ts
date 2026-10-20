@@ -126,6 +126,13 @@ export function buildSolverSlices(
       // milestone; Fast deliberately supplies real durations to the shared
       // grouping helper while this wire supplies integer solver units.
       workItemIsMilestone: !workItemsWithDuration.has(slice.workItemId),
+      // Copied as `chargedDemandsOf` produced it: already in id order, each
+      // resource once and clamped to its capacity (`groupSlicesByLeaf` refuses
+      // anything else). Charged on every slice of the leaf (`wbs-resources` R2).
+      // Proof: `[]` here made three resource-wire.test.ts cases fail: the golden
+      // bytes, the carried vector, and the no-capacity refusal (which then had
+      // nothing to refuse); watched 2026-10-20.
+      demands: (slice.demands ?? []).map(({ resourceId, units }) => ({ resourceId, units })),
     };
   });
 }

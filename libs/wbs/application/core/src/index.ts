@@ -189,6 +189,8 @@ export * from './module/step/step.resource';
 export * from './module/work-item/work-item.resource';
 export * from './ports/chain-snapshot-store';
 export * from './ports/claim-store';
+export * from './ports/demand-store';
+export * from './ports/resource-capacity-store';
 export * from './ports/shared-people-restore-approvals';
 export * from './ports/shared-people-values';
 export * from './ports/step-blockage-store';

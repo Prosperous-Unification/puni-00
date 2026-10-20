@@ -337,6 +337,8 @@ describe('toolsFromDocument, on the generated document', () => {
       'setMeasure',
       'clearMeasure',
       'setAssignee',
+      // `wbs-resources` R7: one more batch kind; the tool count does not move for it.
+      'assignSubtree',
       // `wbs-team-claims`: the batch tool carries both; the tool count does not move.
       'claimWorkItem',
       'releaseWorkItem',
@@ -350,6 +352,10 @@ describe('toolsFromDocument, on the generated document', () => {
       'unfreezeProject',
       'unfreezeWorkItem',
       'setCapacity',
+      // `wbs-resources`: the batch tool carries the five resource kinds; the
+      // project resource read is the one tool the change adds.
+      'setResourceCapacity',
+      'setDemand',
       'setStepAllowance',
       'setPriorityBands',
       'createTeam',
@@ -367,6 +373,9 @@ describe('toolsFromDocument, on the generated document', () => {
       'createWorkItemType',
       'patchWorkItemType',
       'deleteWorkItemType',
+      'createResource',
+      'patchResource',
+      'deleteResource',
     ];
     const emittedKinds = list.items.anyOf.map((variant) => variant.properties.kind.const);
     const emittedCounts = Object.fromEntries(

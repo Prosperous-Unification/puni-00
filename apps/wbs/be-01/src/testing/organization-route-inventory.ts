@@ -172,6 +172,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdPeopleByPersonIdWork',
+    method: 'GET',
+    path: '/api/projects/:id/people/:personId/work',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdSaved-plans',
     method: 'GET',
     path: '/api/projects/:id/saved-plans',
@@ -181,6 +187,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiProjectsByIdSaved-plansCompare',
     method: 'GET',
     path: '/api/projects/:id/saved-plans/compare',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResources',
+    method: 'GET',
+    path: '/api/projects/:id/resources',
     kind: 'read',
   },
   {

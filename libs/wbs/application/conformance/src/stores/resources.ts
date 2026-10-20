@@ -1,0 +1,236 @@
+import type { Resource, TransactionalStores } from '@wbs/core';
+import { expect } from 'bun:test';
+
+import type { CaseRegistration } from '../case-manifest';
+import type { SeededPlan } from '../source-declaration';
+import { type OpenCase, storeCase } from './store-case';
+
+/**
+ * The two resources every source seeds for the resource cases (`wbs-resources`):
+ * one divisible and one exclusive, so a case can tell the kinds apart.
+ */
+export const CONFORMANCE_RESOURCES: readonly [Resource, Resource] = [
+  { id: 'resource-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+  { id: 'resource-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+];
+
+/** Whether a resource case needs {@link CONFORMANCE_RESOURCES} seeded before it opens. */
+export function isResourceCase(caseId: string): boolean {
+  return (
+    caseId.startsWith('resourceCapacity.') ||
+    caseId.startsWith('demands.') ||
+    caseId.startsWith('directory.addResource') ||
+    caseId.startsWith('directory.removeResource') ||
+    caseId.startsWith('claims.occupancy')
+  );
+}
+
+const [RAM, STAGE] = CONFORMANCE_RESOURCES;
+
+/**
+ * Seeds {@link CONFORMANCE_RESOURCES} for a resource case, and for the removal
+ * case a demand in the first project and a capacity in the second, through the
+ * source's own writers.
+ *
+ * @throws when a seeding write is refused: the case would assert against a
+ * source state nobody set up.
+ */
+export async function seedResourceCase(
+  stores: Pick<TransactionalStores, 'directory' | 'demands' | 'resourceCapacity' | 'claims'>,
+  caseId: string,
+  seed: SeededPlan,
+): Promise<void> {
+  if (!isResourceCase(caseId)) return;
+  for (const resource of CONFORMANCE_RESOURCES) {
+    const added = await stores.directory.addResource(resource, seed.stamps[0]);
+    if (!added.ok) throw new Error(`conformance resource ${resource.id} was refused`);
+  }
+  if (caseId !== 'directory.removeResource:in-use-cascade') return;
+  if ((await stores.demands.set(seed.workItemIds[0][0], RAM.id, 4, seed.stamps[0])) !== 'written')
+    throw new Error('conformance demand was refused');
+  const stated = await stores.resourceCapacity.set(seed.projectIds[1], RAM.id, 32, seed.stamps[0]);
+  if (!stated.ok) throw new Error('conformance resource capacity was refused');
+  // A claim holding RAM and the stage on the second project's leaf: an
+  // occupancy beside RAM's demand and capacity, and the stage's only use
+  // (`wbs-resources` R8), so the count is read and refuses on its own.
+  const holding = {
+    id: 'claim-holding-ram',
+    workItemId: seed.workItemIds[1][1],
+    stepId: seed.stepIds[1][0],
+    personId: seed.personIds[0],
+    runId: null,
+    parentClaimId: null,
+    accountId: seed.ownerIds[0],
+  };
+  const held = await stores.claims.add([holding], [], seed.stamps[0], [
+    { claimId: holding.id, resourceId: RAM.id, units: 2 },
+    { claimId: holding.id, resourceId: STAGE.id, units: 1 },
+  ]);
+  if (held !== 'written') throw new Error(`conformance occupancy was refused: ${held}`);
+}
+
+/** The shared resource-capacity cases: stated, zero, cleared, per project, and refusals. */
+export function resourceCapacityRegistrations(
+  open: OpenCase<'resourceCapacity'>,
+): readonly CaseRegistration[] {
+  return [
+    storeCase(
+      'resourceCapacity',
+      'resourceCapacity.set:stated-zero-cleared',
+      open,
+      async ({ port, seed }) => {
+        const [projectA, projectB] = seed.projectIds;
+        expect(await port.set(projectA, RAM.id, 32, seed.stamps[0])).toEqual({ ok: true });
+        expect(await port.set(projectA, STAGE.id, 0, seed.stamps[0])).toEqual({ ok: true });
+        expect(await port.set(projectB, RAM.id, 8, seed.stamps[1])).toEqual({ ok: true });
+        expect(await port.set(projectA, RAM.id, 48, seed.stamps[1])).toEqual({ ok: true });
+        expect({
+          a: await port.listFor(projectA),
+          b: await port.listFor(projectB),
+        }).toEqual({
+          a: [
+            { resourceId: RAM.id, units: 48 },
+            { resourceId: STAGE.id, units: 0 },
+          ],
+          b: [{ resourceId: RAM.id, units: 8 }],
+        });
+        expect(await port.set(projectA, RAM.id, null, seed.stamps[1])).toEqual({ ok: true });
+        expect(await port.set(projectA, RAM.id, null, seed.stamps[1])).toEqual({ ok: true });
+        expect(await port.listFor(projectA)).toEqual([{ resourceId: STAGE.id, units: 0 }]);
+        expect(await port.listFor(projectB)).toEqual([{ resourceId: RAM.id, units: 8 }]);
+      },
+    ),
+    storeCase(
+      'resourceCapacity',
+      'resourceCapacity.set:missing-reference',
+      open,
+      async ({ port, seed }) => {
+        expect(await port.set('project-missing', RAM.id, 3, seed.stamps[0])).toEqual({
+          ok: false,
+          reason: 'unknown_project',
+        });
+        expect(await port.set(seed.projectIds[0], 'resource-missing', 3, seed.stamps[0])).toEqual({
+          ok: false,
+          reason: 'unknown_resource',
+        });
+        expect(await port.listFor(seed.projectIds[0])).toEqual([]);
+        expect(await port.listFor('project-missing')).toEqual([]);
+      },
+    ),
+  ];
+}
+
+/** The shared demand cases: replace, clear, project scope, refusals, and the work item cascade. */
+export function demandRegistrations(open: OpenCase<'demands'>): readonly CaseRegistration[] {
+  return [
+    storeCase('demands', 'demands.set:replace-clear-scope', open, async ({ port, seed }) => {
+      const [first, second] = seed.workItemIds[0];
+      const [other] = seed.workItemIds[1];
+      expect(await port.set(first, RAM.id, 4, seed.stamps[0])).toBe('written');
+      expect(await port.set(first, STAGE.id, 1, seed.stamps[0])).toBe('written');
+      expect(await port.set(second, RAM.id, 2, seed.stamps[0])).toBe('written');
+      expect(await port.set(other, RAM.id, 16, seed.stamps[1])).toBe('written');
+      expect(await port.set(first, RAM.id, 6, seed.stamps[1])).toBe('written');
+      expect(await port.listByProject(seed.projectIds[0])).toEqual([
+        { workItemId: first, resourceId: RAM.id, units: 6 },
+        { workItemId: first, resourceId: STAGE.id, units: 1 },
+        { workItemId: second, resourceId: RAM.id, units: 2 },
+      ]);
+      expect(await port.set(first, STAGE.id, null, seed.stamps[1])).toBe('written');
+      expect(await port.listByProject(seed.projectIds[0])).toEqual([
+        { workItemId: first, resourceId: RAM.id, units: 6 },
+        { workItemId: second, resourceId: RAM.id, units: 2 },
+      ]);
+      expect(await port.listByProject(seed.projectIds[1])).toEqual([
+        { workItemId: other, resourceId: RAM.id, units: 16 },
+      ]);
+    }),
+    storeCase('demands', 'demands.set:missing-reference', open, async ({ port, seed }) => {
+      const [first] = seed.workItemIds[0];
+      expect(await port.set('work-missing', RAM.id, 1, seed.stamps[0])).toBe('unknown_work_item');
+      expect(await port.set(first, 'resource-missing', 1, seed.stamps[0])).toBe('unknown_resource');
+      expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
+    }),
+  ];
+}
+
+/** The shared directory cases for resources: a name refused, and usage that decides removal. */
+export function directoryResourceRegistrations(
+  open: OpenCase<'directory'>,
+): readonly CaseRegistration[] {
+  return [
+    storeCase('directory', 'directory.addResource:taken', open, async ({ port, seed }) => {
+      const again = { ...RAM, id: 'resource-again', kind: 'exclusive' as const };
+      expect(await port.addResource(again, seed.stamps[0])).toEqual({ ok: false, reason: 'taken' });
+      expect(await port.listResources()).toEqual([RAM, STAGE]);
+      const disk = {
+        id: 'resource-disk',
+        name: 'h2puni disk',
+        kind: 'divisible' as const,
+        unitLabel: 'GB',
+      };
+      expect(await port.addResource(disk, seed.stamps[0])).toEqual({ ok: true, resource: disk });
+      expect(await port.patchResource(disk.id, { name: RAM.name }, seed.stamps[1])).toEqual({
+        ok: false,
+        reason: 'taken',
+      });
+      const patched = await port.patchResource(disk.id, { unitLabel: 'TB' }, seed.stamps[1]);
+      expect(patched).toEqual({
+        ok: true,
+        resource: { ...disk, unitLabel: 'TB' },
+        projectIds: [],
+      });
+      expect(
+        await port.patchResource('resource-missing', { unitLabel: 'x' }, seed.stamps[1]),
+      ).toEqual({
+        ok: false,
+        reason: 'not_found',
+      });
+    }),
+    storeCase(
+      'directory',
+      'directory.removeResource:in-use-cascade',
+      open,
+      async ({ port, seed }) => {
+        const usage = await port.usageOfResource(RAM.id);
+        expect({
+          demands: usage.demands,
+          capacities: usage.capacities,
+          occupancies: usage.occupancies,
+          projects: usage.rows.projects.map(({ id }) => id),
+        }).toEqual({
+          demands: [{ workItemId: seed.workItemIds[0][0], resourceId: RAM.id, units: 4 }],
+          capacities: [{ projectId: seed.projectIds[1], units: 32 }],
+          occupancies: 1,
+          projects: [seed.projectIds[0]],
+        });
+        const refused = await port.removeResource(RAM.id, false, seed.stamps[0]);
+        expect(refused.ok).toBe(false);
+        expect(await port.listResources()).toEqual([RAM, STAGE]);
+        // Held by a claim and named by nothing else, the stage is in use too.
+        expect((await port.usageOfResource(STAGE.id)).occupancies).toBe(1);
+        expect(await port.removeResource(STAGE.id, false, seed.stamps[0])).toMatchObject({
+          ok: false,
+          reason: 'in_use',
+          usage: { occupancies: 1, demands: [], capacities: [] },
+        });
+        const removed = await port.removeResource(RAM.id, true, seed.stamps[1]);
+        expect(removed).toEqual({
+          ok: true,
+          removal: {
+            workItemIds: [seed.workItemIds[0][0]],
+            projectIds: [seed.projectIds[0], seed.projectIds[1]],
+          },
+        });
+        expect(await port.listResources()).toEqual([STAGE]);
+        const after = await port.usageOfResource(STAGE.id);
+        expect(after.demands).toEqual([]);
+        expect(after.occupancies).toBe(1);
+        expect(await port.removeResource(RAM.id, true, seed.stamps[1])).toEqual({
+          ok: false,
+          reason: 'not_found',
+        });
+      },
+    ),
+  ];
+}

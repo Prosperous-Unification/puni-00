@@ -407,8 +407,9 @@ and there is no global number behind either. Absent is _unstated_ and constrains
 _Avoid_: team size, headcount, allocation, availability
 
 **Pool**:
-The slots one team's capacity provides on one plan, and the thing work labelled with that
-team competes for. Keyed on the work item's team, never on the assignee's memberships.
+The units one capacity provides on one plan, and the thing work competes for: a team's
+slots (keyed on the work item's team, never on the assignee's memberships) or a resource's
+units (keyed on the work item's demand).
 _Avoid_: bucket, resource pool, team capacity, queue
 
 **Slot**:
@@ -430,9 +431,10 @@ duration.
 _Avoid_: parallelism, size, slots used
 
 **Block**:
-One slice as the pool sees it — its width for its whole duration, taken indivisibly. It
-starts only where every one of its slots is free for all of it; it never starts narrow and
-widens later.
+One slice as the pools see it — its width in team slots and its demanded units in each
+resource, for its whole duration, taken indivisibly at one instant. It starts only where
+every one of its slots and units is free for all of it; it never starts narrow and widens
+later, and never takes one pool while waiting for another.
 _Avoid_: reservation, chunk, allocation
 
 **Blocking set**:
@@ -496,7 +498,9 @@ _Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
 **Startable**:
 A step whose leaf is not blocked, held or done, whose progress is not done, and that no
 claim holds; startable **for a team** when that team is also in the leaf's effective team
-set. Derived from the folds the table uses, never stored.
+set. Derived from the folds the table uses, never stored. A startable step whose leaf's
+demand the project's free units do not cover is still startable, but listed apart as not
+fitting, with its shortfall.
 _Avoid_: Available, free, unassigned, ready (which is a readiness value)
 
 **Agent run**:
@@ -510,6 +514,34 @@ An `(issuer, subject)` linked to a human's account so a headless fleet writes as
 account, pinned to the one agent person it may claim as. One account, many credentials;
 revoked by unlinking.
 _Avoid_: Agent account, service account, machine identity, bot user
+
+**Resource**:
+A claimable thing work can state a demand on, named in the directory like a team: a host's
+RAM or tmp disk, a staging environment, worktrees, agent slots. Has a kind and a unit label,
+no global size.
+_Avoid_: Asset, pool (the scheduler-side projection), resource type
+
+**Resource kind**:
+Which scheduling problem a resource is: `exclusive` (identical units, demand always 1) or
+`divisible` (N integer units, demand k). Renewable (units per period) is not a kind yet.
+_Avoid_: Resource type, category
+
+**Resource capacity**:
+How many units of one resource one project's plan may use, a fact about the pair, with the
+same unstated and remembered states as a team's capacity.
+_Avoid_: Quota, limit, size
+
+**Demand**:
+The units of one resource one work item states it needs while any of its steps runs. Plan
+data: levelled by the engines, acquired by a claim. Not inherited down the tree.
+_Avoid_: Requirement, reservation, claim
+
+**Occupancy**:
+The units of a resource a leaf's claims hold right now: every claim on the leaf carries a copy
+of the leaf's units, the leaf holds the largest copy, a later claim may raise it and releasing
+that claim lowers it, and the last release frees it. Clockless; read by the claim path and the
+startable read, never by a schedule.
+_Avoid_: Lease, hold, lock, allocation
 
 **Directory usage**:
 What removing a person or a service team would take with it, named rather than counted:
@@ -849,9 +881,10 @@ _Avoid_: ready, available, unblocked, frontier
 
 **Binding floor**:
 The one thing a slice's start is set by, out of the day the project starts, a dependency,
-its work item's earlier step, a manual date, its assignee's last finish, and its team's
-capacity. A tie is never the person and never the capacity: somebody — or some slot —
-free exactly when the dependency clears is holding nothing up.
+its work item's earlier step, a manual date, its assignee's last finish, its team's
+capacity, and a resource's capacity. A tie is never the person and never a capacity:
+somebody — or some slot or unit — free exactly when the dependency clears is holding
+nothing up.
 _Avoid_: constraint, reason, blocker, driver
 
 **Resource predecessor**:

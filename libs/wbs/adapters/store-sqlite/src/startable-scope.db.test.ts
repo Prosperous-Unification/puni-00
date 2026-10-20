@@ -15,6 +15,7 @@ import { DirectoryRepository } from './directory';
 import { OPEN } from './gate';
 import { runMigrations } from './migrate';
 import { ProjectRepository } from './project';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { UserRepository } from './user';
 import { WorkItemRepository } from './work-item';
 
@@ -24,6 +25,12 @@ let folder: string;
 let path: string;
 let service: WorkItemService;
 let recorded: { sql: string; bindings: unknown[] }[];
+let stores: {
+  directory: DirectoryRepository;
+  workItems: WorkItemRepository;
+  capacities: ResourceCapacityRepository;
+  demands: DemandRepository;
+};
 
 /**
  * The startable read under legacy access among 40 unrelated assigned people
@@ -45,7 +52,20 @@ beforeEach(async () => {
   const projects = new ProjectRepository(db, OPEN);
   const workItems = new WorkItemRepository(db, OPEN);
   const claims = new ClaimRepository(db, OPEN);
-  service = inMemoryServices({ projects, workItems, directory, claims }).service;
+  service = inMemoryServices({
+    projects,
+    workItems,
+    directory,
+    claims,
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
+    demands: new DemandRepository(db, OPEN),
+  }).service;
+  stores = {
+    directory,
+    workItems,
+    capacities: new ResourceCapacityRepository(db, OPEN),
+    demands: new DemandRepository(db, OPEN),
+  };
   await new UserRepository(db, OPEN).create(
     { id: 'owner', username: 'owner', passwordHash: 'x', createdAt: 1 },
     STAMP,
@@ -92,6 +112,7 @@ beforeEach(async () => {
       ],
       [],
       { at: 9, by: 'owner' },
+      [],
     ),
   ).toBe('written');
   recorded = [];
@@ -142,7 +163,14 @@ describe('a refused claim under legacy access', () => {
     const refused = await service.claim(
       'claimed',
       'owner',
-      { personId: 'holder', stepIds: ['step-0'], runId: 'another-run', parentClaimId: null },
+      {
+        personId: 'holder',
+        stepIds: ['step-0'],
+        runId: 'another-run',
+        parentClaimId: null,
+        assign: false,
+        resources: null,
+      },
       { kind: 'legacy' },
       null,
     );
@@ -193,6 +221,76 @@ describe('the startable read under legacy access', () => {
       expect(materialized).toBeLessThanOrEqual(2);
     } finally {
       connection.close();
+    }
+  });
+});
+
+/** The fit reads (`wbs-resources` R6) the last call recorded, by the table each reads. */
+const FIT_TABLES = [
+  'claim_occupancy',
+  'project_resource_capacity',
+  'work_item_resource_demand',
+  'resource',
+];
+
+describe('resource fit in the startable read', () => {
+  // Proof: with the occupancy read once per row (`rows.map(() => occupancyOf)`
+  // in `startableWithin`), this counted 32 `claim_occupancy` reads; watched 2026-10-20.
+  it('reads capacities, demands and occupancy once each, whatever the number of leaves', async () => {
+    const added = await stores.directory.addResource(
+      { id: 'ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+      STAMP,
+    );
+    if (!added.ok) throw new Error('the resource was refused');
+    expect(await stores.capacities.set('project-0', 'ram', 8, STAMP)).toEqual({ ok: true });
+    for (let index = 0; index < 30; index += 1) {
+      const id = `leaf-${String(index)}`;
+      await stores.workItems.insert(
+        workItemRow({ id, projectId: 'project-0', position: index + 2 }),
+        [],
+        STAMP,
+      );
+      expect(await stores.demands.set(id, 'ram', 1 + (index % 8), STAMP)).toBe('written');
+    }
+    expect(await stores.demands.set('claimed', 'ram', 4, STAMP)).toBe('written');
+    const connection = openDatabase(path);
+    connection.run(
+      "INSERT INTO claim_occupancy (claim_id, resource_id, units) VALUES ('claim-1', 'ram', 4)",
+    );
+    connection.close();
+    recorded = [];
+    const startable = await service.startableWithin('project-0', { kind: 'legacy' }, null);
+    if (startable === null || 'kind' in startable) throw new Error('the read did not answer');
+    expect(startable.resources.map(({ occupied, free }) => ({ occupied, free }))).toEqual([
+      { occupied: 4, free: 4 },
+    ]);
+    expect(startable.leaves.length + startable.doesNotFit.length).toBe(31);
+    expect(startable.doesNotFit.length).toBeGreaterThan(0);
+    const reads = recorded.filter(({ sql }) => /^select /i.test(sql));
+    const readsOf = (table: string) =>
+      reads.filter(({ sql }) => new RegExp(`from "${table}"`).test(sql));
+    expect(FIT_TABLES.map((table) => [table, readsOf(table).length])).toEqual(
+      FIT_TABLES.map((table) => [table, 1]),
+    );
+    const check = openDatabase(path);
+    try {
+      const plans = FIT_TABLES.flatMap((table) =>
+        readsOf(table).flatMap((read) =>
+          check
+            .query<{ detail: string }, (string | number | null)[]>(`EXPLAIN QUERY PLAN ${read.sql}`)
+            // Drizzle's logger exposes unknown[]; this test boundary only receives
+            // SQLite-supported scalar parameters from the production query builder.
+            .all(...(read.bindings as (string | number | null)[]))
+            .map(({ detail }) => `${table}: ${detail}`),
+        ),
+      );
+      // Every fit read searches by the project's key; the one scan is the
+      // root resource catalog, read once under legacy access (`listResources`).
+      expect(plans.filter((detail) => detail.includes('SCAN'))).toEqual([
+        'resource: SCAN resource USING INDEX resource_name',
+      ]);
+    } finally {
+      check.close();
     }
   });
 });

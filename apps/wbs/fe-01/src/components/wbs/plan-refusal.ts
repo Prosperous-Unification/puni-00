@@ -503,6 +503,34 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // A move under a leaf whose steps are claimed: the table's own drag sends it.
     case 'destination_claimed':
       return refusal.error;
+    // A delete that would hand two rows' claims up to one leaf.
+    case 'children_claimed':
+      return refusal.error;
+    // Claim occupancy (`wbs-resources` R3, R4): the table claims nothing yet.
+    case 'resources_must_be_a_list':
+    case 'resources_must_name_a_resource':
+    case 'resources_must_be_at_most_50':
+    case 'resources_must_name_each_resource_once':
+    case 'resources_on_subtree':
+    case 'below_declared_demand':
+    case 'below_held_occupancy':
+    case 'resources_exhausted':
+      return refusal.error;
+    // Resources (`wbs-resources`): the table sends none of these until 1.5, so
+    // they arrive only from a batch another client wrote.
+    case 'kind_is_immutable':
+    case 'resourceKind_must_be_exclusive_or_divisible':
+    case 'units_required':
+    case 'units_must_be_a_whole_number_from_0':
+    case 'units_must_be_a_whole_number_from_1':
+    case 'units_must_be_at_most_1000000000':
+    case 'unitLabel_must_be_text':
+    case 'unitLabel_must_be_at_most_40_characters':
+    case 'resourceId_must_be_an_id':
+    case 'resourceRef_must_be_an_id':
+    case 'unknown_resource':
+    case 'exclusive_demand_is_one':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -744,6 +772,8 @@ export const PLAN_REFUSALS: RefusalWords = {
       'That change cannot be made while the affected steps have individual parallelism overrides.',
     destination_claimed:
       'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
+    children_claimed:
+      'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:
       'This step is done — reopen it before starting an attempt or blocking it. Nothing was changed.',
     attempt_running:

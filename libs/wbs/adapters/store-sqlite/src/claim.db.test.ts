@@ -129,7 +129,7 @@ describe('ClaimRepository', () => {
       parentClaimId: null,
       accountId: 'u',
     };
-    expect(await store.add([claim], [], { at: 7, by: 'u' })).toBe('written');
+    expect(await store.add([claim], [], { at: 7, by: 'u' }, [])).toBe('written');
     expect(await store.listStampedByProject('p')).toEqual([{ ...claim, claimedAt: 7 }]);
   });
 
@@ -147,7 +147,7 @@ describe('ClaimRepository', () => {
       accountId: 'u',
     };
     expect(
-      await store.add([claim], [{ workItemId: 'leaf', stepId: 'dev' }], { at: 5, by: 'admin' }),
+      await store.add([claim], [{ workItemId: 'leaf', stepId: 'dev' }], { at: 5, by: 'admin' }, []),
     ).toBe('written');
     expect(await store.listByProject('p')).toEqual([claim]);
     expect(

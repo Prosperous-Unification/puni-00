@@ -150,7 +150,7 @@ test('stored outcome and downstream recipient retain their sequences while react
     generation: 1,
     inputHash: 'captured-input',
     objective: 'pri' as const,
-    contractVersion: '7+0.2.0',
+    contractVersion: '7+0.3.0',
     budgetMs: 60_000,
     failureReason: 'internal-error' as const,
   };

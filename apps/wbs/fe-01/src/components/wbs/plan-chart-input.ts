@@ -338,6 +338,10 @@ export function usePlanChartInput({
       personNames: new Map(chartRead.people.map((person) => [person.id, person.name])),
       elsewhereHolders: elsewhereHoldersOf(chartRead.elsewhereHolders),
       teamNames: new Map(teams.map((team) => [team.id, team.name])),
+      // Off the chart read, beside the slices whose waits they name.
+      resourceLabels: new Map(
+        chartRead.resourceLabels.map(({ id, name, unitLabel }) => [id, { name, unitLabel }]),
+      ),
       // The ladder the chart names its priorities with. Off the same state the
       // table's cells read, so a bar's cap and its row's digits are one colour.
       priorityBands,

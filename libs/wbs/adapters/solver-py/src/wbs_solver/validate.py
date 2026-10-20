@@ -2,7 +2,7 @@
 
 THE SCHEMA IS NOT A COPY OF THE RULES, IT IS THE RULES
 ------------------------------------------------------
-`solver-wire.v3.json` is the single normative definition of both messages
+`solver-wire.v4.json` is the single normative definition of both messages
 (design.md "Solver wire contract — one versioned schema, four consumers"). This
 module is the third of that file's four consumers. It validates against the copy
 installed **beside** the package, because a wheel deployed into the be-01 image
@@ -76,7 +76,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_FILENAME = "solver-wire.v3.json"
+SCHEMA_FILENAME = "solver-wire.v4.json"
 SCHEMA_PATH = Path(__file__).resolve().parent / SCHEMA_FILENAME
 
 
@@ -255,6 +255,36 @@ def check_cross_field(request: dict[str, Any]) -> None:
                 f"slices[{index}].deadlineUnits {deadline_units} is not a multiple of "
                 f"quantum {quantum}"
             )
+
+    # Invariant 10 (wire 4, `wbs-resources` R5): every demand names a resource
+    # the request states a capacity for, each slice's vector is sorted by
+    # resource id with no resource twice, and no demand exceeds its capacity.
+    # The model reads `resources[resourceId]` for every demand, so a missing
+    # entry would be a KeyError and an excess would be a cumulative no
+    # placement can satisfy, reported as the user's plan being infeasible.
+    # Proof: with this loop iterating nothing, the four invariant cases of
+    # test_resources.py (unstated resource, unsorted vector, resource twice,
+    # demand above capacity) reported `RequestRejected not raised` (4 fail /
+    # 13); watched 2026-10-20.
+    resources = request["resources"]
+    for index, slice_ in enumerate(request["slices"]):
+        previous: str | None = None
+        for demand in slice_["demands"]:
+            resource_id = demand["resourceId"]
+            if resource_id not in resources:
+                raise RequestRejected(
+                    f"slices[{index}] demands resource {resource_id!r}, which has no capacity"
+                )
+            if previous is not None and not previous < resource_id:
+                raise RequestRejected(
+                    f"slices[{index}].demands must be sorted by resourceId with none twice"
+                )
+            if demand["units"] > resources[resource_id]:
+                raise RequestRejected(
+                    f"slices[{index}] demands {demand['units']} of resource {resource_id!r}, "
+                    f"which holds {resources[resource_id]}"
+                )
+            previous = resource_id
 
     for work_item_key, slices in work_items.items():
         # Proof: deleting this group comparison admits an all-zero work item

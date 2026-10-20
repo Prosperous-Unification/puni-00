@@ -1,5 +1,5 @@
 /**
- * The TypeScript binding of `solver-wire.v3.json`.
+ * The TypeScript binding of `solver-wire.v4.json`.
  *
  * The schema is the contract and the Python side reads the very same file, so
  * nothing here may be authored independently of it. Every vocabulary below is
@@ -9,7 +9,7 @@
  */
 
 /** `#/$defs/wireVersion` — a `const`, so the type is the literal. */
-export const SOLVER_WIRE_VERSION = 3;
+export const SOLVER_WIRE_VERSION = 4;
 export type SolverWireVersion = typeof SOLVER_WIRE_VERSION;
 
 /**
@@ -140,6 +140,7 @@ export const SOLVER_SLICE_KEYS = [
   'notBeforeUnits',
   'deadlineUnits',
   'workItemIsMilestone',
+  'demands',
 ] as const;
 export interface SolverSlice {
   /** Opaque work-item identity, carried separately so consumers never parse {@link key}. */
@@ -157,10 +158,23 @@ export interface SolverSlice {
   readonly deadlineUnits: number | null;
   /** True only when every slice of this work item has zero duration. */
   readonly workItemIsMilestone: boolean;
+  /**
+   * The leaf's charged demand vector (wire 4, `wbs-resources` R5): each
+   * resource once, in id order, units from 1 up to `resources[resourceId]`.
+   * Held for the whole duration beside the width, acquired at one start.
+   */
+  readonly demands: readonly SolverDemand[];
+}
+
+/** `#/$defs/demand` — one resource's units held by one block. */
+export const SOLVER_DEMAND_KEYS = ['resourceId', 'units'] as const;
+export interface SolverDemand {
+  readonly resourceId: string;
+  readonly units: number;
 }
 
 /**
- * `#/$defs/request`. Every one of the fourteen members is required — the branch
+ * `#/$defs/request`. Every one of the fifteen members is required — the branch
  * lists them all in `required` — so there is no optional field to forget.
  */
 export const SOLVER_REQUEST_KEYS = [
@@ -178,6 +192,7 @@ export const SOLVER_REQUEST_KEYS = [
   'baselineOffsets',
   'fastHint',
   'elsewhere',
+  'resources',
 ] as const;
 export type SolverRequestKey = (typeof SOLVER_REQUEST_KEYS)[number];
 
@@ -197,6 +212,11 @@ export interface SolverRequest {
   readonly baselineOffsets: SolverOffsetMap;
   readonly fastHint: SolverOffsetMap;
   readonly elsewhere: SolverElsewhere;
+  /**
+   * Resource id to stated capacity, for the resources some slice demands
+   * (wire 4). One cumulative constraint each; at least 1 unit.
+   */
+  readonly resources: Readonly<Record<string, number>>;
 }
 
 /** Fixed, half-open person bookings in integer solver units. */

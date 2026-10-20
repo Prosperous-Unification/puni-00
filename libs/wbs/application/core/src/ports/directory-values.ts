@@ -1,8 +1,8 @@
-import type { PersonKind } from '@wbs/domain';
+import type { PersonKind, Resource } from '@wbs/domain';
 
 import type { ExternalSystem, Service, Tag, WorkItemType } from './work-item-values';
 
-export type { Assignment } from '@wbs/domain';
+export type { Assignment, Resource } from '@wbs/domain';
 
 /**
  * A service or team work can be labelled with. Global, shared by every project.
@@ -86,7 +86,10 @@ export interface PersonWithTeams extends Person {
   accountId: string | null;
 }
 
-/** The six directory catalogs a client lists, each under its list route's name. */
+/**
+ * The seven directory catalogs a client lists, each under its list route's name;
+ * `resources` (`wbs-resources`) is read through the project resource read.
+ */
 export interface DirectoryCatalogRows {
   people: PersonWithTeams[];
   teams: TeamWithServices[];
@@ -94,9 +97,16 @@ export interface DirectoryCatalogRows {
   tags: Tag[];
   workItemTypes: WorkItemType[];
   externalSystems: ExternalSystem[];
+  resources: Resource[];
 }
 
 export type DirectoryCatalog = keyof DirectoryCatalogRows;
 
 /** The catalogs a directory command creates and renames by name. */
 export type NamedCatalog = Exclude<DirectoryCatalog, 'externalSystems'>;
+
+/** A change to one resource; its kind is not here, because it never changes. */
+export interface ResourcePatch {
+  name?: string;
+  unitLabel?: string;
+}

@@ -11,6 +11,7 @@ import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -193,6 +194,8 @@ describe('the schedule identity guarantee', () => {
         typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: new DirectoryRepository(db, OPEN),
         capacity: inMemoryCapacity(),
+        demands: new DemandRepository(db, OPEN),
+        resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         priorityBands: inMemoryPriorityBands(),
         subtrees: new SubtreeRepository(db, OPEN),
         journal: new CommandJournalRepository(db, OPEN),
@@ -385,6 +388,7 @@ describe('the schedule identity guarantee', () => {
       'ask.input.typed',
       // The ninth since bookings elsewhere (WBS 010.4.16).
       'ask.input.elsewhere ?? NOWHERE',
+      'ask.input.resourceCapacities ?? NO_CAPACITIES',
     ]);
 
     // (b) The engine itself. Both halves matter: an import of the marker module

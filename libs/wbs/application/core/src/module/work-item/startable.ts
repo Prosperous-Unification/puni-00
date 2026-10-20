@@ -1,11 +1,20 @@
 import {
   type Assignment,
   type AuthoredDependencyGraph,
+  type Demand,
   deriveNumbers,
   effectiveTeamsOf,
+  freeUnitsOf,
   indexTree,
   isStartableStatus,
+  leafOccupancyOf,
+  occupancyByResource,
+  type OccupancyRow,
   predecessorLeavesOf,
+  refuseOccupancy,
+  type Resource,
+  type ResourceCapacity,
+  type ResourceKind,
   type StoredProgress,
   treeOrder,
   type WorkItemStatus,
@@ -45,8 +54,8 @@ export interface WorkItemAddress {
   readonly name: string;
 }
 
-/** One leaf with at least one **Startable** step. */
-export interface StartableLeaf extends WorkItemAddress {
+/** One leaf with at least one **Startable** step, before its demand is weighed. */
+export interface LeafSteps extends WorkItemAddress {
   /** In project step order. */
   readonly stepIds: string[];
   /** The assignee of each startable step that has one, in step order. */
@@ -55,6 +64,50 @@ export interface StartableLeaf extends WorkItemAddress {
   /** Predecessor leaves, over every authored dependency, that are not `done`. */
   readonly unfinishedPredecessorIds: string[];
   readonly subtreeClaim: SubtreeClaimAbove | null;
+}
+
+/** A leaf whose startable steps fit now: its demand passes {@link refuseOccupancy}. */
+export interface StartableLeaf extends LeafSteps {
+  readonly fits: true;
+}
+
+/**
+ * A leaf whose steps are otherwise startable but whose demand the project's
+ * free units do not cover, listed apart from {@link StartableWork.leaves}.
+ */
+export interface UnfitLeaf extends LeafSteps {
+  readonly fits: false;
+  readonly exhausted: Shortfall;
+}
+
+/**
+ * The first resource, in resource-id order, a leaf's demand does not fit:
+ * `free` is the stated capacity minus what the project's other leaves hold,
+ * and `shortfall` is `asked - free`.
+ */
+export interface Shortfall {
+  readonly resourceId: string;
+  readonly name: string;
+  readonly unitLabel: string;
+  readonly asked: number;
+  readonly free: number;
+  readonly shortfall: number;
+}
+
+/**
+ * One resource the project states a capacity for, with the units its leaves'
+ * claims hold and the units left. `free` reads below 0 when a capacity was
+ * lowered under units already held. An unstated resource is not listed: it
+ * constrains nothing (`docs/capacity.md`).
+ */
+export interface ResourceFree {
+  readonly resourceId: string;
+  readonly name: string;
+  readonly unitLabel: string;
+  readonly kind: ResourceKind;
+  readonly capacity: number;
+  readonly occupied: number;
+  readonly free: number;
 }
 
 /** A claimed step of a leaf the read covers, so an operator sees silent claims. */
@@ -81,13 +134,23 @@ export interface HeldSubtree extends WorkItemAddress {
 }
 
 /**
- * The startable read: leaves with startable steps, and apart the claimed steps
- * of those leaves and every subtree claim of the project.
+ * The startable read: leaves with startable steps that fit now, and apart the
+ * leaves that do not fit, the claimed steps of those leaves and every subtree
+ * claim of the project, with the project's free units per resource.
  */
 export interface StartableWork {
   readonly leaves: StartableLeaf[];
+  /** Otherwise startable leaves whose demand exceeds the free units, each with its shortfall. */
+  readonly doesNotFit: UnfitLeaf[];
   readonly claimed: ClaimedStep[];
   readonly subtreeClaims: HeldSubtree[];
+  /** Every stated capacity of the project, in resource-id order. */
+  readonly resources: ResourceFree[];
+  /**
+   * Occupancy is counted within this project only (`wbs-resources` R3): a
+   * claim in another project on the same physical host is not subtracted.
+   */
+  readonly occupancyScope: 'project';
 }
 
 /** Everything {@link findStartableWork} reads, gathered in one admitted read. */
@@ -107,6 +170,14 @@ export interface StartableReads {
   readonly teamNames: ReadonlyMap<string, string>;
   /** The team to filter by, or null for every leaf. */
   readonly teamId: string | null;
+  /** The project's stated capacities. */
+  readonly capacities: readonly ResourceCapacity[];
+  /** Every demand stated on a work item of the project. */
+  readonly demands: readonly Demand[];
+  /** The project's occupancy rows: one per claim and resource (`ClaimStore.occupancyOf`). */
+  readonly occupancy: readonly OccupancyRow[];
+  /** Every resource a capacity names, by id, under the caller's names. */
+  readonly resources: ReadonlyMap<string, Resource>;
 }
 
 /**
@@ -124,9 +195,17 @@ export interface StartableReads {
  * not, so one over work that has all stopped still shows. A claimed step carries
  * its assignee beside its holder.
  *
- * @throws when a status, a person name or a team name is missing: each is
- * read from the same observation as the rows, so a miss is corrupt trusted
- * state, never an empty answer.
+ * Fit (`wbs-resources` R6): a leaf with startable steps is in `leaves` when
+ * what a claim on it would carry with no `resources` ask passes
+ * {@link refuseOccupancy} against the project's stated capacities and
+ * occupancy, and in `doesNotFit` with the first exhausted resource otherwise.
+ * An unheld leaf carries its declared demand; a leaf some claim already holds
+ * carries its standing copy, so it always fits. An unstated capacity never excludes; a stated 0 excludes any
+ * demand on it. Occupancy is the project's only.
+ *
+ * @throws when a status, a person name, a team name or a stated capacity's
+ * resource is missing: each is read from the same observation as the rows, so
+ * a miss is corrupt trusted state, never an empty answer.
  */
 export function findStartableWork(reads: StartableReads): StartableWork {
   const { rows, statuses, stepIds, teamId } = reads;
@@ -184,7 +263,43 @@ export function findStartableWork(reads: StartableReads): StartableWork {
   };
   const byPlace = (left: string, right: string): number => placeOf(left) - placeOf(right);
   const leafIds = [...index.leafIds].sort(byPlace);
+  const resourceOf = (resourceId: string): Resource => {
+    const resource = reads.resources.get(resourceId);
+    if (resource === undefined) throw new Error(`resource ${resourceId} is not in this read`);
+    return resource;
+  };
+  const demandOf = new Map<string, { resourceId: string; units: number }[]>();
+  for (const { workItemId, resourceId, units } of reads.demands)
+    demandOf.set(workItemId, [...(demandOf.get(workItemId) ?? []), { resourceId, units }]);
+  const claimedLeafIds = new Set(reads.claims.map((each) => each.workItemId));
+  const exhaustedOf = (workItemId: string): Shortfall | null => {
+    const refusal = refuseOccupancy({
+      workItemId,
+      // As `decideClaim` carries it with no `resources` ask: a held leaf's
+      // later claim carries its standing copy (`expandedUnitsOf(held, null)`),
+      // so it always fits; an unheld leaf asks its declared demand.
+      // Proof: with the declared demand asked of a held leaf too, `fits a
+      // held leaf whose demand was raised past the free units`
+      // (startable.test.ts) listed it apart; watched 2026-10-20.
+      asked: claimedLeafIds.has(workItemId)
+        ? leafOccupancyOf(reads.occupancy, workItemId)
+        : (demandOf.get(workItemId) ?? []),
+      capacities: reads.capacities,
+      occupancy: reads.occupancy,
+    });
+    if (refusal === null) return null;
+    const { name, unitLabel } = resourceOf(refusal.resourceId);
+    return {
+      resourceId: refusal.resourceId,
+      name,
+      unitLabel,
+      asked: refusal.asked,
+      free: refusal.free,
+      shortfall: refusal.asked - refusal.free,
+    };
+  };
   const leaves: StartableLeaf[] = [];
+  const doesNotFit: UnfitLeaf[] = [];
   const claimed: ClaimedStep[] = [];
   for (const leafId of leafIds) {
     const row = byId.get(leafId);
@@ -224,7 +339,7 @@ export function findStartableWork(reads: StartableReads): StartableWork {
     // (`row.readiness ?? 'unknown'`), `leaves a ready leaf behind an unfinished
     // held predecessor out` listed the blocked-by-proxy leaf; watched 2026-10-19.
     if (free.length === 0 || !isStartableStatus(statusFor(leafId))) continue;
-    leaves.push({
+    const steps: LeafSteps = {
       ...address,
       stepIds: free,
       assignees: free.flatMap((stepId) => {
@@ -247,7 +362,13 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         .filter((each) => statusFor(each) !== 'done')
         .sort(byPlace),
       subtreeClaim: nearestSubtreeClaim(row.parentId, byId, subtreeClaims, personOf),
-    });
+    };
+    const exhausted = exhaustedOf(leafId);
+    // Proof: with `exhaustedOf` answering null, `lists a leaf whose demand
+    // exceeds the free units apart, with its shortfall`, the stated-0 and the
+    // team-filter fit cases (startable.test.ts) failed; watched 2026-10-20.
+    if (exhausted === null) leaves.push({ ...steps, fits: true });
+    else doesNotFit.push({ ...steps, fits: false, exhausted });
   }
   // Proof: answering `[]` in place of this list failed `lists a silent subtree
   // claim whose every leaf has stopped` and the subtree-holder case; watched 2026-10-20.
@@ -265,7 +386,34 @@ export function findStartableWork(reads: StartableReads): StartableWork {
         claimedAt: holding.claimedAt,
       };
     });
-  return { leaves, claimed, subtreeClaims: held };
+  const occupied = new Map(
+    occupancyByResource(reads.occupancy).map((each) => [each.resourceId, each.occupied]),
+  );
+  const capacityOf = new Map(reads.capacities.map((each) => [each.resourceId, each.units]));
+  const resources = freeUnitsOf(reads.capacities, reads.occupancy).map(
+    ({ resourceId, units }): ResourceFree => {
+      const { name, unitLabel, kind } = resourceOf(resourceId);
+      const capacity = capacityOf.get(resourceId);
+      if (capacity === undefined) throw new Error(`resource ${resourceId} has no stated capacity`);
+      return {
+        resourceId,
+        name,
+        unitLabel,
+        kind,
+        capacity,
+        occupied: occupied.get(resourceId) ?? 0,
+        free: units,
+      };
+    },
+  );
+  return {
+    leaves,
+    doesNotFit,
+    claimed,
+    subtreeClaims: held,
+    resources,
+    occupancyScope: 'project',
+  };
 }
 
 /** The subtree claim on the nearest ancestor holding one, walking up from `parentId`. */

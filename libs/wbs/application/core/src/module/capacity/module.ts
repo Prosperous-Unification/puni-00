@@ -5,6 +5,7 @@ import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
+import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
 import { CapacityService, type CapacityServiceOptions } from './capacity.resource';
 import { CAPACITY_LABEL } from './contract';
 
@@ -28,18 +29,21 @@ export const capacityModule = DiBag.createBuilder()
       ({
         projectStore,
         capacityStore,
+        resourceCapacityStore,
         broadcast,
         editAdmission,
         clock,
       }: {
         projectStore: ProjectStore;
         capacityStore: CapacityStore;
+        resourceCapacityStore: ResourceCapacityStore;
         broadcast: Broadcaster;
         editAdmission: EditAdmission;
         clock: Clock;
       }): CapacityServiceOptions => ({
         projects: projectStore,
         capacity: capacityStore,
+        resourceCapacity: resourceCapacityStore,
         // Proof (2026-09-24): handing the resource
         // `{ ...broadcast, publish: () => Promise.resolve() }` instead of the supplied
         // broadcaster left `announces a capacity write through the broadcaster installCapacity wires`

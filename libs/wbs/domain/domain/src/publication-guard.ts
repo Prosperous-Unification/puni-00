@@ -141,6 +141,9 @@ export function guardRealPublication(
     // The baseline the optimized answer is scored against is the Fast plan the
     // reader would otherwise see, bookings elsewhere included.
     input.elsewhere,
+    // And resources levelled: a baseline that ignored demands would score an
+    // optimized plan against dates the reader never sees.
+    input.resourceCapacities,
   );
 
   const optimizedValues = scoreReal(optimized, weightOf, baselineStartOf);
