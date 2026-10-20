@@ -1,8 +1,8 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@ui/saas-01';
 import { type ClientReply, readPersonLoad } from '@wbs/contracts';
 import { type ReactNode, useEffect, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 

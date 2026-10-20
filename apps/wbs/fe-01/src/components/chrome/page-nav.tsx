@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
+import { buttonVariants } from '@ui/saas-01';
 
-import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**

@@ -1,7 +1,7 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@ui/saas-01';
 import { type ClientReply, readSpaceInProgress } from '@wbs/contracts';
 
 import { credentialRefusalHeadline } from '@/components/organization/credential-refusal-state';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { browserClient, failureMessage, unreachable } from '@/lib/http';
 import type { ResourceScope } from '@/lib/organization-context';
 

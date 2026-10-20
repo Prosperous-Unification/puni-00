@@ -8,7 +8,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalTrigger,
-} from '@/components/ui/modal';
+} from '@/components/wbs/modal';
 import type {
   Days,
   PlanRead,

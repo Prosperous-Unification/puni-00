@@ -53,7 +53,7 @@ Tailwind's utility layer in each app must scan the kit's sources, or `bg-primary
 
 ## Primitives
 
-Each component moves as it is, with its JSDoc, and its import of `@/lib/utils` becomes `@ui/core-01`'s `cn`. `Hintable` and `Factable` on `Button` are WBS types; the kit's `Button` drops them, and WBS keeps a thin `components/wbs/hinted-button.tsx` composing the kit's `Button` with the hint props. That is the one split the move forces.
+Each component moves as it is, with its JSDoc, and its import of `@/lib/utils` becomes `@ui/core-01`'s `cn`. `Hintable` and `Factable` on `Button` and `Input` are WBS types; the kit drops them, and no wrapper replaces them, because TypeScript does not check a hyphenated JSX attribute, so `data-hint` and `data-fact-lead` still pass. The one split the move forces is the modal's: the page-shortcut hold is WBS keyboard policy, so the kit's `ModalContent` takes a `held` node it renders first inside the portal, and WBS's `components/wbs/modal.tsx` wraps it with the hold.
 
 ## Catalogue
 

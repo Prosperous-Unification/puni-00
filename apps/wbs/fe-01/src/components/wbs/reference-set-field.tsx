@@ -6,7 +6,7 @@ import {
   ModalDescription,
   ModalHeader,
   ModalTitle,
-} from '@/components/ui/modal';
+} from '@/components/wbs/modal';
 
 import { CreatablePicker } from './creatable-picker';
 import { HoverCard } from './hover-card';

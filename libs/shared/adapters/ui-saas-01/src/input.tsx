@@ -1,20 +1,26 @@
+import { cn } from '@ui/core-01';
 import { forwardRef, type InputHTMLAttributes } from 'react';
 
-import { type Factable, type Hintable } from '@/components/wbs/hint';
-import { cn } from '@/lib/utils';
-
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement>, Hintable, Factable {}
+/**
+ * A native input's attributes, nothing more.
+ *
+ * Hyphenated `data-*` props pass without being declared here, since TypeScript
+ * does not check a JSX attribute whose name is not an identifier; that is how
+ * WBS's tool hints and project facts (`data-hint`, `data-fact-lead`) ride on a
+ * kit input without the kit knowing about either.
+ */
+export type InputProps = InputHTMLAttributes<HTMLInputElement>;
 
 /**
  * A chrome text box.
  *
  * Chrome only, for {@link import('./button').Button}'s reason: an input inside
- * `[data-grid]` is a cell, the scoped reset does not reach it, and
- * `table-frame.ts` sized the columns around what a browser draws unaided.
+ * the WBS table is a cell, the host app's scoped reset does not reach it, and
+ * that table's columns were sized around what a browser draws unaided.
  *
  * `w-full` is the registry's default and is kept, so this box fills whatever
- * it is put in. The two places that need a narrower one — the Find box and the
- * project picker — pass a width class of their own rather than this component
+ * it is put in. The places that need a narrower one — WBS's Find box and project
+ * picker — pass a width class of their own rather than this component
  * growing a `size` variant nobody else would use.
  */
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(

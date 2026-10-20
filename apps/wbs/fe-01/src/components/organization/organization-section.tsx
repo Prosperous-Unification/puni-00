@@ -1,14 +1,7 @@
+import { Card, CardContent, CardHeader, CardTitle, SELECT_CLASS } from '@ui/saas-01';
 import { type ReactNode } from 'react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { SELECT_CLASS } from '@/components/ui/control';
-
-export {
-  CONTROL_HEIGHT,
-  FIELD_LABEL_CLASS,
-  FORM_CLASS,
-  SELECT_CLASS,
-} from '@/components/ui/control';
+export { CONTROL_HEIGHT, FIELD_LABEL_CLASS, FORM_CLASS, SELECT_CLASS } from '@ui/saas-01';
 
 /** One field of an organization form: its caption above its control. */
 export const FIELD_CLASS = 'flex flex-col gap-1.5';

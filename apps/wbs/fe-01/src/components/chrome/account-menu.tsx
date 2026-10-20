@@ -1,8 +1,8 @@
+import { Button } from '@ui/saas-01';
 import { authMethod, type AuthMethodId } from '@wbs/contracts';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 import { ThemeChoiceItems } from '@/components/chrome/theme-choice';
-import { Button } from '@/components/ui/button';
 import { THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
 
 export interface AccountMenuProps {

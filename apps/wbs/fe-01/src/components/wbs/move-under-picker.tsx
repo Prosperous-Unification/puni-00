@@ -1,4 +1,6 @@
-import { Button } from '../ui/button';
+import { Button } from '@ui/saas-01';
+
+import { planMove } from './drag-drop';
 import {
   Modal,
   ModalClose,
@@ -7,8 +9,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
-} from '../ui/modal';
-import { planMove } from './drag-drop';
+} from './modal';
 import { type TreeRow } from './wbs-rows';
 
 /**

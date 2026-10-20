@@ -1,6 +1,6 @@
+import { Input } from '@ui/saas-01';
 import { useRef, useState } from 'react';
 
-import { Input } from '@/components/ui/input';
 import { CAPACITY_REFUSALS, type TeamCapacityView, type TeamView } from '@/lib/wbs-api';
 
 import { SectionProblem, useSettingsSection } from './use-settings-section';

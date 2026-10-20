@@ -1,10 +1,9 @@
+import { Button, Input, Label } from '@ui/saas-01';
 import { useState } from 'react';
 
 import type { AttemptOutcomeView } from '@/lib/wbs-api';
 
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { OUTCOME_WORDS } from './attempt-words';
 import {
   Modal,
   ModalClose,
@@ -13,8 +12,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
-} from '../ui/modal';
-import { OUTCOME_WORDS } from './attempt-words';
+} from './modal';
 
 /** The node whose running attempt is being ended, as the dialog names it. */
 export interface EndingAttempt {

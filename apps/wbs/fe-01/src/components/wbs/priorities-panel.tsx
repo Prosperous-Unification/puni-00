@@ -1,6 +1,6 @@
+import { Input } from '@ui/saas-01';
 import { type FocusEvent, type KeyboardEvent, useRef, useState } from 'react';
 
-import { Input } from '@/components/ui/input';
 import { PRIORITY_BAND_REFUSALS, type PriorityBandView } from '@/lib/wbs-api';
 
 import { priorityBandStyleOf } from './priority-band-style';
