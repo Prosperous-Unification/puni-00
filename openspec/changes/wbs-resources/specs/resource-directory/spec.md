@@ -13,8 +13,7 @@ capacities and occupancies of that resource are removed in the same transaction.
 
 - **WHEN** `createResource { name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' }` is
   applied
-- **THEN** the resource exists, the directory read lists it, and a second create with the
-  same name is refused as a duplicate team name would be
+- **THEN** the resource exists, the directory read lists it, and a second create with the same name is refused `taken` (not answered with the existing resource, whose kind and unit the caller did not ask for)
 
 #### Scenario: Deleting a demanded resource
 
@@ -25,7 +24,7 @@ capacities and occupancies of that resource are removed in the same transaction.
 
 `setResourceCapacity { resource, units | null }` SHALL record the pair `(project, resource)`
 exactly as `setCapacity` records `(project, team)`: absent or null is unstated and constrains
-nothing; a number stated for a resource no leaf of the plan demands any more is remembered
+nothing; a stated 0 clamps every demand in the schedule (dates are still placed) and refuses every claim that would occupy it; a number stated for a resource no leaf of the plan demands any more is remembered
 and re-applies when a demand returns. The project settings read SHALL list stated pairs.
 
 #### Scenario: Unstated constrains nothing
