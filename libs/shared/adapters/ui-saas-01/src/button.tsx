@@ -20,6 +20,45 @@ const PRESSED =
   'aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground';
 
 /**
+ * Every `variant` a button takes, in the order the catalogue lays them out.
+ *
+ * A tuple beside the cva table rather than `Object.keys` of it, so the
+ * Storybook controls and the `Matrix` story read the keys with their literal
+ * types and no cast; {@link VARIANT_CLASSES} is a `Record` over this tuple, so
+ * a key added to one and not the other fails to typecheck.
+ */
+export const BUTTON_VARIANTS = [
+  'default',
+  'destructive',
+  'outline',
+  'secondary',
+  'ghost',
+  'link',
+] as const;
+
+/** Every `size` a button takes; {@link SIZE_CLASSES} is a `Record` over it, as above. */
+export const BUTTON_SIZES = ['default', 'sm', 'lg', 'square'] as const;
+
+/** What each `variant` adds to the base; the reasons are on {@link buttonClasses}. */
+const VARIANT_CLASSES: Record<(typeof BUTTON_VARIANTS)[number], string> = {
+  default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
+  destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+  outline:
+    'border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm',
+  secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
+  ghost: 'hover:bg-accent hover:text-accent-foreground',
+  link: 'text-primary underline-offset-4 hover:underline',
+};
+
+/** What each `size` adds to the base. */
+const SIZE_CLASSES: Record<(typeof BUTTON_SIZES)[number], string> = {
+  default: 'h-9 px-4 py-2',
+  sm: 'h-8 rounded-md px-3 text-xs',
+  lg: 'h-10 rounded-md px-6',
+  square: 'h-8 w-8 p-0',
+};
+
+/**
  * Every shape a chrome button comes in, and the tokens each one reads.
  *
  * Colours are named, never mixed: `bg-primary` and `text-primary-foreground`
@@ -59,23 +98,7 @@ const buttonClasses = cva(
     PRESSED,
   ],
   {
-    variants: {
-      variant: {
-        default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
-        destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
-        outline:
-          'border-control-edge bg-background hover:bg-accent hover:text-accent-foreground border shadow-sm',
-        secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
-      },
-      size: {
-        default: 'h-9 px-4 py-2',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        lg: 'h-10 rounded-md px-6',
-        square: 'h-8 w-8 p-0',
-      },
-    },
+    variants: { variant: VARIANT_CLASSES, size: SIZE_CLASSES },
     defaultVariants: { variant: 'default', size: 'default' },
   },
 );

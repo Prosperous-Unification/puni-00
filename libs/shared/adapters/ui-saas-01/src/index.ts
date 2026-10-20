@@ -1,5 +1,7 @@
 export {
   Button,
+  BUTTON_SIZES,
+  BUTTON_VARIANTS,
   type ButtonProps,
   type ButtonSize,
   type ButtonVariant,

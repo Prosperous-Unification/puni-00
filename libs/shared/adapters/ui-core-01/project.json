@@ -38,6 +38,13 @@
       "options": {
         "command": "bunx tsc --build --force libs/shared/adapters/ui-core-01/tsconfig.json"
       }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --build --force libs/shared/adapters/ui-core-01/tsconfig.lib.json"
+      },
+      "outputs": ["{workspaceRoot}/dist/out-tsc"]
     }
   }
 }
