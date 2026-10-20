@@ -13,8 +13,13 @@
   in [parked ideas](docs/assistant/ideas.md).
 - [PUNI website funnel](docs/website/CONTEXT.md): visitor intake, prospect
   scoping, and proposal requests for Prosperous Unification's services.
+- [Design system](libs/shared/adapters/ui/CONTEXT.md): the theme, primitives and
+  catalogue every product's surface is painted from.
 
 ## Relationships
+
+- **Design system → every product surface**: WBS, the website app and future products
+  import the theme and the primitives; the design system imports nothing from them.
 
 - **PUNI website funnel → Twilight Navigator**: a prospect's software request
   can become planning work after a human accepts the proposal request; the
