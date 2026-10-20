@@ -125,7 +125,10 @@
  * commit has landed, which is detection and not prevention.
  */
 // Estimate-unit corpus cases require a fresh namespace; existing workday cases retain identical schedules (ADR 0042).
-export const SCHEDULER_CONTRACT_VERSION = 16;
+// 17: both engines level resource demands as pools and the canonical input
+// carries demands and resource capacities (`wbs-resources` R5); every golden
+// case without a demand keeps its schedule byte for byte.
+export const SCHEDULER_CONTRACT_VERSION = 17;
 
 /**
  * The composite the **wire** carries and the **cache key** stores, from one

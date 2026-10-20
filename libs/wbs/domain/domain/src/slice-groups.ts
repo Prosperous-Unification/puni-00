@@ -23,6 +23,8 @@
 export interface GroupableSlice {
   readonly workItemId: string;
   readonly width: number;
+  /** `Slice.demands`: each resource once, in id order, at whole units from 1. */
+  readonly demands?: readonly { readonly resourceId: string; readonly units: number }[];
 }
 
 /**
@@ -79,9 +81,46 @@ export function groupSlicesByLeaf<S extends GroupableSlice>(
           `a width is people, and duration is effort divided by it`,
       );
     }
+    refuseMalformedDemands(slice);
     const group = grouped.get(slice.workItemId);
     if (group === undefined) grouped.set(slice.workItemId, [slice]);
     else group.push(slice);
   }
   return grouped;
+}
+
+/**
+ * Refuses a slice's demand vector unless every resource appears once, in byte
+ * order of its id, at a whole number of units from 1 (`wbs-resources` R5).
+ *
+ * Here for the width check's reason: this is the boundary both `schedule()`
+ * and the canonicalizer read slices through, so a vector the engine refuses
+ * never gets a cache key. A unit below 1 would reserve nothing and wait for
+ * nothing — a demand silently not applied — and a resource named twice would
+ * be charged twice by the reservation and once by the canonical string. The
+ * order is required rather than sorted here because the canonical string
+ * carries the vector as given, and two orders of one set would be two hashes
+ * of one plan.
+ *
+ * Proof: with the call removed, `refuses a demand below one unit, a resource
+ * named twice and an unsorted vector` (schedule-resources.test.ts) failed on
+ * `Received function did not throw`; watched 2026-10-20.
+ */
+function refuseMalformedDemands(slice: GroupableSlice): void {
+  let previous: string | null = null;
+  for (const { resourceId, units } of slice.demands ?? []) {
+    if (!Number.isInteger(units) || units < 1) {
+      throw new Error(
+        `slice for ${slice.workItemId} demands ${String(units)} of resource ${resourceId}: ` +
+          `a demand is whole units from 1`,
+      );
+    }
+    if (previous !== null && !(previous < resourceId)) {
+      throw new Error(
+        `slice for ${slice.workItemId} names resource ${resourceId} out of order or twice: ` +
+          `a demand vector is each resource once, in id order`,
+      );
+    }
+    previous = resourceId;
+  }
 }

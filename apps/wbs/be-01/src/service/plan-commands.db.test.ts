@@ -31,7 +31,7 @@ import {
   type PriorityBand,
   priorityBandRankOf,
 } from '@wbs/domain';
-import { ResourceCapacityRepository } from '@wbs/store-sqlite';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -145,6 +145,8 @@ beforeEach(async () => {
     stepParallels: new StepParallelRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: bandStore,
     dependencies: dependencyStore,
     typedDependencies: new TypedDependencyRepository(db, OPEN),

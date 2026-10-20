@@ -84,8 +84,8 @@ export const workItemModule = DiBag.createBuilder()
         attemptStore: StepNodeAttemptStore;
         blockageStore: StepBlockageStore;
         claimStore: ClaimStore | undefined;
-        demandStore: DemandStore | undefined;
-        resourceCapacityStore: ResourceCapacityStore | undefined;
+        demandStore: DemandStore;
+        resourceCapacityStore: ResourceCapacityStore;
         directoryStore: DirectoryStore;
         capacityStore: CapacityStore;
         priorityBandStore: PriorityBandStore;
@@ -110,8 +110,8 @@ export const workItemModule = DiBag.createBuilder()
         attempts: attemptStore,
         blockages: blockageStore,
         ...(claimStore === undefined ? {} : { claims: claimStore }),
-        ...(demandStore === undefined ? {} : { demands: demandStore }),
-        ...(resourceCapacityStore === undefined ? {} : { resourceCapacity: resourceCapacityStore }),
+        demands: demandStore,
+        resourceCapacity: resourceCapacityStore,
         directory: directoryStore,
         capacity: capacityStore,
         priorityBands: priorityBandStore,

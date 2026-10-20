@@ -42,14 +42,21 @@
 
 ## 3. Engines (Claire's items 2 and 3)
 
-- [ ] 3.1 `slicesOf` emits demand vectors; `ScheduleInput`, canonicaliser, hash, contract
+- [x] 3.1 `slicesOf` emits demand vectors; `ScheduleInput`, canonicaliser, hash, contract
       bump; golden corpus no-op proof — test: corpus byte-identical; negative: omit demands
-      from the canonical string and an edit serves a stale cached schedule.
-- [ ] 3.2 Fast: per-resource pools through `jointWindowFor`/`reserve`; `boundBy` names the
-      resource — test: the staging scenario; exclusive serialises.
-- [ ] 3.3 CP-SAT: wire bump, one `AddCumulative` per resource, re-validator, fixtures in both
-      suites, materialiser proof — test: parity with Fast on the fixtures.
-- [ ] 3.4 fe-01: hover sentence and facet.
+      from the canonical string and an edit serves a stale cached schedule. Done on
+      `feat/wbs-resource-levelling`: scheduler contract 17, cache DTO 4; both corpora moved
+      their version line only; `verify.md` "Slice 3".
+- [x] 3.2 Fast: per-resource pools through `jointWindowFor`/`reserve`; `boundBy` names the
+      resource — test: the staging scenario; exclusive serialises. The binding resource is
+      `capacityResource { resourceId, units }` beside `boundBy: 'capacity'`.
+- [x] 3.3 CP-SAT: wire bump, one `AddCumulative` per resource, re-validator, fixtures in both
+      suites, materialiser proof — test: parity with Fast on the fixtures. Solver wire 4,
+      `wbs-solver` 0.3.0.
+- [ ] 3.4 fe-01: hover sentence and facet. The sentence half is done on
+      `feat/wbs-resource-levelling` (the chart and the table's start reason name the resource
+      and its units from the tree read's `resourceLabels`); the per-resource facet is open:
+      the tree read carries no demands to filter rows by.
 
 ## 4. Assignee management
 

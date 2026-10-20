@@ -61,6 +61,7 @@ def a_slice(
     not_before: int = 0,
     deadline: int | None = None,
     work_item_is_milestone: bool = False,
+    demands: Sequence[tuple[str, int]] = (),
 ) -> dict[str, Any]:
     return {
         "workItemKey": key if work_item_key is None else work_item_key,
@@ -73,6 +74,7 @@ def a_slice(
         "notBeforeUnits": not_before,
         "deadlineUnits": deadline,
         "workItemIsMilestone": work_item_is_milestone,
+        "demands": [{"resourceId": rid, "units": units} for rid, units in demands],
     }
 
 
@@ -81,6 +83,7 @@ def a_request(
     *,
     edges: Iterable[Mapping[str, str]] = (),
     pools: Mapping[str, int] | None = None,
+    resources: Mapping[str, int] | None = None,
     horizon: int | None = None,
     baseline: Mapping[str, int] | None = None,
     objective: str = "pri",
@@ -99,9 +102,9 @@ def a_request(
         )
     offsets = dict(baseline) if baseline is not None else {key: 0 for key in keys}
     return {
-        "wireVersion": 3,
-        "contractVersion": "15+0.2.0",
-        "solverVersion": "0.2.0",
+        "wireVersion": 4,
+        "contractVersion": "15+0.3.0",
+        "solverVersion": "0.3.0",
         "objective": objective,
         "budgetMs": 30000,
         "stageBudgetSplit": [0.6, 0.25, 0.15],
@@ -110,6 +113,7 @@ def a_request(
         "slices": [dict(s) for s in slices],
         "edges": [dict(e) for e in edges],
         "pools": dict(pools or {}),
+        "resources": dict(resources or {}),
         "elsewhere": {},
         "baselineOffsets": dict(offsets),
         # The wire carries two copies of one value; the builder invariant is

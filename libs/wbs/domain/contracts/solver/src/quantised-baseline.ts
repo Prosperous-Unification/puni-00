@@ -98,6 +98,8 @@ export function quantisedFastBaseline(
   /** The typed dependencies; required, so the baseline cannot drop one the request carries. */
   typed: readonly TypedDependency[],
   elsewhere: Elsewhere = new Map(),
+  /** The project's stated resource capacities; the baseline levels demands as Fast does. */
+  resourceCapacities: PoolSizes = new Map(),
 ): SolverOffsetMap {
   const bookings = quantiseElsewhere(elsewhere);
   if (!bookings.ok) throw new Error(bookings.detail);
@@ -114,6 +116,7 @@ export function quantisedFastBaseline(
     typed,
     undefined,
     bookings.scaled,
+    resourceCapacities,
   );
 
   const offsets: Record<string, number> = {};

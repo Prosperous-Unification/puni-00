@@ -33,7 +33,7 @@ import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
-const CONTRACT = '7+0.2.0';
+const CONTRACT = '7+0.3.0';
 const BUDGET = 60_000;
 function sampledScheduler() {
   return fc.sample(fc.scheduler(), { seed: 20260927, numRuns: 1 })[0];
@@ -247,7 +247,7 @@ function coordinator(world: World, owner: Owner): OptimizationCoordinator {
   return new OptimizationCoordinator({
     repository: createOptimizationRepository(db, new DrizzleEventLogStore(db, OPEN), OPEN),
     contractVersion: CONTRACT,
-    solverVersion: '0.2.0',
+    solverVersion: '0.3.0',
     budgetMs: BUDGET,
     ownerId: owner,
     now: () => world.now,
@@ -745,7 +745,7 @@ class ExitChild implements Command {
         this.disposition === 'failed'
           ? ''
           : JSON.stringify({
-              wireVersion: 3,
+              wireVersion: 4,
               status: 'feasible',
               offsets: { 'w-1\u0000step-dev': 0 },
               objectiveValues: {
@@ -1408,7 +1408,7 @@ interface SharedWorld {
   omitCapture: boolean;
 }
 
-const SHARED_CONTRACT = contractVersionOf('0.2.0');
+const SHARED_CONTRACT = contractVersionOf('0.3.0');
 const SHARED_BUDGET = 60_000;
 const ELSEWHERE_B = { type: 'elsewhere_changed', projectId: 'B', causeProjectId: 'A' } as const;
 
@@ -1541,7 +1541,7 @@ async function createSharedWorld(): Promise<SharedWorld> {
       });
     },
     optimizer: {
-      solverVersion: '0.2.0',
+      solverVersion: '0.3.0',
       budgetMs: SHARED_BUDGET,
       spawn: (request) => {
         let closeOut = (): void => undefined;

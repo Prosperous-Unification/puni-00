@@ -35,7 +35,7 @@ import { OPEN, WriteCoordinator } from './gate';
 import { runMigrations } from './migrate';
 import { PriorityBandRepository } from './priority-band';
 import { ProjectRepository } from './project';
-import { ResourceCapacityRepository } from './resource';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
 import { StepRepository } from './step';
 import { StepBlockageRepository } from './step-blockage';
@@ -150,6 +150,8 @@ beforeEach(async () => {
     blockages: new StepBlockageRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: bandStore,
     dependencies: new DependencyRepository(db, OPEN),
     typedDependencies: new TypedDependencyRepository(db, OPEN),

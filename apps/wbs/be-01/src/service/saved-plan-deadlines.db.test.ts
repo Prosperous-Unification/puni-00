@@ -10,6 +10,7 @@ import {
 } from '@wbs/core/service/saved-plan-schedule';
 import type { Schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -212,6 +213,8 @@ describe('a captured plan and its deadlines', () => {
       typedDependencies: new TypedDependencyRepository(db, OPEN),
       directory: new DirectoryRepository(db, OPEN),
       capacity: new CapacityRepository(db, OPEN),
+      demands: new DemandRepository(db, OPEN),
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       priorityBands: new PriorityBandRepository(db, OPEN),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),

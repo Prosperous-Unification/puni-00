@@ -120,6 +120,23 @@ The export carries the same pair as columns — `People at once` is what was
 asked for, `Ran at` is what be-01 placed — and the `∥` cell's `title` hints at
 it.
 
+## Resources level the same way
+
+A **resource** (a host's RAM, a staging environment, agent slots) is a pool
+too, once the plan states a capacity for it (`wbs-resources`). A leaf's
+**demand** is charged on every one of its steps' blocks, beside the team slots,
+and a block takes all of them at one instant or waits: it never holds the team
+while waiting for the resource. An `exclusive` resource at capacity 1
+serialises its demanders; a divisible one admits as many as its units allow.
+A demand on a resource with no stated capacity constrains nothing, and a
+demand above the capacity runs as if it held the whole pool (a stated 0
+therefore constrains nothing in the schedule; claims are where "none" bites).
+A bar held back by a resource carries the resource and its units in place of a
+team (`capacityResource`, `capacityTeamId` null). Claims and occupancy never
+enter the schedule. The rule lives on `Slice.demands` in
+`libs/wbs/domain/domain/src/schedule.ts`; the optimized engine adds one
+cumulative per resource (`model.py` clause 4, solver wire 4).
+
 ## The three states, one of which has no box
 
 A (project, team) pair is in one of three states, and only two of them are

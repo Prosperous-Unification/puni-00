@@ -14,6 +14,7 @@ const sliceOf = (poolIds: readonly string[]): SolverSlice => ({
   notBeforeUnits: 0,
   deadlineUnits: null,
   workItemIsMilestone: false,
+  demands: [],
 });
 
 describe('poolIdsNamedBy', () => {

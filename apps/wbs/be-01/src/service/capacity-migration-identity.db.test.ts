@@ -8,6 +8,7 @@ import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
 import { inMemorySteps } from '@wbs/store-memory/step-fixture';
 import { inMemoryStepParallels } from '@wbs/store-memory/step-parallel-fixture';
+import { testResourceStores } from '@wbs/store-memory/testing/service-fixtures';
 import { inMemoryTypedDependencies } from '@wbs/store-memory/typed-dependency-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -654,6 +655,7 @@ describe('every plan schedules identically across the migration', () => {
       capacity: inMemoryCapacity({
         [plan.projectId]: Object.fromEntries(seeded.get(plan.projectId) ?? []),
       }),
+      ...testResourceStores(workItems),
       priorityBands: inMemoryPriorityBands(),
       subtrees: inMemorySubtrees({
         workItems,

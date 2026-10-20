@@ -1,4 +1,4 @@
-"""The copy of `solver-wire.v3.json` inside the package is the original.
+"""The copy of `solver-wire.v4.json` inside the package is the original.
 
 Two files with the same name in one repository are a drift bug waiting to be
 written, so the drift is a test rather than a convention. It compares **bytes**,
@@ -48,6 +48,30 @@ class SchemaCopy(unittest.TestCase):
             f"(lengths {len(original)} and {len(copy)}); "
             f"re-copy it rather than editing the copy"
         )
+
+    def test_every_wire_generation_is_byte_identical_in_both_places(self) -> None:
+        """The historical generations too, not only the one the entrypoint reads.
+
+        A blanket edit across one side's `solver-wire.v*.json` (wire 4's first
+        draft rewrote the package copy of v3's `$id` and v2's quantum comment)
+        leaves two different documents under one name, and the test above,
+        which reads only the current file, cannot see it.
+
+        Proof: with the package v3 `$id` set to v4 again, this case failed
+        naming `solver-wire.v3.json`; watched 2026-10-20.
+        """
+        contracts = ORIGINAL.parent
+        package = SCHEMA_PATH.parent
+        originals = sorted(path.name for path in contracts.glob("solver-wire.v*.json"))
+        copies = sorted(path.name for path in package.glob("solver-wire.v*.json"))
+        self.assertEqual(copies, originals, "the two sides hold different wire generations")
+        for name in originals:
+            with self.subTest(schema=name):
+                self.assertEqual(
+                    (package / name).read_bytes(),
+                    (contracts / name).read_bytes(),
+                    f"{package / name} differs from {contracts / name}",
+                )
 
     def test_the_copy_travels_in_the_wheel(self) -> None:
         """Package data, not a happy accident of the source layout.

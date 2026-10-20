@@ -56,3 +56,52 @@ export function isResourceKind(kind: unknown): kind is ResourceKind {
 export function refuseDemand(kind: ResourceKind, units: number): 'exclusive_demand_is_one' | null {
   return kind === 'exclusive' && units !== 1 ? 'exclusive_demand_is_one' : null;
 }
+
+/**
+ * Each leaf's demand vector as both engines charge it (`wbs-resources` R2 and
+ * R5): its own demands only, on resources the project states a capacity for,
+ * each in resource-id order with its units clamped to that capacity.
+ *
+ * Three rules, the team pool's three (`poolsFor`) restated for units:
+ *
+ * 1. **Unstated constrains nothing.** A demand on a resource with no stated
+ *    capacity is left out, so the engines' `no capacity for resource` throw
+ *    stays a caller-fault assertion rather than ordinary control flow.
+ * 2. **Clamped to the capacity**, as a width is clamped to its narrowest team:
+ *    a block demanding more units than the plan may use could never be placed,
+ *    so it holds the whole pool instead. A stated **0** therefore clamps every
+ *    demand to nothing and constrains nothing in the schedule; "the plan may
+ *    use none" is a claim-time refusal, and a block that may never start has no
+ *    date to give.
+ * 3. **A parent charges nothing.** The caller reads this map for leaves only,
+ *    so a demand stated on a parent never reaches a slice.
+ *
+ * Keyed by work item id; a leaf with no charged demand has no entry.
+ */
+export function chargedDemandsOf(
+  demands: readonly Demand[],
+  capacities: ReadonlyMap<string, number>,
+): Map<string, { resourceId: string; units: number }[]> {
+  const byWorkItem = new Map<string, { resourceId: string; units: number }[]>();
+  for (const { workItemId, resourceId, units } of demands) {
+    const capacity = capacities.get(resourceId);
+    // Proof: with this skip removed (the demand charged unclamped), `leaves a
+    // demand on an unstated capacity unconstrained` (schedule-resources.test.ts)
+    // received the staging demand too; watched 2026-10-20.
+    if (capacity === undefined) continue;
+    // Proof: the clamp removed (units charged as stated) made `clamps a demand
+    // to its capacity, and a stated 0 charges nothing` (schedule-resources.test.ts)
+    // receive 48 GB against 32 (13 pass / 1 fail); watched 2026-10-20.
+    const charged = Math.min(units, capacity);
+    if (charged === 0) continue;
+    const vector = byWorkItem.get(workItemId) ?? [];
+    vector.push({ resourceId, units: charged });
+    byWorkItem.set(workItemId, vector);
+  }
+  for (const vector of byWorkItem.values()) {
+    vector.sort((left, right) =>
+      left.resourceId < right.resourceId ? -1 : left.resourceId > right.resourceId ? 1 : 0,
+    );
+  }
+  return byWorkItem;
+}

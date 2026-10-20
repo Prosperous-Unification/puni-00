@@ -64,3 +64,53 @@ export function buildSolverPools(
   }
   return pools;
 }
+
+/**
+ * The wire's `resources` map (wire 4, `wbs-resources` R5): how many units of
+ * each resource some slice demands the plan may use.
+ *
+ * {@link buildSolverPools}' rules, restated for units and invariant (10):
+ * only the resources a slice names are emitted; a named resource with no
+ * stated capacity throws `no capacity for resource` pre-spawn rather than let
+ * the solver place the demand unconstrained; a capacity below 1, or a demand
+ * above its capacity, means `chargedDemandsOf` and these sizes came apart and
+ * throws rather than being clamped a second time here.
+ */
+export function buildSolverResources(
+  slices: readonly SolverSlice[],
+  capacities: ReadonlyMap<string, number>,
+): Record<string, number> {
+  const named = new Set<string>();
+  for (const slice of slices) for (const { resourceId } of slice.demands) named.add(resourceId);
+  const resources: Record<string, number> = {};
+  for (const resourceId of [...named].sort()) {
+    const capacity = capacities.get(resourceId);
+    // Proof: with this throw replaced by a skip, `refuses a demanded resource
+    // with no stated capacity before spawn` (resource-wire.test.ts) built the
+    // request instead; watched 2026-10-20.
+    if (capacity === undefined) throw new Error(`no capacity for resource ${resourceId}`);
+    // Proof: this refusal disabled made `refuses a demanded resource whose
+    // capacity is not a whole number of units from 1` (resource-wire.test.ts)
+    // see the demand check's message instead for 0, and nothing for 1.5;
+    // watched 2026-10-20.
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      throw new Error(
+        `resource ${resourceId} has a capacity that is not a whole number of units from 1: ${String(capacity)}`,
+      );
+    }
+    resources[resourceId] = capacity;
+  }
+  for (const slice of slices) {
+    for (const { resourceId, units } of slice.demands) {
+      const capacity = resources[resourceId];
+      // Proof: disabled, `refuses a demand above its resource capacity before
+      // spawn` (resource-wire.test.ts) built the request; watched 2026-10-20.
+      if (units > capacity) {
+        throw new Error(
+          `slice ${slice.key.replace('\u0000', '/')} demands ${String(units)} of resource ${resourceId}, which holds ${String(capacity)}`,
+        );
+      }
+    }
+  }
+  return resources;
+}

@@ -115,6 +115,7 @@ export const planOf = (parts: Partial<GanttPlan>): GanttPlan => ({
   personNames: new Map(),
   elsewhereHolders: new Map(),
   teamNames: new Map([['team-platform', 'Platform']]),
+  resourceLabels: new Map(),
   priorityBands: DEFAULT_PRIORITY_BANDS,
   // The default a project takes unless it asks otherwise.
   depReach: 'whole-item',

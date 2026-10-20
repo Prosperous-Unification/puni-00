@@ -11,6 +11,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -125,6 +126,8 @@ beforeEach(() => {
       typedDependencies: typed,
       directory,
       capacity: inMemoryCapacity(),
+      demands: new DemandRepository(db, OPEN),
+      resourceCapacity: new ResourceCapacityRepository(db, OPEN),
       priorityBands: inMemoryPriorityBands(),
       subtrees: new SubtreeRepository(db, OPEN),
       journal: new CommandJournalRepository(db, OPEN),
@@ -180,6 +183,8 @@ beforeEach(() => {
           typedDependencies: scope.stores.typedDependencies,
           directory: scope.stores.directory,
           capacity: scope.stores.capacity,
+          demands: scope.stores.demands,
+          resourceCapacity: scope.stores.resourceCapacity,
           priorityBands: scope.stores.priorityBands,
           subtrees: scope.stores.subtrees,
           journal: scope.stores.journal,
