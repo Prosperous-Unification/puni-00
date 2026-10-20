@@ -35,8 +35,16 @@ these holds, checked in this order:
   person that is not a delegated claim of the claimant's chain. An ancestor's subtree claim
   is already refused as `inside_subtree_claim` by the previous check.
 
+Before that order, the command parser SHALL refuse `steps_must_name_a_step` for an empty
+`steps` list, and the decision SHALL refuse `steps_on_subtree` when `steps` are named on a
+non-leaf (for claim and release alike) and `no_steps` when the project defines no steps.
+
 A claim whose every step is already held by the same person and run SHALL succeed, write
 nothing and answer `alreadyHeld: true`.
+
+When a leaf that holds step claims gains its first child, the claims SHALL move to that child
+with the other step facts (estimates, progress, assignments), so they stay releasable, keep
+fencing, and appear in the startable read; undoing the first child SHALL move them back.
 
 #### Scenario: A whole leaf is claimed by default
 
@@ -74,8 +82,8 @@ nothing and answer `alreadyHeld: true`.
 - **WHEN** account F applies `claimWorkItem` on non-leaf `080` for person `claire`, then
   applies `claimWorkItem` on leaf `080.25` for person `claire-worker` with run
   `agent:main:subagent:7f…` and `parentClaim` set to the subtree claim
-- **THEN** both claims exist, the leaf claim names its parent, and the work-item read shows
-  the chain
+- **THEN** both claims exist, the leaf claim names its parent, and the startable read shows
+  the chain (the subtree claim apart, the leaf claim with its parent claim id)
 
 #### Scenario: A stranger claims inside a claimed subtree
 
@@ -93,6 +101,13 @@ nothing and answer `alreadyHeld: true`.
 
 - **WHEN** a caller with role `member` names a person bound to no account
 - **THEN** the batch is refused `person_not_bound`; the same from an `admin` is applied
+
+#### Scenario: A claimed leaf is split
+
+- **WHEN** `claire` holds `Impl` of leaf `080.25` and a first child is created under it
+- **THEN** the claim sits on the child with the same step, `releaseWorkItem` on the child
+  succeeds, a stranger's claim on the child is refused `already_claimed`, and the startable
+  read lists the child under claimed steps
 
 #### Scenario: A repeated claim by the holder
 
