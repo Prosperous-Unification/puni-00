@@ -533,6 +533,122 @@ for (const store of STORES) {
       }
     });
 
+    it('hands the last child’s demand back up when its delete promotes the parent, and back on undo', async () => {
+      const { graph, source, runner, projectId, run, claim, leaf, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setResourceCapacity', resourceId: RAM, units: 8 },
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+        ]);
+        const split = await run([
+          { kind: 'createWorkItem', ref: 'c', name: 'Child', parentId: leaf(0), afterId: null },
+        ]);
+        if (!split.ok) throw new Error(`the split was refused: ${JSON.stringify(split)}`);
+        const child = split.results[0]?.id;
+        if (child === undefined) throw new Error('the split created no child');
+        const demands = async () =>
+          (await graph.workItems.demandsOf(projectId)).map(({ workItemId, resourceId, units }) => ({
+            owner: workItemId === leaf(0) ? 'L' : workItemId === child ? 'C' : workItemId,
+            resourceId,
+            units,
+          }));
+        expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
+        expect(await run([{ kind: 'deleteWorkItem', workItemId: child }])).toMatchObject({
+          ok: true,
+        });
+        expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'C', resourceId: RAM, units: 4 }]);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'L', resourceId: RAM, units: 4 }]);
+        expect(await source.stores.demands.listByProject(projectId)).toHaveLength(1);
+        expect(await run([claim(0, 'a0')])).toMatchObject({
+          ok: true,
+          results: [{ kind: 'claimWorkItem', acquired: [{ resourceId: RAM, units: 4 }] }],
+        });
+      } finally {
+        await close();
+      }
+    });
+
+    it('hands up the largest units any former leaf of a deleted last branch demanded', async () => {
+      const { graph, runner, projectId, run, leaf, close } = await seeded(store);
+      try {
+        const tree = await run([
+          { kind: 'createWorkItem', ref: 'B', name: 'B', parentId: leaf(0), afterId: null },
+          {
+            kind: 'createWorkItem',
+            ref: 'X',
+            name: 'X',
+            parentId: null,
+            parentRef: 'B',
+            afterId: null,
+          },
+          {
+            kind: 'createWorkItem',
+            ref: 'Y',
+            name: 'Y',
+            parentId: null,
+            parentRef: 'B',
+            afterId: null,
+          },
+          { kind: 'setDemand', workItemRef: 'X', resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemRef: 'Y', resourceId: RAM, units: 6 },
+          { kind: 'setDemand', workItemRef: 'Y', resourceId: WORKTREE, units: 1 },
+          // Stated on the parent while it was one, so it charged nothing.
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 2 },
+        ]);
+        if (!tree.ok) throw new Error(`the tree was refused: ${JSON.stringify(tree)}`);
+        const branchId = tree.results[0]?.id;
+        if (branchId === undefined) throw new Error('no branch');
+        const onParent = async () =>
+          (await graph.workItems.demandsOf(projectId))
+            .filter(({ workItemId }) => workItemId === leaf(0))
+            .map(({ resourceId, units }) => ({ resourceId, units }));
+        expect(
+          await run([{ kind: 'deleteWorkItem', workItemId: branchId, strategy: 'cascade' }]),
+        ).toMatchObject({ ok: true });
+        expect(await onParent()).toEqual([
+          { resourceId: RAM, units: 6 },
+          { resourceId: WORKTREE, units: 1 },
+        ]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await onParent()).toEqual([{ resourceId: RAM, units: 2 }]);
+      } finally {
+        await close();
+      }
+    });
+
+    it('clears the demand of an unclaimed leaf another row moves under, the moved row keeping its own, and back on undo', async () => {
+      const { graph, runner, projectId, run, leaf, close } = await seeded(store);
+      try {
+        await run([
+          { kind: 'setDemand', workItemId: leaf(0), resourceId: RAM, units: 4 },
+          { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
+        ]);
+        const demands = async () =>
+          (await graph.workItems.demandsOf(projectId)).map(({ workItemId, units }) => ({
+            owner: workItemId === leaf(0) ? 'P' : workItemId === leaf(1) ? 'X' : workItemId,
+            units,
+          }));
+        expect(
+          await run([
+            { kind: 'moveWorkItem', workItemId: leaf(1), parentId: leaf(0), afterId: null },
+          ]),
+        ).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'X', units: 2 }]);
+        expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([
+          { owner: 'P', units: 4 },
+          { owner: 'X', units: 2 },
+        ]);
+        expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+        expect(await demands()).toEqual([{ owner: 'X', units: 2 }]);
+      } finally {
+        await close();
+      }
+    });
+
     it('refuses deleting a resource a claim holds, counting it, and cascades on confirmation', async () => {
       const { runner, run, claim, occupied, close } = await seeded(store);
       try {

@@ -1229,6 +1229,16 @@ function withPatchStep(
   return { do: 'batch', steps: order === 'after' ? [command, step] : [step, command] };
 }
 
+/** `command` with `steps` run after or before it in one batch; `command` alone when there are none. */
+function withSteps(
+  command: CompensatingCommand,
+  steps: readonly CompensatingCommand[],
+  order: 'after' | 'before',
+): CompensatingCommand {
+  if (steps.length === 0) return command;
+  return { do: 'batch', steps: order === 'after' ? [command, ...steps] : [...steps, command] };
+}
+
 /** The readiness or hold every leaf agreed on, or null where any disagreed. */
 function agreedOn<T>(values: readonly (T | null)[]): T | null {
   const [first] = values;
@@ -3737,8 +3747,8 @@ export class WorkItemService {
   /**
    * Reparents the subtree. Retained destination step parallel facts refuse before
    * stamping or mutation; selected corrupt facts throw even on existing parents.
-   * Clears unrelated destination leaf statements before
-   * the store move. Incoming facts stay with their owners. A last-child departure
+   * Clears unrelated destination leaf statements and resource demands before
+   * the store move; the moved row keeps its own demands. Incoming facts stay with their owners. A last-child departure
    * hands up direct blockage only when every former leaf has that step fact,
    * using the latest blocked time even when negative or retained beneath done.
    * Progress is never handed up. Exact preexisting old-parent progress remains
@@ -3962,6 +3972,22 @@ export class WorkItemService {
       becomesParent === undefined
         ? []
         : await this.opts.blockages.listByWorkItems(workItem.projectId, [becomesParent.id]);
+    // And its resource demands (`wbs-resources`): a parent's demand charges
+    // nothing, and the moved row is other work that keeps its own demand and
+    // never inherits this one. Cleared with the statements, put back on undo.
+    // A claimed destination was refused above, so no occupancy rides on it.
+    const destinationDemands =
+      becomesParent === undefined
+        ? []
+        : (await this.opts.demands.listByProject(workItem.projectId)).filter(
+            ({ workItemId }) => workItemId === becomesParent.id,
+          );
+    const clearDestinationDemands: CompensatingCommand[] = destinationDemands.map(
+      ({ workItemId, resourceId }) => ({ do: 'set_demand', workItemId, resourceId, units: null }),
+    );
+    const restoreDestinationDemands: CompensatingCommand[] = destinationDemands.map(
+      ({ workItemId, resourceId, units }) => ({ do: 'set_demand', workItemId, resourceId, units }),
+    );
     const movedBlockages =
       leftParentId === null
         ? []
@@ -4016,7 +4042,14 @@ export class WorkItemService {
       if (!cleared.ok) throw new Error(`cannot clear the new parent: ${cleared.detail}`);
     }
     // Proof: skipping clears failed the pre-store-move destination ownership assertions; watched 2026-10-14.
-    for (const command of [...clearDestinationProgress, ...clearDestinationBlockages]) {
+    // Proof: the demand clears skipped, `clears the demand of an unclaimed leaf
+    // another row moves under…` (resource-occupancy.db.test.ts) read the demand
+    // still on the new parent, on both stores; watched 2026-10-20.
+    for (const command of [
+      ...clearDestinationProgress,
+      ...clearDestinationBlockages,
+      ...clearDestinationDemands,
+    ]) {
       const cleared = await this.apply(workItem.projectId, command, stamp);
       // Proof: removing this refusal failed `reports a refused move destination clear before reparenting`; watched 2026-10-14.
       if (!cleared.ok) throw new Error(`cannot clear move destination: ${cleared.detail}`);
@@ -4040,6 +4073,9 @@ export class WorkItemService {
       ...clearDestinationProgress,
       // Proof: omitting replay clears failed mounted exact move redo; watched 2026-10-14.
       ...clearDestinationBlockages,
+      // Proof: omitted, the same test's read after the redo found a demand on
+      // the parent again, on both stores; watched 2026-10-20.
+      ...clearDestinationDemands,
       { do: 'move', workItemId: id, parentId: input.parentId, afterId: input.afterId },
       ...(statementsHandedUp === undefined ? [] : [statementsHandedUp.forward]),
       ...setHandedBlockages,
@@ -4060,6 +4096,9 @@ export class WorkItemService {
       ...restoreDestinationProgress,
       // Proof: omitting restoration failed mounted exact move undo; watched 2026-10-14.
       ...restoreDestinationBlockages,
+      // Proof: omitted, the same test's undo read no demand on the leaf again,
+      // on both stores; watched 2026-10-20.
+      ...restoreDestinationDemands,
       ...(statementsCleared === undefined ? [] : [statementsCleared.inverse]),
     ];
     await this.announceTree(workItem.projectId);
@@ -4541,7 +4580,33 @@ export class WorkItemService {
       // written nowhere: absence is per metric, and the hand-up is not the place
       // that rule stops holding.
       const measuredHandedUp: StoredMeasure[] = [];
+      // And the demands, the mirror of the split's hand-down (`wbs-resources`):
+      // the parent becomes the leaf that holds the work, so it states what the
+      // work needs. Per resource the **largest** units any former leaf
+      // demanded, not the sum: a leaf's demand is held while one of its steps
+      // runs, the branch's leaves need not run at once, and an `exclusive`
+      // resource stays at its one unit. It overwrites whatever the parent
+      // stated while it was a parent (that charged nothing); `previous` is
+      // what the undo writes back.
+      // Proof: summed instead, `hands up the largest units any former leaf of a
+      // deleted last branch demanded` read 10 GB where 6 was owed; `previous`
+      // written as null, the same test's undo read no demand on the parent where
+      // its own 2 was owed; both stores, watched 2026-10-20.
+      const demandedHandedUp: { resourceId: string; units: number; previous: number | null }[] = [];
       if (parentId !== null && rows.filter((row) => row.parentId === parentId).length === 1) {
+        const leafIds = new Set(formerLeaves.map((row) => row.id));
+        const largest = new Map<string, number>();
+        for (const { workItemId, resourceId, units } of storedDemands) {
+          if (leafIds.has(workItemId))
+            largest.set(resourceId, Math.max(units, largest.get(resourceId) ?? 0));
+        }
+        for (const [resourceId, units] of [...largest].sort(([a], [b]) => a.localeCompare(b))) {
+          const previous =
+            storedDemands.find(
+              (each) => each.workItemId === parentId && each.resourceId === resourceId,
+            )?.units ?? null;
+          demandedHandedUp.push({ resourceId, units, previous });
+        }
         for (const step of await this.opts.projects.stepsOf(workItem.projectId)) {
           const facts = deletedBlockages.filter((fact) => fact.stepId === step.id);
           // Proof: changing every to some handed up partial QA agreement; mounted deletion fold failed, watched 2026-10-14.
@@ -4608,6 +4673,26 @@ export class WorkItemService {
       for (const each of recordedHandedUp) await this.opts.actuals.set(each, stamp);
       for (const each of statedHandedUp) await this.opts.progress.set(each, stamp);
       for (const each of measuredHandedUp) await this.opts.measures.set(each, stamp);
+      // Proof: skipped, `hands the last child’s demand back up when its delete
+      // promotes the parent, and back on undo` (resource-occupancy.db.test.ts)
+      // read no demand on the parent, on both stores; watched 2026-10-20.
+      for (const { resourceId, units } of demandedHandedUp) {
+        // `parentId` is non-null whenever anything was handed up.
+        if (parentId === null) throw new Error('a demand was handed up to no parent');
+        const written = await this.opts.demands.set(parentId, resourceId, units, stamp);
+        // The parent and the resource were read in this unit of work a moment ago.
+        if (written !== 'written')
+          throw new Error(`cannot hand demand on ${resourceId} up to the parent: ${written}`);
+      }
+      const demandHandUp = (pick: 'units' | 'previous'): CompensatingCommand[] =>
+        parentId === null
+          ? []
+          : demandedHandedUp.map((each) => ({
+              do: 'set_demand' as const,
+              workItemId: parentId,
+              resourceId: each.resourceId,
+              units: each[pick],
+            }));
       const cut = allEdges.filter(
         (edge) => inside.has(edge.predecessorId) || inside.has(edge.successorId),
       );
@@ -4662,96 +4747,108 @@ export class WorkItemService {
       }
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
-        forward: withPatchStep(
-          withRemovedTyped(
-            {
-              do: 'delete_subtree',
-              deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
-              rootId: id,
-              expectedSubtree: doomed,
-              remove: doomed,
-              reparented: [],
-              setEstimates: handedUp,
-              setActuals: recordedHandedUp,
-              setProgress: statedHandedUp,
-              setMeasures: measuredHandedUp,
-            },
-            removedTyped,
-            false,
+        // Proof: the demand hand-up left out of the forward, `hands the last
+        // child’s demand back up when its delete promotes the parent` read no
+        // demand after the redo; left out of the inverse, its undo read the
+        // demand on both rows; both stores, watched 2026-10-20.
+        forward: withSteps(
+          withPatchStep(
+            withRemovedTyped(
+              {
+                do: 'delete_subtree',
+                deletionState: { ...deletionState, handedBlockages: blockedHandedUp },
+                rootId: id,
+                expectedSubtree: doomed,
+                remove: doomed,
+                reparented: [],
+                setEstimates: handedUp,
+                setActuals: recordedHandedUp,
+                setProgress: statedHandedUp,
+                setMeasures: measuredHandedUp,
+              },
+              removedTyped,
+              false,
+            ),
+            handUpStep?.forward,
+            'after',
           ),
-          handUpStep?.forward,
+          demandHandUp('units'),
           'after',
         ),
-        inverse: withPatchStep(
-          withRemovedTyped(
-            withClaimsRestored(
-              {
-                do: 'restore_subtree',
-                deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
-                rows: doomed.map((each) => rowOf(rows, each)),
-                rootPosition: workItem.position,
-                reparented: [],
-                estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
-                // Every day recorded anywhere in the branch, put back where it was
-                // recorded. Without this an undo of a delete answers `ok` and returns
-                // the branch with its estimates and none of its actuals — the plan
-                // looks whole and a week of somebody's record is gone.
-                actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
-                // Every statement made anywhere in the branch, put back where it was
-                // made. Without this an undo of a delete answers `ok` and returns the
-                // branch reading as work nobody has started — the plan looks whole and
-                // a fortnight of finished work is unfinished again.
-                progress: storedProgress.filter((each) => inside.has(each.workItemId)),
-                // Every token and hour recorded anywhere in the branch, put back where
-                // it was recorded. Without this an undo of a delete answers `ok` and
-                // returns the branch with its days and none of its tokens — the plan
-                // looks whole and the record of what the work cost to run is gone.
-                measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
-                // Every attempt at the branch's nodes, verbatim with its number.
-                attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
-                // Proof: left out, `puts a deleted leaf back still skipping its removed
-                // highest number` in `step-node-attempt.controller.db.test.ts` numbered
-                // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
-                issuedAttemptNumbers: storedIssued,
-                assignments: doomedAssignments,
-                // Every demand stated anywhere in the branch, put back where it was
-                // stated. Without this an undo of a delete answers `ok` and returns
-                // the branch needing nothing, and the engines level it as free.
-                // Proof: with this list emptied, `undo of a delete puts the demands
-                // back exactly` and `undo of a cascading delete puts every row’s
-                // demands back` (resource-occupancy.db.test.ts) read [] on both
-                // stores; watched 2026-10-20.
-                demands: storedDemands.filter((each) => inside.has(each.workItemId)),
-                internalDependencies: cut.filter(
-                  (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
-                ),
-                externalDependencies: cut.filter(
-                  (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
-                ),
-                removedEstimates: handedUp.map((each) => ({
-                  workItemId: each.workItemId,
-                  stepId: each.stepId,
-                })),
-                removedActuals: recordedHandedUp.map((each) => ({
-                  workItemId: each.workItemId,
-                  stepId: each.stepId,
-                })),
-                removedProgress: statedHandedUp.map((each) => ({
-                  workItemId: each.workItemId,
-                  stepId: each.stepId,
-                })),
-                removedMeasures: measuredHandedUp.map((each) => ({
-                  workItemId: each.workItemId,
-                  stepId: each.stepId,
-                  metric: each.metric,
-                })),
-              },
-              removedClaims,
+        inverse: withSteps(
+          withPatchStep(
+            withRemovedTyped(
+              withClaimsRestored(
+                {
+                  do: 'restore_subtree',
+                  deletionState: { ...deletionState, parentBlockages: blockedHandedUp },
+                  rows: doomed.map((each) => rowOf(rows, each)),
+                  rootPosition: workItem.position,
+                  reparented: [],
+                  estimates: storedEstimates.filter((each) => inside.has(each.workItemId)),
+                  // Every day recorded anywhere in the branch, put back where it was
+                  // recorded. Without this an undo of a delete answers `ok` and returns
+                  // the branch with its estimates and none of its actuals — the plan
+                  // looks whole and a week of somebody's record is gone.
+                  actuals: storedActuals.filter((each) => inside.has(each.workItemId)),
+                  // Every statement made anywhere in the branch, put back where it was
+                  // made. Without this an undo of a delete answers `ok` and returns the
+                  // branch reading as work nobody has started — the plan looks whole and
+                  // a fortnight of finished work is unfinished again.
+                  progress: storedProgress.filter((each) => inside.has(each.workItemId)),
+                  // Every token and hour recorded anywhere in the branch, put back where
+                  // it was recorded. Without this an undo of a delete answers `ok` and
+                  // returns the branch with its days and none of its tokens — the plan
+                  // looks whole and the record of what the work cost to run is gone.
+                  measures: storedMeasures.filter((each) => inside.has(each.workItemId)),
+                  // Every attempt at the branch's nodes, verbatim with its number.
+                  attempts: storedAttempts.filter((each) => inside.has(each.workItemId)),
+                  // Proof: left out, `puts a deleted leaf back still skipping its removed
+                  // highest number` in `step-node-attempt.controller.db.test.ts` numbered
+                  // `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
+                  issuedAttemptNumbers: storedIssued,
+                  assignments: doomedAssignments,
+                  // Every demand stated anywhere in the branch, put back where it was
+                  // stated. Without this an undo of a delete answers `ok` and returns
+                  // the branch needing nothing, and the engines level it as free.
+                  // Proof: with this list emptied, `undo of a delete puts the demands
+                  // back exactly` and `undo of a cascading delete puts every row’s
+                  // demands back` (resource-occupancy.db.test.ts) read [] on both
+                  // stores; watched 2026-10-20.
+                  demands: storedDemands.filter((each) => inside.has(each.workItemId)),
+                  internalDependencies: cut.filter(
+                    (edge) => inside.has(edge.predecessorId) && inside.has(edge.successorId),
+                  ),
+                  externalDependencies: cut.filter(
+                    (edge) => !inside.has(edge.predecessorId) || !inside.has(edge.successorId),
+                  ),
+                  removedEstimates: handedUp.map((each) => ({
+                    workItemId: each.workItemId,
+                    stepId: each.stepId,
+                  })),
+                  removedActuals: recordedHandedUp.map((each) => ({
+                    workItemId: each.workItemId,
+                    stepId: each.stepId,
+                  })),
+                  removedProgress: statedHandedUp.map((each) => ({
+                    workItemId: each.workItemId,
+                    stepId: each.stepId,
+                  })),
+                  removedMeasures: measuredHandedUp.map((each) => ({
+                    workItemId: each.workItemId,
+                    stepId: each.stepId,
+                    metric: each.metric,
+                  })),
+                },
+                removedClaims,
+              ),
+              removedTyped,
+              true,
             ),
-            removedTyped,
-            true,
+            handUpStep?.inverse,
+            'before',
           ),
-          handUpStep?.inverse,
+          demandHandUp('previous'),
           'before',
         ),
         // Two deliberate absences. The deleted rows are not here — nothing can
