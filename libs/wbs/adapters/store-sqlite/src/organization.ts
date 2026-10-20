@@ -95,8 +95,10 @@ export class OrganizationRepository implements MembershipAdministration {
 
   /**
    * Adds a membership. The only caller-facing path to membership will be
-   * invitation acceptance (task 4.4); this exists for that transaction and for
-   * the legacy backfill.
+   * invitation acceptance (task 4.4); this exists for that transaction. The
+   * legacy activation (`activateLegacyOrganization`) does not use it: it grants
+   * memberships inside its own outer `BEGIN IMMEDIATE`, and this method's gate
+   * and standalone write could not join that transaction.
    */
   async addMember(
     organizationId: string,
