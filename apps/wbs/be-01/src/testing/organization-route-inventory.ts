@@ -184,6 +184,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdStartable',
+    method: 'GET',
+    path: '/api/projects/:id/startable',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdStep-references',
     method: 'GET',
     path: '/api/projects/:id/step-references',

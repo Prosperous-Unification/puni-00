@@ -126,6 +126,8 @@ export interface StepUsageRows {
    * that ran (ADR 0045), and a step holding one and nothing else is `in_use`.
    */
   attempts: number;
+  /** Claims holding this step (`wbs-team-claims`). */
+  claims: number;
   assignments: readonly Assignment[];
 }
 
@@ -139,6 +141,7 @@ export interface StepRemoval {
   /** Rows, not pairs — {@link StepUsageRows.measures}. */
   measures: number;
   attempts: number;
+  claims: number;
   assignments: number;
   /** Every work item that lost an estimate, an actual, a state, a figure, a blockage or an assignment, and whose revision therefore moved. */
   workItemIds: readonly string[];

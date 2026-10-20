@@ -120,13 +120,16 @@ describe('sparse parallelism SQL contract', () => {
     });
   it('down refuses retained facts and preserves table and applied ledger', () => {
     insert();
-    const before = connection.db.all('SELECT * FROM __drizzle_migrations');
+    // The newer, empty claim migration reverses first; the refusal keeps everything older.
+    const before = connection.db
+      .all<{ name: string }>('SELECT * FROM __drizzle_migrations')
+      .filter(({ name }) => name !== '20261019120000_add_claim');
     expect(() => rollbackTo(path, folder, baseline)).toThrow(/step parallelism overrides exist/);
     expect(connection.db.all('SELECT * FROM step_parallel')).toHaveLength(1);
     expect(connection.db.all('SELECT * FROM __drizzle_migrations')).toEqual(before);
   });
   it('empty down and forward preserve existing work items', () => {
-    expect(rollbackTo(path, folder, baseline)).toEqual([migration]);
+    expect(rollbackTo(path, folder, baseline)).toEqual(['20261019120000_add_claim', migration]);
     expect(connection.db.get<{ count: number }>('SELECT count(*) AS count FROM work_item')).toEqual(
       { count: 3 },
     );

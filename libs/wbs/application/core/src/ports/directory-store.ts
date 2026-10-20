@@ -167,6 +167,13 @@ export interface DirectoryUsageRows {
    */
   members: readonly { id: string; name: string }[];
   /**
+   * Every claim on a work item of these projects (`wbs-team-claims`): a
+   * person's removal releases theirs, so it is refused `in_use` without
+   * `cascade` exactly as an assignment refuses it. Empty for a source that
+   * reads none, never absent.
+   */
+  claims: readonly { workItemId: string; stepId: string | null; personId: string }[];
+  /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.
    *
@@ -453,6 +460,16 @@ export interface DirectoryStore {
     assignments: Assignment[];
     people: { id: string; name: string }[];
   }>;
+  /**
+   * The root names of exactly these people or teams, one primary-key read
+   * each, in no promised order; an id the directory does not hold is absent.
+   * For reads that must not materialize the whole directory (spec
+   * `project-assignment-reads`), such as the startable read's claim holders.
+   */
+  namesOf(
+    catalog: 'people' | 'teams',
+    ids: readonly string[],
+  ): Promise<{ id: string; name: string }[]>;
   /** Assignments on one work item, bounded by its indexed key. */
   assignmentsFor(workItemId: string): Promise<Assignment[]>;
   /** Subset consumer compatibility; each distinct work item uses its indexed key. */

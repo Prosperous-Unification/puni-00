@@ -21,6 +21,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   steps: [],
   people: [],
   members: [],
+  claims: [],
   capacityOf: new Map(),
 };
 
@@ -207,6 +208,7 @@ export function inMemoryDirectory(
         assignments: [],
         steps: [],
         people: [],
+        claims: [],
         members: [],
         capacityOf: new Map<string, number>(),
       }),
@@ -261,6 +263,7 @@ export function inMemoryDirectory(
         assignments: [],
         steps: [],
         people: [],
+        claims: [],
         members: [],
         capacityOf: new Map<string, number>(),
       }),
@@ -448,6 +451,15 @@ export function inMemoryDirectory(
         assignments: assigned,
         people: named.sort((left, right) => left.name.localeCompare(right.name)),
       };
+    },
+    namesOf(catalog, ids) {
+      const held = catalog === 'people' ? people : teams;
+      return Promise.resolve(
+        [...new Set(ids)].flatMap((id) => {
+          const found = held.get(id);
+          return found === undefined ? [] : [{ id, name: found.name }];
+        }),
+      );
     },
     assignmentsFor(workItemId) {
       return Promise.resolve(

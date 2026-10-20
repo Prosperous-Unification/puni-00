@@ -25,6 +25,7 @@ describe('the migrated existing store kits', () => {
       attempts: unopened,
       blockages: unopened,
       stepParallels: unopened,
+      claims: unopened,
       dependencies: unopened,
       typedDependencies: unopened,
       directory: unopened,
@@ -55,6 +56,8 @@ describe('the migrated existing store kits', () => {
     // Proof: before savedPlanRegistrations joined the production catalog, this
     // failed with exactly the two Task 6.1 IDs absent (`Expected - 2 / Received + 0`).
     // Proof: removing the production sparse registration failed this exact inventory (2026-10-17).
+    // Proof: with both claim IDs absent from SOURCE_CONFORMANCE_CASES, the implemented
+    // inventory below failed `Expected - 2 / Received + 0`; watched 2026-10-19.
     expect(registrations.map(({ caseId }) => caseId)).toEqual([
       'livePlans.read:legacy-and-absence',
       'projects.create:steps',
@@ -114,6 +117,9 @@ describe('the migrated existing store kits', () => {
       'attempts.moveAll:issued',
       'blockages.set:read-remove',
       'stepParallels.set:sparse-replace-remove',
+      'claims.add:taken-stated-remove',
+      'claims.listStampedByProject:write-instant',
+      'claims.remove:delegated-cascade',
       'dependencies.listByWorkItems:incident-scope',
       'dependencies.add:idempotent-pair',
       'dependencies.remove:pair',
@@ -123,6 +129,7 @@ describe('the migrated existing store kits', () => {
       'directory.assign:unknown_person',
       'directory.assign:scope-replace-clear',
       'directory.patchTeam:atomic-refusal',
+      'directory.removePerson:claims-in-use',
       'eventLog.recordEvent',
       'eventLog.rangeSince',
       'eventLog.pruneBeyond',

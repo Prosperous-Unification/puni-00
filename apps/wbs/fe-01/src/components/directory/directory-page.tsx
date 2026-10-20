@@ -106,6 +106,10 @@ export function effectSentence(effect: DirectoryEffect, on: EffectContext): stri
   switch (effect.kind) {
     case 'assignment_dropped':
       return `The ${effect.step.name} assignment goes.`;
+    case 'claim_released':
+      return effect.step === null
+        ? 'Their claim on this subtree is released.'
+        : `Their claim on ${effect.step.name} is released.`;
     case 'label_nulled':
       return 'The team label is cleared.';
     case 'label_removed':

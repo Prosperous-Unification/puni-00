@@ -244,6 +244,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261019120000_add_claim',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
       '20261014140000_add_step_blockage_activation',
@@ -296,6 +297,7 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'step_blockage_activation' &&
           n !== 'step_blockage_activation_receipt' &&
           n !== 'step_parallel' &&
+          n !== 'claim' &&
           n !== 'shared_people_restore_operation' &&
           n !== 'shared_people_restore_receipt' &&
           n !== 'shared_people_restore_consumption' &&

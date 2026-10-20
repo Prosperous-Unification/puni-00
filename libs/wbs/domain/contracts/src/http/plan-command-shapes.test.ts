@@ -166,8 +166,8 @@ test('emits inline MCP-readable command branches with real nested patch and esti
   const descriptor = planCommandsBody.jsonSchema as Descriptor;
   expect(JSON.stringify(descriptor)).not.toContain('"$ref"');
   const branches = descriptor.properties?.['commands']?.items?.anyOf;
-  // Includes the public step blockage command.
-  expect(branches).toHaveLength(46);
+  // Includes the public step blockage command and claimWorkItem/releaseWorkItem.
+  expect(branches).toHaveLength(48);
   if (branches === undefined) throw new Error('Missing command alternatives');
   const find = (kind: string) =>
     branches.find((branch) => branch.properties?.['kind']?.const === kind);

@@ -516,6 +516,44 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     progress: retainedProgress,
     attempts,
     blockages,
+    claims: {
+      listByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.listByProject(requestedProjectId);
+      },
+      listStampedByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.listStampedByProject(requestedProjectId);
+      },
+      findById: (requestedProjectId, claimId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.claims.findById(requestedProjectId, claimId);
+      },
+      boundAccountOf: (personId) => {
+        assertOpen();
+        return scope.stores.claims.boundAccountOf(personId);
+      },
+      pinnedPersonOf: (actorId) => {
+        assertOpen();
+        return scope.stores.claims.pinnedPersonOf(actorId);
+      },
+      add: async (claims, stated, stamp) => {
+        const owners = [...new Set([...claims, ...stated].map(({ workItemId }) => workItemId))];
+        for (const owner of owners) await assertOwner(owner);
+        const written = await scope.stores.claims.add(claims, stated, stamp);
+        // Proof: with this refresh removed, `shows the batch the progress its
+        // claim stated` (claim-command.test.ts) let a later setStatus ready
+        // through on stale retained progress; watched 2026-10-19.
+        if (written === 'written') await refreshRows(owners);
+        return written;
+      },
+      remove: async (claims, cleared, stamp) => {
+        const owners = [...new Set([...claims, ...cleared].map(({ workItemId }) => workItemId))];
+        for (const owner of owners) await assertOwner(owner);
+        await scope.stores.claims.remove(claims, cleared, stamp);
+        await refreshRows(owners);
+      },
+    },
     stepParallels: {
       // Proof: spreading the real SQLite class dropped prototype methods;
       // mounted borrowed-scope regression failed on listByProject (prototype-red.txt).

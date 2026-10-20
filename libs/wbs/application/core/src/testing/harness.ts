@@ -177,6 +177,7 @@ export function inMemoryServices(overrides: Partial<WorkItemServiceOptions> = {}
       admission: overrides.admission ?? CREATOR_ADMISSION,
       clock: overrides.clock ?? testClock,
       ...stores,
+      ...(overrides.claims === undefined ? {} : { claims: overrides.claims }),
       broadcast,
       scheduler,
     }),

@@ -16,6 +16,8 @@ export interface StepHoldings {
   measures: number;
   /** Attempts run at this step's nodes: history, never pruned (ADR 0045). */
   attempts: number;
+  /** Claims holding this step (`wbs-team-claims`): somebody occupies it now. */
+  claims: number;
   assignments: number;
 }
 
@@ -48,6 +50,10 @@ export function stepIsInUse(held: StepHoldings): boolean {
     held.blockages > 0 ||
     held.measures > 0 ||
     held.attempts > 0 ||
+    // Proof: omitting claims made `counts the claims, refusing an unconfirmed
+    // removal of a claimed step…` (step.db.test.ts) delete the step and its
+    // claim unconfirmed; watched 2026-10-19.
+    held.claims > 0 ||
     held.assignments > 0
   );
 }

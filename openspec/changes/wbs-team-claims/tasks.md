@@ -12,29 +12,31 @@
 
 ## 1. The claim record and its decision
 
-- [ ] 1.1 Migration `add_claim`: table `claim` (id, work_item_id, step_id nullable, person_id,
+- [x] 1.1 Migration `add_claim`: table `claim` (id, work_item_id, step_id nullable, person_id,
       run_id nullable, parent_claim_id nullable self-FK, audit columns), unique on
       (work_item_id, step_id) and a partial unique on work_item_id where step_id is null, with
       `down.sql` that refuses while any claim exists — test: `migration-cli.db.test.ts` forward
       and back and the refusal with one row; negative: drop the guard and the rollback silently
       deletes claims; watched.
-- [ ] 1.2 Red: `claim.test.ts` in `@wbs/domain` for the pure decision over a leaf's status, its
+- [x] 1.2 Red: `claim.test.ts` in `@wbs/domain` for the pure decision over a leaf's status, its
       steps' progress, the claims in force on it and its ancestors, the caller's account and
       credential pin, and the claimant: answer the rows to write and the progress to state, or
       `alreadyHeld`, or one refusal in the spec's order — test: one case per refusal, one per
       success, a property that no step with a claim is ever taken, and the subtree
       overlap cases (ancestor, descendant, nested delegated claim).
-- [ ] 1.3 Green: implement the decision. Negatives: remove the order and the
+- [x] 1.3 Green: implement the decision. Negatives: remove the order and the
       `already_claimed before inside_subtree_claim` case reddens; remove the parent-claim
       account check and the foreign delegated claim passes. Adjacent `Proof:` comments.
-- [ ] 1.4 Red: `work-item.resource` tests for `claimWorkItem` and `releaseWorkItem` in a
+- [x] 1.4 Red: `work-item.resource` tests for `claimWorkItem` and `releaseWorkItem` in a
       batch: rows, progress stated, single journal entry, revision bump, undo removes exactly
       the rows and progress it wrote, `alreadyHeld` writes nothing, cascade release — test:
       `claim-command.test.ts` on the memory store and SQLite through the conformance suite.
-- [ ] 1.5 Red: two concurrent batches from two accounts on one step — test:
+- [x] 1.5 Red: two concurrent batches from two accounts on one step — test:
       `claim-race.db.test.ts` with the write coordinator, one winner, the loser's refusal names
-      the winner. Negative: bypass the coordinator and both win; watched, then restored.
-- [ ] 1.6 Registry entries, descriptions, refusal shapes in `@wbs/contracts`; MCP tool list
+      the winner. Negative: bypass the coordinator; watched, then restored. Both cannot win:
+      the queued batch fails `BEGIN IMMEDIATE` ("cannot start a transaction within a
+      transaction"), and the unique index stands behind the coordinator (verify.md).
+- [x] 1.6 Registry entries, descriptions, refusal shapes in `@wbs/contracts`; MCP tool list
       snapshot moves by zero (the batch tool carries the new kinds) — test: the registry shape
       tests plus the OpenAPI emit diff.
 - [ ] 1.7 fe-01: a claimed step shows its holder and run beside the assignee cell, a subtree
@@ -60,12 +62,13 @@
 
 ## 3. Startable read
 
-- [ ] 3.1 Red: `startable.test.ts` in core: filter by team, no team, claimed-apart list,
+- [x] 3.1 Red: `startable.test.ts` in core: filter by team, no team, claimed-apart list,
       subtree holder shown, frozen number over derived, unfinished predecessors — test: the
       spec's scenarios on the memory store; negative: swap `statusOf` for the stored readiness
-      and the blocked-by-proxy scenario reddens.
-- [ ] 3.2 Descriptor, route, policy (viewer may read), MCP tool by derivation — test: route
-      tests for viewer, member, stranger; the MCP tool count moves by one.
+      and the blocked-by-proxy scenario reddens; watched (verify.md, slice 3).
+- [x] 3.2 Descriptor, route, policy (viewer may read), MCP tool by derivation — test: route
+      tests for viewer, member, stranger; the MCP tool count moves by one (81 to 82,
+      `getApiProjectsByIdStartable`).
 
 ## 4. Dispatch of the live plan (operator, not code)
 

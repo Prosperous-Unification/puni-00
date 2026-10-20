@@ -319,3 +319,48 @@ describe('deletion state boundary', () => {
     ).toThrow(/wrong restoration parent/);
   });
 });
+
+describe('claim replay vocabulary', () => {
+  const claim = {
+    id: 'c1',
+    workItemId: 'w1',
+    stepId: 'dev',
+    personId: 'claire',
+    runId: 'agent:main:subagent:7f',
+    parentClaimId: 'c0',
+    accountId: 'account-f',
+  };
+  const add: CompensatingCommand = {
+    do: 'add_claims',
+    claims: [claim],
+    stated: [{ workItemId: 'w1', stepId: 'dev' }],
+  };
+  const remove: CompensatingCommand = { do: 'remove_claims', claims: [claim], cleared: [] };
+
+  it('reads both directions back and names their rows, steps, people and progress', () => {
+    expect(readCommand(add)).toEqual(add);
+    expect(readCommand(remove)).toEqual(remove);
+    expect(touchedBy(add)).toEqual(['w1']);
+    expect(progressKeysOf(add)).toEqual([{ workItemId: 'w1', stepId: 'dev' }]);
+    expect(progressKeysOf(remove)).toEqual([]);
+    expect(referencesOf(add)).toMatchObject({
+      workItems: ['w1', 'w1'],
+      steps: ['dev', 'dev'],
+      people: ['claire'],
+    });
+    expect(subjectOf(add)).toEqual({ workItemId: 'w1', stepId: 'dev' });
+  });
+
+  // Proof: with the readClaimReplay call removed from readCommand, every
+  // malformed shape below read back without throwing; watched 2026-10-19.
+  it('refuses a malformed claim replay', () => {
+    for (const malformed of [
+      { do: 'add_claims', claims: [], stated: [] },
+      { do: 'add_claims', claims: [{ ...claim, accountId: null }], stated: [] },
+      { do: 'add_claims', claims: [{ ...claim, runId: 7 }], stated: [] },
+      { do: 'add_claims', claims: [claim] },
+      { do: 'remove_claims', claims: [claim], cleared: [{ workItemId: 'w1' }] },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/claim replay/);
+  });
+});

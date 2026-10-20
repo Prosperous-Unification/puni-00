@@ -171,6 +171,8 @@ export const removeStep = defineEndpointShape({
             measures: 'number',
             // Optional: an outgoing be-01 mid-swap counts no attempts.
             'attempts?': 'number',
+            // Optional: an outgoing be-01 mid-swap counts no claims.
+            'claims?': 'number',
             assignments: 'number',
             assumedAssignees: type({
               workItemId: 'string',

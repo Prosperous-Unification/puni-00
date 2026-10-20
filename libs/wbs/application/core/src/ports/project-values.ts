@@ -147,6 +147,7 @@ export const PROJECT_CROSS_REFERENCE_KINDS = [
   'step_node_attempt_person',
   'assignment_step',
   'assignment_person',
+  'claim_person',
   'work_item_tag',
   'work_item_team',
   'work_item_type',
