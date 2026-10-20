@@ -11,6 +11,8 @@ const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.ur
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const PERSON_ACCOUNT = '20261019130000_add_person_account';
 const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
+/** Newer than both, empty here, so it reverses first on every rollback below them. */
+const RESOURCES = '20261020120000_add_resources';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -116,7 +118,9 @@ describe('person account and credential pin migrations', () => {
     const down = await rollBack(root, dbPath, baseline());
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`);
+    expect(down.stdout).toContain(
+      `rolled back: ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
+    );
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');
     expect(appliedNames(dbPath).at(-1)).toBe(baseline());

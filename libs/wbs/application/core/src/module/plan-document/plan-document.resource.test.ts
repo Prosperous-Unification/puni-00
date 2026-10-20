@@ -182,6 +182,7 @@ function directory(): Pick<
   | 'listServices'
   | 'listWorkItemTypes'
   | 'listExternalSystems'
+  | 'listResources'
 > {
   return {
     listTeams: () =>
@@ -225,17 +226,35 @@ function directory(): Pick<
         { id: 'system-used', name: 'Tracker' },
         { id: 'system-unused', name: 'Unrelated tracker' },
       ]),
+    listResources: () =>
+      Promise.resolve([
+        { id: 'resource-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+        { id: 'resource-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        { id: 'resource-unused', name: 'Unrelated resource', kind: 'divisible', unitLabel: 'x' },
+      ]),
     listInOrganization: () =>
       Promise.reject(new Error('a legacy export read an organization catalog')),
   };
 }
 
-function service(directorySource = directory()) {
+/** A plan that states nothing about resources, as every plan before `wbs-resources` did. */
+const NO_RESOURCE_FACTS = {
+  resourceCapacitiesOf: () => Promise.resolve([]),
+  demandsOf: () => Promise.resolve([]),
+};
+
+function service(
+  directorySource = directory(),
+  resourceFacts: ConstructorParameters<
+    typeof PlanDocumentService
+  >[0]['resourceFacts'] = NO_RESOURCE_FACTS,
+) {
   return new PlanDocumentService({
     directory: directorySource,
     stepParallels: { listByProject: () => Promise.resolve([]) },
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => Date.parse('2026-09-13T12:30:00.000Z') },
+    resourceFacts,
   });
 }
 
@@ -263,6 +282,8 @@ test('preserves the existing JSON export fields', async () => {
     directory: names,
     stepNodes,
     stepBlockages,
+    resourceCapacities,
+    demands,
     ...existing
   } = exported;
   expect(existing).toEqual<unknown>({
@@ -271,6 +292,12 @@ test('preserves the existing JSON export fields', async () => {
     workItems: TREE.workItems.map(({ blockages: _blockages, ...row }) => row),
   });
   expect(stepBlockages).toEqual([]);
+  // A plan that states no resource facts exports none, and no resource.
+  expect({ resourceCapacities, demands, resources: names.resources }).toEqual({
+    resourceCapacities: [],
+    demands: [],
+    resources: [],
+  });
   expect(existing.workItems[0]?.deadline).toBe('2026-09-18');
   expect(existing.optimization).toEqual(TREE.optimization);
   expect({ document, settings, capacity, calendarMarkers, names, stepNodes }).toBeDefined();
@@ -281,7 +308,7 @@ test('JSON export is a versioned plan document and settings says what project sa
   expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
   expect(exported.document).toEqual({
     format: 'wbs-plan',
-    version: 9,
+    version: 10,
     exportedAt: '2026-09-13T12:30:00.000Z',
   });
   expect(exported.settings).toEqual({
@@ -351,7 +378,7 @@ test('malformed priority names workItems[3].priority', async () => {
 
 test('unknown version precedes version-specific validation', async () => {
   const future = structuredClone(await exportDocument());
-  Reflect.set(future.document, 'version', 10);
+  Reflect.set(future.document, 'version', 11);
   const row = future.workItems[0];
   future.workItems = Array.from({ length: 4 }, () => structuredClone(row));
   Reflect.set(future.workItems[3] ?? {}, 'priority', 'high');
@@ -438,7 +465,7 @@ test('the current export keeps SS and FF types from the trusted tree', async () 
   expect(exported).toMatchObject({
     ok: true,
     value: {
-      document: { version: 9 },
+      document: { version: 10 },
       typedDependencies: [
         { id: 'start-link', type: 'SS' },
         { id: 'finish-link', type: 'FF' },
@@ -629,7 +656,7 @@ test('spells each leaf’s step nodes beside their IDs', async () => {
 
 test('version 6 carries each row’s readiness and hold, and earlier versions read as nothing said', async () => {
   const exported = structuredClone(await exportDocument());
-  expect(exported.document.version).toBe(9);
+  expect(exported.document.version).toBe(10);
   const row = exported.workItems.find(
     (each) => !exported.workItems.some((c) => c.parentId === each.id),
   );
@@ -862,7 +889,7 @@ test('version 8 keeps minute step units and refuses missing or unknown written u
   const tree = structuredClone(TREE);
   tree.steps = tree.steps.map((step) => ({ ...step, estimateUnit: 'minutes' }));
   const document = await exportDocument(tree);
-  expect(document.document.version).toBe(9);
+  expect(document.document.version).toBe(10);
   const classified = await classifyPlanDocument(document);
   expect(classified.ok).toBe(true);
   if (!classified.ok) throw new Error('minute document refused');
@@ -896,7 +923,7 @@ test('v9 exports detached direct blockage facts and excludes row aliases', async
   const exported = await service().export(PROJECT, tree, LEGACY_ACCESS);
   expect(exported.ok).toBe(true);
   if (!exported.ok) return;
-  expect(exported.value.document.version).toBe(9);
+  expect(exported.value.document.version).toBe(10);
   expect(Reflect.get(exported.value, 'stepBlockages')).toEqual([
     { workItemId: 'row-1', stepId: 'step-1', blockedAt: -17 },
   ]);
@@ -949,6 +976,7 @@ test('v9 excludes derived blockage causes and captured exports retain the same f
     },
     markers: MARKERS,
     stepParallels: [],
+    resources: { resources: await directory().listResources(), capacities: [], demands: [] },
   });
   expect(captured).toEqual({ ok: true, value: exported });
 });
@@ -1057,6 +1085,7 @@ test('v9 refuses authored sparse parallelism on direct and captured JSON exports
     directory: directory(),
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => 0 },
+    resourceFacts: NO_RESOURCE_FACTS,
     stepParallels: {
       listByProject: (projectId) => {
         if (projectId !== PROJECT.id) throw new Error('wrong sparse project');
@@ -1072,6 +1101,7 @@ test('v9 refuses authored sparse parallelism on direct and captured JSON exports
     writer.exportCaptured(PROJECT, TREE, {
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
+      resources: { resources: [], capacities: [], demands: [] },
       stepParallels: [parallel],
     }),
   ).toEqual({ ok: false, error: 'unsupported_step_parallelism' });
@@ -1126,6 +1156,7 @@ for (const [name, sparse, message] of [
     const reads = {
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
+      resources: { resources: [], capacities: [], demands: [] },
       stepParallels: sparse,
     };
     expect(() => service().exportCaptured(PROJECT, TREE, reads as never)).toThrow(message);
@@ -1138,6 +1169,7 @@ test('v9 direct export propagates unreadable sparse state', async () => {
     directory: directory(),
     markers: { list: () => Promise.resolve({ ok: true, value: MARKERS }) },
     clock: { now: () => 0 },
+    resourceFacts: NO_RESOURCE_FACTS,
     stepParallels: { listByProject: () => Promise.reject(failure) },
   });
   const caught = await writer.export(PROJECT, TREE, LEGACY_ACCESS).catch((cause: unknown) => cause);
@@ -1151,6 +1183,7 @@ test('v9 refuses construction without its sparse read capability', () => {
         directory: directory(),
         markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
         clock: { now: () => 0 },
+        resourceFacts: NO_RESOURCE_FACTS,
       } as never),
   ).toThrow(/step parallelism reader/);
 });
@@ -1193,6 +1226,7 @@ for (const [name, mutate, message] of [
         },
         markers: [],
         stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
+        resources: { resources: [], capacities: [], demands: [] },
       }),
     ).toThrow(message);
   });
@@ -1215,6 +1249,7 @@ test('v9 sparse pair identities never alias at colons', () => {
     service().exportCaptured(PROJECT, tree, {
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
+      resources: { resources: [], capacities: [], demands: [] },
       stepParallels: [
         { workItemId: 'a', stepId: 'b:c', maxParallel: 1 },
         { workItemId: 'a:b', stepId: 'c', maxParallel: 1 },
@@ -1224,7 +1259,22 @@ test('v9 sparse pair identities never alias at colons', () => {
 });
 
 test('v9 zero-fact export retains canonical bytes', async () => {
-  const bytes = JSON.stringify(await exportDocument());
+  // Version 10 adds three lists and changes nothing else: a plan that states no
+  // resource facts, with those lists taken off and its version read as 9, is
+  // the v9 golden byte for byte.
+  const exported = structuredClone(await exportDocument());
+  const { resources, ...directoryBefore } = exported.directory;
+  const { resourceCapacities, demands, ...rest } = exported;
+  expect({ resources, resourceCapacities, demands }).toEqual({
+    resources: [],
+    resourceCapacities: [],
+    demands: [],
+  });
+  const bytes = JSON.stringify({
+    ...rest,
+    document: { ...rest.document, version: 9 },
+    directory: directoryBefore,
+  });
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
     '61243efaf10088375accb4ab8c3e449255c2fd3483558282dfc6f8e0e793f6a2',
   );
@@ -1239,6 +1289,7 @@ test('uncoded steps retain precedence over unreadable sparse export evidence', a
     directory: directory(),
     markers: { list: () => Promise.resolve({ ok: true, value: [] }) },
     clock: { now: () => 0 },
+    resourceFacts: NO_RESOURCE_FACTS,
     stepParallels: {
       listByProject: () => Promise.reject(new Error('must not read before uncoded refusal')),
     },
@@ -1253,6 +1304,7 @@ test('uncoded steps retain precedence over unreadable sparse export evidence', a
     writer.exportCaptured(PROJECT, tree, {
       directory: { teams: [], people: [], tags: [], services: [], types: [], externalSystems: [] },
       markers: [],
+      resources: { resources: [], capacities: [], demands: [] },
       stepParallels: [{ workItemId: 'row-1', stepId: 'step-1', maxParallel: 2 }],
     }),
   ).toEqual({
@@ -1261,4 +1313,135 @@ test('uncoded steps retain precedence over unreadable sparse export evidence', a
     steps: [{ id: 'step-1', name: 'Build' }],
     command: 'bun run src/backfill-step-codes-cli.ts',
   });
+});
+
+/** The project states a capacity of RAM and staging, and its row demands both. */
+const RESOURCE_FACTS = {
+  resourceCapacitiesOf: () =>
+    Promise.resolve([
+      { resourceId: 'resource-stage', units: 0 },
+      { resourceId: 'resource-ram', units: 32 },
+    ]),
+  demandsOf: () =>
+    Promise.resolve([
+      { workItemId: 'row-1', resourceId: 'resource-stage', units: 1 },
+      { workItemId: 'row-1', resourceId: 'resource-ram', units: 4 },
+    ]),
+};
+
+async function exportWithResources(): Promise<PlanDocument> {
+  const exported = await service(directory(), RESOURCE_FACTS).export(PROJECT, TREE, LEGACY_ACCESS);
+  if (!exported.ok) throw new Error(`export refused: ${exported.error}`);
+  return exported.value;
+}
+
+test('exports only the resources its capacities and demands name (wbs-resources)', async () => {
+  const exported = await exportWithResources();
+  expect(exported.document.version).toBe(10);
+  expect((await validateSchema(planDocumentResponse, exported)).issues).toBeUndefined();
+  expect(exported.directory.resources).toEqual([
+    { id: 'resource-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+    { id: 'resource-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+  ]);
+  expect(exported.resourceCapacities).toEqual([
+    { resourceId: 'resource-ram', units: 32 },
+    { resourceId: 'resource-stage', units: 0 },
+  ]);
+  expect(exported.demands).toEqual([
+    { workItemId: 'row-1', resourceId: 'resource-ram', units: 4 },
+    { workItemId: 'row-1', resourceId: 'resource-stage', units: 1 },
+  ]);
+});
+
+test('v10 resources export retains canonical bytes', async () => {
+  const bytes = JSON.stringify(await exportWithResources());
+  expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
+    'f8bf291a161b40edf3bf9cd4ef05677d8b86bd775fa709bbd253799037763024',
+  );
+});
+
+test('reads a version-10 file’s resources, capacities and demands back', async () => {
+  const classified = await classifyPlanDocument(await exportWithResources());
+  if (!classified.ok) throw new Error(`refused at ${classified.path}`);
+  expect(classified.value.directory.resources.map(({ id }) => id)).toEqual([
+    'resource-ram',
+    'resource-stage',
+  ]);
+  expect(classified.value.resourceCapacities).toHaveLength(2);
+  expect(classified.value.demands).toHaveLength(2);
+});
+
+test('refuses a version-10 file with a malformed resource, capacity or demand', async () => {
+  const exported = await exportWithResources();
+  for (const [path, damage] of [
+    [
+      'directory.resources[0]',
+      (file: PlanDocument) => Reflect.set(file.directory.resources[0] ?? {}, 'kind', 'renewable'),
+    ],
+    [
+      'resourceCapacities[0]',
+      (file: PlanDocument) => Reflect.set(file.resourceCapacities[0] ?? {}, 'units', -1),
+    ],
+    [
+      'resourceCapacities[0]',
+      (file: PlanDocument) => Reflect.set(file.resourceCapacities[0] ?? {}, 'units', 1.5),
+    ],
+    ['demands[0]', (file: PlanDocument) => Reflect.set(file.demands[0] ?? {}, 'units', 0)],
+    [
+      'demands[0]',
+      (file: PlanDocument) => Reflect.set(file.demands[0] ?? {}, 'units', 1_000_000_001),
+    ],
+    ['demands', (file: PlanDocument) => Reflect.deleteProperty(file, 'demands')],
+    [
+      'resourceCapacities',
+      (file: PlanDocument) => Reflect.deleteProperty(file, 'resourceCapacities'),
+    ],
+    [
+      'directory.resources',
+      (file: PlanDocument) => Reflect.deleteProperty(file.directory, 'resources'),
+    ],
+  ] as const) {
+    const file = structuredClone(exported);
+    damage(file);
+    expect({ path, outcome: await classifyPlanDocument(file) }).toEqual({
+      path,
+      outcome: { ok: false, code: 'invalid_body', path },
+    });
+  }
+});
+
+test('refuses resources in a file older than version 10', async () => {
+  const exported = await exportWithResources();
+  for (const [path, keep] of [
+    ['directory.resources', (file: PlanDocument) => Reflect.set(file, 'demands', [])],
+    ['resourceCapacities', (file: PlanDocument) => Reflect.set(file.directory, 'resources', [])],
+    [
+      'demands',
+      (file: PlanDocument) => {
+        Reflect.set(file.directory, 'resources', []);
+        Reflect.set(file, 'resourceCapacities', []);
+      },
+    ],
+  ] as const) {
+    const file = structuredClone(exported);
+    Reflect.set(file.document, 'version', 9);
+    keep(file);
+    expect({ path, outcome: await classifyPlanDocument(file) }).toEqual({
+      path,
+      outcome: { ok: false, code: 'invalid_body', path },
+    });
+  }
+  // A version-9 file that names none of them reads as a plan with none.
+  const empty = structuredClone(exported);
+  Reflect.set(empty.document, 'version', 9);
+  for (const strip of ['resourceCapacities', 'demands'] as const)
+    Reflect.deleteProperty(empty, strip);
+  Reflect.deleteProperty(empty.directory, 'resources');
+  const classified = await classifyPlanDocument(empty);
+  if (!classified.ok) throw new Error(`refused at ${classified.path}`);
+  expect({
+    resources: classified.value.directory.resources,
+    capacities: classified.value.resourceCapacities,
+    demands: classified.value.demands,
+  }).toEqual({ resources: [], capacities: [], demands: [] });
 });

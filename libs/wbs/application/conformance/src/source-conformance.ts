@@ -22,6 +22,11 @@ export { PROGRESS_SENTINEL_STEP_ID } from './stores/progress';
 import { historyBatchRegistrations, type OpenHistoryBatchCase } from './stores/history-batch';
 import { priorityBandRegistrations } from './stores/priority-bands';
 import { projectRegistrations } from './stores/projects';
+import {
+  demandRegistrations,
+  directoryResourceRegistrations,
+  resourceCapacityRegistrations,
+} from './stores/resources';
 import { savedPlanCaptureRegistrations } from './stores/saved-plan-capture';
 import { savedPlanRegistrations } from './stores/saved-plans';
 import { stepRegistrations } from './stores/steps';
@@ -35,6 +40,7 @@ export interface ExistingStoreOpeners {
   readonly projectRanks?: OpenCase<'projectRanks'>;
   readonly users: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['users']>>;
   readonly capacity: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['capacity']>>;
+  readonly resourceCapacity: OpenCase<'resourceCapacity'>;
   readonly priorityBands: (
     caseId: CaseId,
   ) => Promise<CaseFixture<TransactionalStores['priorityBands']>>;
@@ -50,6 +56,7 @@ export interface ExistingStoreOpeners {
   readonly attempts: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['attempts']>>;
   readonly stepParallels: OpenCase<'stepParallels'>;
   readonly claims: OpenCase<'claims'>;
+  readonly demands: OpenCase<'demands'>;
   readonly blockages: (caseId: CaseId) => Promise<CaseFixture<TransactionalStores['blockages']>>;
   readonly typedDependencies: (
     caseId: CaseId,
@@ -138,6 +145,7 @@ export function existingStoreRegistrations(
         ]),
     ...userRegistrations(openers.users),
     ...capacityRegistrations(openers.capacity),
+    ...resourceCapacityRegistrations(openers.resourceCapacity),
     ...priorityBandRegistrations(openers.priorityBands),
     ...calendarMarkerRegistrations(openers.calendarMarkers),
     ...workItemRegistrations(openers.workItems),
@@ -287,9 +295,11 @@ export function existingStoreRegistrations(
         expect(await port.listByProject(seed.projectIds[0])).toEqual([]);
       },
     ),
+    ...demandRegistrations(openers.demands),
     ...dependencyRegistrations(openers.dependencies),
     ...typedDependencyRegistrations(openers.typedDependencies),
     ...directoryRegistrations(openers.directory),
+    ...directoryResourceRegistrations(openers.directory),
     ...eventLogRegistrations(openers.eventLog),
     ...planEventRegistrations(openers.planEvents),
     ...subtreeRegistrations(openers.subtrees),

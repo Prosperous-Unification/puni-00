@@ -160,6 +160,8 @@ export type * from './step-values';
 export * from './step-blockage';
 // Claims and releases of steps and subtrees (wbs-team-claims D1-D8).
 export * from './claim';
+// Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
+export * from './resource';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

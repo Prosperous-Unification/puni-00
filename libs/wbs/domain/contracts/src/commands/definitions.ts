@@ -54,6 +54,7 @@ const person = { 'personId?': 'string', 'personRef?': 'string' } as const;
 const tag = { 'tagId?': 'string', 'tagRef?': 'string' } as const;
 const service = { 'serviceId?': 'string', 'serviceRef?': 'string' } as const;
 const workItemType = { 'typeId?': 'string', 'typeRef?': 'string' } as const;
+const resource = { 'resourceId?': 'string', 'resourceRef?': 'string' } as const;
 // Proof: admitting frozenNumber failed nested structural validation and made its type fixture report TS2578.
 const workItemPatch = type({
   'name?': 'string',
@@ -324,6 +325,18 @@ export const commandDefinitions = {
     scope: 'project',
     description: 'How many of a team may be at work at once on this project; null means unstated.',
   }),
+  setResourceCapacity: defineCommand('setResourceCapacity', {
+    schema: type({ kind: "'setResourceCapacity'", ...resource, units: 'number | null' }),
+    scope: 'project',
+    description:
+      'How many units of a resource this project’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity.',
+  }),
+  setDemand: defineCommand('setDemand', {
+    schema: type({ kind: "'setDemand'", ...target, ...resource, units: 'number | null' }),
+    scope: 'project',
+    description:
+      'State the units of a resource one work item needs while any of its steps runs: a whole number from 1, exactly 1 on an exclusive resource (else exclusive_demand_is_one); null removes the demand. Not inherited down the tree. One undo.',
+  }),
   setStepAllowance: defineCommand('setStepAllowance', {
     schema: type({ kind: "'setStepAllowance'", stepId: 'string', allowancePercent: 'number' }),
     scope: 'project',
@@ -432,6 +445,33 @@ export const commandDefinitions = {
     schema: type({ kind: "'deleteWorkItemType'", ...workItemType, 'cascade?': 'boolean' }),
     scope: 'directory',
     description: 'Remove a work item type from the directory.',
+  }),
+  createResource: defineCommand('createResource', {
+    schema: type({
+      kind: "'createResource'",
+      ...named,
+      resourceKind: "'exclusive' | 'divisible'",
+      unitLabel: 'string',
+    }),
+    scope: 'directory',
+    description:
+      'Add a resource to the directory: a host’s RAM, a staging environment, agent slots. resourceKind is exclusive (identical units, demanded one at a time) or divisible (demanded k at a time) and never changes; unitLabel is shown beside every number of it. A name the directory already holds is refused taken.',
+  }),
+  patchResource: defineCommand('patchResource', {
+    schema: type({
+      kind: "'patchResource'",
+      ...resource,
+      patch: { 'name?': 'string', 'unitLabel?': 'string', 'resourceKind?': 'unknown' },
+    }),
+    scope: 'directory',
+    description:
+      'Rename a resource or change its unit label. Its kind is immutable: a patch naming resourceKind is refused kind_is_immutable.',
+  }),
+  deleteResource: defineCommand('deleteResource', {
+    schema: type({ kind: "'deleteResource'", ...resource, 'cascade?': 'boolean' }),
+    scope: 'directory',
+    description:
+      'Remove a resource from the directory. Refused in_use with the counts of demands, capacities and occupancies naming it unless cascade, which removes them in the same transaction.',
   }),
 } as const;
 

@@ -489,6 +489,10 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return scope.stores.capacity;
     },
+    get resourceCapacity() {
+      assertOpen();
+      return scope.stores.resourceCapacity;
+    },
     get priorityBands() {
       assertOpen();
       return scope.stores.priorityBands;
@@ -552,6 +556,20 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         for (const owner of owners) await assertOwner(owner);
         await scope.stores.claims.remove(claims, cleared, stamp);
         await refreshRows(owners);
+      },
+    },
+    demands: {
+      listByProject: (requestedProjectId) => {
+        assertProject(requestedProjectId);
+        return scope.stores.demands.listByProject(requestedProjectId);
+      },
+      set: async (workItemId, resourceId, units, stamp) => {
+        await assertOwner(workItemId);
+        const written = await scope.stores.demands.set(workItemId, resourceId, units, stamp);
+        // The write moved the row's revision; a later command of the batch must
+        // read it, or its own precondition is pinned to a revision that is gone.
+        if (written === 'written') await refreshRows([workItemId]);
+        return written;
       },
     },
     stepParallels: {

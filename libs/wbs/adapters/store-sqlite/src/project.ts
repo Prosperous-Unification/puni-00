@@ -615,6 +615,17 @@ export class ProjectRepository implements ProjectStore {
         WHERE d.project_id = ${p} AND (pre.project_id IS NOT ${p} OR suc.project_id IS NOT ${p})`,
       sql`SELECT 'project_team_capacity' AS kind, c.service_team_id AS id FROM project_team_capacity AS c
         WHERE c.project_id = ${p} AND ${ownerOf('service_team_organization', 'c.service_team_id')} IS NOT ${o}`,
+      // Resources (`wbs-resources`): a demand and a capacity name a resource as
+      // a team label and a team capacity name a team, and fail closed alike.
+      sql`SELECT 'project_resource_capacity' AS kind, c.resource_id AS id FROM project_resource_capacity AS c
+        WHERE c.project_id = ${p} AND ${ownerOf('resource_organization', 'c.resource_id')} IS NOT ${o}`,
+      catalogLink(
+        'work_item_resource_demand',
+        'resource_id',
+        'resource_organization',
+        'work_item_resource_demand',
+        "l.work_item_id || '/' || l.resource_id",
+      ),
       // References into the project. Proof: each of the three kinds below
       // disabled alone made `fails closed on a project another project reaches
       // into, changing neither` in `command-organization.controller.db.test.ts`

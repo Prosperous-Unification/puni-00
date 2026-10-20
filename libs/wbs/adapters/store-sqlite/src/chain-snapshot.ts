@@ -41,6 +41,7 @@ import {
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
+import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { projectOrganization } from './schema';
@@ -324,18 +325,34 @@ export function createLivePlanStore(
         if (captured.kind !== 'shared') return captured;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
-        const [teams, people, tags, services, types, externalSystems, markers, stepParallels] =
-          await Promise.all([
-            directory.listInOrganization('teams', captured.organizationId),
-            directory.listInOrganization('people', captured.organizationId),
-            directory.listInOrganization('tags', captured.organizationId),
-            directory.listInOrganization('services', captured.organizationId),
-            directory.listInOrganization('workItemTypes', captured.organizationId),
-            directory.listInOrganization('externalSystems', captured.organizationId),
-            new CalendarMarkerRepository(db, OPEN).listFor(projectId),
-            // Proof: empty/omitted capture failed mounted shared exports; post-snapshot reread failed both concurrent races (mutation-capture-{empty,missing}.txt and mutation-post-snapshot-reread.txt).
-            new StepParallelRepository(db, OPEN).listByProject(projectId),
-          ]);
+        const [
+          teams,
+          people,
+          tags,
+          services,
+          types,
+          externalSystems,
+          markers,
+          stepParallels,
+          resources,
+          capacities,
+          demands,
+        ] = await Promise.all([
+          directory.listInOrganization('teams', captured.organizationId),
+          directory.listInOrganization('people', captured.organizationId),
+          directory.listInOrganization('tags', captured.organizationId),
+          directory.listInOrganization('services', captured.organizationId),
+          directory.listInOrganization('workItemTypes', captured.organizationId),
+          directory.listInOrganization('externalSystems', captured.organizationId),
+          new CalendarMarkerRepository(db, OPEN).listFor(projectId),
+          // Proof: empty/omitted capture failed mounted shared exports; post-snapshot reread failed both concurrent races (mutation-capture-{empty,missing}.txt and mutation-post-snapshot-reread.txt).
+          new StepParallelRepository(db, OPEN).listByProject(projectId),
+          // Read in the same snapshot as the tree, so the document's demands
+          // and capacities name the rows and resources it carries.
+          directory.listInOrganization('resources', captured.organizationId),
+          new ResourceCapacityRepository(db, OPEN).listFor(projectId),
+          new DemandRepository(db, OPEN).listByProject(projectId),
+        ]);
         return {
           ...captured,
           document: {
@@ -347,6 +364,7 @@ export function createLivePlanStore(
               stepId,
               maxParallel,
             })),
+            resources: { resources, capacities, demands },
           },
         };
       }),

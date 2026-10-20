@@ -25,6 +25,7 @@ const SIDES = [
   ['tag_organization', 'tag', 't1', true],
   ['work_item_type_organization', 'work_item_type', 'w1', true],
   ['external_system_organization', 'external_system', 'e1', true],
+  ['resource_organization', 'resource', 'r1', true],
 ] as const;
 
 let dir: string;
@@ -49,6 +50,7 @@ beforeEach(() => {
     "INSERT INTO external_system (id, name) VALUES ('e1', 'Jira')",
     `INSERT INTO saved_plan (id, project_id, name, created_by, created_at, input_schema_version, input_bytes, input_sha256, schedule_absent_reason)
      VALUES ('sp1', 'p1', 'Baseline', 'u1', 1, 1, 0, 'x', 'not-scheduled')`,
+    "INSERT INTO resource (id, name, kind, unit_label) VALUES ('r1', 'RAM', 'divisible', 'GB')",
   ]) {
     db.run(statement);
   }
@@ -103,7 +105,9 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
       // map them; what is under test is only the freeze.
       db.run(`DROP TRIGGER ${side}_bridge`);
       db.run(
-        `INSERT INTO ${root} (id, name) VALUES ('second', 'second-root'), ('third', 'third-root')`,
+        root === 'resource'
+          ? "INSERT INTO resource (id, name, kind, unit_label) VALUES ('second', 'second-root', 'divisible', 'GB'), ('third', 'third-root', 'divisible', 'GB')"
+          : `INSERT INTO ${root} (id, name) VALUES ('second', 'second-root'), ('third', 'third-root')`,
       );
       db.run(
         `INSERT INTO ${side} (resource_id, organization_id, name) VALUES ('third', 'org-a', 'third')`,
@@ -130,8 +134,12 @@ describe.each(SIDES)('%s', (side, root, id, catalog) => {
 });
 
 it('rolls back to the bridge and reapplies', () => {
+  // `add_resources` refuses to reverse while a resource exists; its own guard is tested in
+  // be-01's migration-cli test.
+  db.run("DELETE FROM resource WHERE id = 'r1'");
   db.close();
   expect(rollbackTo(path, FOLDER, ORGANIZATION_BRIDGE)).toEqual([
+    '20261020120000_add_resources',
     '20261019130100_add_external_identity_person',
     '20261019130000_add_person_account',
     '20261019120000_add_claim',

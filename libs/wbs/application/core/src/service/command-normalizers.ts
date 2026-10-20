@@ -15,8 +15,10 @@ import {
   asOptionalStepIds,
   asOptionalText,
   asOptionalTypeIds,
+  asResourceKind,
   assertRecord,
   asText,
+  asUnitLabel,
   type CommandInput,
   CommandNormalizationError,
   MOST_SERVICES_ON_ONE_ITEM,
@@ -39,6 +41,7 @@ import {
   present,
   ref,
   refuseDerivedFields,
+  resourceUnitsOf,
   stepAllowanceOf,
   target,
 } from './command-fields';
@@ -400,6 +403,50 @@ export const commandNormalizers = {
       kind: 'deleteWorkItemType' as const,
       typeId: asOptionalId(raw.typeId, 'typeId'),
       typeRef: asOptionalId(raw.typeRef, 'typeRef'),
+      cascade: asOptionalFlag(raw.cascade, 'cascade'),
+    }),
+  setResourceCapacity: (raw: CommandInput<'setResourceCapacity'>) =>
+    present({
+      kind: 'setResourceCapacity' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      units: resourceUnitsOf(raw, 0),
+    }),
+  setDemand: (raw: CommandInput<'setDemand'>) =>
+    present({
+      kind: 'setDemand' as const,
+      ...target(raw),
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      units: resourceUnitsOf(raw, 1),
+    }),
+  createResource: (raw: CommandInput<'createResource'>) => ({
+    ...normalizeNamed('createResource', raw),
+    resourceKind: asResourceKind(raw.resourceKind),
+    unitLabel: asUnitLabel(raw.unitLabel),
+  }),
+  patchResource(raw: CommandInput<'patchResource'>) {
+    const patch = raw.patch;
+    assertRecord(patch);
+    // Proof: with this refusal removed, `refuses a patch naming the kind at the
+    // command boundary` (resource-command.test.ts) normalized the patch instead
+    // of throwing; watched 2026-10-20.
+    if ('resourceKind' in patch) throw new CommandNormalizationError('kind_is_immutable');
+    return present({
+      kind: 'patchResource' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
+      patch: present({
+        name: asOptionalText(patch.name, 'name'),
+        unitLabel: patch.unitLabel === undefined ? undefined : asUnitLabel(patch.unitLabel),
+      }),
+    });
+  },
+  deleteResource: (raw: CommandInput<'deleteResource'>) =>
+    present({
+      kind: 'deleteResource' as const,
+      resourceId: asOptionalId(raw.resourceId, 'resourceId'),
+      resourceRef: asOptionalId(raw.resourceRef, 'resourceRef'),
       cascade: asOptionalFlag(raw.cascade, 'cascade'),
     }),
 } as const satisfies CommandNormalizerRecord<typeof commandDefinitions>;

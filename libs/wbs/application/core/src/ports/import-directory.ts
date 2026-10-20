@@ -1,4 +1,4 @@
-import type { PersonKind } from '@wbs/domain';
+import type { PersonKind, Resource, ResourceKind } from '@wbs/domain';
 
 import type { DirectoryOutcome } from './directory-outcome';
 import type {
@@ -43,6 +43,16 @@ export interface ImportDirectory {
     patch: TeamPatch,
     access: ResourceAccess,
   ): Promise<DirectoryOutcome<TeamWithServices>>;
+
+  /**
+   * Adds a resource within the admitted access, refusing a blank or held name
+   * (`wbs-resources`).
+   */
+  addResourceWithin(
+    actorId: string,
+    input: { name: string; kind: ResourceKind; unitLabel: string },
+    access: ResourceAccess,
+  ): Promise<DirectoryOutcome<Resource>>;
 
   /** Adds a person and memberships within the admitted access. */
   addPersonWithin(

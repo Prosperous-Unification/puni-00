@@ -84,6 +84,7 @@ import {
   revokeProvisioningToken,
   rotateProvisioningToken,
 } from './provisioning-token-shapes';
+import { readProjectResources } from './resource-shapes';
 import {
   compareSavedPlans,
   deleteSavedPlan,
@@ -210,6 +211,7 @@ export const httpShapes = [
   getStepReference,
   readStartableWork,
   readPersonWork,
+  readProjectResources,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

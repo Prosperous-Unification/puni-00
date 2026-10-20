@@ -135,6 +135,10 @@ export function effectSentence(effect: DirectoryEffect, on: EffectContext): stri
         : `No longer limited to ${String(effect.size)} at a time — the limit it inherits from ${
             on.rowNamed(effect.fromId) ?? 'a row above it'
           }. Dates may move earlier.`;
+    case 'demand_removed':
+      // Resources are removed through the command batch, not this page (wbs-resources
+      // 1.5 adds their screen); the sentence is here so a usage naming one still reads.
+      return `Its demand of ${String(effect.units)} on this resource goes.`;
     case 'assumed_assignee_changed':
       return `Assumed to be doing all of it: ${assumedName(effect.assumedNow)} now, ${assumedName(
         effect.assumedAfter,

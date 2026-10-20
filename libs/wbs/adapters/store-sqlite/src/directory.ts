@@ -14,6 +14,12 @@ import type {
   PersonPatch,
   PersonWithTeams,
   PersonWritten,
+  Resource,
+  ResourceAdded,
+  ResourcePatch,
+  ResourceRemoved,
+  ResourceUsageRows,
+  ResourceWritten,
   Service,
   ServiceTeam,
   ServiceTeamWritten,
@@ -44,7 +50,10 @@ import {
   personOrganization,
   personTeam,
   project,
+  projectResourceCapacity,
   projectTeamCapacity,
+  resource,
+  resourceOrganization,
   service,
   serviceOrganization,
   serviceTeam,
@@ -56,6 +65,7 @@ import {
   users,
   workItem,
   workItemExternalRef,
+  workItemResourceDemand,
   workItemService,
   workItemTag,
   workItemTeam,
@@ -326,6 +336,7 @@ const CATALOG_TABLES: Readonly<
   tags: { root: 'tag', side: 'tag_organization' },
   workItemTypes: { root: 'work_item_type', side: 'work_item_type_organization' },
   externalSystems: { root: 'external_system', side: 'external_system_organization' },
+  resources: { root: 'resource', side: 'resource_organization' },
 };
 
 /** The projects holding a work item this removal would touch, with no duplicates. */
@@ -393,8 +404,27 @@ export class DirectoryRepository implements DirectoryStore {
       tags: () => this.listNamedIn('tags', organizationId),
       workItemTypes: () => this.listNamedIn('workItemTypes', organizationId),
       externalSystems: () => this.listNamedIn('externalSystems', organizationId),
+      resources: () => this.listResourcesIn(organizationId),
     };
     return readers[catalog]();
+  }
+
+  /**
+   * One organization's resources under their local names, the kind and unit
+   * read off the root; ordered by the local name, as every catalog here is.
+   */
+  private async listResourcesIn(organizationId: string): Promise<Resource[]> {
+    return this.db
+      .select({
+        id: resourceOrganization.resourceId,
+        name: resourceOrganization.name,
+        kind: resource.kind,
+        unitLabel: resource.unitLabel,
+      })
+      .from(resourceOrganization)
+      .innerJoin(resource, eq(resource.id, resourceOrganization.resourceId))
+      .where(eq(resourceOrganization.organizationId, organizationId))
+      .orderBy(asc(resourceOrganization.name));
   }
 
   // One query per side table rather than one generic over them: the six side
@@ -631,6 +661,7 @@ export class DirectoryRepository implements DirectoryStore {
           services: () => this.projectsServiced(tx, resourceId),
           tags: () => this.projectsTagged(tx, resourceId),
           workItemTypes: () => this.projectsTyped(tx, resourceId),
+          resources: () => this.projectsNamingResource(tx, resourceId),
         };
         const projectIds = touched[catalog]();
         const outside = this.projectsOutsideIn(tx, projectIds, organizationId);
@@ -708,6 +739,11 @@ export class DirectoryRepository implements DirectoryStore {
       ],
       tags: [labelled('work_item_tag', 'work_item_tag', 'tag_id')],
       workItemTypes: [labelled('work_item_type', 'work_item_work_item_type', 'type_id')],
+      resources: [
+        labelled('work_item_resource_demand', 'work_item_resource_demand', 'resource_id'),
+        sql`SELECT 'project_resource_capacity:' || c.project_id AS ref FROM project_resource_capacity AS c
+          WHERE c.resource_id = ${id} AND ${foreignProject('c.project_id')} IS NOT ${o}`,
+      ],
     };
     return this.db
       .all<{ ref: string }>(sql.join(arms[catalog], sql` UNION ALL `))
@@ -736,6 +772,192 @@ export class DirectoryRepository implements DirectoryStore {
         .map((row) => row.id),
     );
     return projectIds.filter((id) => !owned.has(id));
+  }
+
+  /** Every resource in the global directory, by name. */
+  async listResources(): Promise<Resource[]> {
+    return this.db
+      .select({
+        id: resource.id,
+        name: resource.name,
+        kind: resource.kind,
+        unitLabel: resource.unitLabel,
+      })
+      .from(resource)
+      .orderBy(asc(resource.name));
+  }
+
+  /**
+   * Adds a resource, or answers `taken` when the unique name index refuses it.
+   * Not idempotent, unlike {@link DirectoryRepository.addTeam}: the row already
+   * holding the name may carry another kind and unit.
+   *
+   * Proof: with the unique-violation branch removed, the conformance case
+   * `directory.addResource:taken` failed SQLite certification on the escaped
+   * unique violation; watched 2026-10-20.
+   */
+  async addResource(toAdd: Resource, stamp: WriteStamp): Promise<ResourceAdded> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      try {
+        this.db
+          .insert(resource)
+          .values({ ...toAdd, ...auditOnCreate(stamp) })
+          .run();
+      } catch (err) {
+        if (isUniqueViolation(err, UNIQUE_INDEXES.resourceName))
+          return { ok: false, reason: 'taken' };
+        throw err;
+      }
+      return { ok: true, resource: { ...toAdd } };
+    });
+  }
+
+  /**
+   * Renames a resource or changes its unit label, answering the projects whose
+   * demands or capacities name it. No work item is bumped: a rename changes
+   * what a resource is called, not what any row states about it.
+   */
+  async patchResource(
+    resourceId: string,
+    patch: ResourcePatch,
+    stamp: WriteStamp,
+  ): Promise<ResourceWritten> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      try {
+        return this.db.transaction((tx) => {
+          const rows = tx
+            .update(resource)
+            .set({ ...patch, ...auditOnUpdate(stamp) })
+            .where(eq(resource.id, resourceId))
+            .returning({
+              id: resource.id,
+              name: resource.name,
+              kind: resource.kind,
+              unitLabel: resource.unitLabel,
+            })
+            .all();
+          const patched = rows.at(0);
+          if (patched === undefined) return { ok: false, reason: 'not_found' };
+          return {
+            ok: true,
+            resource: patched,
+            projectIds: this.projectsNamingResource(tx, resourceId),
+          };
+        });
+      } catch (err) {
+        if (isUniqueViolation(err, UNIQUE_INDEXES.resourceName))
+          return { ok: false, reason: 'taken' };
+        throw err;
+      }
+    });
+  }
+
+  /**
+   * What names one resource right now — a fast path for the confirmation.
+   * {@link DirectoryRepository.removeResource} decides.
+   */
+  async usageOfResource(resourceId: string): Promise<ResourceUsageRows> {
+    await Promise.resolve();
+    return this.resourceUsageIn(this.db, resourceId);
+  }
+
+  /**
+   * Counts, decides and deletes in one transaction — `removeTag`'s shape. The
+   * demands and capacities are not deleted here: both cascade from the
+   * resource, so the outgoing release's plain delete could not hit a constraint
+   * it cannot see. The work items that lose a demand are bumped explicitly,
+   * because a cascade moves no revision.
+   *
+   * Occupancies count 0 until the claim occupancy table exists (task 2.2).
+   *
+   * Proof: with the in-use refusal removed, the conformance case
+   * `directory.removeResource:in-use-cascade` failed SQLite certification; with
+   * `bumpWorkItems` removed, `moves the revision of every row a cascaded removal
+   * takes a demand from` (resource.db.test.ts) read revision 1; both watched 2026-10-20.
+   */
+  async removeResource(
+    resourceId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+  ): Promise<ResourceRemoved> {
+    return await this.gate.enter(async () => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const usage = this.resourceUsageIn(tx, resourceId);
+        const inUse =
+          usage.demands.length > 0 || usage.capacities.length > 0 || usage.occupancies > 0;
+        if (!cascade && inUse) return { ok: false, reason: 'in_use', usage };
+        const demanded = [...new Set(usage.demands.map((each) => each.workItemId))];
+        bumpWorkItems(tx, demanded, stamp);
+        const removed = tx
+          .delete(resource)
+          .where(eq(resource.id, resourceId))
+          .returning({ id: resource.id })
+          .all();
+        if (removed.length === 0) return { ok: false, reason: 'not_found' };
+        return {
+          ok: true,
+          removal: {
+            workItemIds: demanded,
+            projectIds: [
+              ...new Set([
+                ...usage.rows.projects.map((each) => each.id),
+                ...usage.capacities.map((each) => each.projectId),
+              ]),
+            ].sort(),
+          },
+        };
+      });
+    });
+  }
+
+  /** The demands, capacities and project rows that name one resource, read through `reader`. */
+  private resourceUsageIn(reader: Reader, resourceId: string): ResourceUsageRows {
+    const demands = reader
+      .select({
+        workItemId: workItemResourceDemand.workItemId,
+        resourceId: workItemResourceDemand.resourceId,
+        units: workItemResourceDemand.units,
+        projectId: workItem.projectId,
+      })
+      .from(workItemResourceDemand)
+      .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
+      .where(eq(workItemResourceDemand.resourceId, resourceId))
+      .orderBy(asc(workItemResourceDemand.workItemId))
+      .all();
+    const capacities = reader
+      .select({
+        projectId: projectResourceCapacity.projectId,
+        units: projectResourceCapacity.units,
+      })
+      .from(projectResourceCapacity)
+      .where(eq(projectResourceCapacity.resourceId, resourceId))
+      .orderBy(asc(projectResourceCapacity.projectId))
+      .all();
+    return {
+      rows: usageRowsIn(reader, projectsOf(demands), []),
+      demands: demands.map(({ workItemId, units }) => ({ workItemId, resourceId, units })),
+      capacities,
+      occupancies: 0,
+    };
+  }
+
+  /** Every project whose demands or capacities name the resource. */
+  private projectsNamingResource(reader: Reader, resourceId: string): string[] {
+    const demanding = reader
+      .select({ projectId: workItem.projectId })
+      .from(workItemResourceDemand)
+      .innerJoin(workItem, eq(workItem.id, workItemResourceDemand.workItemId))
+      .where(eq(workItemResourceDemand.resourceId, resourceId))
+      .all();
+    const stating = reader
+      .select({ projectId: projectResourceCapacity.projectId })
+      .from(projectResourceCapacity)
+      .where(eq(projectResourceCapacity.resourceId, resourceId))
+      .all();
+    return [...new Set(projectsOf([...demanding, ...stating]))].sort();
   }
 
   /** Every tag in the global directory, by name — {@link DirectoryStore.listTeams}' shape. */

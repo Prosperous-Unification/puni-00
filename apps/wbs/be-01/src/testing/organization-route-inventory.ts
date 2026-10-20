@@ -190,6 +190,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdResources',
+    method: 'GET',
+    path: '/api/projects/:id/resources',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdStartable',
     method: 'GET',
     path: '/api/projects/:id/startable',

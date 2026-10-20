@@ -364,3 +364,34 @@ describe('claim replay vocabulary', () => {
       expect(() => readCommand(malformed)).toThrow(/claim replay/);
   });
 });
+
+describe('demand replay vocabulary', () => {
+  const set: CompensatingCommand = {
+    do: 'set_demand',
+    workItemId: 'w1',
+    resourceId: 'ram',
+    units: 4,
+  };
+  const clear: CompensatingCommand = { ...set, units: null };
+
+  it('reads both directions back and names their row and resource', () => {
+    expect(readCommand(set)).toEqual(set);
+    expect(readCommand(clear)).toEqual(clear);
+    expect(touchedBy(set)).toEqual(['w1']);
+    expect(referencesOf(set)).toMatchObject({ workItems: ['w1'], resources: ['ram'] });
+    expect(subjectOf(set)).toEqual({ workItemId: 'w1', stepId: null });
+  });
+
+  // Proof: with the set_demand check removed from readCommand, every malformed
+  // shape below read back without throwing; watched 2026-10-20.
+  it('refuses a malformed demand replay', () => {
+    for (const malformed of [
+      { do: 'set_demand', workItemId: 'w1', resourceId: 'ram', units: 0 },
+      { do: 'set_demand', workItemId: 'w1', resourceId: 'ram', units: 1.5 },
+      { do: 'set_demand', workItemId: 'w1', resourceId: 'ram' },
+      { do: 'set_demand', workItemId: 'w1', units: 2 },
+      { do: 'set_demand', resourceId: 'ram', units: 2 },
+    ])
+      expect(() => readCommand(malformed)).toThrow(/demand replay/);
+  });
+});

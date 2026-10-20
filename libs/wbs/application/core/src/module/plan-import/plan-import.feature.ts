@@ -184,13 +184,14 @@ export class ImportService {
       collector,
       async ({ writes, services: graph }) => {
         const directory = graph.directory;
-        const [services, teams, people, tags, types, systems] = await Promise.all([
+        const [services, teams, people, tags, types, systems, resources] = await Promise.all([
           directory.listWithin('services', access),
           directory.listWithin('teams', access),
           directory.listWithin('people', access),
           directory.listWithin('tags', access),
           directory.listWithin('workItemTypes', access),
           directory.listWithin('externalSystems', access),
+          directory.listWithin('resources', access),
         ]);
         const prepared = preparation.value;
         const created = {
@@ -207,7 +208,8 @@ export class ImportService {
           importsNewName(prepared.personByFileId, people) ||
           importsNewName(prepared.tagByFileId, tags) ||
           importsNewName(prepared.typeByFileId, types) ||
-          importsNewName(prepared.externalSystemByFileId, systems);
+          importsNewName(prepared.externalSystemByFileId, systems) ||
+          importsNewName(prepared.resourceByFileId, resources);
         const servicesByFileId = await resolveNamed(
           prepared.serviceByFileId,
           existingIds(services),
@@ -279,6 +281,39 @@ export class ImportService {
           existingIds(systems),
           async (name) => await directory.addWithin('externalSystems', actorId, name, access),
         );
+        // Resources resolve by name like every catalog, and an existing one is
+        // authoritative for its unit label; one of another kind is refused,
+        // because every demand on it was checked against the file's kind.
+        // Proof: with the kind comparison removed, `refuses a resource the
+        // directory holds under another kind, writing no project`
+        // (import-service-source-contract.ts, memory source) imported the plan
+        // onto the divisible resource; watched 2026-10-20.
+        const heldResources = new Map(resources.map((each) => [each.name, each] as const));
+        const resourcesByFileId = new Map<string, string>();
+        for (const [at, resource] of [...prepared.resourceByFileId.values()].entries()) {
+          const held = heldResources.get(resource.name);
+          if (held !== undefined) {
+            if (held.kind !== resource.kind)
+              return {
+                commit: false,
+                value: {
+                  ok: false,
+                  code: 'source_refused',
+                  path: `directory.resources[${String(at)}].kind`,
+                  detail: 'kind_is_immutable',
+                },
+              };
+            resourcesByFileId.set(resource.fileId, held.id);
+            continue;
+          }
+          const created = await directory.addResourceWithin(
+            actorId,
+            { name: resource.name, kind: resource.kind, unitLabel: resource.unitLabel },
+            access,
+          );
+          if (!created.ok) throw new Error(`created resource was refused: ${created.reason}`);
+          resourcesByFileId.set(resource.fileId, created.value.id);
+        }
         const requested = prepared.settings.solutionRef;
         const solutionRef =
           requested === null
@@ -336,6 +371,13 @@ export class ImportService {
             throw new Error(`prepared capacity team mapping disappeared: ${capacity.teamFileId}`);
           await writes.setCapacity(projectId, teamId, capacity.size, stamp);
         }
+        for (const stated of prepared.resourceCapacities)
+          await writes.setResourceCapacity(
+            projectId,
+            resolvedId(resourcesByFileId, stated.resourceFileId, 'capacity resource'),
+            stated.units,
+            stamp,
+          );
         for (const marker of prepared.calendarMarkers) {
           await writes.createCalendarMarker({
             id: this.opts.clock.newId(),
@@ -456,6 +498,13 @@ export class ImportService {
           },
           stamp,
         );
+        for (const demand of prepared.demands)
+          await writes.setDemand(
+            resolvedId(rowsByFileId, demand.workItemFileId, 'demanding work item'),
+            resolvedId(resourcesByFileId, demand.resourceFileId, 'demanded resource'),
+            demand.units,
+            stamp,
+          );
         // Proof: omitting the write, either ID remap, or exact time failed the memory source-contract remap/time test (2026-10-14).
         // Proof: borrowing committed memory state or replacing SQLite rollback with COMMIT failed import rollback negatives after the first fact (2026-10-14).
         for (const fact of prepared.stepBlockages) {

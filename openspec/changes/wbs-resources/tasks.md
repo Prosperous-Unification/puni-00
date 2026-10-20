@@ -6,17 +6,20 @@
 
 ## 1. Declaration surface (Claire's item 1; no engine effect)
 
-- [ ] 1.1 Migration `add_resources`: `resource`, `project_resource_capacity`,
+- [x] 1.1 Migration `add_resources`: `resource`, `project_resource_capacity`,
       `work_item_resource_demand` with checks (`kind`, `units >= 1`), indexes, guarded
       `down.sql` refusing while rows exist — test: forward, back, refusal; negative watched.
-- [ ] 1.2 Directory: `createResource`, `patchResource`, `deleteResource` with `in_use`
+- [x] 1.2 Directory: `createResource`, `patchResource`, `deleteResource` with `in_use`
       counts and cascade; directory usage lists resources — test: the directory command tests
       mirrored from teams; negative: drop the usage check and a demanded resource deletes.
-- [ ] 1.3 `setResourceCapacity` mirroring `setCapacity` (unstated, remembered); `setDemand`
+- [x] 1.3 `setResourceCapacity` mirroring `setCapacity` (unstated, remembered); `setDemand`
       with `exclusive_demand_is_one`; revision bump, journal, undo — test: command tests on
       both stores through the conformance suite; property: units ≥ 1 always.
-- [ ] 1.4 Export and plan document carry resources, capacities, demands (additive, version
-      bump); import round trip — test: golden plus a resources fixture.
+- [x] 1.4 Export and plan document carry resources, capacities, demands (additive, version
+      bump); import round trip — test: golden plus a resources fixture. Done as plan
+      document v10 on `feat/wbs-resources-declaration`; `verify.md` "Slice 1" has the
+      commands, counts and proofs, and what this slice leaves open (undo of a delete and a
+      duplicate do not carry demands yet; fe-01 is 1.5).
 - [ ] 1.5 fe-01: Resources cell on the row, Resources section in project settings — test:
       rendering tests; eye review per the UI acceptance rule.
 

@@ -11,6 +11,8 @@ import {
   personOrganization,
   project,
   projectOrganization,
+  resource,
+  resourceOrganization,
   savedPlan,
   savedPlanOrganization,
   service,
@@ -33,6 +35,7 @@ export const OWNED_ROOT_KINDS = [
   'work_item_type',
   'external_system',
   'saved_plan',
+  'resource',
 ] as const;
 
 export type OwnedRootKind = (typeof OWNED_ROOT_KINDS)[number];
@@ -45,6 +48,7 @@ export const CATALOG_ROOT_KINDS = [
   'tag',
   'work_item_type',
   'external_system',
+  'resource',
 ] as const satisfies readonly OwnedRootKind[];
 
 type CatalogRootKind = (typeof CATALOG_ROOT_KINDS)[number];
@@ -74,6 +78,8 @@ export const OWNERSHIP_CONFLICT_KINDS = [
   'person_team',
   'team_service',
   'project_team_capacity',
+  'project_resource_capacity',
+  'work_item_resource_demand',
   'plan_event_subject',
   'event_stream',
 ] as const;
@@ -122,7 +128,8 @@ function buildWorkItemStepConflictSql(table: string, id: string): string {
  *
  * Proof: each of the twenty-one queries replaced alone by one selecting nothing failed its own
  * `reports a <kind> conflict` case in `organization-reconciliation.db.test.ts`. Observed
- * 2026-09-27.
+ * 2026-09-27; the same for `project_resource_capacity` and `work_item_resource_demand`,
+ * observed 2026-10-20.
  */
 const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
   saved_plan_project: `SELECT sp.id AS id FROM saved_plan AS sp
@@ -193,6 +200,14 @@ const CONFLICT_QUERIES: Record<OwnershipConflictKind, string> = {
     WHERE ${buildCatalogOwnerSql('service_team', 'ts.team_id')} != ${buildCatalogOwnerSql('service', 'ts.service_id')}`,
   project_team_capacity: `SELECT c.project_id || '/' || c.service_team_id AS id FROM project_team_capacity AS c
     WHERE ${buildProjectOwnerSql('c.project_id')} != ${buildCatalogOwnerSql('service_team', 'c.service_team_id')}`,
+  project_resource_capacity: `SELECT c.project_id || '/' || c.resource_id AS id FROM project_resource_capacity AS c
+    WHERE ${buildProjectOwnerSql('c.project_id')} != ${buildCatalogOwnerSql('resource', 'c.resource_id')}`,
+  work_item_resource_demand: buildWorkItemCatalogConflictSql(
+    'work_item_resource_demand',
+    'resource_id',
+    'resource',
+    "l.work_item_id || '/' || l.resource_id",
+  ),
   plan_event_subject: `SELECT e.id AS id FROM plan_event AS e
     WHERE EXISTS (SELECT 1 FROM work_item AS w WHERE w.id = e.work_item_id AND w.project_id != e.project_id)
       OR EXISTS (SELECT 1 FROM step AS st WHERE st.id = e.step_id AND st.project_id != e.project_id)`,
@@ -250,6 +265,7 @@ const OWNERSHIP_PAIRS: Record<OwnedRootKind, OwnershipPair> = {
     savedPlanOrganization,
     savedPlanOrganization.resourceId,
   ),
+  resource: pair(resource, resource.id, resourceOrganization, resourceOrganization.resourceId),
 };
 
 function pair(

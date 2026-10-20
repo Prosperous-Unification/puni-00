@@ -198,7 +198,7 @@ describe('twin plan-reference', () => {
     });
     expectRefusal(
       await planReference({ '--export': path }),
-      /has version 6; twin reads versions 7 and 8 and 9 only/,
+      /has version 6; twin reads versions 7 and 8 and 9 and 10 only/,
     );
   });
 
@@ -229,6 +229,42 @@ describe('twin plan-reference', () => {
         ],
       });
       expect(readFileSync(path)).toEqual(bytes);
+    },
+  );
+
+  // The v9 fixture with version 10's resources, capacities and demands added
+  // (`wbs-resources`); every v9 field is byte for byte the v9 fixture's.
+  test('reads v10 resources strictly, deriving the same tasks as v9 and hashing raw bytes', async () => {
+    const v9Path = join(scratch.path, 'v9.json');
+    writeFileSync(
+      v9Path,
+      readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v9.json'), 'utf8'),
+    );
+    expect((await planReference({ '--export': v9Path })).exitCode).toBe(0);
+    const v9Tasks = readJson(join(output, 'tasks.json'));
+    const path = join(scratch.path, 'v10.json');
+    const bytes = readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v10.json'));
+    writeFileSync(path, bytes);
+    const run = await planReference({ '--export': path, '--output': scratch.path });
+    expect(run.exitCode, run.stderr).toBe(0);
+    const record = PlanReferenceRecord.assert(readJson(join(scratch.path, 'plan-reference.json')));
+    expect(record.planDocumentVersion).toBe(10);
+    expect(record.exportDigest).toBe(createHash('sha256').update(bytes).digest('hex'));
+    expect(readJson(join(scratch.path, 'tasks.json'))).toEqual(v9Tasks);
+  });
+
+  test.each(['unknown nested key', 'missing demands', 'v9 carrying resources'])(
+    'refuses v10 %s before writing',
+    async (fault) => {
+      const document = JSON.parse(
+        readFileSync(join(import.meta.dir, 'fixtures', 'plan-export.v10.json'), 'utf8'),
+      ) as PlanDocument;
+      if (fault === 'unknown nested key') Reflect.set(document.demands[0] ?? {}, 'extra', true);
+      if (fault === 'missing demands') Reflect.deleteProperty(document, 'demands');
+      if (fault === 'v9 carrying resources') Reflect.set(document.document, 'version', 9);
+      const path = join(scratch.path, 'v10.json');
+      writeFileSync(path, JSON.stringify(document));
+      expectRefusal(await planReference({ '--export': path }), /plan export is malformed/);
     },
   );
 
@@ -274,13 +310,13 @@ describe('twin plan-reference', () => {
     if (fault === 'fractional time') fact.blockedAt = 1.5;
     if (fault === 'missing facts') Reflect.deleteProperty(document, 'stepBlockages');
     if (fault === 'unknown nested key') Reflect.set(fact, 'extra', true);
-    if (fault === 'future version') Reflect.set(document.document, 'version', 10);
+    if (fault === 'future version') Reflect.set(document.document, 'version', 11);
     const path = join(scratch.path, 'v9.json');
     writeFileSync(path, JSON.stringify(document));
     expectRefusal(
       await planReference({ '--export': path }),
       fault === 'future version'
-        ? /has version 10; twin reads versions 7 and 8 and 9 only/
+        ? /has version 11; twin reads versions 7 and 8 and 9 and 10 only/
         : /plan export is malformed/,
     );
   });
