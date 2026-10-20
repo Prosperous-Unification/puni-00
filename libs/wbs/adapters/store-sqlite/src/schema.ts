@@ -11,6 +11,7 @@ import {
   ORGANIZATION_ROLES,
   PERSON_KINDS,
   READINESSES,
+  RESOURCE_KINDS,
   SOLVER_FAILURE_REASONS,
   SOLVER_OBJECTIVES,
 } from '@wbs/domain';
@@ -1837,6 +1838,92 @@ export const projectTeamCapacity = sqliteTable(
 export type ProjectTeamCapacityRow = typeof projectTeamCapacity.$inferSelect;
 
 /**
+ * A claimable thing work can state a demand on (`wbs-resources` R1): a host's
+ * RAM, a staging environment, agent slots. Global and unique by name like
+ * {@link serviceTeam}; `kind` never changes after creation, because every
+ * demand on an `exclusive` resource was checked to be exactly 1 against it.
+ * Added by `20261020120000_add_resources`, whose comments say why each shape
+ * exists.
+ */
+export const resource = sqliteTable(
+  'resource',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    kind: text('kind', { enum: RESOURCE_KINDS }).notNull(),
+    unitLabel: text('unit_label').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex('resource_name').on(t.name),
+    check('resource_kind', sql`${t.kind} IN ('exclusive', 'divisible')`),
+  ],
+);
+
+export type ResourceRow = typeof resource.$inferSelect;
+
+/**
+ * How many units of one resource one project's plan may use:
+ * {@link projectTeamCapacity}'s shape and its three states. A row is stated, its
+ * absence is unstated, and a row whose resource no leaf demands any more is
+ * remembered. 0 is a legal statement (the plan may use none) where a team's
+ * floor is 1, because a demand divides no duration.
+ */
+export const projectResourceCapacity = sqliteTable(
+  'project_resource_capacity',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    units: integer('units').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.resourceId] }),
+    index('project_resource_capacity_by_resource').on(t.resourceId),
+    check(
+      'project_resource_capacity_units',
+      sql`typeof(${t.units}) = 'integer' AND ${t.units} >= 0`,
+    ),
+  ],
+);
+
+export type ProjectResourceCapacityRow = typeof projectResourceCapacity.$inferSelect;
+
+/**
+ * The units of one resource one work item needs while any of its steps runs: a
+ * satellite of the work item like {@link workItemTeam}, so writing one moves the
+ * item's revision. Both ends cascade; indexed by resource for the directory
+ * usage. Never inherited: a parent's row charges nothing.
+ */
+export const workItemResourceDemand = sqliteTable(
+  'work_item_resource_demand',
+  {
+    workItemId: text('work_item_id')
+      .notNull()
+      .references(() => workItem.id, { onDelete: 'cascade' }),
+    resourceId: text('resource_id')
+      .notNull()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    units: integer('units').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.workItemId, t.resourceId] }),
+    index('work_item_resource_demand_by_resource').on(t.resourceId),
+    check(
+      'work_item_resource_demand_units',
+      sql`typeof(${t.units}) = 'integer' AND ${t.units} >= 1`,
+    ),
+  ],
+);
+
+export type WorkItemResourceDemandRow = typeof workItemResourceDemand.$inferSelect;
+
+/**
  * What one project calls its priority numbers — five rungs, keyed on the rung.
  *
  * A band is a **start value**; the band above it is what ends it, and the top
@@ -3055,6 +3142,20 @@ export const serviceTeamOrganization = sqliteTable(
     name: text('name').notNull(),
   },
   (t) => [uniqueIndex('service_team_organization_name').on(t.organizationId, t.name)],
+);
+
+export const resourceOrganization = sqliteTable(
+  'resource_organization',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    name: text('name').notNull(),
+  },
+  (t) => [uniqueIndex('resource_organization_name').on(t.organizationId, t.name)],
 );
 
 export const serviceOrganization = sqliteTable(

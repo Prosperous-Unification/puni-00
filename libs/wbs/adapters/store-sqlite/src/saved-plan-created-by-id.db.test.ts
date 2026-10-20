@@ -179,6 +179,7 @@ describe('saved_plan.created_by_id', () => {
     expect(nullable()).toBe(0);
 
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261020120000_add_resources',
       '20261019120000_add_claim',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',
@@ -301,6 +302,7 @@ describe('saved_plan.created_by_id', () => {
    */
   it('leaves a row written before the column reading null', () => {
     expect(rollbackTo(path, FOLDER, SAVED_PLAN)).toEqual([
+      '20261020120000_add_resources',
       '20261019120000_add_claim',
       '20261015110000_add_step_node_parallelism',
       '20261015100000_add_step_blockage_activation_receipt',

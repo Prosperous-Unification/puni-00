@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261020120000_add_resources',
         '20261019120000_add_claim',
         '20261015110000_add_step_node_parallelism',
         '20261015100000_add_step_blockage_activation_receipt',
@@ -408,6 +409,10 @@ describe('the optimizer migration', () => {
             name !== 'step_blockage_activation_receipt' &&
             name !== 'step_parallel' &&
             name !== 'claim' &&
+            name !== 'resource' &&
+            name !== 'resource_organization' &&
+            name !== 'project_resource_capacity' &&
+            name !== 'work_item_resource_demand' &&
             name !== 'shared_people_restore_operation' &&
             name !== 'shared_people_restore_receipt' &&
             name !== 'shared_people_restore_consumption' &&
