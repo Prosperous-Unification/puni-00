@@ -82,6 +82,11 @@ to “no holder.” The final status and process-start check reduce the chance o
 attributing a gate that exited while being inspected. They are two snapshots,
 not an atomic view of a moving host.
 
+For a gate, the process arguments name the requested SHA. Its checkout can
+still show a previous HEAD while the gate starts. The gate log's
+`h2puni gate: running on <sha>` line confirms which SHA it actually checked out
+under the lock; do not call the requested SHA tested before that marker appears.
+
 For fleet attribution, `task-*` is Claire's branch namespace. `integration/*`,
 `batch-10/*`, `ui-review/*`, `feat/*`, `refactor/*`, `docs/*`, `wip/*` and `plan/*`
 belong to the other fleet under the current coordination contract. A detached
