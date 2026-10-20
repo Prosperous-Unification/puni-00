@@ -122,6 +122,7 @@
       "@shared/portability-format": ["./libs/shared/domain/portability-format/index.ts"],
       "@shared/validation": ["./libs/shared/domain/validation/src/index.ts"],
       "@ui/core-01": ["./libs/shared/adapters/ui-core-01/src/index.ts"],
+      "@ui/core-01/testing": ["./libs/shared/adapters/ui-core-01/src/testing.ts"],
       "@wbs/validation": ["./libs/wbs/domain/validation/src/index.ts"],
       "@wbs/validation/fixtures": ["./libs/wbs/domain/validation/src/fixtures/index.ts"],
       "@website/contracts": ["./libs/website/domain/contracts/src/index.ts"],
