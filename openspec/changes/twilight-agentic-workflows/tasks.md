@@ -1,12 +1,12 @@
 ## 0. Spikes that decide the shape (time-boxed, outcomes in verify.md)
 
-- [ ] 0.1 `HarnessAgent` with `@ai-sdk/harness-claude-code` under Bun on the laptop, sandbox
+- [ ] 0.1 (verify.md, 2026-10-21: session created on `ai-sdk-sandbox-local`; live prompt not run, needs a spend go) `HarnessAgent` with `@ai-sdk/harness-claude-code` under Bun on the laptop, sandbox
       from `ai-sdk-sandbox-local` and from a 40-line own `HarnessV1SandboxProvider` over a
       git worktree; one prompt that creates a file — record which provider ran, exit, and the
       stream parts seen. Fallback named in design A7.
-- [ ] 0.2 `@ai-sdk/code-mode` under Bun with two fake tools routed through
+- [x] 0.2 (verify.md, 2026-10-21: runs under Bun and Node, host tools called from QuickJS) `@ai-sdk/code-mode` under Bun with two fake tools routed through
       `experimental_toolCallers` — record whether QuickJS loads and the exact `ai` pin it forces.
-- [ ] 0.3 Pin set: `ai`, `@ai-sdk/harness`, `harness-claude-code`, `harness-codex`,
+- [x] 0.3 (verify.md, 2026-10-21: installs clean, typechecks; the devsync pin test is slice 2 work) Pin set: `ai`, `@ai-sdk/harness`, `harness-claude-code`, `harness-codex`,
       `@ai-sdk/anthropic`, `@ai-sdk/openai`, `@openrouter/ai-sdk-provider`,
       `@agentclientprotocol/sdk` 2.x — one install, `bun run typecheck` green, versions in
       verify.md. Test: `tools/tool-devsync` pin test extended for the new exact pins.
