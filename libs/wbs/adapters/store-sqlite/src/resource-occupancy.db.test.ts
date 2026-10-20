@@ -659,10 +659,13 @@ for (const store of STORES) {
           { kind: 'setDemand', workItemId: leaf(1), resourceId: RAM, units: 2 },
         ]);
         const demands = async () =>
-          (await graph.workItems.demandsOf(projectId)).map(({ workItemId, units }) => ({
-            owner: workItemId === leaf(0) ? 'P' : workItemId === leaf(1) ? 'X' : workItemId,
-            units,
-          }));
+          (await graph.workItems.demandsOf(projectId))
+            .map(({ workItemId, units }) => ({
+              owner: workItemId === leaf(0) ? 'P' : workItemId === leaf(1) ? 'X' : workItemId,
+              units,
+            }))
+            // Ordered by work item id, which is random: sorted by role instead.
+            .sort((left, right) => left.owner.localeCompare(right.owner));
         expect(
           await run([
             { kind: 'moveWorkItem', workItemId: leaf(1), parentId: leaf(0), afterId: null },
