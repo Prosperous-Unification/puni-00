@@ -202,3 +202,19 @@ it('keeps zero-duration stepless boundaries and refuses a step in their place', 
   };
   expect(() => scheduleResolved({ ...input, graph })).toThrow('resolved graph');
 });
+
+it('empty connected component accepts required empty maps', () => {
+  const input = {
+    ...resolveScheduleInput(inputOf([], [])),
+    order: {
+      kind: 'connected' as const,
+      projectIdByWorkItem: new Map<string, string>(),
+      rankByProject: new Map<string, number>(),
+    },
+  };
+  const plan = scheduleResolved(input);
+  expect(plan.slices.size).toBe(0);
+  expect(plan.workItems.size).toBe(0);
+  expect(plan.waitingForPerson).toBe(0);
+  expect(plan.waitingForCapacity).toBe(0);
+});
