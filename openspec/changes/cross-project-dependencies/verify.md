@@ -1,0 +1,156 @@
+# Verification record
+
+**Change:** `cross-project-dependencies`  
+**Status:** Planning/preflight record, implementation not applied.  
+**Prepared:** 2026-10-22. This is not a completed `openspec-verify-change` report.
+The schema normally produces final verify after apply; this initial record
+preserves reported design evidence and clearly separates all unrun obligations.
+
+## Design evidence and limits
+
+The parent session reported these fresh checks on `85e0d8ab9`. They are
+historical reported observations, not commands rerun by this plan author and
+not evidence for implementation or later edited artifacts:
+
+| Command                                                                                                                                                                                                                                        | Reported observation                                 | Scope                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------- |
+| `bun node_modules/@fission-ai/openspec/bin/openspec.js validate cross-project-dependencies --strict --json`                                                                                                                                    | Exit 0; valid true, issues [], 1 passed, 0 failed    | Change structure at that revision only |
+| `bun node_modules/prettier/bin/prettier.cjs --check openspec/changes/cross-project-dependencies/proposal.md openspec/changes/cross-project-dependencies/design.md openspec/changes/cross-project-dependencies/specs/project-addresses/spec.md` | Exit 0; `All matched files use Prettier code style!` | Those three documents only             |
+
+The parent also reported formatting success for the earlier design documents
+and `CONTEXT.md` at its earlier b021 revision, with no exact command/output
+captured here. That report does not establish current formatting. Architect
+corrections were subsequently committed at `278b7fe6d`; the parent reported
+strict change validation passing and independent architecture re-review finding
+no remaining actionable issue. Those are reported design reviews, not runtime
+or production safety proofs. Final current-artifact validation belongs below
+when actually run.
+
+The plan author ran the locked CLI's `instructions tasks --change
+cross-project-dependencies --json` and `instructions verify --change
+cross-project-dependencies --json` (both returned artifact instructions). Read-only
+source investigation confirmed actual typed store, graph guard, canonical/hold,
+ChainSnapshot/LivePlan, solver and configured Nx seams. No implementation tests,
+builds or heavy gates were required or run for plan preparation.
+
+## Current planning validation — 2026-10-22
+
+Root copied the plan author's two artifacts into the feature worktree after
+independent Astra High re-review accepted the corrections in `278b7fe6d`.
+Fresh commands on the complete planning packet:
+
+- `bun node_modules/@fission-ai/openspec/bin/openspec.js validate cross-project-dependencies --strict --json`:
+  exit 0, `valid: true`, `issues: []`, one passed and zero failed.
+- `bun node_modules/prettier/bin/prettier.cjs --check openspec/changes/cross-project-dependencies`:
+  exit 0, `All matched files use Prettier code style!`.
+- `git diff --check`: exit 0 with no output.
+
+The normal commit hooks ran for the review correction commit. Tool Wiki reported
+`inactive`, `certified: false`, because the external activation root is not
+provisioned; its successful process exit is not certification. No application
+implementation tests, migration proofs, builds, host gate or CI were run for
+this planning packet. Those remain required for delivery.
+
+## Task completion and traceability
+
+- [ ] All implementation checkboxes in [tasks.md](tasks.md) complete.
+- [ ] Current artifact strict and full OpenSpec validation recorded.
+- [ ] Every delta scenario mapped to an observed behavior test.
+- [ ] Every changed safety check has a watched production-path negative below.
+- [ ] Implementation review and required CI/host gates complete.
+
+All task slices remain open and block implementation completion/archive.
+
+Execution tracking: [WBS cross-project dependencies](https://dev.wbs.bulletpoints.club/?project=7a42c70a-9c86-4e2d-9246-b4d677224e91),
+project `7a42c70a-9c86-4e2d-9246-b4d677224e91`, root `010`
+(`ebdcb576-8f98-4cfb-8d57-b2347d202238`). The task headings map grammar to
+`010.02`, storage `010.03`, lookup/contracts `010.04`, graph/lifecycle `010.05`,
+schedule/readiness `010.06`, optimizer `010.07`, live/snapshot/transfers `010.08`,
+UI `010.09`, activation `010.10`, delivery `010.11`; `010.01` tracks review/plan.
+These are tracking receipts, not evidence that package implementation is done.
+
+## Delta spec sync
+
+| Capability                 | Status             | Note                                        |
+| -------------------------- | ------------------ | ------------------------------------------- |
+| project-addresses          | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| cross-project-dependencies | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| wbs-domain                 | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| plan-import                | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| saved-plans                | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| live-plan-snapshot         | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| scheduler-optimization     | N/A: unimplemented | Delta retained; no main-spec sync performed |
+| plan-command-registry      | N/A: unimplemented | Delta retained; no main-spec sync performed |
+
+## Failure-proof register
+
+Every row below is a **planned injection**, not an observed proof. Expand rows
+per individual implemented guard/hash field/call site, cite exact file:line and
+test name, and replace `NOT RUN` only after actual observation. The task file
+supplies concrete test names and production paths. No `Proof:` comment may
+claim these observations in advance.
+
+| Check / task                                    | Planned fault injection                                                                                                      | Production-path test that must observe failure                                                                                            | Observed result |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Grammar 1.1 / 2.2                               | Remove length, leading-letter, character or first-dot check individually                                                     | `project-address.test.ts` named grammar cases, then `project-address.controller.db.test.ts` malformed admission                           | NOT RUN         |
+| Backfill/allocation 2.1                         | Omit backfill or allocator; disable namespace trigger/unique index; exhaust counter                                          | `project-abbreviation-migration.db.test.ts` old-writer/concurrent/backfill/namespace/exhaustion cases                                     | NOT RUN         |
+| Required project state 2.2                      | Delete or corrupt abbreviation row; bypass trusted-row guard                                                                 | `project-address.controller.db.test.ts`: absent/malformed rows refuse                                                                     | NOT RUN         |
+| Organization and bounded lookup 3.1             | Remove project/organization predicate or response bound                                                                      | `project-address-search.controller.db.test.ts` scoped/bounded/foreign cases                                                               | NOT RUN         |
+| HTTP/MCP boundary 3.2                           | Remove shared endpoint/version shape validation                                                                              | Mounted HTTP/MCP malformed scope/type/ID cases                                                                                            | NOT RUN         |
+| Relationship integrity 4.1                      | Remove each endpoint/project/step/organization/duplicate check                                                               | Unified repository and migration DB cases                                                                                                 | NOT RUN         |
+| Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN         |
+| Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | NOT RUN         |
+| Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN         |
+| Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | NOT RUN         |
+| Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | NOT RUN         |
+| Post-commit scoped fanout 5.2                   | Drop dependency traversal, emit before commit, bypass organization filter                                                    | `cross-project-events.controller.db.test.ts` no-shared-person, rollback and label privacy cases                                           | NOT RUN         |
+| Placement constraints 6.1                       | Remove each eligibility/type inequality, capacity namespace or held reduction                                                | `schedule-connected.test.ts` and existing priority/resource/hold regressions                                                              | NOT RUN         |
+| Calendars 6.2                                   | Substitute target anchor, round fractional bounds, omit floor, use day zero for missing date                                 | `schedule-connected-calendar.test.ts` and mounted missing-calendar projection                                                             | NOT RUN         |
+| Readiness 6.3                                   | Replace remote progress with empty/local progress or skip required evidence                                                  | `cross-project-startable.controller.db.test.ts` actual tree/startable cases                                                               | NOT RUN         |
+| Wire/model 7.1–7.2                              | Omit each bound/version/model inequality or Python schema member                                                             | Production request fixtures, actual solver/validate tests, omitted-expanded-pair case                                                     | NOT RUN         |
+| Boundary-infeasible preparation/outcome 7.2–7.3 | Require fake quantized feasible baseline; reject empty integer window; map stage outcome to malformed/global infeasible      | Real 0.2→one-day→1.2 quantum48 preparation/solve/exit/read cases, with and without local deadlines                                        | NOT RUN         |
+| Composite and proof scope 7.3                   | Bypass stage bound, foreign pinning, full-component validation or certificate scope                                          | `connected-optimization.test.ts` mixed/interleaved stages and proof/comparison cases                                                      | NOT RUN         |
+| Question identity 7.4                           | Remove every new hash member one at a time                                                                                   | Hash/cache tests for stable endpoints, type, anchors, capacity/mode, rank, boundaries, versions; report each separately                   | NOT RUN         |
+| Publication 7.4                                 | Bypass exact identity/generation/foreign-start/materialized FS SS FF check separately                                        | `connected-publication.test.ts` stale and forged solver responses                                                                         | NOT RUN         |
+| Terminal cache/restart/Retry 7.4                | Reuse failure/global-infeasible persistence; retain slot; bypass same-question retry suppression                             | DB/read/restart/manual Retry cases assert boundary-infeasible retained, slot released, no attempt; changed identity admits fresh question | NOT RUN         |
+| Capture non-admission 5.1 / 7.4 / 8.4           | Substitute admitting optimizer reader                                                                                        | Mounted captured/live reads assert no generation, queue entry, slot or event                                                              | NOT RUN         |
+| Transfer 8.1                                    | Drop external evidence/version guard; rebind by reused text; bypass current mapping/access/graph; fail after staged creation | Mounted export/import/rollback cases                                                                                                      | NOT RUN         |
+| Copy 8.2                                        | Clone outgoing incident links, reuse IDs, bypass current access/graph                                                        | `typed-dependency-copy.controller.db.test.ts` no foreign-owner mutation and identity cases                                                | NOT RUN         |
+| Immutable history 8.3                           | Reread live foreign facts; omit required captured evidence; escape save transaction                                          | Actual save/read/compare tests with renamed/deleted/unreadable live endpoints                                                             | NOT RUN         |
+| Reader parity and closure 8.4–8.5               | Route surface through old rank-only path; derive after closure; truncate closure at search page size                         | Mounted tree/batch/load/spaces/arrangement/restart and capture-count cases                                                                | NOT RUN         |
+| UI 9.1–9.2                                      | Remove alpha/stale-token/cancel guards; substitute local step UUID; collapse refusal to empty; permit terminal Retry         | Mounted reference field/editor/settings/cards and outcome cases                                                                           | NOT RUN         |
+| Semantic activation 10.1                        | Skip participant capability, activation, startup or active-edge downgrade check                                              | Actual startup and `cross-project-activation.controller.db.test.ts` dormant/overlap/active cases                                          | NOT RUN         |
+| Deploy/restore 10.2                             | Suppress candidate capability; omit applied capture/hash member; edit applied migration; fail restore                        | Compose/Kubernetes production deploy adapter tests; inspect full ledger and pinned recovery command                                       | NOT RUN         |
+
+- [ ] All individual new/changed checks recorded with observed red then restored green.
+- [ ] All negatives reach production paths; none merely reproduces the check.
+- [ ] Filesystem absence and unreadability separately tested when distinguished.
+- [ ] No claim exceeds the contract of the observed command or exit status.
+
+## Gate output and implementation signal
+
+The following checks are **NOT RUN** for this planning-only task; no output is
+fabricated and no implementation completion is implied:
+
+| Required implementation/release check                                 | State                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------- |
+| Focused Bun behavior/DB tests and API/conformance targets             | NOT RUN                                           |
+| Frontend configured Vitest and browser scenarios                      | NOT RUN                                           |
+| `bunx nx run wbs-solver-py:test`                                      | NOT RUN                                           |
+| Current `./node_modules/.bin/openspec validate --all --json`          | NOT RUN                                           |
+| `bunx nx format:check --all`                                          | NOT RUN                                           |
+| Full test/lint/typecheck/build gate                                   | NOT RUN                                           |
+| CI secrets and migration lint                                         | NOT RUN                                           |
+| Isolated h2puni `bin/h2puni-gate.sh <candidate-sha>`                  | NOT RUN                                           |
+| Runtime semantic activation, migration/rollback rehearsal, deployment | NOT RUN                                           |
+| Implementation clean-worktree and pushed commit-range proof           | NOT RUN; no implementation commits in this packet |
+
+On h2puni use the isolated-worktree host gate, not raw full Nx commands; capture
+the printed `h2puni gate: running on <sha>`, full output and exit status. On
+other authorized gate environments record actual configured CI-equivalent
+commands/output. Re-run final verification after implementation; reported
+earlier design checks do not cover a later candidate.
+
+**Decision:** Planning is ready for implementation; verification is incomplete
+and blocks completion/archive/release. No production behavior is implemented or
+verified by this document.
