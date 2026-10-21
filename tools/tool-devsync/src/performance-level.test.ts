@@ -28,6 +28,28 @@ const configPath = 'apps/wbs/fe-01/playwright.performance.config.ts';
 const reportPath = 'tmp/junit/wbs-fe-01.performance.xml';
 const bindingPath = 'tmp/junit/wbs-fe-01.performance.manifest.json';
 const evidencePath = 'tmp/junit/wbs-fe-01.performance.evidence.json';
+
+/**
+ * The shift these tests hand the Performance level. A fixed 6000 met node_exporter on a k3s
+ * telemetry host (h4claw, 2026-10-21: be-01's shifted port 9100 was `*:9100`), and the
+ * production preflight rightly refused `Performance shifted port 9100 is occupied`, which every
+ * case expecting another refusal then saw. Probed the way `assertShiftedPortsFree` binds, in
+ * steps of 100 so no tier of one shift lands on a tier of another.
+ */
+const TEST_SHIFT = await probeFreeShift(6000);
+
+/** be-01, gw-01 and fe-01 under the probed shift, the ports the production preflight checks. */
+function shiftedPorts(): number[] {
+  return [3100, 3200, 4200].map((base) => base + TEST_SHIFT);
+}
+
+async function probeFreeShift(first: number): Promise<number> {
+  for (let shift = first; shift < first + 2000; shift += 100) {
+    const free = await Promise.all([3100, 3200, 4200].map((base) => isPortFree(base + shift)));
+    if (free.every(Boolean)) return shift;
+  }
+  throw new Error(`No free Performance shift between ${String(first)} and ${String(first + 2000)}`);
+}
 const currentPath = 'tmp/junit/wbs-fe-01.performance.current.json';
 
 async function currentBundle(root: string): Promise<string> {
@@ -54,7 +76,7 @@ const declaration = {
 
 function healthyScratchDescriptors() {
   return (['be-01', 'gw-01', 'fe-01'] as const).map((app, index) => {
-    const port = [9100, 9200, 10200][index];
+    const port = [3100, 3200, 4200][index] + TEST_SHIFT;
     return {
       command:
         'bun --eval "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response(\'ready\')}})"',
@@ -122,7 +144,7 @@ async function runPerformanceLevel(
     ),
   );
   if (root.includes('/performance-execution-') && !Object.hasOwn(environment, 'E2E_PORT_SHIFT'))
-    environment['E2E_PORT_SHIFT'] = '6000';
+    environment['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
   if (fault !== undefined) environment['PUNI_PROCESS_FAULT'] = fault;
   const preloadArguments =
     fault === undefined
@@ -319,7 +341,7 @@ async function committedPerformanceFixture(
     'descriptor-cwd': "services[0].cwd = '/tmp/foreign';",
     'descriptor-url': "services[0].url = 'http://localhost:9999/health';",
     'descriptor-env': "services[0].env['GW_URL'] = 'http://localhost:9999';",
-    'descriptor-env-type': "services[0].env['PORT'] = 9100;",
+    'descriptor-env-type': `services[0].env['PORT'] = ${String(3100 + TEST_SHIFT)};`,
     'descriptor-proto-env':
       "Object.defineProperty(services[0].env, '__proto__', {value:'foreign', enumerable:true});",
   } as const;
@@ -854,7 +876,7 @@ describe('Performance level target production boundary', () => {
     const root = await candidateRoot();
     await writeDeclaration(root, declaration);
     const previousShift = process.env['E2E_PORT_SHIFT'];
-    process.env['E2E_PORT_SHIFT'] = '6000';
+    process.env['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
     try {
       await expectFailure(runPerformanceLevel(root), 'committed Git candidate');
     } finally {
@@ -868,7 +890,7 @@ describe('Performance level target production boundary', () => {
   it('refuses missing real CLI inputs and alternate service arguments', async () => {
     const root = await candidateRoot();
     const command = join(import.meta.dir, 'performance-level.ts');
-    const environment = { ...process.env, E2E_PORT_SHIFT: '6000' };
+    const environment = { ...process.env, E2E_PORT_SHIFT: String(TEST_SHIFT) };
     const absent = Bun.spawnSync([process.execPath, command], {
       cwd: root,
       env: environment,
@@ -974,9 +996,9 @@ describe('Performance level target production boundary', () => {
     const shift = process.env['E2E_PORT_SHIFT'];
     await new Promise<void>((resolve, reject) => {
       listener.once('error', reject);
-      listener.listen(10200, '127.0.0.1', resolve);
+      listener.listen(4200 + TEST_SHIFT, '127.0.0.1', resolve);
     });
-    process.env['E2E_PORT_SHIFT'] = '6000';
+    process.env['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
     try {
       await expectFailure(runPerformanceLevel(fixture.root, fixture.policyPath), 'occupied');
       expect(listener.listening).toBe(true);
@@ -1016,7 +1038,7 @@ describe('Performance level target production boundary', () => {
   it('refuses failed service readiness before Playwright execution and leaves no current pointer', async () => {
     const fixture = await committedPerformanceFixture();
     const shift = process.env['E2E_PORT_SHIFT'];
-    process.env['E2E_PORT_SHIFT'] = '6000';
+    process.env['E2E_PORT_SHIFT'] = String(TEST_SHIFT);
     const service = (app: string, port: number) => ({
       command: `bun --eval "Bun.serve({port:Number(process.env.PORT),fetch(){return new Response('ready')}})"`,
       cwd: `apps/wbs/${app}`,
@@ -1024,9 +1046,9 @@ describe('Performance level target production boundary', () => {
       env: { PORT: String(port) },
     });
     const descriptors = [
-      service('be-01', 9100),
-      { ...service('gw-01', 9200), command: 'bun --eval "process.exit(23)"' },
-      service('fe-01', 10200),
+      service('be-01', 3100 + TEST_SHIFT),
+      { ...service('gw-01', 3200 + TEST_SHIFT), command: 'bun --eval "process.exit(23)"' },
+      service('fe-01', 4200 + TEST_SHIFT),
     ];
     try {
       await expectFailure(
@@ -1239,7 +1261,7 @@ describe('Performance level target production boundary', () => {
       };
     });
     await runPerformanceLevel(fixture.root, fixture.policyPath, descriptors, 'selection-mutate');
-    const expected = { CI: '1', E2E_PORT_SHIFT: '6000' };
+    const expected = { CI: '1', E2E_PORT_SHIFT: String(TEST_SHIFT) };
     for (const phase of [
       'setup',
       'service-0',
@@ -1319,7 +1341,7 @@ describe('Performance level target production boundary', () => {
     // The HTTP observer passed with the same 1000 ms pause before returning.
     // HTTP observation leaves the supervisor's ports available throughout startup.
     while (!ready && Date.now() - started < 60_000) {
-      ready = (await Promise.all([9100, 9200, 10200].map(isServiceReady))).every(Boolean);
+      ready = (await Promise.all(shiftedPorts().map(isServiceReady))).every(Boolean);
       if (!ready) {
         // Proof: a foreign listener on 10200 surfaced the production occupied-port
         // refusal here in 241 ms, rather than reaching the readiness deadline.
@@ -1335,11 +1357,7 @@ describe('Performance level target production boundary', () => {
     const [supervisor] = [...supervisors];
     await cancelSupervisor(supervisor);
     expect(String(await run)).toContain('Performance supervisor exited 143');
-    expect([await isPortFree(9100), await isPortFree(9200), await isPortFree(10200)]).toEqual([
-      true,
-      true,
-      true,
-    ]);
+    expect(await Promise.all(shiftedPorts().map(isPortFree))).toEqual([true, true, true]);
     await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
   }, 90_000);
 
@@ -1600,7 +1618,7 @@ describe('Performance level target production boundary', () => {
     expect(failure.cleanupFailures.join(' ')).toContain('injected post-run inventory ambiguity');
     expect(await Bun.file(join(bundle, 'manifest.json')).exists()).toBe(true);
     await expectFailure(readFile(join(fixture.root, currentPath)), 'ENOENT');
-    for (const port of [9100, 9200, 10200]) {
+    for (const port of shiftedPorts()) {
       const listener = createServer();
       await new Promise<void>((resolve, reject) => {
         listener.once('error', reject);
