@@ -51,6 +51,10 @@ export interface MachineActor {
   readonly scopes: typeof MACHINE_SCOPES;
 }
 
+/**
+ * The answer of {@link admitMachineCredential}: the actor a credential admits,
+ * or the one refusal every failure shares.
+ */
 export type MachineAdmission =
   | { readonly kind: 'admitted'; readonly actor: MachineActor }
   | { readonly kind: 'refused'; readonly refusal: 'unknown_identity' };

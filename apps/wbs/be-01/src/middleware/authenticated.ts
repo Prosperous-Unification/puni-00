@@ -1,4 +1,5 @@
 import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
+import { MACHINE_KEY_PREFIX } from '@wbs/core/service/machine-key';
 
 /**
  * The app token from the hardened browser cookie or standard Bearer header.
@@ -54,11 +55,24 @@ export async function userFromHeaders(
   return auth.authenticate(tokenFromHeaders(headers));
 }
 
-/** {@link userFromHeaders}, keeping a verified token linked to nobody apart as `unknown_identity`. */
+/**
+ * {@link userFromHeaders}, keeping a verified token linked to nobody apart as
+ * `unknown_identity`.
+ *
+ * A `wbs_mk_` API key travels in `Authorization: Bearer` only
+ * (`wbs-machine-credentials` A13, A22): one found in the session cookie is
+ * refused `unknown_identity` here, before the authentication service reads
+ * anything.
+ * Proof: with this refusal removed, `refuses a key carried by the session
+ * cookie, with no read` in `machine-credential.controller.db.test.ts` failed
+ * its expected 401; watched 2026-10-22.
+ */
 export async function userOrRefusalFromHeaders(
   auth: AuthService,
   headers: Record<string, string | undefined>,
 ): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+  const cookie = cookieValue(headers['cookie'], '__Host-wbs_access');
+  if (cookie?.startsWith(MACHINE_KEY_PREFIX) === true) return 'unknown_identity';
   return auth.authenticateOrRefuse(tokenFromHeaders(headers));
 }
 

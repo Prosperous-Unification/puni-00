@@ -62,6 +62,8 @@ beforeEach(async () => {
   leaf = (rows.body as { results: { id: string }[] }).results[0]?.id ?? '';
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'codex', 'org-a', h.userId('dany'));
+  addAgentPerson(h.sqlite, 'mems-agent', 'org-a', h.userId('mem'));
+  addAgentPerson(h.sqlite, 'loose', 'org-a', null);
 });
 
 afterEach(() => {
@@ -98,9 +100,12 @@ function claireKey() {
   });
 }
 
-/** One request bearing only `key`, no cookie, as a headless machine sends it. */
+/**
+ * One request bearing only `key`, no cookie and no expected-organization
+ * header, as a headless machine sends it: its organization is the credential's.
+ */
 function as(key: string, method: string, path: string, body?: unknown): Promise<Answer> {
-  return h.callWith(key, method, path, body, { 'X-WBS-Expected-Organization': 'org-a' });
+  return h.callWith(key, method, path, body);
 }
 
 function usersTable(): unknown[] {
@@ -213,6 +218,30 @@ describe('an API key', () => {
     const response = await h.request('/api/projects', { headers: { 'x-wbs-api-key': key } });
     expect(response.status).toBe(401);
     expect(await response.json()).toEqual({ error: 'unauthenticated' });
+  });
+
+  // Proof: with this refusal removed from `userOrRefusalFromHeaders`, the
+  // cookie case failed its expected 401 (the key reached the renamed table);
+  // watched 2026-10-22.
+  it('refuses a key carried by the session cookie, with no read', async () => {
+    const { key } = await claireKey();
+    expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
+    h.sqlite.run('ALTER TABLE machine_credential RENAME TO machine_credential_away');
+    const response = await h.request('/api/projects', {
+      headers: { cookie: `__Host-wbs_access=${key}` },
+    });
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'unknown_identity' });
+  });
+
+  // A failed last-use write is a server fault (task 2.6), never a quiet 200.
+  // Proof: with `touchLastUsed`'s rejection caught and dropped in
+  // `authenticateMachineKey`, this failed its expected 500; watched 2026-10-22.
+  it('fails as a server error when its last use cannot be recorded', async () => {
+    const { key } = await claireKey();
+    h.sqlite.run(`CREATE TRIGGER machine_credential_frozen BEFORE UPDATE ON machine_credential
+      BEGIN SELECT RAISE(ABORT, 'machine_credential is frozen'); END`);
+    expect((await as(key, 'GET', '/api/projects')).status).toBe(500);
   });
 
   it('is refused unknown_identity once its secret has expired', async () => {
@@ -347,6 +376,39 @@ describe('a key pinned to one person', () => {
     expect(claimsOf('codex')).toBe(0);
     expect((await batch([{ ...delegated, parentClaim }])).status).toBe(200);
     expect(claimsOf('codex')).toBeGreaterThan(0);
+  });
+
+  // A23: the key of a super-admin's agent is a member in the organization.
+  // Proof: with `organizationRoleOf` answering the stored role, this and the
+  // two claim cases below failed; watched 2026-10-22.
+  it('refuses patchPerson to an admin-bound key', async () => {
+    const { key } = await claireKey();
+    expect(
+      await h.callWith(key, 'POST', '/api/directory/commands', {
+        commands: [
+          { kind: 'patchPerson', personId: 'codex', patch: { accountId: h.userId('mem') } },
+        ],
+      }),
+    ).toEqual({ status: 403, body: { error: 'forbidden', at: 0, kind: 'patchPerson' } });
+    expect(h.sqlite.query("SELECT account_id FROM person WHERE id = 'codex'").get()).toEqual({
+      account_id: h.userId('dany'),
+    });
+  });
+
+  it('refuses an admin-bound key a person bound to another account', async () => {
+    const { key } = await claireKey();
+    const batch = (commands: unknown[]) =>
+      as(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
+    expect(await batch([claim('mems-agent')])).toEqual(refused('person_not_bound'));
+    expect(claimsOf('mems-agent')).toBe(0);
+  });
+
+  it('gives a super-admin-bound key no claim-admin bypass', async () => {
+    const { key } = await claireKey();
+    const batch = (commands: unknown[]) =>
+      as(key, 'POST', `/api/projects/${projectA}/commands`, { commands });
+    expect(await batch([claim('loose')])).toEqual(refused('person_not_bound'));
+    expect(claimsOf('loose')).toBe(0);
   });
 
   it('leaves the bound account’s own session unpinned', async () => {

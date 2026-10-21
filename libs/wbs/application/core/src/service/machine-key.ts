@@ -33,7 +33,12 @@ export function parseMachineKey(token: string): MachineKey | 'malformed' | null 
   return { credentialId, secret };
 }
 
-/** A fresh API key for `credentialId`, and the secret in it whose digest storage holds. */
+/**
+ * A fresh API key for `credentialId`, and the secret in it whose digest
+ * storage holds. Only tests mint keys until slice 2's create and rotate
+ * routes, which must pass a `crypto.randomUUID()` id: `parseMachineKey`
+ * accepts only the UUID shape, and the table's CHECK is looser.
+ */
 export function newMachineKey(credentialId: string): {
   readonly key: string;
   readonly secret: string;

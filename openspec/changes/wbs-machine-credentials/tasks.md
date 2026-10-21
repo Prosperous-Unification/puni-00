@@ -5,7 +5,8 @@
       outside the credential rules) and A20 (how a consent credential is minted, carried
       and ended). Slice 1 may proceed on A9, A13, A14 and A15; slice 2 waits for A12; slice
       3 waits for A20; slice 5 waits for A16. A21 (no Auth0 source, no link migration) is
-      Dany's and fixed.
+      Dany's and fixed. A23 (machine principals are members, from the slice 1 review) is
+      the coordinator's assumption and waits for his confirmation.
 
 ## 1. Schema and the verification path, API keys first
 
@@ -90,7 +91,13 @@ slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secr
       `in_use` and cascade; `patchPerson` unbind/rebind refused `in_use` — test: the
       directory conformance cases updated and the rebind case added; negative: skip the
       usage read on `patchPerson` and a bound person with a live credential is unbound;
-      watched.
+      watched. Since A23 (slice 1 review) a machine principal cannot `patchPerson` at all,
+      so this guard covers human admins; it is no longer the only guard against a key
+      rebinding its own person.
+      Slice 2 must also mint every credential id with `crypto.randomUUID()`:
+      `parseMachineKey` accepts only the lowercase UUID shape, while the table's id CHECK
+      admits any 36 characters of `[0-9a-f-]`. Slice 2 may tighten that CHECK in its own
+      migration.
 - [ ] 2.6 Last use: `touchLastUsed` once per minute per credential in the request path,
       listed as `lastUsedAt` — test: two requests twenty seconds apart write once;
       negative: make the write swallow its error and the "store read-only" case answers 200
@@ -167,6 +174,11 @@ slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secr
       `invalid_token` with zero fetches, JWKS 503 refused; negative: let a stranger `iss`
       reach the configured verifier and the zero-fetch case fetches; watched. Property:
       two organizations trusting one URL never admit each other's subjects.
+- [ ] 5.2a Recorded by the slice 1 review: no constraint ties
+      `machine_credential.organization_id` to its `organization_trusted_issuer`'s
+      organization. 5.2's verifier selects the trusted issuer within the credential's
+      organization, or 5.3 adds a composite foreign key. Either way a test refuses a
+      credential pointing at another organization's trusted issuer.
 - [ ] 5.3 Create for `source: 'oidc'` (`trustedIssuerId`, `subject`, `audience`,
       `unknown_trusted_issuer`, `subject_taken`); `rotation_at_issuer` — test: the admin
       controller test cases; negative: drop the organization predicate from the trusted

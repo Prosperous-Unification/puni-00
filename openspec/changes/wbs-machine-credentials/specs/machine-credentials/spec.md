@@ -54,8 +54,9 @@ route SHALL answer `403 no_active_organization`.
 For `source: 'oidc'` the body SHALL name a `trustedIssuerId` of the active organization, a
 `subject` (1 to 512 characters, compared exactly) and optionally an `audience`. A trusted
 issuer of another organization SHALL be refused `404 unknown_trusted_issuer`. The
-`(issuer, subject)` pair SHALL be unique among unrevoked credentials of every organization;
-a second is refused `409 subject_taken`.
+`(issuer, subject)` pair SHALL be unique across every organization's OIDC credentials,
+revoked ones included (the storage index `machine_credential_pair` is deployment-wide), so
+one pair names one credential row for good; a second is refused `409 subject_taken`.
 
 #### Scenario: A GitHub Actions workflow is admitted
 
@@ -210,7 +211,9 @@ fetched SHALL be refused `401 invalid_token`, never admitted on a cached or defa
 
 A request admitted by a machine credential SHALL act as the account the pinned person is
 bound to, with scopes exactly `read` and `write`, bound to the credential's organization,
-and with the credential's person as the pin the claim decision reads. Organization
+and with the credential's person as the pin the claim decision reads. In that organization
+it SHALL hold at most the role `member`, whatever role the bound account holds, so no
+admin rule (the claim-admin bypass, person binding) applies to it. Organization
 administration routes SHALL refuse it `403 insufficient_scope`. A claim or release naming
 another person, outside a delegated claim under the pinned person's claim, SHALL be refused
 `credential_not_for_person` as today. An account no longer a member of the credential's
@@ -222,6 +225,14 @@ and the session policy SHALL NOT refuse a machine token.
 - **WHEN** a credential's person is bound to an account holding `super_admin` in A
 - **THEN** a command batch on A's project is accepted and `GET /api/organization/members`
   is refused `403 insufficient_scope`
+
+#### Scenario: An admin's account gives a machine no admin rule
+
+- **WHEN** a key pinned to `claire`, bound to an account holding `super_admin` in A, sends
+  `patchPerson` binding another person to an account, or claims as a person bound to
+  another account
+- **THEN** the patch is refused `403 forbidden` and the claim `person_not_bound`, and
+  nothing is written
 
 #### Scenario: A claim for the wrong person
 

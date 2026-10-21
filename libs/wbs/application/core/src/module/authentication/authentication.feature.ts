@@ -3,6 +3,7 @@ import {
   type AuthenticatedUser,
   type AuthMethodId,
   authMethodOfSubject,
+  type CredentialAuthentication,
   type OidcIdentity,
   type WbsScope,
 } from '@wbs/contracts';
@@ -342,6 +343,9 @@ export class AuthService {
       throw new Error(
         `machine credential ${admission.actor.credentialId} acts as a missing account`,
       );
+    // Proof: with this rejection caught and dropped, `fails as a server error
+    // when its last use cannot be recorded` in
+    // `machine-credential.controller.db.test.ts` failed; watched 2026-10-22.
     await machines.credentials.touchLastUsed(admission.actor.credentialId, now);
     return machinePrincipalOf(admission.actor, account.username);
   }
@@ -363,10 +367,13 @@ export class AuthService {
  * organization as a direct context so `resolve` never answers
  * `no_active_organization` for it and every organization administration
  * route refuses it `insufficient_scope` as it refuses a delegation, and
- * pinned to the credential's person for the claim rules.
+ * pinned to the credential's person for the claim rules. In its organization
+ * it holds at most `member` ({@link organizationRoleOf}, A23), so it never
+ * gains the bound account's administration.
  *
- * The one place the acting account is decided: A12 is the assumption most
- * likely to be overruled (a machine account per credential is the recorded
+ * The one place the acting account is decided, with
+ * {@link organizationRoleOf} beside it: A12 is the assumption most likely to
+ * be overruled (a machine account per credential is the recorded
  * alternative), and that change belongs here alone.
  */
 export function machinePrincipalOf(actor: MachineActor, username: string): AuthenticatedUser {
@@ -380,6 +387,28 @@ export function machinePrincipalOf(actor: MachineActor, username: string): Authe
     delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
     authentication: { kind: 'machine', credentialId: actor.credentialId, personId: actor.personId },
   };
+}
+
+/**
+ * The organization role a principal acts with, from its membership's stored
+ * role (`wbs-machine-credentials` A23): a machine credential is a `member` of
+ * its organization whatever role the bound account holds — never `admin` or
+ * `super_admin`, so no claim-admin bypass, no person binding, no member or
+ * settings administration — and a `viewer` account's machine stays a viewer.
+ * Every other principal keeps its stored role. `resolve` applies it to the
+ * scope it answers.
+ *
+ * Proof: answering the stored role for a machine made `refuses patchPerson to
+ * an admin-bound key`, `refuses an admin-bound key a person bound to another
+ * account` and `gives a super-admin-bound key no claim-admin bypass`
+ * (`machine-credential.controller.db.test.ts`) fail; watched 2026-10-22.
+ */
+export function organizationRoleOf(
+  role: OrganizationRole,
+  authentication: CredentialAuthentication | undefined,
+): OrganizationRole {
+  if (authentication?.kind !== 'machine') return role;
+  return role === 'viewer' ? 'viewer' : 'member';
 }
 
 /**
