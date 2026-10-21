@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
-import type { Database } from 'bun:sqlite';
+import { Database } from 'bun:sqlite';
 
 import { decodeAttemptRow, decodeManifestRow, decodeMeta, decodeRunRow } from './row-codecs';
 
@@ -16,6 +16,45 @@ export const DOWN = readFileSync(
 );
 export const MIGRATION_HASH = createHash('sha256').update(MIGRATION).digest('hex');
 export const DOWN_HASH = createHash('sha256').update(DOWN).digest('hex');
+
+interface SchemaEntry {
+  readonly type: 'table' | 'index';
+  readonly name: string;
+  readonly tbl_name: string;
+  readonly sql: string | null;
+}
+
+/** SQLite owns these column types; stored CREATE statements retain every declared constraint and index predicate. */
+function readSchema(database: Database): readonly SchemaEntry[] {
+  return database
+    .query<SchemaEntry, []>(
+      "SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE type IN ('table','index') ORDER BY type,name",
+    )
+    .all();
+}
+
+/** Derives the required physical declarations from the migration rather than a second hand-maintained schema. */
+function readRequiredSchema(): readonly SchemaEntry[] {
+  const reference = new Database(':memory:', { strict: true });
+  try {
+    reference.run(MIGRATION);
+    return readSchema(reference);
+  } finally {
+    reference.close();
+  }
+}
+const REQUIRED_SCHEMA = readRequiredSchema();
+const REQUIRED_TABLES = new Set(
+  REQUIRED_SCHEMA.filter((entry) => entry.type === 'table').map((entry) => entry.name),
+);
+
+/** Requires the migration's exact table/index declarations, including empty tables. Additional triggers and unrelated tables are outside this comparison. */
+function validatePhysicalSchema(database: Database): void {
+  const installed = readSchema(database).filter((entry) => REQUIRED_TABLES.has(entry.tbl_name));
+  // Proof: bypassing this comparison accepted all ten empty-store column, constraint and active-index corruptions in open-stores.db.test.ts.
+  if (JSON.stringify(installed) !== JSON.stringify(REQUIRED_SCHEMA))
+    throw new Error('corrupt sqlite physical schema');
+}
 
 /** Configures each connection and rejects a driver/filesystem that cannot honor durability settings. */
 export function configureDatabase(database: Database): void {
@@ -46,6 +85,8 @@ export function readMeta(database: Database) {
 }
 /** Validates the published store, including every portable record and relational invariant. No migration runs here. */
 export function validateDatabase(database: Database): void {
+  // Proof: removing this dispatch accepted the same ten altered empty stores before row validation could detect them.
+  validatePhysicalSchema(database);
   const meta = readMeta(database);
   // Proof: independently bypassing version, migration hash and down hash checks accepted each corresponding persisted alteration.
   if (

@@ -299,3 +299,40 @@ migration/down pair is exercised in provider tests, which does not establish CI 
 Process kill/reopen does not prove physical power-loss behavior. No second durable provider,
 artifact verification, outcome/inbox/receipt support, coordinator, guarded live WBS bridge
 or production deployment is claimed. Parent 6a.1–6a.2 remain unchecked.
+
+Independent review of `e89ac9d4e` rejected this candidate for incomplete physical-schema
+validation. Four focused public-open probes accepted an empty store with a renamed required
+column, absent active-occurrence index, wrong nonunique index, or reservation table missing
+its primary/foreign-key constraints. Stored migration hashes and row decoders do not prove
+the installed schema when tables are empty. The reviewer separately inspected all 54 retained
+fault logs and accepted their assertion oracles; the withdrawn historical logs remained
+excluded. Fix round 1 must validate provider-owned structure independently of row contents,
+reject without migration/repair, and preserve unrelated test triggers used by rollback
+proofs. No Task 2 acceptance is claimed.
+
+### Task 2 fix round 1
+
+Ten new empty-store cases first failed with the intended missing-rejection assertion
+(10 fail, 20 assertions): changed column name/type/nullability, missing reservation PK/FK,
+wrong FK target, absent occurrence uniqueness, and missing/nonunique/wrong-column/wrong-
+predicate active-occurrence index. The adapter now derives required table/index declarations
+by executing the migration in a private in-memory reference and compares the installed
+provider-owned structure before metadata/row reads. It requires those exact declarations,
+allows unrelated tables and additional triggers, and performs no trusted-state repair.
+The same cases passed with 30 assertions and checked that refused open left schema unchanged.
+
+Two independent source faults removed the validation dispatch and bypassed its comparison.
+Each made all ten named rejection assertions fail (20 assertions, no setup/loader failures).
+Both were restored before the final green run. These are two new R5 observations in addition
+to the prior 54; the prior sweep was not rerun. The source comments name these actual proofs.
+
+The focused command was the source-only Bun command above narrowed to
+`./apps/twilight-structure/twilight-dash/cli/src/runs/sqlite/open-stores.db.test.ts`
+with `--test-name-pattern 'empty-store physical schema'`. Final source-subtree run, without
+the unchanged separate clock test: **97 pass, 0 fail, 341 assertions**. Existing rollback
+trigger and process-kill tests remained green. The final typecheck/lint commands above
+passed uncached in 1.4s/16.2s; touched-file formatting and whitespace checks passed.
+Typecheck first required a test-only captured-array annotation change from `unknown` to
+`unknown[]`; the focused regressions ran again after that type-only correction. No runtime
+implementation changed after the subtree green. Scoped re-review remains pending, and all
+previous aggregate gate, live integration and power-loss limitations remain.

@@ -346,3 +346,53 @@ test('bootstrap refuses inaccessible and absent parents without creating directo
   await rejects(bootstrapSqliteStores(missing), /absent/);
   expect(existsSync(join(parent, 'missing'))).toBe(false);
 });
+
+const structuralFaults: Record<string, string> = {
+  'missing column': 'ALTER TABLE run_manifest RENAME COLUMN record TO payload',
+  'column type':
+    'DROP TABLE run_reservation; CREATE TABLE run_reservation(attempt_id INTEGER PRIMARY KEY REFERENCES run_attempt(attempt_id))',
+  'column nullability':
+    'DROP TABLE run_manifest; CREATE TABLE run_manifest(digest TEXT PRIMARY KEY, record TEXT)',
+  'primary key and foreign key':
+    'DROP TABLE run_reservation; CREATE TABLE run_reservation(attempt_id TEXT)',
+  'foreign key target':
+    'DROP TABLE run_reservation; CREATE TABLE run_reservation(attempt_id TEXT PRIMARY KEY REFERENCES run_record(run_id))',
+  'occurrence uniqueness': `DROP TABLE run_attempt; CREATE TABLE run_attempt(attempt_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES run_record(run_id), occurrence_id TEXT NOT NULL, ordinal INTEGER NOT NULL CHECK(ordinal > 0), record TEXT NOT NULL, admission TEXT NOT NULL); CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id, occurrence_id) WHERE json_extract(record, '$.holdsCapacity') = 1`,
+  'missing active index': 'DROP INDEX run_active_occurrence',
+  'nonunique wrong-column index':
+    'DROP INDEX run_active_occurrence; CREATE INDEX run_active_occurrence ON run_attempt(run_id)',
+  'active index columns': `DROP INDEX run_active_occurrence; CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id) WHERE json_extract(record, '$.holdsCapacity') = 1`,
+  'active index predicate': `DROP INDEX run_active_occurrence; CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id, occurrence_id) WHERE json_extract(record, '$.holdsCapacity') = 0`,
+};
+for (const [fault, sql] of Object.entries(structuralFaults))
+  test(`open rejects empty-store physical schema ${fault}`, async () => {
+    const configuration = options();
+    const stores = await bootstrapSqliteStores(configuration);
+    expect(stores.ownership.epoch).toBe(0);
+    stores.close();
+    const database = new Database(configuration.path);
+    let before: unknown[];
+    try {
+      database.run(sql);
+      expect(database.query('SELECT * FROM run_manifest').all()).toEqual([]);
+      before = database
+        .query('SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name')
+        .all();
+    } finally {
+      database.close();
+    }
+    await rejects(async () => {
+      const reopened = await openSqliteStores(configuration);
+      reopened.close();
+    }, 'open must reject altered required physical schema even when tables are empty');
+    const inspected = new Database(configuration.path);
+    try {
+      expect(
+        inspected
+          .query('SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name')
+          .all(),
+      ).toEqual(before);
+    } finally {
+      inspected.close();
+    }
+  });
