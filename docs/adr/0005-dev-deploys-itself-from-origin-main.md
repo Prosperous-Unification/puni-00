@@ -9,8 +9,7 @@ manual deploy (2026-08-06 call).
 **This reverses a deletion, and the deletion was right when it was made.** wbs had a
 poller (`trigger.ts`); it was removed on 2026-08-04 in `9b666f7` because every push
 originated with a human at a terminal on h1claw, who could type `git push && bin/sync.ts`
-in one breath. Polling for a change you just made yourself is a machine asking a question
-it already knows the answer to.
+in one breath.
 
 That premise died on 2026-08-19, when queue workers were given standing authority to
 merge their own green PRs. The merge commit is now created on GitHub by `gh pr merge` and
@@ -18,8 +17,8 @@ lands on `origin/main` without ever existing on any machine that could deploy it
 result was not theoretical: on the night of 2026-08-21 the `tags-qa` task finished its
 first walk, filed a defect, saw the fix merged — and then could not re-check it, because
 dev was three merges behind and the only way forward was a human running one command.
-The task recorded `blocked` and stopped. Nothing was wrong with the code, the tests, the
-CI or the merge; the loop simply had a gap exactly where nobody was awake.
+The task recorded `blocked` and stopped, with nothing wrong in the code, tests, CI or
+merge.
 
 ## How it verifies, and what it can prove
 
@@ -28,7 +27,7 @@ from the refs on every call rather than captured at startup. It is read per call
 the deploy is a `git reset --hard` under live watchers (`bun --watch`, Vite HMR): a
 commit that touches no watched module moves the tree and restarts nothing, so a value
 captured at boot would report the previous deploy for as long as the process happened to
-live — and a docs-only commit is precisely the kind whose landing is otherwise invisible.
+live, and a docs-only commit's landing would otherwise be invisible.
 
 The poller reads `/health` from inside the container, so it goes to be-01 directly rather
 than through the basic auth at the edge, and it reads repeatedly until the served commit

@@ -20,7 +20,6 @@
 
 - **Design system → every product surface**: each app imports exactly one kit; kits
   import core; the design system imports nothing from a product.
-
 - **PUNI website funnel → Twilight Navigator**: a prospect's software request
   can become planning work after a human accepts the proposal request; the
   public conversation does not itself authorize delivery.

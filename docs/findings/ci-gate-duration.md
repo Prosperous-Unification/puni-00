@@ -54,10 +54,9 @@ Proofs: `tools/tool-git-hooks/src/hooks/gate-workflow.test.ts` runs the producti
 script with each shard result, and its `Proof:` comments record the faults that were watched
 failing.
 
-On 2026-10-12 the shard was renamed from `gate_tool_wiki` to `gate_twilight` and now also runs
-`twilight-dash`, which receives the activation controller (WBS a81d93a0). The workspace shard
-and `bin/h2puni-gate-steps.sh` exclude both projects. The measurements below predate that
-change and still name the shard Tool Wiki.
+Since the 2026-10-12 rename the shard also runs `twilight-dash`, which receives the activation
+controller (WBS a81d93a0). The workspace shard and `bin/h2puni-gate-steps.sh` exclude both
+projects. The measurements below predate the rename and still name the shard Tool Wiki.
 
 ## Measurements after the split
 

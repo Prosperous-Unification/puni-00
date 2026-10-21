@@ -6,8 +6,7 @@ inspection: 2026-09-06, [Karpathy, Dahl, and related tools](research/knowledge-p
 
 ## The wiki reading this repo adopted
 
-This section is the canonical home for how the user's `llm-wiki` reference is
-read. Karpathy's LLM Wiki note describes three parts — preserved source material,
+This section owns how the user's `llm-wiki` reference is read. Karpathy's LLM Wiki note describes three parts — preserved source material,
 an agent-maintained Markdown knowledge layer, and maintenance rules — with
 ingestion, cited querying, and inspection for gaps, contradictions and stale
 material as its operations. Ryan Dahl's fork keeps that foundation and adds
@@ -18,12 +17,10 @@ identity, retrieval dates and confidence for both are recorded in
 [knowledge patterns](research/knowledge-patterns.md); A37 records this as the
 working reading of the user's reference.
 
-This repo takes Dahl's version. Use ordinary relative Markdown links and README
-indexes. Start with existing pages, compact overlapping explanations, and grow
-topic directories when they have actual content. Use Git history for document
-evolution, and keep run evidence and approvals in their own records. A second
-append-only wiki log would duplicate that history and create another shared file
-to contend over.
+This repo takes Dahl's version: start with existing pages, compact overlapping
+explanations, grow topic directories only when they have content, use Git history for
+document evolution, and keep run evidence and approvals in their own records. A second
+append-only wiki log would duplicate that history and add another contended shared file.
 
 What is not borrowed: the note is an adaptable pattern, not an installed product,
 and it prescribes no DDD directory tree. Bounded-context ownership, the authority
@@ -33,15 +30,13 @@ requirement are this repository's additions.
 Content is identified by its Git commit. The
 [content manifest](evidence/content-manifest.json) is the historical reviewed
 snapshot — the file digests the recorded reviews were given — not a tracker for
-the working tree. Earlier helper findings that never reached a commit are
-preserved in a [dated source record](research/local-workflow-observations.md);
-they would otherwise have been lost when the old proposal was compacted, because
-no Git revision contained them.
+the working tree. Earlier helper findings that no Git revision contained are
+preserved in a [dated source record](research/local-workflow-observations.md).
 
 ## Requirements and the wiki: the boundary
 
 OpenSpec owns testable requirements; the domain wiki explains and cites them.
-The user accepted that split during Twilight Navigator discovery on 2026-09-06, and it
+The user accepted that split during Twilight Navigator discovery on 2026-09-06. It
 holds because making wiki prose canonical would change how specification
 discovery, review, and synchronization work across existing and generated
 repositories, and would add a second workflow authority before the first one is
@@ -99,7 +94,7 @@ evidence storage, with authorized references; credentials never go in Git.
 | `sdlc-stages.md`                | Current canonical stage mapping and focus-profile behavior                                                            |
 | `sdd-proposal.md`               | Deleted; it had become a redirect. The authority split lives above, the flow in `sdlc-stages.md`                      |
 | `research.md`                   | Deleted; its index is the research row of [the Twilight Structure README](README.md) and its notes are in `research/` |
-| `sdd-sources.md`                | Dated CLI findings that are current at the pinned 1.12.0; obsolete 1.3.0 recommendations removed                      |
+| `sdd-sources.md`                | Dated CLI findings recorded at 1.12.0 (pin now 1.14.3); obsolete 1.3.0 recommendations removed                        |
 | `CONTEXT.md` / `CONTEXT-MAP.md` | Original locations retained, glossary and relationships updated                                                       |
 | `LLM_README.md`                 | Existing Twilight Structure link now opens current navigation; wiki link added within the cap                         |
 

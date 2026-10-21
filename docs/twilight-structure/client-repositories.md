@@ -146,9 +146,11 @@ from different revisions. [Proposed transaction ADR](../adr/0027-planning-commit
 
 The broker must own advancement of the accepted ref, including remote pushes:
 Git access controls prevent an external writer bypassing validation. Editing a
-branch elsewhere proposes input, not an accepted mutation. Cross-clone proposals use the same server-derived preconditions and bounded
-reconciliation; local lock files do not establish acceptance. A bare Backlog numeric ID is not durable identity: scope to repository and
-retain a stable task UUID mapping through archive, renumber, and restoration.
+branch elsewhere proposes input, not an accepted mutation. Cross-clone proposals use
+the same server-derived preconditions and bounded reconciliation; local lock files do
+not establish acceptance. A bare Backlog numeric ID is not durable identity: scope to
+repository and retain a stable task UUID mapping through archive, renumber, and
+restoration.
 
 The first deployment uses a self-hosted bare Git remote with an SSH forced-command
 gateway deriving principal identity from the authenticated key. The accepted-ref
@@ -171,14 +173,11 @@ edit → materialize → native read in both directions, including extension fie
 ### Storage workload acceptance budget
 
 These figures are a named acceptance profile, **`storage-acceptance/default`**,
-rather than one global constant. A client declares its own size in the repository
-manifest's `planning.expectedScale` — plans, active tasks, archived tasks and
-accepted command/receipt records — and the profile is instantiated at that
-declared scale. The numbers below are the profile's default values and are the
-scale `puni-00` declares for itself. A client declaring a different scale runs
-the same profile against its own fixture size and reports against the same
-budgets. Changing a budget changes the profile, once, rather than adding a
-per-client footnote.
+not a global constant. The profile is instantiated at the scale a client declares in
+`planning.expectedScale`. The numbers below are its defaults and the scale `puni-00`
+declares for itself; a client declaring a different scale runs the same profile against
+its own fixture size and reports against the same budgets. Changing a budget changes the
+profile once, not per client.
 
 The spike measures the real broker, remote CAS, native Backlog adapter and WBS
 reads on a pinned fixture at the declared scale. At `storage-acceptance/default`
@@ -211,17 +210,13 @@ accepted throughput, command-to-final-answer p50/p95, conflicts, retry count and
 human reconciliation effort, including failed commands in denominators. The
 uncontended disjoint workload must accept at least 95% within three seconds p95
 at eight writers; the contended control must retain typed conflicts without lost
-updates. These are proposed budgets, not observations. A low-load latency pass
-cannot stand in for this sweep. If any
-budget fails, Task 9 remains incomplete; measure batching/index improvements within
+updates. A low-load latency pass cannot stand in for this sweep. If any budget fails, Task 9 remains incomplete; measure batching/index improvements within
 this authority model or explicitly revise the proposed acceptance contract before
 cutover. Never silently reinstate SQLite as plan authority.
 
-The spike is the first slice of Task 9, so it runs after — not before — the
-closure recorded in
-[Cutover after the refactors land](#cutover-after-the-refactors-land). That
-section is the only gate on this work; no other document states a second
-prerequisite for it.
+The spike is the first slice of Task 9, so it runs after the closure recorded in
+[Cutover after the refactors land](#cutover-after-the-refactors-land), the single gate on
+this work.
 
 ## Joining planning and source revisions
 
@@ -234,7 +229,7 @@ The source candidate carries `.twilight/plan-lock.json`, a versioned `changes`
 map keyed by change ID. Each entry names its `PlanRef`, the input receipt
 snapshot's immutable revision and digest, and the deterministic export's digest
 and path. That path comes from the manifest's `planning.exportPath`; the lock
-repeats it so the two can be compared, and no other document states it.
+repeats it so the two can be compared.
 
 An empty input receipt snapshot is explicit and immutable. A missing or
 unreadable snapshot is an error, never an empty default.
@@ -342,8 +337,7 @@ then the adapter — and Task 10's migration start only after this closure is
 recorded. M1 and OpenSpec-origin automation proceed meanwhile.
 
 **This checklist is the single gate.** Every other statement of the backlog
-migration prerequisite, here or elsewhere, points at this section rather than
-restating a condition of its own. These entry conditions are future work, not a
+migration prerequisite points here. These entry conditions are future work, not a
 claim of closure or a request for the user to resolve them during this planning
 trial.
 

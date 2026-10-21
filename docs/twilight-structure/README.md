@@ -1,11 +1,10 @@
 # Twilight Structure
 
-**Naming changed on 2026-09-19.** Twilight Structure now names the tool suite: Twilight
-Navigator plans, Twilight Dash executes and Twilight Burokrat holds the rules. The
-customer-facing product has the code name Vesper Shipyards. Read
-[names and boundaries](names.md) first. The documents indexed below use these names in
-that meaning. Historical evidence, research notes and verification records keep their
-original wording, in which a bare "Twilight" means Twilight Dash.
+Twilight Structure is the tool suite behind Vesper Shipyards, the code name of the
+customer-facing product: Twilight Navigator plans, Twilight Dash executes and Twilight
+Burokrat holds the rules. The names changed on 2026-09-19; read
+[names and boundaries](names.md) first. Historical evidence, research notes and
+verification records keep their [older wording](names.md#what-changed).
 
 The resolved product route lives in the
 [Wayfinder map](../../.scratch/twilight-structure/map.md). The
@@ -28,11 +27,9 @@ separates document checks from future runtime proofs.
 The subsequent [branch-review hardening](../../openspec/changes/twilight-review-hardening/proposal.md)
 amends the proposed contracts and repairs the repository workflow.
 
-**Every review receipt under `evidence/` is a historical snapshot.** Each one
-describes this repository at the commit it names, is not maintained against later
-edits, and its `file:line` citations refer to that snapshot. Current acceptance
-obligations live in the linked design, specs and tasks. Said once here, not
-repeated per document.
+**Every review receipt under `evidence/` is a historical snapshot** of the commit it
+names: it is not maintained against later edits, and its `file:line` citations refer to
+that commit. Current acceptance obligations live in the linked design, specs and tasks.
 
 | Need                                           | Read                                                                            |
 | ---------------------------------------------- | ------------------------------------------------------------------------------- |
@@ -49,10 +46,9 @@ repeated per document.
 
 ## Research notes
 
-Each note records its inspection date. These notes distinguish upstream contracts, local
-observations and Twilight proposals. An inspected API is not a tested
-integration. Where a note's proposal has since become a specified contract, the
-note links to it rather than restating it.
+Each note records its inspection date and distinguishes upstream contracts, local
+observations and Twilight proposals. An inspected API is not a tested integration. A
+proposal that became a specified contract is linked, not restated.
 
 | Question                                                                                  | Source findings                                                                                                                 |
 | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -78,12 +74,12 @@ authored `tasks.md` owns the plan until the tested WBS/Backlog bridge changes
 that ownership, and no second plan or independently maintained stage graph exists.
 
 Next execution starts with Task 1 of the delivery plan. The Backlog/WBS storage
-migration has one prerequisite, and it is stated in one place:
+migration's one prerequisite is stated in
 [Cutover after the refactors land](client-repositories.md#cutover-after-the-refactors-land).
 No migration is performed by this trial.
 
-ADR 0014 no longer exists. The OpenSpec/wiki authority boundary it recorded is an
-already-accepted direction rather than a surprising decision, and it now lives in
+The OpenSpec/wiki authority boundary, once recorded in a withdrawn ADR, is an
+already-accepted direction and lives in
 [requirements and the wiki](knowledge.md#requirements-and-the-wiki-the-boundary).
 [ADR 0027](../adr/0027-planning-commits-are-the-transaction-boundary.md) proposes
 the planning transaction boundary. [ADR 0028](../adr/0028-k3s-schedules-the-expandable-worker-pool.md)

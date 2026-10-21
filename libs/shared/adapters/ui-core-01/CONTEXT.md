@@ -18,7 +18,7 @@ _Avoid_: design tokens file, global styles, palette file
 
 **Palette**:
 One complete assignment of values to every theme token, light or dark, switched by the `dark` class on the root.
-_Avoid_: mode, scheme
+_Avoid_: mode, scheme, colour scheme, theme (for what is painted), skin
 
 **Primitive**:
 A component a kit exports, owned in this repo and styled only through vocabulary tokens.

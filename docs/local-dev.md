@@ -1,22 +1,15 @@
 # Local Development
 
-Quick reference for running `be-01`, `gw-01`, `fe-01` on your workstation — no
-Docker, no Hetzner box, no deploy pipeline.
-
-To serve a worktree from source on a local k3s cluster instead, see
-[local k3s lab](infra/local.md).
+Running `be-01`, `gw-01` and `fe-01` on your workstation: no Docker, no Hetzner box, no deploy
+pipeline. The shortest start is in the [README](../README.md#start-here); this is the detail.
+To serve a worktree from source on a local k3s cluster instead, see [local k3s lab](infra/local.md).
 
 ## One-time setup
 
-```bash
-bun install
-bun run dev:setup        # copies apps/wbs/*/.env.example → apps/wbs/*/.env (non-destructive)
-```
-
-That seeds three local env files with safe dev-only defaults. It never overwrites
-an existing `.env`, and it **fails** rather than skipping if a committed
-`.env.example` is missing — that means the checkout is incomplete, and seeding
-around it only moves the failure to an unexplained crash at serve time.
+After `bun install`, `bun run dev:setup` copies `apps/wbs/*/.env.example` to `apps/wbs/*/.env`
+with safe dev-only defaults. It never overwrites an existing `.env`, and it **fails** rather than
+skipping if a committed `.env.example` is missing: that means the checkout is incomplete, and
+seeding around it only moves the failure to an unexplained crash at serve time.
 
 | File                  | Purpose                                                          |
 | --------------------- | ---------------------------------------------------------------- |
@@ -36,12 +29,8 @@ diagnosed by `bun run dev:setup`: add `HOSTNAME=000000000000` to it.
 
 ## Run all three at once
 
-```bash
-bun run dev
-```
-
-That runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01 --parallel=3` which
-brings up:
+`bun run dev` runs `nx run-many -t serve --projects=wbs-be-01,wbs-gw-01,wbs-fe-01 --parallel=3`,
+which brings up:
 
 | App     | URL                     | Notes                                |
 | ------- | ----------------------- | ------------------------------------ |
@@ -127,8 +116,7 @@ docker compose -f tools/tool-observability-stack/src/docker-compose.yml up -d
 
 Grafana: <http://localhost:3000> (admin/admin default). Prometheus scrape
 config already points at `host.docker.internal:3100` and `:3200`, so it picks
-up the locally-running apps. This is a convenience only — the scaffold does not
-require it for day-to-day dev.
+up the locally-running apps. Day-to-day dev does not need it.
 
 ## Troubleshooting
 

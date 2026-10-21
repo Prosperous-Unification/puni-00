@@ -99,15 +99,16 @@ authority snapshot. In practice `prepare-relocation-activation-cli.ts` does all 
 
 ## Transport and admission
 
-The transport archive root contains `selected.json`, its selected version directory, a bootstrap
-copy of the reviewed launcher with root-level `active-v1` and `launcher-path` descriptors, and the
-minimal `trusted-node-modules` TypeScript package closure copied from the exact lockfile-pinned
-reviewed checkout (`typescript` and its declared dependency directories). The bootstrap launcher
-resolves the selected package and verifies its manifest,
-checksum-list identity, and artifact checksums before reading any selected role. Root descriptors
-are relative to the archive root so the same bytes relocate between GitHub runner temporary storage
-and h2puni; every consumer resolves a relative descriptor from that root, never from its current
-working directory.
+The transport archive root contains `selected.json` beside its selected version directory, a
+bootstrap copy of the reviewed launcher with root-level `active-v1` and `launcher-path` descriptors,
+and the minimal `trusted-node-modules` TypeScript package closure copied from the exact
+lockfile-pinned reviewed checkout (`typescript` and its declared dependency directories). The
+launcher installed from the archive's own `launcher-path` resolves the selected package and verifies
+its manifest identity, checksum-list identity and every role artifact checksum before reading any
+selected role or descriptor. Root descriptors, the selector and the package role descriptors are
+relative to the archive root, so the same bytes relocate between GitHub runner temporary storage
+and a host version directory on h2puni; every consumer resolves a relative descriptor from that
+root, never from its current working directory.
 
 The protected-default push audit downloads, verifies, and extracts that same pinned archive before
 running its launcher and archive-carried TypeScript runtime closure with required certification.
@@ -149,13 +150,10 @@ Copy the same digest-pinned archive to a versioned directory on h2puni. The base
 `trusted-wiki` workflow downloads its operator-configured HTTPS archive into runner temporary
 storage, verifies the configured SHA-256 before extraction, and refuses missing URL, digest, or
 version configuration. The job always runs: with none or only some of the three repository
-variables set, its required configuration guards fail and admission stays red. The archive root contains
-`selected.json` beside its selected version directory; paths in both the selector and the package
-role descriptors are relative so the same archive can be extracted under a host version directory
-or runner temporary storage. The launcher installed from the
-archive's own `launcher-path` verifies the selected manifest identity, checksum-list identity, and
-every role artifact before reading a descriptor. The separately administered required-workflow/ruleset remains an
-external prerequisite; candidate YAML cannot activate it.
+variables set, its required configuration guards fail and admission stays red. The archive layout
+and launcher verification are as in the first paragraph of this section. The separately
+administered required-workflow/ruleset remains an external prerequisite; candidate YAML cannot
+activate it.
 
 Required admission must refuse an inactive, observe-only, absent, unreadable, malformed, or
 wrong-scope activation. Diagnostic local rollout may still report inactive without certification.

@@ -3,7 +3,7 @@
 One process's environment, checked at boot against the schema it declares.
 `runtime:bun` — it reads files and spawns `sops`.
 
-## Four files
+## Three files
 
 - **`define-config.ts`** — `defineConfig(schema, env)`: the whole environment in,
   a typed config out, or a throw naming the variable.

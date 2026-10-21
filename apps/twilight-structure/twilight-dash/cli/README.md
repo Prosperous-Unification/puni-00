@@ -1,23 +1,21 @@
 # Twilight Dash
 
 Dash owns the runtime admission authority ([`src/authority`](src/authority/authority-store.ts))
-and exposes ten local commands. `bootstrap-authority <repository>` is the only command that
-creates an authority; the other authority commands refuse an absent one. `inspect-authority <repository>
-[--session <id>]` prints the authority state, read-only. `recover-publication <repository> --integration-id
-<id>` finishes an interrupted publication from its durable record. `submit-admission <repository>
-<packet-json> <staged|committed> <revision-or-base>` freezes a bound packet's candidate and
-prints its submission report; it judges the packet through Twilight Burokrat's
-[admission judge](../../twilight-burokrat/cli/src/judge-facade.ts). `render-observation-units
-<layout.json> <new-dir>` renders the uninstalled `twilight-dash-observation.{service,timer}` units
-and their `runtime.sha256` into a new directory; see the
-[observation service runbook](src/activation/units/README.md). `run-activation-checks
---candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs
-<new-dir>` runs a candidate's activation checks and writes the CheckRun ledger both Burokrat
-preparers take as `--check-runs` (see the next paragraph but one). `plan-enrollment`
-delegates enrollment planning to the existing fleet CLI. Creating a plan authorizes no apply and does
-not enroll a node. Fleet owns the plan format, digest, eligibility checks and
-execution admission; see [fleet identities and ownership](../../../../docs/infra/fleet.md)
-and [`runPlan`](../../../../tools/tool-fleet/src/cli.ts).
+and exposes eleven local commands:
+
+| Command                                                                                                                          | What it does                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bootstrap-authority <repository>`                                                                                               | the only command that creates an authority; the other authority commands refuse an absent one                                                                                                    |
+| `inspect-authority <repository> [--session <id>]`                                                                                | prints the authority state, read-only                                                                                                                                                            |
+| `recover-publication <repository> --integration-id <id>`                                                                         | finishes an interrupted publication from its durable record                                                                                                                                      |
+| `submit-admission <repository> <packet-json> <staged\|committed> <revision-or-base>`                                             | freezes a bound packet's candidate and prints its submission report; judges the packet through Twilight Burokrat's [admission judge](../../twilight-burokrat/cli/src/judge-facade.ts)            |
+| `render-observation-units <layout.json> <new-dir>`                                                                               | renders the uninstalled `twilight-dash-observation.{service,timer}` units and their `runtime.sha256` into a new directory; see the [observation service runbook](src/activation/units/README.md) |
+| `run-activation-checks --candidate-repository <checkout> --candidate-sha <sha> --candidate-policy <path> --check-runs <new-dir>` | runs a candidate's activation checks and writes the CheckRun ledger both Burokrat preparers take as `--check-runs`; see [activation checks](#activation-checks)                                  |
+| `bootstrap-observation`, `migrate-observation`                                                                                   | create or migrate the observation store; see [observation store](#observation-store)                                                                                                             |
+| `plan-enrollment`                                                                                                                | delegates enrollment planning to the existing fleet CLI; see [`plan-enrollment`](#plan-enrollment)                                                                                               |
+| `record-progress`, `record-progress-v2`                                                                                          | record operator progress assertions as a receipt; see [`record-progress`](#record-progress)                                                                                                      |
+
+## Activation controller
 
 Dash also runs the activation controller ([`src/activation`](src/activation/controller.ts)), its
 second authority: a separate process with its own store and service account, sharing no table or
@@ -28,6 +26,8 @@ runtime ([`src/review/invoker.ts`](src/review/invoker.ts)) spawns review harness
 invocation journals. Both reach Twilight Burokrat only through `@twilight-burokrat/judge`;
 Burokrat keeps `validate-review-provenance`.
 
+## Activation checks
+
 Dash measures activation checks; Burokrat judges what it measured
 ([ADR 0052](../../../../docs/adr/0052-dash-runs-activation-checks-and-burokrat-judges-their-receipts.md)).
 `run-activation-checks` ([`src/check-runs`](src/check-runs/run-activation-checks.ts)) plans the
@@ -37,6 +37,8 @@ after a pass, and stamps both instants from its injected wall clock. It writes
 `check-runs.json`, a digest-chained ledger of `CheckRun` records, beside `streams/<sha256>`. It
 holds no store, lock or token, and shares only `src/clock.ts` with the two authorities. A failing
 check is recorded, never refused; the preparer refuses it.
+
+## Observation store
 
 Dash owns the activation controller's observation store
 (`<stateDirectory>/activation.sqlite`, `user_version` 10; see
@@ -49,6 +51,13 @@ to v10 and prints `migrated` with both versions. It refuses `absent`, `current` 
 a refused command creates no file. The [fixtures](fixtures/activation/README.md) pin the v10
 schema and a store written by the pre-relocation Burokrat code, and vendor that code's source so
 `rollback.db.test.ts` proves it still opens a store Dash wrote.
+
+## `plan-enrollment`
+
+Creating a plan authorizes no apply and does not enroll a node. Fleet owns the plan format,
+digest, eligibility checks and execution admission; see
+[fleet identities and ownership](../../../../docs/infra/fleet.md) and
+[`runPlan`](../../../../tools/tool-fleet/src/cli.ts).
 
 From the repository root, supply a desired fleet, its complete observation, an
 exact observed unenrolled node and cluster, and the SHA-256 values of the reviewed
@@ -69,8 +78,8 @@ bun apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts plan-enrollment 
   --known-hosts-sha256 "$KNOWN_HOSTS_SHA256"
 ```
 
-These are all eight accepted flags. Replace the illustrative paths and synthetic
-node/cluster identifiers with your supplied planning inputs. The command prints
+These are all eight accepted flags; the paths and node/cluster identifiers are
+illustrative. The command prints
 the plan summary and digest after successfully writing the output. Missing,
 unreadable or malformed input, invalid identity or digests, and output-write
 failure exit unsuccessfully without a successful plan acknowledgment. Planning
@@ -82,6 +91,8 @@ and artifact checks. Follow the [infrastructure operator guide](../../../../docs
 and [operation runbook](../../../../infra/terraform/README.md); Dash accepts no
 apply, discovery, build, deploy, operation-selection or executable-selection option.
 This local facade does not relocate lease authority.
+
+## Checks
 
 The declared [Nx project](project.json) runs its real dispatcher and entrypoint
 tests with the ordinary acceptance targets. The CLI runs from source. `build`
