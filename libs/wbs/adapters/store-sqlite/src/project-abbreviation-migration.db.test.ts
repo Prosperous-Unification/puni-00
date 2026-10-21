@@ -311,6 +311,12 @@ it('concurrent old and new writers never collide', async () => {
     expect({ status, errors }).toEqual({ status: 0, errors: '' });
   }
   raw((sqlite) => {
+    expect(sqlite.query("SELECT id FROM project WHERE id='duplicate'").get()).toBeNull();
+    expect(
+      sqlite
+        .query("SELECT resource_id FROM project_organization WHERE resource_id='duplicate'")
+        .get(),
+    ).toBeNull();
     const stored = codes(sqlite);
     expect(stored).toHaveLength(60);
     expect(new Set(stored.map((row) => `${row.namespace}:${row.abbreviation}`)).size).toBe(60);
