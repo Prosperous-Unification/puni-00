@@ -105,6 +105,23 @@ semantics. Duplicate detection covers the unified endpoint/type key. Updating
 between local and external endpoints preserves the relationship identity and
 moves its physical representation atomically.
 
+The store uses required project-scoped endpoint types; existing local domain
+and historical payload types remain explicit legacy shapes. Local constructors
+attach their known owner to each endpoint. Owned and incident reads observe one
+coherent union, validate required endpoint/ownership evidence and reject duplicate
+physical identities instead of hiding them through deduplication. Incident reads
+return each relationship once even when both endpoint projects are requested.
+
+External persistence requires real organization ownership for both projects,
+composite work-item/step ownership foreign keys and restrictive deletion. Both
+physical tables guard cross-table identity and endpoint/type duplicates on insert
+and update. Representation changes retain creation audit values, preserve the
+successor owner and bump each old/new affected endpoint once in one transaction.
+Bulk deletion refuses a doomed external predecessor whose successor survives.
+Rollback refuses while external relationships remain; when empty, it preserves
+all existing local rows and audit values. This storage foundation does not enable
+external authoring before the complete semantic activation barrier.
+
 Creating, editing or removing an external relationship requires successor edit
 permission and readable predecessor access. Every command checks the current
 organization and role inside its transaction. Foreign and absent endpoints
