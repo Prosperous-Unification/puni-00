@@ -74,7 +74,7 @@ These are tracking receipts, not evidence that package implementation is done.
 | Capability                 | Status                 | Note                                        |
 | -------------------------- | ---------------------- | ------------------------------------------- |
 | project-addresses          | Partial: 1.1, 2.1, 2.2 | Delta retained; no main-spec sync performed |
-| cross-project-dependencies | N/A: unimplemented     | Delta retained; no main-spec sync performed |
+| cross-project-dependencies | Partial: 4.1 storage   | Delta retained; no main-spec sync performed |
 | wbs-domain                 | N/A: unimplemented     | Delta retained; no main-spec sync performed |
 | plan-import                | N/A: unimplemented     | Delta retained; no main-spec sync performed |
 | saved-plans                | N/A: unimplemented     | Delta retained; no main-spec sync performed |
