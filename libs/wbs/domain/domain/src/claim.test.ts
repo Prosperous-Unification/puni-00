@@ -45,7 +45,12 @@ function leafRequest(over: Partial<ClaimRequest> = {}): ClaimRequest {
     runId: 'agent:main:subagent:7f',
     parentClaim: null,
     parentClaimId: null,
+    assign: false,
     claims: [],
+    demand: [],
+    resources: null,
+    capacities: [],
+    occupancy: [],
     ...over,
   };
 }
@@ -89,6 +94,31 @@ describe('decideClaim on a leaf', () => {
         },
       ],
       stateInProgress: ['plan'],
+      assignStepIds: [],
+      occupancy: [],
+      acquired: [],
+    });
+  });
+
+  it('assigns exactly the steps it claims when asked, skipping the ones it already holds', () => {
+    const held = claim({
+      id: 'c-plan',
+      workItemId: 'leaf',
+      stepId: 'plan',
+      personId: 'worker',
+      runId: 'agent:main:subagent:7f',
+    });
+    expect(decideClaim(leafRequest({ assign: true }))).toMatchObject({
+      kind: 'claim',
+      assignStepIds: ['plan', 'review'],
+    });
+    expect(decideClaim(leafRequest({ assign: true, claims: [held] }))).toMatchObject({
+      kind: 'claim',
+      assignStepIds: ['review'],
+    });
+    expect(decideClaim(leafRequest({ assign: true, stepIds: ['review'] }))).toMatchObject({
+      kind: 'claim',
+      assignStepIds: ['review'],
     });
   });
 
@@ -416,6 +446,16 @@ describe('decideClaim on a non-leaf', () => {
         },
       ],
       stateInProgress: [],
+      assignStepIds: [],
+      occupancy: [],
+      acquired: [],
+    });
+  });
+
+  it('assigns nothing with a subtree claim, which writes no step', () => {
+    expect(decideClaim(parentRequest({ assign: true }))).toMatchObject({
+      kind: 'claim',
+      assignStepIds: [],
     });
   });
 
@@ -550,6 +590,47 @@ describe('decideClaim never takes a held step', () => {
         if (decided.kind !== 'claim') return;
         const heldSteps = new Set(claims.map(({ stepId }) => stepId));
         for (const draft of decided.drafts) expect(heldSteps.has(draft.stepId)).toBe(false);
+      }),
+    );
+  });
+
+  it('with assign, assigns exactly the steps it claims; without, none', () => {
+    fc.assert(
+      fc.property(arbitrary, fc.boolean(), (drawn, assign) => {
+        if (drawn.named?.length === 0) return;
+        const decided = decideClaim(
+          leafRequest({
+            target: {
+              ...leafRequest().target,
+              status: drawn.status,
+              steps: steps.map((stepId, index) => ({
+                stepId,
+                progress: drawn.progress[index] ?? 'unknown',
+              })),
+            },
+            claimant: { personId: drawn.claimant, boundAccountId: F },
+            runId: drawn.run,
+            stepIds: drawn.named,
+            assign,
+            claims: drawn.held.flatMap((holder, index) =>
+              holder === null
+                ? []
+                : [
+                    claim({
+                      id: `c${String(index)}`,
+                      workItemId: 'leaf',
+                      stepId: steps[index] ?? 'x',
+                      personId: holder.person,
+                      runId: holder.run,
+                    }),
+                  ],
+            ),
+          }),
+        );
+        if (decided.kind !== 'claim') return;
+        // A leaf's drafts always name a step.
+        const claimed = decided.drafts.map(({ stepId }) => stepId ?? 'subtree').toSorted();
+        expect([...decided.assignStepIds].toSorted()).toEqual(assign ? claimed : []);
       }),
     );
   });

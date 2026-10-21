@@ -56,6 +56,8 @@ describe('space rollback save, remove and restore', () => {
     expect(snapshot()).toEqual({ spaces: [], members: [] });
 
     expect(rollbackTo(path, FOLDER, BEFORE_SPACES)).toEqual([
+      '20261020130000_add_claim_occupancy',
+      '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
       '20261019120000_add_claim',

@@ -146,7 +146,7 @@ describe('estimates follow the first and last child', () => {
     await service.setEstimate(strip, OWNER, DEV, days(1, 2, 3));
     const sockets = await add('Sockets', strip);
 
-    await service.remove(sockets, OWNER, 'cascade');
+    await service.remove(sockets, OWNER, 'cascade', { kind: 'legacy' });
 
     expect((await shown()).get('Strip')?.[DEV]).toEqual(days(1, 2, 3));
   });

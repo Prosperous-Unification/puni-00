@@ -44,7 +44,7 @@ function fast(projectId: string): ScheduleRead {
     optimization: {
       inputHash: 'same-input',
       generation: 1,
-      contractVersion: '16+0.2.0',
+      contractVersion: '17+0.3.0',
       budgetMs: 1000,
       variants: { pri: { state: 'pending' }, time: { state: 'idle' } },
       schedules: { pri: null, time: null },
@@ -60,7 +60,7 @@ describe('compareSharedPeopleFanout', () => {
       optimization: {
         inputHash: 'same-input',
         generation: 1,
-        contractVersion: '16+0.2.0',
+        contractVersion: '17+0.3.0',
         budgetMs: 1000,
         variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
         schedules: { pri: placed('A', 3), time: null },

@@ -24,7 +24,7 @@ beforeAll(() => {
   exportsDirectory = mkdtempSync(join(tmpdir(), 'navigator-exports-'));
   const requirements = join(exportsDirectory, 'requirements.md');
   writeFileSync(requirements, 'Requirements\n');
-  for (const version of [7, 8, 9]) {
+  for (const version of [7, 8, 9, 10]) {
     const output = join(exportsDirectory, `v${String(version)}`);
     mkdirSync(output);
     const child = Bun.spawnSync({
@@ -57,12 +57,14 @@ beforeAll(() => {
     if (child.exitCode !== 0)
       throw new Error(`Navigator fixture generation failed: ${child.stderr.toString()}`);
   }
-});
+  // One Navigator process per plan document version, about two seconds each on a
+  // loaded laptop: the default five-second hook bound expires before the fourth.
+}, 60_000);
 afterAll(() => {
   rmSync(exportsDirectory, { recursive: true, force: true });
 });
 
-function generate(version: 7 | 8 | 9 = 8): void {
+function generate(version: 7 | 8 | 9 | 10 = 8): void {
   const output = join(directory, `v${String(version)}`);
   mkdirSync(output);
   referencePath = join(output, 'plan-reference.json');
@@ -103,7 +105,7 @@ afterEach(() => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-for (const version of [7, 8, 9] as const) {
+for (const version of [7, 8, 9, 10] as const) {
   test(`validates real Navigator v${String(version)} output deterministically`, async () => {
     if (version !== 8) generate(version);
     const argv = ['validate-plan-tasks', referencePath, tasksPath];
@@ -153,7 +155,7 @@ for (const version of [6, 7] as const) {
     await refuse('schema pairing');
   });
 }
-test.each([8, 9])('refuses schema 1 with reference v%s', async (version) => {
+test.each([8, 9, 10])('refuses schema 1 with reference v%s', async (version) => {
   generate(7);
   reference['planDocumentVersion'] = version;
   save(true);
@@ -298,8 +300,8 @@ test('the process entrypoint refuses extra operands without reading files', () =
   expect(child.stderr.toString()).toContain('usage: twib validate-plan-tasks');
 });
 
-test('refuses plan document v10', async () => {
-  reference['planDocumentVersion'] = 10;
+test('refuses plan document v11', async () => {
+  reference['planDocumentVersion'] = 11;
   save(true);
   await refuse('planDocumentVersion');
 });

@@ -72,6 +72,7 @@ import {
   selectActiveOrganization,
 } from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
+import { readPersonWork } from './person-work-shapes';
 import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
@@ -88,6 +89,7 @@ import {
   revokeProvisioningToken,
   rotateProvisioningToken,
 } from './provisioning-token-shapes';
+import { readProjectResources } from './resource-shapes';
 import {
   compareSavedPlans,
   deleteSavedPlan,
@@ -213,6 +215,8 @@ export const httpShapes = [
   getWorkItem,
   getStepReference,
   readStartableWork,
+  readPersonWork,
+  readProjectResources,
   applyProjectCommands,
   applyDirectoryCommands,
   undoProject,

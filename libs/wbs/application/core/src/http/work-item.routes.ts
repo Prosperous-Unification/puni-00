@@ -8,6 +8,8 @@ import {
   getWorkItems,
   PLAN_COMMAND_KINDS,
   type PlanCommandKind,
+  readPersonWork,
+  readProjectResources,
   readStartableWork,
   redoProject,
   responseSchema,
@@ -299,6 +301,11 @@ function answerBatch(
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
     case 'unknown_system':
       return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    case 'unknown_resource':
+      return { ok: false, status: 404, body: { ...context, error: outcome.reason } };
+    // The resource's kind refuses the units whatever the plan holds.
+    case 'exclusive_demand_is_one':
+      return { ok: false, status: 422, body: { ...context, error: outcome.reason } };
     case 'cycle':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'schedule_not_ready':
@@ -388,6 +395,7 @@ function answerBatch(
       };
     case 'already_claimed':
     case 'destination_claimed':
+    case 'children_claimed':
       return {
         ok: false,
         status: 409,
@@ -395,6 +403,28 @@ function answerBatch(
       };
     case 'inside_subtree_claim':
     case 'overlaps_subtree_claim':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    // The project's free units or the leaf's declared demand stand in the way
+    // (`wbs-resources` R3, R4); a subtree claim acquires nothing to ask for.
+    case 'resources_on_subtree':
+      return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
+    case 'below_declared_demand':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'below_held_occupancy':
+      return {
+        ok: false,
+        status: 409,
+        body: { ...context, error: outcome.reason, ...outcome.detail },
+      };
+    case 'resources_exhausted':
       return {
         ok: false,
         status: 409,
@@ -687,6 +717,30 @@ export function workItemRoutes(
         if (startable === null) return { ok: false, status: 404, body: { error: 'not_found' } };
         if ('kind' in startable) return { ok: false, status: 404, body: { error: startable.kind } };
         return { ok: true, status: 200, body: startable };
+      },
+    ),
+    bind(
+      readPersonWork,
+      async ({ params, principal }): Promise<HttpReply<typeof readPersonWork>> => {
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const work = await workItems.personWorkWithin(params.id, resolved.access, params.personId);
+        if (work === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        if ('kind' in work) return { ok: false, status: 404, body: { error: work.kind } };
+        return { ok: true, status: 200, body: work };
+      },
+    ),
+    bind(
+      readProjectResources,
+      async ({ params, principal }): Promise<HttpReply<typeof readProjectResources>> => {
+        // Proof: reading without resolving access made `refuses an unbound session
+        // and a stranger alike` (resource-organization.controller.db.test.ts)
+        // answer 200; watched 2026-10-20.
+        const resolved = await organizations.resolve(principal);
+        if (!resolved.ok) return organizationRefusal(resolved);
+        const read = await workItems.resourcesWithin(params.id, resolved.access);
+        if (read === null) return { ok: false, status: 404, body: { error: 'not_found' } };
+        return { ok: true, status: 200, body: read };
       },
     ),
     bind(getWorkItem, async ({ params, principal }): Promise<HttpReply<typeof getWorkItem>> => {

@@ -3,10 +3,13 @@ import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
+import type { ResourceCapacity, ResourceCapacityStore } from '../../ports/resource-capacity-store';
 
 export interface CapacityServiceOptions {
   projects: ProjectStore;
   capacity: CapacityStore;
+  /** How many units of each resource a project's plan may use (`wbs-resources`). */
+  resourceCapacity: ResourceCapacityStore;
   broadcast: Broadcaster;
   /**
    * Who may write a project through this service: `CREATOR_ADMISSION`
@@ -22,6 +25,11 @@ export type CapacityRefusal = 'not_found' | 'forbidden';
 
 export type CapacityOutcome =
   { ok: true; value: TeamCapacity[] } | { ok: false; reason: CapacityRefusal };
+
+/** What a resource capacity write answered: the project's stated pairs, or why not. */
+export type ResourceCapacityOutcome =
+  | { ok: true; value: ResourceCapacity[] }
+  | { ok: false; reason: CapacityRefusal | 'unknown_resource' };
 
 /**
  * How many of each team a project may have at work at once.
@@ -96,5 +104,41 @@ export class CapacityService {
     if (!written.ok) return { ok: false, reason: 'not_found' };
     await this.opts.broadcast.publish(projectId, { type: 'capacity_changed' });
     return { ok: true, value: await this.opts.capacity.listFor(projectId) };
+  }
+
+  /** The project's stated resource pairs, in resource-id order: its resource settings. */
+  listResourceCapacitiesFor(projectId: string): Promise<ResourceCapacity[]> {
+    return this.opts.resourceCapacity.listFor(projectId);
+  }
+
+  /**
+   * Sets this project's capacity for one resource, or clears it to unstated on
+   * `null` — {@link CapacityService.set} exactly, for a resource (`wbs-resources`
+   * R1): gated by the edit admission, announced as `capacity_changed` to this
+   * project alone, not journalled, answering the project's whole list. A number
+   * stated for a resource nothing on the plan demands is kept (remembered) and
+   * applies again when a demand returns; only `null` takes it away. Units are
+   * bounded at the boundary, from 0.
+   */
+  async setForResource(
+    projectId: string,
+    actorId: string,
+    resourceId: string,
+    units: number | null,
+  ): Promise<ResourceCapacityOutcome> {
+    const project = await this.opts.projects.findById(projectId);
+    if (project === null) return { ok: false, reason: 'not_found' };
+    if (!this.opts.admission.admits(project, actorId)) return { ok: false, reason: 'forbidden' };
+    const stamp = this.clock.stampFor(actorId);
+    const written = await this.opts.resourceCapacity.set(projectId, resourceId, units, stamp);
+    // Read inside the store's transaction: the project went between the read above
+    // and the write, or the resource is one nothing holds.
+    if (!written.ok)
+      return {
+        ok: false,
+        reason: written.reason === 'unknown_project' ? 'not_found' : 'unknown_resource',
+      };
+    await this.opts.broadcast.publish(projectId, { type: 'capacity_changed' });
+    return { ok: true, value: await this.opts.resourceCapacity.listFor(projectId) };
   }
 }

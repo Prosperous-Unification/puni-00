@@ -781,6 +781,10 @@ describe('after activation', () => {
         { kind: 'setAssignee', workItemId: row, stepId: ownStep, personId: 'pe-b' },
         'unknown_person',
       ],
+      [
+        { kind: 'assignSubtree', workItemId: row, stepId: ownStep, personId: 'pe-b' },
+        'unknown_person',
+      ],
       [{ kind: 'setCapacity', teamId: 'tm-b', size: 3 }, 'not_found'],
       [{ kind: 'addDependency', workItemId: row, predecessorId: theirs }, 'not_found'],
     ];

@@ -4,6 +4,42 @@ Upgraded on 2026-09-06 from 1.3.0 to **1.12.0**, the stable version returned by
 the official package registry and GitHub's latest release at the time.
 [Release notes](https://github.com/Fission-AI/OpenSpec/releases/tag/v1.12.0)
 
+## CLI pin update, 2026-10-20
+
+`package.json` pins `@fission-ai/openspec` to **1.14.3** as a dev dependency;
+`bun.lock` locks its transitive dependencies
+([release notes](https://github.com/Fission-AI/OpenSpec/releases/tag/v1.14.3)).
+After `bun install --frozen-lockfile`, CI and the h2puni gate invoke
+`./node_modules/.bin/openspec` directly. The schema integration target uses that
+same installation instead of installing another copy in a scratch directory.
+The customized agent workflows remain at their existing revisions.
+
+Verification on the local development host:
+
+- `bun install --frozen-lockfile` passed without changing the lockfile.
+- `./node_modules/.bin/openspec --version` printed `1.14.3`.
+- `validate --all --json` passed all 261 entries: 243 changes and 18 specs.
+- `schema validate` passed for `sdd-lean`, `sdd-plus-superpowers`, and `twilight-v1`.
+- `OPENSPEC_CLI="$PWD/node_modules/@fission-ai/openspec/bin/openspec.js" bunx nx run tool-workflows:integration`
+  passed all three tests. Pointing the same target at 1.12.0 failed its version
+  assertion with expected `1.14.3`, received `1.12.0`.
+- `bun run gate-pinning:test` passed all cases, including failed, empty, malformed,
+  and multiple validator reports. Removing the fixture's local executable exposed
+  the earlier bunx invocation reaching later work; the direct invocation exits 127
+  before Nx. The frozen-install failure cases also stop before validation.
+- In a disposable change, `validate --all --json` passed one valid spec. Changing
+  `#### Scenario` to `### Scenario` made it exit 1 with one failed entry.
+- `bunx nx format:check --files=<changed paths>` and `git diff --check` passed.
+
+Normal validation passes all 261 entries on both 1.12.0 and 1.14.3. Strict mode
+fails 6 entries on 1.12.0 and 129 on 1.14.3, predominantly because the new CLI
+warns about descriptions over 500 characters. The gate retains normal validation.
+
+These local checks do not establish full-repo test/lint/typecheck/build or remote
+CI results; those belong to the exact-commit gate and PR checks. The sections below
+retain the original 1.12.0 upgrade history; the reproduction instructions use the
+current local installation.
+
 ## Repository changes
 
 - Pin CI and documented Bun invocations to `@fission-ai/openspec@1.12.0`.
@@ -134,15 +170,14 @@ source and test files. Ordinary tests use local fixtures and require no OpenSpec
 installation or network access.
 
 The separate integration target requires `OPENSPEC_CLI` to name an already installed
-**1.12.0** `bin/openspec.js`; it verifies the version and invokes that CLI in a
+**1.14.3** `bin/openspec.js`; it verifies the version and invokes that CLI in a
 disposable repository. CI runs it as its own step (`OpenSpec schema graph (pinned
-CLI)`), which installs the pin into a scratch directory first, because
+CLI)`), which uses the frozen workspace installation, because
 `run-many` cannot reach a target that refuses to start without that variable.
-Locally, install the pinned package explicitly with
-`bunx @fission-ai/openspec@1.12.0 --version` if necessary, then run:
+Locally, run `bun install --frozen-lockfile`, then:
 
 ```sh
-OPENSPEC_CLI=/absolute/path/to/@fission-ai/openspec/bin/openspec.js bunx nx run tool-workflows:integration
+OPENSPEC_CLI="$PWD/node_modules/@fission-ai/openspec/bin/openspec.js" bunx nx run tool-workflows:integration
 ```
 
 The integration cases probe the pinned CLI's answers rather than the schema file.

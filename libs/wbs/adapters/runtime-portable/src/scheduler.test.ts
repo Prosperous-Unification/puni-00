@@ -172,16 +172,6 @@ describe('createScheduler', () => {
         INPUT.deadlines,
         INPUT.typed,
         new Map(),
-      ],
-      [
-        INPUT.rows,
-        INPUT.edges,
-        INPUT.slices,
-        INPUT.notBefore,
-        INPUT.poolSizes,
-        INPUT.reach,
-        INPUT.deadlines,
-        INPUT.typed,
         new Map(),
       ],
       [
@@ -193,6 +183,19 @@ describe('createScheduler', () => {
         INPUT.reach,
         INPUT.deadlines,
         INPUT.typed,
+        new Map(),
+        new Map(),
+      ],
+      [
+        INPUT.rows,
+        INPUT.edges,
+        INPUT.slices,
+        INPUT.notBefore,
+        INPUT.poolSizes,
+        INPUT.reach,
+        INPUT.deadlines,
+        INPUT.typed,
+        new Map(),
         new Map(),
       ],
     ]);
@@ -216,6 +219,18 @@ describe('createScheduler', () => {
     });
     void scheduler.read(ask({ input: { ...INPUT, elsewhere } }));
     expect(seen).toEqual([elsewhere]);
+  });
+
+  it('hands the resource capacities to Fast', () => {
+    const resourceCapacities = new Map([['staging', 1]]);
+    const seen: unknown[] = [];
+    const scheduler = createScheduler((...args) => {
+      seen.push(args[9]);
+      return FAST;
+    });
+    void scheduler.read(ask({ input: { ...INPUT, resourceCapacities } }));
+    void scheduler.read(ask({ input: INPUT }));
+    expect(seen).toEqual([resourceCapacities, new Map()]);
   });
 
   const states: OptimizationVariantState[] = [

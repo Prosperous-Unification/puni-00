@@ -56,8 +56,8 @@ export type ParserRefusalCode =
   | 'bands_must_start_in_increasing_order'
   | 'band_default_must_be_inside_its_own_band'
   | `${'parentId' | 'afterId' | 'personId' | 'serviceTeamId' | 'accountId'}_must_be_id_or_null`
-  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note'}_must_be_text`
-  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId'}_must_be_an_id`
+  | `${'name' | 'notes' | 'kind' | 'startNoEarlierThanReason' | 'stepId' | 'metric' | 'reference' | 'note' | 'unitLabel'}_must_be_text`
+  | `${'workItemId' | 'workItemRef' | 'ref' | 'parentRef' | 'afterRef' | 'personRef' | 'predecessorId' | 'predecessorRef' | 'teamId' | 'teamRef' | 'personId' | 'tagId' | 'tagRef' | 'typeId' | 'typeRef' | 'serviceId' | 'serviceRef' | 'executorPersonId' | 'resourceId' | 'resourceRef'}_must_be_an_id`
   | `${'teamIds' | 'teamRefs' | 'tagIds' | 'tagRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_a_list_of_ids`
   | `${'teamIds' | 'teamRefs' | 'serviceIds' | 'serviceRefs' | 'typeIds' | 'typeRefs'}_must_be_at_most_10`
   | `${'tagIds' | 'tagRefs'}_must_be_at_most_50`
@@ -71,7 +71,7 @@ export type ParserRefusalCode =
   | 'deadline_must_be_a_date'
   | 'on_must_be_a_date'
   | `${'factStart' | 'factEnd'}_must_be_a_date`
-  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber'}_must_be_a_whole_number_from_1`
+  | `${'priority' | 'maxParallel' | 'size' | 'attemptNumber' | 'units'}_must_be_a_whole_number_from_1`
   | `${'maxParallel' | 'size'}_must_be_at_most_1000`
   | 'cascade_must_be_true_or_false'
   | 'startNoEarlierThanReason_must_be_at_most_200_characters'
@@ -82,7 +82,21 @@ export type ParserRefusalCode =
   | 'steps_must_be_a_list_of_ids'
   | 'steps_must_be_at_most_50'
   /** A `claimWorkItem` or `releaseWorkItem` whose `steps` is an empty list. */
-  | 'steps_must_name_a_step';
+  | 'steps_must_name_a_step'
+  /** A `claimWorkItem` whose `resources` is not a list of `{ resourceId, units }` (`wbs-resources` R4). */
+  | 'resources_must_be_a_list'
+  | 'resources_must_name_a_resource'
+  | 'resources_must_be_at_most_50'
+  | 'resources_must_name_each_resource_once'
+  // Resources (`wbs-resources`): a `patchResource` naming the kind, a capacity or
+  // demand without its units, a capacity below 0, a figure above the product
+  // bound, and a unit label too long to sit beside a number.
+  | 'kind_is_immutable'
+  | 'resourceKind_must_be_exclusive_or_divisible'
+  | 'units_required'
+  | 'units_must_be_a_whole_number_from_0'
+  | 'units_must_be_at_most_1000000000'
+  | 'unitLabel_must_be_at_most_40_characters';
 
 /** Service/runner refusals after a command kind has been recognized. */
 export type CommandRefusalCode =
@@ -144,6 +158,10 @@ export type CommandRefusalCode =
   | 'unknown_service'
   | 'unknown_type'
   | 'unknown_system'
+  /** A resource the directory does not hold, or one another organization owns (`wbs-resources`). */
+  | 'unknown_resource'
+  /** `setDemand` of other than 1 unit on an `exclusive` resource. */
+  | 'exclusive_demand_is_one'
   /** A patch whose bound `typeIds` and `typeRefs` name more than one type. */
   | 'work_item_takes_one_type'
   | 'not_before_reason_needs_a_date'
@@ -181,11 +199,22 @@ export type CommandRefusalCode =
   | 'not_startable'
   | 'step_done'
   | 'already_claimed'
+  // `claimWorkItem` occupancy (`wbs-resources` R3, R4), between already_claimed
+  // and inside_subtree_claim in the claim's order.
+  | 'resources_on_subtree'
+  | 'below_declared_demand'
+  | 'below_held_occupancy'
+  | 'resources_exhausted'
   | 'inside_subtree_claim'
   | 'overlaps_subtree_claim'
   | 'not_claimed_by'
   /** `moveWorkItem` under a leaf whose steps are claimed; names the holders. */
-  | 'destination_claimed';
+  | 'destination_claimed'
+  /**
+   * `deleteWorkItem` promoting the parent while claims sit on more than one
+   * deleted row, or on that parent as well; names the holders.
+   */
+  | 'children_claimed';
 
 /** One claim a claim refusal names: the claim, its person by id and name, and its run. */
 export interface ClaimRefusalHolder {
@@ -193,6 +222,14 @@ export interface ClaimRefusalHolder {
   personId: string;
   name: string;
   runId: string | null;
+}
+
+/** One holder `resources_exhausted` names: a claimant and run on one leaf. */
+export interface OccupancyRefusalHolder {
+  personId: string;
+  name: string;
+  runId: string | null;
+  workItemId: string;
 }
 
 /**
@@ -213,7 +250,16 @@ export type DirectoryEffect =
   | { kind: 'label_nulled' }
   | { kind: 'label_removed' }
   | { kind: 'capacity_released'; size: number; fromId: string }
+  /** The row's demand on the resource being removed goes with it (`wbs-resources`). */
+  | { kind: 'demand_removed'; units: number }
   | { kind: 'assumed_assignee_changed'; assumedNow: string | null; assumedAfter: string | null };
+
+/** What a resource removal would take, counted (`wbs-resources` R8). */
+export interface ResourceUsageCounts {
+  demands: number;
+  capacities: number;
+  occupancies: number;
+}
 
 /** Both affected-project and directory-member lists are present, including when empty. */
 export interface DirectoryUsage {
@@ -295,18 +341,29 @@ export type CommandRefusalDetail = {
         : C extends 'node_on_parent' | 'descendant_step_on_leaf'
           ? { dependencyIds: string[] }
           : C extends 'in_use'
-            ? { usage: DirectoryUsage }
+            ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }
             : C extends 'taken'
               ? { name?: string }
               : C extends 'not_startable'
                 ? { status: string }
                 : C extends 'step_done'
                   ? { stepIds: string[] }
-                  : C extends 'already_claimed' | 'destination_claimed'
+                  : C extends 'already_claimed' | 'destination_claimed' | 'children_claimed'
                     ? { holders: ClaimRefusalHolder[] }
                     : C extends 'inside_subtree_claim' | 'overlaps_subtree_claim'
                       ? { holder: ClaimRefusalHolder }
-                      : Record<never, never>);
+                      : C extends 'below_declared_demand'
+                        ? { resourceId: string; asked: number; declared: number }
+                        : C extends 'below_held_occupancy'
+                          ? { resourceId: string; asked: number; held: number }
+                          : C extends 'resources_exhausted'
+                            ? {
+                                resourceId: string;
+                                asked: number;
+                                free: number;
+                                holders: OccupancyRefusalHolder[];
+                              }
+                            : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -438,7 +495,8 @@ type SharedCommandCode =
   | 'calendar_range'
   | 'referenced_by_step_parallel'
   | 'already_claimed'
-  | 'unknown_team';
+  | 'unknown_team'
+  | 'unknown_person';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -467,6 +525,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     already_claimed: undefined | CommandRefusalDetail['already_claimed'];
     /** Bare from the startable read's `team` filter; with its command context from a batch. */
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
+    /** Bare from the by-person read; with its command context from a batch. */
+    unknown_person: undefined | CommandRefusalDetail['unknown_person'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
