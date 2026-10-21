@@ -253,16 +253,14 @@ _Avoid_: discipline, type, category
 A step's short, immutable, project-unique name for references — `dev`, `qa`, `review`: a
 lowercase letter, then lowercase letters, digits or hyphens. Suggested from the name when the
 step is created; renaming the step keeps it. Codes shaped `s<digits>` or `s<digits>-…` are
-reserved for ordinal references
-([address-step-nodes](openspec/changes/address-step-nodes/specs/wbs-domain/spec.md)).
+reserved for ordinal references.
 _Avoid_: slug, step key, step id (which is the stored identity)
 
 **Step node**:
 One leaf work item's occurrence of one project step — the addressable unit that carries that
 pair's estimate, actual, measures, progress, assignment and dependencies. It exists for every
-leaf and step whether or not anything is stored for it, and a parent has none
-([address-step-nodes](openspec/changes/address-step-nodes/specs/wbs-domain/spec.md)). Not a
-work item: no tree position, title, type or number of its own ([ADR
+leaf and step whether or not anything is stored for it, and a parent has none. Not a work item:
+no tree position, title, type or number of its own ([ADR
 0031](docs/adr/0031-a-step-node-is-a-pair-not-a-work-item.md)).
 _Avoid_: sub-item, step item, task, cell (which is only its table drawing)
 
@@ -287,8 +285,7 @@ _Avoid_: status, column
 **Node resources**:
 The effective person, teams and parallel width of one leaf step. A person is explicit, assumed
 from the leaf's sole assignment, or unassigned; teams are the nearest stated whole set, with
-each team's stated project capacity or no capacity statement
-([read-step-node-resources](openspec/changes/read-step-node-resources/specs/wbs-domain/spec.md)).
+each team's stated project capacity or no capacity statement.
 
 **Step maximum parallelism override**:
 An explicit integer ceiling from 1 through 1000 authored for one leaf work item's step.
@@ -307,8 +304,7 @@ immutable code — `010.s1-dev`, or `010.s01-dev` when a project has ten or more
 ordinal is padded to the decimal width of the project's step count, so a work item's references
 sort in step order. Renumbering, reordering or repadding changes the spelling while the step
 node ID stays stable; code-only `010.dev` and unpadded ordinal forms remain accepted input at
-the current address revision
-([sortable-step-references](openspec/changes/sortable-step-references/specs/wbs-domain/spec.md)).
+the current address revision.
 _Avoid_: node id, path, step code alone as the canonical form
 
 **Step graph**:
@@ -361,9 +357,8 @@ _Avoid_: component, system, area, service team
 
 **Work item type**:
 A word for what a work item **is** — `epic`, `story`, `spike` — named globally and unique
-across the directory. A work item carries at most one, and none is allowed
-([limit-work-item-to-one-type](openspec/changes/limit-work-item-to-one-type/specs/wbs-domain/spec.md)).
-Unlike a Tag it does not inherit at all ([ADR
+across the directory. A work item carries at most one, and none is allowed. Unlike a Tag it
+does not inherit at all ([ADR
 0009](docs/adr/0009-a-work-item-type-does-not-inherit-at-all.md)): a row's type is the row's
 own, and an ancestor's says nothing about it.
 _Avoid_: kind, category, issue type, tag
@@ -497,8 +492,7 @@ _Avoid_: Scope, territory, ownership
 A record that one person, under one run, occupies a step so nobody else picks it up; or, on a
 non-leaf, reserves dispatch of the subtree. Separate from the assignment, which is the plan of
 who does the work. Refused where the step is blocked, held, done or already claimed. Giving it
-back is a **release**, which leaves progress as it is
-([wbs-team-claims](openspec/changes/wbs-team-claims/specs/plan-command-registry/spec.md)).
+back is a **release**, which leaves progress as it is.
 _Avoid_: Lock, lease, reservation, checkout
 
 **Delegated claim**:
@@ -511,7 +505,7 @@ A step whose leaf is not blocked, held or done, whose progress is not done, and 
 holds; startable **for a team** when that team is also in the leaf's effective team set.
 Derived from the folds the table uses, never stored. A startable step whose leaf's demand the
 project's free units do not cover is still startable, but listed apart as not fitting, with its
-shortfall ([startable-work](openspec/changes/wbs-resources/specs/startable-work/spec.md)).
+shortfall.
 _Avoid_: Available, free, unassigned, ready (which is a readiness value)
 
 **Agent run**:
@@ -544,8 +538,7 @@ _Avoid_: Quota, limit, size
 
 **Demand**:
 The units of one resource one work item states it needs while any of its steps runs. Plan data:
-levelled by the engines, acquired by a claim, and not inherited down the tree
-([resource-directory](openspec/changes/wbs-resources/specs/resource-directory/spec.md)).
+levelled by the engines, acquired by a claim, and not inherited down the tree.
 _Avoid_: Requirement, reservation, claim
 
 **Occupancy**:
@@ -573,14 +566,13 @@ opens the cell's picker, and pressed again with that picker's search open it clo
 leaves the cell at rest. What it reads is whether the search is open, never whether the focus
 is in the cell — a box holding the focus with no search open is where a reader stands the
 moment after taking a value, and the `+` has to open from there. It never takes the keyboard
-itself ([add-button-toggles](openspec/changes/add-button-toggles/specs/wbs-domain/spec.md)).
+itself.
 _Avoid_: plus, add affordance, new button, opener
 
 **Project owner**:
 The account that created a project and retains stewardship of a restricted project within its
 organization. A current creator-member may edit it; a current super-admin may make an audited
-recovery edit. An account, never a person from the directory
-([organization-access](openspec/changes/organization-ownership-and-access/specs/organization-access/spec.md)).
+recovery edit. An account, never a person from the directory.
 _Avoid_: author, creator, user
 
 **Project entry**:
@@ -597,8 +589,7 @@ _Avoid_: subtitle, caption, details
 **Estimate**:
 Three durations in the step's **estimate unit** — optimistic, realistic, pessimistic — held for
 one step node. Workday-unit trios may be fractions; minute-unit trios are whole minutes. A work
-item with children has no estimates of its own
-([estimate-units](openspec/changes/estimate-units/specs/wbs-domain/spec.md)).
+item with children has no estimates of its own.
 _Avoid_: points, effort, sizing, days (as the only unit)
 
 **Project-step allowance**:
@@ -691,8 +682,7 @@ _Avoid_: actual hours, time spent, effort, agent hours
 **Progress**:
 What one step node has said about its own work — `in_progress` or `done` — with the moment it
 was said. Unknown is the absence of a statement, never a stored value, and an **attempt** is
-not a statement
-([step-node-attempts](openspec/changes/step-node-attempts/specs/wbs-domain/spec.md)).
+not a statement.
 _Avoid_: step status, completion, state, node reading (which is derived)
 
 **Attempt**:
@@ -780,9 +770,7 @@ _Avoid_: actual start, real start, started at, start date
 **Fact end**:
 The day work on a work item actually finished, date-only in the project timezone. Filled when a
 work item is marked done holding none: from the last attempt's end day when one exists, else
-the day of the act
-([step-node-attempts](openspec/changes/step-node-attempts/specs/wbs-domain/spec.md)). Where a
-done work item's bar stops, whatever the estimate says ([ADR
+the day of the act. Where a done work item's bar stops, whatever the estimate says ([ADR
 0024](docs/adr/0024-a-done-work-item-draws-its-facts-not-its-slices.md)).
 _Avoid_: actual end, finished at, completion date, done at
 
@@ -812,8 +800,7 @@ _Avoid_: anchor (for an explicit endpoint), bar end
 The lower-bound boundary ordering of a typed dependency: finish-to-start (FS), start-to-start
 (SS), or finish-to-finish (FF). SS and FF permit a later start or finish; they never require
 simultaneous boundaries. A typed edit that creates a cycle in the combined slice graph is
-refused atomically ([dependency
-types](openspec/changes/add-start-and-finish-dependency-types/specs/wbs-domain/spec.md)).
+refused atomically.
 _Avoid_: dependency reach, link mode
 
 **All descendants**:
@@ -976,8 +963,7 @@ _Avoid_: milestone, date tag, annotation
 **Workday axis**:
 The Gantt panel's horizontal scale on a plan with **no** start date: one unit per workday,
 printing the offset itself. Weekends are not on it — there is no calendar to have one on — so a
-week is five cells rather than seven. A rendered state, not a fallback
-([gantt-calendar-axis](openspec/changes/gantt-calendar-axis/specs/wbs-domain/spec.md)).
+week is five cells rather than seven. A rendered state, not a fallback.
 _Avoid_: time axis, date axis, offset axis
 
 **Horizon**:
@@ -996,10 +982,9 @@ _Avoid_: segment, block, task bar
 
 **Assumed duration**:
 The drawing-only span, currently two workdays, shown for a slice nobody has estimated. It
-contributes no scheduling duration or resource demand
-([unestimated-steps-take-no-schedule-time](openspec/changes/unestimated-steps-take-no-schedule-time/specs/wbs-domain/spec.md)).
-It is never an estimate: nothing is written, the days column and the roll-up stay blank, and
-the readiness badge still counts the gap ([spec](openspec/specs/wbs-domain/spec.md)).
+contributes no scheduling duration or resource demand. It is never an estimate: nothing is
+written, the days column and the roll-up stay blank, and the readiness badge still counts the
+gap ([spec](openspec/specs/wbs-domain/spec.md)).
 _Avoid_: default duration, placeholder estimate, assumed estimate
 
 **Assumed span**:
@@ -1096,8 +1081,7 @@ _Avoid_: preset, bookmark, layout, filter set
 **Expansion**:
 Which branches of one project's tree are open, in one browser: every branch or a named set of
 them, a branch not named being closed. Remembered per project, per browser, and overridden on
-screen for as long as a search is running
-([find-in-the-tree](openspec/changes/find-in-the-tree/specs/wbs-domain/spec.md)).
+screen for as long as a search is running.
 _Avoid_: collapse state, open rows, fold
 
 **Key binding**:
@@ -1116,8 +1100,7 @@ everything under it is the notes. At rest the cell shows the name alone, whole, 
 read as inline markdown; writing in it gives the source back. The notes appear while it is
 edited and in its hover preview. They stay two fields in storage — the cell is where they are
 composed for reading and split again on the way out
-([name-title-body](openspec/changes/archive/2026-08-10-name-title-body/specs/wbs-domain/spec.md),
-[markdown-work-item-names](openspec/changes/markdown-work-item-names/specs/wbs-domain/spec.md)).
+([name-title-body](openspec/changes/archive/2026-08-10-name-title-body/specs/wbs-domain/spec.md)).
 _Avoid_: title field, notes column, description
 
 **Inline markdown**:
@@ -1126,8 +1109,7 @@ preview's heading, a plan card and the chart's row label. Emphasis, strong, inli
 strikethrough and links parse; block syntax does not, and a heading, list, quote, fence, table
 or rule marker is shown as the characters it is rather than stripped. A name never changes the
 height of what it is drawn in, a link is followable only from the hover preview, and the export
-and the search read the source instead
-([markdown-work-item-names](openspec/changes/markdown-work-item-names/specs/wbs-domain/spec.md)).
+and the search read the source instead.
 _Avoid_: rich text, formatted name, markdown name
 
 **Hover preview**:
@@ -1139,9 +1121,7 @@ card, shown two ways — opened over its Name cell from the notes marker on hove
 beside the box while it is being written in, the same size and content either way. The name is
 never composed into the notes' markdown source; this is the only place notes render, and
 nowhere does raw HTML in either field become markup
-([notes-preview-unify](openspec/changes/notes-preview-unify/specs/wbs-domain/spec.md),
-[markdown-work-item-names](openspec/changes/markdown-work-item-names/specs/wbs-domain/spec.md),
-[name-title-body](openspec/changes/archive/2026-08-10-name-title-body/specs/wbs-domain/spec.md)).
+([name-title-body](openspec/changes/archive/2026-08-10-name-title-body/specs/wbs-domain/spec.md)).
 _Avoid_: tooltip, popover, hovercard, notes preview
 
 **Notes marker**:
@@ -1162,8 +1142,7 @@ _Avoid_: tooltip, title attribute, hint
 How an open hover card gives way to another cell's: only once the pointer has rested on the
 other trigger for a moment (50ms), so a hand crossing that trigger on its way to the open card
 keeps what it was reaching for. Arriving on the open card, or leaving the trigger, drops a
-pending takeover; with nothing open a trigger opens at once. One rule for every card
-([card-takeover-delay](openspec/changes/card-takeover-delay/specs/wbs-domain/spec.md)).
+pending takeover; with nothing open a trigger opens at once. One rule for every card.
 _Avoid_: hover intent, switch delay, debounce, grace period
 
 **Project fact**:
@@ -1188,7 +1167,7 @@ The silence a control keeps after the pointer has pressed it: the wait its tool 
 started is cancelled, and no new one begins until the cursor actually moves, because a reader
 who has pressed a control has said they know what it does. Nothing remembers which control was
 pressed — the cursor moving is what ends it, so the page redrawing under a still cursor does
-not ([hint-press-cancels](openspec/changes/hint-press-cancels/specs/wbs-domain/spec.md)).
+not.
 _Avoid_: dismissed, suppressed hint, seen control, tooltip cooldown
 
 **Actions menu**:
@@ -1214,8 +1193,7 @@ The one column whose `<col>` never declares a width — the name — which absor
 viewport leaves over, down to a floor it does not shrink past. Draggable like any other: a
 dragged width becomes a column width override riding on its cells, with the `<col>` still
 silent. Asking for its width with no override in force is an error, because the pinned offsets
-are sums of declared widths
-([name-column-drag](openspec/changes/name-column-drag/specs/wbs-domain/spec.md)).
+are sums of declared widths.
 _Avoid_: auto column, fill column, stretch
 
 **Table minimum width**:
@@ -1229,16 +1207,14 @@ Every width one drawing of the table declares, resolved together from the column
 the plan being drawn: each column's declared width, the table minimum, and the offset each
 pinned column is held at. One resolution, read by every consumer, so a width that changes
 changes all of them. What a width may depend on is one object, so a new fact is a field rather
-than an argument somebody forgets to pass
-([compact-columns](openspec/changes/compact-columns/specs/wbs-domain/spec.md)).
+than an argument somebody forgets to pass.
 _Avoid_: width table, column config, geometry, sizing
 
 **Display envelope**:
 The widest content a column undertakes to show whole, where there is no widest content to size
 it to. The Number column's is eleven characters at the deepest indent, beside the row's
 expander and its frozen-number lock; a number past it is clipped and kept whole in the cell's
-title. Measured by a browser, never chosen by reading the markup
-([compact-columns](openspec/changes/compact-columns/specs/wbs-domain/spec.md)).
+title. Measured by a browser, never chosen by reading the markup.
 _Avoid_: max width, longest value, cap
 
 **Number indent**:
@@ -1293,8 +1269,7 @@ _Avoid_: collapsed column, disabled column, removed column, folded column
 A calendar day as somebody reads one — `1 Jun`, and `1 Jun 2027` when the year is not the
 current one — with the whole `YYYY-MM-DD` still in the cell's title. Read out of the day's own
 components, never parsed into a moment: a moment has a zone and a calendar day has none. An
-instant printed this way is a different question and a different formatter
-([compact-columns](openspec/changes/compact-columns/specs/wbs-domain/spec.md)).
+instant printed this way is a different question and a different formatter.
 _Avoid_: formatted date, pretty date, display date
 
 **Edit exit**:
@@ -1304,9 +1279,7 @@ it causes to send — except in the Name box, where Escape leaves the box and le
 save, so a paragraph of markdown is not thrown away on a stray key; the Done button in the
 cell's top-right, by the notes marker, is the same exit by pointer. Closing returns the focus
 to the cell that was being edited; the Name box, whose rest is itself, returns it to nobody, as
-a click away does
-([compact-columns](openspec/changes/compact-columns/specs/wbs-domain/spec.md),
-[notes-done-by-the-marker](openspec/changes/notes-done-by-the-marker/specs/wbs-domain/spec.md)).
+a click away does.
 _Avoid_: cancel, dismiss, close, blur handling
 
 **Plan renderer**:
@@ -1363,8 +1336,7 @@ One project's whole plan copied by value at one instant and kept in the database
 the tree, the estimates, the ownership, the names behind every id it uses, and the dates the
 scheduler gave it. Read to be looked at or compared, never exported, never imported, never
 applied to a project — nothing puts one back. Not a Plan document: that one leaves the tool for
-a reader and can make a new project; this one never leaves ([saved-plans
-design](openspec/changes/saved-plans/design.md)).
+a reader and can make a new project; this one never leaves.
 _Avoid_: snapshot, checkpoint, backup, version
 
 **Import**:
@@ -1473,8 +1445,7 @@ _Avoid_: link (alone), reference, external link, integration
 What a reader calls one external ref, typed by them and stored as typed. Never fetched — a Jira
 summary is somebody's to write down here, not this tool's to go and read. A ref may carry none,
 which is a stated absence and the only spelling of one; the surfaces then show its **derived
-link label** instead
-([link-names-and-card](openspec/changes/link-names-and-card/specs/wbs-domain/spec.md)).
+link label** instead.
 _Avoid_: title, subject, summary (alone), label
 
 **Derived link label**:
@@ -1858,8 +1829,7 @@ work-item deadlines. Two scheduling inputs are the same exactly when their hashe
 Engine, Objective, the optimization toggle, the display variant, the clock, the acting user and
 the solver budget are all excluded from the hash; Objective, Contract version and the solver
 budget are cache-key columns instead, and the rest are read by nothing that produces a schedule
-and appear nowhere in the cache identity
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md)).
+and appear nowhere in the cache identity.
 _Avoid_: plan hash, cache key, fingerprint
 
 **Contract version**:
@@ -1877,8 +1847,7 @@ stored beside the Input hash it was allocated for and carried by every solver ru
 hash reuses the generation and a different one increments it under a compare-and-swap, which
 makes allocation atomic across processes. Every cache write is conditional on it still being
 current, so a superseded run cannot store, evict, or broadcast — which an Input hash alone
-cannot prevent, because an undo can make an old hash current again
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md)).
+cannot prevent, because an undo can make an old hash current again.
 _Avoid_: run id, epoch, version; not Twilight Structure's admission
 [Generation](docs/twilight-structure/CONTEXT.md#execution)
 
@@ -1902,18 +1871,14 @@ unknown durations remain zero. For FS and SS, integer precedence with rounded du
 conservative; for FF, rounded finish order alone can admit a real finish-order violation, so
 the solver enforces `W_FF = max(D_a − D_b, ceil(48 × (d_a − d_b)))` and independently checks
 materialized real finishes. Rounding can also exclude a real-feasible plan, so the solver's
-hint and bound come from a validated Quantised baseline, never directly from real Fast
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md),
-[dependency
-types](openspec/changes/add-start-and-finish-dependency-types/specs/scheduler-optimization/spec.md)).
+hint and bound come from a validated Quantised baseline, never directly from real Fast.
 _Avoid_: tick, granularity, resolution
 
 **Quantised baseline**:
 Fast's own placement re-run over the rounded durations, in integer solver units. It is what the
 solver receives as `fastHint` and `baselineOffsets` and what bounds the first stage when
 validated against all active constraints and deadlines. Distinct from the Baseline schedule,
-which is the real-domain Fast result the publication guard scores against
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md)).
+which is the real-domain Fast result the publication guard scores against.
 _Avoid_: rounded Fast, hint schedule
 
 **Cancel epoch**:
@@ -1925,8 +1890,7 @@ generation, the toggle and the writer's own attempt token; allocation eviction i
 instead by the winning generation CAS, OFF cleanup by its own epoch increment, and
 deletion/retirement eviction by the cancel-and-drain protocol — none of those three holds a
 child token, so a universal predicate would make them unimplementable. Owners observe the epoch
-on their slot heartbeat, so a child owned by another backend process is cancelled too
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md)).
+on their slot heartbeat, so a child owned by another backend process is cancelled too.
 _Avoid_: cancel flag, kill switch, generation bump
 
 **Attempt token**:
@@ -1942,8 +1906,7 @@ _Avoid_: lease id, lock, owner id
 The real-domain Fast schedule for the same canonical input, with fractional `days / width`
 intact. It never crosses the solver wire: that is the Quantised baseline, which also supplies
 the movement reference. Its only consumer is the real-domain publication guard (task 4.11b),
-which scores a materialised optimized result against it before storage
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md)).
+which scores a materialised optimized result against it before storage.
 _Avoid_: current schedule, published schedule, previous plan
 
 **Optimized result**:
@@ -1983,9 +1946,7 @@ bind verdict before it touches the request at all. On `abort`, a closed stdin,
 `BIND_TIMEOUT_MS` expiry, or a `bound` verdict arriving when the child deadline has already
 passed, it exits **without** `exec`ing `wbs-solver`. That is what makes the ceiling literal: a
 process named `wbs-solver` cannot exist before its row is `running`, so a delayed spawn after
-reclaim creates no uncounted solver
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md);
-deadline kill in its [supervisor
+reclaim creates no uncounted solver (deadline kill: [supervisor
 amendment](openspec/changes/dual-optimized-scheduler/supervisor-amendment.md)).
 _Avoid_: shim, supervisor, solver wrapper (the lifecycle wrapper is the launcher's own
 clock-reading part, not a second process)
@@ -1994,8 +1955,7 @@ clock-reading part, not a second process)
 The `solver_slot.lifecycle` column, `'starting' | 'running'`. Admission inserts `starting` with
 a null `pid`; a successful bind CAS moves it to `running` and records the launcher's pid. A
 `starting` row counts against the 4-per-project and 16-fleet ceilings exactly like a `running`
-one — it _is_ the reservation — and is reclaimed by the same `now > admittedDeadlineAt` rule
-([dual-optimized-scheduler](openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md)).
+one — it _is_ the reservation — and is reclaimed by the same `now > admittedDeadlineAt` rule.
 _Avoid_: slot state, pending, provisional
 
 ### Host tooling
