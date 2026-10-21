@@ -12,7 +12,7 @@ Every project SHALL have a persisted abbreviation unique within its organization
 
 ### Requirement: Manual abbreviation edits preserve project identity
 
-Manual input SHALL normalize ASCII lowercase to uppercase and match `^[A-Z][A-Z_-]{0,19}$`. Invalid input or an explicit same-organization collision SHALL refuse without writing. Abbreviation edits SHALL require project edit access and preserve its stable identity; changing only its name SHALL preserve its abbreviation.
+Manual input SHALL normalize ASCII lowercase to uppercase and match `^[A-Z][A-Z0-9_-]{0,19}$`. Invalid input or an explicit same-organization collision SHALL refuse without writing. Abbreviation edits SHALL require project edit access and preserve its stable identity; changing only its name SHALL preserve its abbreviation.
 
 #### Scenario: Allocate and override an abbreviation
 
@@ -21,11 +21,17 @@ Manual input SHALL normalize ASCII lowercase to uppercase and match `^[A-Z][A-Z_
 - **AND WHEN** its authorized editor changes it to `puni-core_main`
 - **THEN** `PUNI-CORE_MAIN` is persisted without changing its project ID
 
+#### Scenario: Digits are valid after the initial letter
+
+- **WHEN** an authorized editor submits `puni2`, `puni-01` or `puni_2`
+- **THEN** the abbreviation is accepted if unclaimed in the organization and stored in uppercase
+- **AND** qualified addresses such as `PUNI2.080.39` retain their project and local-number meaning
+
 #### Scenario: Validate manual boundaries
 
 - **WHEN** manual input has one letter or twenty characters matching the normalized pattern
 - **THEN** it is accepted if unclaimed in the organization
-- **AND WHEN** it is empty, exceeds twenty characters, starts with a hyphen or underscore, or contains a digit, dot or non-ASCII letter
+- **AND WHEN** it is empty, exceeds twenty characters, starts with a digit, hyphen or underscore, or contains a dot or non-ASCII letter
 - **THEN** it is refused without changing the project
 
 ### Requirement: Abbreviations survive older project writers

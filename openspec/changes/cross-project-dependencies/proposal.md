@@ -4,7 +4,7 @@ Work items cannot currently depend on work in another project, and their numbers
 
 ## What Changes
 
-- Every project receives a unique abbreviation within its organization. Generated recommendations use 3–5 uppercase letters; manual values accept 1–20 characters, beginning with a letter and continuing with letters, hyphens or underscores. Input is case-insensitive.
+- Every project receives a unique abbreviation within its organization. Generated recommendations use 3–5 uppercase letters; manual values accept 1–20 characters, beginning with a letter and continuing with letters, digits, hyphens or underscores. Input is case-insensitive.
 - Qualified addresses use dots: `PUNI.080.39`, `PUNI-CORE.080.39`, and qualified step references. Existing numeric addresses stay local; stored relationships retain stable endpoint identities across renumbering and abbreviation edits.
 - Empty or numeric dependency searches remain local. An alphabetic current token starts bounded project autocomplete, preserving local title matches. Selecting a project scopes its work-item/step search.
 - Authorized cross-project dependencies retain the existing relationship types and endpoint scopes. Readiness, blocking and dates respect external prerequisites. Priority orders eligible work; it cannot override a dependency.

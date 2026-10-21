@@ -30,8 +30,8 @@ objective, global optimality claims, or changing existing progress/hold rules.
 
 Approved: generated/recommended abbreviations use 3–5 uppercase ASCII letters.
 Manual values normalize lowercase and validate against
-`^[A-Z][A-Z_-]{0,19}$`: 1–20 characters, first character a letter, subsequent
-characters letters, hyphens or underscores. Uniqueness is case-insensitive
+`^[A-Z][A-Z0-9_-]{0,19}$`: 1–20 characters, first character a letter, subsequent
+characters letters, digits, hyphens or underscores. Uniqueness is case-insensitive
 within the organization; pre-activation projects use an explicit legacy
 namespace. Qualified addresses use a dot, for example `PUNI-CORE.080.39`.
 The first dot separates the abbreviation from the existing work-item/step
