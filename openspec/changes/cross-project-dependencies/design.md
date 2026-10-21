@@ -315,6 +315,13 @@ their meaning. An optimized-selected member remains explicitly unavailable
 until connected optimization exists; local optimizer availability is not proof
 of connected support. Required node/edge integrity is checked before placement.
 
+The [core lane staging decision](architecture/core-fast-lane.md) permits pure
+connected derivation against the accepted capture value before unrelated
+adapter lifetime repairs finish. Its Fast callback is required and tested with
+the real resolved engine. The integrator later supplies the snapshot-guarded
+runtime method; no optional callback or alternate placement implementation is
+introduced.
+
 Execution eligibility is a separate domain reading from forecast placement and
 node-reading labels. FS start requires predecessor completion; SS start requires
 actual start or completion; FF constrains finishing rather than starting. Apply

@@ -1,0 +1,8 @@
+
+/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/resolved-schedule-input.ts
+   79:7   error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+   83:77  error  Invalid type "number" of template literal expression                                        @typescript-eslint/restrict-template-expressions
+  100:83  error  Invalid type "number" of template literal expression                                        @typescript-eslint/restrict-template-expressions
+
+✖ 3 problems (3 errors, 0 warnings)
+

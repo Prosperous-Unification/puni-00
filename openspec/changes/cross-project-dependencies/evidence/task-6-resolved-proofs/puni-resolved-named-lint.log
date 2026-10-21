@@ -1,0 +1,23 @@
+
+/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/index.ts
+  104:1  error  Run autofix to sort these exports!  simple-import-sort/exports
+
+/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/real-boundaries.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/resolved-schedule-input.ts
+   1:1   error  Run autofix to sort these imports!                                                          simple-import-sort/imports
+  76:7   error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+  80:77  error  Invalid type "number" of template literal expression                                        @typescript-eslint/restrict-template-expressions
+  93:83  error  Invalid type "number" of template literal expression                                        @typescript-eslint/restrict-template-expressions
+
+/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule-connected.test.ts
+    1:1   error  Run autofix to sort these imports!                                                                                  simple-import-sort/imports
+  173:16  error  Returning a void expression from an arrow function shorthand is forbidden. Please add braces to the arrow function  @typescript-eslint/no-confusing-void-expression
+
+/tmp/puni-cross-resolved-schedule/libs/wbs/domain/domain/src/schedule.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+✖ 9 problems (9 errors, 0 warnings)
+  6 errors and 0 warnings potentially fixable with the `--fix` option.
+

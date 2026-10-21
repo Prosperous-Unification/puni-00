@@ -1,0 +1,13 @@
+
+> nx run wbs-domain:lint
+
+
+
+
+ NX   Successfully ran target lint for project wbs-domain
+
+
+  Run duration:      8.2s
+  Cache:             0/1 hit (0%)
+  Critical path:     8.2s (1 task)
+  Recoverable time:  <1ms
