@@ -69,6 +69,11 @@
       "exitCode": 0,
       "observed": "All matched Markdown/JSON files use Prettier code style; diff whitespace check passed",
       "log": "format.log"
+    },
+    {
+      "command": "git diff --check 69a8b38f4f63ef4242ca1ed12926909fa2b5b127",
+      "exitCode": 0,
+      "observed": "Full base-to-prospective-candidate diff passes after normalizing captured log whitespace; original full-range check before normalization exited 2 on the four named logs."
     }
   ],
   "limits": [
@@ -76,5 +81,35 @@
     "No production code, scenario identifiers or allocation journal changed.",
     "Independent exact-candidate review remains coordinator-owned; task checkbox remains open until review.",
     "No full repository gate, host gate, exact-head CI, push, merge, deployment or WBS write performed by this worker."
-  ]
+  ],
+  "logNormalization": {
+    "reason": "Full base-to-candidate diff whitespace check found CRLF and trailing whitespace in captured tool output; earlier working-diff-only check did not cover committed files.",
+    "rule": "Split at LF and strip trailing space, tab and CR from each line; preserve all other bytes and line order.",
+    "logs": [
+      {
+        "path": "build.log",
+        "beforeSha256": "781bba38a793ec1d1023cb856b84ea229cc32578261694afc613fad2462260b0",
+        "normalizedSha256": "dcabeb9d7dbe3c04b02e48307e90d3f4ed4898ea1698aa65b526f330a3c89b68",
+        "changedLines": [12, 13]
+      },
+      {
+        "path": "lint-source.log",
+        "beforeSha256": "610d57a6b6562116bbe43d74e706a47ad932cb232e88ffb5a6211230176977e7",
+        "normalizedSha256": "7e5753722338c02a2b162dd7e41fa07bb0deba5211c3d31b522312fef689572e",
+        "changedLines": [4, 5]
+      },
+      {
+        "path": "typecheck.log",
+        "beforeSha256": "c4c48059e1f6d268c0df95b7eec09f4203b2145d7970a15ca010dd4e0c518a6e",
+        "normalizedSha256": "9c59a7ab19f7dfece545d9c9430ed84b21929b889d5dad3a86b61b75de4a9ea0",
+        "changedLines": [4, 5]
+      },
+      {
+        "path": "mutation-arity.log",
+        "beforeSha256": "45d7ab8781ab04979481d97729bf18894e11c13dbee4f6313b45a4a85beba275",
+        "normalizedSha256": "04a0d19fbc2d54c36c5fbffb47d7b06e09399928925ab6ea7ae4076dd5cfd4c8",
+        "changedLines": [6]
+      }
+    ]
+  }
 }

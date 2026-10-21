@@ -5673,7 +5673,7 @@ reconciliation, certification and WBS080.39 remain open.
 
 The durable [command receipts](evidence/wbs08039-4.1c.3-20261021/commands.json)
 record exact repository-root commands, exit statuses, runtime/dependency provenance
-and raw output links. Bun is 1.4.2; repository-pinned OpenSpec is 1.14.3. The ignored
+and captured output links. Bun is 1.4.2; repository-pinned OpenSpec is 1.14.3. The ignored
 worktree-local node_modules symlink reuses the existing root dependencies; no install
 was performed.
 
@@ -5703,7 +5703,7 @@ skipped and overdue Manual observations. The v2 extension remains unchanged.
 All **46** production guard/dependency faults in the historical ledger matrix were
 freshly injected and watched fail selected owning assertions with Bun exit 1. The
 [matrix](evidence/wbs08039-4.1c.3-20261021/mutations.json) records the exact production
-path, literal search/replacement, selected test pattern, named failing tests, raw
+path, literal search/replacement, selected test pattern, named failing tests, captured
 assertion log, pre-fault/restored SHA-256 and byte-equality restoration. Each source was
 restored in `finally` before the next fault. The complete restored four-file suite then
 passed all 263 tests. This exercises closed authority/path/schema checks, exact
@@ -5722,3 +5722,12 @@ Only docs/evidence are committed. No full repository gate, host gate, exact-head
 integration, deployment, source reconciliation or WBS write was performed by this
 worker. The diagnostic fixtures grant no coverage, admission, authentication or
 certification. Independent review and coordinator release acceptance remain pending.
+
+The final full base-to-candidate whitespace check initially exited 2 on CRLF or
+trailing whitespace in `build.log`, `lint-source.log`, `typecheck.log` and
+`mutation-arity.log`; the earlier working-diff-only check had missed committed log
+content. Those four captured logs are normalized by stripping only trailing space,
+tab and CR on each LF-delimited line. Command receipts preserve their original and
+normalized SHA-256 and changed line numbers; assertion text, outcomes and line order
+are preserved. The complete base-to-prospective-candidate `git diff --check` then
+exited 0, and the regenerated artifact inventory matches all normalized bytes.

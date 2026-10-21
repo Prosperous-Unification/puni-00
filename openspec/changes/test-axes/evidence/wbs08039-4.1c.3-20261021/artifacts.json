@@ -9,13 +9,13 @@
     },
     {
       "path": "build.log",
-      "bytes": 639,
-      "sha256": "781bba38a793ec1d1023cb856b84ea229cc32578261694afc613fad2462260b0"
+      "bytes": 637,
+      "sha256": "dcabeb9d7dbe3c04b02e48307e90d3f4ed4898ea1698aa65b526f330a3c89b68"
     },
     {
       "path": "commands.json",
-      "bytes": 5236,
-      "sha256": "3b400530c3300e20a11ec79feb8c6896c162d5fb0fca4d3e4fb131678450bd41"
+      "bytes": 6970,
+      "sha256": "d15e4a5065e3d56da16090c4459cbbf9cc4ea2f007c6d3a934662c6f03afd203"
     },
     {
       "path": "format.log",
@@ -24,8 +24,8 @@
     },
     {
       "path": "lint-source.log",
-      "bytes": 489,
-      "sha256": "610d57a6b6562116bbe43d74e706a47ad932cb232e88ffb5a6211230176977e7"
+      "bytes": 487,
+      "sha256": "7e5753722338c02a2b162dd7e41fa07bb0deba5211c3d31b522312fef689572e"
     },
     {
       "path": "mutation-arity-wrong-seam.log",
@@ -34,8 +34,8 @@
     },
     {
       "path": "mutation-arity.log",
-      "bytes": 1106,
-      "sha256": "45d7ab8781ab04979481d97729bf18894e11c13dbee4f6313b45a4a85beba275"
+      "bytes": 1105,
+      "sha256": "04a0d19fbc2d54c36c5fbffb47d7b06e09399928925ab6ea7ae4076dd5cfd4c8"
     },
     {
       "path": "mutation-attempts.json",
@@ -309,8 +309,8 @@
     },
     {
       "path": "typecheck.log",
-      "bytes": 338,
-      "sha256": "c4c48059e1f6d268c0df95b7eec09f4203b2145d7970a15ca010dd4e0c518a6e"
+      "bytes": 336,
+      "sha256": "9c59a7ab19f7dfece545d9c9430ed84b21929b889d5dad3a86b61b75de4a9ea0"
     }
   ]
 }
