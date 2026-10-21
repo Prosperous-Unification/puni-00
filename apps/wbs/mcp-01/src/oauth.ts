@@ -40,6 +40,7 @@ import {
   McpSessionStore,
   type RegisteredClient,
 } from './session-store';
+import { ACTIVATED_CREDENTIAL_EPOCH, SUPPORTED_CREDENTIAL_EPOCH } from './store-migrations';
 import {
   DelegationRefused,
   EdgeGate,
@@ -101,6 +102,8 @@ export interface McpAuthorizationGrant {
   upstreamExpiresAt: number;
   /** The organization, local user and upstream issuer a consent after activation selected. */
   binding?: CredentialBinding;
+  /** The durable epoch at issue; exchange refuses the code once the store's has moved on. */
+  credentialEpoch: number;
 }
 
 /** What a completed upstream login contributes to a grant, before any organization is chosen. */
@@ -190,6 +193,8 @@ export class McpOAuthServer implements McpOAuthHandler {
    * so the proven cap can be exceeded by the exchanges in flight in the other process.
    */
   private readonly promotionReservations = new Set<string>();
+  // Proof: 2026-10-21, one module-level map shared by every instance made `forgets a code
+  // issued before a store reopen at the same epoch` (credential-epoch.test.ts) exchange it (200).
   private readonly grants = new Map<string, McpAuthorizationGrant>();
   private readonly selections = new Map<string, PendingSelection>();
   private readonly organizations: OrganizationAuthority | undefined;
@@ -261,6 +266,15 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
     this.organizations = options.organizations;
+    // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
+    // organization authority` (credential-epoch.test.ts) constructed the server.
+    if (
+      this.organizations === undefined &&
+      this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH
+    )
+      throw new Error(
+        'MCP credential epoch is activated; mcp-01 needs INTERNAL_AUTH_SECRET to bind consents',
+      );
     this.readRefreshAuthority =
       options.readRefreshAuthority ?? options.organizations?.readRefreshAuthority;
     this.pendingAuthorizations = new PendingAuthorizations({
@@ -704,9 +718,20 @@ export class McpOAuthServer implements McpOAuthHandler {
       await this.revokeRefreshToken(tokens.refreshToken);
       throw cause;
     }
-    // Before activation a consent binds nothing and behaves exactly as it always has.
-    if (consent.kind === 'pre_activation')
+    // Before activation a consent binds nothing and behaves exactly as it always has. Once the
+    // epoch has advanced but be-01's marker has not (the cutover window), an unbound credential
+    // cannot be stored, so the consent waits for activation.
+    if (consent.kind === 'pre_activation') {
+      // Proof: 2026-10-21, without this refusal `refuses an unbound consent between the epoch
+      // advance and activation` (credential-epoch.test.ts) redirected with a code.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        return await this.failLogin(
+          pending.authorization,
+          'temporarily_unavailable',
+          tokens.refreshToken,
+        );
       return await this.issueCode(pending.authorization, fields);
+    }
     // Proof: issuing an unbound code here made `refuses consent for a user with no
     // current membership` in `organization-delegation.test.ts` redirect with a code
     // instead of access_denied; watched 2026-10-21.
@@ -807,6 +832,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       expiresAt: this.now() + GRANT_TTL_MS,
       redirectUri: authorization.redirectUri,
       ...fields,
+      credentialEpoch: this.store.credentialEpoch(),
     });
     const target = new URL(authorization.redirectUri);
     target.searchParams.set('code', code);
@@ -895,7 +921,10 @@ export class McpOAuthServer implements McpOAuthHandler {
       stringField(form, 'redirect_uri') !== grant.redirectUri ||
       verifier === undefined ||
       !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
-      challengeOf(verifier) !== grant.codeChallenge
+      challengeOf(verifier) !== grant.codeChallenge ||
+      // Proof: 2026-10-21, without this comparison `refuses a code issued before the epoch
+      // advanced` (credential-epoch.test.ts) exchanged it for a token (200).
+      grant.credentialEpoch !== this.store.credentialEpoch()
     ) {
       if (code !== undefined) this.grants.delete(code);
       return protocolError('invalid_grant');
@@ -1771,12 +1800,18 @@ function protocolError(
  * unbound epoch-0 family belongs to the legacy path. Bound families need an
  * authoritative membership and credential-rule reader before use; production installs
  * be-01's (`organization-authority.ts`) when `INTERNAL_AUTH_SECRET` is set, and without
- * it a bound family is refused. A future epoch is refused even with an injected reader.
+ * it a bound family is refused. An epoch newer than {@link SUPPORTED_CREDENTIAL_EPOCH},
+ * and an unbound family above epoch 0 (which the store CHECK forbids), are refused even with
+ * an injected reader. A family older than the durable epoch never gets here: the store's
+ * session and refresh reads already treat it as absent.
  */
 function readFamilyAuthority(family: FamilyRecord): 'legacy' | 'organization' | 'unsupported' {
-  // Proof: 2026-10-13, removing this test let a bound epoch-1 read disclose a fresh
-  // token with an injected admitting reader (`corrupt nonzero-epoch bound family`).
-  if (family.credentialEpoch !== 0) return 'unsupported';
+  // Proof: 2026-10-21, removing this test let a bound epoch-2 read disclose a fresh
+  // token with an injected admitting reader (`corrupt epoch-2 bound family`).
+  if (family.credentialEpoch > SUPPORTED_CREDENTIAL_EPOCH) return 'unsupported';
   if (family.binding !== undefined) return 'organization';
-  return 'legacy';
+  // Proof: 2026-10-21, answering 'legacy' here regardless of epoch let `corrupt epoch-1
+  // unbound family` return the fresh upstream token.
+  if (family.credentialEpoch === 0) return 'legacy';
+  return 'unsupported';
 }

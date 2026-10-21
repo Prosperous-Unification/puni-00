@@ -2139,6 +2139,9 @@ Not taken:
 
 ### What 6.5 still needs
 
+Answered by "MCP credential epoch (6.5)" below, except the activation CLI's check of the MCP
+epoch, which is still not built.
+
 - An epoch-advance operation: one MCP-store transaction that raises `mcp_credential_epoch`
   and revokes every epoch-0 family and session, with a durable acknowledgment the activation
   CLI waits for before committing the WBS marker. Today the CLI does not check it.
@@ -2162,3 +2165,97 @@ Until then, sessions consented before activation are refused by be-01 rather tha
 - Gateway signed-bearer issuance (rest of 2.5). An organization enforcing SSO admits only a
   delegation whose upstream subject carries its connection; a session policy refuses every MCP
   delegation, because no trusted grant-lifecycle evidence exists.
+
+## MCP credential epoch (6.5)
+
+2026-10-21, branch `feat/mcp-credential-epoch`, stacked on PR #622 (`555ab9c8d`). Operator view:
+`docs/runbook-organization-activation.md`, step 3b; `apps/wbs/mcp-01/README.md`, "Credential
+epoch".
+
+Model: the store holds one durable epoch, 0 (pre-activation) or 1 (activated). mcp-01 opens
+either and refuses a newer one. A session read (`familyForSession`) and both refresh reads
+(`prepareRefresh`, `consumeRefresh`) compare the family's epoch with the durable row in the
+same query, so an older credential reads as absent or `invalid`. That is the existing refusal
+that makes a client reauthorize: 401 on a tool call, `invalid_grant` at the token endpoint. A
+code carries the epoch it was issued at and is refused at exchange once the store has moved
+on. At epoch 1 an unbound consent answers `temporarily_unavailable`, because be-01 is not yet
+activated, and mcp-01 refuses to start without organization authority.
+`readFamilyAuthority` refuses an epoch above `SUPPORTED_CREDENTIAL_EPOCH` (now 1) and an
+unbound family above 0. `matchesRefreshAuthority` is unchanged: it still requires the reader
+to echo the family's own epoch.
+
+`credential-epoch-cli.ts` (over `advanceCredentialEpoch`) opens the existing store with
+`locking_mode = EXCLUSIVE` and `busy_timeout = 0`. It refuses unless the store is WAL, is
+exactly this release's schema and holds epoch 0 or 1. Then, in one IMMEDIATE transaction, it
+revokes every unrevoked epoch-0 family, deletes every epoch-0 session and sets epoch 1. The
+dry run rolls the same transaction back. Writer guard: on a WAL store every open connection
+holds a shared lock while it is open, idle or not, so the CLI's first lock fails with
+`SQLITE_BUSY` (exit 3) while any process has the store open. This was observed between two
+local processes and within one process. It was not observed across Docker containers.
+
+### Observed R5 faults
+
+Each fault was an exact text replacement in production code. The named test was run under
+`env -u CLAUDECODE bun test <file> --test-name-pattern <name>`, then the file was restored. All
+runs were on 2026-10-21; the run was repeated after formatting and gave the same results.
+
+| Check (file)                                                    | Injected fault                                                | Failing test and observation                                                                                                                |
+| --------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session read at the durable epoch (`session-store.ts`)          | Drop `AND f.credential_epoch = (durable)`                     | `refuses an older-epoch session at every use`: `callerSessionFor` resolved                                                                  |
+| Refresh preparation at the durable epoch (`session-store.ts`)   | Drop the epoch clause in `prepareRefresh`                     | `refuses an older-epoch refresh before any provider work`: provider refresh called once                                                     |
+| Refresh consumption at the durable epoch (`session-store.ts`)   | Drop the epoch clause in `consumeRefresh`                     | `refuses a refresh whose epoch advanced during the provider refresh`: threw the session trigger's `SQLiteError` instead of 400              |
+| Code epoch at exchange (`oauth.ts` `token`)                     | Drop `grant.credentialEpoch !== store epoch`                  | `refuses a code issued before the epoch advanced`: 200 instead of 400                                                                       |
+| Unbound consent at epoch 1 (`oauth.ts` `callback`)              | Never refuse                                                  | `refuses an unbound consent between the epoch advance and activation`: redirected with a code, no `error`                                   |
+| Start at epoch 1 needs organizations (`oauth.ts` constructor)   | Never refuse                                                  | `refuses to start at the activated epoch without organization authority`: constructed                                                       |
+| Newer epoch unsupported (`oauth.ts` `readFamilyAuthority`)      | Drop the `> SUPPORTED_CREDENTIAL_EPOCH` test                  | `refuses a corrupt epoch-2 bound family read …`: upstream token returned                                                                    |
+| Unbound above 0 unsupported (`oauth.ts` `readFamilyAuthority`)  | Answer `legacy` for every unbound family                      | `refuses a corrupt epoch-1 unbound family read …`: upstream token returned                                                                  |
+| Store opens at most epoch 1 (`session-store.ts` constructor)    | Never refuse                                                  | `refuses startup on a unsupported epoch without reseeding` (now epoch 2): opened                                                            |
+| Writer guard (`credential-epoch.ts`)                            | Drop `PRAGMA locking_mode = EXCLUSIVE`                        | `refuses while this process has the store open…`: advanced; `refuses while an mcp-01 process has the store open`: CLI exited 0 instead of 3 |
+| WAL required (`credential-epoch.ts`)                            | Never refuse                                                  | `refuses a store that is not in WAL mode`: advanced                                                                                         |
+| Store is this release's (`credential-epoch.ts`)                 | Skip `assertMcpStoreCurrent`                                  | `refuses a store this release has not migrated`: advanced a two-migration store                                                             |
+| Unknown epoch (`credential-epoch.ts`)                           | Never refuse                                                  | `refuses an epoch it does not know`: trigger error `cannot decrease` instead of `McpStoreRefused`                                           |
+| Family revocation (`credential-epoch.ts`)                       | `UPDATE … WHERE 0`                                            | `revokes every pre-activation family and session` and the CLI's `dry-runs, applies once…`: counts and state differ                          |
+| Session removal (`credential-epoch.ts`)                         | `DELETE … WHERE 0`                                            | the same two tests                                                                                                                          |
+| No-op at epoch 1 (`credential-epoch.ts`)                        | Never take the `already_activated` branch                     | the same two tests: `epoch 1 is not 0 or 1`, CLI exit 1                                                                                     |
+| Codes stay in their process (`oauth.ts` `grants`)               | One module-level map shared by every server                   | `forgets a code issued before a store reopen at the same epoch`: 200 instead of 400                                                         |
+| Malformed epoch (`store-migrations.ts` `readCredentialEpoch`)   | Drop the throw (existing check, proof rewritten)              | `refuses startup on a malformed value…`: opened at epoch `'zero'`; the missing-row case failed with a `TypeError`                           |
+| Session trigger (`migration.sql`, `mcp_session_family_binding`) | `WHEN 0 AND …` (existing check; its test now inserts raw SQL) | `refuses to refresh a family issued before the epoch advanced`: the stale insert succeeded                                                  |
+
+One fault did not fail its test, as expected. With both the family revocation and the session
+deletion removed, the Red case `refuses access and refresh after the epoch advance, and an old
+code after a reopen` still passed. The per-use epoch comparison refuses those credentials on
+its own. So the CLI's revocation is proven by the state tests above, not by the access
+refusals. It stays because the spec requires that revocation, and a revoked row is refused even by
+a reader that skips the epoch comparison.
+
+`preflightCredentialBindingDown` is unchanged; `MCP store rollback > refuses at an advanced
+epoch` passes. Epoch 1 has no `down`: the epoch triggers refuse a decrease, and the only way
+back is the store backup taken before step 3b.
+
+### Commands and results
+
+| Command                                                              | Result                                                    |
+| -------------------------------------------------------------------- | --------------------------------------------------------- |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:test --skip-nx-cache`      | 478 pass, 0 fail, 2113 expect() calls (baseline 460 pass) |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:typecheck --skip-nx-cache` | success                                                   |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:lint --skip-nx-cache`      | success                                                   |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:build --skip-nx-cache`     | success, 1034 modules bundled                             |
+| `bunx openspec validate --all --json`                                | 266 items, 266 passed, 0 failed                           |
+
+### Not done or not observed
+
+- No dev or prod run. Dev's live counts of families and sessions to revoke are unknown until
+  the dry run there.
+- The guard across containers (`docker run` beside a stopped or running `wbs-dev-src`) is
+  inferred from the shared host bind mount, not observed.
+- The activation CLI does not read the MCP epoch, so the spec's "activation SHALL wait for
+  this durable acknowledgment" is met only by the runbook's order.
+- Pending consents and organization selections carry no epoch. A selection that started at
+  epoch 0 and completes after the advance issues a bound code at epoch 1. Only a
+  pre-activation consent crossing the advance is refused.
+- mcp-01 still creates an absent store at epoch 0 (task 1.6's exception, `migrateMcpStore`).
+  A store file deleted after the advance would come back at epoch 0 and issue unbound
+  sessions, which an activated be-01 refuses with `no_active_organization`. Withdrawing the
+  exception is not part of this change.
+- The workspace gate (`bin/h2puni-gate.sh`) was not run; only `wbs-mcp-01` targets ran
+  locally (laptop RAM cap).
