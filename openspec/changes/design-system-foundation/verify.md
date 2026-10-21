@@ -40,7 +40,18 @@ The full Burokrat suite was not run locally (it exhausts laptop memory); CI carr
 
 ## Gate
 
-See the last section. The h2puni gate ran on the merged head under the host-wide heavy lock.
+Run from the isolated clone `/home/puni1/puni-00-gate-design-system` on h2puni under the host-wide heavy lock (`HEAVY_LOCK_WAIT_SECONDS=14400`), each run logged on the host. The branch was merged with `main` at every run; the last head carries `main` 5824e05e6.
+
+| Run | SHA         | Printed                                       | Result                                                                                                                                                                                                                                                                                          |
+| --- | ----------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `0e6bedf26` | `h2puni gate: running on 0e6bedf2687f9…0d750` | exit 1: `wbs-domain:test` and `tool-devsync:test` failed (five findings above); 178 other tasks passed, 39 min                                                                                                                                                                                  |
+| 2   | `c3b4be002` | `h2puni gate: running on c3b4be0026ae7…3ee`   | workspace: 49 projects green, 41 min; twilight: `committed-target-facts.test.ts` and two `pilot-policy.test.ts` cases failed (finding above)                                                                                                                                                    |
+| 3   | `d999e7309` | `h2puni gate: running on d999e7309687…ca07`   | exit 1: `wbs-be-01:test` only, `swarm-rehearsal.boot.db.test.ts` step 3 (two extra claim step ids on the held leaf), code the branch does not touch; the file passed three times in a row locally and `main` 5824e05e6 CI is green, so it was treated as a race in that test and the gate rerun |
+| 4   | `d999e7309` | `h2puni gate: running on d999e7309687…ca07`   | exit 0: 49 projects test, lint, typecheck, build (46 min); twilight 2 projects test, typecheck, build; `twilight-burokrat:lint:source`; `twilight-dash:lint`; `wbs-be-01:solver-image-smoke`                                                                                                    |
+
+Each run also installed the frozen lockfile and ran `openspec validate --all --json` (`@fission-ai/openspec@1.14.3`) before Nx. CI run on `d999e7309` (PR #600): `gate workspace`, `gate twilight`, `gate`, all four pixel shards, CodeQL pass. The record commit after run 4 changes only this file and `tasks.md`; CI reruns on it before the merge.
+
+Slice 10 (Claude Design sync) stays open: the `.design-sync/config.json` is in place and the `/design-sync` run is the user's to make.
 
 ## Slices 1 to 4
 
