@@ -927,3 +927,24 @@ promotes (it would now hand the claim up rather than take it).
 and Dash suites passed, solver image smoke passed, `GATE_EXIT=0`. That head adds the swarm rehearsal
 (PR #596), the promotion-claims fix (PR #598) and the activation CLI commits of PR #582 to 8759e4dc.
 This commit changes only verify.md.
+
+## Dev verification (2026-10-21)
+
+Dev main `5a529fd94` (this change merged in #583). be-01 migrated at boot: `resource`,
+`project_resource_capacity`, `work_item_resource_demand`, `claim_occupancy` present. Through the
+wbs-dev MCP (headless session, PUNI plan `558ec5c7`):
+
+- Task 6.1: puni-plan `fleets/dispatch-3-resources.json` applied as one all-or-none batch (16
+  commands: 4 `createResource`, 4 `setResourceCapacity`, 8 `setDemand`); the resources read returns
+  them; the startable read carries `resources`, `doesNotFit: []`, `occupancyScope: project` and
+  `fits: true` on all 32 leaves.
+- Engine levelling: `h2puni agent slots` capacity lowered to 1 and a temporary demand put on 070.02,
+  which shares 070.03's window; the schedule interleaved the two leaves step by step on the slot
+  (`boundBy: capacity`, `capacityPredecessorIds` crossing between them, 070.03 finishing at day 6.58
+  instead of 4.42). Demand cleared with `units: null` and capacity restored to 2; slices returned to
+  `predecessor`/`stepOrder`.
+- fe-01 Gantt, Chrome on dev: the held bar of 070.03 Impl shows
+  "Waits for h2puni agent slots to free 1 agents — after Register h4claw as the k3s server (Impl)".
+- Claims on dev answered `403 person_not_bound` before activation (designed fence); dev was then
+  activated (see `wbs-team-claims/verify.md`). Not verified on dev: a bound claim's occupancy, which
+  needs an MCP session consented after activation (Dany reconnects once).

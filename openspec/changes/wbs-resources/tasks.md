@@ -75,5 +75,5 @@
 
 ## 6. Operator (not code)
 
-- [ ] 6.1 Declare the dev hosts' resources and the PUNI plan's capacities; set demands on
+- [x] 6.1 Declare the dev hosts' resources and the PUNI plan's capacities; set demands on
       the leaves the fleets will claim; recorded as applied batches in puni-plan.
