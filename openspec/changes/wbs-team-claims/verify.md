@@ -687,3 +687,22 @@ verify.md.
   `… for 2 projects and 3 tasks they depend on`, `lint:source twilight-burokrat`, `lint twilight-dash`,
   `solver-image-smoke wbs-be-01`, `GATE_EXIT=0`.
 - Review: internal Fable adversarial review of 0dcc31b64, no S1/S2 (record on PR #602).
+
+## Dev activation (2026-10-21, task 7.1 operator run)
+
+`docs/runbook-organization-activation.md` followed on h2puni: `BROWSER_SESSION_AUTHORITY` flipped
+to `enabled` (`.env` backup kept), host-side backup `data/pre-org-activation-20261021.db`
+(943,288,320 bytes, sha256 `4cf8b2cd…7509`), preflight on the copy as the runbook expects (482
+unmapped roots, 334 stream conflicts, 0 drift), dry run exit 0, apply exit 0: organization
+`default` (`651b4c8a-1413-44d2-868e-cdb03542804f`), super-admin `dany-1b998b1c7079`
+(`190c5947-7068-4b1e-ae63-183d21de24db`), 30 members, mapped roots project 334 / person 20 /
+service_team 42 / service 15 / tag 20 / external_system 5 / saved_plan 42 / resource 4, 0 pruned
+streams, 3 external identities. Afterwards: marker `activated`, 30 users `selection_required`
+with one candidate, preflight empty. Browser: the organization gate offered `default`, choosing it
+loaded the PUNI plan with "Organization: default" in the header.
+
+MCP delegation (PR #602, main `5a529fd94`) was deployed first: be-01 carries the RSA pair, mcp-01
+be-01's `INTERNAL_AUTH_SECRET`, startup logs `organization_delegation: on`. As the runbook states,
+an MCP session consented before activation is refused `403 no_active_organization` on every
+organization-bound call (observed on the headless wbs-dev session: `getApiOnboarding` answers
+`selection_required` with the one `default` membership); it must re-consent once.
