@@ -6,5 +6,5 @@
 - [x] 1.4 Lab convergence: a fresh Ubuntu 26.04 target, two runs, the second `changed=0`.
 - [ ] 1.5 One real gate in the lab target as `puni1`: started, 162 Nx tasks green, then stopped by laptop memory pressure (verify.md); superseded by 2.2.
 - [x] 1.6 Docs: `docs/infra/gate-hosts.md`, linked from `docs/infra/README.md` and `LLM_README.md`.
-- [ ] 2.1 Live h4claw: preflight, backup, two applies (second `changed=0`), after Dany authorizes the privileged path.
+- [x] 2.1 Live h4claw: preflight, backup, two applies (second `changed=0`), after Dany authorizes the privileged path. (2026-10-21; the first live gate then exited 127 for want of `node`, fixed by the pinned Node tasks and re-applied, see verify.md.)
 - [ ] 2.2 One real gate on h4claw; then add h4claw to the Gate section of `AGENTS.md`.

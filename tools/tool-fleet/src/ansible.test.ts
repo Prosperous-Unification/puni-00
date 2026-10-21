@@ -656,6 +656,11 @@ describe('the Ansible host and k3s contract', () => {
     // The gate owns the tree's head after the first clone; Ansible must never move it.
     expect(tasks).toContain('update: false');
     expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_bun_lock.sha256 }}'");
+    // Nx's bin is `#!/usr/bin/env node`: a gate host without a pinned Node on the gate PATH exits
+    // 127 at the first Nx script. Proof: dropping the `.node-` segment from the template's PATH
+    // failed the second expectation (h4claw live gate, 2026-10-21).
+    expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_node_lock.sha256 }}'");
+    expect(bashrc).toContain('{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin');
     expect(tasks).toContain('extra_args: --require-hashes');
     expect(tasks).not.toMatch(/groups: \[[^\]]*sudo/);
   });

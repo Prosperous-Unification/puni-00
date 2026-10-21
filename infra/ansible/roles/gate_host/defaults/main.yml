@@ -17,4 +17,8 @@ puni_gate_tmpdir: /var/tmp
 puni_gate_repository_root: '{{ role_path }}/../../../..'
 puni_gate_bun_version: "{{ lookup('ansible.builtin.file', puni_gate_repository_root + '/.bun-version') | trim }}"
 puni_gate_bun_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.solverBun }}"
+# Nx's bin is `#!/usr/bin/env node`, so every `bun run <nx script>` needs a Node on PATH; h2puni
+# has 24.18.1 (Volta), CI has the runner's. The pin lives in toolchain.json like the Bun one.
+puni_gate_node_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateNode }}"
+puni_gate_node_version: '{{ puni_gate_node_lock.version }}'
 puni_gate_solver_requirements: '{{ puni_gate_repository_root }}/libs/wbs/adapters/solver-py/requirements.lock'

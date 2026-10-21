@@ -19,9 +19,12 @@ h2puni.
 - **Bun.** It installs the Bun pinned by `.bun-version` at `~/.bun-<version>/bin/bun`, with
   `bunx` beside it. The bytes come from the `binaries.solverBun` lock in
   `infra/versions/toolchain.json`.
+- **Node.** It installs the Node pinned by `binaries.gateNode` in `toolchain.json` at
+  `~/.node-<version>/bin/node`, the interpreter only. Nx's bin is `#!/usr/bin/env node`, so every
+  `bun run` of an Nx script needs it; h2puni has the same version through Volta.
 - **Solver Python.** It builds `~/.venv-solver` from the solver lock, installed with
   `--require-hashes` as CI does.
-- **Shell.** `~/.bashrc` puts the Bun and solver environment first on `PATH`, and sets
+- **Shell.** `~/.bashrc` puts the Bun, Node and solver environment first on `PATH`, and sets
   `TMPDIR=/var/tmp` and `NX_DAEMON=false`. These lines sit above the interactivity guard, which
   is what a non-interactive `ssh … CMD` needs.
 - **Gate tree.** `~/puni-00-gate-tbf` is a full clone of the GitHub repository, with one frozen
@@ -33,6 +36,7 @@ h2puni.
 The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
 
 - `bun` and `bunx` resolve to the pinned Bun;
+- `node` resolves to the pinned Node and reports its version;
 - the tree is a full, clean clone of the canonical URL;
 - `docker ps` works;
 - `python3` is the venv's and imports the locked OR-Tools;

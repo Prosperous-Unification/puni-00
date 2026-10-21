@@ -86,3 +86,24 @@ No preflight, backup, apply or gate has run on h4claw. Read-only facts from 2026
 - No `unzip`, `shellcheck`, `python3-venv` or `node`.
 - `puni-fleet` (uid 1002) exists.
 - There is no `puni1` account.
+
+## Live h4claw (2026-10-21, Dany's go)
+
+Controller: the pinned `fleet-controller` image on the laptop, `ansible_user: root` with
+`id_admin` through the h2puni jump, inputs in `~/.puni/fleet/2026-enroll` plus `gate.json`
+holding the laptop's h4claw public key. Logs under the session scratchpad `h4-apply/`.
+
+1. `playbooks/preflight.yml --limit h4claw -e puni_preflight_stage=after-enrollment`:
+   `ok=26 changed=0 unreachable=0 failed=0 skipped=4`.
+2. Backups on the host: `/root/pre-gate-host-etc.tgz` (passwd, group, shadow, gshadow,
+   sudoers.d, apt) and `/root/pre-gate-host-dpkg-selections.txt`, both rc 0.
+3. `playbooks/gate-host.yml` run 1: `ok=28 changed=16 failed=0`; run 2:
+   `ok=27 changed=0 failed=0 skipped=1` (the Bun unpack's `creates:`). Same recaps as the lab.
+4. First real gate as `puni1` on main `69a8b38f4f63ef4242ca1ed12926909fa2b5b127`: printed
+   `h2puni gate: running on 69a8b38f…`, the frozen install reported no changes, then
+   `env: 'node': No such file or directory`, `GATE_EXIT=127` after 2 s. Nx's bin is
+   `#!/usr/bin/env node`; h2puni has Node 24.18.1 on its PATH (Volta) and CI the runner's, the
+   role had none. Fix: `binaries.gateNode` pin (24.18.1, sha256-checked tar.xz from nodejs.org),
+   tasks that install the interpreter at `~/.node-24.18.1/bin/node`, the PATH segment in
+   `bashrc.j2`, a validate probe, and the contract test expectations. The lab convergence
+   claim above predates this; the live re-apply below is its proof.

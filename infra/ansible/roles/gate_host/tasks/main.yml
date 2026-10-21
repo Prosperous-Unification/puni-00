@@ -129,8 +129,55 @@
     group: '{{ puni_gate_user }}'
     follow: false
 
+# Nx's bin (`node_modules/.bin/nx`) is `#!/usr/bin/env node`, so the gate's `bun run format:check`,
+# `lint`, `test`, `typecheck` and `build` all need a Node on PATH. Proof (h4claw, 2026-10-21): without
+# it the first gate exited 127 right after the frozen install, `env: 'node': No such file or directory`.
+- name: Fetch the pinned Node archive
+  tags: [gate_host]
+  ansible.builtin.get_url:
+    url: '{{ puni_gate_node_lock.url }}'
+    dest: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}.tar.xz'
+    checksum: 'sha256:{{ puni_gate_node_lock.sha256 }}'
+    mode: '0644'
+
+- name: Create the per-checksum Node unpack directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}'
+    state: directory
+    mode: '0755'
+
+- name: Unpack the pinned Node archive
+  tags: [gate_host]
+  ansible.builtin.unarchive:
+    src: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}.tar.xz'
+    dest: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}'
+    remote_src: true
+    creates: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}/node-v{{ puni_gate_node_version }}-linux-x64/bin/node'
+
+- name: Create the pinned Node directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+# Only the interpreter: npm and corepack stay out, Bun installs the dependencies.
+- name: Install the pinned Node
+  tags: [gate_host]
+  ansible.builtin.copy:
+    src: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}/node-v{{ puni_gate_node_version }}-linux-x64/bin/node'
+    dest: '{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin/node'
+    remote_src: true
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
 # h2puni puts its pinned Bun on PATH from ~/.bashrc above the interactivity guard; the gate
-# steps call `bun` and `python3` from PATH, so this file is how both resolve to the pins.
+# steps call `bun`, `node` (through Nx's shebang) and `python3` from PATH, so this file is how
+# all three resolve to the pins.
 - name: Render the gate shell environment
   tags: [gate_host]
   ansible.builtin.template:

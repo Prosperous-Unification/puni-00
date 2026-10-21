@@ -1,7 +1,7 @@
 # Managed by infra/ansible/roles/gate_host; local edits are reverted on the next run.
 # Everything a gate needs sits above the interactivity guard, because `ssh {{ puni_gate_user }}@host CMD`
 # runs a non-interactive shell that stops at the guard.
-export PATH="{{ puni_gate_home }}/.venv-solver/bin:{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin:$PATH"
+export PATH="{{ puni_gate_home }}/.venv-solver/bin:{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin:{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin:$PATH"
 export TMPDIR={{ puni_gate_tmpdir }}
 export NX_DAEMON=false
 
