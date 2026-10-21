@@ -3,6 +3,7 @@ import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
 
 import { BOOTED_ORIGIN, BootedBrowserProcess } from './booted-browser-process';
 import { FakeOidcProvider } from './fake-oidc-provider';
+import { writeMcpStoreFixture } from './mcp-store-fixture';
 
 /**
  * be-01 for mcp-01's booted organization delegation test
@@ -55,6 +56,11 @@ account('dany', false);
 account('ada', false);
 
 const cli = new URL('../organization-activation-cli.ts', import.meta.url).pathname;
+// Activation waits for an advanced mcp-01 credential epoch. This stands for the operator's
+// epoch CLI; the booted mcp-01 keeps its own store, so its pre-activation session stays
+// unrevoked and the test still observes be-01's `no_active_organization` refusal.
+const mcpStore = `${backend.databasePath()}-mcp.sqlite`;
+writeMcpStoreFixture(mcpStore, 1);
 
 const server = Bun.serve({
   hostname: '127.0.0.1',
@@ -63,7 +69,17 @@ const server = Bun.serve({
     const path = new URL(request.url).pathname;
     if (request.method === 'POST' && path === '/__fixture/activate') {
       const run = Bun.spawnSync(
-        [process.execPath, cli, '--name', 'default', '--super-admin', 'dany', '--apply'],
+        [
+          process.execPath,
+          cli,
+          '--mcp-store',
+          mcpStore,
+          '--name',
+          'default',
+          '--super-admin',
+          'dany',
+          '--apply',
+        ],
         {
           env: { ...process.env, DB_PATH: backend.databasePath() },
           stdout: 'pipe',

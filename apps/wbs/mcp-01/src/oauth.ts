@@ -708,8 +708,20 @@ export class McpOAuthServer implements McpOAuthHandler {
       upstreamRefreshToken: tokens.refreshToken,
       upstreamExpiresAt,
     };
-    if (this.organizations === undefined)
+    if (this.organizations === undefined) {
+      // A process started at epoch 0 without organization authority whose store another writer
+      // has since advanced: an unbound credential can no longer be stored, so refuse here
+      // instead of failing the exchange on the store's CHECK.
+      // Proof: 2026-10-22, without this refusal `refuses consent without organization authority
+      // once another writer advanced the epoch` (credential-epoch.test.ts) redirected with a code.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        return await this.failLogin(
+          pending.authorization,
+          'temporarily_unavailable',
+          tokens.refreshToken,
+        );
       return await this.issueCode(pending.authorization, fields);
+    }
     let consent: ConsentOrganizations;
     try {
       consent = await this.organizations.organizationsFor(tokens.accessToken);

@@ -30,10 +30,13 @@ export type CredentialEpochAdvance =
  * this instant would revoke. At epoch 1 it changes nothing and says so. Epoch 1 is one-way: the
  * epoch triggers refuse a decrease, and the store rollback refuses any epoch but 0.
  *
- * The connection uses `locking_mode = EXCLUSIVE` with no busy wait. On a WAL store every open
- * connection holds a shared lock for as long as it is open, idle or not, so the first write
- * lock fails with `SQLITE_BUSY` while any mcp-01 (in any process on this host) has the store
- * open, and an mcp-01 that starts during the advance cannot open it until the advance ends.
+ * The connection uses `locking_mode = EXCLUSIVE` with no busy wait. On a WAL store a
+ * connection holds a shared lock from its first statement until it closes, idle or not, so the
+ * first write lock fails with `SQLITE_BUSY` while any process on this host has read or written
+ * the store through a still-open connection. A connection that was opened but never used holds
+ * nothing and is not seen. `McpSessionStore`'s constructor always runs statements
+ * (pragmas, migration, epoch read), so a running mcp-01 is always seen, and an mcp-01 that
+ * starts during the advance cannot read the store until the advance ends.
  * This proves the store has no live writer at that instant; it does not stop a later restart
  * of an organization-unaware release, which the advanced epoch itself refuses at startup.
  * The store must be WAL (mcp-01 always switches it), because a rollback-journal connection
@@ -100,7 +103,11 @@ function advanceInTransaction(db: Database, now: number): CredentialEpochAdvance
     .query('UPDATE mcp_family SET revoked_at = ? WHERE credential_epoch = 0 AND revoked_at IS NULL')
     .run(now).changes;
   // Proof: 2026-10-21, skipping this delete and the revocation above in turn made `revokes every
-  // pre-activation family and session` and the CLI's `dry-runs, applies once…` case fail.
+  // pre-activation family and session` and the CLI's `dry-runs, applies once…` case
+  // (credential-epoch.test.ts) fail. Not proof: with both skipped, the Red case `refuses access
+  // and refresh after the epoch advance, …` still passes, because the per-query epoch
+  // comparison in session-store.ts refuses those credentials on its own. The revocation is
+  // proven by the two state tests only, and kept because the spec requires durable revocation.
   const removedSessions = db
     .query('DELETE FROM mcp_session WHERE credential_epoch = 0')
     .run().changes;

@@ -589,6 +589,20 @@ describe('pre-activation access, refresh and code refusal', () => {
     }
   });
 
+  it('refuses consent without organization authority once another writer advanced the epoch', async () => {
+    const path = storePath();
+    const store = new McpSessionStore(path, [KEY]);
+    try {
+      const oauth = server(store);
+      raiseEpoch(path);
+      const { callback } = await consent(oauth);
+      expect(callback.searchParams.get('error')).toBe('temporarily_unavailable');
+      expect(callback.searchParams.get('code')).toBeNull();
+    } finally {
+      store.close();
+    }
+  });
+
   it('refuses to start at the activated epoch without organization authority', () => {
     const path = storePath();
     new McpSessionStore(path, [KEY]).close();

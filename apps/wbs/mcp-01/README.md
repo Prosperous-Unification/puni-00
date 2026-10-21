@@ -184,7 +184,8 @@ the store holds now, which is read on every use. An advance therefore retires
 older credentials in a running process too.
 
 The operator advances it once, with mcp-01 drained, before be-01's activation
-(`docs/runbook-organization-activation.md`, step 3b):
+(`docs/runbook-organization-activation.md`, step 2b). be-01's activation CLI reads
+this store (`--mcp-store`) and refuses until the epoch is 1:
 
 ```sh
 MCP_STORE_PATH=/data/mcp-session.sqlite bun apps/wbs/mcp-01/src/credential-epoch-cli.ts          # dry run
@@ -194,7 +195,8 @@ MCP_STORE_PATH=/data/mcp-session.sqlite bun apps/wbs/mcp-01/src/credential-epoch
 `--apply` revokes every epoch-0 refresh family, deletes its sessions and sets
 epoch 1 in one transaction. The dry run prints the same counts and rolls back.
 At epoch 1 the CLI prints `already_activated` and exits 0. While any process
-has the store open it exits 3 and changes nothing (`src/credential-epoch.ts`).
+has read or written the store through a still-open connection it exits 3 and
+changes nothing (`src/credential-epoch.ts`).
 Epoch 1 is one-way: only a backup of the store file returns to 0.
 
 Rotate either key by moving the old current value to its matching `_PREVIOUS`

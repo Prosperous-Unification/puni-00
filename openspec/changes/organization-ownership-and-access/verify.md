@@ -2139,8 +2139,8 @@ Not taken:
 
 ### What 6.5 still needs
 
-Answered by "MCP credential epoch (6.5)" below, except the activation CLI's check of the MCP
-epoch, which is still not built.
+Answered by "MCP credential epoch (6.5)" below, including the activation CLI's check of the MCP
+epoch (its review fixes).
 
 - An epoch-advance operation: one MCP-store transaction that raises `mcp_credential_epoch`
   and revokes every epoch-0 family and session, with a durable acknowledgment the activation
@@ -2169,7 +2169,7 @@ Until then, sessions consented before activation are refused by be-01 rather tha
 ## MCP credential epoch (6.5)
 
 2026-10-21, branch `feat/mcp-credential-epoch`, stacked on PR #622 (`555ab9c8d`). Operator view:
-`docs/runbook-organization-activation.md`, step 3b; `apps/wbs/mcp-01/README.md`, "Credential
+`docs/runbook-organization-activation.md`, step 2b; `apps/wbs/mcp-01/README.md`, "Credential
 epoch".
 
 Model: the store holds one durable epoch, 0 (pre-activation) or 1 (activated). mcp-01 opens
@@ -2230,7 +2230,7 @@ a reader that skips the epoch comparison.
 
 `preflightCredentialBindingDown` is unchanged; `MCP store rollback > refuses at an advanced
 epoch` passes. Epoch 1 has no `down`: the epoch triggers refuse a decrease, and the only way
-back is the store backup taken before step 3b.
+back is the store backup taken before step 2b.
 
 ### Commands and results
 
@@ -2248,8 +2248,8 @@ back is the store backup taken before step 3b.
   the dry run there.
 - The guard across containers (`docker run` beside a stopped or running `wbs-dev-src`) is
   inferred from the shared host bind mount, not observed.
-- The activation CLI does not read the MCP epoch, so the spec's "activation SHALL wait for
-  this durable acknowledgment" is met only by the runbook's order.
+- The activation CLI did not read the MCP epoch in the first revision; the review fixes below
+  add it.
 - Pending consents and organization selections carry no epoch. A selection that started at
   epoch 0 and completes after the advance issues a bound code at epoch 1. Only a
   pre-activation consent crossing the advance is refused.
@@ -2259,3 +2259,67 @@ back is the store backup taken before step 3b.
   exception is not part of this change.
 - The workspace gate (`bin/h2puni-gate.sh`) was not run; only `wbs-mcp-01` targets ran
   locally (laptop RAM cap).
+
+### Review (Fable, PR #624) and fixes — 2026-10-22
+
+Verdict: merge after fixes. Fixed on the same branch:
+
+- **S2-1:** `organization-activation-cli.ts` now requires `--mcp-store` and reads it through
+  `readMcpEpochReadiness` (`apps/wbs/be-01/src/mcp-credential-epoch.ts`). be-01 cannot import
+  mcp-01, which depends on it. The reader is therefore a read-only query that mirrors mcp-01's
+  epoch validation and epoch-migration name. It returns the typed refusal
+  `mcp_epoch_not_advanced` (exit 7) for an absent store (`absent`), a store without the epoch
+  migration (`unmigrated`) and epoch 0 (`epoch_0`). It throws (exit 1) when the store cannot
+  be opened or the epoch is malformed.
+  - `--apply` refuses before opening the WBS database. The dry run prints its plan and then
+    the refusal.
+  - "Fully migrated" means the store holds the epoch migration. The epoch CLI already refuses
+    any store that is not at its own release's newest migration.
+  - The callers now pass an epoch-1 fixture store (`testing/mcp-store-fixture.ts`): the boot
+    tests, the swarm rehearsal and mcp-01's booted backend. Dev was activated on 2026-10-21,
+    before this check existed.
+- **S2-2:** the comment at the CLI revocation states the non-proof.
+- **S3-1:** without organization authority, the callback now refuses with
+  `temporarily_unavailable` at epoch 1 before issuing a code. Before, a process started at
+  epoch 0 issued an unbound code and failed the exchange on the store CHECK (500).
+- **S3-2:** the guard's wording now says "has read or written the store through a still-open
+  connection". A connection that was opened but never used holds no lock.
+  `McpSessionStore`'s constructor always runs statements, so a running mcp-01 is always seen.
+- **S3-3:** the runbook says devsync may `docker restart` the container during step 2b, that
+  this is safe (the CLI exits 3), and what to do. The epoch step is renumbered 2b and placed
+  before the activation dry run, because that dry run now reports the refusal.
+
+Recorded, not changed:
+
+- **S3-4:** this branch is coupled to #622. The epoch CLI's current-schema check expects the
+  three migrations including `20261021120000_mcp_client`, and the code uses #622's
+  `McpOAuthServer` and `protocolError`. Rebase after #622 merges, and rerun the mcp-01
+  targets.
+- **S3-5:** some `Proof:` comments name only the test, not its file. The table above names
+  the file for each.
+
+New faults observed, each restored afterwards:
+
+| Check (file)                                                  | Injected fault                       | Failing test and observation                                                                                     |
+| ------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| Absent store (`be-01 mcp-credential-epoch.ts`)                | Drop the `existsSync` branch         | `refuses an absent MCP store, writing nothing`: exit 1 (SQLite open error) instead of 7                          |
+| Epoch migration present (`be-01 mcp-credential-epoch.ts`)     | Never refuse `unmigrated`            | `refuses an MCP store without the epoch migration`: exit 1 instead of 7                                          |
+| Malformed epoch (`be-01 mcp-credential-epoch.ts`)             | Drop the throw                       | `throws on a malformed MCP epoch, writing nothing`: exit 0, activated                                            |
+| Epoch 0 refused (`be-01 mcp-credential-epoch.ts`)             | Compare with -1                      | `refuses activation while the MCP epoch is 0, writing nothing` and `rehearses while the MCP epoch is 0…`: exit 0 |
+| Apply waits (`organization-activation-cli.ts`)                | Never refuse before applying         | `refuses activation while the MCP epoch is 0, writing nothing`: stdout `mode: applied`                           |
+| Rehearsal reports (`organization-activation-cli.ts`)          | Drop the post-plan refusal           | `rehearses while the MCP epoch is 0, then reports the refusal`: exit 0                                           |
+| `--mcp-store` required (`organization-activation-cli.ts`)     | Drop `mcpStore === undefined`        | `refuses without --mcp-store before opening the database`: exit 7 (`absent`) instead of the usage error          |
+| No unbound code at epoch 1 without organizations (`oauth.ts`) | Move the refusal back below `return` | `refuses consent without organization authority once another writer advanced the epoch`: code issued             |
+
+Fresh results after the review fixes (2026-10-22):
+
+| Command                                                                                                                                              | Result                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:test --skip-nx-cache`                                                                                      | 479 pass, 0 fail, 2116 expect() calls                                  |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:{typecheck,lint,build} --skip-nx-cache`                                                                    | each success; build bundled 1034 modules                               |
+| `env -u CLAUDECODE bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                       | 3082 pass, 3 skip, 0 fail, 63300 expect() calls, 3085 tests, 211 files |
+| `env -u CLAUDECODE bunx nx run wbs-be-01:{typecheck,lint} --skip-nx-cache`                                                                           | each success                                                           |
+| `cd apps/wbs/mcp-01 && env -u CLAUDECODE bun test src/organization-delegation.boot.test.ts` (boots be-01's activation through the new `--mcp-store`) | 7 pass, 0 fail                                                         |
+| `bunx openspec validate --all --json`                                                                                                                | 266 items, 266 passed                                                  |
+
+Still not run: dev, prod, `bin/h2puni-gate.sh`, and any workspace-wide target.

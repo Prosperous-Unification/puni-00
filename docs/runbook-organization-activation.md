@@ -28,7 +28,7 @@ keeps working only if, before activation, be-01 has the delegation key pair
 (`WBS_DELEGATION_SIGNING_KEY`, `WBS_DELEGATION_VERIFY_KEY`) and mcp-01 has be-01's
 `INTERNAL_AUTH_SECRET`; its users then reconnect once and are bound to an organization
 (`docs/auth-integration.md`, "MCP organization delegation"). MCP sessions opened before
-activation are revoked by the credential epoch advance (step 3b), so every MCP client
+activation are revoked by the credential epoch advance (step 2b), so every MCP client
 reauthorizes once. The operator activates only after accepting that loss knowingly.
 
 ## Step 0: stop if `BROWSER_SESSION_AUTHORITY` is `disabled`
@@ -71,13 +71,15 @@ docker exec -e DB_PATH=/data/pre-org-activation.db wbs-dev-src \
   bun apps/wbs/be-01/src/organization-ownership-preflight-cli.ts
 docker exec -e DB_PATH=/data/pre-org-activation.db wbs-dev-src \
   bun apps/wbs/be-01/src/organization-selection-preview-cli.ts
-# 3b. MCP credential epoch: drain mcp-01, advance the epoch, restart. See the next section.
+# 2b. MCP credential epoch: drain mcp-01, advance the epoch, restart. See the next section.
 # 3. Dry run: rehearses the whole transaction on the live file, prints the plan, rolls back.
 docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
-  bun apps/wbs/be-01/src/organization-activation-cli.ts --name default --super-admin <dany user id>
+  bun apps/wbs/be-01/src/organization-activation-cli.ts --mcp-store /data/mcp-session.sqlite \
+  --name default --super-admin <dany user id>
 # 4. Apply (add --prune-retained-streams only if step 3 refused with event_stream conflicts).
 docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
-  bun apps/wbs/be-01/src/organization-activation-cli.ts --name default --super-admin <dany user id> --apply
+  bun apps/wbs/be-01/src/organization-activation-cli.ts --mcp-store /data/mcp-session.sqlite \
+  --name default --super-admin <dany user id> --apply
 # 5. Verify: marker `activated`, every user `selection_required` with one membership.
 docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
   bun apps/wbs/be-01/src/organization-selection-preview-cli.ts
@@ -85,22 +87,33 @@ docker exec -e DB_PATH=/data/wbs.db wbs-dev-src \
   bun apps/wbs/be-01/src/organization-ownership-preflight-cli.ts
 ```
 
-## Step 3b: advance the MCP credential epoch
+## Step 2b: advance the MCP credential epoch
 
 The order is: drain the old mcp-01, run `apps/wbs/mcp-01/src/credential-epoch-cli.ts`, then
-run the activation CLI (step 4). The epoch CLI moves the MCP store from epoch 0 to 1 in one
+run the activation CLI (steps 3 and 4). The activation CLI proves the order: its required
+`--mcp-store` names mcp-01's store, and while that store is absent, lacks the epoch migration
+or is still at epoch 0, `--apply` refuses with `mcp_epoch_not_advanced` (exit 7) before
+touching the WBS database. The dry run prints its plan and then the same refusal. A
+malformed epoch or an unreadable store throws (exit 1). There is no bypass flag. The epoch CLI moves the MCP store from epoch 0 to 1 in one
 transaction. It revokes every pre-activation refresh family and deletes its sessions, so
 codes, sessions and refresh tokens issued before it are refused (`invalid_grant`, or 401 on a
 tool call). Epoch 1 is one-way, and only the store backup returns to 0.
 
 1. **Drain.** On dev mcp-01 runs inside `wbs-dev-src` with be-01, gw-01 and fe-01. Draining it
    means stopping the container, which takes dev down for the minute this step lasts.
-   `restart: unless-stopped` keeps it stopped.
+   `restart: unless-stopped` keeps it stopped, but devsync restarts it
+   (`docker restart wbs-dev-src`, `tools/tool-devsync/src/sync.ts`) when a deploy lands while
+   the poller runs. That is safe: the epoch CLI then exits 3, or the starting mcp-01 cannot
+   read the store until the advance ends. If the CLI exits 3, stop the container again and
+   rerun, or push nothing to `main` during this step.
 2. **Advance.** The CLI opens the store with SQLite's exclusive locking mode and no busy wait.
-   While any process on the host has the store open, it prints
+   While any process on the host has read or written the store through a still-open
+   connection, it prints
    `{"refusal":"store_in_use",…}` on stderr and exits 3, changing nothing. Run it without
    `--apply` first. That rehearsal prints `revokedFamilies` and `removedSessions` and rolls
-   back. A second `--apply` at epoch 1 prints `already_activated` and exits 0. An absent,
+   back. A second `--apply` at epoch 1 prints `already_activated` and exits 0. A connection
+   that was opened but never used holds no lock and is not seen; mcp-01's store always runs
+   statements as it opens, so a running mcp-01 is always seen. An absent,
    unmigrated or unknown-epoch store throws (exit 1), and the path is never created.
 3. **Restart.** mcp-01 at epoch 1 refuses to start without `INTERNAL_AUTH_SECRET` in
    `apps/wbs/mcp-01/.env`, and a release older than this change refuses epoch 1 at startup.
@@ -129,8 +142,8 @@ and its `-wal` file are credentials (mode 600). No live dev run has proved that 
 same host bind mount on one kernel, and `credential-epoch.test.ts` proves the refusal only
 between two local processes.
 
-**Dev is already activated.** Dev's marker was set on 2026-10-21 (03:48 UTC) while its MCP
-store stayed at epoch 0. On dev, then, the epoch CLI runs after the marker, as a catch-up. It
+**Dev is already activated.** Dev's marker was set on 2026-10-21 (03:48 UTC), before the
+activation CLI checked the MCP epoch, while its MCP store stayed at epoch 0. On dev, then, the epoch CLI runs after the marker, as a catch-up. It
 also revokes the families bound after activation (still epoch 0), so every dev MCP client
 reauthorizes once more. Nothing else depends on the order there.
 
@@ -153,7 +166,10 @@ Exit codes:
 - 5: the super-admin is not exactly one user.
 - 6: reconciliation found unmapped roots, name drift or ownership conflicts, listed on
   stderr.
-- 1: a broken marker, a malformed legacy pair or bad arguments threw.
+- 7: the MCP credential epoch has not advanced (`mcp_epoch_not_advanced`, with `reason`
+  `absent`, `unmigrated` or `epoch_0`); run step 2b first.
+- 1: a broken marker, a malformed legacy pair, a malformed MCP epoch, an unreadable MCP store
+  or bad arguments threw.
 
 Every refusal leaves the store unchanged.
 
@@ -179,9 +195,7 @@ Verified locally on 2026-10-20 against migrated disposable fixtures:
 The counts are in the change's `verify.md`. The CLI has **not** been run against dev or prod.
 These parts of task 7.1 are not covered:
 
-- old-process drain (on dev it is the container stop in step 3b; there is no executor proof);
-- the activation CLI does not check the MCP epoch, so step 3b running first is the operator's
-  order, not a guard;
+- old-process drain (on dev it is the container stop in step 2b; there is no executor proof);
 - trusted policy state.
 
 The epoch CLI is covered by `apps/wbs/mcp-01/src/credential-epoch.test.ts`. It has not been
