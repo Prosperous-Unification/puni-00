@@ -412,6 +412,17 @@ Unaffected projects retain the existing optimization path. This bounded policy
 is the implementation recommendation, not an additional approved product-wide
 engine policy.
 
+The [optimization integration ruling](architecture/connected-optimization.md)
+pins immutable stage inputs, all six normalized boundary inequalities,
+conservative quantization, movement references separate from feasible witnesses,
+full pinned real replay and stage-scoped publication comparison. Terminal
+boundary certificates use additive immutable persistence and exact-question
+Retry suppression; the current cache schema cannot represent them unchanged.
+Wire/runtime/migration versions remain proposed until the integrator reserves
+unused identities. Task 7.4 is required for production completion. Its ownership
+appendix separates new core preparation/derivation files from shared live and
+command integration files.
+
 ### D7. Lifecycle, snapshots and downstream readers
 
 Implementation default: refuse deletion of an externally referenced predecessor
