@@ -26,6 +26,7 @@ export * from './gate';
 export * from './health-probe';
 export * from './invitation';
 export * from './join-request';
+export * from './machine-credential';
 export * from './migrate';
 export * from './migrate-down';
 export * from './onboarding';

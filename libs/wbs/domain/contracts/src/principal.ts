@@ -45,12 +45,14 @@ export interface AuthenticatedUser {
 /**
  * How a credential was authenticated, from its verifier and never from a
  * caller: an upstream pair (a verified provider token, or the pair a
- * delegation carries), or a first-party password session and when it was
- * issued, in epoch milliseconds.
+ * delegation carries), a first-party password session and when it was
+ * issued, in epoch milliseconds, or a WBS machine credential
+ * (`wbs-machine-credentials` A10, A13) and the person it is pinned to.
  */
 export type CredentialAuthentication =
   | { readonly kind: 'upstream'; readonly issuer: string; readonly subject: string }
-  | { readonly kind: 'first_party'; readonly issuedAt: number };
+  | { readonly kind: 'first_party'; readonly issuedAt: number }
+  | { readonly kind: 'machine'; readonly credentialId: string; readonly personId: string };
 
 /**
  * The verified `(issuer, subject)` a request's credential carries: an upstream
@@ -62,13 +64,29 @@ export interface CredentialPair {
   readonly subject: string;
 }
 
-/** The pair of `authentication` when it is an upstream one, else null (unpinned). */
-export function credentialPairOf(
+/**
+ * What a claim reads a request's pin from: an upstream pair, whose pin is the
+ * operator link's `external_identity.person_id` (`wbs-team-claims` D6), or a
+ * machine credential's own person (`wbs-machine-credentials` A12).
+ */
+export type CredentialPin = CredentialPair | { readonly personId: string };
+
+/**
+ * The pin source of `authentication`: the pair of an upstream one, the person
+ * of a machine credential, else null (unpinned).
+ *
+ * Proof: answering null for a machine credential made `claims as its person
+ * and is refused as any other of its account's persons` in
+ * `machine-credential.controller.db.test.ts` accept the claim as `codex`;
+ * watched 2026-10-22.
+ */
+export function credentialPinOf(
   authentication: CredentialAuthentication | undefined,
-): CredentialPair | null {
-  return authentication?.kind === 'upstream'
-    ? { issuer: authentication.issuer, subject: authentication.subject }
-    : null;
+): CredentialPin | null {
+  if (authentication?.kind === 'upstream')
+    return { issuer: authentication.issuer, subject: authentication.subject };
+  if (authentication?.kind === 'machine') return { personId: authentication.personId };
+  return null;
 }
 
 /** Evidence from the credential verifier, never from caller-declared kind or expiry. */

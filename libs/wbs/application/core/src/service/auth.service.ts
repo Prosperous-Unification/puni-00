@@ -8,6 +8,7 @@ import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { OidcIdentityStore, UserStore } from '../ports/user-store';
 
 export type {
+  AuthenticationRefusal,
   LoginOutcome,
   RegisterOutcome,
   SignedIn,
@@ -39,6 +40,7 @@ export class AuthService extends AuthenticationFeature {
         ? {}
         : { passwordSessions: options.passwordSessions }),
       ...(options.localIdentity === undefined ? {} : { localIdentity: options.localIdentity }),
+      ...(options.machineKeys === undefined ? {} : { machineKeys: options.machineKeys }),
       account: new AccountResource({
         users: options.users,
         ...(options.identities === undefined ? {} : { identities: options.identities }),

@@ -6,11 +6,13 @@ import {
   type OidcIdentity,
   type WbsScope,
 } from '@wbs/contracts';
-import type { OrganizationRole } from '@wbs/domain';
+import { admitMachineCredential, type MachineActor, type OrganizationRole } from '@wbs/domain';
 
 import type { User } from '../../ports/account-values';
+import type { MachineCredentials } from '../../ports/machine-credentials';
 import type { OidcVerifier } from '../../ports/oidc-verifier';
 import type { PasswordHasher, TokenCodec } from '../../ports/runtime';
+import { digestMachineSecret, type MachineKey, parseMachineKey } from '../../service/machine-key';
 import type { AccountResource } from './account.resource';
 
 export const TOKEN_TTL_SECONDS = 12 * 60 * 60;
@@ -62,7 +64,24 @@ export interface AuthServiceOptions {
    * silently reaching for a global. Watched 2026-09-08.
    */
   passwords: PasswordHasher;
+  /**
+   * How `wbs_mk_` API keys are verified (`wbs-machine-credentials` A13, A22):
+   * the credentials and the clock that judges secret expiry and last use.
+   * Optional only for fixtures that never present a key: a well-formed key
+   * reaching a service without it throws, never falls through to another
+   * verifier.
+   */
+  machineKeys?: MachineKeyVerification;
 }
+
+/** What {@link AuthServiceOptions.machineKeys} reads. */
+export interface MachineKeyVerification {
+  readonly credentials: MachineCredentials;
+  readonly now: () => number;
+}
+
+/** {@link AuthService.authenticateOrRefuse}'s answer when it admits nobody. */
+export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
 
 export type { AuthenticatedUser } from '@wbs/contracts';
 
@@ -188,7 +207,7 @@ export class AuthService {
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     const outcome = await this.authenticateOrRefuse(token);
-    return outcome === 'unknown_identity' ? null : outcome;
+    return outcome === 'unknown_identity' || outcome === 'invalid_token' ? null : outcome;
   }
 
   /**
@@ -202,12 +221,24 @@ export class AuthService {
    * Its scopes come from the linked account's memberships
    * ({@link scopesOfRoles}); the per-organization role checks then apply as for
    * any session of that account. A token with the claim keeps the login path.
+   *
+   * **A token with the `wbs_mk_` prefix is an API key and nothing else**
+   * (`wbs-machine-credentials` A13, A22): it is parsed once, never handed to
+   * a JWT verifier, and answers `invalid_token` when it does not parse — all
+   * before any read — or `unknown_identity` when no live credential admits it.
    */
   async authenticateOrRefuse(
     token: string | null,
-  ): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+  ): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
+    const machineKey = parseMachineKey(token);
+    if (machineKey === 'malformed') return 'invalid_token';
+    // Proof: with this branch removed, the key fell through to the OIDC
+    // verifier and `routes an API key to its credential and never to the JWT
+    // verifier` in `machine-credential.controller.db.test.ts` failed, with 12
+    // more cases of that file; watched 2026-10-22.
+    if (machineKey !== null) return this.authenticateMachineKey(machineKey);
     if (this.opts.oidc !== undefined) {
       const identity = await this.opts.oidc.verify(token);
       if (identity === null) {
@@ -280,6 +311,44 @@ export class AuthService {
     return this.opts.account.readExistingIdentity(identity);
   }
 
+  /**
+   * One API key: its credential read by id, its secret's digest compared with
+   * that credential's secrets by {@link admitMachineCredential}, the admitted
+   * actor's account read for its username, and the use recorded (coarsely).
+   *
+   * @throws when machine credentials are not wired, when the bound account
+   * does not exist (the foreign key makes that corrupt state), and on every
+   * store failure, the last-use write included.
+   */
+  private async authenticateMachineKey(
+    key: MachineKey,
+  ): Promise<AuthenticatedUser | 'unknown_identity'> {
+    const machines = this.opts.machineKeys;
+    // Proof: answering unknown_identity here made `throws on a well-formed key
+    // when machine credentials are not wired` (machine-key.test.ts) resolve;
+    // watched 2026-10-22.
+    if (machines === undefined)
+      throw new Error('an API key was presented but machine credentials are not wired');
+    const digest = await digestMachineSecret(key.secret);
+    const now = machines.now();
+    const admission = admitMachineCredential(
+      { kind: 'api_key', digest },
+      await machines.credentials.findById(key.credentialId),
+      now,
+    );
+    if (admission.kind === 'refused') return admission.refusal;
+    const account = await this.opts.account.readAccount(admission.actor.accountId);
+    // Proof: answering unknown_identity here made `throws when the admitted
+    // credential's account does not exist` (machine-key.test.ts) resolve;
+    // watched 2026-10-22.
+    if (account === null)
+      throw new Error(
+        `machine credential ${admission.actor.credentialId} acts as a missing account`,
+      );
+    await machines.credentials.touchLastUsed(admission.actor.credentialId, now);
+    return machinePrincipalOf(admission.actor, account.username);
+  }
+
   private async issue(user: User): Promise<SignedIn> {
     const token = await this.opts.tokens.sign(
       { subject: user.id, username: user.username },
@@ -287,6 +356,33 @@ export class AuthService {
     );
     return { token, user: { id: user.id, username: user.username } };
   }
+}
+
+/**
+ * The principal an admitted machine credential acts as
+ * (`wbs-machine-credentials` A12): **the account its person is bound to**,
+ * with exactly the credential's capped scopes (`read`, `write`; never
+ * `editor`, whatever role that account holds), bound to the credential's
+ * organization as a direct context so `resolve` never answers
+ * `no_active_organization` for it and every organization administration
+ * route refuses it `insufficient_scope` as it refuses a delegation, and
+ * pinned to the credential's person for the claim rules.
+ *
+ * The one place the acting account is decided: A12 is the assumption most
+ * likely to be overruled (a machine account per credential is the recorded
+ * alternative), and that change belongs here alone.
+ */
+export function machinePrincipalOf(actor: MachineActor, username: string): AuthenticatedUser {
+  return {
+    id: actor.accountId,
+    username,
+    scopes: actor.scopes,
+    // Proof: without this context, `admits a live key to its organization's
+    // projects only` in `machine-credential.controller.db.test.ts` answered
+    // 403 no_active_organization; watched 2026-10-22.
+    delegation: { organizationId: actor.organizationId, audience: 'wbs-be-01/direct' },
+    authentication: { kind: 'machine', credentialId: actor.credentialId, personId: actor.personId },
+  };
 }
 
 /**

@@ -53,13 +53,80 @@ token** stays the SCIM secret and is not a credential source.
   unmount; a wrong id sends no revoke; a viewer's page sends no credentials request; a
   member sees only their own agents' credentials on both pages.
 
+## A22, the API key carries its credential id (Dany, 2026-10-22)
+
+Supersedes A14's bare-secret form. A key is `wbs_mk_<credential id>.<secret>`, sent as
+`Authorization: Bearer`: the credential's lowercase UUID (shown in UI and audit), one `.`,
+and 43 base64url characters carrying 256 random bits. Verification parses the key once at
+the boundary (prefix, UUID charset, exactly one `.`, secret length); a prefixed token
+outside that grammar is `401 invalid_token` before any database read. A well-formed key
+reads its credential by primary key, digests the secret with SHA-256 and compares it with
+each of that credential's secrets (two during a rotation window) in constant time; no
+lookup ever scans digests. Revoked, expired, wrong-secret and unknown-id keys are all
+`401 unknown_identity`. The secret child table stays: rotation adds a second secret under
+the same id. No custom header carries a key. design.md A13/A14 and the
+`machine-credentials` spec's verification requirement still describe the bare-secret
+digest lookup; the proposal owner rewrites them to A22.
+
+## Slice 1 record (2026-10-22)
+
+Built on `feat/wbs-machine-credentials-1` from `origin/plan/wbs-machine-credentials`
+`10e6cbe3f` (carries A21). Sources `api_key`, `oidc`, `mcp_consent` only; nothing reads or
+migrates `external_identity` for credentials.
+
+Commands and fresh results, each run in the worktree with `CLAUDECODE` unset:
+
+| Command                                                                                                                                        | Result                                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `bun run tools/tool-git-hooks/src/hooks/migration-lint.ts apps/wbs/be-01/drizzle/20261022100000_add_machine_credential/migration.sql`          | exit 0                                                                                                         |
+| `bunx nx run wbs-be-01:typecheck --skip-nx-cache`                                                                                              | exit 0                                                                                                         |
+| `bunx nx run wbs-be-01:lint --skip-nx-cache`; `bunx eslint` and `prettier --check` on every changed file                                       | exit 0                                                                                                         |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                   | 3100 pass, 3 skip, 0 fail across 213 files (903 s)                                                             |
+| `bunx tsc --build --force` of `@wbs/domain`, `@wbs/contracts`, `@wbs/core`, `@wbs/store-sqlite`, `@wbs/store-memory`, `tool-git-hooks`         | exit 0 each                                                                                                    |
+| `bun test` `libs/wbs/domain/domain` machine-credential, readme, domain-ring-boundary                                                           | 18 pass, 0 fail                                                                                                |
+| `bun test` `libs/wbs/application/core` claim-command, credential-rules, authentication/*, compose, module-boundaries, sideways-type-boundaries | 88 pass, 0 fail                                                                                                |
+| `bun test` the 32 touched `store-sqlite` tests, `audit.test.ts`, `claim.db.test.ts`                                                            | 630 pass, 0 fail across 34 files (after fixing five list and audit-stamp expectations the new migration moved) |
+| `bun test tools/tool-git-hooks/src/hooks.test.ts`                                                                                              | 19 pass, 0 fail                                                                                                |
+| `bunx openspec validate --all --json`                                                                                                          | exit 0; 266 items, 266 passed                                                                                  |
+
+Not run, by the laptop RAM cap: the full `store-sqlite`, `core`, `domain`, `contracts` and
+`store-memory` suites and every workspace-wide target; CI runs them. Not verified: that the
+digest comparison is timing-indistinguishable in practice. The comparison reads every
+character of every secret of the credential (`digestsEqual`), but a known credential id
+still costs a row read an unknown id does not; the id is public by A22, so that difference
+reveals nothing secret. No timing measurement was made.
+
 ## Failure proofs
 
-| Check (file:line) | Fault injected | Test that observed the failure | Result |
-| ----------------- | -------------- | ------------------------------ | ------ |
-| —                 | —              | —                              | —      |
+Each fault was injected into the production path, the named test watched failing, the
+fault removed, and the test watched passing again (2026-10-22).
+
+| Check (file:line)                                 | Fault injected                                  | Test that observed the failure                                                                                                  | Result                 |
+| ------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `machine-credential.ts` (domain):103 revoked      | predicate removed                               | `refuses a revoked credential`, property `… whatever its secrets' expiries`; mounted `is refused unknown_identity after revoke` | 2 fail; mounted 1 fail |
+| domain :107 source                                | comparison removed                              | `refuses an API key against a credential of another source holding its digest`                                                  | 1 fail                 |
+| domain :112 bound account                         | unbound admitted                                | `refuses a credential whose person is no longer bound to an account`                                                            | 1 fail                 |
+| domain :137 secret expiry                         | `unexpired = true`                              | `refuses a secret at and after its expiry …`                                                                                    | 1 fail                 |
+| domain :147 trusted issuer                        | comparison `true`                               | `never admits another trusted issuer's credential for the same subject`                                                         | 1 fail                 |
+| domain :151 family                                | comparison `true`                               | `admits a consent credential only for its own family`                                                                           | 1 fail                 |
+| `authentication.feature.ts`:241 `wbs_mk_` routing | branch removed (key falls to the OIDC verifier) | `routes an API key to its credential and never to the JWT verifier` and 12 more                                                 | 13 fail                |
+| `authentication.feature.ts`:383 direct context    | context removed from `machinePrincipalOf`       | `admits a live key to its organization's projects only`, `is refused organization administration …`, `… before activation`      | 3 fail                 |
+| `authentication.feature.ts`:330 unwired           | answered `unknown_identity`                     | `throws on a well-formed key when machine credentials are not wired`                                                            | 1 fail                 |
+| `authentication.feature.ts`:344 missing account   | answered `unknown_identity`                     | `throws when the admitted credential's account does not exist`                                                                  | 1 fail                 |
+| `machine-key.ts`:32 grammar                       | malformed parsed as a key                       | `refuses a malformed key invalid_token before any read` (table renamed away)                                                    | 1 fail                 |
+| `identity.ts`:99 `invalid_token`                  | answered `unauthenticated`                      | same                                                                                                                            | 1 fail                 |
+| `mount.ts`:157 whole refusal                      | rendered through the shape                      | same                                                                                                                            | 1 fail                 |
+| `services.ts`:176 wiring                          | inert store answering null                      | every admitting case of `machine-credential.controller.db.test.ts`                                                              | 14 fail                |
+| `principal.ts`:88 machine pin                     | answered null                                   | `claims as its person and is refused as any other …`, `delegates under its own person's subtree claim …`                        | 2 fail                 |
+| `credential-rules.ts`:89 machine rule             | branch removed                                  | `admits a machine key under enforced SSO`, `… under a session policy`                                                           | 2 fail                 |
+| `machine-credential.ts` (store):91 last-use age   | `last_used_at <= at`                            | `records its last use at most once a minute`                                                                                    | 1 fail                 |
+| store :57, :103, :110 shape checks                | each removed in turn                            | `fails as a server error on a malformed stored secret digest / source / revocation time`                                        | 1 fail each            |
+| `down.sql`:12 rollback guard                      | inserts 0                                       | `refuses rollback while one credential exists, keeping it`, `… while a trusted issuer exists`                                   | 2 fail                 |
+| `migration.sql`:56 per-source CHECK               | `CHECK (1)`                                     | `refuses a credential whose columns contradict its source`                                                                      | 1 fail                 |
+| `migration.sql`:66 pair index                     | made non-unique                                 | `keeps one OIDC pair on one credential`                                                                                         | 1 fail                 |
+| `plaintext-secrets.ts`:13 `wbs_mk_` pattern       | made unmatchable                                | `detects a WBS API key, and not its documented shape`                                                                           | 1 fail                 |
 
 ## Gate output
 
-Not run: documentation-only proposal. `bunx openspec validate --all --json` on this
-worktree is recorded in the PR.
+Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all
+--json` on this worktree is recorded in the PR.

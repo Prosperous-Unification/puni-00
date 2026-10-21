@@ -1,4 +1,8 @@
-import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
+import type {
+  AuthenticatedUser,
+  AuthenticationRefusal,
+  AuthService,
+} from '@wbs/core/service/auth.service';
 
 /**
  * The app token from the hardened browser cookie or standard Bearer header.
@@ -54,11 +58,14 @@ export async function userFromHeaders(
   return auth.authenticate(tokenFromHeaders(headers));
 }
 
-/** {@link userFromHeaders}, keeping a verified token linked to nobody apart as `unknown_identity`. */
+/**
+ * {@link userFromHeaders}, keeping a verified token linked to nobody apart as
+ * `unknown_identity` and a malformed `wbs_mk_` API key as `invalid_token`.
+ */
 export async function userOrRefusalFromHeaders(
   auth: AuthService,
   headers: Record<string, string | undefined>,
-): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
   return auth.authenticateOrRefuse(tokenFromHeaders(headers));
 }
 

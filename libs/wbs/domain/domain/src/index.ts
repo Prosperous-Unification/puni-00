@@ -164,6 +164,8 @@ export * from './claim';
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
 export * from './resource';
+// Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
+export * from './machine-credential';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';

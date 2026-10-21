@@ -1,4 +1,8 @@
-import type { AuthenticatedUser, AuthService } from '@wbs/core/service/auth.service';
+import type {
+  AuthenticatedUser,
+  AuthenticationRefusal,
+  AuthService,
+} from '@wbs/core/service/auth.service';
 import { decodeJwt, errors } from 'jose';
 
 import {
@@ -87,6 +91,13 @@ export function identityResolver(
     // A verified machine token no account is linked to (`wbs-team-claims` D6b).
     if (principal === 'unknown_identity')
       return { ok: false, status: 401, body: { error: 'unknown_identity' } };
+    // A malformed `wbs_mk_` API key (`wbs-machine-credentials` A22), refused
+    // before any read.
+    // Proof: answering this as `unauthenticated` made `refuses a malformed key
+    // invalid_token before any read` in `machine-credential.controller.db.test.ts`
+    // fail on the body; watched 2026-10-22.
+    if (principal === 'invalid_token')
+      return { ok: false, status: 401, body: { error: 'invalid_token' } };
     let requestPrincipal = principal;
     if (credentialEvidence !== undefined && principal.delegation === undefined) {
       const credential = bearerContextCredential(request.headers);
@@ -128,7 +139,7 @@ async function delegatedOrSession(
   auth: AuthService,
   delegation: DelegationVerifier,
   headers: Headers,
-): Promise<AuthenticatedUser | 'unknown_identity' | null> {
+): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
   const flat = Object.fromEntries(headers.entries());
   const bearer = headers.get('authorization');
   const presented = bearer?.startsWith('Bearer ') === true ? bearer.slice(7) : null;

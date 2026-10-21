@@ -408,7 +408,8 @@ type BareRefusalCode =
   /**
    * A verified machine token (no groups claim) whose `(issuer, subject)` no
    * account is linked to (`wbs-team-claims` D6b): refused before any account
-   * is minted.
+   * is minted. Also a well-formed `wbs_mk_` API key no live machine credential
+   * admits (`wbs-machine-credentials` A13).
    */
   | 'unknown_identity'
   | 'invalid_body'

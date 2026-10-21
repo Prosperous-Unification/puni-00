@@ -48,6 +48,8 @@ export interface RuledCredential {
  * (`organization-session-policy`) for a credential in an organization, at the
  * evaluating service's injected `now` (ADR 0012). Null admits.
  *
+ * - A machine credential (`wbs-machine-credentials` A10) is admitted by
+ *   neither rule: it has no human sign-in to judge.
  * - Enforced SSO admits only an upstream pair that authenticated THIS
  *   credential and carries an enforced connection's whole prefix; a password
  *   session, a direct context and any other pair are refused.
@@ -77,6 +79,14 @@ export function credentialRuleRefusal(
   now: number,
 ): CredentialRuleRefusal | null {
   const { authentication } = credential;
+  // A headless machine credential has no human sign-in to judge
+  // (`wbs-machine-credentials` A10): the organization controls it by its
+  // issuer, the trusted-issuer gate and revoke.
+  // Proof: with this branch removed, `admits a machine key under enforced
+  // SSO` and `admits a machine key under a session policy` in
+  // `organization-credential-rules.controller.db.test.ts` both failed their
+  // expected 200; watched 2026-10-22.
+  if (authentication?.kind === 'machine') return null;
   const enforced = facts.enforced.at(0);
   if (enforced !== undefined) {
     const carried =

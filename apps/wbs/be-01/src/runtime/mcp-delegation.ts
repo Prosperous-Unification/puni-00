@@ -15,7 +15,9 @@ import type { OrganizationChoices } from './organization-selection';
 export const MCP_DELEGATION_AUDIENCE = 'wbs-be-01/via-mcp-01';
 
 /** Who an organization list or delegation is for: the user's own upstream access token. */
-type Authenticate = (token: string) => Promise<AuthenticatedUser | 'unknown_identity' | null>;
+type Authenticate = (
+  token: string,
+) => Promise<AuthenticatedUser | 'unknown_identity' | 'invalid_token' | null>;
 
 /** The organizations an MCP consent may bind, or why none can be listed. */
 export type McpOrganizationsOutcome =
@@ -287,9 +289,12 @@ async function verifiedUpstream(
   token: string,
 ): Promise<VerifiedUpstream> {
   const principal = await authenticate(token);
-  if (principal === null) return { kind: 'unauthenticated' };
+  // A malformed API key proves nothing here, as no API key does (below).
+  if (principal === null || principal === 'invalid_token') return { kind: 'unauthenticated' };
   if (principal === 'unknown_identity') return { kind: 'unknown_identity' };
   const authentication = principal.authentication;
+  // A machine credential is never an upstream identity, so it is refused here
+  // too: only a human's provider token opens an MCP delegation.
   // Proof: admitting a first-party session made `refuses an unlinked token, a
   // native session and an expired upstream token` in
   // `mcp-delegation.boot.db.test.ts` issue a delegation; watched 2026-10-21.

@@ -312,7 +312,7 @@ describe('the calendar-marker routes', () => {
     const authenticate = auth.authenticateOrRefuse.bind(auth);
     const scoped = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (token) => {
       const account = await authenticate(token);
-      return account === null || account === 'unknown_identity'
+      return account === null || account === 'unknown_identity' || account === 'invalid_token'
         ? account
         : { ...account, scopes: ['read'] };
     });

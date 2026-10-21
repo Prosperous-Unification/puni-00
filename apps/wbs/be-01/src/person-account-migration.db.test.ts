@@ -14,6 +14,7 @@ const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
 /** Newer than both, empty here, so they reverse first on every rollback below them. */
 const RESOURCES = '20261020120000_add_resources';
 const OCCUPANCY = '20261020130000_add_claim_occupancy';
+const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -120,7 +121,7 @@ describe('person account and credential pin migrations', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
+      `rolled back: ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
     );
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');

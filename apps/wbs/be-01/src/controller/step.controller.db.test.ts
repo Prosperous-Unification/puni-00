@@ -926,7 +926,7 @@ it('runs step origin and write-scope policies before parsing, authenticating adm
   const actualAuthenticate = auth.authenticateOrRefuse.bind(auth);
   const readScope = spyOn(auth, 'authenticateOrRefuse').mockImplementation(async (credential) => {
     const account = await actualAuthenticate(credential);
-    return account === null || account === 'unknown_identity'
+    return account === null || account === 'unknown_identity' || account === 'invalid_token'
       ? account
       : { ...account, scopes: ['read'] };
   });

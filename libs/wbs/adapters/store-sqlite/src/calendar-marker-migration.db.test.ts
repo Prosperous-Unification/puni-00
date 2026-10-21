@@ -244,6 +244,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261022100000_add_machine_credential',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
@@ -307,6 +308,9 @@ describe('20260905090000_add_calendar_marker', () => {
           n !== 'project_resource_capacity' &&
           n !== 'work_item_resource_demand' &&
           n !== 'claim_occupancy' &&
+          n !== 'organization_trusted_issuer' &&
+          n !== 'machine_credential' &&
+          n !== 'machine_credential_secret' &&
           n !== 'shared_people_restore_operation' &&
           n !== 'shared_people_restore_receipt' &&
           n !== 'shared_people_restore_consumption' &&

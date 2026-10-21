@@ -21,6 +21,7 @@ import {
   capturedOptimizationReaderOf,
   DrizzleEventLogStore,
   EnterpriseConnectionRepository,
+  MachineCredentialRepository,
   scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
@@ -168,6 +169,11 @@ export function buildServices(options: ServicesOptions): BeServices {
       // `enterprise email trust, composed > trusts a proven connection's email
       // on its domain` in `enterprise-email-trust.controller.db.test.ts` fail.
       enterprise: new EnterpriseConnectionRepository(source.db, source.gate),
+      // Proof: wiring an inert store answering every id null here made every
+      // admitting case of `machine-credential.controller.db.test.ts` fail
+      // (`routes an API key to its credential …` among them); watched
+      // 2026-10-22.
+      machineCredentials: new MachineCredentialRepository(source.db, source.gate),
       ...(options.oidc === undefined ? {} : { oidc: options.oidc }),
       ...(options.passwordSessions === undefined
         ? {}
