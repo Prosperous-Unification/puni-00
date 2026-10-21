@@ -508,8 +508,13 @@ A claim that names a subtree claim as its parent and is written by the same acco
 superagent lets its subagents claim leaves inside its subtree. Released with its parent.
 _Avoid_: Delegation (an auth term here), sub-claim, child lock, handoff
 
+**Execution eligibility**:
+A node's observed permission to start or finish under its resolved local and remote prerequisites: FS needs predecessor completion before start, SS needs actual start, and FF needs completion before finish.
+It is separate from forecast placement, node-reading labels and manual progress corrections.
+_Avoid_: readiness, waiting, eligible slice, completion lock
+
 **Startable**:
-A step whose leaf is not blocked, held or done, whose progress is not done, and that no claim
+A step whose leaf is not blocked, held or done, whose progress is not done, whose prerequisites permit a new start, and that no claim
 holds; startable **for a team** when that team is also in the leaf's effective team set.
 Derived from the folds the table uses, never stored. A startable step whose leaf's demand the
 project's free units do not cover is still startable, but listed apart as not fitting, with its

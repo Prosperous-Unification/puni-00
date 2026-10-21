@@ -167,6 +167,15 @@ external mounted write. Calendar and solver availability do not gate endpoint
 admission. Calendar-unavailable and optimization response producers remain
 with their real derivation slices; do not invent successful placeholder results.
 
+The [command integration ruling](architecture/command-admission.md) pins principal
+propagation, current same-writer authority, checked scoped endpoint evidence,
+the connected guard facade and exact remote revision replay preconditions.
+Generic stores remain owner-scoped. Until real connected live/fanout consumers
+and the semantic activation barrier exist, a required explicitly dormant
+capability rejects external writes before mutation with
+`external_dependencies_inactive`; no optional absence means enabled. Real
+admitted SQLite transaction positives are distinct from mounted public success.
+
 ### D4. Coherent capture and actual graph validation
 
 Extend the captured-plan port with a detached collection of connected projects,
@@ -297,6 +306,24 @@ connected dependency schedule needs an absent project anchor, return a typed
 keep the tree, relationships and readiness inspectable. Do not fabricate day
 zero, drop the edge or publish a partial dated answer as complete. Existing
 undated plans without external dependencies retain their current behavior.
+
+The [connected scheduling ruling](architecture/connected-scheduling.md) fixes the
+resolved-input seam in the existing leveller, own-project preparation and
+capacity namespaces, affine calendar translation, required runtime callback,
+and detached connected projection. Local golden and pinned behavior retain
+their meaning. An optimized-selected member remains explicitly unavailable
+until connected optimization exists; local optimizer availability is not proof
+of connected support. Required node/edge integrity is checked before placement.
+
+Execution eligibility is a separate domain reading from forecast placement and
+node-reading labels. FS start requires predecessor completion; SS start requires
+actual start or completion; FF constrains finishing rather than starting. Apply
+the same rules to local and remote resolved edges and advertised startability,
+using attempts/progress from the same observation. Governed step claim/start
+admission shares that evaluator. Existing manual progress/actual corrections
+remain explicit observations and are not newly prohibited. Rank and priority
+never supply missing prerequisite progress. The current local startable code
+has an unfinished-FS gap; task 6.3 must close it rather than copy it remotely.
 
 ### D6. Coherent optimization while retaining per-project controls
 

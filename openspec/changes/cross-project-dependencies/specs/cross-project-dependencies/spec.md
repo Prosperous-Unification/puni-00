@@ -142,6 +142,45 @@ External progress, holds, relevant dates and structural edits SHALL invalidate a
 - **WHEN** that predecessor completes
 - **THEN** B's live readiness and startable read reflect the new state without a manual dependency edit
 
+### Requirement: Execution eligibility honors local and remote prerequisites
+
+Advertised startability and governed step-start admission SHALL apply the same
+resolved rules locally and remotely: FS needs predecessor completion, SS needs
+actual start or completion, and FF exposes a finish condition without blocking
+start. Rank, priority, forecasts and zero duration SHALL NOT replace progress.
+Existing hold, blockage, claim and resource conditions still apply.
+
+#### Scenario: Unfinished local or remote FS excludes a new start
+
+- **GIVEN** an otherwise startable step has an unfinished FS predecessor in its own or another project
+- **WHEN** startability is read or a governed new step start is requested
+- **THEN** the dependent step is excluded or refused regardless of rank or priority
+- **AND** completing the predecessor releases that prerequisite condition
+
+#### Scenario: SS and FF retain their boundary meanings
+
+- **GIVEN** a step has an SS or FF predecessor
+- **WHEN** execution eligibility is derived
+- **THEN** SS permits start after observed predecessor start, while FF permits start and reports an unmet finish condition until predecessor completion
+
+### Requirement: Execution evidence remains coherent and manual corrections remain explicit
+
+Execution eligibility SHALL use required progress and attempts from the same
+observation. Manual progress and actual-date corrections SHALL retain their
+existing override policy and SHALL NOT be mislabeled as dependency-approved
+execution.
+
+#### Scenario: Missing required execution evidence
+
+- **WHEN** a required connected project's attempt or progress evidence cannot be read
+- **THEN** eligibility fails explicitly rather than substituting empty evidence
+
+#### Scenario: Manual corrections remain observations
+
+- **GIVEN** a planner corrects a manual progress statement or actual date under its existing permission policy
+- **WHEN** prerequisite evidence disagrees with that correction
+- **THEN** the correction remains permitted and visible as an authored observation rather than being represented as dependency-approved execution
+
 ### Requirement: Alphabetic tokens enable bounded project autocomplete
 
 An empty current token or a token beginning with a digit SHALL offer only current-project candidates and SHALL NOT initiate external-project discovery. A token beginning with a letter SHALL enable bounded case-insensitive project autocomplete while retaining local title matches. Choosing a project SHALL establish an explicit search scope rather than create a relationship. Selecting an endpoint SHALL retain existing one-click and Customize semantics.
