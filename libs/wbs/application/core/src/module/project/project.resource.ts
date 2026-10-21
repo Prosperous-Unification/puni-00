@@ -49,7 +49,7 @@ export type {
 export const STARTING_STEPS = ['Dev', 'QA'] as const;
 
 /** A PATCH's settings: the stored ones, and the zone kept beside them. */
-export type ProjectSettingsPatch = ProjectPatch & { timezone?: string };
+export type ProjectSettingsPatch = ProjectPatch;
 
 export type UpdateOutcome =
   | { ok: true; value: ZonedProject }
@@ -414,7 +414,10 @@ export class ProjectService {
     settings: ProjectSettingsPatch,
     access: ResourceAccess,
   ): Promise<UpdateOutcome> {
-    const { timezone, ...patch } = settings;
+    // Splitting timezone into setTimezone made the mounted combined patches
+    // persist revision 2 while returning revision 1 (2026-10-22).
+    const patch = { ...settings };
+    const { timezone } = patch;
     // Checked against the runtime's own list, the one `GET /api/timezones`
     // serves, before anything is read: a zone `Intl` cannot format would throw
     // on every later read of the project's days.
@@ -513,11 +516,6 @@ export class ProjectService {
     // Gone between the read and the write. Reporting success would tell the
     // caller their rename landed on a project that no longer exists.
     if (updated === null) return { ok: false, reason: 'not_found' };
-    // In the same unit of work as the settings (`admitted-write.ts`), so the
-    // two land or roll back together.
-    if (timezone !== undefined && !(await this.opts.projects.setTimezone(id, timezone, stamp))) {
-      return { ok: false, reason: 'not_found' };
-    }
     // After the write and only on success, so nothing is announced that the
     // store refused or that landed on a project that had gone. `forbidden` and
     // both `not_found` arms return above this line, which is what makes

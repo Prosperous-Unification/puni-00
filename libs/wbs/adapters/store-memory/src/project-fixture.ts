@@ -256,6 +256,10 @@ export function inMemoryProjects(
         scheduleEngine: patch.scheduleEngine ?? existing.scheduleEngine,
         scheduleObjective: patch.scheduleObjective ?? existing.scheduleObjective,
       };
+      if (patch.timezone !== undefined) {
+        timezones.set(id, patch.timezone);
+        updated.revision += 1;
+      }
       projects.set(id, updated);
       return Promise.resolve(updated);
     },

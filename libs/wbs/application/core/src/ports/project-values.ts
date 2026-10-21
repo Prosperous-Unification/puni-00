@@ -116,6 +116,8 @@ export interface ProjectWithAccess extends Project {
 }
 
 export interface ProjectPatch {
+  /** Validated IANA zone written atomically with all other settings. */
+  timezone?: string;
   abbreviation?: string;
   name?: string;
   restricted?: boolean;

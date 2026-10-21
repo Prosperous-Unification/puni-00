@@ -364,6 +364,7 @@ export class ImportService {
           scheduleObjective: settings.scheduleObjective,
         };
         const creationRefusal = await writes.createProject(project, steps, stamp, access);
+        // Proof: forcing commit:true leaked new directory, ownership and person_team rows in both mounted counter/family exhaustion tests (2026-10-22).
         if (creationRefusal !== null)
           return {
             commit: false,

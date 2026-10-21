@@ -36,15 +36,31 @@ async function create(name = 'Puni core', abbreviation?: string, username = 'ada
     .project;
 }
 
+/** Every durable table, including directories, ownership, associations, event/history and allocator state. */
 function snapshot() {
-  return [
-    'project',
-    'project_abbreviation',
-    'project_abbreviation_counter',
-    'project_organization',
-    'step',
-    'organization_audit',
-  ].map((table) => h.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all());
+  const tables = h.sqlite
+    .query<{ name: string }, []>("SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name")
+    .all();
+  return tables.map(({ name }) => ({
+    name,
+    rows: h.sqlite
+      .query<Record<string, unknown>, []>(`SELECT * FROM "${name.replaceAll('"', '""')}"`)
+      .all()
+      .map((row) => JSON.stringify(row))
+      .sort(),
+  }));
+}
+
+function newDirectoryImport(name: string) {
+  const document = planDocumentFixture();
+  document.settings.name = name;
+  document.directory.services[0].name = 'New Exhaustion Service';
+  document.directory.teams[0].name = 'New Exhaustion Team';
+  document.directory.people[0].name = 'New Exhaustion Person';
+  document.directory.tags[0].name = 'New Exhaustion Tag';
+  document.directory.types[0].name = 'New Exhaustion Type';
+  document.directory.externalSystems[0].name = 'New Exhaustion System';
+  return document;
 }
 
 it('creates and normalizes abbreviation', async () => {
@@ -197,7 +213,9 @@ it('counter exhaustion rolls back creation and import', async () => {
     body: { error: 'abbreviation_exhausted' },
   });
   expect(snapshot()).toEqual(before);
-  expect(await h.call('ada', 'POST', '/api/projects/import', planDocumentFixture())).toMatchObject({
+  expect(
+    await h.call('ada', 'POST', '/api/projects/import', newDirectoryImport('Counter exhausted')),
+  ).toMatchObject({
     status: 409,
     body: { error: 'abbreviation_exhausted' },
   });
@@ -253,10 +271,7 @@ it('bounded name family exhaustion rolls back all project and import writes', as
   });
   expect(snapshot()).toEqual(before);
   expect(
-    await h.call('ada', 'POST', '/api/projects/import', {
-      ...planDocumentFixture(),
-      settings: { ...planDocumentFixture().settings, name: 'Puni core' },
-    }),
+    await h.call('ada', 'POST', '/api/projects/import', newDirectoryImport('Puni core')),
   ).toMatchObject({ status: 409, body: { error: 'abbreviation_exhausted' } });
   expect(snapshot()).toEqual(before);
   expect((await h.call('ada', 'GET', `/api/projects/${holder.id}`)).status).toBe(200);
@@ -329,3 +344,36 @@ it('abbreviation-only edits stamp the parent project audit and revision', async 
   expect(stored?.updated_at).toBeGreaterThan(1);
   expect(stored?.revision).toBe(1);
 });
+
+for (const patch of [
+  { abbreviation: 'zone_2', timezone: 'Europe/Kyiv' },
+  { abbreviation: 'zone_2', timezone: 'Europe/Kyiv', name: 'Zoned rename' },
+]) {
+  it(`writes abbreviation and timezone in one revision${'name' in patch ? ' with a name' : ''}`, async () => {
+    const project = await create();
+    const answer = await h.call('ada', 'PATCH', `/api/projects/${project.id}`, patch);
+    expect(answer).toMatchObject({
+      status: 200,
+      body: {
+        project: {
+          id: project.id,
+          abbreviation: 'ZONE_2',
+          timezone: 'Europe/Kyiv',
+          revision: 1,
+          ...('name' in patch ? { name: patch.name } : {}),
+        },
+      },
+    });
+    expect(
+      h.sqlite
+        .query<{ abbreviation: string; timezone: string; revision: number }, [string]>(
+          'SELECT a.abbreviation,p.timezone,p.revision FROM project p JOIN project_abbreviation a ON a.project_id=p.id WHERE p.id=?',
+        )
+        .get(project.id),
+    ).toEqual({ abbreviation: 'ZONE_2', timezone: 'Europe/Kyiv', revision: 1 });
+    expect(await h.call('ada', 'GET', `/api/projects/${project.id}`)).toMatchObject({
+      status: 200,
+      body: { project: { abbreviation: 'ZONE_2', timezone: 'Europe/Kyiv', revision: 1 } },
+    });
+  });
+}
