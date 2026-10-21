@@ -40,6 +40,7 @@ import {
   refusingMemberships,
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { projectRow } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -141,6 +142,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
       workItems: testWorkItemService(),
     };
     app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,

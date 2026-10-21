@@ -34,6 +34,7 @@ import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
+import { projectAddressRoutes } from '@wbs/core/http/project-address.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
 import { sessionPolicyRoutes } from '@wbs/core/http/session-policy.routes';
@@ -55,6 +56,7 @@ import type { AuthService } from '@wbs/core/service/auth.service';
 import { CapacityModeResource } from '@wbs/core/service/capacity-mode.resource';
 import type { CommittedFanoutDelivery } from '@wbs/core/service/committed-fanout';
 import { PersonLoad } from '@wbs/core/service/person-load.feature';
+import type { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import { ProjectRankResource } from '@wbs/core/service/project-rank.resource';
 import { ScimService } from '@wbs/core/service/scim.feature';
 import { ScimAdmission } from '@wbs/core/service/scim-admission';
@@ -195,6 +197,7 @@ export interface AppOptions {
   emailDelivery: EmailDelivery;
   /** Required for the same reason as `projects`. */
   workItems: WorkItemService;
+  projectAddressSearch: ProjectAddressSearch;
   /** Required sparse read capability for versioned JSON export preservation. */
   stepParallels: Pick<StepParallelStore, 'listByProject'>;
   /** The manual Retry admission seam; absent only in optimizer-less deployments and tests. */
@@ -575,6 +578,7 @@ export function mountedEndpoints(
       opts.stepParallels,
       opts.optimizer,
     ),
+    ...projectAddressRoutes(opts.projectAddressSearch),
     ...workItemRoutes(opts.workItems, commands, nodeDigest, opts.organizations),
     ...calendarMarkerRoutes(opts.calendarMarkers, opts.organizations, opts.writes),
     ...spaceRoutes(

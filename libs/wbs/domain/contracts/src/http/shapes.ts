@@ -73,6 +73,11 @@ import {
 } from './organization-shapes';
 import { readOrganizationLoad, readPersonLoad } from './person-load-shapes';
 import { readPersonWork } from './person-work-shapes';
+import {
+  discoverAddressCandidates,
+  discoverAddressProjects,
+  resolveAddressReference,
+} from './project-address-shapes';
 import { moveProjectRank, readProjectRank } from './project-rank-shapes';
 import {
   createProject,
@@ -248,4 +253,7 @@ export const httpShapes = [
   listMcpOrganizations,
   issueMcpDelegation,
   readMcpAuthority,
+  discoverAddressProjects,
+  discoverAddressCandidates,
+  resolveAddressReference,
 ] as const;

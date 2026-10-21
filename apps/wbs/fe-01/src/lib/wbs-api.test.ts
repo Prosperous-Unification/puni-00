@@ -1781,3 +1781,37 @@ it('sends explicit estimate units on create and unit patch without converting va
     JSON.stringify({ estimateUnit: 'minutes' }),
   ]);
 });
+
+describe('project address observation client', () => {
+  it('preserves typed stale refusals and passes selected identity and observation', async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        response(
+          409,
+          JSON.stringify({ error: 'stale_address_revision', addressRevision: 'qar1:new' }),
+        ),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    const { httpProjectAddressApi } = await import('./wbs-api');
+    const answer = await httpProjectAddressApi('token').resolve('selected', 'P.010', 'qar1:old');
+    expect(answer.kind).toBe('refusal');
+    if (answer.kind === 'refusal')
+      expect(answer.body).toEqual({ error: 'stale_address_revision', addressRevision: 'qar1:new' });
+    const called = String(fetcher.mock.calls[0][0]);
+    expect(called).toContain('/api/projects/selected/address-references');
+    expect(called).toContain('revision=qar1%3Aold');
+  });
+  it('cancels before issuing an external project discovery request', async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    const abort = new AbortController();
+    abort.abort();
+    const { httpProjectAddressApi } = await import('./wbs-api');
+    expect(await httpProjectAddressApi('token').projects({ q: 'P' }, abort.signal)).toEqual({
+      kind: 'failure',
+      failure: { code: 'cancelled' },
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});

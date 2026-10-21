@@ -38,6 +38,7 @@ import {
   refusingRestoreApprovals,
 } from './testing/organization-access-fixture';
 import { testPriorityBandService } from './testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 import { inMemoryProjects, testProjectService } from './testing/project-fixture';
 import { refusingProjectRanks } from './testing/project-rank-fixture';
 import { testReplay } from './testing/replay-fixture';
@@ -49,6 +50,7 @@ import { testWrites } from './testing/writes-fixture';
 
 function options(): AppOptions {
   return {
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,
@@ -202,6 +204,9 @@ const SIGNED_IN_OPERATIONS = [
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
   'getApiProjectsByIdStartable',
+  'getApiProjectAddressesProjects',
+  'getApiProjectsByIdAddressCandidates',
+  'getApiProjectsByIdAddressReferences',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',
@@ -380,6 +385,9 @@ const NO_ORIGIN_OPERATIONS = [
   'getApiProjectsByIdSaved-plans',
   'getApiProjectsByIdSaved-plansCompare',
   'getApiProjectsByIdStartable',
+  'getApiProjectAddressesProjects',
+  'getApiProjectsByIdAddressCandidates',
+  'getApiProjectsByIdAddressReferences',
   'getApiProjectsByIdStep-references',
   'getApiProjectsByIdWork-item-rows',
   'getApiProjectsByIdWork-items',

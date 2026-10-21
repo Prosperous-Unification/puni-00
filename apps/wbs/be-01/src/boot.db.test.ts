@@ -20,6 +20,7 @@ import type { WriteCoordinator } from './repository/gate';
 import { runMigrations } from './repository/migrate';
 import { allocateGeneration, readGeneration } from './repository/optimization-generation';
 import { DELEGATION_TOKEN_TYPE, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { refusingProjectAddressSearch } from './testing/project-address-search-fixture';
 
 /**
  * What `/health` answers, as this suite reads it.
@@ -106,6 +107,7 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       makeApp: (options) => {
         const app = buildApp({
           ...options,
+          projectAddressSearch: refusingProjectAddressSearch,
           organizations: {
             resolve: () =>
               Promise.resolve({

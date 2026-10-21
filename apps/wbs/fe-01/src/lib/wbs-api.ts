@@ -1,3 +1,8 @@
+import {
+  discoverAddressCandidates,
+  discoverAddressProjects,
+  resolveAddressReference,
+} from '@wbs/contracts';
 // The one exception to this file's "declare, do not import" rule, and it earns
 // it: a band's three fields are not the interesting part — `priorityBandRankOf`
 // and `priorityLadderProblem` are, they live beside the type in `libs/wbs/domain/domain`,
@@ -3096,4 +3101,48 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
 
 export function depthOf(workItem: WorkItemView): number {
   return workItem.number.split('.').length - 1;
+}
+
+/** Read observations with typed refusals and cancellation; stable-ID writers reauthorize selections. */
+export interface ProjectAddressApi {
+  projects(
+    query: { q?: string; limit?: string; cursor?: string },
+    signal?: AbortSignal,
+  ): Promise<ClientReply<typeof discoverAddressProjects>>;
+  candidates(
+    projectId: string,
+    query: { q?: string; limit?: string; cursor?: string },
+    signal?: AbortSignal,
+  ): Promise<ClientReply<typeof discoverAddressCandidates>>;
+  resolve(
+    projectId: string,
+    reference: string,
+    revision: string,
+    signal?: AbortSignal,
+  ): Promise<ClientReply<typeof resolveAddressReference>>;
+}
+/** Uses the shared shape client, including its refusal schemas and AbortSignal contract. */
+export function httpProjectAddressApi(token: string, scope?: ResourceScope): ProjectAddressApi {
+  const client = browserClient(
+    [discoverAddressProjects, discoverAddressCandidates, resolveAddressReference] as const,
+    scope,
+  );
+  return {
+    projects: (query, signal) =>
+      client.getApiProjectAddressesProjects({ query, signal, headers: auth(token) }),
+    candidates: (projectId, query, signal) =>
+      client.getApiProjectsByIdAddressCandidates({
+        params: { id: projectId },
+        query,
+        signal,
+        headers: auth(token),
+      }),
+    resolve: (projectId, reference, revision, signal) =>
+      client.getApiProjectsByIdAddressReferences({
+        params: { id: projectId },
+        query: { reference, revision },
+        signal,
+        headers: auth(token),
+      }),
+  };
 }

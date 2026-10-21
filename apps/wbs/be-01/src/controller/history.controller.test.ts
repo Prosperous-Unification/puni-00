@@ -25,6 +25,7 @@ import {
   refusingRestoreApprovals,
 } from '../testing/organization-access-fixture';
 import { testPriorityBandService } from '../testing/priority-band-fixture';
+import { refusingProjectAddressSearch } from '../testing/project-address-search-fixture';
 import { inMemoryProjects, projectRow, testProjectService } from '../testing/project-fixture';
 import { refusingProjectRanks } from '../testing/project-rank-fixture';
 import { testReplay } from '../testing/replay-fixture';
@@ -82,6 +83,7 @@ describe('one plan’s history, over HTTP', () => {
       event('frozen', { kind: 'freeze', workItemId: null, stepId: null, createdAt: 4_000 }),
     ]);
     app = buildApp({
+      projectAddressSearch: refusingProjectAddressSearch,
       organizations: legacyOrganizationAccess,
       memberships: refusingMemberships,
       sharedPeopleRestoreApprovals: refusingRestoreApprovals,

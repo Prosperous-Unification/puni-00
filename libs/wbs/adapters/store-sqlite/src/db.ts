@@ -311,10 +311,10 @@ export function drizzleReadTransaction(db: Drizzle): {
  * journal mode is set, and SQLite refuses any write. Opening a missing file
  * throws.
  */
-export function openReadOnlyConnection(dbPath: string): Connection {
+export function openReadOnlyConnection(dbPath: string, logger?: Logger): Connection {
   const client = openReadOnlyDatabase(dbPath);
   return {
-    db: drizzle({ client }),
+    db: drizzle({ client, logger }),
     close: () => {
       client.close();
     },

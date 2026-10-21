@@ -21,6 +21,7 @@ import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
@@ -52,6 +53,8 @@ import {
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { ClaimRepository } from '@wbs/store-sqlite/claim';
 import type { Connection } from '@wbs/store-sqlite/db';
+import { openReadOnlyConnection as openAddressConnection } from '@wbs/store-sqlite/db';
+import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -77,6 +80,7 @@ import { StepProgressRepository } from '../repository/step-progress';
 import { UserRepository } from '../repository/user';
 import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { bearerContextIssuer, nativeCredentialSource } from '../runtime/bearer-context';
+import { nodeDigest } from '../runtime/bun-runtime';
 import { joseTokenCodec } from '../runtime/bun-runtime';
 import { delegationVerifier } from '../runtime/delegation';
 import { delegationIssuer } from '../runtime/delegation-issuer';
@@ -428,6 +432,27 @@ export class OrganizationHarness {
     };
     const mail: TestMail = { tokens: new Map<string, string>(), purposes: new Map(), fail: false };
     const app = buildApp({
+      projectAddressSearch: new ProjectAddressSearch(
+        new ProjectAddressSearchRepository({
+          openConnection: () => openAddressConnection(path),
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(sessionKey),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(
+                      snapshot,
+                      selection.activeOrganizationOf,
+                      now,
+                    ).admitTo(principal, organizationId),
+                ).activeOrganizationOf,
+          now,
+        }),
+        nodeDigest,
+      ),
       loginThrottle: testLoginThrottle(),
       clock: testClock,
       appOrigin: 'http://localhost',
@@ -633,6 +658,25 @@ export class OrganizationHarness {
       () => services.clock.now(),
     );
     const app = buildApp({
+      projectAddressSearch: new ProjectAddressSearch(
+        new ProjectAddressSearchRepository({
+          openConnection: () => (openReadOnlyConnection ?? openAddressConnection)(path),
+          activeOrganizationOf: (snapshot) =>
+            selection === undefined
+              ? userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null))
+              : organizationSelection(
+                  new SqliteOrganizationSelection(snapshot),
+                  organizationCookieBinding(TEST_JWT_KEY),
+                  new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+                  (principal, organizationId) =>
+                    new SqliteOrganizationAccess(snapshot, selection.activeOrganizationOf, () =>
+                      services.clock.now(),
+                    ).admitTo(principal, organizationId),
+                ).activeOrganizationOf,
+          now: () => services.clock.now(),
+        }),
+        nodeDigest,
+      ),
       appOrigin: 'http://localhost',
       clock: services.clock,
       migrationsApplied: true,

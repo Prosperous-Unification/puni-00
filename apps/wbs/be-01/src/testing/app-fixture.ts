@@ -23,6 +23,7 @@ import {
   refusingRestoreApprovals,
 } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
+import { refusingProjectAddressSearch } from './project-address-search-fixture';
 import { testProjectService } from './project-fixture';
 import { refusingProjectRanks } from './project-rank-fixture';
 import { testReplay } from './replay-fixture';
@@ -59,6 +60,7 @@ export function testApp(overrides: Partial<AppOptions> = {}): ReturnType<typeof 
   const steps = overrides.steps ?? testStepService();
   const calendarMarkers = overrides.calendarMarkers ?? testCalendarMarkerService();
   return buildApp({
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations: legacyOrganizationAccess,
     memberships: refusingMemberships,
     sharedPeopleRestoreApprovals: refusingRestoreApprovals,

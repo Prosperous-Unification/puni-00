@@ -46,6 +46,7 @@ export * from './organization-selection-preview';
 export * from './plan-event';
 export * from './priority-band';
 export * from './project';
+export * from './project-address-search';
 export * from './project-rank';
 export * from './provisioning-token';
 export * from './resource';

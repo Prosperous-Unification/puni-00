@@ -25,6 +25,7 @@ export * from './http/organization-shapes';
 export * from './http/person-load-shapes';
 export * from './http/person-work-shapes';
 export * from './http/plan-document-shapes';
+export * from './http/project-address-shapes';
 export * from './http/project-rank-shapes';
 export * from './http/project-response';
 export * from './http/project-shapes';

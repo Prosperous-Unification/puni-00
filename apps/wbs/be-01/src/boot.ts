@@ -1,6 +1,7 @@
 import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { Logger } from '@wbs/observability';
 import {
   currentMembershipAccess,
@@ -27,7 +28,9 @@ import {
   SqliteOrganizationSelection,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
+import { openReadOnlyConnection } from '@wbs/store-sqlite/db';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
+import { ProjectAddressSearchRepository } from '@wbs/store-sqlite/project-address-search';
 import { readStepBlockageActivation } from '@wbs/store-sqlite/step-blockage-activation';
 import { backfillStepCodes } from '@wbs/store-sqlite/step-code-backfill';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -44,6 +47,7 @@ import { UserRepository } from './repository/user';
 import { AuthoritativeDnsResolver, type DnsTransport } from './runtime/authoritative-dns/resolver';
 import { SocketDnsTransport } from './runtime/authoritative-dns/transport';
 import { type BackgroundFailureSource, createBackgroundFailure } from './runtime/be-supervisor';
+import { nodeDigest } from './runtime/bun-runtime';
 import { delegationVerifier, type MappedUserOf, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
 import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/delegation-keys';
@@ -131,12 +135,23 @@ function browserComposition(
   opts: BootOptions,
   services: BeServices,
   db: ReturnType<typeof openSqliteSource>['db'],
-): Pick<AppOptions, 'oidc' | 'browserSession' | 'organizationSelection' | 'organizations'> {
+): Pick<
+  AppOptions,
+  'oidc' | 'browserSession' | 'organizationSelection' | 'organizations' | 'projectAddressSearch'
+> {
   // Proof: composing the authority whatever the setting failed `keeps the
   // legacy browser composition when disabled` and the native-logout 404 case
   // in boot-browser-session.db.test.ts (3 pass, 2 fail, 2026-10-11).
   if (opts.browserSessionAuthority === 'disabled')
     return {
+      projectAddressSearch: new ProjectAddressSearch(
+        new ProjectAddressSearchRepository({
+          openConnection: () => openReadOnlyConnection(opts.dbPath),
+          activeOrganizationOf: () => NO_BOUND_ORGANIZATION,
+          now: () => services.clock.now(),
+        }),
+        nodeDigest,
+      ),
       oidc: opts.oidc,
       // Proof: wiring legacy access here instead made `refuses the
       // project and directory lists after activation until a session
@@ -189,6 +204,23 @@ function browserComposition(
     // pair with 403 before any logout (`refuses the whole old token…`, 4 pass,
     // 1 fail, 2026-10-11).
     organizations,
+    projectAddressSearch: new ProjectAddressSearch(
+      new ProjectAddressSearchRepository({
+        openConnection: () => openReadOnlyConnection(opts.dbPath),
+        activeOrganizationOf: (snapshot) =>
+          organizationSelection(
+            new SqliteOrganizationSelection(snapshot),
+            organizationCookieBinding(opts.jwtKey),
+            new SqliteBrowserCredentialRevocations(snapshot, OPEN),
+            (principal, organizationId) =>
+              new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
+                services.clock.now(),
+              ).admitTo(principal, organizationId),
+          ).activeOrganizationOf,
+        now: () => services.clock.now(),
+      }),
+      nodeDigest,
+    ),
   };
 }
 

@@ -46,6 +46,7 @@ import { testLoginThrottle } from './login-throttle-fixture';
 import { refusingOnboarding } from './onboarding-fixture';
 import { refusingDomains, refusingEnterpriseConnections } from './organization-access-fixture';
 import { testPriorityBandService } from './priority-band-fixture';
+import { refusingProjectAddressSearch } from './project-address-search-fixture';
 import { testProjectService } from './project-fixture';
 import { refusingProjectRanks } from './project-rank-fixture';
 import { testReplay } from './replay-fixture';
@@ -197,6 +198,7 @@ const organizations: SqliteOrganizationAccess = new SqliteOrganizationAccess(
 const logLines: string[] = [];
 const app = buildApp(
   {
+    projectAddressSearch: refusingProjectAddressSearch,
     organizations,
     organizationSelection: selection.endpoints,
     credentialEvidence: organizationCredentialEvidence(
