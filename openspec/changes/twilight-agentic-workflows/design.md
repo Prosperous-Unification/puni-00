@@ -79,7 +79,7 @@ Dash does not import WBS app internals; the shared contracts package is the boun
 ## The port
 
 ```ts
-type ExecutorKind = "api-model" | "cli-harness" | "acp" | "tool" | "human";
+type ExecutorKind = 'api-model' | 'cli-harness' | 'acp' | 'tool' | 'human';
 
 interface ActivityExecutor {
   readonly kind: ExecutorKind;
@@ -95,13 +95,13 @@ interface ActivityExecutor {
 }
 
 type Usage =
-  | { kind: "measured"; inputTokens: number; outputTokens: number }
-  | { kind: "unknown"; reason: "acp-v1-no-usage" | "tool" | "human" };
+  | { kind: 'measured'; inputTokens: number; outputTokens: number }
+  | { kind: 'unknown'; reason: 'acp-v1-no-usage' | 'tool' | 'human' };
 
 interface TurnOutcome {
   text: string;
   usage: Usage;
-  finish: "end_turn" | "max_steps" | "refused" | "cancelled";
+  finish: 'end_turn' | 'max_steps' | 'refused' | 'cancelled';
 }
 ```
 
@@ -187,6 +187,9 @@ are separate commits: use an outbox and guarded idempotent writes/read-back reco
 not a distributed exactly-once promise. Store names or filesystem paths in CLI configuration
 select adapters; the core does not require a database file.
 
+The first persistence packet is specified in [S0 storage foundation](storage-design.md),
+with its ordered implementation slices in [storage tasks](storage-tasks.md).
+
 ### One hints API
 
 Use CTT's existing hint adapters/runners with accepted-work seeds, `DEFER_READY`, guarded
@@ -209,7 +212,7 @@ turn completion alone never advances business progress.
 Persist admission/launch intent before external calls. Reserve capacity atomically, acquire
 the exact WBS claim, persist session/worker locators, validate outputs, then atomically save
 the outcome and outgoing progress intent. Deliver that intent idempotently and confirm its
-WBS receipt before releasing successors. `effect_succeeded_pending_progress` preserves the
+WBS receipt before releasing successors. `outcome_pending_progress` preserves the
 result while the WBS update is retried; it must not cause the activity to run again.
 
 On startup, obtain/fence valid ownership before changing attempt state. Inventory running
@@ -222,7 +225,7 @@ claim/run/attempt authority; local fencing cannot promise protection against an 
 system that does not enforce it.
 
 Attempt state distinguishes queued, running, waiting-for-person, reconciling, interrupted,
-effect-succeeded-pending-progress, unresolved and terminal outcomes. An attempt becomes
+outcome-pending-progress, unresolved and terminal outcomes. An attempt becomes
 interrupted only after recovery establishes that safe interpretation. A retry creates a new
 attempt ordinal within the persisted budget while retaining the logical operation key.
 Human waits persist prompts/correlation keys and use an authorized deduplicated inbox;

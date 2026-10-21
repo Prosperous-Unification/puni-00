@@ -43,7 +43,7 @@ bridge port on the harness factory, not on `createSession`:
 ```ts
 const harness = createClaudeCode({
   port: 4123,
-  portEndpoint: { url: "ws://127.0.0.1:4123" },
+  portEndpoint: { url: 'ws://127.0.0.1:4123' },
 });
 const local = createLocalSandbox({ cwd, ports: [4123] });
 const net = await local.createSession();
@@ -77,3 +77,35 @@ Validation for this planning amendment:
 
 No product implementation, deployment, paid prompt or runtime recovery test is part of
 this documentation update.
+
+## S0 execution baseline — 2026-10-22
+
+User authorized the agentic-workflows foundation and an ongoing goal. Codex thread
+`01a15f10-7287-7993-aa10-09e737cd64b4` works on `feat/agentic-foundation` in the isolated
+`.worktrees/agentic-foundation` checkout, based on `origin/main` `d6f43af62`, with the
+current `origin/plan/twilight-agentic-workflows` planning branch merged locally.
+
+The separate multi-tenant workstream owns onboarding, login, machine credentials,
+fleet identity provisioning, organization limits, compute providers and activation.
+This work consumes those boundaries. Existing cross-project dependency and CTT library
+implementations remain with their current sessions. Initial implementation is S0
+RunStore/ArtifactStore semantics, memory conformance and SQLite durability (6a.1–6a.2).
+
+Fresh preparation evidence:
+
+- Live agentic project read: no step or subtree claims. No Codex agent person exists
+  in the directory; the S0 parent notes record this session's ownership without using
+  another fleet's person. Row `030.09` Dev is `in_progress`, confirmed by a fresh read.
+- Bun `1.4.2`; locked OpenSpec `1.14.3`. OpenSpec status/apply identifies `sdd-lean`,
+  ready, 2/35 tasks complete. Artifact readiness is not implementation completion.
+- Initial frozen install failed with `EROFS accessing temporary directory`. With
+  `BUN_TMPDIR=/tmp BUN_INSTALL_CACHE_DIR=/tmp/puni-agentic-bun-cache`,
+  `bun install --frozen-lockfile` exited 0: 1801 installs across 1648 packages checked,
+  no changes. No lockfile or dependency version changed.
+- `bun test apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts
+apps/twilight-structure/twilight-dash/cli/src/activation/observation-commands.db.test.ts
+--timeout=60000`: 11 passed, 0 failed, 67 assertions, 1.73 seconds. This is the
+  focused pre-change baseline, including absence/unreadability and bootstrap behavior.
+
+Full host gate, CI, product implementation, R5 fault injection, live executor prompts,
+deployment, second-provider durability and runtime recovery remain unverified here.

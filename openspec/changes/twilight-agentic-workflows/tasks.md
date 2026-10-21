@@ -63,6 +63,9 @@
 
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
+Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
+[storage design](storage-design.md). Their checkboxes remain the parent acceptance gate.
+
 - [ ] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
       capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
       inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
