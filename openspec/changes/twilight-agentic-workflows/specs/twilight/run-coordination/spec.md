@@ -124,6 +124,17 @@ physical execution settles. End-of-turn SHALL NOT itself mean business success.
 - **WHEN** the same authorized response arrives before and after restart
 - **THEN** it is consumed once and launches at most one logical continuation
 
+### Requirement: Distinct human waits carry distinct correlation keys
+
+Each distinct wait within an attempt SHALL have a fresh correlation key. Retrying a
+consumed decision SHALL return its original continuation acknowledgement without changing
+the current wait, state or capacity.
+
+#### Scenario: An attempt waits again
+
+- **WHEN** an attempt resumes from one wait and later records another wait
+- **THEN** the later wait uses a fresh correlation key, redelivery of the first decision does not satisfy it, and a new command trying to reuse the first wait's key is refused
+
 ### Requirement: Safe compatibility execution precedes deployment and dogfood
 
 S7a SHALL implement the abstract-port coordinator over a linear compatibility workflow,

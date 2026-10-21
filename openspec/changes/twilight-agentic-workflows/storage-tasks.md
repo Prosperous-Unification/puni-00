@@ -195,7 +195,7 @@ SELECT RAISE(ABORT, 'injected outbox fault'); END;` through its separate test co
 ### Task 4: Deduplicated decisions and exact command receipts
 
 **Files:** Extend `records.ts`, `record-codecs.ts`, `run-store.ts`,
-`testing/memory-stores.ts`, `sqlite/run-store.ts`, `sqlite/schema.ts`, migration pair and
+`plan-admission.ts`, `plan-execution.ts`, `testing/memory-stores.ts`, `sqlite/run-store.ts`, `sqlite/schema.ts`, migration pair and
 `testing/run-store-contract.ts`. Create `signals.test.ts`, `receipts.test.ts`,
 `sqlite/signals-receipts.db.test.ts`.
 
@@ -211,6 +211,8 @@ the restored public application operation rejects without mutating the run.
 
 - [ ] Write shared receipt cases: exact pending intent becomes terminal and removes outbox atomically; duplicate acknowledgement is idempotent across reopen; wrong command digest, claim, run, attempt or project refuses without mutation. A generic WBS progress observation cannot be constructed as exact receipt evidence by the fixture.
 - [ ] Write shared inbox cases: same authorized decision before/after reopen is consumed once; identical receive after consumption is still duplicate; changed actor/choice under one ID refuses; wrong correlation/choice refuses; a competing decision cannot consume an already-resumed wait. A wait never satisfies business completion.
+- [ ] Persist consumption's exact run/attempt/wait target and original queued reply by global decision ID. Advance to a later wait, reopen and replay the old consumption under current ownership with old revisions: return the original reply without changing state or capacity. Cross-target and stale-owner retries refuse. A distinct wait uses a fresh correlation key; a fresh execution command reusing an earlier wait key refuses, while the original waiting command remains duplicate. Two received decisions cannot consume the same wait or satisfy a later wait.
+- [ ] Retain original terminal receipt replies by command ID, permitting multiple receipts per run. Replay an earlier attempt's receipt while a later attempt is active and after it finishes: return the historical reply without changing either attempt. A guard targeting the newer attempt refuses. Complete the specified admission path for a terminal failed predecessor with confirmed receipt and absent/failed quiescence: fresh attempt ID, contiguous bounded ordinal, same operation key and available capacity. Pending progress, terminal cancellation/success and unknown/succeeded effects cannot retry.
 - [ ] Fill local capacity with another run before consuming a decision: capacity_full leaves the decision unconsumed and attempt waiting. After proven quiescence releases the other slot, consume once, reacquire one slot and retain claim/continuation identity. Owner takeover and stale expected revisions refuse consumption.
 - [ ] Implement atomic receipt reconciliation and inbox consumption. Persist request identities so exact duplicate retries work after revision/state advances, while stale owners remain refused before deduplication.
 - [ ] Add SQLite abort triggers at receipt insert and decision-consumption/reservation insert; failed operations preserve the whole preceding snapshot across reopen. Simulate progress accepted remotely but acknowledgement lost with a fake receipt source: reopen reconciles the exact recorded command and never creates a new attempt. This establishes persistence behavior only, not the live WBS API contract.

@@ -231,6 +231,11 @@ patch crosses either port. Construction and close remain provider lifecycle conc
    Conflicting duplicates refuse. An unrelated WBS revision or generic work-item progress
    read cannot prove that this command committed. The bridge must provide authenticated
    exact-command acceptance evidence; S0 proves storage matching only.
+   Keep the original terminal reply and full receipt by store-wide command ID after removing
+   the outbox entry. Replay compares the supplied run/attempt and entire receipt, including
+   accepted revision and evidence, against that historical command, not a newer attempt for
+   the occurrence. One run may retain several failed-attempt receipts and a later successful
+   receipt. Replaying an old receipt changes neither its original attempt nor a newer one.
 7. **Decisions.** After current-owner validation, compare an existing decision ID and its
    entire recorded content before requiring a still-waiting attempt. Thus identical redelivery
    remains idempotent after consumption or restart; changed content refuses. A new decision
@@ -242,6 +247,16 @@ patch crosses either port. Construction and close remain provider lifecycle conc
    the existing session; it must not launch the original activity again. No second decision
    may consume the same wait. Authorization is checked before this trusted persistence port
    by the later inbox consumer; storage does not issue or validate credentials.
+   A wait is identified by `(attemptId, correlationKey)`, retained with its original prompt
+   and choices, and created only once. A later distinct wait needs a fresh correlation key
+   even if its prompt repeats. A fresh execution command reusing an old wait identity refuses
+   with `decision_conflict`; replay of the original execution command remains duplicate.
+   Multiple decisions may be received for one wait, but its consumption has one durable winner.
+   Retain each consumption's run/attempt, exact wait identity and original queued reply under
+   the global decision ID. After owner and target validation, an exact consumption retry returns
+   that original reply before current wait/revision/capacity checks, without changing current
+   state or reserving another slot. A different decision for an old wait cannot consume a
+   later wait. Changed receive content under an existing decision ID is `identity_conflict`.
 
 For all idempotent methods, an exact duplicate returns its committed value before checking
 old expected revisions but after ownership and full identity equality. An ID collision with

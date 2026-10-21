@@ -280,6 +280,11 @@ A request to record one execution fact for a named attempt, with a stable identi
 for retries of that request. A later observation of the same session is a distinct command.
 _Avoid_: Fact digest, revision, WBS progress command
 
+**Human wait**:
+A persisted request for a person's choice, identified by its attempt and correlation key.
+A later request within the same attempt has a fresh key even when its prompt repeats.
+_Avoid_: Dependency completion, paused job
+
 **Lifecycle point**:
 A named stage, activity, tool, decision, rework, trigger or profile-change event
 of a compiled workflow, the one key space for policies and hooks.
