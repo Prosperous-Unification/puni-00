@@ -726,6 +726,7 @@ export const workItem = sqliteTable(
      * temp B-tree; with it, the filter and the order are one index read, because
      * `id` is the second column of the same key the `WHERE` opens.
      */
+    uniqueIndex('work_item_id_project').on(t.id, t.projectId),
     index('work_item_project_id_id').on(t.projectId, t.id),
   ],
 );
@@ -830,6 +831,7 @@ export const step = sqliteTable(
   },
   (t) => [
     check('step_estimate_unit', sql`${t.estimateUnit} IN ('workdays', 'minutes')`),
+    uniqueIndex('step_id_project').on(t.id, t.projectId),
     uniqueIndex('step_project_name').on(t.projectId, t.name),
     uniqueIndex('step_project_code')
       .on(t.projectId, t.code)
@@ -2307,6 +2309,89 @@ export const typedDependency = sqliteTable(
 );
 
 export type TypedDependencyRow = typeof typedDependency.$inferSelect;
+
+/** External typed relationships are owned by their successor project. */
+export const externalDependency = sqliteTable(
+  'external_dependency',
+  {
+    id: text('id').primaryKey().notNull(),
+    organizationId: text('organization_id').notNull(),
+    predecessorProjectId: text('predecessor_project_id').notNull(),
+    successorProjectId: text('successor_project_id').notNull(),
+    predecessorWorkItemId: text('predecessor_work_item_id').notNull(),
+    predecessorScope: text('predecessor_scope').notNull(),
+    predecessorStepId: text('predecessor_step_id'),
+    successorWorkItemId: text('successor_work_item_id').notNull(),
+    successorScope: text('successor_scope').notNull(),
+    successorStepId: text('successor_step_id'),
+    type: text('type').notNull(),
+    ...auditColumns(),
+  },
+  (t) => [
+    check(
+      'external_dependency_projects',
+      sql`${t.predecessorProjectId} <> ${t.successorProjectId}`,
+    ),
+    check('external_dependency_type', sql`${t.type} IN ('FS','SS','FF')`),
+    check(
+      'external_dependency_predecessor_scope',
+      sql`${t.predecessorScope} IN ('whole','node','descendant-step')`,
+    ),
+    check(
+      'external_dependency_predecessor_step',
+      sql`(${t.predecessorScope} = 'whole') = (${t.predecessorStepId} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [t.predecessorProjectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.predecessorWorkItemId, t.predecessorProjectId],
+      foreignColumns: [workItem.id, workItem.projectId],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.predecessorStepId, t.predecessorProjectId],
+      foreignColumns: [step.id, step.projectId],
+    }).onDelete('restrict'),
+    index('external_dependency_by_predecessor_project').on(t.predecessorProjectId),
+    index('external_dependency_by_predecessor_work_item').on(t.predecessorWorkItemId),
+    index('external_dependency_by_predecessor_step').on(t.predecessorStepId),
+    check(
+      'external_dependency_successor_scope',
+      sql`${t.successorScope} IN ('whole','node','descendant-step')`,
+    ),
+    check(
+      'external_dependency_successor_step',
+      sql`(${t.successorScope} = 'whole') = (${t.successorStepId} IS NULL)`,
+    ),
+    foreignKey({
+      columns: [t.successorProjectId, t.organizationId],
+      foreignColumns: [projectOrganization.resourceId, projectOrganization.organizationId],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.successorWorkItemId, t.successorProjectId],
+      foreignColumns: [workItem.id, workItem.projectId],
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.successorStepId, t.successorProjectId],
+      foreignColumns: [step.id, step.projectId],
+    }).onDelete('restrict'),
+    index('external_dependency_by_successor_project').on(t.successorProjectId),
+    index('external_dependency_by_successor_work_item').on(t.successorWorkItemId),
+    index('external_dependency_by_successor_step').on(t.successorStepId),
+    uniqueIndex('external_dependency_endpoints').on(
+      t.predecessorWorkItemId,
+      t.predecessorScope,
+      sql`ifnull(${t.predecessorStepId},'')`,
+      t.successorWorkItemId,
+      t.successorScope,
+      sql`ifnull(${t.successorStepId},'')`,
+      t.type,
+    ),
+  ],
+);
+
+export type ExternalDependencyRow = typeof externalDependency.$inferSelect;
 
 /**
  * One command somebody ran, and everything needed to reverse it — the undo

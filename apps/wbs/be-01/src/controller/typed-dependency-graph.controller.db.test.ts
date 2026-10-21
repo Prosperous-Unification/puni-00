@@ -303,7 +303,13 @@ async function seedTyped(
 ): Promise<string> {
   const id = crypto.randomUUID();
   await typed.add(
-    { id, projectId: at.projectId, predecessor, successor, type },
+    {
+      id,
+      projectId: at.projectId,
+      predecessor: { ...predecessor, projectId: at.projectId },
+      successor: { ...successor, projectId: at.projectId },
+      type,
+    },
     { at: 1, by: at.userId },
   );
   return id;

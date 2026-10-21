@@ -24,26 +24,68 @@ const estimate: CompensatingCommand = {
 };
 const edge: CompensatingCommand = { do: 'add_dependency', successorId: 'w2', predecessorId: 'w1' };
 
-it('reads typed compensating commands and names both touched endpoints and the successor', () => {
-  const before = {
+it('normalizes legacy local typed history and preserves touched identities', () => {
+  const dependency = {
     id: 'd',
     projectId: 'p',
-    predecessor: { scope: 'whole' as const, workItemId: 'a' },
-    successor: { scope: 'whole' as const, workItemId: 'b' },
-    type: 'FS' as const,
+    predecessor: { scope: 'whole', workItemId: 'a' },
+    successor: { scope: 'node', workItemId: 'b', stepId: 's' },
+    type: 'FS',
   };
-  const after = { ...before, predecessor: { scope: 'whole' as const, workItemId: 'c' } };
-  const commands: CompensatingCommand[] = [
-    { do: 'add_typed_dependency', dependency: before },
-    { do: 'remove_typed_dependency', dependency: before },
-    { do: 'update_typed_dependency', from: before, to: after },
-  ];
-  for (const command of commands) expect(readCommand(command)).toEqual(command);
-  expect(touchedBy(commands[0])).toEqual(['a', 'b']);
-  expect(touchedBy(commands[1])).toEqual(['a', 'b']);
-  expect(touchedBy(commands[2])).toEqual(['a', 'b', 'c']);
-  for (const command of commands)
-    expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
+  const command = readCommand({ do: 'add_typed_dependency', dependency });
+  expect(command).toEqual({
+    do: 'add_typed_dependency',
+    dependency: {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 'p' },
+      successor: { ...dependency.successor, projectId: 'p' },
+    },
+  });
+  expect(touchedBy(command)).toEqual(['a', 'b']);
+  expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
+  const batch = readCommand({
+    do: 'batch',
+    steps: [{ do: 'remove_typed_dependency', dependency }],
+  });
+  expect(batch).toEqual({ do: 'batch', steps: [{ ...command, do: 'remove_typed_dependency' }] });
+});
+
+it('refuses partial scoped history and malformed new scoped history', () => {
+  const dependency = {
+    id: 'd',
+    projectId: 'p',
+    predecessor: { scope: 'whole', workItemId: 'a' },
+    successor: { scope: 'whole', workItemId: 'b' },
+    type: 'FS',
+  };
+  for (const changed of [
+    { ...dependency, predecessor: { ...dependency.predecessor, projectId: 'remote' } },
+    {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 'remote' },
+      successor: { ...dependency.successor, projectId: 42 },
+    },
+    {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 42 },
+      successor: { ...dependency.successor, projectId: 'p' },
+    },
+    {
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId: 'remote' },
+      successor: { ...dependency.successor, projectId: 'wrong' },
+    },
+    { ...dependency, predecessor: { scope: 'node', workItemId: 'a' } },
+    { ...dependency, type: 'SF' },
+    { ...dependency, id: 3 },
+    { ...dependency, projectId: 3 },
+    { ...dependency, predecessor: { scope: 'unknown', workItemId: 'a' } },
+    { ...dependency, predecessor: { scope: 'whole', workItemId: 3 } },
+    { ...dependency, predecessor: { scope: 'whole', workItemId: 'a', stepId: 's' } },
+  ])
+    expect(() => readCommand({ do: 'add_typed_dependency', dependency: changed })).toThrow(
+      'typed dependency',
+    );
 });
 
 describe('conditional blockage replay vocabulary', () => {

@@ -6480,6 +6480,8 @@ export class WorkItemService {
       id: this.clock.newId(),
       projectId,
       ...input,
+      predecessor: { ...input.predecessor, projectId },
+      successor: { ...input.successor, projectId },
       type: input.type,
     };
     const refusal = await this.typedRefusal(projectId, rows, existing, dependency);
@@ -6518,7 +6520,14 @@ export class WorkItemService {
     const existing = await this.opts.typedDependencies.listByProject(projectId);
     const from = existing.find((row) => row.id === dependencyId);
     if (from === undefined) return { ok: false, reason: 'unknown_dependency' };
-    const to: StoredTypedDependency = { id: dependencyId, projectId, ...input, type: input.type };
+    const to: StoredTypedDependency = {
+      id: dependencyId,
+      projectId,
+      ...input,
+      predecessor: { ...input.predecessor, projectId },
+      successor: { ...input.successor, projectId },
+      type: input.type,
+    };
     const refusal = await this.typedRefusal(projectId, rows, existing, to);
     if (refusal !== null) return { ok: false, reason: refusal };
     const stamp = this.clock.stampFor(actorId);

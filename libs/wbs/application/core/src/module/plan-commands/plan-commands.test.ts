@@ -631,9 +631,10 @@ describe('working plan dependency mutations through runner commands', () => {
         name: 'Successor',
       });
       if (!predecessor.ok || !successor.ok) throw new Error('typed fixture creation refused');
-      const first = { scope: 'whole' as const, workItemId: predecessor.value.id };
-      const second = { scope: 'whole' as const, workItemId: successor.value.id };
+      const first = { projectId, scope: 'whole' as const, workItemId: predecessor.value.id };
+      const second = { projectId, scope: 'whole' as const, workItemId: successor.value.id };
       const firstNode = {
+        projectId,
         scope: 'node' as const,
         workItemId: predecessor.value.id,
         stepId: createdProject.steps[0].id,

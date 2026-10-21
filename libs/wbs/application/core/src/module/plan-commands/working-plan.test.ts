@@ -132,8 +132,8 @@ describe('the admitted working batch baseline', () => {
     const row = {
       id: 'typed-a',
       projectId: 'project-a',
-      predecessor: { scope: 'whole' as const, workItemId: 'a' },
-      successor: { scope: 'whole' as const, workItemId: 'b' },
+      predecessor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'a' },
+      successor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'b' },
       type: 'FS' as const,
     };
     const stamp = { at: 1, by: OWNER };
@@ -143,11 +143,13 @@ describe('the admitted working batch baseline', () => {
       const later = {
         ...row,
         id: 'typed-later',
-        successor: { scope: 'whole' as const, workItemId: 'c' },
+        successor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'c' },
       };
       await source.stores.typedDependencies.add(later, stamp);
       expect(await plan.stores.typedDependencies.listByProject('project-a')).toEqual([row, later]);
       expect(() => plan.stores.typedDependencies.listByProject('project-b')).toThrow();
+      expect(() => plan.stores.typedDependencies.listIncident(['project-b'])).toThrow();
+      expect(await plan.stores.typedDependencies.listIncident([])).toEqual([]);
       expect(() =>
         plan.stores.typedDependencies.add({ ...row, id: 'other', projectId: 'project-b' }, stamp),
       ).toThrow();
@@ -156,7 +158,8 @@ describe('the admitted working batch baseline', () => {
           ...row,
           id: 'foreign',
           projectId: 'project-b',
-          predecessor: { scope: 'whole', workItemId: 'foreign' },
+          predecessor: { projectId: 'project-b', scope: 'whole', workItemId: 'foreign' },
+          successor: { ...row.successor, projectId: 'project-b' },
         },
         stamp,
       );
@@ -167,6 +170,7 @@ describe('the admitted working batch baseline', () => {
         await refusesCall(() => plan.stores.typedDependencies.removeAllFor(['foreign'], stamp)),
       ).toBe(true);
       plan.close();
+      expect(() => plan.stores.typedDependencies.listIncident([])).toThrow();
       expect(() => plan.stores.typedDependencies.listByProject('project-a')).toThrow();
     } finally {
       await source.close();
@@ -180,13 +184,18 @@ describe('the admitted working batch baseline', () => {
     const before = {
       id: 'typed-edit',
       projectId: 'project-a',
-      predecessor: { scope: 'whole' as const, workItemId: 'a' },
-      successor: { scope: 'whole' as const, workItemId: 'b' },
+      predecessor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'a' },
+      successor: { projectId: 'project-a', scope: 'whole' as const, workItemId: 'b' },
       type: 'FF' as const,
     };
     const after = {
       ...before,
-      successor: { scope: 'node' as const, workItemId: 'b', stepId: 'review' },
+      successor: {
+        projectId: 'project-a',
+        scope: 'node' as const,
+        workItemId: 'b',
+        stepId: 'review',
+      },
       type: 'SS' as const,
     };
     try {

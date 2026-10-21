@@ -79,8 +79,8 @@ async function addWorkItem(
 const link = (predecessorId: string, successorId: string): StoredTypedDependency => ({
   id: crypto.randomUUID(),
   projectId,
-  predecessor: { scope: 'whole', workItemId: predecessorId },
-  successor: { scope: 'whole', workItemId: successorId },
+  predecessor: { projectId, scope: 'whole', workItemId: predecessorId },
+  successor: { projectId, scope: 'whole', workItemId: successorId },
   type: 'FS',
 });
 
@@ -168,7 +168,7 @@ describe('TypedDependencyRepository', () => {
         'foreign step',
         {
           ...link(leaf, parent),
-          predecessor: { scope: 'node', workItemId: leaf, stepId: otherStep },
+          predecessor: { projectId, scope: 'node', workItemId: leaf, stepId: otherStep },
         },
         'outside project',
       ],
@@ -176,7 +176,7 @@ describe('TypedDependencyRepository', () => {
         'node on a parent',
         {
           ...link(leaf, parent),
-          successor: { scope: 'node', workItemId: parent, stepId: devStepId },
+          successor: { projectId, scope: 'node', workItemId: parent, stepId: devStepId },
         },
         'a parent',
       ],
@@ -184,7 +184,7 @@ describe('TypedDependencyRepository', () => {
         'descendant-step on a leaf',
         {
           ...link(leaf, parent),
-          predecessor: { scope: 'descendant-step', workItemId: leaf, stepId: devStepId },
+          predecessor: { projectId, scope: 'descendant-step', workItemId: leaf, stepId: devStepId },
         },
         'a leaf',
       ],
@@ -209,7 +209,7 @@ describe('TypedDependencyRepository', () => {
     expect(await rejection(repo.add({ ...row, id: crypto.randomUUID() }, wrote()))).toContain(
       'Failed query',
     );
-    const changed = { ...row, successor: { scope: 'whole' as const, workItemId: c } };
+    const changed = { ...row, successor: { projectId, scope: 'whole' as const, workItemId: c } };
     await repo.update(changed, wrote());
     expect(await repo.listByProject(projectId)).toEqual([changed]);
     expect(revision(a)).toBe(beforeA + 2);

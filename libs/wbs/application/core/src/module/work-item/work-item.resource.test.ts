@@ -931,8 +931,13 @@ describe('dependencies', () => {
           {
             id: 'missing-endpoint',
             projectId,
-            predecessor: { scope: 'node' as const, workItemId: 'missing-work-item', stepId },
-            successor: { scope: 'node' as const, workItemId: present, stepId },
+            predecessor: {
+              projectId,
+              scope: 'node' as const,
+              workItemId: 'missing-work-item',
+              stepId,
+            },
+            successor: { projectId, scope: 'node' as const, workItemId: present, stepId },
             type: 'FS' as const,
           },
         ]),

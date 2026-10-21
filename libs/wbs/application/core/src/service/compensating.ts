@@ -1,7 +1,14 @@
-import { type EstimateUnit, isEstimateUnit } from '@wbs/domain';
+import {
+  type EstimateUnit,
+  isDependencyEndpointScope,
+  isEstimateUnit,
+  isRelationshipType,
+  type ScopedDependencyEndpoint,
+} from '@wbs/domain';
 
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
 import type { Reparented } from '../ports/work-item-store';
 import type { CommandSubject, CompensatingCommand, JournalPayload } from './compensating-command';
 
@@ -135,7 +142,20 @@ export function readCommand(value: unknown): CompensatingCommand {
   if (named === 'batch') {
     if (!('steps' in value) || !Array.isArray(value.steps))
       throw new Error('a journal batch has no steps');
-    for (const step of value.steps) readCommand(step);
+    return { do: 'batch', steps: value.steps.map((step: unknown) => readCommand(step)) };
+  }
+  if (named === 'add_typed_dependency' || named === 'remove_typed_dependency') {
+    if (!('dependency' in value)) throw new Error('journal typed dependency is missing');
+    return { do: named, dependency: readJournalDependency(value.dependency) };
+  }
+  if (named === 'update_typed_dependency') {
+    if (!('from' in value) || !('to' in value))
+      throw new Error('journal typed dependency update is missing');
+    return {
+      do: named,
+      from: readJournalDependency(value.from),
+      to: readJournalDependency(value.to),
+    };
   }
   if (named === 'replace_blockage') {
     const blockedTime = (time: unknown): boolean =>
@@ -244,6 +264,69 @@ export function readCommand(value: unknown): CompensatingCommand {
   // been checked, and conditional blockage/move progress fields have their boundary
   // validation. Legacy fields remain this process's own writing.
   return value as CompensatingCommand;
+}
+
+/**
+ * Historical local relationships have neither endpoint project; current records have both.
+ * A partial or malformed scoped record must never fall back to legacy interpretation.
+ * Proof: removing required relationship shape, endpoint shape, project type, step type,
+ * whole/step pairing, mixed-scope refusal or successor-owner agreement separately
+ * made `refuses partial scoped history and malformed new scoped history` accept its
+ * malformed payload (2026-10-22).
+ */
+function readJournalDependency(value: unknown): StoredTypedDependency {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('id' in value) ||
+    typeof value.id !== 'string' ||
+    !('projectId' in value) ||
+    typeof value.projectId !== 'string' ||
+    !('predecessor' in value) ||
+    !('successor' in value) ||
+    !('type' in value) ||
+    !isRelationshipType(value.type)
+  ) {
+    throw new Error('journal typed dependency is malformed');
+  }
+  const hasProject = (endpoint: unknown): boolean =>
+    typeof endpoint === 'object' && endpoint !== null && 'projectId' in endpoint;
+  const isScoped = hasProject(value.predecessor);
+  if (isScoped !== hasProject(value.successor))
+    throw new Error('journal typed dependency has partial project scope');
+  const endpoint = (candidate: unknown): ScopedDependencyEndpoint => {
+    if (
+      typeof candidate !== 'object' ||
+      candidate === null ||
+      !('scope' in candidate) ||
+      !isDependencyEndpointScope(candidate.scope) ||
+      !('workItemId' in candidate) ||
+      typeof candidate.workItemId !== 'string'
+    )
+      throw new Error('journal typed dependency endpoint is malformed');
+    const projectId: unknown =
+      isScoped && 'projectId' in candidate ? candidate.projectId : value.projectId;
+    if (typeof projectId !== 'string')
+      throw new Error('journal typed dependency project is malformed');
+    if (candidate.scope === 'whole') {
+      if ('stepId' in candidate)
+        throw new Error('journal typed dependency whole endpoint has a step');
+      return { scope: candidate.scope, workItemId: candidate.workItemId, projectId };
+    }
+    if (!('stepId' in candidate) || typeof candidate.stepId !== 'string')
+      throw new Error('journal typed dependency step is malformed');
+    return {
+      scope: candidate.scope,
+      workItemId: candidate.workItemId,
+      stepId: candidate.stepId,
+      projectId,
+    };
+  };
+  const predecessor = endpoint(value.predecessor);
+  const successor = endpoint(value.successor);
+  if (successor.projectId !== value.projectId)
+    throw new Error('journal typed dependency successor owner disagrees');
+  return { id: value.id, projectId: value.projectId, predecessor, successor, type: value.type };
 }
 
 /** Validates exact blockage identities and safe times within the deletion boundary. */

@@ -631,9 +631,10 @@ it('resolves a batch-local node reference and rolls back a later refusal', async
   const kept = await sent(steps);
   expect(kept.status).toBe(200);
   const applied = (await kept.json()) as { results: { id: string }[] };
-  expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual(
-    node(applied.results[0]?.id ?? '', at.devId),
-  );
+  expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual({
+    ...node(applied.results[0]?.id ?? '', at.devId),
+    projectId: at.projectId,
+  });
 });
 
 it('undoes and redoes a typed update with its exact ID and endpoints', async () => {
@@ -702,7 +703,10 @@ it('refuses undo when the stored relationship changed outside the journal', asyn
   expect(added.status).toBe(200);
   const stored = (await typed.listByProject(at.projectId)).at(0);
   if (stored === undefined) throw new Error('typed add did not persist');
-  await typed.update({ ...stored, predecessor: node(at.a, at.qaId) }, { at: 2, by: at.userId });
+  await typed.update(
+    { ...stored, predecessor: { ...node(at.a, at.qaId), projectId: at.projectId } },
+    { at: 2, by: at.userId },
+  );
   // Keep the row revision at the entry's expected value to exercise apply's
   // exact relationship check independently of the ordinary revision guard.
   const sqlite = openDatabase(join(dir, 'test.db'));
@@ -717,7 +721,10 @@ it('refuses undo when the stored relationship changed outside the journal', asyn
     error: 'stale_undo',
     detail: 'that relationship has changed since this command.',
   });
-  expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual(node(at.a, at.qaId));
+  expect((await typed.listByProject(at.projectId))[0]?.predecessor).toEqual({
+    ...node(at.a, at.qaId),
+    projectId: at.projectId,
+  });
 });
 
 /**
@@ -758,7 +765,10 @@ it('refuses undo of an update when the stored relationship changed outside the j
     error: 'stale_undo',
     detail: 'that relationship has changed since this command.',
   });
-  expect((await typed.listByProject(at.projectId)).at(0)?.successor).toEqual(node(at.b, at.devId));
+  expect((await typed.listByProject(at.projectId)).at(0)?.successor).toEqual({
+    ...node(at.b, at.devId),
+    projectId: at.projectId,
+  });
 });
 
 it('refuses undo when only a journalled relationship type changed outside history', async () => {
@@ -770,8 +780,8 @@ it('refuses undo when only a journalled relationship type changed outside histor
   const updated = await command(at.projectId, at.token, {
     kind: 'updateTypedDependency',
     dependencyId: stored.id,
-    predecessor: stored.predecessor,
-    successor: stored.successor,
+    predecessor: node(at.a, at.devId),
+    successor: node(at.b, at.devId),
     type: 'SS',
   });
   expect(updated.status).toBe(200);

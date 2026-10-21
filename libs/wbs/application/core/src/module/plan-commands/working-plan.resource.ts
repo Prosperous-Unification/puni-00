@@ -291,6 +291,12 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
    * watched failing on 2026-09-27.
    */
   const typedDependencies: TypedDependencyStore = {
+    // Proof: removing the open check or requested-project checks separately made `passes typed links through the batch and refuses cross-project and closed access` resolve forbidden/closed incident calls (2026-10-22).
+    listIncident: (requestedProjectIds) => {
+      assertOpen();
+      for (const requestedProjectId of requestedProjectIds) assertProject(requestedProjectId);
+      return scope.stores.typedDependencies.listIncident(requestedProjectIds);
+    },
     listByProject: (requestedProjectId) => {
       assertProject(requestedProjectId);
       // Proof: returning the pre-edit empty set made `sees the first typed relationship

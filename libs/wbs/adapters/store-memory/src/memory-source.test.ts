@@ -188,8 +188,8 @@ async function expectDetachedReads(stores: TransactionalStores): Promise<void> {
     {
       id: 'typed-1',
       projectId: 'p1',
-      predecessor: { scope: 'whole', workItemId: 'wi-1' },
-      successor: { scope: 'whole', workItemId: 'wi-2' },
+      predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+      successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
       type: 'FS',
     },
     stamp,
@@ -583,8 +583,8 @@ describe('the staged memory source', () => {
           {
             id: 'committed-typed',
             projectId: 'p1',
-            predecessor: { scope: 'whole', workItemId: 'wi-1' },
-            successor: { scope: 'whole', workItemId: 'wi-2' },
+            predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+            successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
             type: 'FS',
           },
           stamp,
@@ -652,8 +652,8 @@ describe('the staged memory source', () => {
         {
           id: 'refused-typed',
           projectId: 'p1',
-          predecessor: { scope: 'whole', workItemId: 'wi-1' },
-          successor: { scope: 'whole', workItemId: 'wi-2' },
+          predecessor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-1' },
+          successor: { projectId: 'p1', scope: 'whole', workItemId: 'wi-2' },
           type: 'FS',
         },
         stamp,

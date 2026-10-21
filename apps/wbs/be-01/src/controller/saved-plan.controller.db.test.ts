@@ -261,8 +261,8 @@ describe('the saved-plan routes', () => {
       const relationship = {
         id: 'captured-ff',
         projectId,
-        predecessor: { scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
-        successor: { scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
+        predecessor: { projectId, scope: 'node' as const, workItemId: 'A', stepId: firstStep.id },
+        successor: { projectId, scope: 'node' as const, workItemId: 'B', stepId: laterStep.id },
         type: 'FF' as const,
       };
       await typed.add(relationship, stamp);
@@ -279,8 +279,8 @@ describe('the saved-plan routes', () => {
         typedDependencies: [
           {
             id: relationship.id,
-            predecessor: relationship.predecessor,
-            successor: relationship.successor,
+            predecessor: { scope: 'node', workItemId: 'A', stepId: firstStep.id },
+            successor: { scope: 'node', workItemId: 'B', stepId: laterStep.id },
             type: 'FF',
           },
         ],
@@ -308,8 +308,8 @@ describe('the saved-plan routes', () => {
       expect(body.typedDependencies).toEqual([
         {
           id: relationship.id,
-          predecessor: relationship.predecessor,
-          successor: relationship.successor,
+          predecessor: { scope: 'node', workItemId: 'A', stepId: firstStep.id },
+          successor: { scope: 'node', workItemId: 'B', stepId: laterStep.id },
           type: 'FF',
         },
       ]);

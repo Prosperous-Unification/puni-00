@@ -353,12 +353,14 @@ it('removes node and whole endpoints on delete and restores their identities on 
   ).toBe(200);
   const restored = await typed.listByProject(plan.projectId);
   expect(restored).toHaveLength(2);
-  expect(restored.find((dependency) => dependency.id === first)?.predecessor).toEqual(
-    node(doomed, plan.devId),
-  );
-  expect(restored.find((dependency) => dependency.id === second)?.predecessor).toEqual(
-    whole(doomed),
-  );
+  expect(restored.find((dependency) => dependency.id === first)?.predecessor).toEqual({
+    ...node(doomed, plan.devId),
+    projectId: plan.projectId,
+  });
+  expect(restored.find((dependency) => dependency.id === second)?.predecessor).toEqual({
+    ...whole(doomed),
+    projectId: plan.projectId,
+  });
 });
 
 it('refuses deleting or moving the last child of a descendant-step parent', async () => {
@@ -458,8 +460,8 @@ for (const refreshRevisions of [false, true]) {
       {
         id,
         projectId: plan.projectId,
-        predecessor: node(parent, plan.devId),
-        successor: whole(other),
+        predecessor: { ...node(parent, plan.devId), projectId: plan.projectId },
+        successor: { ...whole(other), projectId: plan.projectId },
         type: 'FS',
       },
       testClock.stampFor(peer.user.id),
@@ -507,8 +509,8 @@ it('refuses redo of a child create when a newer node relationship pins its paren
     {
       id: 'redo-create-relationship',
       projectId: plan.projectId,
-      predecessor: node(parent, plan.devId),
-      successor: whole(other),
+      predecessor: { ...node(parent, plan.devId), projectId: plan.projectId },
+      successor: { ...whole(other), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),
@@ -546,8 +548,13 @@ it('refuses undo of a move when a newer descendant-step endpoint would lose its 
     {
       id: 'replay-move-relationship',
       projectId: plan.projectId,
-      predecessor: { scope: 'descendant-step', workItemId: destination, stepId: plan.devId },
-      successor: node(other, plan.devId),
+      predecessor: {
+        projectId: plan.projectId,
+        scope: 'descendant-step',
+        workItemId: destination,
+        stepId: plan.devId,
+      },
+      successor: { ...node(other, plan.devId), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),
@@ -581,8 +588,13 @@ it('refuses redo of a deletion when a newer descendant-step endpoint needs its l
     {
       id: 'replay-delete-relationship',
       projectId: plan.projectId,
-      predecessor: { scope: 'descendant-step', workItemId: parent, stepId: plan.devId },
-      successor: node(other, plan.devId),
+      predecessor: {
+        projectId: plan.projectId,
+        scope: 'descendant-step',
+        workItemId: parent,
+        stepId: plan.devId,
+      },
+      successor: { ...node(other, plan.devId), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),
@@ -612,8 +624,8 @@ it('refuses undo of a move into a leaf with a newer pinned node endpoint', async
     {
       id: 'replay-node-relationship',
       projectId: plan.projectId,
-      predecessor: node(parent, plan.devId),
-      successor: node(other, plan.devId),
+      predecessor: { ...node(parent, plan.devId), projectId: plan.projectId },
+      successor: { ...node(other, plan.devId), projectId: plan.projectId },
       type: 'FS',
     },
     testClock.stampFor(plan.userId),

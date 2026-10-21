@@ -12,6 +12,7 @@ import type {
   StoredSavedPlan,
   TransactionalStores,
 } from '@wbs/core';
+import { captureLocalTypedDependency } from '@wbs/core';
 
 import { type CaptureReadSeam, inertMemoryCaptureReadSeam } from './capture-read-seam';
 import { credentialKey } from './directory-fixture';
@@ -681,7 +682,7 @@ async function capturePlanInput(
     stores.stepParallels.listByProject(projectId),
     stores.measures.listByProject(projectId),
     stores.dependencies.listByProject(projectId),
-    stores.typedDependencies.listByProject(projectId),
+    stores.typedDependencies.listIncident([projectId]),
     stores.directory.assignmentsInProject(projectId),
     stores.capacity.slotsFor(projectId),
     stores.demands.listByProject(projectId),
@@ -706,12 +707,7 @@ async function capturePlanInput(
     stepParallels,
     measures,
     dependencies,
-    typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
-      id,
-      predecessor,
-      successor,
-      type,
-    })),
+    typedDependencies: typedDependencies.map(captureLocalTypedDependency),
     assignments: assignmentRows.assignments,
     capacity,
     // Proof: both reads replaced with `[]` made `captures demands and resource

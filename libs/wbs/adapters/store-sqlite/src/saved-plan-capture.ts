@@ -1,4 +1,5 @@
 import type { ChainAccess, PlanInputReads, SavedPlanCaptureStore } from '@wbs/core';
+import { captureLocalTypedDependency } from '@wbs/core';
 
 import { ActualRepository } from './actual';
 import { CapacityRepository } from './capacity';
@@ -187,8 +188,8 @@ export async function readPlanInputIn(
   const measures = await new StepMeasureRepository(db, OPEN).listByProject(projectId);
   const dependencies = await new DependencyRepository(db, OPEN).listByProject(projectId);
   const typedDependencies = (
-    await new TypedDependencyRepository(db, OPEN).listByProject(projectId)
-  ).map(({ id, predecessor, successor, type }) => ({ id, predecessor, successor, type }));
+    await new TypedDependencyRepository(db, OPEN).listIncident([projectId])
+  ).map(captureLocalTypedDependency);
   const { assignments } = await directory.assignmentsInProject(projectId);
   const steps = await projects.stepsOf(projectId);
   const capacity = await new CapacityRepository(db, OPEN).slotsFor(projectId);

@@ -15,7 +15,8 @@ export function memoryTypedDependencyTable(
 
 /**
  * A typed-link fixture with SQLite's identity and uniqueness refusals.
- * Unknown update/remove IDs throw; bulk removal returns every incident row.
+ * No project, work-item, step or organization context is available: this fixture
+ * proves identity and ownership shape only, not SQLite endpoint integrity.
  *
  * Proof: omitting duplicate checks or unknown-ID refusals failed their
  * dedicated fixture tests; watched 2026-09-27.
@@ -25,12 +26,33 @@ export function inMemoryTypedDependencies(
   table: MemoryTypedDependencyTable = memoryTypedDependencyTable(seed),
 ): TypedDependencyStore & { readonly rows: StoredTypedDependency[] } {
   const { rows } = table;
+  // Proof: removing owner agreement or the required predecessor project separately failed `refuses successor-owner disagreement and owner changes` (2026-10-22).
+  const assertOwner = (row: StoredTypedDependency): void => {
+    if (
+      row.projectId !== row.successor.projectId ||
+      typeof row.predecessor.projectId !== 'string'
+    ) {
+      throw new Error(`typed dependency ${row.id} has inconsistent successor ownership`);
+    }
+  };
   return {
     rows,
     listByProject: (projectId) =>
       Promise.resolve(rows.filter((row) => row.projectId === projectId)),
+    listIncident: (projectIds) => {
+      const projects = new Set(projectIds);
+      return Promise.resolve(
+        rows
+          .filter(
+            (row) =>
+              projects.has(row.predecessor.projectId) || projects.has(row.successor.projectId),
+          )
+          .sort((left, right) => left.id.localeCompare(right.id)),
+      );
+    },
     add: async (row) => {
       await Promise.resolve();
+      assertOwner(row);
       if (
         rows.some(
           (stored) =>
@@ -55,6 +77,10 @@ export function inMemoryTypedDependencies(
       ) {
         throw new Error(`typed dependency ${row.id} already exists`);
       }
+      assertOwner(row);
+      // Proof: bypassing immutable ownership admitted the moved owner in `refuses successor-owner disagreement and owner changes` (2026-10-22).
+      if (rows[index]?.projectId !== row.projectId)
+        throw new Error(`typed dependency ${row.id} cannot move to project ${row.projectId}`);
       rows[index] = row;
     },
     remove: async (id) => {
@@ -69,6 +95,17 @@ export function inMemoryTypedDependencies(
       const removed = rows.filter(
         (row) => doomed.has(row.predecessor.workItemId) || doomed.has(row.successor.workItemId),
       );
+      // Proof: bypassing protection deleted the live successor prerequisite in `protects a surviving external successor before removing any doomed links` (2026-10-22).
+      if (
+        removed.some(
+          (row) =>
+            row.predecessor.projectId !== row.successor.projectId &&
+            doomed.has(row.predecessor.workItemId) &&
+            !doomed.has(row.successor.workItemId),
+        )
+      ) {
+        throw new Error('external dependency predecessor has a surviving successor');
+      }
       rows.splice(0, rows.length, ...rows.filter((row) => !removed.includes(row)));
       return removed;
     },

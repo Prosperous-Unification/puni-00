@@ -401,8 +401,18 @@ async function readSeededPlanInput(
     dependencies,
     typedDependencies: typedDependencies.map(({ id, predecessor, successor, type }) => ({
       id,
-      predecessor,
-      successor,
+      predecessor:
+        predecessor.scope === 'whole'
+          ? { scope: predecessor.scope, workItemId: predecessor.workItemId }
+          : {
+              scope: predecessor.scope,
+              workItemId: predecessor.workItemId,
+              stepId: predecessor.stepId,
+            },
+      successor:
+        successor.scope === 'whole'
+          ? { scope: successor.scope, workItemId: successor.workItemId }
+          : { scope: successor.scope, workItemId: successor.workItemId, stepId: successor.stepId },
       type,
     })),
     assignments: assignmentRows.assignments,
@@ -589,8 +599,16 @@ export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: Seed
     {
       id: 'capture-typed-a',
       projectId: seed.projectIds[0],
-      predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
-      successor: { scope: 'whole', workItemId: seed.workItemIds[0][1] },
+      predecessor: {
+        projectId: seed.projectIds[0],
+        scope: 'whole',
+        workItemId: seed.workItemIds[0][0],
+      },
+      successor: {
+        projectId: seed.projectIds[0],
+        scope: 'whole',
+        workItemId: seed.workItemIds[0][1],
+      },
       type: 'FS',
     },
     stamp,
@@ -600,11 +618,17 @@ export async function seedSavedPlanCapture(stores: CaptureSeedStores, seed: Seed
       id: 'capture-typed-b',
       projectId: seed.projectIds[1],
       predecessor: {
+        projectId: seed.projectIds[1],
         scope: 'node',
         workItemId: seed.workItemIds[1][0],
         stepId: seed.stepIds[1][0],
       },
-      successor: { scope: 'node', workItemId: seed.workItemIds[1][1], stepId: seed.stepIds[1][1] },
+      successor: {
+        projectId: seed.projectIds[1],
+        scope: 'node',
+        workItemId: seed.workItemIds[1][1],
+        stepId: seed.stepIds[1][1],
+      },
       type: 'FS',
     },
     stamp,
@@ -664,8 +688,13 @@ export async function changeSavedPlanCaptureTypedDependencies(
     {
       id: 'capture-typed-a',
       projectId: seed.projectIds[0],
-      predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
+      predecessor: {
+        projectId: seed.projectIds[0],
+        scope: 'whole',
+        workItemId: seed.workItemIds[0][0],
+      },
       successor: {
+        projectId: seed.projectIds[0],
         scope: 'node',
         workItemId: seed.workItemIds[0][1],
         stepId: seed.stepIds[0][1],
@@ -862,8 +891,13 @@ export function savedPlanCaptureRegistrations(
           {
             id: 'capture-typed-a',
             projectId: seed.projectIds[0],
-            predecessor: { scope: 'whole', workItemId: seed.workItemIds[0][0] },
+            predecessor: {
+              projectId: seed.projectIds[0],
+              scope: 'whole',
+              workItemId: seed.workItemIds[0][0],
+            },
             successor: {
+              projectId: seed.projectIds[0],
               scope: 'node',
               workItemId: seed.workItemIds[0][1],
               stepId: seed.stepIds[0][1],

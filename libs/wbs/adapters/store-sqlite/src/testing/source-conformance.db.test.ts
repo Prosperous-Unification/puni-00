@@ -817,7 +817,18 @@ const openers: ExistingStoreOpeners = {
   claims: (caseId) => openSqliteCase('claims', caseId),
   demands: (caseId) => openSqliteCase('demands', caseId),
   dependencies: (caseId) => openSqliteCase('dependencies', caseId),
-  typedDependencies: (caseId) => openSqliteCase('typedDependencies', caseId),
+  typedDependencies: async (caseId) => {
+    const { source, directory } = await seedSqliteSource();
+    source.db.run(
+      sql`INSERT INTO organization (id, name, created_at) VALUES ('typed-conformance-org', 'Typed', 1)`,
+    );
+    for (const projectId of DETERMINISTIC_SEED.projectIds) {
+      source.db.run(
+        sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, 'typed-conformance-org')`,
+      );
+    }
+    return sqliteFixture(source, directory, 'typedDependencies', caseId);
+  },
   directory: (caseId) => openSqliteCase('directory', caseId),
   eventLog: (caseId) => openSqliteCase('eventLog', caseId),
   planEvents: (caseId) => openSqliteCase('planEvents', caseId),
