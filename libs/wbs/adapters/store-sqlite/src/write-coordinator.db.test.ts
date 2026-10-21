@@ -219,7 +219,10 @@ beforeEach(async () => {
   runner = createPlanCommandRunner({
     batchServices: (_scope, collector) => servicesWith(collector),
     publicServices: servicesWith(broadcast),
-    uow: sqliteUnitOfWork(db, coordinator, admitted),
+    uow: sqliteUnitOfWork(db, coordinator, {
+      createScope: () => ({ stores: admitted }),
+      createRepairScope: () => ({ stores: admitted }),
+    }),
     announcements: broadcast,
   });
   // The route's own service, built exactly as `buildServices` builds it: the

@@ -195,7 +195,12 @@ beforeEach(() => {
     // rollback without performing one.
     writes: {
       ...testWrites(undefined, writing),
-      uow: countingRuns(sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN))),
+      uow: countingRuns(
+        sqliteUnitOfWork(db, new WriteCoordinator(), {
+          createScope: () => ({ stores: buildStores(db, OPEN) }),
+          createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+        }),
+      ),
     },
     migrationsApplied: true,
   });

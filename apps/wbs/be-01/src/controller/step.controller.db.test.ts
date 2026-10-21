@@ -228,7 +228,13 @@ beforeEach(async () => {
     replay: testReplay().replay,
     probeDatabase: () => 'ok',
     internalAuthSecret: 'x'.repeat(32),
-    writes: { ...writes, uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)) },
+    writes: {
+      ...writes,
+      uow: sqliteUnitOfWork(db, new WriteCoordinator(), {
+        createScope: () => ({ stores: buildStores(db, OPEN) }),
+        createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+      }),
+    },
     migrationsApplied: true,
   });
 });

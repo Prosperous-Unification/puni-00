@@ -20,6 +20,7 @@ const migration = '20261015110000_add_step_node_parallelism';
 const baseline = '20261015100000_add_step_blockage_activation_receipt';
 /** Migrations newer than this one, which every rollback to `baseline` reverses first. */
 const newer = [
+  '20261022211000_add_external_dependencies',
   '20261022210000_add_project_abbreviations',
   '20261020130000_add_claim_occupancy',
   '20261020120000_add_resources',
@@ -173,7 +174,10 @@ for (const [name, owner, value, message] of [
 for (const cascade of [false, true])
   it(`retains all SQLite state on sparse refusal and mixed rollback (cascade=${String(cascade)})`, async () => {
     const stores = buildStores(connection.db, OPEN);
-    const uow = sqliteUnitOfWork(connection.db, OPEN, stores);
+    const uow = sqliteUnitOfWork(connection.db, OPEN, {
+      createScope: () => ({ stores: stores }),
+      createRepairScope: () => ({ stores: stores }),
+    });
     connection.db.run(
       "INSERT INTO work_item (id,project_id,name,position,revision) VALUES ('foreign-owner','foreign','Other',1,0)",
     );

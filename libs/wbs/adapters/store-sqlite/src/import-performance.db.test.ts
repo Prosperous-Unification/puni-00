@@ -67,7 +67,10 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     const coordinator = new WriteCoordinator();
     const stores = buildStores(connection.db, coordinator);
     const admittedStores = buildStores(connection.db, OPEN);
-    const sourceUow = sqliteUnitOfWork(connection.db, coordinator, admittedStores);
+    const sourceUow = sqliteUnitOfWork(connection.db, coordinator, {
+      createScope: () => ({ stores: admittedStores }),
+      createRepairScope: () => ({ stores: admittedStores }),
+    });
     const stamp = { at: 1_757_851_200_000, by: ACTOR };
     await stores.users.create(
       { id: ACTOR, username: ACTOR, passwordHash: 'x', createdAt: stamp.at },
@@ -153,10 +156,11 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
     expect(queuedAt).toBeGreaterThan(commitAt);
     const drizzleStatements = commitAt - beginAt + 1;
     // One project, bands, capacity, marker, team patch, person insert and subtree
-    // transaction, then one label patch per row: 7 + 500 nested transactions.
-    // Proof: omitting the native transaction observer reported 0 instead of 507,
-    // hiding its 1,014 SAVEPOINT/RELEASE controls from the admitted total.
-    expect(nativeTransactions).toBe(507);
+    // transaction, 500 label patches, and the response tree's unified typed read:
+    // 8 + 500 wrappers. Stack/boundary diagnostics observed the last read before COMMIT.
+    // Proof: omitting the native transaction observer reported 0 instead of 508,
+    // hiding its 1,016 SAVEPOINT/RELEASE controls from the admitted total.
+    expect(nativeTransactions).toBe(508);
     const nativeControls = nativeTransactions * 2;
     const admittedStatements = drizzleStatements + nativeControls;
 

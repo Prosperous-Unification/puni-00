@@ -1,5 +1,6 @@
 import type { CapacityMode } from '@wbs/domain';
 
+import type { ConnectedPlanCapture } from '../service/connected-plan-values';
 import type {
   OrganizationPrincipal,
   RefusedOrganizationAccess,
@@ -24,6 +25,8 @@ export interface ChainSnapshot {
     readonly project: Project;
     readonly assignments: PlanInputReads['assignments'];
   }[];
+  /** Complete connected evidence, read only within this admitted observation. */
+  captureConnected(projectId: string): Promise<ConnectedPlanCapture>;
   capturePlan(projectId: string): Promise<PlanInputReads>;
   /** Capture-mode reads select cache entries without admitting solver work. */
   readonly scheduler: CapturedScheduler;

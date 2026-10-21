@@ -303,7 +303,7 @@ export interface AppOptions {
   probeDatabase: () => DatabaseHealth;
   /**
    * What a command batch runs inside: the source's unit of work and the batch's
-   * own service graph — `sqliteUnitOfWork(db, coordinator, admitted)` in
+   * own service graph — `sqliteUnitOfWork(db, coordinator, scopes)` in
    * production, the counting fixture on in-memory stores. See
    * `libs/wbs/application/core/src/module/plan-commands/plan-commands.feature.ts`,
    * ADR 0007 and ADR 0015.

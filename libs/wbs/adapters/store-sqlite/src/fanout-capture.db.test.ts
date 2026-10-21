@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm';
 import { openConnection, openDatabase } from './db';
 import { readFanoutObservationIn } from './fanout-capture';
 import { allocateGeneration } from './optimization-generation';
+import { createReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { scheduleInputHash } from './schedule-input-hash';
 import { optimizedScheduleCache } from './schema';
@@ -38,13 +39,23 @@ it('keeps legacy and isolated captured owners silent without reading a scheduler
         throw new Error('silent owner must not read shared scheduler');
       },
     };
-    const legacy = await readFanoutObservationIn(connection.db, 'org-a', options);
+    const legacy = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
     expect(legacy.observation).toEqual({ mode: 'legacy', organizationId: null, projects: [] });
     expect(legacy.localFacts.size).toBe(0);
     connection.db.run(
       sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
     );
-    const isolated = await readFanoutObservationIn(connection.db, 'org-a', options);
+    const isolated = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
     expect(isolated.observation).toEqual({
       mode: 'isolated',
       organizationId: 'org-a',
@@ -176,9 +187,19 @@ it('captures staged upstream displacement on the borrowed writer without admitti
         (table) => connection.db.all(`SELECT * FROM ${table} ORDER BY rowid`),
       );
     const initialState = optimizerState();
-    const before = await readFanoutObservationIn(connection.db, 'org-a', options);
+    const before = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
     connection.db.run(sql.raw("UPDATE project SET schedule_engine = 'fast' WHERE id = 'a1'"));
-    const after = await readFanoutObservationIn(connection.db, 'org-a', options);
+    const after = await readFanoutObservationIn(
+      connection.db,
+      'org-a',
+      options,
+      createReadSnapshotLifetime(),
+    );
     expect(optimizerState()).toEqual(initialState);
     expect(before.observation.projects.map((project) => project.projectId)).toEqual([
       'a1',

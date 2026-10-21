@@ -151,7 +151,10 @@ beforeEach(async () => {
     batchServices: (_scope, collector) =>
       servicesOver(batchStores, { ...shared, broadcast: collector }),
     publicServices: servicesOver(stores, { ...shared, broadcast: announcements }),
-    uow: sqliteUnitOfWork(db, coordinator, batchStores),
+    uow: sqliteUnitOfWork(db, coordinator, {
+      createScope: () => ({ stores: batchStores }),
+      createRepairScope: () => ({ stores: batchStores }),
+    }),
     announcements,
   });
 });

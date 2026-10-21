@@ -193,7 +193,10 @@ beforeEach(() => {
           broadcast,
         }),
       }),
-      uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
+      uow: sqliteUnitOfWork(db, new WriteCoordinator(), {
+        createScope: () => ({ stores: buildStores(db, OPEN) }),
+        createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+      }),
     },
     migrationsApplied: true,
   });

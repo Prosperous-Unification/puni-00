@@ -216,7 +216,10 @@ beforeEach(async () => {
     publicServices: servicesWith(new WorkItemService({ ...serviceOptions, broadcast }), broadcast),
     // The real unit of work over this file's own connection: every case here
     // is about what a batch leaves behind, which is the transaction's answer.
-    uow: sqliteUnitOfWork(db, new WriteCoordinator(), buildStores(db, OPEN)),
+    uow: sqliteUnitOfWork(db, new WriteCoordinator(), {
+      createScope: () => ({ stores: buildStores(db, OPEN) }),
+      createRepairScope: () => ({ stores: buildStores(db, OPEN) }),
+    }),
     announcements: broadcast,
   };
   runner = createPlanCommandRunner(runnerOptions);

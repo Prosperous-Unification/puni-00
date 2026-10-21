@@ -26,6 +26,7 @@ import { validateStoredRole } from './organization-access';
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
+import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
 import { organization, organizationMembership, project, projectOrganization } from './schema';
 import { readCapacityMode } from './shared-people-mode';
@@ -265,8 +266,10 @@ export async function resolveDirectoryWriteIn(
 export async function readFanoutObservationIn(
   db: Drizzle,
   organizationId: string,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
 ): Promise<CapturedFanout> {
+  lifetime.assertOpen();
   // Proof: removing this guard labeled pre-activation capture isolated, not legacy.
   if (readOrganizationActivation(db) === 'pre_activation')
     return {
@@ -281,10 +284,13 @@ export async function readFanoutObservationIn(
       localFacts: new Map(),
     };
   const ranks = await new ProjectRankRepository(db, OPEN).orderIn(organizationId);
+  lifetime.assertOpen();
   const projects = new ProjectRepository(db, OPEN);
   const readable = await Promise.all(
     ranks.map(async ({ projectId }) => {
+      lifetime.assertOpen();
       const project = await projects.findInOrganization(projectId, organizationId);
+      lifetime.assertOpen();
       if (project === null) throw new Error('rank names an unreadable project');
       return project;
     }),
@@ -297,11 +303,15 @@ export async function readFanoutObservationIn(
     // Proof: forcing live scheduler mode in this capture made the enabled
     // optimized fixture invoke its forbidden live admission callback.
     options,
+    lifetime,
+    options.captureRead,
   );
+  lifetime.assertOpen();
   const localFacts = new Map<string, string>();
   const captured = await Promise.all(
     ranks.map(async ({ projectId, rank }) => {
       const reads = await snapshot.capturePlan(projectId);
+      lifetime.assertOpen();
       const personIds = [...new Set(reads.assignments.map(({ personId }) => personId))].sort();
       // Proof: treating physical numeric rank positions as local facts and
       // observable booking changes emitted a false row on pure respacing.
@@ -344,5 +354,6 @@ export async function readFanoutObservationIn(
       };
     }),
   );
+  lifetime.assertOpen();
   return { observation: { mode, organizationId, projects: captured }, localFacts };
 }

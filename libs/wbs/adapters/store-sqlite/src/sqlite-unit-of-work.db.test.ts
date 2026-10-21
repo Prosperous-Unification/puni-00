@@ -48,7 +48,10 @@ beforeEach(async () => {
   if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
 
   fixture = {
-    uow: sqliteUnitOfWork(db, coordinator, admitted),
+    uow: sqliteUnitOfWork(db, coordinator, {
+      createScope: () => ({ stores: admitted }),
+      createRepairScope: () => ({ stores: admitted }),
+    }),
     // Read through the **public** stores, on the same connection: what the kit
     // asks is what a later request would see, not what the act believes.
     reader: publicStores,

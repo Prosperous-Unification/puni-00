@@ -3,6 +3,7 @@ import type {
   ChainAccess,
   ChainSnapshot,
   ChainSnapshotStore,
+  ConnectedPlanCapture,
   LivePlanAggregate,
   LivePlanRead,
   LivePlanStore,
@@ -24,6 +25,7 @@ import {
   capturedOptimizationReaderOf,
   type CapturedOptimizationReaderOptions,
 } from './captured-optimization-reader';
+import { captureConnectedPlanIn } from './connected-plan-capture';
 import {
   type Connection,
   type Drizzle,
@@ -41,6 +43,7 @@ import {
 import { readOrganizationActivation } from './organization-activation';
 import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
+import { createReadSnapshotLifetime, type ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { DemandRepository, ResourceCapacityRepository } from './resource';
 import { readPlanInputIn } from './saved-plan-capture';
 import { incomingCalendarHash, scheduleInputHash } from './schedule-input-hash';
@@ -52,6 +55,8 @@ import { StepParallelRepository } from './step-parallel';
 import { WorkItemRepository } from './work-item';
 
 export interface ChainSnapshotOptions {
+  /** Optional diagnostic seam; it never substitutes captured values or authority. */
+  readonly captureRead?: CaptureReadSeam;
   /** A dedicated openReadOnlyConnection, closed on every outcome. */
   readonly openConnection: () => Connection;
   /** Binds session/binding reads to the same connection as membership and rank. */
@@ -81,9 +86,10 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
     read: (snapshot: ChainSnapshot) => SharedPeopleRead | Promise<SharedPeopleRead>,
   ) {
     const connection = this.options.openConnection();
+    const lifetime = createReadSnapshotLifetime();
     try {
       const db = connection.db;
-      // Proof: removing the transaction made the concurrent rank/assignment/date negative read 2 instead of 3.
+      // Proof: removing the transaction made rank/assignment/date read 2 instead of 3; connected predecessor/cache tests saw edited/failed within the first observation.
       const transaction = drizzleReadTransaction(db);
       transaction.begin();
       try {
@@ -93,6 +99,7 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
           this.options.now,
         ).resolve(principal);
         if (!resolved.ok) {
+          lifetime.expire();
           transaction.commit();
           return resolved;
         }
@@ -122,17 +129,21 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
             readable,
             projectId,
             this.options,
-            this.captureRead,
+            lifetime,
+            this.captureRead ?? this.options.captureRead,
           ),
         );
+        lifetime.expire();
         transaction.commit();
         return { ok: true as const, value };
       } catch (failure) {
+        lifetime.expire();
         transaction.rollback();
         throw failure;
       }
     } finally {
       // Proof: omitting close left the capture-throw negative at zero closes instead of one.
+      lifetime.expire();
       connection.close();
     }
   }
@@ -141,6 +152,7 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
     read: (snapshot: ChainSnapshot) => SharedPeopleRead | Promise<SharedPeopleRead>,
   ): Promise<SharedPeopleRead> {
     const connection = this.options.openConnection();
+    const lifetime = createReadSnapshotLifetime();
     try {
       const db = connection.db;
       // Proof: a no-op transaction failed the background concurrent-mode/assignment/date test (2 instead of 3).
@@ -190,19 +202,23 @@ export class ChainSnapshotRepository implements ChainSnapshotStore {
               readable,
               projectId,
               this.options,
-              this.captureRead,
+              lifetime,
+              this.captureRead ?? this.options.captureRead,
             ),
           );
         }
         // Proof: omitting commit failed the background lifecycle test at the close-time nested BEGIN.
+        lifetime.expire();
         transaction.commit();
         return value;
       } catch (failure) {
+        lifetime.expire();
         transaction.rollback();
         throw failure;
       }
     } finally {
       // Proof: omitting close failed the background lifecycle test (0 instead of 1 closes).
+      lifetime.expire();
       connection.close();
     }
   }
@@ -225,9 +241,12 @@ export async function readChainSnapshotIn(
   access: ChainAccess,
   readable: readonly Project[],
   projectId: string,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
   captureRead?: CaptureReadSeam,
 ): Promise<ChainSnapshot> {
+  // Proof: omitted acquisition check issued one mode query in the retained transaction snapshot test.
+  lifetime.assertOpen();
   const directory = new DirectoryRepository(db, OPEN);
   const mode =
     access.kind === 'legacy' ? 'isolated' : readCapacityMode(db, access.scope.organizationId);
@@ -243,8 +262,11 @@ export async function readChainSnapshotIn(
       .filter((each) => mode === 'shared' || each.id === projectId)
       .map((each) => [each.id, each]),
   );
+  const connected = new Map<string, ConnectedPlanCapture>();
+  let capturing: Promise<ConnectedPlanCapture> | undefined;
   const candidates: ChainSnapshot['projects'][number][] = [];
   for (const projectId of order) {
+    lifetime.assertOpen();
     const project = visible.get(projectId);
     // Proof: removing this check made the broken readable-list negative accept inconsistent rank.
     if (project === undefined) throw new Error('rank names an unreadable project');
@@ -253,23 +275,64 @@ export async function readChainSnapshotIn(
       assignments: (await directory.assignmentsInProject(projectId)).assignments,
     });
   }
+  lifetime.assertOpen();
+  const readCaptured =
+    options.optimization === undefined
+      ? undefined
+      : capturedOptimizationReaderOf(db, options.optimization);
+  const scheduler = options.schedulerOf(
+    readCaptured === undefined
+      ? undefined
+      : (ask) => {
+          // Proof: omitted callback guard returned idle cache state after transaction settlement.
+          lifetime.assertOpen();
+          return readCaptured(ask);
+        },
+  );
   return {
     access,
     mode,
     projects: candidates,
+    captureConnected: async (targetId) => {
+      lifetime.assertOpen();
+      // Proof: concurrent component requests read a1/a2 twice without serialization.
+      while (capturing !== undefined) {
+        await capturing;
+        lifetime.assertOpen();
+      }
+      const held = connected.get(targetId);
+      if (held !== undefined) return held;
+      const fresh = captureConnectedPlanIn(db, access, targetId, lifetime, captureRead);
+      capturing = fresh;
+      try {
+        const captured = await fresh;
+        lifetime.assertOpen();
+        for (const project of captured.projects) connected.set(project.projectId, captured);
+        return captured;
+      } finally {
+        capturing = undefined;
+      }
+    },
     capturePlan: async (projectId) => {
+      lifetime.assertOpen();
       // Proof: removing this guard failed the borrowed foreign-project capture negative.
       if (!visible.has(projectId)) throw new Error('chain capture names an unreadable project');
-      const captured = await readPlanInputIn(db, projectId, captureRead, access);
+      const captured = await readPlanInputIn(db, projectId, lifetime, captureRead, access);
+      lifetime.assertOpen();
       // Proof: removing this guard made the missing captured-project negative lose its trusted-state refusal.
       if (captured === null) throw new Error('ranked project disappeared inside its snapshot');
       return captured;
     },
-    scheduler: options.schedulerOf(
-      options.optimization === undefined
-        ? undefined
-        : capturedOptimizationReaderOf(db, options.optimization),
-    ),
+    scheduler: {
+      supports: (engine) => {
+        lifetime.assertOpen();
+        return scheduler.supports(engine);
+      },
+      read: (ask) => {
+        lifetime.assertOpen();
+        return scheduler.read(ask);
+      },
+    },
   };
 }
 
@@ -281,28 +344,39 @@ function requireOwnership(owner: { organizationId: string } | undefined): string
 
 /** Binds both reader lifetimes to one scheduling configuration without exposing connections to core. */
 export function createLivePlanStore(
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'> &
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'> &
     (
       | { readonly kind: 'owned'; readonly openConnection: () => Connection }
-      | { readonly kind: 'borrowed'; readonly db: Drizzle }
+      | { readonly kind: 'borrowed'; readonly db: Drizzle; readonly lifetime: ReadSnapshotLifetime }
     ),
 ): LivePlanStore {
-  async function observe<T>(read: (db: Drizzle) => Promise<T>): Promise<T> {
+  // Proof: omitted acquisition check returned a new reader for the expired-scope factory test.
+  if (options.kind === 'borrowed') options.lifetime.assertOpen();
+  async function observe<T>(
+    read: (db: Drizzle, lifetime: ReadSnapshotLifetime) => Promise<T>,
+  ): Promise<T> {
     if (options.kind === 'borrowed') {
       // Proof: replacing this borrowed db with a fresh snapshot fails mounted staged arrangement/preflight.
-      return read(options.db);
+      // Proof: omitted entry check issued 22 SQL reads through expired source readers.
+      options.lifetime.assertOpen();
+      const observed = await read(options.db, options.lifetime);
+      options.lifetime.assertOpen();
+      return observed;
     }
     const connection = options.openConnection();
+    const lifetime = createReadSnapshotLifetime();
     try {
       const transaction = drizzleReadTransaction(connection.db);
       // Proof: omitting the transaction failed mounted metadata/cache cases by observing newer writes in the first response.
       transaction.begin();
       try {
-        const captured = await read(connection.db);
+        const captured = await read(connection.db, lifetime);
+        lifetime.expire();
         // Proof: omitting commit failed owned success/refusal close-time BEGIN assertions (transaction still active).
         transaction.commit();
         return captured;
       } catch (failure) {
+        lifetime.expire();
         // Proof: omitting rollback failed owned dependency-failure close-time BEGIN assertion.
         transaction.rollback();
         throw failure;
@@ -310,18 +384,20 @@ export function createLivePlanStore(
     } finally {
       // Proof: omitting close failed all three owned lifecycle cases and the
       // mounted admission check saw one open snapshot at both launch handoffs.
+      lifetime.expire();
       connection.close();
     }
   }
   return {
-    read: (projectId, access) => observe((db) => readLivePlanIn(db, projectId, access, options)),
+    read: (projectId, access) =>
+      observe((db, lifetime) => readLivePlanIn(db, projectId, access, options, lifetime)),
     // Proof: bypassing this observation transaction for aggregate reads made the mounted
     // concurrent-write test combine A's old start with B's new chain (10-05/10-05).
     readAggregate: (actorId, access) =>
-      observe((db) => readLiveAggregateIn(db, actorId, access, options)),
+      observe((db, lifetime) => readLiveAggregateIn(db, actorId, access, options, lifetime)),
     readExport: (projectId, access) =>
-      observe(async (db) => {
-        const captured = await readLivePlanIn(db, projectId, access, options);
+      observe(async (db, lifetime) => {
+        const captured = await readLivePlanIn(db, projectId, access, options, lifetime);
         if (captured.kind !== 'shared') return captured;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
@@ -369,7 +445,7 @@ export function createLivePlanStore(
         };
       }),
     readProject: (projectId) =>
-      observe((db) => readLiveProjectIn(db, projectId, undefined, options)),
+      observe((db, lifetime) => readLiveProjectIn(db, projectId, undefined, options, lifetime)),
   };
 }
 
@@ -378,7 +454,8 @@ async function readLiveAggregateIn(
   db: Drizzle,
   actorId: string,
   access: ResourceAccess,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
 ): Promise<LivePlanAggregate> {
   if (access.kind === 'legacy') {
     // Proof: omitting this check made a real aggregate read after activation
@@ -399,7 +476,15 @@ async function readLiveAggregateIn(
 
   const projects = new ProjectRepository(db, OPEN);
   const readable = await projects.listForInOrganization(actorId, access.scope.organizationId);
-  const snapshot = await readChainSnapshotIn(db, access, readable, '', options);
+  const snapshot = await readChainSnapshotIn(
+    db,
+    access,
+    readable,
+    '',
+    options,
+    lifetime,
+    options.captureRead,
+  );
   const captures = new Map<string, PlanInputReads>();
   const scheduling = new Map<string, ScheduleRead>();
   function readSchedule(request: CapturedScheduleAsk): ScheduleRead {
@@ -413,6 +498,7 @@ async function readLiveAggregateIn(
   const shared: ChainSnapshot = {
     ...snapshot,
     capturePlan: async (projectId) => {
+      lifetime.assertOpen();
       const captured = captures.get(projectId);
       if (captured !== undefined) return captured;
       const fresh = await snapshot.capturePlan(projectId);
@@ -454,7 +540,8 @@ async function readLivePlanIn(
   db: Drizzle,
   projectId: string,
   admitted: ResourceAccess,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
 ): Promise<LivePlanRead> {
   if (admitted.kind === 'legacy') {
     // Proof: bypassing this recheck failed mounted `refuses activation between legacy admission and snapshot` (403 became 200).
@@ -473,14 +560,15 @@ async function readLivePlanIn(
     // Proof: ignoring this refusal failed mounted six-route revocation (403 became 200 with updated upstream rows).
     if (!resolved.ok) return { kind: 'access_refused', refusal: resolved.refusal };
   }
-  return readLiveProjectIn(db, projectId, admitted, options);
+  return readLiveProjectIn(db, projectId, admitted, options, lifetime);
 }
 
 async function readLiveProjectIn(
   db: Drizzle,
   projectId: string,
   admitted: ChainAccess | undefined,
-  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+  options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization' | 'captureRead'>,
+  lifetime: ReadSnapshotLifetime,
 ): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>> {
   const projects = new ProjectRepository(db, OPEN);
   const project = await projects.findById(projectId);
@@ -518,7 +606,15 @@ async function readLiveProjectIn(
       },
     ),
   );
-  const snapshot = await readChainSnapshotIn(db, access, readable, projectId, options);
+  const snapshot = await readChainSnapshotIn(
+    db,
+    access,
+    readable,
+    projectId,
+    options,
+    lifetime,
+    options.captureRead,
+  );
   const chain = await readChain(snapshot, projectId);
   // Proof: removing this guard made the omitted-target rank dependency resolve instead of rejecting trusted state.
   if (chain.kind === 'not_found') throw new Error('live target disappeared inside its snapshot');

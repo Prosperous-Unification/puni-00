@@ -23,6 +23,7 @@ import {
 import { OPEN, WriteCoordinator } from './gate';
 import { probeSchema } from './health-probe';
 import { inertSqliteLateWriteSeam, type SqliteLateWriteSeam } from './late-write-seam';
+import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { SavedPlanRepository } from './saved-plan';
 import { SavedPlanCaptureRepository } from './saved-plan-capture';
 import { sqliteUnitOfWork } from './sqlite-unit-of-work';
@@ -94,48 +95,73 @@ function openSqliteSourceWithSeams(
     bindLivePlans(scheduling) {
       const publicPlans = createLivePlanStore({
         ...scheduling,
+        captureRead,
         kind: 'owned',
         openConnection: () =>
           (options.openReadOnlyConnection ?? openReadOnlyConnection)(options.dbPath),
       });
-      const commandPlans = createLivePlanStore({ ...scheduling, kind: 'borrowed', db: process.db });
       return {
         ...this,
         stores: buildStores(process.db, coordinator, lateWrite, publicPlans),
         uow: sqliteUnitOfWork(
           process.db,
           coordinator,
-          buildStores(process.db, OPEN, lateWrite, commandPlans),
-          // Proof: omitting this borrowed capture made a cold mounted shared
-          // command fail 500 before the expected recipient row.
           {
-            // Proof: detaching this read onto a separate read-only connection
-            // hid the staged command; cold mounted fan-out recorded no row.
-            capture: async (organizationId: string) => {
-              await options.onFanoutCapture?.(organizationId);
-              // Proof: substituting the earlier preflight capture after a queued
-              // assignment insert lost the Billing→Platform recipient row.
-              const captured = await readFanoutObservationIn(
-                process.db,
-                organizationId,
-                scheduling,
-              );
-              options.onCapturedFanout?.(captured);
-              return captured;
+            createScope: (lifetime) => {
+              lifetime.assertOpen();
+              const commandPlans = createLivePlanStore({
+                ...scheduling,
+                captureRead,
+                kind: 'borrowed',
+                db: process.db,
+                lifetime,
+              });
+              return {
+                stores: buildStores(process.db, OPEN, lateWrite, commandPlans),
+                fanoutCapture:
+                  // Proof: omitting this borrowed capture made a cold mounted shared
+                  // command fail 500 before the expected recipient row.
+                  {
+                    // Proof: detaching this read onto a separate read-only connection
+                    // hid the staged command; cold mounted fan-out recorded no row.
+                    capture: async (organizationId: string) => {
+                      lifetime.assertOpen();
+                      await options.onFanoutCapture?.(organizationId);
+                      lifetime.assertOpen();
+                      // Proof: substituting the earlier preflight capture after a queued
+                      // assignment insert lost the Billing→Platform recipient row.
+                      const captured = await readFanoutObservationIn(
+                        process.db,
+                        organizationId,
+                        { ...scheduling, captureRead },
+                        lifetime,
+                      );
+                      lifetime.assertOpen();
+                      options.onCapturedFanout?.(captured);
+                      return captured;
+                    },
+                    authorizeProjectUpdate: guardRead(
+                      lifetime,
+                      authorizeProjectFanoutIn(process.db),
+                    ),
+                    authorizeStepRemoval: guardRead(lifetime, authorizeStepFanoutIn(process.db)),
+                    authorizeRankMove: guardRead(lifetime, authorizeRankMoveIn(process.db)),
+                    authorizeModeSwitch: guardRead(lifetime, authorizeModeSwitchIn(process.db)),
+                    // Proof: removing this borrowed binding made a valid mounted
+                    // scoped import answer 500 before capture rather than 201.
+                    authorizeImport: guardRead(lifetime, authorizeImportIn(process.db)),
+                    // Proof: omitting this borrowed resolver stopped the mounted
+                    // selected-retirement path before its B←A durable event.
+                    resolveLifecycleOwner: guardRead(lifetime, (projectId: string) =>
+                      Promise.resolve(resolveLifecycleOwnerIn(process.db, projectId)),
+                    ),
+                    resolveDirectoryWrite: guardRead(lifetime, (address) =>
+                      resolveDirectoryWriteIn(process.db, admitted.directory, address),
+                    ),
+                  },
+              };
             },
-            authorizeProjectUpdate: authorizeProjectFanoutIn(process.db),
-            authorizeStepRemoval: authorizeStepFanoutIn(process.db),
-            authorizeRankMove: authorizeRankMoveIn(process.db),
-            authorizeModeSwitch: authorizeModeSwitchIn(process.db),
-            // Proof: removing this borrowed binding made a valid mounted
-            // scoped import answer 500 before capture rather than 201.
-            authorizeImport: authorizeImportIn(process.db),
-            // Proof: omitting this borrowed resolver stopped the mounted
-            // selected-retirement path before its B←A durable event.
-            resolveLifecycleOwner: (projectId) =>
-              Promise.resolve(resolveLifecycleOwnerIn(process.db, projectId)),
-            resolveDirectoryWrite: (address) =>
-              resolveDirectoryWriteIn(process.db, admitted.directory, address),
+            createRepairScope: () => ({ stores: admitted }),
           },
           options.onBorrowedUnitOfWork,
         ),
@@ -155,7 +181,10 @@ function openSqliteSourceWithSeams(
         captureRead,
       ),
     },
-    uow: sqliteUnitOfWork(process.db, coordinator, admitted),
+    uow: sqliteUnitOfWork(process.db, coordinator, {
+      createScope: () => ({ stores: admitted }),
+      createRepairScope: () => ({ stores: admitted }),
+    }),
     health() {
       try {
         return Promise.resolve(
@@ -176,5 +205,18 @@ function openSqliteSourceWithSeams(
         return Promise.reject(new Error(`failed to close SQLite source: ${detail}`, { cause }));
       }
     },
+  };
+}
+
+/** Read authority and its return continuation expire with the admitting command scope. */
+function guardRead<Args extends readonly unknown[], Value>(
+  lifetime: ReadSnapshotLifetime,
+  read: (...args: Args) => Promise<Value>,
+): (...args: Args) => Promise<Value> {
+  return async (...args) => {
+    lifetime.assertOpen();
+    const value = await read(...args);
+    lifetime.assertOpen();
+    return value;
   };
 }
