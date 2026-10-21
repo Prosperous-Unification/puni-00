@@ -514,11 +514,36 @@ person: an OpenClaw session key, a Codex thread, a Claude session id. WBS stores
 it and never parses it.
 _Avoid_: Session, instance, worker id
 
-**Fleet credential**:
-An `(issuer, subject)` linked to a human's account so a headless fleet writes as that
-account, pinned to the one agent person it may claim as. One account, many credentials;
-revoked by unlinking.
-_Avoid_: Agent account, service account, machine identity, bot user
+**Machine credential**:
+An organization's record that lets one agent person act in WBS: pinned to that person,
+issued by a member or admin account, admitting a token of one credential source, and
+revocable. The token acts as the person's bound account with read and write only, never as
+its issuer.
+_Avoid_: Fleet credential (the 2026-10-19 name), agent account, service account, machine
+identity, bot user, API user
+
+**Credential source**:
+Where a machine credential's secret lives and how WBS verifies it: a WBS-issued API key, an
+OIDC token of a trusted issuer, an Auth0 machine-to-machine application in PUNI's tenant, or
+an MCP consent in which a human authorized an agent person.
+_Avoid_: Credential type, auth method, grant type
+
+**Consent credential**:
+A machine credential minted when a signed-in human chooses an agent person bound to their
+account at the MCP consent page; its secret is the MCP refresh family, which keeps the agent's
+session alive as a human's is.
+_Avoid_: Agent session, delegated login, impersonation
+
+**Trusted issuer**:
+An organization's record of an OIDC issuer whose tokens may name its OIDC-sourced machine
+credentials: the issuer URL, the key set discovered from it once, a default audience, and
+optionally the proven OIDC enterprise connection that gated its registration.
+_Avoid_: Identity provider, IdP, allowed issuer, federation
+
+**Rotation window**:
+The bounded time after an API key's rotation during which the previous secret is still
+admitted beside the new one.
+_Avoid_: Grace period, overlap, TTL
 
 **Resource**:
 A claimable thing work can state a demand on, named in the directory like a team: a host's

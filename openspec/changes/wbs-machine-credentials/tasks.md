@@ -1,0 +1,195 @@
+## 0. Dany reads A9 to A20
+
+- [ ] 0.1 Dany confirms or amends design.md A9 to A20, in particular A12 (the credential
+      acts as the pinned person's bound account, scopes capped), A10 (headless machines
+      outside the credential rules) and A20 (how a consent credential is minted, carried
+      and ended). Slice 1 may proceed on A9, A13, A14 and A15; slice 2 waits for A12; slice
+      3 waits for A20; slice 5 waits for A16.
+
+## 1. Schema and the verification path, API keys first
+
+- [ ] 1.1 Migration `add_machine_credential`: `machine_credential`,
+      `machine_credential_secret`, `organization_trusted_issuer` with the per-source CHECKs,
+      the partial unique pair index, the unique digest, indexes by organization and person,
+      the `issued_by` and `mcp_family_id` columns,
+      and a `down.sql` refusing while any credential or trusted issuer exists — test:
+      `machine-credential-migration.db.test.ts` forward, back and the refusal with one row;
+      negative: drop the guard and the rollback silently deletes credentials; watched.
+- [ ] 1.2 Red: `machine-credential.test.ts` in `@wbs/domain` for the pure admission decision
+      over a presented token kind (`api_key` digest, configured-issuer pair, trusted-issuer
+      pair, delegation with a credential), the matching rows, now, revocation and secret expiry: answer the principal
+      (account, capped scopes, organization, pin) or `unknown_identity` — test: one case per
+      refusal and per source, a property that a revoked credential is never admitted
+      whatever its secrets' expiries, and the two-organizations-one-issuer case.
+- [ ] 1.3 Green: store port `MachineCredentials` (SQLite and memory, conformance suite):
+      `byDigest`, `byPair`, `touchLastUsed` (coarse to 60 s). Negative: remove the
+      `revoked_at IS NULL` predicate from `byDigest` and the revoked-key case passes;
+      watched, restored, `Proof:` adjacent.
+- [ ] 1.4 Verification path step 1 (A13) in `middleware/authenticated.ts` and
+      `authentication.feature.ts`: `wbs_mk_` prefix routes to the digest lookup and never to
+      the JWT verifier; the principal carries the direct organization context; `resolve`
+      scopes it — test: `machine-credential.controller.db.test.ts` admits a live key to its
+      organization's projects only, refuses a revoked key `401 unknown_identity`, and
+      `GET /api/organization/members` answers `403 insufficient_scope`; negative: let a
+      `wbs_mk_` token fall through to the JWT verifier and the mounted test observes a JWT
+      parse error instead of `unknown_identity`; watched.
+- [ ] 1.5 Credential rules (A10): a machine principal passes enforced SSO and the session
+      policy — test: `organization-credential-rules.controller.db.test.ts` admits a machine
+      key under an enforcing organization and under a session policy; negative: feed the
+      machine principal through the upstream rule and the enforcing case answers
+      `sso_required`; watched.
+- [ ] 1.6 Claim pin and account: the admitted principal's `pinnedPersonId` reaches
+      `decideClaim`, `person.account_id` is the actor — test: the claims controller test
+      with a machine key: accepted for the pinned person and a delegated claim under its
+      subtree claim, `credential_not_for_person` otherwise; negative: drop the pin from the
+      principal and the cross-person claim passes; watched.
+
+## 2. Admin routes and audit
+
+- [ ] 2.1 Audit vocabulary widening: migration `widen_organization_audit_machine_credentials`
+      (compatible table rebuild, precedent `20261012090200`), `ORGANIZATION_AUDIT_ACTIONS`
+      and subject kinds, `down.sql` refusing while a new-action row exists — test:
+      `machine-credential-audit-migration.db.test.ts` forward, the outgoing release's
+      `restricted_project_recovery` write, an unknown action refused, rollback refused over
+      one row; negative: replace the guard CHECK with `CHECK (1)` and `migration-lint.test.ts`
+      reports the destructive statement; watched.
+- [ ] 2.2 Red: endpoint shapes in `@wbs/contracts` (`/api/organization/machine-credentials`
+      list with `?personId=`, create, `:id/rotate`, `DELETE :id`) with the member policy of
+      A7 and refusal bodies; OpenAPI
+      emit diff; MCP tool count moves by four — test: the shape tests and the emit golden.
+- [ ] 2.3 Green: create and list for `api_key` in `@wbs/core` and store-sqlite, one
+      transaction with the audit row naming the issuer, secret returned once, digest stored,
+      `name_taken`, `unknown_person`, `person_not_bound`, `account_not_member`, a member
+      accepted for their own agent and `403 forbidden` for a stranger's, a member's list
+      narrowed to their own agents, viewer `403 forbidden`, pre-activation
+      `no_active_organization` — test: `machine-credential-admin.controller.db.test.ts` for
+      each; negatives: write the audit row outside the transaction and the "audit cannot be
+      written" scenario stores a credential; drop the own-account predicate and the
+      stranger's-agent case creates; watched.
+- [ ] 2.4 Rotate and revoke (A11, A15), members for their own agents only: second secret, previous `expires_at = now + 24 h`,
+      `rotation_in_progress`, `rotation_at_issuer`, revoke ends both, `404 not_found` on a
+      stranger's or revoked credential — test: the two-secrets-then-one scenario with an
+      injected clock, revoke mid-window; negative: drop the `expires_at` predicate from
+      `byDigest` and the T0 + 25 h case admits the old secret; watched.
+- [ ] 2.5 Person usage: `pinnedCredentials` becomes `machineCredentials`; `deletePerson`
+      `in_use` and cascade; `patchPerson` unbind/rebind refused `in_use` — test: the
+      directory conformance cases updated and the rebind case added; negative: skip the
+      usage read on `patchPerson` and a bound person with a live credential is unbound;
+      watched.
+- [ ] 2.6 Last use: `touchLastUsed` once per minute per credential in the request path,
+      listed as `lastUsedAt` — test: two requests twenty seconds apart write once;
+      negative: make the write swallow its error and the "store read-only" case answers 200
+      with a stale list instead of a server error; watched.
+
+## 3. The MCP consent source (A8, A20)
+
+- [ ] 3.1 mcp-01 store migration `mcp_family_person`: nullable `act_as_person_id` and
+      `credential_id` on family and session, guarded `down.sql` refusing while any family
+      names a person — test: `store-migrations.test.ts` forward, back and the refusal;
+      negative: drop the guard and the rollback silently strips the person from live
+      families; watched.
+- [ ] 3.2 be-01 `POST /internal/mcp/organizations` answers `agents` per membership;
+      `POST /internal/mcp/credentials` mints an `mcp_consent` credential with its audit row
+      and refuses `person_not_bound` and `not_a_member`; shapes in `@wbs/contracts` — test:
+      `mcp-delegation.boot.db.test.ts` cases: agents listed only for the token's account,
+      a mint for a bound agent, a stranger's agent refused, a human person refused;
+      negative: drop the `account_id = userId` predicate and the stranger's agent mints;
+      watched.
+- [ ] 3.3 mcp-01 consent: the choice page offers "yourself" and each agent, shows for one
+      organization when agents exist, mints through 3.2 before the code, answers
+      `access_denied` on refusal and creates no family; the code, family and sessions
+      carry person and credential — test: `organization-delegation.test.ts` and
+      `oauth.test.ts`: choice rendered, agent chosen, refusal leaves no family, pre-activation
+      unchanged; negative: issue the code before the mint and the refused case redirects
+      with a code; watched.
+- [ ] 3.4 Delegation carries the person: `POST /internal/mcp/delegation` takes
+      `credentialId`, checks unrevoked, family match, bound, member, issues
+      `pinnedPersonId` with scopes narrowed to `read`/`write`; `POST /internal/mcp/authority`
+      answers revoked; A13 step 4 admits the delegation; mcp-01 ends the family on revoked
+      — test: `organization-delegation.boot.test.ts` end to end: a claim as the agent
+      accepted, another person `credential_not_for_person`, revoke then `401` and refresh
+      refused, `GET /api/organization/members` `403 insufficient_scope`; negative: skip the
+      revocation check at delegation issue and the revoked family's next call succeeds;
+      watched.
+- [ ] 3.5 Dev proof (not code): Dany signs in at the dev consent page with Google, chooses
+      `claire`, a tool call claims a step as `claire`, the credential is revoked on the
+      people page and the next tool call is refused; recorded in verify.md.
+
+## 4. Migration of operator links and the CLI's retirement
+
+- [ ] 4.1 Migration `copy_pinned_links_to_machine_credentials` (A18): every
+      `external_identity` row with `person_id` becomes an `auth0` credential of the person's
+      organization, named after the person, issued and created by the linked user; source rows kept;
+      `down.sql` refuses while a copied credential was rotated, revoked or used — test:
+      `pinned-link-copy-migration.db.test.ts` with two pinned rows and one browser pair:
+      two credentials, the browser pair untouched, rollback refused after one use; negative:
+      drop the `person_id IS NOT NULL` predicate and the browser pair becomes a credential;
+      watched.
+- [ ] 4.2 The verification path reads `machine_credential` only for groups-less tokens of
+      the configured issuer (A13 step 2); `readExistingOidcIdentity` no longer admits a
+      pinned link — test: `fleet-credential.controller.db.test.ts` rewritten: the
+      "pinned link that was not migrated" scenario answers `401 unknown_identity`, the
+      copied credential is admitted with capped scopes, the owner's row stays byte for
+      byte; negative: restore the link fallback and the not-migrated case passes; watched.
+- [ ] 4.3 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
+      `docs/auth-integration.md` "Fleet credentials" and `docs/runbook-prod-deploy.md`
+      "Fleet credential links" to the settings page and the swap window of A18; add the
+      `wbs_mk_` prefix to the `plaintext-secrets` hook — test: the hook's test with a
+      staged `wbs_mk_` literal exits 1; Burokrat `check-indexes` clean.
+- [ ] 4.4 Operator (not code): on dev, after the swap, confirm each fleet's credential in
+      the panel, rotate nothing, and record the applied state in puni-plan without secrets.
+
+## 5. The OIDC source and trusted issuers
+
+- [ ] 5.1 Red: trusted issuer routes (admin only) (`/api/organization/trusted-issuers` list, create,
+      `DELETE :id`) with discovery at registration (A16): `issuer_unreachable`,
+      `issuer_mismatch`, `issuer_reserved`, `issuer_not_oidc`, `sso_connection_unproven`,
+      `issuer_taken`, `in_use` on delete, audit rows — test:
+      `trusted-issuer.controller.db.test.ts` against a local discovery stub for each;
+      negative: skip the issuer-equality check and the disagreeing document registers;
+      watched.
+- [ ] 5.2 Verification path step 3 (A13): per-issuer cached JWKS verifier keyed by URL,
+      audience from the credential or the issuer's default, pair lookup within the trusted
+      issuer, `invalid_token` on a stranger issuer or an unfetchable key set, no fallback —
+      test: `oidc-credential.controller.db.test.ts` with a local signing issuer: admitted,
+      wrong audience refused, unknown subject `unknown_identity`, stranger issuer
+      `invalid_token` with zero fetches, JWKS 503 refused; negative: let a stranger `iss`
+      reach the configured verifier and the zero-fetch case fetches; watched. Property:
+      two organizations trusting one URL never admit each other's subjects.
+- [ ] 5.3 Create for `source: 'oidc'` (`trustedIssuerId`, `subject`, `audience`,
+      `unknown_trusted_issuer`, `subject_taken`); `rotation_at_issuer` — test: the admin
+      controller test cases; negative: drop the organization predicate from the trusted
+      issuer read and B's issuer serves A; watched.
+- [ ] 5.4 Dev proof (not code): a GitHub Actions workflow of a puni repository obtains an
+      OIDC token for audience `wbs`, is admitted on dev as its credential, and a claim as the
+      pinned person is accepted; recorded in verify.md with the subject redacted.
+
+## 6. The Auth0 source
+
+- [ ] 6.1 Create for `source: 'auth0'` (A19): `clientId` grammar, issuer from the
+      deployment's discovery, subject `<clientId>@clients`, `invalid_body` on an issuer in
+      the body, `subject_taken` — test: the admin controller test cases; negative: accept
+      the body's issuer and the "issuer in the body" case stores it; watched.
+- [ ] 6.2 Dev proof (not code): the two fleet applications' tokens are admitted as the
+      copied credentials, then one is revoked in the panel and its next request is
+      `401 unknown_identity`; recorded in verify.md with tokens redacted.
+
+## 7. The settings panel and the people page
+
+- [ ] 7.1 `machine-credentials-panel.tsx` composed by `organization-page.tsx` on
+      `@ui/core-01`/`@ui/saas-01`: loading, empty, rows, transport failure, modeled refusal,
+      secret-shown-once with dismiss, copy warning and focusable field, exact-id revoke,
+      serialized writes, no rotate control on `oidc`/`auth0`/`mcp_consent`, a member's
+      rows narrowed to their own agents, withdrawn with the page —
+      test: the panel's rendering tests mirrored from `provisioning-tokens-panel`; negative:
+      keep the secret in state across refresh and the "secret shown once, then gone" case
+      finds it rendered; watched.
+- [ ] 7.2 Trusted issuers section inside the same panel, admins only: register, list, remove with
+      `in_use` shown — test: rendering tests; eye review per the UI acceptance rule.
+- [ ] 7.3 People page: an agent row's credential count, the list with revoke under exact-id
+      confirmation, a member offered only their own agents' lists — test: the people page
+      rendering tests with an agent holding one consent credential; negative: offer the list
+      on a stranger's agent and the member case observes the request; watched.
+- [ ] 7.4 A viewer's page renders no panel and sends no credentials request — test: the
+      organization page test with a viewer role; negative: render the panel on the list
+      refusal and the case observes the request; watched.
