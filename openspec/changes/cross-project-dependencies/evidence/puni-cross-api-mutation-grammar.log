@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:
+48 |
+49 | it('refuses invalid manual input without writes', async () => {
+50 |   const project = await create();
+51 |   for (const abbreviation of ['', 'A'.repeat(21), '1A', '-A', '_A', 'A.B', ' A', 'é', 'ſ', 'A\0B', 'A\n']) {
+52 |     const before = snapshot();
+53 |     expect(await h.call('ada', 'PATCH', `/api/projects/${project.id}`, {abbreviation, name: 'Must not write'})).toEqual({status: 422, body: {error: 'invalid_abbreviation'}});
+                                                                                                                     ^
+error: expect(received).toEqual(expected)
+
+  {
+    "body": {
+-     "error": "invalid_abbreviation",
++     "project": {
++       "abbreviation": "PUN",
++       "createdAt": 1792619638657,
++       "depReach": "whole-item",
++       "estimateMethod": "pert",
++       "estimateRounding": "ceil",
++       "id": "dddb7af6-751d-4360-bc4d-7c95d7f123a8",
++       "name": "Must not write",
++       "optimizationEnabled": false,
++       "ownerId": "92cd87eb-493e-4b2b-9e1e-36b82b8f24c4",
++       "pertWeights": {
++         "optimistic": 1,
++         "pessimistic": 1,
++         "realistic": 4,
++       },
++       "restricted": false,
++       "revision": 1,
++       "scheduleEngine": "fast",
++       "scheduleObjective": "pri",
++       "solutionRef": null,
++       "startDate": null,
++       "timezone": "UTC",
++     },
+    },
+-   "status": 422,
++   "status": 200,
+  }
+
+- Expected  - 2
++ Received  + 24
+
+      at <anonymous> (/tmp/puni-cross-api/apps/wbs/be-01/src/controller/project-address.controller.db.test.ts:53:113)
+(fail) refuses invalid manual input without writes [536.83ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.64s]
