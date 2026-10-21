@@ -150,7 +150,12 @@ keys: `docs/auth-integration.md`, "MCP organization delegation".
 
 ## Durable sessions and key rotation
 
-`MCP_STORE_PATH` names the SQLite store. On dev it must be
+`MCP_STORE_PATH` names the SQLite store. It holds registered OAuth clients,
+refresh families and sessions, so a restart or deploy keeps every client's
+`client_id`; authorization codes, pending logins and organization choices are
+minutes-long and stay in memory. An unknown or expired `client_id` at
+`/mcp/oauth/authorize` answers `400 invalid_client` with an `error_description`
+asking the client to register again (`src/oauth.ts`). On dev it must be
 `/data/mcp-session.sqlite`, the path inside `wbs-dev-src` backed by the host's
 `/home/puni1/wbs-dev/data` mount; host paths are not visible inside the
 container. `MCP_STORE_KEY_CURRENT` is base64 for 32 random bytes.

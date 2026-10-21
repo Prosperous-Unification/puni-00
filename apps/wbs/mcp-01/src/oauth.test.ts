@@ -1,5 +1,5 @@
 import { createHash, generateKeyPairSync, type KeyObject, randomBytes } from 'node:crypto';
-import { existsSync, mkdtempSync, rmdirSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmdirSync, rmSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -3041,5 +3041,172 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     store.close();
 
     expect(refresh(oauth, tokens.refresh_token)).rejects.toThrow();
+  });
+});
+
+describe('registered clients across a restart', () => {
+  const INVALID_CLIENT = {
+    error: 'invalid_client',
+    error_description:
+      'client_id is not registered or has expired; register the client again and restart authorization',
+  };
+
+  /**
+   * A handler over one store file that `restart` closes and reopens, as each mcp-01 start opens
+   * MCP_STORE_PATH. Every start shares one clock, and ids are prefixed per start so a new
+   * process cannot reissue an id the store already holds.
+   */
+  function restartable(limits: Parameters<typeof fixture>[0] = {}) {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-oauth-clients-'));
+    const path = join(root, 'sessions.sqlite');
+    const key = Buffer.alloc(32, 13);
+    const signingKeys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    let store = new McpSessionStore(path, [key]);
+    let elapsed = 0;
+    let starts = 0;
+    const start = () => {
+      starts += 1;
+      let issued = 0;
+      const prefix = `start-${String(starts)}`;
+      const handler = fixture({
+        ...limits,
+        signingKeys,
+        store,
+        random: () => {
+          issued += 1;
+          return `${prefix}-${String(issued)}`;
+        },
+      });
+      handler.advance(elapsed);
+      return handler;
+    };
+    let current = start();
+    return {
+      get oauth() {
+        return current.oauth;
+      },
+      restart: () => {
+        store.close();
+        store = new McpSessionStore(path, [key]);
+        current = start();
+      },
+      advance: (milliseconds: number) => {
+        elapsed += milliseconds;
+        current.advance(milliseconds);
+      },
+      close: () => {
+        store.close();
+        rmSync(root, { recursive: true, force: true });
+      },
+    };
+  }
+
+  it('authorizes and exchanges a code for a client registered before the restart', async () => {
+    const server = restartable();
+    const clientId = await register(server.oauth);
+    server.restart();
+
+    const verifier = 'v'.repeat(43);
+    const { response } = await completedAuthorization(server.oauth, verifier, clientId);
+    expect(response.status).toBe(302);
+    const code = new URL(response.headers.get('location') ?? '').searchParams.get('code');
+    expect((await tokenResponse(server.oauth, clientId, code ?? '', verifier)).status).toBe(200);
+    server.close();
+  });
+
+  it('answers invalid_client with a re-register hint for an unknown client_id', async () => {
+    const { oauth } = fixture();
+    const response = await oauth.response(new Request(authorizeUrl('never-registered')));
+
+    expect(response?.status).toBe(400);
+    expect(response?.headers.get('location')).toBeNull();
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+  });
+
+  it('answers invalid_client once an unproven client expires across a restart', async () => {
+    const server = restartable({ clientTtlMs: 1_000 });
+    const clientId = await register(server.oauth);
+    server.restart();
+    server.advance(1_001);
+
+    const response = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual(INVALID_CLIENT);
+    server.close();
+  });
+
+  it('keeps the request error for a malformed authorization of a registered client', async () => {
+    const { oauth } = fixture();
+    const clientId = await register(oauth);
+    const url = authorizeUrl(clientId);
+    url.searchParams.set('response_type', 'token');
+
+    const response = await oauth.response(new Request(url));
+    expect(response?.status).toBe(400);
+    expect(await response?.json()).toEqual({ error: 'invalid_request' });
+  });
+
+  it('counts clients registered before the restart against the global and source limits', async () => {
+    const global = restartable({ clientLimit: 1 });
+    await register(global.oauth);
+    global.restart();
+    expect((await registrationResponse(global.oauth, [CALLBACK], '203.0.113.9')).status).toBe(429);
+    global.close();
+
+    const perSource = restartable({ clientLimit: 3, clientSourceLimit: 1 });
+    expect((await registrationResponse(perSource.oauth, [CALLBACK], '203.0.113.1')).status).toBe(
+      201,
+    );
+    perSource.restart();
+    expect((await registrationResponse(perSource.oauth, [CALLBACK], '203.0.113.1')).status).toBe(
+      429,
+    );
+    expect((await registrationResponse(perSource.oauth, [CALLBACK], '203.0.113.2')).status).toBe(
+      201,
+    );
+    perSource.close();
+  });
+
+  it('keeps a promoted client proven and counted across the restart', async () => {
+    const server = restartable({
+      clientLimit: 4,
+      clientSourceLimit: 2,
+      provenClientSourceLimit: 1,
+    });
+    const proven = await promoteClient(server.oauth, '203.0.113.1');
+    server.restart();
+    server.advance(600_001);
+
+    expect((await server.oauth.response(new Request(authorizeUrl(proven))))?.status).toBe(302);
+    expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.1')).status).toBe(429);
+    expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.2')).status).toBe(201);
+    server.close();
+  });
+
+  it('deletes an expired client from the store when the next request sweeps', async () => {
+    const store = new McpSessionStore(':memory:', [randomBytes(32)]);
+    const { advance, oauth } = fixture({ clientTtlMs: 1_000, store });
+    await register(oauth);
+    advance(1_001);
+    await register(oauth);
+
+    expect(store.clientsFromSource('unknown', 0).map(({ clientId }) => clientId)).toEqual([
+      'random-2',
+    ]);
+    store.close();
+  });
+
+  it('keeps the absolute unproven lifetime an authorization extension stored before the restart', async () => {
+    const server = restartable();
+    const clientId = await register(server.oauth);
+    server.advance(400_000);
+    expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+    server.restart();
+    server.advance(200_000);
+    expect((await server.oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+    server.advance(600_001);
+    const expired = await server.oauth.response(new Request(authorizeUrl(clientId)));
+    expect(await expired?.json()).toEqual(INVALID_CLIENT);
+    server.close();
   });
 });

@@ -44,11 +44,31 @@ export interface FamilyRecord extends FamilyInput {
 }
 export class McpRefreshFamilyCorrupt extends Error {}
 
+/**
+ * A dynamically registered public OAuth client. `expiresAt` is the sliding lifetime cleanup
+ * enforces; `unprovenExpiresAt` caps how far authorization may extend a client that has not yet
+ * completed a token exchange (`proven`).
+ */
+export interface RegisteredClient {
+  readonly clientId: string;
+  readonly source: string;
+  readonly redirectUris: readonly string[];
+  readonly proven: boolean;
+  readonly expiresAt: number;
+  readonly unprovenExpiresAt: number;
+}
+
+/** The live clients a registration is admitted against: all of them, and its source's. */
+export interface ClientCensus {
+  readonly total: number;
+  readonly fromSource: readonly RegisteredClient[];
+}
+
 export type RefreshOutcome =
   | { readonly outcome: 'ok'; readonly family: FamilyRecord }
   | { readonly outcome: 'invalid' | 'reuse' };
 
-/** Durable, process-shared authority for MCP refresh families and sessions. */
+/** Durable, process-shared authority for MCP registered clients, refresh families and sessions. */
 export class McpSessionStore {
   private readonly db: Database;
 
@@ -353,6 +373,101 @@ export class McpSessionStore {
     return row === null ? null : this.familyOf(row);
   }
 
+  /**
+   * Registers the client `create` builds when `admits` accepts the census of clients live at
+   * `now`, under one IMMEDIATE transaction so two processes sharing the store (blue and green
+   * mid-swap) count each other's registrations. `create` runs only once admitted, so a refused
+   * registration consumes no client id.
+   *
+   * @returns the registered client, or `null` when `admits` refused.
+   */
+  admitClient(
+    source: string,
+    now: number,
+    admits: (census: ClientCensus) => boolean,
+    create: () => RegisteredClient,
+  ): RegisteredClient | null {
+    return this.db
+      .transaction(() => {
+        const total = this.db
+          .query<{ n: number }, [number]>(
+            'SELECT COUNT(*) AS n FROM mcp_client WHERE expires_at > ?',
+          )
+          .get(now)?.n;
+        if (total === undefined) throw new Error('MCP client count returned no row');
+        // Proof: 2026-10-21, a census of `total: 0` failed `counts clients registered before the
+        // restart against the global and source limits` and `refuses registration at capacity
+        // without evicting a live connector`; an empty `fromSource` failed the same restart case
+        // and `keeps a promoted client proven and counted across the restart` (oauth.test.ts).
+        if (!admits({ total, fromSource: this.clientsFromSource(source, now) })) return null;
+        const client = create();
+        // Proof: 2026-10-21, deleting every mcp_client row when the store opened made
+        // `authorizes and exchanges a code for a client registered before the restart`
+        // (oauth.test.ts) answer 400 instead of 302: the restart forgot the client (#607).
+        this.db
+          .query(
+            `INSERT INTO mcp_client (
+          client_id, source, redirect_uris, proven, expires_at, unproven_expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            client.clientId,
+            client.source,
+            JSON.stringify(client.redirectUris),
+            client.proven ? 1 : 0,
+            client.expiresAt,
+            client.unprovenExpiresAt,
+          );
+        return client;
+      })
+      .immediate();
+  }
+
+  /**
+   * The client registered as `clientId` and still live at `now`, or `null` when it was never
+   * registered here or has expired.
+   *
+   * @throws when the stored row is malformed; trusted state is never read as an absent client.
+   */
+  // Proof: 2026-10-21, dropping the `expires_at > ?` filter from this read, from
+  // `clientsFromSource` or from the census count, or turning `deleteExpiredClients` into a
+  // SELECT, each failed `keeps a registered client across a reopen until it expires`
+  // (store-migrations.test.ts).
+  client(clientId: string, now: number): RegisteredClient | null {
+    const row = this.db
+      .query('SELECT * FROM mcp_client WHERE client_id = ? AND expires_at > ?')
+      .get(clientId, now) as Row | null;
+    return row === null ? null : clientOf(row);
+  }
+
+  /** The clients registered from `source` and still live at `now`. */
+  clientsFromSource(source: string, now: number): RegisteredClient[] {
+    return (
+      this.db
+        .query('SELECT * FROM mcp_client WHERE source = ? AND expires_at > ?')
+        .all(source, now) as Row[]
+    ).map(clientOf);
+  }
+
+  /** Moves the client's sliding lifetime to `expiresAt`; a vanished client stays absent. */
+  extendClient(clientId: string, expiresAt: number): void {
+    this.db
+      .query('UPDATE mcp_client SET expires_at = ? WHERE client_id = ?')
+      .run(expiresAt, clientId);
+  }
+
+  /** Marks the client proven after a code exchange and gives it the active lifetime. */
+  promoteClient(clientId: string, expiresAt: number): void {
+    this.db
+      .query('UPDATE mcp_client SET proven = 1, expires_at = ? WHERE client_id = ?')
+      .run(expiresAt, clientId);
+  }
+
+  /** Deletes every client whose lifetime ended at or before `now`. */
+  deleteExpiredClients(now: number): void {
+    this.db.query('DELETE FROM mcp_client WHERE expires_at <= ?').run(now);
+  }
+
   /** Copies the family's binding and epoch; the insert trigger rejects a stale epoch. */
   private insertSession(jti: string, familyId: string, expiresAt: number): void {
     const inserted = this.db
@@ -527,6 +642,54 @@ function bindingOf(row: Row): { binding?: CredentialBinding } {
   )
     throw new Error('MCP family binding is malformed');
   return { binding: { organizationId, userId, issuer } };
+}
+
+/**
+ * Reads a stored client row. The table has no CHECK constraints, so this is where a malformed
+ * row (wrong types, an unparseable or empty redirect list, `proven` outside 0/1) refuses.
+ *
+ * @throws when any column is malformed.
+ */
+function clientOf(row: Row): RegisteredClient {
+  // Proof: 2026-10-21, dropping the `proven` and `expires_at` checks failed the `proven outside 0
+  // and 1` and `a text expiry` cases, dropping the redirect list checks failed the `empty
+  // redirect list` and `non-string redirect` cases, and swallowing the JSON error failed the
+  // `unparseable redirect_uris` case of `refuses a stored client with … instead of reading it
+  // as absent` (store-migrations.test.ts).
+  const clientId = row['client_id'];
+  const source = row['source'];
+  const encoded = row['redirect_uris'];
+  const proven = row['proven'];
+  const expiresAt = row['expires_at'];
+  const unprovenExpiresAt = row['unproven_expires_at'];
+  if (
+    typeof clientId !== 'string' ||
+    typeof source !== 'string' ||
+    typeof encoded !== 'string' ||
+    (proven !== 0 && proven !== 1) ||
+    typeof expiresAt !== 'number' ||
+    typeof unprovenExpiresAt !== 'number'
+  )
+    throw new Error(`MCP client row is malformed: ${String(clientId)}`);
+  let redirectUris: unknown;
+  try {
+    redirectUris = JSON.parse(encoded);
+  } catch (cause) {
+    throw new Error(`MCP client ${clientId} redirect_uris is not JSON`, { cause });
+  }
+  const uris = Array.isArray(redirectUris)
+    ? redirectUris.filter((uri): uri is string => typeof uri === 'string')
+    : [];
+  if (!Array.isArray(redirectUris) || uris.length === 0 || uris.length !== redirectUris.length)
+    throw new Error(`MCP client ${clientId} redirect_uris is not a list of strings`);
+  return {
+    clientId,
+    source,
+    redirectUris: uris,
+    proven: proven === 1,
+    expiresAt,
+    unprovenExpiresAt,
+  };
 }
 
 function digestOf(token: string): Buffer {

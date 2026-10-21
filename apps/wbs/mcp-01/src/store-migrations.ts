@@ -6,6 +6,8 @@ import refreshFamilyDown from '../drizzle/20260921090000_mcp_refresh_family/down
 import refreshFamilyUp from '../drizzle/20260921090000_mcp_refresh_family/migration.sql' with { type: 'text' };
 import credentialBindingDown from '../drizzle/20260927120000_mcp_credential_binding/down.sql' with { type: 'text' };
 import credentialBindingUp from '../drizzle/20260927120000_mcp_credential_binding/migration.sql' with { type: 'text' };
+import clientDown from '../drizzle/20261021120000_mcp_client/down.sql' with { type: 'text' };
+import clientUp from '../drizzle/20261021120000_mcp_client/migration.sql' with { type: 'text' };
 
 /**
  * One paired migration of the durable MCP store. `preflightDown` runs inside the rollback's
@@ -74,6 +76,7 @@ export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
     down: credentialBindingDown,
     preflightDown: preflightCredentialBindingDown,
   },
+  { name: '20261021120000_mcp_client', up: clientUp, down: clientDown },
 ];
 
 function sha256(text: string): string {
