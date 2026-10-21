@@ -11,15 +11,13 @@ import { recordExecution } from '../record-execution';
 import { recordOutcome } from '../record-outcome';
 import { retainManifest } from '../retain-manifest';
 import { executionCommandContract } from '../testing/execution-command-contract';
+import { executionContract } from '../testing/execution-contract';
+import { executionEdgeContract } from '../testing/execution-edge-contract';
 import { createExecutionCommand } from '../testing/fixtures';
 import { FixtureClock } from '../testing/fixtures';
 import { createCompletion, createManifest, prepareAttempt, unwrapReply } from '../testing/fixtures';
-import { outcomeCollisionContract } from '../testing/outcomes-contract';
-import {
-  executionContract,
-  executionEdgeContract,
-  outcomeContract,
-} from '../testing/outcomes-contract';
+import { outcomeCollisionContract } from '../testing/outcome-collision-contract';
+import { outcomeContract } from '../testing/outcomes-contract';
 import { verifiedOperationsContract } from '../testing/verified-operations-contract';
 import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
 

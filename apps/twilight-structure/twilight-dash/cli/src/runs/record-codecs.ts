@@ -279,6 +279,9 @@ export function decodeAttempt(value: unknown) {
   // Proof: bypassing attempt settled effect enforcement failed 'open rejects interrupted releasing capacity with unknown effect'.
   if ('quiescence' in state && state.quiescence.effect === 'unknown')
     throw new Error('corrupt unsettled attempt quiescence');
+  // Proof: removing settled operation binding failed 'open rejects interrupted quiescence bound to another operation'.
+  if ('quiescence' in state && state.quiescence.operationKey !== attempt.identity.operationKey)
+    throw new Error('corrupt attempt quiescence operation');
   return attempt;
 }
 export const decodeRunGuard = (value: unknown) => parseOrThrow(RunGuardCodec, value);

@@ -53,6 +53,14 @@ export function isExecuting(
     state.kind === 'unresolved'
   );
 }
+/** Applies one already-planned state transition to an attempt, preserving its immutable admission identity. */
+export function advanceAttempt(
+  attempt: Attempt,
+  state: AttemptState,
+  holdsCapacity: boolean,
+): Attempt {
+  return { ...attempt, state, holdsCapacity, revision: addInteger(attempt.revision, 1) };
+}
 /** Increments both revisions exactly once for an effective attempt transition. */
 export function changeAttempt(
   facts: AttemptFacts,
@@ -62,12 +70,7 @@ export function changeAttempt(
   return {
     kind: 'applied',
     value: {
-      attempt: {
-        ...facts.attempt,
-        state,
-        holdsCapacity,
-        revision: addInteger(facts.attempt.revision, 1),
-      },
+      attempt: advanceAttempt(facts.attempt, state, holdsCapacity),
       runRevision: addInteger(facts.run.revision, 1),
     },
   };
@@ -83,6 +86,16 @@ export function planExecution(
     return { kind: 'refused', reason: 'identity_conflict' };
   const conflict = checkAttempt(facts, guard);
   if (conflict !== undefined) return conflict;
+  const transition = planExecutionTransition(facts, fact);
+  // Proof: removing refusal propagation after pure transition extraction failed 'fresh illegal execution state remains a typed refusal after transition extraction'.
+  if (transition.kind === 'refused') return transition;
+  return changeAttempt(facts, transition.value, isExecuting(transition.value));
+}
+/** Plans only execution state consequences. It uses no ownership, clock or revision observations, allowing trusted historical replies to share the live transition rules. */
+export function planExecutionTransition(
+  facts: AttemptFacts,
+  fact: ExecutionFact,
+): StoreReply<AttemptState> {
   const state = facts.attempt.state;
   // Proof: bypassing execution state enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
   if (!isExecuting(state)) return { kind: 'refused', reason: 'state_conflict' };
@@ -99,7 +112,7 @@ export function planExecution(
       // Proof: bypassing claim state enforcement failed 'memory execution commands > execution command identities distinguish reattachment from original redelivery'.
       if (state.kind !== 'queued' || state.claim !== null)
         return { kind: 'refused', reason: 'state_conflict' };
-      return changeAttempt(facts, { kind: 'queued', claim: fact.claim }, true);
+      return { kind: 'applied', value: { kind: 'queued', claim: fact.claim } };
     case 'launch_recorded':
       // Proof: bypassing launch state enforcement failed 'memory execution > execution requires exact claim authority and matching operation'.
       if ((state.kind !== 'queued' && state.kind !== 'reconciling') || state.claim === null)
@@ -111,29 +124,26 @@ export function planExecution(
         (locator !== null && !equalRecords(locator, fact.locator))
       )
         return { kind: 'refused', reason: 'authority_conflict' };
-      return changeAttempt(
-        facts,
-        { kind: 'running', claim: fact.claim, locator: fact.locator },
-        true,
-      );
+      return {
+        kind: 'applied',
+        value: { kind: 'running', claim: fact.claim, locator: fact.locator },
+      };
     case 'recovery_required':
-      return changeAttempt(
-        facts,
-        { kind: 'reconciling', claim: state.claim, locator, reason: fact.reason },
-        facts.attempt.holdsCapacity,
-      );
+      return {
+        kind: 'applied',
+        value: { kind: 'reconciling', claim: state.claim, locator, reason: fact.reason },
+      };
     case 'unresolved':
-      return changeAttempt(
-        facts,
-        {
+      return {
+        kind: 'applied',
+        value: {
           kind: 'unresolved',
           claim: state.claim,
           locator,
           reason: fact.reason,
           evidence: fact.evidence,
         },
-        facts.attempt.holdsCapacity,
-      );
+      };
     case 'interrupted':
     case 'waiting':
       // Proof: bypassing execution quiescence operation enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
@@ -143,35 +153,32 @@ export function planExecution(
         // Proof: bypassing waiting quiescence enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
         if (state.claim === null || fact.quiescence.effect === 'unknown')
           return { kind: 'refused', reason: 'state_conflict' };
-        return changeAttempt(
-          facts,
-          {
+        return {
+          kind: 'applied',
+          value: {
             kind: 'waiting_for_person',
             claim: fact.claim,
             wait: fact.wait,
             quiescence: fact.quiescence,
           },
-          false,
-        );
+        };
       }
       // Proof: bypassing interruption unknown enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
       if (fact.quiescence.effect === 'unknown')
-        return changeAttempt(
-          facts,
-          {
+        return {
+          kind: 'applied',
+          value: {
             kind: 'unresolved',
             claim: state.claim,
             locator,
             reason: 'quiescence effect unknown',
             evidence: fact.quiescence.evidence,
           },
-          facts.attempt.holdsCapacity,
-        );
-      return changeAttempt(
-        facts,
-        { kind: 'interrupted', claim: state.claim, quiescence: fact.quiescence },
-        false,
-      );
+        };
+      return {
+        kind: 'applied',
+        value: { kind: 'interrupted', claim: state.claim, quiescence: fact.quiescence },
+      };
   }
 }
 

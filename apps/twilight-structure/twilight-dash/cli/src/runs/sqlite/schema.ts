@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
 
+import { readExecutions } from './read-executions';
 import { readOutcomes } from './read-outcomes';
 import {
   decodeAttemptRow,
   decodeCompletionRow,
-  decodeExecutionRow,
   decodeManifestRow,
   decodeMeta,
   decodeRunRow,
@@ -117,12 +117,12 @@ export function validateDatabase(database: Database): void {
     .map((row) => decodeAttemptRow(row).attempt);
   readOutcomes(database, attempts);
   for (const row of database.query('SELECT * FROM run_completion').all()) decodeCompletionRow(row);
-  for (const row of database
-    .query(
-      'SELECT e.*,a.run_id FROM run_execution e JOIN run_attempt a ON a.attempt_id=e.attempt_id',
-    )
-    .all())
-    decodeExecutionRow(row);
+  for (const attempt of attempts) {
+    const { run } = decodeRunRow(
+      database.query('SELECT * FROM run_record WHERE run_id=?').get(attempt.identity.runId),
+    );
+    readExecutions(database, run, attempt);
+  }
   const broken = database
     .query(
       `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') != (r.attempt_id IS NOT NULL)`,

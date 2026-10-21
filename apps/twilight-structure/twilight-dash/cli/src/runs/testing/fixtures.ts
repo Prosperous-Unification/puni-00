@@ -218,3 +218,11 @@ export function createExecutionCommand(
 ): ExecutionCommand {
   return { commandId: executionCommandId(commandId), fact };
 }
+
+export function createRunGuard(guard: AttemptGuard) {
+  return {
+    ownership: guard.ownership,
+    runId: guard.runId,
+    expectedRevision: guard.expectedRevision,
+  };
+}

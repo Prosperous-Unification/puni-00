@@ -1,13 +1,11 @@
 import { organizationId } from './record-codecs';
 import { executionCommandContract } from './testing/execution-command-contract';
+import { executionContract } from './testing/execution-contract';
+import { executionEdgeContract } from './testing/execution-edge-contract';
 import { FixtureClock } from './testing/fixtures';
 import { createMemoryStores } from './testing/memory-stores';
-import { outcomeCollisionContract } from './testing/outcomes-contract';
-import {
-  executionContract,
-  executionEdgeContract,
-  outcomeContract,
-} from './testing/outcomes-contract';
+import { outcomeCollisionContract } from './testing/outcome-collision-contract';
+import { outcomeContract } from './testing/outcomes-contract';
 import { verifiedOperationsContract } from './testing/verified-operations-contract';
 
 executionContract('memory execution', async () => {

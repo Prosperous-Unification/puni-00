@@ -1,5 +1,6 @@
 import { parseOrThrow, type } from '@shared/validation';
 
+import { advanceAttempt, isExecuting, planExecutionTransition } from '../plan-execution';
 import {
   assertInteger,
   attemptId,
@@ -9,8 +10,10 @@ import {
   decodeExecutionCommand,
   decodeManifest,
   decodeRun,
+  equalRecords,
   OwnershipStatusCodec,
 } from '../record-codecs';
+import type { Attempt, Run } from '../records';
 
 const MetaCodec = type({
   schema_version: 'number',
@@ -118,8 +121,8 @@ const ExecutionRowCodec = type({
   record: 'string',
   reply: 'string',
 });
-/** Decodes exact command identity and its original immutable reply independently of the attempt's later state. */
-export function decodeExecutionRow(input: unknown) {
+/** Decodes the physical identity and verifies the original reply against the actual predecessor and shared transition semantics. Historical state is never compared to current state. */
+export function decodeExecutionRow(input: unknown, run: Run, predecessor: Attempt) {
   const row = parseOrThrow(ExecutionRowCodec, input);
   const command = decodeExecutionCommand(JSON.parse(row.record));
   const reply = decodeAttempt(JSON.parse(row.reply));
@@ -132,5 +135,11 @@ export function decodeExecutionRow(input: unknown) {
     reply.identity.runId !== row.run_id
   )
     throw new Error('corrupt execution command identity');
+  const transition = planExecutionTransition({ run, attempt: predecessor }, command.fact);
+  // Proof: removing the named rejection for an impossible historical transition failed 'open rejects execution command and reply carrying another target projectId'.
+  if (transition.kind === 'refused') throw new Error('corrupt execution command transition');
+  const expected = advanceAttempt(predecessor, transition.value, isExecuting(transition.value));
+  // Proof: bypassing original reply/postcondition equality failed 'open rejects historical claim_acquired reply contradiction at $.state.claim.personId'.
+  if (!equalRecords(reply, expected)) throw new Error('corrupt execution command reply');
   return { command, reply };
 }

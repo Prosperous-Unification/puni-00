@@ -410,3 +410,45 @@ selection/import checks, full host gate, full repository/build acceptance, CI se
 migration lint, guarded live WBS integration and production deployment are unverified or
 not implemented here. Parent 6a.1–6a.2 remain unchecked. No second durable provider or
 coordinator readiness is claimed.
+
+### Storage Task 3 fix round 1
+
+Independent review of `93ad0e979` found two Important defects through focused public-path
+probes. Corrupting a settled attempt's quiescence operation allowed reopen and a retry of
+the original operation. Corrupting only a historical claim reply's person allowed reopen
+and an exact-command duplicate carrying the altered authority. Task 3 was not accepted.
+
+The shared attempt decoder now binds every quiescence operation to its attempt identity.
+SQLite history validation reconstructs each named attempt from its immutable admission
+fields and checks ordered command replies against the same pure transition function used
+by live execution. It consumes no fabricated owner or clock. Current-owner validation still
+precedes historical target reads for mutations. Historical replies are checked against their
+own transitions, never against the attempt's later state. Task 4 must incorporate persisted
+decision-consumption provenance into this validation rather than bypassing revision gaps.
+The 802-line shared contract was split into four cohesive groups without removing cases.
+
+The new corruption/reopen/replay suite first observed **57 failed rejection assertions**;
+a separate portable terminal case also failed. I1's ten operation-binding cases then passed.
+The full integrity suite passed 66 cases after I2, including seven legitimate historical
+reply/reopen cases and a query-dependency fault omitting required history. A final typed-
+refusal routing regression brought the new file to 67 cases. Contradictions cover all fact
+variants, preserved claim/locator, evidence/wait fields, immutable attempt metadata and
+command/reply pairs naming a different project or work item.
+
+Five new-check fault cases each failed their intended explicit assertions on the first
+attempt: quiescence operation binding, historical postcondition equality, impossible
+historical transition rejection, required history presence and live typed-refusal routing.
+Exact mutations/argv/logs are in `/tmp/task3-fix1-faults/summary.json`; no attempts were
+discarded in this round and the earlier 75-case sweep was not rerun or recounted. Every
+fault was restored before final checks. The transition proof checks its named error cause
+so an incidental TypeError is insufficient; the live-refusal proof requires no throw.
+
+The same source-subtree command recorded above passed **245 tests, 0 failures, 661 assertions
+across ten files in 8.40s**. Uncached `twilight-dash:typecheck` and `twilight-dash:lint` passed
+in 2.0s and 18.3s. Formatting and whitespace checks passed. An initial direct ESLint autofix
+reported a test-only unnecessary index null check; the fixture now searches by attempt
+identity, and the final named checks passed. Logs are `/tmp/task3-fix1-final-{tests,typecheck,lint}.log`.
+
+Scoped re-review is pending. These checks detect contradictory retained records and local
+target identities; they do not attest against coherent replacement of the entire database.
+All full-gate, live integration, Task 4/5 and coordinator-readiness limitations above remain.

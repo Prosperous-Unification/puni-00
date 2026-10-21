@@ -26,13 +26,9 @@ import {
 import type { Ownership, OwnershipStatus, Run } from '../records';
 import type { RunStore, StoreReply } from '../run-store';
 import { createSqliteArtifactStore } from './artifact-store';
+import { findExecution } from './read-executions';
 import { readOutcomes } from './read-outcomes';
-import {
-  decodeAttemptRow,
-  decodeExecutionRow,
-  decodeManifestRow,
-  decodeRunRow,
-} from './row-codecs';
+import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { readMeta } from './schema';
 
@@ -330,16 +326,8 @@ export function createSqliteRunStore(
         // Proof: bypassing recordExecution owner sqlite enforcement failed 'sqlite execution commands > execution command identities distinguish reattachment from original redelivery'.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
-        const previous = database
-          .query(
-            'SELECT e.*,a.run_id FROM run_execution e JOIN run_attempt a ON a.attempt_id=e.attempt_id WHERE command_id=?',
-          )
-          .get(command.commandId);
-        const replay = replayExecution(
-          previous === null ? undefined : decodeExecutionRow(previous),
-          guard,
-          command,
-        );
+        const previous = findExecution(database, command.commandId);
+        const replay = replayExecution(previous, guard, command);
         if (replay !== undefined) return finish(replay, authority.observedAt);
         const { run } = requireRun(guard.runId);
         const row = database

@@ -1,0 +1,370 @@
+import { doesNotReject, rejects } from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { Database } from 'bun:sqlite';
+import { expect, test } from 'bun:test';
+
+import { attemptId, decodeAttempt, decodeExecutionFact, organizationId } from '../record-codecs';
+import { recordOutcome } from '../record-outcome';
+import type { ExecutionCommand, ExecutionFact } from '../records';
+import {
+  createCompletion,
+  createExecutionCommand,
+  FixtureClock,
+  prepareAttempt,
+  unwrapReply,
+} from '../testing/fixtures';
+import { bootstrapSqliteStores, openSqliteStores } from './open-stores';
+
+async function createFixture() {
+  const directory = mkdtempSync(join(tmpdir(), 'run-execution-integrity-'));
+  const clock = new FixtureClock();
+  const options = {
+    path: join(directory, 'store.sqlite'),
+    organizationId: organizationId('organization'),
+    capacity: 1,
+    leaseMilliseconds: 100,
+    clock,
+    maxBusyAttempts: 2,
+    busyDelayMilliseconds: 1,
+  };
+  const stores = await bootstrapSqliteStores(options);
+  const setup = await prepareAttempt({ ...stores, clock });
+  const database = new Database(options.path);
+  const claimCommand = createExecutionCommand(
+    { kind: 'claim_acquired', claim: setup.claim },
+    'claim-command',
+  );
+  const locator = {
+    version: 1 as const,
+    workerId: 'worker',
+    sessionId: 'session',
+    operationKey: setup.admission.identity.operationKey,
+  };
+  const launchCommand = createExecutionCommand(
+    { kind: 'launch_recorded', claim: setup.claim, locator },
+    'launch-command',
+  );
+  const wait = {
+    version: 1 as const,
+    correlationKey: 'question',
+    prompt: setup.quiescence.evidence,
+    choices: ['yes', 'no'],
+  };
+  async function record(command: ExecutionCommand) {
+    return unwrapReply(await stores.runs.recordExecution(await setup.currentGuard(), command));
+  }
+  return {
+    ...setup,
+    stores,
+    database,
+    options,
+    claimCommand,
+    launchCommand,
+    wait,
+    record,
+    close() {
+      database.close();
+      stores.close();
+      rmSync(directory, { recursive: true });
+    },
+  };
+}
+function hasCause(message: string) {
+  return (cause: unknown) =>
+    cause instanceof Error && cause.cause instanceof Error && cause.cause.message.includes(message);
+}
+
+for (const kind of ['interrupted', 'waiting', 'outcome'] as const)
+  for (const operation of ['open', 'read', 'admit'] as const)
+    test(`${operation} rejects ${kind} quiescence bound to another operation`, async () => {
+      const setup = await createFixture();
+      try {
+        await setup.record(setup.claimCommand);
+        if (kind === 'outcome')
+          unwrapReply(
+            await recordOutcome(
+              setup.runs,
+              setup.artifacts,
+              await setup.currentGuard(),
+              createCompletion(setup.claim, setup.quiescence),
+            ),
+          );
+        else
+          await setup.record(
+            createExecutionCommand(
+              kind === 'interrupted'
+                ? { kind, quiescence: setup.quiescence }
+                : decodeExecutionFact({
+                    kind,
+                    claim: setup.claim,
+                    wait: setup.wait,
+                    quiescence: setup.quiescence,
+                  }),
+            ),
+          );
+        const guard = await setup.currentGuard();
+        setup.database.run(
+          "UPDATE run_attempt SET record=json_set(record,'$.state.quiescence.operationKey','other-operation')",
+        );
+        if (kind === 'outcome')
+          setup.database.run(
+            "UPDATE run_completion SET record=json_set(record,'$.quiescence.operationKey','other-operation')",
+          );
+        const before = {
+          attempts: setup.database.query('SELECT * FROM run_attempt').all(),
+          runs: setup.database.query('SELECT * FROM run_record').all(),
+          reservations: setup.database.query('SELECT * FROM run_reservation').all(),
+        };
+        if (operation === 'open') {
+          setup.stores.close();
+          await rejects(
+            openSqliteStores(setup.options),
+            hasCause('corrupt attempt quiescence operation'),
+          );
+        } else if (operation === 'read')
+          await rejects(setup.runs.readRun(guard.runId), /corrupt attempt quiescence operation/);
+        else
+          await rejects(
+            setup.runs.admitAttempt(
+              {
+                ownership: guard.ownership,
+                runId: guard.runId,
+                expectedRevision: guard.expectedRevision,
+              },
+              { ...setup.admission, attemptId: attemptId('retry'), ordinal: 2 },
+            ),
+            /corrupt attempt quiescence operation/,
+          );
+        expect({
+          attempts: setup.database.query('SELECT * FROM run_attempt').all(),
+          runs: setup.database.query('SELECT * FROM run_record').all(),
+          reservations: setup.database.query('SELECT * FROM run_reservation').all(),
+        }).toEqual(before);
+      } finally {
+        setup.close();
+      }
+    });
+
+const replyFaults = [
+  ['claim_acquired', '$.state.claim.personId', 'different-person'],
+  ['launch_recorded', '$.state.claim.personId', 'different-person'],
+  ['launch_recorded', '$.state.locator.sessionId', 'different-session'],
+  ['recovery_required', '$.state.reason', 'different-reason'],
+  ['recovery_required', '$.state.claim.personId', 'different-person'],
+  ['recovery_required', '$.state.locator.sessionId', 'different-session'],
+  ['unresolved', '$.state.reason', 'different-reason'],
+  ['unresolved', '$.state.evidence.byteLength', 999],
+  ['unresolved', '$.state.claim.personId', 'different-person'],
+  ['interrupted', '$.state.quiescence.observedAt', 1001],
+  ['interrupted', '$.state.quiescence.effect', 'absent'],
+  ['interrupted', '$.state.claim.personId', 'different-person'],
+  ['waiting', '$.state.wait.correlationKey', 'different-question'],
+  ['waiting', '$.state.wait.prompt.byteLength', 999],
+  ['waiting', '$.state.wait.choices[0]', 'different-choice'],
+  ['waiting', '$.state.claim.personId', 'different-person'],
+  ['unknown', '$.state.reason', 'different-reason'],
+  ['unknown', '$.state.evidence.byteLength', 999],
+  ['claim_acquired', '$.identity.operationKey', 'different-operation'],
+  ['claim_acquired', '$.identity.occurrenceId', 'different-occurrence'],
+  ['claim_acquired', '$.ordinal', 2],
+  ['claim_acquired', '$.admittedEpoch', 2],
+  ['claim_acquired', '$.revision', 2],
+] as const;
+async function recordVariant(
+  setup: Awaited<ReturnType<typeof createFixture>>,
+  kind: (typeof replyFaults)[number][0],
+) {
+  const claimed = await setup.record(setup.claimCommand);
+  if (kind === 'claim_acquired') return { command: setup.claimCommand, reply: claimed };
+  const launched = await setup.record(setup.launchCommand);
+  if (kind === 'launch_recorded') return { command: setup.launchCommand, reply: launched };
+  const claim = setup.claim;
+  const fact: ExecutionFact = decodeExecutionFact(
+    kind === 'recovery_required'
+      ? { kind, reason: 'recovering' }
+      : kind === 'unresolved'
+        ? { kind, reason: 'unknown effect', evidence: setup.quiescence.evidence }
+        : kind === 'waiting'
+          ? { kind, claim, wait: setup.wait, quiescence: setup.quiescence }
+          : {
+              kind: 'interrupted',
+              quiescence: {
+                ...setup.quiescence,
+                effect: kind === 'unknown' ? 'unknown' : 'failed',
+              },
+            },
+  );
+  const command = createExecutionCommand(fact, 'observed-command');
+  const reply = await setup.record(command);
+  return { command, reply };
+}
+for (const [kind, path, replacement] of replyFaults)
+  for (const operation of ['open', 'replay'] as const)
+    test(`${operation} rejects historical ${kind} reply contradiction at ${path}`, async () => {
+      const setup = await createFixture();
+      try {
+        const { command } = await recordVariant(setup, kind);
+        const guard = await setup.currentGuard();
+        const before = await setup.runs.readRun(guard.runId);
+        setup.database
+          .query('UPDATE run_execution SET reply=json_set(reply,?,?) WHERE command_id=?')
+          .run(path, replacement, command.commandId);
+        if (operation === 'open') {
+          setup.stores.close();
+          await rejects(
+            openSqliteStores(setup.options),
+            hasCause('corrupt execution command reply'),
+          );
+        } else {
+          await rejects(
+            setup.runs.recordExecution(guard, command),
+            /corrupt execution command reply/,
+          );
+          expect(await setup.runs.readRun(guard.runId)).toEqual(before);
+        }
+      } finally {
+        setup.close();
+      }
+    });
+
+for (const field of ['projectId', 'workItemId'] as const)
+  test(`open rejects execution command and reply carrying another target ${field}`, async () => {
+    const setup = await createFixture();
+    try {
+      await setup.record(setup.claimCommand);
+      setup.database
+        .query(
+          'UPDATE run_execution SET record=json_set(record,?,?),reply=json_set(reply,?,?) WHERE command_id=?',
+        )
+        .run(
+          `$.fact.claim.${field}`,
+          'different-target',
+          `$.state.claim.${field}`,
+          'different-target',
+          setup.claimCommand.commandId,
+        );
+      setup.stores.close();
+      await rejects(
+        openSqliteStores(setup.options),
+        hasCause('corrupt execution command transition'),
+      );
+    } finally {
+      setup.close();
+    }
+  });
+
+test('portable terminal decoding binds quiescence to its attempt operation', async () => {
+  const setup = await createFixture();
+  try {
+    const attempt = (await setup.runs.readRun(setup.run.runId)).attempts.find(
+      (candidate) => candidate.attemptId === setup.admission.attemptId,
+    );
+    if (attempt === undefined) throw new Error('fixture attempt missing');
+    const completion = createCompletion(setup.claim, setup.quiescence);
+    expect(() =>
+      decodeAttempt({
+        ...attempt,
+        holdsCapacity: false,
+        state: {
+          kind: 'terminal',
+          claim: setup.claim,
+          outcome: completion.outcome,
+          receipt: {
+            version: 1,
+            commandId: completion.intent.commandId,
+            commandDigest: completion.intent.commandDigest,
+            authority: setup.claim,
+            acceptedWbsRevision: 'accepted',
+            evidence: setup.quiescence.evidence,
+          },
+          quiescence: { ...completion.quiescence, operationKey: 'other-operation' },
+        },
+      }),
+    ).toThrow('corrupt attempt quiescence operation');
+  } finally {
+    setup.close();
+  }
+});
+
+for (const kind of [
+  'claim_acquired',
+  'launch_recorded',
+  'recovery_required',
+  'unresolved',
+  'interrupted',
+  'waiting',
+  'unknown',
+] as const)
+  test(`historical ${kind} reply survives reopen and later state without becoming current state`, async () => {
+    const setup = await createFixture();
+    try {
+      const { command, reply } = await recordVariant(setup, kind);
+      const guard = await setup.currentGuard();
+      if (kind !== 'interrupted' && kind !== 'waiting')
+        unwrapReply(
+          await recordOutcome(
+            setup.runs,
+            setup.artifacts,
+            guard,
+            createCompletion(setup.claim, setup.quiescence),
+          ),
+        );
+      const current = await setup.runs.readRun(guard.runId);
+      setup.stores.close();
+      const reopened = await openSqliteStores(setup.options);
+      try {
+        expect(await reopened.runs.recordExecution(guard, command)).toEqual({
+          kind: 'duplicate',
+          value: reply,
+        });
+        expect(await reopened.runs.readRun(guard.runId)).toEqual(current);
+      } finally {
+        reopened.close();
+      }
+    } finally {
+      setup.close();
+    }
+  });
+
+test('replay rejects an indexed execution whose history read omits its required command', async () => {
+  const setup = await createFixture();
+  const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
+  if (descriptor === undefined) throw new Error('query descriptor absent');
+  const query = descriptor.value as Database['query'];
+  try {
+    await setup.record(setup.claimCommand);
+    const guard = await setup.currentGuard();
+    Object.defineProperty(Database.prototype, 'query', {
+      ...descriptor,
+      value(this: Database, sql: string) {
+        if (sql.includes("ORDER BY json_extract(e.reply,'$.revision')")) return { all: () => [] };
+        return query.call(this, sql);
+      },
+    });
+    await rejects(
+      setup.runs.recordExecution(guard, setup.claimCommand),
+      /corrupt missing execution command/,
+    );
+  } finally {
+    Object.defineProperty(Database.prototype, 'query', descriptor);
+    setup.close();
+  }
+});
+
+test('fresh illegal execution state remains a typed refusal after transition extraction', async () => {
+  const setup = await createFixture();
+  try {
+    await setup.record(setup.claimCommand);
+    const reply = setup.runs.recordExecution(
+      await setup.currentGuard(),
+      createExecutionCommand({ kind: 'claim_acquired', claim: setup.claim }, 'fresh-command'),
+    );
+    await doesNotReject(reply);
+    expect(await reply).toEqual({ kind: 'refused', reason: 'state_conflict' });
+  } finally {
+    setup.close();
+  }
+});
