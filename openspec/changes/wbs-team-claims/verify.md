@@ -676,3 +676,14 @@ with the findings it raised, in `openspec/changes/wbs-resources/verify.md`, "Swa
 and Dash suites passed, `GATE_EXIT=0`. That head contains slices 1–3, the slice 2 follow-ups, the
 whole-change follow-ups (PR #589) and `origin/main` at 0e8909294. This commit changes only
 verify.md.
+
+## MCP delegation packet (tasks 2.5 MCP half, 6.4, 6.6) — gate 2026-10-21
+
+- Head `47863f26770f4185a2d4878dc376d2d535a9fc68` (packet 0dcc31b64 merged with main 617beec66).
+- `bin/h2puni-gate.sh 47863f26770f4185a2d4878dc376d2d535a9fc68` from `/home/puni1/puni-00-gate-tbf`,
+  launched 2026-10-21T01:58:26Z, log `/home/puni1/gate-mcp-delegation.log`:
+  `h2puni gate: running on 47863f26770f4185a2d4878dc376d2d535a9fc68`, 178 ✔ tasks, no ✖,
+  `Successfully ran targets test, lint, typecheck, build for 47 projects and 7 tasks they depend on`,
+  `… for 2 projects and 3 tasks they depend on`, `lint:source twilight-burokrat`, `lint twilight-dash`,
+  `solver-image-smoke wbs-be-01`, `GATE_EXIT=0`.
+- Review: internal Fable adversarial review of 0dcc31b64, no S1/S2 (record on PR #602).

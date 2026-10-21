@@ -379,6 +379,10 @@ type BareRefusalCode =
   | 'onboarding_inactive'
   | 'context_inactive'
   | 'invalid_binding'
+  /** mcp-01 asked for a delegation the deployment cannot issue: no key pair (after activation). */
+  | 'delegation_inactive'
+  /** An MCP session's upstream token now resolves to another account than it was bound to. */
+  | 'binding_changed'
   | 'email_verification_required'
   | 'password_account_required'
   | 'address_conflict'

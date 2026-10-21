@@ -52,6 +52,11 @@ import {
 } from './invitation-shapes';
 import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
 import {
+  issueMcpDelegation,
+  listMcpOrganizations,
+  readMcpAuthority,
+} from './mcp-delegation-shapes';
+import {
   confirmEmailChallenge,
   createEmailChallenge,
   createOnboardingOrganization,
@@ -240,4 +245,7 @@ export const httpShapes = [
   resumeInternal,
   gatewayProjectAccess,
   gatewayBrowserProjectAccess,
+  listMcpOrganizations,
+  issueMcpDelegation,
+  readMcpAuthority,
 ] as const;

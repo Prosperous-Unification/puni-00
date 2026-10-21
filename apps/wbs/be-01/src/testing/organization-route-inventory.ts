@@ -519,6 +519,24 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
   },
   { operationId: 'postInternalResume', method: 'POST', path: '/internal/resume', kind: 'control' },
   {
+    operationId: 'postInternalMcpAuthority',
+    method: 'POST',
+    path: '/internal/mcp/authority',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpDelegation',
+    method: 'POST',
+    path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpOrganizations',
+    method: 'POST',
+    path: '/internal/mcp/organizations',
+    kind: 'control',
+  },
+  {
     operationId: 'putApiOrganizationSession-policy',
     method: 'PUT',
     path: '/api/organization/session-policy',
