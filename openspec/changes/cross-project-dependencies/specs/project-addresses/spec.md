@@ -157,3 +157,36 @@ A number held by multiple work items SHALL cause explicit resolution refusal wit
 
 - **WHEN** an observed project's effective numbers contain two holders of the requested number
 - **THEN** resolution refuses as ambiguous rather than choosing either holder
+
+### Requirement: Qualified resolution binds an observed project
+
+The new qualified resolver SHALL require the selected stable project ID and its observed qualified address revision. The qualified revision SHALL include the project abbreviation and the complete local address space. Existing local step-reference revision and outcome contracts SHALL remain unchanged. With a current observation, a mismatching qualified prefix or absent endpoint SHALL return generic not-found; a changed observation SHALL refuse as stale before resolving the endpoint.
+
+#### Scenario: Another project reuses an abbreviation
+
+- **WHEN** a selected project's abbreviation changes and another project takes its old abbreviation
+- **THEN** resolution with the original selected project ID and old observation refuses as stale
+- **AND** it never selects the new abbreviation holder
+
+#### Scenario: Legacy discovery has multiple holders
+
+- **WHEN** deployment-wide legacy read authority encounters the same abbreviation in different organizations
+- **THEN** discovery returns separate stable project choices
+- **AND** a consumer requires explicit project selection rather than choosing the first match or assuming one page proves uniqueness
+
+### Requirement: Address lookup uses coherent bounded observations
+
+Lookup SHALL capture current authorization and required selected-project address facts in one read snapshot, close it on success/refusal/failure, and perform no writes or optimization admission. Project discovery SHALL read no work-item trees. Candidate response limits SHALL count every whole, node and descendant-step option; missing required trusted metadata SHALL fail visibly. New page limits SHALL default to 25 and never exceed 200.
+
+#### Scenario: Step options exceed the page bound
+
+- **WHEN** a selected project has more whole and step options than the requested page size
+- **THEN** the combined candidate count is bounded by that size
+- **AND** its address revision includes placements and ordered steps outside the page, including uncoded steps
+
+#### Scenario: Cursor is reused outside its observation
+
+- **WHEN** a cursor is reused for a different query, access namespace, selected project or operation kind
+- **THEN** lookup refuses as invalid query without widening read authority
+- **AND WHEN** an endpoint page's address meaning changes
+- **THEN** continuation refuses as stale rather than silently restarting the page

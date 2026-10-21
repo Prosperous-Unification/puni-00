@@ -343,6 +343,40 @@ unavailable and require an explicit endpoint selection. Use qualified labels
 on chips/cards and a navigation affordance instead of drawing an arrow to a row
 which is not present in the current Gantt.
 
+The additive lookup operations are `GET /api/project-addresses/projects`,
+`GET /api/projects/:id/address-candidates` and
+`GET /api/projects/:id/address-references`. The selected path ID is the observed
+stable project identity; resolution never follows an abbreviation to a different
+holder. Existing local `/step-references` and its `ar1` contract stay unchanged.
+New candidate and resolution operations use `qar1:` plus the injected SHA-256
+of `JSON.stringify(['qar1', projectId, abbreviation,
+describeAddressSpace(projectId, space)])`. Parse syntax before comparing the
+revision; compare revision before resolving a changed prefix. Missing endpoints
+or a current prefix mismatch return generic 404; stale observations return 409;
+malformed, parent-step or ambiguous/alias-mismatched references return typed 422.
+
+Discovery and candidates default to 25 entries, at most 200. Discovery has no
+work-item reads and uses scoped SQL keyset chunks ordered by abbreviation/ID.
+A safe SQL superset followed by the existing exact name predicate preserves
+non-ASCII name matching without claiming SQLite performs Unicode case folding.
+Empty or non-letter-leading discovery returns an empty external page after
+admission and query validation. Selected-project queries may be empty/numeric.
+Candidate pages count whole, leaf-node and parent descendant-step options under
+one bound; uncoded and parent-step candidates have no textual reference.
+Minimal complete placements and ordered steps of the selected project are
+captured once for derived numbering and revision, then iterated lazily.
+
+A dedicated authorized read snapshot binds access, required abbreviation
+metadata and selected-project facts, and closes on every outcome. No scheduler,
+optimizer admission or write belongs in lookup. Versioned cursors bind the
+normalized query and server-derived access namespace through the injected digest;
+endpoint cursors also bind project ID and qualified revision. Wrong bindings or
+impossible coordinates refuse as invalid query; changed address meaning refuses
+as stale. Cursor contents confer no authority. Legacy deployment-wide readers
+may see duplicate abbreviations from different organizations: return separate
+stable project choices and require explicit disambiguation, including checking
+continuation before treating an exact code match as unique.
+
 Keep pure abbreviation/address parsing and connected graph/scheduling
 derivation in `libs/wbs/domain/domain`. Add narrow application capture/search
 ports and orchestration beside `dependency-graph.ts` and `shared-people.ts` in
