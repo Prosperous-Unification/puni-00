@@ -80,7 +80,11 @@
 - [ ] 4.1 Directory: one team per fleet, persons of kind `agent` for each superagent and
       worker bound to Dany's account, one linked and pinned credential per fleet,
       `setCapacity` per fleet on the project — recorded as the applied batch and its answer.
+      (2026-10-21: teams, bound agent persons and capacities applied on dev, see verify.md
+      "Dev dispatch"; the linked credentials wait for the Auth0 M2M apps.)
 - [ ] 4.2 Label the subtrees each fleet works in (advisory); each superagent claims its
       subtree; claim the 42 orphan in-progress steps for their known holders from puni-plan.
+      (2026-10-21: labels, Claire's subtree claim on 070 and the two leaf claims with known
+      holders applied on dev; the other orphan steps have no known holder and stay adoptable.)
 - [ ] 4.3 Replace the branch-prefix contract with the WBS-native one (puni-plan,
       `fleets/coordination-contract-v2.md`) and tell both fleets.

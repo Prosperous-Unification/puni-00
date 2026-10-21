@@ -706,3 +706,31 @@ be-01's `INTERNAL_AUTH_SECRET`, startup logs `organization_delegation: on`. As t
 an MCP session consented before activation is refused `403 no_active_organization` on every
 organization-bound call (observed on the headless wbs-dev session: `getApiOnboarding` answers
 `selection_required` with the one `default` membership); it must re-consent once.
+
+## Dev dispatch and the bound-claim proof (2026-10-21, operator run)
+
+Through the wbs-dev MCP re-consented after activation (the pre-activation consent bound no
+organization and answered `403 no_active_organization`; the stale OAuth client id that mcp-01
+had forgotten on restart is issue #607). Project `558ec5c7`, all writes undoable.
+
+- **Binding is an admin act.** `patchPerson {accountId}` on an agent person → 200 as super-admin;
+  the same command from a member session answered `forbidden` the day before.
+- **A bound claim holds occupancy.** `claimWorkItem` on 070.03 with slots 1 / ram 4 / disk 3 and
+  `assign: true` → `acquired` lists all three; the startable read shows the two steps under
+  `claimed` with holder, assignee and run, and `resources` slots 1/2, ram 4/8, disk 3/30; the
+  by-person work read lists both assignments and both claims.
+- **Exhaustion refuses and names holders.** Capacity of ram lowered to 4, then the same claim on
+  060.06.4 → `409 resources_exhausted {asked: 4, free: 0, holders: [070.03's holder]}`; the
+  startable read moved 060.06.4 to `doesNotFit` with `shortfall: 4`. Capacity restored, 060.06.4
+  claimed (slots 2/2, ram 8/8); a third slot claim refused on slots naming both holders.
+- **Release frees.** `releaseWorkItem` both → `claimed: []`, occupancy 0 on every resource.
+- **Observed, per spec, worth knowing:** release leaves the progress a claim stated and the
+  assignments `assign: true` wrote in place (only undo removes them); the proof reverted them with
+  `clearProgress` and `setAssignee null`.
+- **Dispatch.** Two fleet teams with `setCapacity 2`, four agent persons bound to the operator's
+  account, advisory labels on 070 / 060.06 (Claire) and 010 / 080 (Claude Code), a subtree claim
+  on 070, a delegated claim on 070.03 Impl under it and a claim on 060.06.4 Impl; both leaf claims
+  acquired the leaves' declared demands with no `resources` given. The team-filtered startable
+  read lists the allotment with `teams` naming the label's source row and `subtreeClaim` naming the
+  superagent on every 070 leaf. Ids and the full record: puni-plan
+  `fleets/coordination-contract-v2.md` §12.
