@@ -8,7 +8,7 @@ through roughly twenty merged PRs.
 
 **Everything below was read at exactly `origin/main` =
 `2bec392baf5398e52edf46f8e93dabd89f30e0fe`** ("Merge pull request #605 from
-`feat/ansible-gate-host`"). The WBS side was read in read-only mode over SSH against
+`feat/ansible-gate-host`"). The WBS side was read over SSH against
 `/home/puni1/wbs-dev/data/wbs.db` with `bun:sqlite` in readonly mode. **Nothing
 was written to the WBS store** — mcp-01 advertises only `authorization_code` and
 `refresh_token`, with no `client_credentials` grant
@@ -69,7 +69,7 @@ private `puni-pr-00` `origin/main` =
 | 060.05.4         | `blocked`         | `puni-website-funnel/{tasks,verify}.md` section 6.1–6.3 remains unchecked; the WBS row carries `hold=blocked` pending the 30-day Funnel-panel baseline.                                                                                                                                                                                                                                                                                              | no live owner PR                                                 |
 | 060.06.2         | `blocked`         | `website-request-retention-lifecycle/{tasks,verify}.md`: 2.2 and 4.1–4.3 remain open; migration 010 exists, but the external activation/head witness and restore drill do not.                                                                                                                                                                                                                                                                       | #292/#318 merged; component PRs closed; no live successor owner  |
 | 060.06.5         | `needs-dany`      | `puni-website-funnel/{tasks,verify}.md` 5.1–5.5 remain unchecked. Task 5.1 explicitly requires provider/privacy approval and a dedicated key with a $100/month ceiling; merged #329/#348 covers the guardrails half only.                                                                                                                                                                                                                            | no live owner PR                                                 |
-| 060.10           | `needs-dany`      | Public/private website `{tasks,verify}.md` leave publication work unchecked while private evidence proves filtered approved-post publication. #338/#348 and private #47/#49 delivered three `approved:false` drafts and the response-time guard; approval and dates remain Dany-only.                                                                                                                                                                | no live implementation owner PR                                  |
+| 060.10           | `needs-dany`      | Public `puni-website-funnel/{tasks,verify}.md` and private `puni-website-prototype/{tasks,verify}.md` leave publication work unchecked while private evidence proves filtered approved-post publication. #338/#348 and private #47/#49 delivered three `approved:false` drafts and the response-time guard; approval and dates remain Dany-only.                                                                                                     | no live implementation owner PR                                  |
 | 060.11           | `done-on-main`    | Private `puni-website-prototype/{tasks,verify}.md` leaves 0.1–0.4 unchecked, but `verify.md` records 13 portability tests, bidirectional clean-copy checks and the governed baseline. Public #277/#336 and private main contain the companion and contract. This is a checkbox/tree contradiction.                                                                                                                                                   | private main owns it; no competing owner PR                      |
 | 070.02           | `done-on-main`    | `enroll-existing-hosts/{tasks,verify}.md`: #568 proves the named host registration. Tasks 8/8c and six absent operator Secrets block the broader production graph, not the h4claw registration item; the WBS note is stale.                                                                                                                                                                                                                          | no live owner PR                                                 |
 | 070.03           | `done-on-main`    | Same pair: #567/#572 prove the named h3mon registration, resize, reboot persistence and service probes. Tasks 8/8c and six operator Secrets remain a separate activation blocker; the WBS note is stale.                                                                                                                                                                                                                                             | no live owner PR                                                 |
@@ -291,12 +291,12 @@ upstream issue #46970 is open.
 Each has live other-fleet branches at the pinned sha; dispatching any of them
 would duplicate work in flight.
 
-| item                                  | owning change                                                               | open there | other fleet's open PRs                     |
-| ------------------------------------- | --------------------------------------------------------------------------- | ---------- | ------------------------------------------ |
-| 010.4.13.3 step nodes, later stages   | `set-step-node-parallelism`, `add-step-node-blocking`, `step-node-attempts` | —          | #408, #411, #494                           |
-| 010.5.4 organisations, roles, invites | `organization-ownership-and-access`                                         | 22         | #407, #413                                 |
-| 080.25 Twilight Navigator             | `progress-receipt-authority`                                                | 7 of 7     | #441, #601                                 |
-| 080.39 scenario/coverage ledgers      | `test-axes`                                                                 | 17         | #419–#423, #426; #574 merged as `3d00159d` |
+| item                                  | owning change                                                               | open there | other fleet's open PRs |
+| ------------------------------------- | --------------------------------------------------------------------------- | ---------- | ---------------------- |
+| 010.4.13.3 step nodes, later stages   | `set-step-node-parallelism`, `add-step-node-blocking`, `step-node-attempts` | —          | #408, #411, #494       |
+| 010.5.4 organisations, roles, invites | `organization-ownership-and-access`                                         | 22         | #407, #413             |
+| 080.25 Twilight Navigator             | `progress-receipt-authority`                                                | 7 of 7     | #441                   |
+| 080.39 scenario/coverage ledgers      | `test-axes`                                                                 | 17         | #414, #419–#423, #426  |
 
 080.39's WBS `readiness` is literally `ready`, which is how this one would trap
 a fleet reading the plan alone. 080.25 additionally needs Dany: the adopted
