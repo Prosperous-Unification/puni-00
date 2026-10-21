@@ -1,7 +1,9 @@
 # Current findings
 
-These payloads are routed from `LLM_README.md` at `7ab67cb0b6d843eca87f587124c0f3c0fbd35e67`; update their
-status here so the root router stays stable.
+These blocks were routed from `LLM_README.md` at `7ab67cb0b6d843eca87f587124c0f3c0fbd35e67` and
+[`root-migration.v1.json`](root-migration.v1.json) pins each one byte-for-byte, so they cannot be
+edited in place. Their R5 count of 27 is the [inherited catalogue's](checks-that-cannot-fail.md#r5-catalogue-heading);
+[the puni-00 continuation](checks-that-cannot-fail-puni-00.md) carries the running total.
 
 <a id="router-landmines-heading"></a>
 <!-- root-source:router.landmines.heading -->

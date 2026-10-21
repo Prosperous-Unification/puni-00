@@ -1,7 +1,5 @@
 # LLM_README — read this, then only the doc your task needs
 
-**Active handoff (TASK-568, `task-568-release-rollback`):** private PRs #54–#56 are merged green; the compatible live rollback and final re-pin succeeded, and exact fleet/release evidence is in `openspec/changes/puni-website-funnel/verify.md`.
-
 **puni-00** — Prosperous Unification's monorepo ([wiki](docs/wiki/README.md)). [Twilight Structure](docs/twilight-structure/README.md) is the tool suite (Navigator plans, Dash executes, Burokrat rules) under the product code-named Vesper Shipyards: [names and boundaries](docs/twilight-structure/names.md).
 WBS: `be-01` (Elysia+Drizzle+bun:sqlite, :3100), `gw-01` (WS, :3200),
 `fe-01` (Vite+React, :80 image/:4200 dev), `mcp-01` (Streamable HTTP MCP over be-01, default :3300). Nx and Bun; never npm.
@@ -66,20 +64,16 @@ git push && ./bin/dev-deploy.sh     # from h1claw, seconds
 ```
 
 One container, `wbs-dev-src`, runs all three tiers from a bind-mounted checkout via
-`bun run dev`. **Pending the attended repository cutover in
-`openspec/changes/dev-deploy-from-puni-00`,** the h2puni poller will follow puni-00 `main`, record a
-commit as deployed only after `/health` proves that checkout commit, and retry incomplete sync or
-proof work on later ticks until it succeeds. **For
-application code the watchers are the deploy** — nothing is built, pushed or restarted. The
+`bun run dev`. The h2puni poller follows puni-00 `main`, records a commit as deployed only after
+`/health` proves that checkout commit, and retries incomplete sync or proof work on later ticks
+until it succeeds. **For application code the watchers are the deploy** — nothing is built, pushed or restarted. The
 lockfile, migrations, and config read once at startup trigger a restart; a changed `compose.yml`
 or `Dockerfile` fails the deploy with the command that applies it. Dev has **no edge password**
 since 2026-08-06 — be-01 and gw-01 guard themselves, and account registration is open to the
 internet.
 
-**Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.**
-
-**What dev no longer proves.** The blue/green swap, health gate, Caddy repoint and smoke test
-used to run on dev before prod; they no longer do. Run a prod dry-run before any prod deploy.
+**Which changes reach a running process, and which do not: `docs/runbook-dev-deploy.md`.** Dev no
+longer rehearses the prod swap (runbook, _What dev no longer proves_): run a prod dry-run before any prod deploy.
 
 ### prod — image-based, blue/green
 
