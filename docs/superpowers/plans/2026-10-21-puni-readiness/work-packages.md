@@ -428,7 +428,7 @@ Assistant-specific tool/cost abuse is additionally proved by W24/W25.
 
 **Work:** second-consumer contract/extraction and adoption. **Start from:**
 [provider-agnostic auth](../../../../openspec/changes/provider-agnostic-oidc-auth/tasks.md),
-[WBS adapter](../../../../libs/wbs/adapters/auth),
+[WBS adapter](../../../../libs/wbs/adapters/auth/src/index.ts),
 [authentication module](../../../../libs/wbs/application/core/src/module/authentication/README.md),
 [auth integration](../../../auth-integration.md).
 
@@ -491,7 +491,7 @@ the index. W21 measures delivery effect; smaller files alone do not prove speed.
 ### W21 — Measure parallel-agent delivery and set supported concurrency
 
 **Work:** benchmark, bounded bottleneck correction and supported-capacity decision. **Start from:**
-[experiment accounting](../../../../apps/twilight-structure/twilight-burokrat/cli/src/experiments),
+[experiment accounting](../../../../apps/twilight-structure/twilight-burokrat/cli/src/experiments/accounting.ts),
 [fixed corpus](../../../experiment-evidence/fixed-benchmark-corpus.v1.json),
 [lane lessons](../../../2026-08-30-agent-loop-audit.md),
 [factory scaling contract](../../../../openspec/changes/twilight-control-plane/tasks.md).
