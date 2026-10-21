@@ -3,7 +3,15 @@ import { readFileSync } from 'node:fs';
 
 import { Database } from 'bun:sqlite';
 
-import { decodeAttemptRow, decodeManifestRow, decodeMeta, decodeRunRow } from './row-codecs';
+import { readOutcomes } from './read-outcomes';
+import {
+  decodeAttemptRow,
+  decodeCompletionRow,
+  decodeExecutionRow,
+  decodeManifestRow,
+  decodeMeta,
+  decodeRunRow,
+} from './row-codecs';
 
 export const SCHEMA_VERSION = 1;
 export const MIGRATION = readFileSync(
@@ -103,7 +111,18 @@ export function validateDatabase(database: Database): void {
     throw new Error('corrupt sqlite foreign key references');
   for (const row of database.query('SELECT * FROM run_manifest').all()) decodeManifestRow(row);
   for (const row of database.query('SELECT * FROM run_record').all()) decodeRunRow(row);
-  for (const row of database.query('SELECT * FROM run_attempt').all()) decodeAttemptRow(row);
+  const attempts = database
+    .query('SELECT * FROM run_attempt')
+    .all()
+    .map((row) => decodeAttemptRow(row).attempt);
+  readOutcomes(database, attempts);
+  for (const row of database.query('SELECT * FROM run_completion').all()) decodeCompletionRow(row);
+  for (const row of database
+    .query(
+      'SELECT e.*,a.run_id FROM run_execution e JOIN run_attempt a ON a.attempt_id=e.attempt_id',
+    )
+    .all())
+    decodeExecutionRow(row);
   const broken = database
     .query(
       `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') != (r.attempt_id IS NOT NULL)`,

@@ -14,6 +14,10 @@ export type PersonId = typeof codecs.PersonIdCodec.infer;
 export type AgentRunId = typeof codecs.AgentRunIdCodec.infer;
 export type ManifestDigest = typeof codecs.ManifestDigestCodec.infer;
 export type ArtifactDigest = typeof codecs.ArtifactDigestCodec.infer;
+export type ExecutionCommandId = typeof codecs.ExecutionCommandIdCodec.infer;
+export type CommandId = typeof codecs.CommandIdCodec.infer;
+export type CorrelationKey = typeof codecs.CorrelationKeyCodec.infer;
+export type DecisionId = typeof codecs.DecisionIdCodec.infer;
 export type Revision = number;
 export type Epoch = number;
 export type Ordinal = number;
@@ -76,9 +80,117 @@ export interface ClaimAuthority {
   readonly workItemId: WorkItemId;
   readonly occurrenceId: OccurrenceId;
 }
-export interface AttemptState {
-  readonly kind: 'queued';
-  readonly claim: ClaimAuthority | null;
+export interface Locator {
+  readonly version: 1;
+  readonly workerId: string;
+  readonly sessionId: string;
+  readonly operationKey: OperationKey;
+}
+export interface Quiescence {
+  readonly version: 1;
+  readonly operationKey: OperationKey;
+  readonly observedAt: Timestamp;
+  readonly evidence: ArtifactRef;
+  readonly effect: 'absent' | 'succeeded' | 'failed' | 'unknown';
+}
+export interface HumanWait {
+  readonly version: 1;
+  readonly correlationKey: CorrelationKey;
+  readonly prompt: ArtifactRef;
+  readonly choices: readonly string[];
+}
+export interface AttemptOutcome {
+  readonly version: 1;
+  readonly kind: 'succeeded' | 'failed' | 'cancelled';
+  readonly artifacts: readonly ArtifactRef[];
+  readonly summary: string;
+}
+export interface ProgressIntent {
+  readonly version: 1;
+  readonly commandId: CommandId;
+  readonly authority: ClaimAuthority;
+  readonly expectedWbsRevision: string;
+  readonly outcome: AttemptOutcome;
+  readonly commandDigest: ArtifactDigest;
+}
+export interface CommandReceipt {
+  readonly version: 1;
+  readonly commandId: CommandId;
+  readonly commandDigest: ArtifactDigest;
+  readonly authority: ClaimAuthority;
+  readonly acceptedWbsRevision: string;
+  readonly evidence: ArtifactRef;
+}
+export interface Decision {
+  readonly version: 1;
+  readonly decisionId: DecisionId;
+  readonly attemptId: AttemptId;
+  readonly correlationKey: CorrelationKey;
+  readonly choice: string;
+  readonly actorId: PersonId;
+  readonly authorizationEvidence: ArtifactRef;
+}
+export type AttemptState =
+  | { readonly kind: 'queued'; readonly claim: ClaimAuthority | null }
+  | { readonly kind: 'running'; readonly claim: ClaimAuthority; readonly locator: Locator }
+  | {
+      readonly kind: 'reconciling';
+      readonly claim: ClaimAuthority | null;
+      readonly locator: Locator | null;
+      readonly reason: string;
+    }
+  | {
+      readonly kind: 'unresolved';
+      readonly claim: ClaimAuthority | null;
+      readonly locator: Locator | null;
+      readonly reason: string;
+      readonly evidence: ArtifactRef;
+    }
+  | {
+      readonly kind: 'interrupted';
+      readonly claim: ClaimAuthority | null;
+      readonly quiescence: Quiescence;
+    }
+  | {
+      readonly kind: 'waiting_for_person';
+      readonly claim: ClaimAuthority;
+      readonly wait: HumanWait;
+      readonly quiescence: Quiescence;
+    }
+  | {
+      readonly kind: 'outcome_pending_progress';
+      readonly claim: ClaimAuthority;
+      readonly outcome: AttemptOutcome;
+      readonly commandId: CommandId;
+      readonly quiescence: Quiescence;
+    }
+  | {
+      readonly kind: 'terminal';
+      readonly claim: ClaimAuthority;
+      readonly outcome: AttemptOutcome;
+      readonly receipt: CommandReceipt;
+      readonly quiescence: Quiescence;
+    };
+export type ExecutionFact =
+  | { readonly kind: 'claim_acquired'; readonly claim: ClaimAuthority }
+  | { readonly kind: 'launch_recorded'; readonly claim: ClaimAuthority; readonly locator: Locator }
+  | { readonly kind: 'recovery_required'; readonly reason: string }
+  | { readonly kind: 'unresolved'; readonly reason: string; readonly evidence: ArtifactRef }
+  | { readonly kind: 'interrupted'; readonly quiescence: Quiescence }
+  | {
+      readonly kind: 'waiting';
+      readonly claim: ClaimAuthority;
+      readonly wait: HumanWait;
+      readonly quiescence: Quiescence;
+    };
+export interface ExecutionCommand {
+  readonly commandId: ExecutionCommandId;
+  readonly fact: ExecutionFact;
+}
+export interface Completion {
+  readonly outcome: AttemptOutcome;
+  readonly intent: ProgressIntent;
+  readonly quiescence: Quiescence;
 }
 export interface Attempt {
   readonly version: 1;
@@ -95,10 +207,14 @@ export interface Admission {
   readonly identity: ActivityIdentity;
   readonly ordinal: Ordinal;
 }
-/** Admission-only snapshot; execution/outbox/inbox records are added with their semantic operations. */
+/** Consistent run state and store-wide local capacity, independent of ownership. */
 export interface RunSnapshot {
   readonly version: 1;
   readonly run: Run;
   readonly attempts: readonly Attempt[];
+  readonly pendingIntents: readonly ProgressIntent[];
+  readonly receipts: readonly CommandReceipt[];
+  readonly decisions: readonly Decision[];
+  readonly consumedDecisionIds: readonly DecisionId[];
   readonly capacity: { readonly limit: number; readonly reserved: number };
 }

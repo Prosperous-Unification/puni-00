@@ -2,8 +2,11 @@ import { parseOrThrow, type } from '@shared/validation';
 
 import {
   assertInteger,
+  attemptId,
   decodeAdmission,
   decodeAttempt,
+  decodeCompletion,
+  decodeExecutionCommand,
   decodeManifest,
   decodeRun,
   OwnershipStatusCodec,
@@ -92,4 +95,42 @@ export function decodeAttemptRow(input: unknown) {
   )
     throw new Error('corrupt admission identity');
   return { attempt, admission };
+}
+
+const CompletionRowCodec = type({ command_id: 'string', attempt_id: 'string', record: 'string' });
+/** Keeps the immutable command identity independent of pending delivery state. */
+export function decodeCompletionRow(input: unknown) {
+  const row = parseOrThrow(CompletionRowCodec, input);
+  const completion = decodeCompletion(JSON.parse(row.record));
+  // Proof: bypassing completion physical command enforcement failed 'open identifies a physically relabeled completion before treating it as another pending command'.
+  if (
+    completion.intent.commandId !== row.command_id ||
+    completion.intent.authority.attemptId !== row.attempt_id
+  )
+    throw new Error('corrupt completion identity');
+  return { attemptId: attemptId(row.attempt_id), completion };
+}
+
+const ExecutionRowCodec = type({
+  command_id: 'string',
+  attempt_id: 'string',
+  run_id: 'string',
+  record: 'string',
+  reply: 'string',
+});
+/** Decodes exact command identity and its original immutable reply independently of the attempt's later state. */
+export function decodeExecutionRow(input: unknown) {
+  const row = parseOrThrow(ExecutionRowCodec, input);
+  const command = decodeExecutionCommand(JSON.parse(row.record));
+  const reply = decodeAttempt(JSON.parse(row.reply));
+  // Proof: bypassing execution physical command enforcement failed 'open rejects immutable execution command key corruption'.
+  // Proof: bypassing execution physical attempt enforcement failed 'open rejects immutable execution attempt key corruption'.
+  // Proof: bypassing execution physical run enforcement failed 'open rejects immutable execution run key corruption'.
+  if (
+    command.commandId !== row.command_id ||
+    reply.attemptId !== row.attempt_id ||
+    reply.identity.runId !== row.run_id
+  )
+    throw new Error('corrupt execution command identity');
+  return { command, reply };
 }

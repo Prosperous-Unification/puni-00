@@ -4,26 +4,52 @@ import { parseOrThrow, type } from '@shared/validation';
 
 import type { WallClock } from '../../clock';
 import {
+  referenceArtifact,
+  snapshotArtifactContent,
+  verifyArtifactContent,
+} from '../artifact-integrity';
+import type { ArtifactStore } from '../artifact-store';
+import {
   permitsMutation,
   planAdmission,
   planManifestRetention,
   planRunCreation,
 } from '../plan-admission';
+import {
+  type AttemptChange,
+  planExecution,
+  type RecordedExecution,
+  replayExecution,
+} from '../plan-execution';
+import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import {
   assertInteger,
   decodeAdmission,
+  decodeArtifactRef,
+  decodeAttemptGuard,
+  decodeCompletion,
+  decodeExecutionCommand,
   decodeManifest,
   decodeOwnership,
   decodeRun,
   decodeRunGuard,
+  equalRecords,
   manifestDigest,
   organizationId,
   ownerId,
   runId,
   storeId,
 } from '../record-codecs';
-import type { Admission, Attempt, Manifest, Ownership, OwnershipStatus, Run } from '../records';
+import type {
+  Admission,
+  ArtifactRef,
+  Attempt,
+  Manifest,
+  Ownership,
+  OwnershipStatus,
+  Run,
+} from '../records';
 import type { RunStore, StoreReply } from '../run-store';
 
 export interface MemoryOptions {
@@ -36,6 +62,7 @@ export interface MemoryOptions {
 /** Explicit test bootstrap. Synchronous planning and publication contain no await, so concurrent public calls observe an atomic view. */
 export function createMemoryStores(options: MemoryOptions): {
   runs: RunStore;
+  artifacts: ArtifactStore;
   ownership: OwnershipStatus;
   close(): void;
 } {
@@ -57,6 +84,9 @@ export function createMemoryStores(options: MemoryOptions): {
   };
   let isClosed = false;
   let reserved = 0;
+  const completions = new Map<string, RecordedCompletion>();
+  const executions = new Map<string, RecordedExecution>();
+  const blobs = new Map<string, { reference: ArtifactRef; content: Uint8Array }>();
   const manifests = new Map<Manifest['digest'], Manifest>();
   const runs = new Map<Run['runId'], Run>();
   const initialRuns = new Map<Run['runId'], Run>();
@@ -103,6 +133,13 @@ export function createMemoryStores(options: MemoryOptions): {
       status = { ...status, epoch: reply.value.epoch, owner: structuredClone(reply.value) };
     }
     return finishReply(reply, observedAt);
+  }
+  function applyChange(run: Run, previous: Attempt, change: AttemptChange): void {
+    // Proof: bypassing release only settled memory enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
+    // Proof: bypassing release settled memory enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
+    if (previous.holdsCapacity && !change.attempt.holdsCapacity) reserved -= 1;
+    attempts.set(change.attempt.attemptId, structuredClone(change.attempt));
+    runs.set(run.runId, { ...run, revision: change.runRevision });
   }
   const port: RunStore = {
     async acquireOwnership(identity, expectedEpoch) {
@@ -185,8 +222,74 @@ export function createMemoryStores(options: MemoryOptions): {
           attempts: [...attempts.values()].filter(
             (attempt) => attempt.identity.runId === run.runId,
           ),
+          pendingIntents: [...completions.values()]
+            .filter((entry) => entry.completion.intent.authority.runId === run.runId)
+            .map((entry) => entry.completion.intent),
+          receipts: [],
+          decisions: [],
+          consumedDecisionIds: [],
           capacity: { limit: capacity, reserved },
         }),
+      );
+    },
+    async commitOutcome(inputGuard, inputCompletion) {
+      const observedAt = observeClock();
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const completion = decodeCompletion(structuredClone(inputCompletion));
+      const authority = readAuthority(guard.ownership, observedAt);
+      // Proof: bypassing commitOutcome owner memory enforcement failed 'memory execution edges > unresolved and recovery preserve the exact running locator and held reservation'.
+      if (!permitsMutation(authority))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const run = readRun(guard.runId);
+      const attempt = attempts.get(guard.attemptId);
+      // Proof: bypassing commitOutcome missing attempt memory enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
+      if (attempt === undefined) throw new Error('attempt does not exist');
+      const previous =
+        completions.get(completion.intent.commandId) ??
+        [...completions.values()].find((entry) => entry.attemptId === attempt.attemptId);
+      const reply = planOutcome(
+        { run, attempt: structuredClone(attempt), previous: structuredClone(previous) },
+        guard,
+        completion,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      if (reply.kind === 'applied') {
+        applyChange(run, attempt, reply.value);
+        completions.set(
+          completion.intent.commandId,
+          structuredClone({ attemptId: attempt.attemptId, completion }),
+        );
+      }
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
+      );
+    },
+    async recordExecution(inputGuard, inputCommand) {
+      const observedAt = observeClock();
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const command = decodeExecutionCommand(structuredClone(inputCommand));
+      const authority = readAuthority(guard.ownership, observedAt);
+      // Proof: bypassing recordExecution owner memory enforcement failed 'memory execution commands > execution command identities distinguish reattachment from original redelivery'.
+      if (!permitsMutation(authority))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const replay = replayExecution(
+        structuredClone(executions.get(command.commandId)),
+        guard,
+        command,
+      );
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const run = readRun(guard.runId);
+      const attempt = attempts.get(guard.attemptId);
+      // Proof: bypassing recordExecution missing attempt memory enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
+      if (attempt === undefined) throw new Error('attempt does not exist');
+      const reply = planExecution({ run, attempt: structuredClone(attempt) }, guard, command.fact);
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      if (reply.kind === 'applied') {
+        applyChange(run, attempt, reply.value);
+        executions.set(command.commandId, structuredClone({ command, reply: reply.value.attempt }));
+      }
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
       );
     },
     async admitAttempt(inputGuard, inputAdmission) {
@@ -234,8 +337,48 @@ export function createMemoryStores(options: MemoryOptions): {
       );
     },
   };
+  const artifacts: ArtifactStore = {
+    async retainArtifact(input, mediaType) {
+      assertOpen();
+      const content = snapshotArtifactContent(input);
+      const reference = referenceArtifact(content, mediaType);
+      const existing = blobs.get(reference.digest);
+      if (existing !== undefined) {
+        verifyArtifactContent(existing.content, existing.reference);
+        // Proof: bypassing artifact retain metadata memory enforcement failed 'memory artifacts > retains immutable bytes and refuses metadata collisions'.
+        if (!equalRecords(reference, existing.reference))
+          return await Promise.resolve({ kind: 'refused', reason: 'metadata_conflict' });
+        return await Promise.resolve({
+          kind: 'retained',
+          reference: structuredClone(existing.reference),
+        });
+      }
+      blobs.set(reference.digest, { reference: structuredClone(reference), content });
+      const retained = blobs.get(reference.digest);
+      // Proof: bypassing artifact readback memory enforcement failed 'memory retention requires readback after a failed map write'.
+      if (retained === undefined) throw new Error('artifact does not exist after retention');
+      verifyArtifactContent(retained.content, retained.reference);
+      return await Promise.resolve({
+        kind: 'retained',
+        reference: structuredClone(retained.reference),
+      });
+    },
+    async readArtifact(input) {
+      assertOpen();
+      const reference = decodeArtifactRef(structuredClone(input));
+      const retained = blobs.get(reference.digest);
+      // Proof: bypassing artifact missing memory enforcement failed 'memory artifacts > retains immutable bytes and refuses metadata collisions'.
+      if (retained === undefined) throw new Error('artifact does not exist');
+      verifyArtifactContent(retained.content, retained.reference);
+      // Proof: bypassing artifact read metadata memory enforcement failed 'memory artifacts > retains immutable bytes and refuses metadata collisions'.
+      if (!equalRecords(reference, retained.reference))
+        throw new Error('artifact metadata differs');
+      return await Promise.resolve(new Uint8Array(retained.content));
+    },
+  };
   return {
     runs: port,
+    artifacts,
     ownership: structuredClone(status),
     close: () => {
       isClosed = true;

@@ -141,8 +141,23 @@ export function planAdmission(
   );
   // Proof: bypassing contiguity failed the admission identity/budget/ordinal test with initial ordinal 2.
   if (admission.ordinal !== ordinal) return { kind: 'refused', reason: 'identity_conflict' };
-  // Proof: bypassing active-occurrence rejection failed the admission identity/budget/ordinal test by admitting a queued predecessor's retry.
-  if (history.length > 0) return { kind: 'refused', reason: 'attempt_active' };
+  const predecessor = history.reduce<Attempt | undefined>(
+    (latest, candidate) =>
+      latest === undefined || candidate.ordinal > latest.ordinal ? candidate : latest,
+    undefined,
+  );
+  if (predecessor !== undefined) {
+    const state = predecessor.state;
+    // Proof: bypassing retry predecessor enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
+    // Proof: bypassing retry settled effect enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
+    if (
+      (state.kind !== 'interrupted' &&
+        !(state.kind === 'terminal' && state.outcome.kind === 'failed')) ||
+      predecessor.holdsCapacity ||
+      (state.quiescence.effect !== 'absent' && state.quiescence.effect !== 'failed')
+    )
+      return { kind: 'refused', reason: 'attempt_active' };
+  }
   // Proof: bypassing capacity comparison made `capacity one admits exactly one concurrent run without changing the loser` admit both runs.
   if (facts.capacity.reserved >= facts.capacity.limit)
     return { kind: 'refused', reason: 'capacity_full' };

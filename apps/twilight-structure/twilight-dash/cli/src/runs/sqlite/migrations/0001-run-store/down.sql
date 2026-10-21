@@ -1,3 +1,7 @@
+DROP TABLE run_outbox;
+DROP TABLE run_completion;
+DROP TABLE run_execution;
+DROP TABLE run_artifact;
 DROP INDEX run_active_occurrence;
 DROP TABLE run_reservation;
 DROP TABLE run_attempt;

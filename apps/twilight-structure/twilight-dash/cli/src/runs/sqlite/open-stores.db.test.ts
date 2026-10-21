@@ -243,7 +243,7 @@ test('migration down pair removes exactly the provider schema', async () => {
       database
         .query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'run_%'")
         .all(),
-    ).toHaveLength(5);
+    ).toHaveLength(9);
   } finally {
     database.close();
   }

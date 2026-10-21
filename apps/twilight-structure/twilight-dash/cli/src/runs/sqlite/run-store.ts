@@ -1,15 +1,21 @@
 import type { Database } from 'bun:sqlite';
 
 import type { WallClock } from '../../clock';
+import type { ArtifactStore } from '../artifact-store';
 import {
   permitsMutation,
   planAdmission,
   planManifestRetention,
   planRunCreation,
 } from '../plan-admission';
+import { type AttemptChange, planExecution, replayExecution } from '../plan-execution';
+import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
 import {
   decodeAdmission,
+  decodeAttemptGuard,
+  decodeCompletion,
+  decodeExecutionCommand,
   decodeOwnership,
   decodeRun,
   decodeRunGuard,
@@ -17,9 +23,17 @@ import {
   ownerId,
   runId,
 } from '../record-codecs';
-import type { Ownership, OwnershipStatus } from '../records';
+import type { Ownership, OwnershipStatus, Run } from '../records';
 import type { RunStore, StoreReply } from '../run-store';
-import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
+import { createSqliteArtifactStore } from './artifact-store';
+import { readOutcomes } from './read-outcomes';
+import {
+  decodeAttemptRow,
+  decodeExecutionRow,
+  decodeManifestRow,
+  decodeRunRow,
+} from './row-codecs';
+import { decodeCompletionRow } from './row-codecs';
 import { readMeta } from './schema';
 
 export interface TransactionOptions {
@@ -65,7 +79,7 @@ function rollback(database: Database, cause: unknown): void {
 export function createSqliteRunStore(
   database: Database,
   options: TransactionOptions,
-): { runs: RunStore; close(): void } {
+): { runs: RunStore; artifacts: ArtifactStore; close(): void } {
   let queue = Promise.resolve();
 
   async function transact<T>(write: boolean, operation: () => T): Promise<T> {
@@ -77,6 +91,7 @@ export function createSqliteRunStore(
       for (let attempt = 1; attempt <= options.maxBusyAttempts; attempt += 1) {
         try {
           // Proof: bypassing write BEGIN/COMMIT left a durable attempt after the real reservation-abort trigger; the rollback test expected no rows.
+          // Proof: bypassing write BEGIN/COMMIT before the injected outbox abort failed 'outbox abort rolls back outcome revisions and capacity before reopen then commits both together'.
           database.run(write ? 'BEGIN IMMEDIATE' : 'BEGIN');
           const value = operation();
           database.run('COMMIT');
@@ -155,6 +170,20 @@ export function createSqliteRunStore(
     if (row === null || !Number.isSafeInteger(row.count) || row.count < 0 || row.count > limit)
       throw new Error('corrupt sqlite capacity reservations');
     return { limit, reserved: row.count };
+  }
+  function applyChange(run: Run, change: AttemptChange): void {
+    database
+      .query('UPDATE run_attempt SET record=? WHERE attempt_id=?')
+      .run(JSON.stringify(change.attempt), change.attempt.attemptId);
+    database
+      .query('UPDATE run_record SET record=? WHERE run_id=?')
+      .run(JSON.stringify({ ...run, revision: change.runRevision }), run.runId);
+    // Proof: bypassing release only settled sqlite enforcement failed 'sqlite execution > unknown effects and takeover retain capacity until determinate quiescence'.
+    // Proof: bypassing release settled sqlite enforcement failed 'sqlite execution > unknown effects and takeover retain capacity until determinate quiescence'.
+    if (!change.attempt.holdsCapacity)
+      database
+        .query('DELETE FROM run_reservation WHERE attempt_id=?')
+        .run(change.attempt.attemptId);
   }
   const runs: RunStore = {
     acquireOwnership(identity, expectedEpoch) {
@@ -246,7 +275,93 @@ export function createSqliteRunStore(
           .query('SELECT * FROM run_attempt WHERE run_id=? ORDER BY occurrence_id,ordinal')
           .all(run.runId)
           .map((row) => decodeAttemptRow(row).attempt);
-        return { version: 1, run, attempts, capacity: readCapacity(readMeta(database).capacity) };
+        return {
+          version: 1,
+          run,
+          attempts,
+          pendingIntents: readOutcomes(database, attempts),
+          receipts: [],
+          decisions: [],
+          consumedDecisionIds: [],
+          capacity: readCapacity(readMeta(database).capacity),
+        };
+      });
+    },
+    async commitOutcome(inputGuard, inputCompletion) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const completion = decodeCompletion(structuredClone(inputCompletion));
+      return await transact(true, () => {
+        const { authority } = readAuthority(guard.ownership);
+        // Proof: bypassing commitOutcome owner sqlite enforcement failed 'sqlite execution edges > unresolved and recovery preserve the exact running locator and held reservation'.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const { run } = requireRun(guard.runId);
+        const row = database
+          .query('SELECT * FROM run_attempt WHERE attempt_id=?')
+          .get(guard.attemptId);
+        // Proof: bypassing commitOutcome missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
+        if (row === null) throw new Error('attempt does not exist');
+        const { attempt } = decodeAttemptRow(row);
+        const previous = database
+          .query(
+            'SELECT * FROM run_completion WHERE command_id=? OR attempt_id=? ORDER BY command_id',
+          )
+          .all(completion.intent.commandId, attempt.attemptId)
+          .map(decodeCompletionRow);
+        const reply = planOutcome({ run, attempt, previous: previous[0] }, guard, completion);
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        if (reply.kind === 'applied') {
+          applyChange(run, reply.value);
+          database
+            .query('INSERT INTO run_completion(command_id,attempt_id,record) VALUES (?,?,?)')
+            .run(completion.intent.commandId, attempt.attemptId, JSON.stringify(completion));
+          database
+            .query('INSERT INTO run_outbox(command_id) VALUES (?)')
+            .run(completion.intent.commandId);
+        }
+        return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
+      });
+    },
+    async recordExecution(inputGuard, inputCommand) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const command = decodeExecutionCommand(structuredClone(inputCommand));
+      return await transact(true, () => {
+        const { authority } = readAuthority(guard.ownership);
+        // Proof: bypassing recordExecution owner sqlite enforcement failed 'sqlite execution commands > execution command identities distinguish reattachment from original redelivery'.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const previous = database
+          .query(
+            'SELECT e.*,a.run_id FROM run_execution e JOIN run_attempt a ON a.attempt_id=e.attempt_id WHERE command_id=?',
+          )
+          .get(command.commandId);
+        const replay = replayExecution(
+          previous === null ? undefined : decodeExecutionRow(previous),
+          guard,
+          command,
+        );
+        if (replay !== undefined) return finish(replay, authority.observedAt);
+        const { run } = requireRun(guard.runId);
+        const row = database
+          .query('SELECT * FROM run_attempt WHERE attempt_id=?')
+          .get(guard.attemptId);
+        // Proof: bypassing recordExecution missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
+        if (row === null) throw new Error('attempt does not exist');
+        const { attempt } = decodeAttemptRow(row);
+        const reply = planExecution({ run, attempt }, guard, command.fact);
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        if (reply.kind === 'applied') {
+          applyChange(run, reply.value);
+          database
+            .query('INSERT INTO run_execution(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+            .run(
+              command.commandId,
+              attempt.attemptId,
+              JSON.stringify(command),
+              JSON.stringify(reply.value.attempt),
+            );
+        }
+        return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
     admitAttempt(inputGuard, inputAdmission) {
@@ -308,6 +423,7 @@ export function createSqliteRunStore(
   };
   return {
     runs,
+    artifacts: createSqliteArtifactStore(database, transact),
     close() {
       database.close();
     },

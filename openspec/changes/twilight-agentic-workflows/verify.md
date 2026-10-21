@@ -343,3 +343,70 @@ logs, confirming that installed state is not repaired and extra rollback trigger
 usable. Storage Task 2 is accepted. Parent 6a.1–6a.2 and WBS durable-provider/conformance
 milestones remain in progress for artifacts, execution/outcomes, inbox/receipts and final
 provider-selection/aggregate acceptance. This is not coordinator readiness.
+
+### Storage Task 3 — artifact, execution and outcome candidate
+
+The candidate extends both providers with immutable artifacts, execution command history,
+and atomic completion/outbox writes. Verified application operations snapshot the guard
+and payload before awaiting artifact reads, then persist that same snapshot. Raw persistence
+ports require already verified references; byte integrity does not establish the truth of
+executor observations, authorization or physical quiescence.
+
+Pre-review design inspection identified two gaps addressed in this slice. Execution facts
+now carry explicit command identities: a fresh command can record a later reattachment to
+the same session, whereas an old command returns its original reply without rewinding
+current state. Expected revisions remain concurrency guards. Trusted attempt decoding now
+rejects potentially live states without capacity and settled states with unknown effects;
+seven valid-shaped corruptions first failed their public-reopen rejection assertions.
+
+| Command                                                                                                                   | Observed result                                      |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs --timeout=60000` | 178 pass, 0 fail, 613 assertions, 9 files, 7.12s     |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                            | Exit 0, 1.9s                                         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`                                 | Exit 0, 18.1s                                        |
+| Touched-source Prettier and `git diff --check`                                                                            | Exit 0                                               |
+| `bunx openspec validate twilight-agentic-workflows --json` after command-identity amendment                               | Valid, same seven existing long-requirement warnings |
+
+The R5 sweep retained **75 distinct fault cases from 79 invocations**. Each retained case
+has its exact mutation, command, intended failed test and assertion outcome in
+`/tmp/task3-faults/final-summary.json`, with individual logs in `/tmp/task3-faults/`.
+The implementer report and controller ledger live in the ignored
+`.superpowers/sdd/storage-tasks/` workspace. Adjacent source `Proof:` comments identify
+the corresponding regression. Faults cover artifact byte/input/metadata validation;
+each verified wrapper and asynchronous snapshot; owner fencing and missing targets;
+claim/operation/locator authority; command identity and original replies; run/attempt
+revisions; transition, effect and capacity invariants; retry eligibility; physical
+execution/completion identities; pending-state/outbox consistency; and outcome atomicity.
+Every mutation was restored before the final green run.
+
+Four earlier invocations are excluded. Two snapshot-removal attempts reached downstream
+digest rejection without asserting success for the valid original snapshot; strengthened
+tests now fail explicit success assertions under the same faults. A run-revision bypass
+was masked by a simultaneously stale attempt revision; an initial test edit did not match
+and the unchanged rerun survived too. Independent stale-run/current-attempt coverage now
+exposes that guard. Initial setup/parser/import failures are likewise not production-path
+proofs. Three corrected-case logs were overwritten by their final runs; earlier outcomes
+remain classified in the initial summary and are not counted as valid evidence.
+
+SQLite tests corrupt actual retained BLOBs for manifest prompt/policy, completion output
+and quiescence, interrupted/unresolved evidence, and waiting prompt/quiescence references.
+Each public verified operation rejects without changing the run. An outbox abort trigger
+separately interrupts public outcome recording: reopen succeeds and the complete prior
+snapshot survives. Removing the write transaction makes the explicit successful-reopen
+assertion fail because partial trusted state lacks its outbox. Restoring the transaction
+and removing the trigger permits both completion and intent to persist, including duplicate
+delivery after reopen.
+
+A dedicated child intercepts the real SQLite COMMIT only after checking staged completion,
+outbox, revisions and released reservation. Killing before commit preserves the entire
+prior snapshot; killing after acknowledged commit preserves pending progress, released
+capacity and refusal of new admission. Child exit signals and empty stderr are asserted.
+This is process-interruption evidence, not a physical power-loss claim. No production
+test hook was added. The unreleased migration/down pair changes together and now owns nine
+tables; provider tests check its actual schema and hashes.
+
+Independent Task 3 review is pending. Task 4 inbox/receipt methods, Task 5 production
+selection/import checks, full host gate, full repository/build acceptance, CI secrets and
+migration lint, guarded live WBS integration and production deployment are unverified or
+not implemented here. Parent 6a.1–6a.2 remain unchecked. No second durable provider or
+coordinator readiness is claimed.

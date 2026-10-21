@@ -31,4 +31,23 @@ CREATE TABLE run_reservation (
   attempt_id TEXT PRIMARY KEY REFERENCES run_attempt(attempt_id)
 );
 CREATE UNIQUE INDEX run_active_occurrence ON run_attempt(run_id, occurrence_id)
-  WHERE json_extract(record, '$.holdsCapacity') = 1;
+  WHERE json_extract(record, '$.state.kind') NOT IN ('interrupted','terminal');
+CREATE TABLE run_artifact (
+  digest TEXT PRIMARY KEY,
+  reference TEXT NOT NULL,
+  content BLOB NOT NULL
+);
+CREATE TABLE run_execution (
+  command_id TEXT PRIMARY KEY,
+  attempt_id TEXT NOT NULL REFERENCES run_attempt(attempt_id),
+  record TEXT NOT NULL,
+  reply TEXT NOT NULL
+);
+CREATE TABLE run_completion (
+  command_id TEXT PRIMARY KEY,
+  attempt_id TEXT NOT NULL UNIQUE REFERENCES run_attempt(attempt_id),
+  record TEXT NOT NULL
+);
+CREATE TABLE run_outbox (
+  command_id TEXT PRIMARY KEY REFERENCES run_completion(command_id)
+);

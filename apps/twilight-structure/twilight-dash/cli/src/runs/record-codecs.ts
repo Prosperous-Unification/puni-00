@@ -19,6 +19,10 @@ export const PersonIdCodec = Identifier.brand('PersonId');
 export const AgentRunIdCodec = Identifier.brand('AgentRunId');
 export const ManifestDigestCodec = Digest.brand('ManifestDigest');
 export const ArtifactDigestCodec = Digest.brand('ArtifactDigest');
+export const ExecutionCommandIdCodec = Identifier.brand('ExecutionCommandId');
+export const CommandIdCodec = Identifier.brand('CommandId');
+export const CorrelationKeyCodec = Identifier.brand('CorrelationKey');
+export const DecisionIdCodec = Identifier.brand('DecisionId');
 // Proof: loosening safe integer bounds or allowing zero ordinals independently failed the portable-codec test.
 const Integer = type('number.integer >= 0').atMost(Number.MAX_SAFE_INTEGER);
 const Positive = Integer.atLeast(1);
@@ -86,6 +90,150 @@ export const AdmissionCodec = type({
   identity: ActivityIdentityCodec,
   ordinal: Positive,
 }).onUndeclaredKey('reject');
+export const LocatorCodec = type({
+  version: '1',
+  workerId: 'string>=1',
+  sessionId: 'string>=1',
+  operationKey: OperationKeyCodec,
+}).onUndeclaredKey('reject');
+export const QuiescenceCodec = type({
+  version: '1',
+  operationKey: OperationKeyCodec,
+  observedAt: Integer,
+  evidence: ArtifactRefCodec,
+  effect: "'absent' | 'succeeded' | 'failed' | 'unknown'",
+}).onUndeclaredKey('reject');
+export const HumanWaitCodec = type({
+  version: '1',
+  correlationKey: CorrelationKeyCodec,
+  prompt: ArtifactRefCodec,
+  // Proof: bypassing wait choice nonempty enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
+  choices: type('string>=1').array().atLeastLength(1),
+})
+  .onUndeclaredKey('reject')
+  .narrow(
+    (wait, context) =>
+      // Proof: bypassing wait choice unique enforcement failed 'memory execution > waiting requires exact claim unique choices and determinate quiescence'.
+      new Set(wait.choices).size === wait.choices.length || context.mustBe('unique wait choices'),
+  );
+export const AttemptOutcomeCodec = type({
+  version: '1',
+  kind: "'succeeded' | 'failed' | 'cancelled'",
+  artifacts: ArtifactRefCodec.array(),
+  summary: 'string',
+}).onUndeclaredKey('reject');
+export const ProgressIntentCodec = type({
+  version: '1',
+  commandId: CommandIdCodec,
+  authority: ClaimAuthorityCodec,
+  expectedWbsRevision: 'string>=1',
+  outcome: AttemptOutcomeCodec,
+  commandDigest: ArtifactDigestCodec,
+}).onUndeclaredKey('reject');
+export const CommandReceiptCodec = type({
+  version: '1',
+  commandId: CommandIdCodec,
+  commandDigest: ArtifactDigestCodec,
+  authority: ClaimAuthorityCodec,
+  acceptedWbsRevision: 'string>=1',
+  evidence: ArtifactRefCodec,
+}).onUndeclaredKey('reject');
+export const DecisionCodec = type({
+  version: '1',
+  decisionId: DecisionIdCodec,
+  attemptId: AttemptIdCodec,
+  correlationKey: CorrelationKeyCodec,
+  choice: 'string>=1',
+  actorId: PersonIdCodec,
+  authorizationEvidence: ArtifactRefCodec,
+}).onUndeclaredKey('reject');
+export const AttemptStateCodec = type({ kind: "'queued'", claim: ClaimAuthorityCodec.or('null') })
+  .onUndeclaredKey('reject')
+  .or(
+    type({ kind: "'running'", claim: ClaimAuthorityCodec, locator: LocatorCodec }).onUndeclaredKey(
+      'reject',
+    ),
+  )
+  .or(
+    type({
+      kind: "'reconciling'",
+      claim: ClaimAuthorityCodec.or('null'),
+      locator: LocatorCodec.or('null'),
+      reason: 'string>=1',
+    }).onUndeclaredKey('reject'),
+  )
+  .or(
+    type({
+      kind: "'unresolved'",
+      claim: ClaimAuthorityCodec.or('null'),
+      locator: LocatorCodec.or('null'),
+      reason: 'string>=1',
+      evidence: ArtifactRefCodec,
+    }).onUndeclaredKey('reject'),
+  )
+  .or(
+    type({
+      kind: "'interrupted'",
+      claim: ClaimAuthorityCodec.or('null'),
+      quiescence: QuiescenceCodec,
+    }).onUndeclaredKey('reject'),
+  )
+  .or(
+    type({
+      kind: "'waiting_for_person'",
+      claim: ClaimAuthorityCodec,
+      wait: HumanWaitCodec,
+      quiescence: QuiescenceCodec,
+    }).onUndeclaredKey('reject'),
+  )
+  .or(
+    type({
+      kind: "'outcome_pending_progress'",
+      claim: ClaimAuthorityCodec,
+      outcome: AttemptOutcomeCodec,
+      commandId: CommandIdCodec,
+      quiescence: QuiescenceCodec,
+    }).onUndeclaredKey('reject'),
+  )
+  .or(
+    type({
+      kind: "'terminal'",
+      claim: ClaimAuthorityCodec,
+      outcome: AttemptOutcomeCodec,
+      receipt: CommandReceiptCodec,
+      quiescence: QuiescenceCodec,
+    }).onUndeclaredKey('reject'),
+  );
+export const ExecutionFactCodec = type({ kind: "'claim_acquired'", claim: ClaimAuthorityCodec })
+  .onUndeclaredKey('reject')
+  .or(
+    type({
+      kind: "'launch_recorded'",
+      claim: ClaimAuthorityCodec,
+      locator: LocatorCodec,
+    }).onUndeclaredKey('reject'),
+  )
+  .or(type({ kind: "'recovery_required'", reason: 'string>=1' }).onUndeclaredKey('reject'))
+  .or(
+    type({ kind: "'unresolved'", reason: 'string>=1', evidence: ArtifactRefCodec }).onUndeclaredKey(
+      'reject',
+    ),
+  )
+  .or(type({ kind: "'interrupted'", quiescence: QuiescenceCodec }).onUndeclaredKey('reject'))
+  .or(
+    type({
+      kind: "'waiting'",
+      claim: ClaimAuthorityCodec,
+      wait: HumanWaitCodec,
+      quiescence: QuiescenceCodec,
+    }).onUndeclaredKey('reject'),
+  );
+export const CompletionCodec = type({
+  outcome: AttemptOutcomeCodec,
+  intent: ProgressIntentCodec,
+  quiescence: QuiescenceCodec,
+}).onUndeclaredKey('reject');
+
 // Proof: allowing arbitrary attempt state kinds failed the portable-codec test on an unknown state with an otherwise valid claim payload.
 export const AttemptCodec = type({
   version: '1',
@@ -94,9 +242,7 @@ export const AttemptCodec = type({
   ordinal: Positive,
   revision: Integer,
   admittedEpoch: Positive,
-  state: type({ kind: "'queued'", claim: ClaimAuthorityCodec.or('null') }).onUndeclaredKey(
-    'reject',
-  ),
+  state: AttemptStateCodec,
   holdsCapacity: 'boolean',
 }).onUndeclaredKey('reject');
 export const RunGuardCodec = type({
@@ -119,7 +265,22 @@ export const artifactDigest = (value: unknown) => parseOrThrow(ArtifactDigestCod
 export const decodeOwnership = (value: unknown) => parseOrThrow(OwnershipCodec, value);
 export const decodeRun = (value: unknown) => parseOrThrow(RunCodec, value);
 export const decodeAdmission = (value: unknown) => parseOrThrow(AdmissionCodec, value);
-export const decodeAttempt = (value: unknown) => parseOrThrow(AttemptCodec, value);
+/** Validates portable attempt state as well as capacity/effect invariants, including valid-shaped persisted corruption. */
+export function decodeAttempt(value: unknown) {
+  const attempt = parseOrThrow(AttemptCodec, value);
+  const state = attempt.state;
+  const requiresCapacity =
+    state.kind === 'queued' ||
+    state.kind === 'running' ||
+    state.kind === 'reconciling' ||
+    state.kind === 'unresolved';
+  // Proof: bypassing attempt capacity state enforcement failed 'open rejects queued recorded without held capacity even when reservation agrees'.
+  if (attempt.holdsCapacity !== requiresCapacity) throw new Error('corrupt attempt state capacity');
+  // Proof: bypassing attempt settled effect enforcement failed 'open rejects interrupted releasing capacity with unknown effect'.
+  if ('quiescence' in state && state.quiescence.effect === 'unknown')
+    throw new Error('corrupt unsettled attempt quiescence');
+  return attempt;
+}
 export const decodeRunGuard = (value: unknown) => parseOrThrow(RunGuardCodec, value);
 
 /** Decodes manifest content and verifies its complete canonical identity; referenced bytes are verified by the later artifact boundary. */
@@ -155,3 +316,47 @@ export function addInteger(value: number, increment: number): number {
   assertInteger(sum);
   return sum;
 }
+
+export const decodeArtifactRef = (value: unknown) => parseOrThrow(ArtifactRefCodec, value);
+
+/** Compares portable JSON values independent of object property insertion order. */
+export function equalRecords(left: unknown, right: unknown): boolean {
+  return canonicalJson(left) === canonicalJson(right);
+}
+
+export const AttemptGuardCodec = type({
+  ownership: OwnershipCodec,
+  runId: RunIdCodec,
+  expectedRevision: Integer,
+  attemptId: AttemptIdCodec,
+  expectedAttemptRevision: Integer,
+}).onUndeclaredKey('reject');
+export const decodeAttemptGuard = (value: unknown) => parseOrThrow(AttemptGuardCodec, value);
+export const decodeExecutionFact = (value: unknown) => parseOrThrow(ExecutionFactCodec, value);
+export const decodeClaimAuthority = (value: unknown) => parseOrThrow(ClaimAuthorityCodec, value);
+/** Validates complete immutable command identity, including its canonical record digest. */
+export function decodeProgressIntent(value: unknown) {
+  const intent = parseOrThrow(ProgressIntentCodec, value);
+  // Proof: bypassing intent digest enforcement failed 'memory outcomes > completion refuses stale revisions wrong authority outcome mismatch and unsettled effects without mutations'.
+  verifyDigest(intent, 'commandDigest');
+  return intent;
+}
+/** Computes command identity without its self-referential digest. */
+export function digestIntent(value: unknown) {
+  return artifactDigest(digestWithout(parseOrThrow(ProgressIntentCodec, value), 'commandDigest'));
+}
+/** Validates the full completion before artifact verification or persistence. */
+export function decodeCompletion(value: unknown) {
+  const completion = parseOrThrow(CompletionCodec, value);
+  decodeProgressIntent(completion.intent);
+  return completion;
+}
+
+export const ExecutionCommandCodec = type({
+  commandId: ExecutionCommandIdCodec,
+  fact: ExecutionFactCodec,
+}).onUndeclaredKey('reject');
+export const decodeExecutionCommand = (value: unknown) =>
+  parseOrThrow(ExecutionCommandCodec, value);
+
+export const executionCommandId = (value: unknown) => parseOrThrow(ExecutionCommandIdCodec, value);
