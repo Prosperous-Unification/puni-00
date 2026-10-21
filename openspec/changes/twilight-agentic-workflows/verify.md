@@ -452,3 +452,9 @@ identity, and the final named checks passed. Logs are `/tmp/task3-fix1-final-{te
 Scoped re-review is pending. These checks detect contradictory retained records and local
 target identities; they do not attest against coherent replacement of the entire database.
 All full-gate, live integration, Task 4/5 and coordinator-readiness limitations above remain.
+
+Scoped re-review of `93ad0e979..168448562` marked I1, I2 and the contract split addressed,
+with no new breakage. It inspected all five new fault proofs and final check logs without
+rerunning the suites. Storage Task 3 is accepted; the nine slice checkboxes are checked.
+Parent 6a.1–6a.2 and WBS foundation milestones remain in progress for decision/receipt
+semantics, provider selection and aggregate acceptance.
