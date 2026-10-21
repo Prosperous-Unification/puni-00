@@ -66,13 +66,13 @@ manifest field; define its complete v1 record without an ArtifactStore implement
 Task 1 proves manifest-content integrity, but verification of retained referenced bytes
 is added in Task 3; do not claim full binding recovery before Task 6a.3.
 
-- [ ] Write `admission.test.ts`: capacity one, two runs, two concurrent admissions; exactly one applies, the other returns capacity_full, total reserved is one, losing run and attempts are unchanged. Admission with an absent retained manifest throws before any reservation. A mutable caller object must not mutate persisted records.
-- [ ] Run the focused test and record the intended red output in parent `verify.md`.
-- [ ] Implement codecs and pure admission/ownership planners, then a memory transaction adapter that applies their mutation intents only after all preconditions. Persist configured capacity and retry budget, allocate epochs from the store, reject invalid/overflowing integers, and isolate returned snapshots. Do not add outcome/receipt/inbox placeholders yet.
-- [ ] Add the stale-owner example below, clock-regression and renewal-expiry cases. Attempt takeover before expiry refuses; takeover after expiry keeps the old attempt queued with capacity held. An expired owner cannot mutate even before a replacement acquires.
-- [ ] Add immutable-manifest/hash mismatch, unknown record version, input snapshot isolation, owner from another store and closed-store cases. Same run/admission identity is idempotent; changed ID payload refuses. A stale revision cannot reserve capacity.
-- [ ] Run all new tests, typecheck and lint. Bypass capacity, owner-epoch and run-revision guards separately; observe the named test fail, restore each guard and rerun. Add only the observed `Proof:` comments and verification record.
-- [ ] Request root's review with changed files, exact commands and proof results; commit only when root directs.
+- [x] Write `admission.test.ts`: capacity one, two runs, two concurrent admissions; exactly one applies, the other returns capacity_full, total reserved is one, losing run and attempts are unchanged. Admission with an absent retained manifest throws before any reservation. A mutable caller object must not mutate persisted records.
+- [x] Run the focused test and record the intended red output in parent `verify.md`.
+- [x] Implement codecs and pure admission/ownership planners, then a memory transaction adapter that applies their mutation intents only after all preconditions. Persist configured capacity and retry budget, allocate epochs from the store, reject invalid/overflowing integers, and isolate returned snapshots. Do not add outcome/receipt/inbox placeholders yet.
+- [x] Add the stale-owner example below, clock-regression and renewal-expiry cases. Attempt takeover before expiry refuses; takeover after expiry keeps the old attempt queued with capacity held. An expired owner cannot mutate even before a replacement acquires.
+- [x] Add immutable-manifest/hash mismatch, unknown record version, input snapshot isolation, owner from another store and closed-store cases. Same run/admission identity is idempotent; changed ID payload refuses. A stale revision cannot reserve capacity.
+- [x] Run all new tests, typecheck and lint. Bypass capacity, owner-epoch and run-revision guards separately; observe the named test fail, restore each guard and rerun. Add only the observed `Proof:` comments and verification record.
+- [x] Request root's review with changed files, exact commands and proof results; commit only when root directs.
 
 The fixture helpers in `testing/fixtures.ts` construct validated records, not casts into
 production brands. `createAdmissionFixture({ capacity, leaseMilliseconds })` returns

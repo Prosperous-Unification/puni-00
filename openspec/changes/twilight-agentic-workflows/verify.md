@@ -216,3 +216,9 @@ The prior candidate's lint duration is corrected to 17.8s: 16.4s was a different
 successful run before mechanical helper renaming. The fix has its own fresh run and
 does not rely on that earlier measurement. Scoped re-review is pending; all previously
 listed durable/bridge/host-gate limitations remain.
+
+Scoped re-review of `cf06a77b4..237feb633` marked both Important findings and the duration
+correction addressed, with no new breakage. It inspected all corrected policy and
+identity fault logs and their assertion oracles. Storage Task 1 is accepted; parent
+6a.1–6a.2 and WBS contract/conformance milestones remain in progress for the remaining
+storage slices. No durable provider or coordinator completion is implied.
