@@ -66,6 +66,29 @@ allocation, ownership mapping, duplicate manual codes and the full backfill.
 Generated fallback codes need not resemble a name; visible editing does not
 change endpoint identity.
 
+Modern allocation tries the ordered name recommendations, then the first
+recommendation's three-letter stem followed by AA through ZZ, deduplicated in
+order: at most 679 candidates. Occupancy excludes the newly inserted project.
+Candidate-family exhaustion and the exact legacy-trigger exhaustion become
+`abbreviation_exhausted` (409); broken counter state remains an unexpected
+failure. All creation writes, including counter advance, ownership, selected
+code and steps, roll back together. Optional manual POST/PATCH input is
+normalized once; invalid input is 422 and a taken abbreviation is 409. Existing
+authorization and foreign-project refusal ordering precede conflict disclosure.
+An unchanged code alone does not bump revision; a combined patch bumps once.
+
+Live project types and responses require the persisted abbreviation. Version-10
+plan documents use a separate shape that accepts absent abbreviation metadata
+and validates it when present; no historical live lookup fills it in. Import
+allocates a destination code and propagates allocation refusal transactionally.
+This metadata-only change does not bump the transfer version. Strict new clients
+are released only after compatible backend routing; rollback preserves compatible
+frontend/backend ordering. Old clients retain additive-response compatibility.
+
+Joined project reads reuse one strict abbreviation decoder with LEFT JOINs so
+missing trusted rows fail rather than vanish. Namespace filtering precedes
+decoding, and project listings preserve their one-statement contract.
+
 ### D3. One domain relationship, distinct additive persistence
 
 Existing local typed rows retain their schema and meaning. Add external typed

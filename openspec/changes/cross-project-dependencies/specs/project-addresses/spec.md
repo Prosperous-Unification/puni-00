@@ -10,6 +10,34 @@ Every project SHALL have a persisted abbreviation unique within its organization
 - **THEN** the edit is refused as an abbreviation conflict
 - **AND** another organization's `PUNI` alone does not prevent the edit
 
+#### Scenario: Name-derived candidates are exhausted
+
+- **WHEN** every ordered name recommendation and three-letter-stem suffix AA through ZZ is occupied in the destination organization
+- **THEN** creation refuses with `abbreviation_exhausted` (409), allowing a manual abbreviation on a later request
+- **AND** no project, ownership, starting steps or allocator advance commits
+- **AND** exhaustion of the legacy insert allocator causes the same atomic refusal, while broken allocator state remains an unexpected failure
+
+### Requirement: Project abbreviation APIs expose typed outcomes
+
+Project creation SHALL accept an optional manual abbreviation; a project settings patch SHALL accept a replacement. Invalid string input SHALL return `invalid_abbreviation` (422), and an occupied code SHALL return `abbreviation_taken` (409). Structural non-string input SHALL remain `invalid_body`. Authorization and foreign-project refusal SHALL precede namespace conflict disclosure. Live project responses SHALL require the persisted abbreviation.
+
+#### Scenario: Repeating the existing abbreviation is a no-op
+
+- **WHEN** an authorized editor submits only the project's existing normalized abbreviation
+- **THEN** the request succeeds without a revision or audit change
+- **AND WHEN** an abbreviation change is combined with other settings
+- **THEN** the successful patch increments the revision once
+
+### Requirement: Historical abbreviation metadata remains compatible
+
+Version-10 plan documents SHALL accept absent abbreviation metadata and validate it when present, independently of the required live response shape. Historical reads SHALL NOT fill absent metadata from live project storage. Import SHALL allocate a destination abbreviation instead of implicitly adopting exported source identity, and allocation refusal SHALL roll back the whole import.
+
+#### Scenario: Read and import a pre-abbreviation document
+
+- **WHEN** a valid version-10 document omits abbreviation metadata
+- **THEN** document validation still succeeds without consulting a live project
+- **AND** import allocates a destination abbreviation or refuses atomically if allocation is exhausted
+
 ### Requirement: Manual abbreviation edits preserve project identity
 
 Manual input SHALL normalize ASCII lowercase to uppercase and match `^[A-Z][A-Z0-9_-]{0,19}$`. Invalid input or an explicit same-organization collision SHALL refuse without writing. Abbreviation edits SHALL require project edit access and preserve its stable identity; changing only its name SHALL preserve its abbreviation.
