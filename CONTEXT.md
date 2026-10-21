@@ -180,6 +180,14 @@ its restriction. Work items and steps belong to one project; organization direct
 including people, can serve several projects and are not owned by any one of them.
 _Avoid_: workspace, board, plan
 
+**Project abbreviation**:
+The short name that distinguishes a project within its organization when addressing its work items from another project.
+_Avoid_: project ID, project prefix, slug
+
+**Qualified work-item address**:
+A project abbreviation followed by a dot and a work item number, such as `PUNI-CORE.080.39`. A qualified step reference additionally names that work item's step.
+_Avoid_: work-item ID, dependency ID
+
 **Work item**:
 One unit of work in a project, holding a name, notes and a place in the tree; once it has
 children it owns no estimate of its own
@@ -788,6 +796,10 @@ _Avoid_: done modal, confirmation, completion dialog, date picker
 An authored ordering relationship between predecessor and successor dependency endpoints.
 Legacy dependencies use project Dependency reach; typed dependencies name their endpoints and relationship type.
 _Avoid_: link, blocker, edge (outside the graph code)
+
+**Cross-project dependency**:
+A dependency whose predecessor and successor belong to different projects in the same organization. Its ordering applies to the selected work items or steps, not to their projects as indivisible units.
+_Avoid_: project dependency, external link
 
 **Dependency endpoint**:
 One side of a typed dependency, in one of three scopes: **whole** (a work item, leaf or
