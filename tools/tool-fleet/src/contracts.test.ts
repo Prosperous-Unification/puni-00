@@ -93,6 +93,13 @@ const validToolchain = {
       os: 'linux',
       arch: 'amd64',
     },
+    gateGh: {
+      version: '2.102.1',
+      url: 'https://example.test/gh.deb',
+      sha256,
+      os: 'linux',
+      arch: 'amd64',
+    },
   },
   hostPackages: { dockerIo: '29.1.3-0ubuntu3~24.04.2' },
   terraform: {
@@ -213,6 +220,14 @@ describe('readToolchain', () => {
     const { gateNode: _removed, ...binaries } = validToolchain.binaries;
     expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
       /gateNode/,
+    );
+  });
+
+  it('rejects a missing gate gh lock', async () => {
+    // Proof: making gateGh optional in the schema made this resolve (2026-10-21).
+    const { gateGh: _removed, ...binaries } = validToolchain.binaries;
+    expect(readToolchain(await writeToolchain({ ...validToolchain, binaries }))).rejects.toThrow(
+      /gateGh/,
     );
   });
 

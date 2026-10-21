@@ -97,6 +97,13 @@
       "sha256": "d6c664df3f3f61458e8c277585571328522d705166723a7c7823a9253a4d15a0",
       "os": "linux",
       "arch": "amd64"
+    },
+    "gateGh": {
+      "version": "2.102.1",
+      "url": "https://github.com/cli/cli/releases/download/v2.102.1/gh_2.102.1_linux_amd64.deb",
+      "sha256": "5b91c75d971509e96f673fa9f46e5d8ea294b6bbfedbc8ff458aedd88775d94c",
+      "os": "linux",
+      "arch": "amd64"
     }
   },
   "terraform": {

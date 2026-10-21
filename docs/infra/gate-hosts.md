@@ -22,6 +22,9 @@ h2puni.
 - **Node.** It installs the Node pinned by `binaries.gateNode` in `toolchain.json` at
   `~/.node-<version>/bin/node`, the interpreter only. Nx's bin is `#!/usr/bin/env node`, so every
   `bun run` of an Nx script needs it; h2puni has the same version through Volta.
+- **gh.** It installs the GitHub CLI release `.deb` pinned by `binaries.gateGh` at `/usr/bin/gh`.
+  twilight-dash's activation tests hash that file and run it as the offline attestation
+  verifier; h2puni has gh from GitHub's apt repository, which keeps only the newest release.
 - **Solver Python.** It builds `~/.venv-solver` from the solver lock, installed with
   `--require-hashes` as CI does.
 - **Shell.** `~/.bashrc` puts the Bun, Node and solver environment first on `PATH`, and sets
@@ -37,6 +40,7 @@ The last tasks are read-only probes run as `puni1` through its `~/.bashrc`:
 
 - `bun` and `bunx` resolve to the pinned Bun;
 - `node` resolves to the pinned Node and reports its version;
+- `gh` is `/usr/bin/gh` and reports the pinned version;
 - the tree is a full, clean clone of the canonical URL;
 - `docker ps` works;
 - `python3` is the venv's and imports the locked OR-Tools;

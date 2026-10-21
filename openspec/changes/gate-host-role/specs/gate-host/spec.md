@@ -5,7 +5,9 @@
 `playbooks/gate-host.yml` SHALL configure every host in `gate_hosts` so that the `puni1` account
 runs `bin/h2puni-gate.sh <sha>` from `~/puni-00-gate-tbf`. On the gate PATH it SHALL provide the
 Bun pinned by `.bun-version`, the Node pinned by `binaries.gateNode` in `toolchain.json` (Nx's
-bin runs under `node`) and a solver Python built from the hash-locked requirements. It
+bin runs under `node`) and a solver Python built from the hash-locked requirements, and at
+`/usr/bin/gh` the GitHub CLI release pinned by `binaries.gateGh` (the activation tests run it
+as their offline verifier). It
 SHALL leave that account Docker access and no sudo grant. The gate's heavy lock SHALL resolve to
 the account's own cache directory. A second run on an unchanged host SHALL report no change.
 
@@ -23,7 +25,8 @@ the account's own cache directory. A second run on an unchanged host SHALL repor
 
 The playbook SHALL end with read-only probes run as `puni1` through its `~/.bashrc`. The play
 SHALL fail when `bun` is not the pinned binary at `~/.bun-<version>/bin/bun`, when `node` is not
-the pinned binary at `~/.node-<version>/bin/node` or reports another version, when the tree is
+the pinned binary at `~/.node-<version>/bin/node` or reports another version, when `/usr/bin/gh`
+is missing or reports another version than the pin, when the tree is
 shallow, partial, dirty or not the canonical URL, when `docker ps` fails, when `python3` is
 not the solver venv or lacks the locked OR-Tools, or when the resolved lock directory is not
 writable.

@@ -21,4 +21,9 @@ puni_gate_bun_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_roo
 # has 24.18.1 (Volta), CI has the runner's. The pin lives in toolchain.json like the Bun one.
 puni_gate_node_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateNode }}"
 puni_gate_node_version: '{{ puni_gate_node_lock.version }}'
+# twilight-dash's activation tests run the real offline verifier at /usr/bin/gh (its bytes are the
+# runtime identity they hash); h2puni has gh from GitHub's apt repository, CI the runner's. That
+# repository keeps only the newest release, so the pin is the release .deb in toolchain.json.
+puni_gate_gh_lock: "{{ (lookup('ansible.builtin.file', puni_gate_repository_root + '/infra/versions/toolchain.json') | from_json).binaries.gateGh }}"
+puni_gate_gh_version: '{{ puni_gate_gh_lock.version }}'
 puni_gate_solver_requirements: '{{ puni_gate_repository_root }}/libs/wbs/adapters/solver-py/requirements.lock'

@@ -119,3 +119,21 @@ holding the laptop's h4claw public key. Logs under the session scratchpad `h4-ap
    that one. h2puni has 9100 free, CI's runner too. The host is right; the test's fixed shift is
    the defect, fixed on `fix/devsync-performance-shift-probe` (the test probes a free shift at
    load). The gate of record for 2.2 is the next run on that fix.
+7. Third real gate as `puni1` on that fix, `51ca24c6f26c999367ee573994a6752eb829db5b`, log
+   `~/gate-51ca24c6-run3-nogh.log`: `tool-devsync:test` green, and every other project too,
+   except `twilight-dash:test`: 60 cases in `activation/review-authentication.test.ts` read
+   `ENOENT: no such file or directory, open '/usr/bin/gh'`, `GATE_EXIT=1` after 50 m 5 s. Those
+   tests hash `/usr/bin/gh` and run it as the real offline attestation verifier; h2puni has gh
+   2.97.0 from GitHub's apt repository, CI the runner's, the role installed none. The host is
+   wrong, not the test: that path is the activation fixture's contract. Fix: `binaries.gateGh`
+   pin (2.102.1, the release `.deb` by sha256; GitHub's apt repository serves only the newest
+   release, so an apt pin cannot name h2puni's version), a fetch-by-checksum task, an
+   `apt: deb:` install, a validate probe on `/usr/bin/gh --version`, schema + contract tests
+   (negatives: `gateGh` made optional resolved the missing-lock test; the dropped checksum line
+   failed the Ansible contract test), docs and the spec. The laptop watcher of the third gate
+   also missed `GATE_EXIT=` for two hours: `grep` without `-a` answers "binary file matches" on
+   the ANSI-coloured log; the watcher now greps with `-a`.
+8. Re-apply with the gh tasks: run 5 `ok=37 changed=2 failed=0 skipped=2` (exactly `Fetch the
+pinned gh package` and `Install the pinned gh`; the new probe passed), run 6
+   `ok=37 changed=0 failed=0 skipped=2`. Fourth real gate on `51ca24c6f…` started 14:22 UTC
+   (log `~/gate-51ca24c6.log`); its result is the gate of record for 2.2.

@@ -35,6 +35,23 @@
   # Proof (h4claw, 2026-10-21): before the Node tasks existed this probe failed with
   # `node: command not found` (rc 127), the same failure the first live gate hit.
 
+# The activation tests hard-code /usr/bin/gh, so the probe checks that path, not PATH order.
+- name: Resolve gh the way the activation tests do
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, '. "$HOME/.bashrc"; command -v gh; /usr/bin/gh --version | head -n 1']
+  register: puni_gate_gh_probe
+  changed_when: false
+
+- name: Require the pinned gh at /usr/bin/gh
+  ansible.builtin.assert:
+    that:
+      - puni_gate_gh_probe.stdout_lines[0] == '/usr/bin/gh'
+      - puni_gate_gh_probe.stdout_lines[1] is match('^gh version ' + (puni_gate_gh_version | regex_escape) + ' ')
+    fail_msg: 'The gate host resolves {{ puni_gate_gh_probe.stdout_lines }}, not the pinned gh'
+  # Proof (h4claw, 2026-10-21): before the gh tasks existed this probe failed with
+  # `gh: command not found` (rc 127), the host state behind the third live gate's 60 failures.
+
 - name: Read the gate tree state
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
