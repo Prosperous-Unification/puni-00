@@ -50,8 +50,9 @@ it('closes success modeled refusal and throws and rejects retained reader capabi
   ).toEqual({ ok: true, value: 'a1' });
   expect(closes).toBe(1);
   if (retained === undefined) throw new Error('reader not captured');
-  expect(() => retained.capture('a1')).toThrow('snapshot is closed');
-  expect(() => retained.access).toThrow('snapshot is closed');
+  const captured = retained;
+  expect(() => captured.capture('a1')).toThrow('snapshot is closed');
+  expect(() => captured.access).toThrow('snapshot is closed');
   expect(
     repository().withSnapshot({ id: 'ada' }, () => {
       throw new Error('injected failure');
