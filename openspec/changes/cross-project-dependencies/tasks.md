@@ -2,7 +2,7 @@
 
 Implements [proposal.md](proposal.md), [design.md](design.md), and the eight
 [delta capabilities](specs/). This is the implementation plan; do not create
-`plan.md`. All slices are unimplemented. New external authoring stays dormant
+`plan.md`. The checkboxes track completed slices. New external authoring stays dormant
 until the complete reader/writer runtime capability is active.
 
 For each checkbox: write and run its named failing behavior tests, implement the
@@ -67,7 +67,7 @@ TDD slice and independent review unit, not a two-minute keystroke.
 
 ### Task 1: Pure abbreviation and address grammar — WBS 010.02
 
-- [ ] 1.1 Create `libs/wbs/domain/domain/src/project-address.ts` and `project-address.test.ts`; export via the domain barrel. Manual codes normalize lowercase and match `^[A-Z][A-Z0-9_-]{0,19}$`; generated suggestions use 3–5 letters. Split qualified addresses on the first dot and reuse `step-reference.ts` plus existing numeric grammar. Tests: `accepts one and twenty character manual abbreviations`, `rejects leading digits dots and twenty-one characters`, `suggests only three to five ASCII letters`, `parses PUNI-CORE.080.39 and PUNI_CORE.020.s1-dev`, `keeps 010.s1-dev local`, `rejects empty qualified endpoints`. Negative: remove each character/length/delimiter guard independently and observe its test fail via exported parser; slice 2.2 also exercises grammar through HTTP admission.
+- [x] 1.1 Create `libs/wbs/domain/domain/src/project-address.ts` and `project-address.test.ts`; export via the domain barrel. Manual codes normalize lowercase and match `^[A-Z][A-Z0-9_-]{0,19}$`; generated suggestions use 3–5 letters. Split qualified addresses on the first dot and reuse `step-reference.ts` plus existing numeric grammar. Tests: `accepts one and twenty character manual abbreviations`, `rejects leading digits dots and twenty-one characters`, `suggests only three to five ASCII letters`, `parses PUNI-CORE.080.39 and PUNI_CORE.020.s1-dev`, `keeps 010.s1-dev local`, `rejects empty qualified endpoints`. Negative: remove each character/length/delimiter guard independently and observe its test fail via exported parser; slice 2.2 also exercises grammar through HTTP admission.
 
 ### Task 2: Additive abbreviation storage and project integration — WBS 010.03
 

@@ -1,7 +1,7 @@
 # Verification record
 
 **Change:** `cross-project-dependencies`  
-**Status:** Planning/preflight record, implementation not applied.  
+**Status:** Implementation in progress; only recorded completed slices are verified.  
 **Prepared:** 2026-10-22. This is not a completed `openspec-verify-change` report.
 The schema normally produces final verify after apply; this initial record
 preserves reported design evidence and clearly separates all unrun obligations.
@@ -59,7 +59,7 @@ this planning packet. Those remain required for delivery.
 - [ ] Every changed safety check has a watched production-path negative below.
 - [ ] Implementation review and required CI/host gates complete.
 
-All task slices remain open and block implementation completion/archive.
+Remaining task slices block full implementation completion/archive.
 
 Execution tracking: [WBS cross-project dependencies](https://dev.wbs.bulletpoints.club/?project=7a42c70a-9c86-4e2d-9246-b4d677224e91),
 project `7a42c70a-9c86-4e2d-9246-b4d677224e91`, root `010`
@@ -154,3 +154,11 @@ earlier design checks do not cover a later candidate.
 **Decision:** Planning is ready for implementation; verification is incomplete
 and blocks completion/archive/release. No production behavior is implemented or
 verified by this document.
+
+## Task1.1 — grammar completed2026-10-22
+
+Commit `b06bf6595`; independent Astra High task review approved with no findings.
+`bun test libs/wbs/domain/domain/src/project-address.test.ts libs/wbs/domain/domain/src/step-reference.test.ts` passed25tests,0fail,123assertions.
+Eleven independently injected faults caused failures and were restored: length, initial-letter, allowed characters, normalization order, first-dot delimiter, invalid prefix, invalid endpoint reference, numeric grammar, step grammar, recommendation characters and recommendation length. Exact observed outputs and test names are retained in [task1 evidence](evidence/task-1-grammar.md). Adjacent production `Proof:` comments name those tests.
+
+Focused ESLint (with Nx graph), Prettier and domain `tsc --noEmit` passed. Normal commit hooks passed; Tool Wiki reported inactive/uncertified. HTTP admission checks in2.2/3, storage, complete feature behavior, host gate and CI remain unverified. This completes pure grammar only.
