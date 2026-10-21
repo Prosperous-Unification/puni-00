@@ -5660,3 +5660,24 @@ noncertifying, with authentication absent and level/isolation unresolved as reco
 above; release checks do not promote those report facts. No production deployment,
 trusted activation or parent completion is inferred. This append changes only the
 verification record; it does not rerun code tests, CI, the host gate or live dev checks.
+
+## WBS080.39 4.1c.3 fresh closure evidence (2026-10-21)
+
+Scope: verification of the existing capability scenario diagnostic ledger on base
+`69a8b38f4f63ef4242ca1ed12926909fa2b5b127`, in managed isolated worktree
+`/home/df/.codex/worktrees/4a91/puni-00`, branch
+`feat/wbs08039-scenario-ledger-proof`. No production change or new scenario allocation.
+Task 4.1c.3 remains unchecked pending fresh watched negatives, scoped acceptance and
+independent exact-candidate review. Parent 4.1, T2, source reconciliation,
+certification and WBS080.39 remain open.
+
+Fresh owning command (repository root):
+`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts --timeout=120000`.
+Exit 0: **59 pass, 0 fail, 201 assertions**, 43.13 seconds. This includes real
+Manual states, missing/unreadable authority and report boundaries, canonical complete
+digest/reordering and built installed dispatch. Durable output:
+[evidence/wbs08039-4.1c.3-20261021/owning.log](evidence/wbs08039-4.1c.3-20261021/owning.log).
+Bun reports 1.4.2; repository-pinned OpenSpec reports 1.14.3. Dependencies are the
+existing root node_modules reused through an ignored worktree-local symlink; no install
+was performed. Full repository checks, host gate, exact-head CI, integration and deploy
+have not run in this worker. Additional evidence follows before task closure.
