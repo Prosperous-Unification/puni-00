@@ -1,8 +1,6 @@
+import { Button, Input } from '@ui/saas-01';
 import { defaultSavedPlanName } from '@wbs/domain/saved-plan-default-name';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 import type { SavedPlanListEntryView } from '../../lib/saved-plan-api';
 import type { SavedPlanListState } from '../../modules/saved-plans/contract';

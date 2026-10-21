@@ -1,4 +1,5 @@
-import { buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@ui/saas-01';
+
 import { unreachable } from '@/lib/http';
 import { cn } from '@/lib/utils';
 

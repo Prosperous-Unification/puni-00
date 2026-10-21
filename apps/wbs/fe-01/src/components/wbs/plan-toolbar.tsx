@@ -1,5 +1,6 @@
 import type { Row } from '@tanstack/react-table';
 import { type ExpandedState } from '@tanstack/react-table';
+import { Button, buttonVariants, Input, MENU_ITEM } from '@ui/saas-01';
 import type { DependencyReach } from '@wbs/domain/dependency-reach';
 import type { EffectiveTeams } from '@wbs/domain/effective-team';
 import type * as React from 'react';
@@ -12,8 +13,6 @@ import {
   useState,
 } from 'react';
 
-import { Button, buttonVariants, MENU_ITEM } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { RunPlanWrite } from '@/lib/local-write';
 import { cn } from '@/lib/utils';
 import type { PersonView, PriorityBandView, TeamCapacityView, TeamView } from '@/lib/wbs-api';

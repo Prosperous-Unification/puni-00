@@ -4,10 +4,12 @@
 // esbuild, which refuses to load where `new TextEncoder().encode('') instanceof
 // Uint8Array` is false — and under jsdom it is. This file runs a Vite build, so
 // it needs the node realm twice over.
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import tailwindcss from '@tailwindcss/vite';
+import { readCustomProperties, stripCssComments } from '@ui/core-01/testing';
 import postcss from 'postcss';
 import { build, type Rollup } from 'vite';
 import { describe, expect, it } from 'vitest';
@@ -318,5 +320,35 @@ describe('the config this app is built with', () => {
     // be one preflight has and this app's reset does not — `text-size-adjust` is
     // preflight's opening rule and appears nowhere in the scoped reset.
     expect(shipped).not.toContain('text-size-adjust');
+  });
+});
+
+/** Where the SaaS kit's sources sit, as `src/styles.css` names them. */
+const KIT_SRC = '../../../../libs/shared/adapters/ui-saas-01/src';
+
+describe('the kit theme this app paints from', () => {
+  const ownSheet = stripCssComments(readFileSync(resolve(appRoot, 'src/styles.css'), 'utf8'));
+  const kitTheme = readFileSync(resolve(appRoot, 'src', KIT_SRC, 'theme.css'), 'utf8');
+
+  it('imports the kit theme', () => {
+    expect(ownSheet).toContain(`@import '${KIT_SRC}/theme.css';`);
+  });
+
+  it('scans the kit sources for the utilities its primitives name', () => {
+    expect(ownSheet).toContain(`@source '${KIT_SRC}';`);
+  });
+
+  // Proof: with `--primary: red;` added to this app's `:root`, this failed on
+  // `expected [ '--primary' ] to deeply equal []`. Watched 2026-10-21.
+  it('redeclares no custom property the kit theme assigns', () => {
+    const kitNames = new Set([
+      ...readCustomProperties(kitTheme, ':root').keys(),
+      ...readCustomProperties(kitTheme, '.dark').keys(),
+    ]);
+    const ownNames = new Set([
+      ...readCustomProperties(ownSheet, ':root').keys(),
+      ...readCustomProperties(ownSheet, '.dark').keys(),
+    ]);
+    expect([...kitNames].filter((name) => ownNames.has(name))).toEqual([]);
   });
 });

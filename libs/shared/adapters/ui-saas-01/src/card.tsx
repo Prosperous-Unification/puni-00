@@ -1,12 +1,11 @@
+import { cn } from '@ui/core-01';
 import { type HTMLAttributes } from 'react';
-
-import { cn } from '@/lib/utils';
 
 /**
  * A panel with a border and a shadow, for chrome that stands apart from the
  * page rather than flowing down it.
  *
- * The auth screen is what it was vendored for: a signed-out page whose only
+ * WBS's auth screen is what it was vendored for: a signed-out page whose only
  * content is one form reads as unfinished when that form is loose on a white
  * background.
  */
@@ -39,11 +38,12 @@ export interface CardTitleProps extends HTMLAttributes<HTMLHeadingElement> {
 /**
  * The card's title, and a real heading.
  *
- * The registry ships this as a `div`, which is why it is worth a note. The auth
- * screen's title was an `<h2>` before this change and rendering it as a `div`
+ * The registry ships this as a `div`, which is why it is worth a note. WBS's
+ * auth screen's title was an `<h2>` before this change and rendering it as a `div`
  * took the heading out of the page's outline — nothing on the signed-out page
  * was a heading below `WBS tool v2` any more. Both reviews caught it; the tests
- * did not, because none of them queried by role. `auth-form.test.tsx` does now,
+ * did not, because none of them queried by role. WBS's `auth-form.test.tsx`
+ * does now,
  * and was watched failing against the `div`.
  */
 export function CardTitle({ className, as: Heading = 'h2', ...props }: CardTitleProps) {

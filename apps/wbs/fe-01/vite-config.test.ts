@@ -286,6 +286,12 @@ describe('the app and the run resolve the same modules', () => {
         '../../../libs/shared/domain/validation/src/index.ts',
       ),
       '@shared/failures': resolve(APP_ROOT, '../../../libs/shared/domain/failures/src/index.ts'),
+      '@ui/core-01/testing': resolve(
+        APP_ROOT,
+        '../../../libs/shared/adapters/ui-core-01/src/testing.ts',
+      ),
+      '@ui/core-01': resolve(APP_ROOT, '../../../libs/shared/adapters/ui-core-01/src/index.ts'),
+      '@ui/saas-01': resolve(APP_ROOT, '../../../libs/shared/adapters/ui-saas-01/src/index.ts'),
       '@wbs/domain/priority-band': resolve(APP_ROOT, domain, 'priority-band.ts'),
       '@wbs/domain/dependency-reach': resolve(APP_ROOT, domain, 'dependency-reach.ts'),
       '@wbs/domain/external-system': resolve(APP_ROOT, domain, 'external-system.ts'),

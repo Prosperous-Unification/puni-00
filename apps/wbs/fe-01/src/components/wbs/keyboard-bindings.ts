@@ -588,7 +588,7 @@ export function isWindowShortcut(pressed: KeyPress, target: EventTarget | null):
  * keystroke whose target is a cell.
  *
  * The union exists for one caller: `usePageShortcutsSuspended` in
- * `components/ui/page-shortcuts.ts`, which is how an open dialog or sheet stops
+ * `components/wbs/page-shortcuts.ts`, which is how an open dialog or sheet stops
  * `?`, Cmd+Z and the chords reaching the table underneath it. Asking the
  * predicates rather than listing the chords again is the point — a chord added
  * to {@link commandChord} is held back by a modal on the same commit, with

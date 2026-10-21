@@ -1,14 +1,11 @@
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { cn } from '@ui/core-01';
 import {
   type ComponentPropsWithoutRef,
   type ComponentRef,
   forwardRef,
   type ReactNode,
 } from 'react';
-
-import { cn } from '@/lib/utils';
-
-import { usePageShortcutsSuspended } from './page-shortcuts';
 
 /**
  * Where a modal surface is anchored, which is the whole difference between what
@@ -41,8 +38,8 @@ export const ModalClose = DialogPrimitive.Close;
  * The dimmed page behind the surface.
  *
  * Exported because `ModalContent` is not the only shape a modal will ever need
- * — `M mobile-cards` puts a toolbar in a bottom sheet with its own padding —
- * and because a caller assembling its own portal still has to get the overlay
+ * — a toolbar in a bottom sheet with its own padding is one WBS plans — and
+ * because a caller assembling its own portal still has to get the overlay
  * right.
  */
 export const ModalOverlay = forwardRef<
@@ -71,12 +68,25 @@ export interface ModalContentProps extends ComponentPropsWithoutRef<
    * with Cancel and Delete has two ✕s otherwise, and they mean different things.
    */
   closeButton?: boolean;
+  /**
+   * Rendered inside the portal, first, for whatever the host app must mount
+   * only while the surface is open (WBS mounts its page-shortcut hold here).
+   *
+   * A slot rather than a hook the kit calls, because which keyboard a page owns
+   * is the app's policy, not the kit's; and inside the portal rather than
+   * beside this component, because only what the portal mounts tracks "open"
+   * (a component in this one's body runs whenever its caller renders, open or
+   * shut).
+   */
+  held?: ReactNode;
   children: ReactNode;
 }
 
 /**
  * Whether an outside pointer event landed on a toast, which no modal treats as
- * leaving it (see {@link ModalContent}).
+ * leaving it (see {@link ModalContent}). A toast is anything under
+ * `[data-toasts]` (the stack) or `[data-toast]` (one toast): the attributes a
+ * host app's toast stack carries for this, as WBS's does.
  *
  * `[data-toast]` as well as the stack: Radix reports a mouse's pointer-down
  * outside only once the click has landed, and by then the ✕ has dismissed its
@@ -88,48 +98,19 @@ function isToastTap(target: EventTarget | null): boolean {
 }
 
 /**
- * Holds the page's keyboard back for as long as **this** is mounted, which is
- * for as long as the surface around it is on screen.
- *
- * It exists because "mounted" and "open" turned out not to be the same fact.
- * {@link ModalContent} is an ordinary child of {@link Modal}, so React runs its
- * body on every render of whatever holds it, open or shut — Radix's `Presence`
- * decides what the *portal* renders, not whether this component function was
- * called. So a hook called in `ModalContent`'s own body registered its capture
- * listener the moment the dialog was declared and never took it off, and every
- * page shortcut on the page went dead while the dialog was closed.
- *
- * Rendering it as a child of `DialogPrimitive.Content` puts it inside what the
- * portal mounts and unmounts, which is the thing that really tracks "open".
- *
- * Proof: found by the first production caller rather than by reasoning. With
- * `usePageShortcutsSuspended(true)` in `ModalContent`'s body and a closed
- * `StepsDialog` mounted in `WbsTable` — that surface is `ProjectSettingsModal`'s
- * steps section since `project-config-modal` — **49 tests** in `wbs-table.test.tsx`
- * failed — `outdents with shift-tab` on `expected [ '010' ] to deeply equal
- * [ '010', '020' ]`, because Ctrl+N was being swallowed by a dialog nobody had
- * opened. Watched 2026-08-09, and pinned since by `holds nothing back while the
- * modal is closed` in `page-shortcuts.test.tsx`.
- */
-function PageShortcutsHeld(): null {
-  usePageShortcutsSuspended(true);
-  return null;
-}
-
-/**
- * A modal surface, and the one place the page's keyboard is held back.
+ * A modal surface, and the one place a host app holds its page back.
  *
  * Radix owns everything that is about this dialog: the focus trap, the return
  * of the focus on close, `role="dialog"` with `aria-modal`, Escape, the click
  * away, and `aria-hidden` on the page behind. What Radix cannot know about is
- * this app's **page-level** keyboard — `?` and Cmd+Z are listened for on
- * `window`, and the command chords on the cells — so an open dialog left every
- * one of them live over a table nobody could see. {@link usePageShortcutsSuspended}
- * is that rule, and it is hung on {@link PageShortcutsHeld} **inside** the
- * portal rather than called from this body. That is not tidiness: this body runs
- * whenever its caller renders, open or shut, and only what the portal mounts
- * tracks "open". There is still no flag to keep in step — the mount is the flag,
- * it is just a different mount than the first version of this file assumed.
+ * the host app's **page-level** keyboard — WBS listens for `?` and Cmd+Z on
+ * `window`, and for command chords on its cells — so an open dialog left every
+ * one of them live over a page nobody could see. That rule is the app's, so it
+ * arrives through {@link ModalContentProps.held}, which this renders **inside**
+ * the portal rather than calling anything from this body. That is not tidiness:
+ * this body runs whenever its caller renders, open or shut, and only what the
+ * portal mounts tracks "open". There is no flag to keep in step — the mount is
+ * the flag.
  *
  * The dialog needs a {@link ModalTitle} — Radix warns without one, and a modal
  * with no accessible name is one a screen reader announces as "dialog".
@@ -142,6 +123,7 @@ export const ModalContent = forwardRef<
     className,
     side = 'centre',
     closeButton = true,
+    held,
     children,
     onPointerDownOutside,
     onInteractOutside,
@@ -167,15 +149,15 @@ export const ModalContent = forwardRef<
         // reader was doing. Decided here, **before** the caller hears of it,
         // and for both hooks: Radix calls `onInteractOutside` right after
         // `onPointerDownOutside` whatever that one prevented, and a caller that
-        // closes itself from `onInteractOutside` (`ProjectSettingsModal`) would
+        // closes itself from `onInteractOutside` (WBS's Project settings) would
         // otherwise still close.
         //
-        // Proof: with this guard on `onPointerDownOutside` only, `a toast's ✕
-        // leaves Project settings open` (`e2e/project-settings.spec.ts`)
-        // failed on the dialog, `element(s) not found`; with no guard at all,
-        // `a refused import is drawn above the sheet it was chosen on`
-        // (`e2e/plan-import.spec.ts`) failed the same way on the Plan actions
-        // sheet. Watched 2026-10-16.
+        // Proof: with this guard on `onPointerDownOutside` only, WBS's `a
+        // toast's ✕ leaves Project settings open` (`e2e/project-settings.spec.ts`
+        // in `apps/wbs/fe-01`) failed on the dialog, `element(s) not found`; with
+        // no guard at all, `a refused import is drawn above the sheet it was
+        // chosen on` (its `e2e/plan-import.spec.ts`) failed the same way on the
+        // Plan actions sheet. Watched 2026-10-16.
         onPointerDownOutside={(event) => {
           if (isToastTap(event.target)) {
             event.preventDefault();
@@ -191,7 +173,7 @@ export const ModalContent = forwardRef<
           onInteractOutside?.(event);
         }}
       >
-        <PageShortcutsHeld />
+        {held}
         {children}
         {closeButton && (
           <DialogPrimitive.Close

@@ -207,6 +207,18 @@ export default defineConfig(({ command, mode }) => ({
       // through; it is `runtime:isomorphic` and has no Node import, so the same
       // module serves the browser build and both test tiers.
       '@shared/failures': resolve(__dirname, '../../../libs/shared/domain/failures/src/index.ts'),
+      // The UI kit WBS paints with, and the core its primitives take `cn` from.
+      // Both are `product:shared` browser libraries, read from source like
+      // every alias here.
+      // Ahead of the bare key, which would otherwise take this subpath as
+      // `index.ts/testing`. Test helpers only; nothing under `src` that ships
+      // imports it.
+      '@ui/core-01/testing': resolve(
+        __dirname,
+        '../../../libs/shared/adapters/ui-core-01/src/testing.ts',
+      ),
+      '@ui/core-01': resolve(__dirname, '../../../libs/shared/adapters/ui-core-01/src/index.ts'),
+      '@ui/saas-01': resolve(__dirname, '../../../libs/shared/adapters/ui-saas-01/src/index.ts'),
       // The same bargain a third time: `priority-band.ts` is four pure functions
       // and a constant, and the rule it holds — which band a number falls in —
       // is what be-01 validates a ladder against. A second copy here is a table
