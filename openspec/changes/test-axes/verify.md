@@ -5690,6 +5690,9 @@ was performed.
 | Changed Markdown/JSON Prettier and `git diff --check`                  | Exit 0; all matched files formatted; no whitespace errors                             |
 | Pinned OpenSpec 1.14.3 selected `--strict --json`                      | **Exit 1**; 35 preexisting requirement-length WARNINGs (>500 characters), zero ERRORs |
 
+The [base comparison](evidence/wbs08039-4.1c.3-20261021/strict-baseline.json)
+proves the complete referenced spec and each of the 35 warning-named requirement
+sections are byte-identical between base `69a8b38f` and candidate `7a63b3082`.
 The coordinator explicitly kept strict warning cleanup outside this bounded slice;
 strict validation is not claimed passing. The ordinary all-artifact validation passed.
 Both restored suites include source/built installed dispatch, complete canonical digest

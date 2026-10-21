@@ -303,6 +303,11 @@
       "sha256": "69f68e931b302aa3b86201bae9ead3c51c615b1b4344192722916597ec328572"
     },
     {
+      "path": "strict-baseline.json",
+      "bytes": 7689,
+      "sha256": "2e539ae55a5697bea476945f5df7b8d2ec7dbe9aa94c533044aee5b6973acdd5"
+    },
+    {
       "path": "typecheck.log",
       "bytes": 338,
       "sha256": "c4c48059e1f6d268c0df95b7eec09f4203b2145d7970a15ca010dd4e0c518a6e"
