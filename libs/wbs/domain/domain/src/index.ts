@@ -79,6 +79,7 @@ export * from './without-held-subtrees';
 // sibling resource for it is the sideways edge K6 forbids.
 export * from './in-progress-now';
 export * from './organization-access';
+export * from './project-address';
 export * from './project-ownership';
 export * from './project-roll-up';
 export * from './public-email-domain';
