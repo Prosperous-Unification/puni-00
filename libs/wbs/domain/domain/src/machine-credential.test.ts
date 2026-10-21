@@ -146,6 +146,27 @@ describe('admitMachineCredential', () => {
 });
 
 describe('digestsEqual', () => {
+  // The timing proof, in the spirit of mcp-01's `oauth-timing-safe.proof.ts`:
+  // the work done must not depend on where two digests first differ.
+  // Proof: with the body replaced by `left === right`, this counted 0 reads
+  // instead of 64 on each side; watched 2026-10-22.
+  it('reads every character of both digests whatever the first difference', () => {
+    for (const presented of [`b${'a'.repeat(63)}`, `${'a'.repeat(63)}b`, DIGEST]) {
+      const reads = { left: 0, right: 0 };
+      // A string stand-in that counts reads: the boundary is this test alone.
+      const counted = (value: string, side: keyof typeof reads) =>
+        ({
+          length: value.length,
+          charCodeAt: (at: number) => {
+            reads[side] += 1;
+            return value.charCodeAt(at);
+          },
+        }) as unknown as string;
+      digestsEqual(counted(presented, 'left'), counted(DIGEST, 'right'));
+      expect(reads).toEqual({ left: 64, right: 64 });
+    }
+  });
+
   it('answers equality of equal-length digests and refuses any length difference', () => {
     expect(digestsEqual(DIGEST, DIGEST)).toBe(true);
     expect(digestsEqual(DIGEST, `${'a'.repeat(63)}b`)).toBe(false);

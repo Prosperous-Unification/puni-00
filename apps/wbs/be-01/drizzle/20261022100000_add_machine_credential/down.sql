@@ -15,8 +15,6 @@ DROP TABLE machine_credential_rollback_guard;
 --> statement-breakpoint
 DROP INDEX machine_credential_secret_credential;
 --> statement-breakpoint
-DROP INDEX machine_credential_secret_digest;
---> statement-breakpoint
 DROP TABLE machine_credential_secret;
 --> statement-breakpoint
 DROP INDEX machine_credential_person;

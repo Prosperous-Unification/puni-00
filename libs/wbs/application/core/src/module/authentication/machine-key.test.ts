@@ -84,10 +84,10 @@ describe('parseMachineKey', () => {
 });
 
 describe('AuthService with an API key', () => {
-  it('refuses a malformed key invalid_token without reading a credential', async () => {
+  it('refuses a malformed key unknown_identity without reading a credential', async () => {
     const { reads, credentials } = await credentialsFor('nobody');
     const auth = service({ credentials, now: () => NOW });
-    expect(await auth.authenticateOrRefuse('wbs_mk_not-a-key')).toBe('invalid_token');
+    expect(await auth.authenticateOrRefuse('wbs_mk_not-a-key')).toBe('unknown_identity');
     expect(reads).toEqual([]);
   });
 

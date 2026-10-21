@@ -3536,7 +3536,8 @@ export type MachineCredentialRow = typeof machineCredential.$inferSelect;
 
 /**
  * Only the SHA-256 digest of one API-key secret of a machine credential; a
- * rotation holds two, the older with its `expires_at` (A11, A15).
+ * rotation holds two, the older with its `expires_at` (A11, A15). Read only
+ * through `credential_id` (A22): nothing looks a digest up.
  */
 export const machineCredentialSecret = sqliteTable(
   'machine_credential_secret',
@@ -3550,10 +3551,7 @@ export const machineCredentialSecret = sqliteTable(
     createdAt: integer('created_at').notNull(),
     ...auditColumnsBesidesCreatedAt(),
   },
-  (t) => [
-    uniqueIndex('machine_credential_secret_digest').on(t.digest),
-    index('machine_credential_secret_credential').on(t.credentialId),
-  ],
+  (t) => [index('machine_credential_secret_credential').on(t.credentialId)],
 );
 
 /**

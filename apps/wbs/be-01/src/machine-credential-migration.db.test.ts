@@ -81,17 +81,12 @@ async function rollBack(root: string, dbPath: string, to: string) {
 }
 
 describe(MACHINE_CREDENTIAL, () => {
-  it('stores an API key and its secret digest, and one digest only once', () => {
+  it('stores an API key and its secret digest, and refuses a malformed digest', () => {
     const { dbPath } = migratedStore();
     run(dbPath, [
       credential('source', "'api_key'"),
       `INSERT INTO machine_credential_secret (id, credential_id, digest, created_at) VALUES ('s1', '${CREDENTIAL}', '${'a'.repeat(64)}', 1)`,
     ]);
-    expect(() => {
-      run(dbPath, [
-        `INSERT INTO machine_credential_secret (id, credential_id, digest, created_at) VALUES ('s2', '${CREDENTIAL}', '${'a'.repeat(64)}', 1)`,
-      ]);
-    }).toThrow(/UNIQUE/);
     expect(() => {
       run(dbPath, [
         `INSERT INTO machine_credential_secret (id, credential_id, digest, created_at) VALUES ('s3', '${CREDENTIAL}', 'not-a-digest', 1)`,

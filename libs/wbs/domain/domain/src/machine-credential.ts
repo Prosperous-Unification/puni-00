@@ -61,6 +61,12 @@ const UNKNOWN: MachineAdmission = { kind: 'refused', refusal: 'unknown_identity'
  * Whether two lowercase hex SHA-256 digests are equal, reading every character
  * of both whatever the first difference: the comparison time depends only on
  * the length, which is fixed at 64 for every stored and presented digest.
+ * Written out rather than `node:crypto`'s `timingSafeEqual` because this ring
+ * imports no runtime.
+ *
+ * Proof: with the body replaced by `left === right`, `reads every character of
+ * both digests whatever the first difference` (machine-credential.test.ts)
+ * counted 0 reads; watched 2026-10-22.
  */
 export function digestsEqual(left: string, right: string): boolean {
   if (left.length !== right.length) return false;

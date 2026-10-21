@@ -195,6 +195,26 @@ describe('an API key', () => {
     expect(await as(stranger, 'GET', '/api/projects')).toEqual(UNKNOWN);
   });
 
+  it('is refused unknown_identity for a live secret under another credential’s id', async () => {
+    const { id } = await claireKey();
+    const codex = await issueApiKey(h.sqlite, {
+      organizationId: 'org-a',
+      personId: 'codex',
+      issuedBy: h.userId('dany'),
+    });
+    const crossed = codex.key.replace(codex.id, id);
+    expect(await as(crossed, 'GET', '/api/projects')).toEqual(UNKNOWN);
+    expect((await as(codex.key, 'GET', '/api/projects')).status).toBe(200);
+  });
+
+  // A22: only `Authorization` carries a key; any other header is no credential.
+  it('treats a live key in a custom header as no credential at all', async () => {
+    const { key } = await claireKey();
+    const response = await h.request('/api/projects', { headers: { 'x-wbs-api-key': key } });
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({ error: 'unauthenticated' });
+  });
+
   it('is refused unknown_identity once its secret has expired', async () => {
     const { key, secretId } = await claireKey();
     h.sqlite.run('UPDATE machine_credential_secret SET expires_at = ? WHERE id = ?', [
@@ -208,9 +228,9 @@ describe('an API key', () => {
   // error: a malformed key must be refused before one, a well-formed key
   // reaches it.
   // Proof: with `parseMachineKey` answering every prefixed token as a key,
-  // the malformed cases answered 500 here instead of 401 invalid_token;
+  // the malformed cases failed here (they reached the renamed table);
   // watched 2026-10-22.
-  it('refuses a malformed key invalid_token before any read', async () => {
+  it('refuses a malformed key unknown_identity before any read', async () => {
     const { id, key } = await claireKey();
     h.sqlite.run('ALTER TABLE machine_credential RENAME TO machine_credential_away');
     const secret = key.slice(key.indexOf('.') + 1);
@@ -222,10 +242,7 @@ describe('an API key', () => {
       `wbs_mk_${id}`,
       'wbs_mk_',
     ])
-      expect(await as(malformed, 'GET', '/api/projects')).toEqual({
-        status: 401,
-        body: { error: 'invalid_token' },
-      });
+      expect(await as(malformed, 'GET', '/api/projects')).toEqual(UNKNOWN);
     expect((await as(key, 'GET', '/api/projects')).status).toBe(500);
   });
 

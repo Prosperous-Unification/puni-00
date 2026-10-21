@@ -8,7 +8,6 @@ import type { EnterpriseConnections } from '../ports/enterprise-connections';
 import type { OidcIdentityStore, UserStore } from '../ports/user-store';
 
 export type {
-  AuthenticationRefusal,
   LoginOutcome,
   RegisterOutcome,
   SignedIn,

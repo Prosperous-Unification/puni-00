@@ -13,7 +13,9 @@
 -- an API key carries it in the clear (`wbs_mk_<id>.<secret>`, A22).
 --
 -- `machine_credential_secret`: only the SHA-256 digest of an API key's secret,
--- one row per secret so a rotation holds two with their own expiries.
+-- one row per secret so a rotation holds two with their own expiries. It is
+-- read only through `credential_id` (A22), so no index lets anything look a
+-- digest up.
 --
 -- Proof, observed 2026-10-22 in `machine-credential-migration.db.test.ts`:
 -- the per-source CHECK replaced by `CHECK (1)` made `refuses a credential
@@ -82,7 +84,5 @@ CREATE TABLE `machine_credential_secret` (
 	`updated_at` integer,
 	`created_by` text REFERENCES `users`(`id`)
 );
---> statement-breakpoint
-CREATE UNIQUE INDEX `machine_credential_secret_digest` ON `machine_credential_secret` (`digest`);
 --> statement-breakpoint
 CREATE INDEX `machine_credential_secret_credential` ON `machine_credential_secret` (`credential_id`);

@@ -80,9 +80,6 @@ export interface MachineKeyVerification {
   readonly now: () => number;
 }
 
-/** {@link AuthService.authenticateOrRefuse}'s answer when it admits nobody. */
-export type AuthenticationRefusal = 'unknown_identity' | 'invalid_token';
-
 export type { AuthenticatedUser } from '@wbs/contracts';
 
 /** Usernames are the WebSocket presence identity, so they are constrained here. */
@@ -207,7 +204,7 @@ export class AuthService {
    */
   async authenticate(token: string | null): Promise<AuthenticatedUser | null> {
     const outcome = await this.authenticateOrRefuse(token);
-    return outcome === 'unknown_identity' || outcome === 'invalid_token' ? null : outcome;
+    return outcome === 'unknown_identity' ? null : outcome;
   }
 
   /**
@@ -223,20 +220,20 @@ export class AuthService {
    * any session of that account. A token with the claim keeps the login path.
    *
    * **A token with the `wbs_mk_` prefix is an API key and nothing else**
-   * (`wbs-machine-credentials` A13, A22): it is parsed once, never handed to
-   * a JWT verifier, and answers `invalid_token` when it does not parse — all
-   * before any read — or `unknown_identity` when no live credential admits it.
+   * (`wbs-machine-credentials` A13, A22): it is parsed once and never handed
+   * to a JWT verifier. It answers `unknown_identity` when it does not parse,
+   * before any read, and when no live credential admits it.
    */
   async authenticateOrRefuse(
     token: string | null,
-  ): Promise<AuthenticatedUser | AuthenticationRefusal | null> {
+  ): Promise<AuthenticatedUser | 'unknown_identity' | null> {
     if (this.opts.localIdentity !== undefined) return this.opts.localIdentity;
     if (token === null) return null;
     const machineKey = parseMachineKey(token);
-    if (machineKey === 'malformed') return 'invalid_token';
+    if (machineKey === 'malformed') return 'unknown_identity';
     // Proof: with this branch removed, the key fell through to the OIDC
     // verifier and `routes an API key to its credential and never to the JWT
-    // verifier` in `machine-credential.controller.db.test.ts` failed, with 12
+    // verifier` in `machine-credential.controller.db.test.ts` failed, with 16
     // more cases of that file; watched 2026-10-22.
     if (machineKey !== null) return this.authenticateMachineKey(machineKey);
     if (this.opts.oidc !== undefined) {

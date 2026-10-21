@@ -20,7 +20,7 @@ export interface MachineKey {
  * goes on to the other verifiers). Reads nothing.
  *
  * Proof: with a token failing the grammar parsed as a key anyway, `refuses a
- * malformed key invalid_token before any read` in
+ * malformed key unknown_identity before any read` in
  * `machine-credential.controller.db.test.ts` failed: the malformed keys
  * reached the (renamed-away) credential table; watched 2026-10-22.
  */

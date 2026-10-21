@@ -146,16 +146,7 @@ export function mountEndpoints(endpoints: readonly BoundEndpoint[], options: Mou
         // refusal` (watched 2026-10-20). The shape's default headers still apply.
         // Proof: answering without them made the same test's `cache-control`
         // read null on `/api/organization/active` (watched 2026-10-20).
-        // `invalid_token`, a malformed `wbs_mk_` API key (`wbs-machine-credentials`
-        // A22), is the same kind of refusal: only a machine meets it.
-        // Proof: rendering it through the shape made `refuses a malformed key
-        // invalid_token before any read` in
-        // `machine-credential.controller.db.test.ts` fail; watched 2026-10-22.
-        if (
-          !identity.ok &&
-          'error' in identity.body &&
-          (identity.body.error === 'unknown_identity' || identity.body.error === 'invalid_token')
-        )
+        if (!identity.ok && 'error' in identity.body && identity.body.error === 'unknown_identity')
           return Response.json(identity.body, {
             status: 401,
             headers: responseHeaders(matched.endpoint.shape),
