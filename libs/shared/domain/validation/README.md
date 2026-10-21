@@ -28,8 +28,8 @@ difference between them, and it is the whole reason there are two.
 number (was a string)`, but a literal union or a regex **quotes what it got**
   — `MODE must be "dev" or "prod" (was "sekrit")`.
 - **So `defineConfig` uses `parseSecretsOrThrow`**, which names the path and
-  never the value. It went through the other one until 2026-09-02, and one
-  mistyped `LOG_LEVEL` printed every secret be-01 holds into the boot log.
+  never the value; [config's landmines](../../../wbs/adapters/config/README.md#landmines)
+  record the boot log that printed every secret be-01 holds before it did.
 - It used to open every message with `JSON.stringify(input)`, echoing the whole
   value back — for an HTTP body that is the caller's own data arriving twice.
 

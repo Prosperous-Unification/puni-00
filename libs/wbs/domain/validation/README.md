@@ -1,15 +1,14 @@
 # validation
 
-One arktype wrapper, so external data is checked once at its boundary and
-internal types stay precise after it (AGENTS.md R5). `runtime:isomorphic`.
+`@wbs/validation` adds the WBS test doubles to the shared ArkType wrapper,
+[`@shared/validation`](../../../shared/domain/validation/README.md), which owns
+the parsers, their refusals and their landmines. `runtime:isomorphic`.
 
 ## Two things
 
 - **`src/index.ts`** — a bare re-export of `@shared/validation`. The parsers,
-  `ValidationError` and the re-exported `type` live in
-  `libs/shared/domain/validation`, so a product-less tool can reach them
-  without importing a WBS library; their refusals and their landmines are
-  documented there and on the symbols themselves.
+  `ValidationError` and the re-exported `type` live there, and on the symbols'
+  JSDoc, so a product-less tool can reach them without importing a WBS library.
 - **`src/fixtures/`** — `makeTestDb`, `injectedClock`, `makeFrame`: the doubles
   every suite in the repo builds a boundary out of. They stay here because they
   reach for `bun:sqlite` and drizzle. Import them from
