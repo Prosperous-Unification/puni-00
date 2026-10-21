@@ -32,19 +32,20 @@ column and a check, not a new mechanism.
 **Goals:** a member admits, rotates and revokes a machine for their own agents, an admin for
 every agent, without an operator; a human who signs in at the MCP consent page can
 authorize an agent person instead of themself; one verification path admits an API key, a
-trusted issuer's token, an Auth0 machine-to-machine token and a consent-issued family; a
+trusted issuer's token and a consent-issued family; a
 machine acts as its person, scoped to its organization and capped below administration;
 every act is audited; our fleets move onto it.
 
 **Non-Goals:** quotas, hosted compute, billing, SCIM for agents, production activation, the
 credential epoch (6.5), how humans log in (Auth0 connections per organization unchanged),
-MCP `client_credentials`, SAML as an OIDC source, changes to claims.
+Auth0 machine-to-machine applications as a source (A21), MCP `client_credentials`, SAML as
+an OIDC source, changes to claims.
 
 ## Decisions
 
-A1 to A8 are Dany's and fixed (the task brief of 2026-10-21 and his two additions of
+A1 to A8 and A21 are Dany's and fixed (the task brief of 2026-10-21 and his additions of
 2026-10-22). A9 to A20 are **assumed** by this draft; each is overrulable by id without
-moving another decision unless noted.
+moving another decision unless noted. A19 is withdrawn by A21.
 
 **A1. Tenant = WBS organization**, one deployment, row-level scoping.
 
@@ -52,9 +53,10 @@ moving another decision unless noted.
 person of that organization. Persons, claims, occupancy and delegated claims are unchanged.
 It replaces `link-credential-cli.ts`; our fleets are the first tenant.
 
-**A3. Headless sources behind one verification path:** `api_key` (WBS-issued, ships first),
-`oidc` (a trusted issuer or a proven `oidc` enterprise connection; SAML cannot), `auth0` (an
-application in PUNI's tenant, today's path, kept, not the default).
+**A3. Two headless sources behind one verification path:** `api_key` (WBS-issued, ships
+first) and `oidc` (a trusted issuer or a proven `oidc` enterprise connection; SAML cannot),
+beside the interactive `mcp_consent` source of A8. There is no Auth0 machine-to-machine
+source (A21).
 
 **A4. Lifecycle:** create, list, rotate with a bounded overlap, revoke, last-used, audit
 rows in `organization_audit`. The credential epoch stays the kill switch, out of scope.
@@ -84,20 +86,19 @@ sources are its equivalents. It is a row of the same table and lifecycle.
 **A9. One table with a source discriminator, plus one child table for API-key secrets.**
 `machine_credential (id, organization_id, person_id, issued_by, source, name, issuer,
 subject, audience, trusted_issuer_id, mcp_family_id, last_used_at, revoked_at, audit
-columns)` with `source IN ('api_key', 'oidc', 'auth0', 'mcp_consent')` and CHECKs per
-source: `api_key` has null issuer, subject, audience, trusted issuer and family; `oidc` has
-issuer, subject and `trusted_issuer_id`, audience nullable; `auth0` has issuer and subject
-only; `mcp_consent` has `mcp_family_id` only. `issued_by` references `users` and is the
+columns)` with `source IN ('api_key', 'oidc', 'mcp_consent')` and CHECKs per source:
+`api_key` has null issuer, subject, audience, trusted issuer and family; `oidc` has issuer,
+subject and `trusted_issuer_id`, audience nullable; `mcp_consent` has `mcp_family_id` only. `issued_by` references `users` and is the
 account that created it (A7). A partial unique index on `(issuer, subject)` where
-`source IN ('oidc', 'auth0')` keeps a pair on one credential deployment-wide, as
+`source = 'oidc'` keeps a pair on one credential deployment-wide, as
 `external_identity_issuer_subject` does; `mcp_family_id` is unique.
 `machine_credential_secret (id, credential_id, digest, expires_at, created_at)` holds the
 API-key digests, `digest` unique and CHECKed like `organization_scim_token.digest`, at most
 two live per credential. Why not per-source columns for the secret too: rotation needs two
 digests with their own expiries, and a row per secret is what the provisioning tokens
 already proved. Why not a child table per source: the verification path reads one
-credential row by one of three lookups (digest, pair, family) and nothing else differs
-between the JWT sources but how the key set is found. Why not reuse `external_identity`: it
+credential row by one of three lookups (digest, pair, family), and a later JWT source
+would differ only in how its key set is found. Why not reuse `external_identity`: it
 is the sign-in table of human accounts, has no organization and no revocation, and a browser
 pair in it must never be mistaken for a machine.
 
@@ -105,7 +106,7 @@ pair in it must never be mistaken for a machine.
 (`sso_required`) and the session policy (`reauthentication_required`) judge a human
 sign-in; a headless machine has none to reauthenticate. The organization's control is the
 issuer who created it, the trusted-issuer gate (A16) and revoke. `authentication` on a
-machine principal is `upstream` for `oidc` and `auth0` (the pair) and
+machine principal is `upstream` for `oidc` (the pair) and
 `{ kind: 'machine', credentialId }` for `api_key`; the rules return `ok` for a machine
 principal, with a negative that a machine of an enforcing organization is still admitted.
 The `mcp_consent` source is the exception: its family was opened by a human sign-in, so the
@@ -117,9 +118,9 @@ which is the point of the OIDC source.
 
 **A11. Rotation is the `api_key` source's act.** `rotate` issues a second secret and gives
 the current one `expires_at = now + rotation window`; the credential then has two live
-secrets until the window ends. The `oidc` and `auth0` sources rotate at their issuer and
-`mcp_consent` rotates by refresh, with nothing to change in WBS, so `rotate` on them
-answers `409 rotation_at_issuer`. A subject change is a new credential.
+secrets until the window ends. The `oidc` source rotates at its issuer and `mcp_consent` rotates by
+refresh, with nothing to change in WBS, so `rotate` on them answers
+`409 rotation_at_issuer`. A subject change is a new credential.
 
 **A12. A credential acts as the account its person is bound to, with capped scopes.** The
 principal's `id` is `person.account_id`; creation refuses an unbound person
@@ -145,8 +146,10 @@ no cookie:
    Never a JWT parse.
 2. Otherwise decode the JWT header and `iss` without verifying. `iss` equal to the
    configured issuer: verify with today's verifier (audience, RS256, JWKS). A token with a
-   groups claim is a browser login as before. Without one, read `machine_credential` by the
-   pair with source `auth0`; none is `401 unknown_identity`.
+   groups claim is a browser login as before. A verified token without one is
+   `401 unknown_identity`, as an unlinked machine token is today: the configured issuer
+   mints human sign-ins only, nothing links its other tokens, and no account is minted
+   (A21). No credential lookup happens on this branch.
 3. `iss` equal to a trusted issuer of any organization: verify against that issuer's cached
    JWKS with the credential's audience (or the trusted issuer's default audience), read the
    credential by the pair with source `oidc` and that trusted issuer; a credential of another
@@ -187,7 +190,8 @@ cannot prove the URL belongs to that connection; the proof that matters is at ve
 (A13 step 3), and the connection check decides who may register, which is what A3 asks.
 Removing a trusted issuer with live credentials is `409 in_use` with the count. The
 configured issuer (`AUTH_ISSUER_DISCOVERY_URL`) cannot be registered (`409 issuer_reserved`):
-it is the `auth0` source.
+it is the human sign-in issuer, and PUNI's own machines use the self-serve sources like every
+tenant's (A21).
 
 **A17. Audit vocabulary.** Actions `machine_credential_created`, `machine_credential_rotated`,
 `machine_credential_revoked`, `trusted_issuer_registered`, `trusted_issuer_removed`; subject
@@ -199,23 +203,20 @@ compatible table rebuild as `20261012090200`, `down.sql` refusing while any new-
 exists. Last use is not audited. A verification refusal is not audited (it is a 401 on a
 hot path); the credential epoch, not the audit, answers abuse.
 
-**A18. Migration of the operator links, and the CLI's retirement.** One forward migration
-copies every `external_identity` row with `person_id IS NOT NULL` into `machine_credential`
-(source `auth0`, organization from `person_organization`, person the pin, `issued_by` and
-`created_by` the linked user) and leaves the source rows in place: the outgoing colour still
-reads them mid-swap. The new release never reads `external_identity.person_id`; it reads
-`machine_credential` only, so there is no fallback to prove absent. A later cleanup
-migration deletes the copied rows and drops the column with its guard, once no release
-reads them (its own change). The CLI file is deleted in the same slice, with its runbook
-section and the `docs/auth-integration.md` "Fleet credentials" section rewritten to the
-settings page; a pinned row it would have written is now a credential of source `auth0`. The
-`down.sql` of the copy refuses while a copied credential has been rotated, revoked or used
-(it would lose state the links cannot hold).
+**A18. The operator links retire with nothing to migrate.** No migration copies
+`external_identity` rows with `person_id` into `machine_credential`: PUNI's own fleets are
+onboarded as the first tenant through the self-serve path, exactly as a customer would be (an
+admin creates API-key credentials for the agent persons through the panel or the API, slices
+1 and 2; laptop Claude Code authorizes its agent person at the MCP consent page, slice 3).
+The new release never reads `external_identity.person_id`, so a pinned row admits nothing
+after the swap; the swap window in the runbook says that each fleet must hold its API key
+before the swap and that the outgoing colour still honours the links until it stops. The CLI
+file, `credential-link.ts`, the runbook section "Fleet credential links" and the
+`docs/auth-integration.md` section "Fleet credentials" are deleted in the same slice, with
+the sections rewritten to the settings page. Dropping the `person_id` column and its guard
+is a later cleanup change, once no release reads it.
 
-**A19. The `auth0` source's issuer is the deployment's configured issuer.** The creator
-enters only the application's client id; WBS stores `issuer = AUTH_ISSUER_DISCOVERY_URL`'s
-discovered issuer and `subject = <client id>@clients`. Another issuer for this source cannot
-be entered; that is the `oidc` source with a trusted issuer.
+**A19. Withdrawn by A21.** (It fixed the Auth0 source's issuer to the configured one.)
 
 **A20. How a consent credential is minted, carried and ended (the mechanics of A8).**
 
@@ -256,6 +257,12 @@ be entered; that is the `oidc` source with a trusted issuer.
   are then one surface for all four sources, which is what A8 asks ("same table/lifecycle").
   The family stays the secret holder; be-01 holds no refresh token.
 
+**A21. No Auth0 machine-to-machine source (Dany, 2026-10-22).** "If clients don't do M2M
+then I don't want to do M2M as well; I need a self-serving setup where I use the offering
+that I try to build." The sources are `api_key`, `oidc` and `mcp_consent`; an application in
+PUNI's Auth0 tenant is not a way in, today's operator-linked path is not migrated (A18), and
+PUNI's fleets dogfood the self-serve offering as the first tenant.
+
 ## Risks / Trade-offs
 
 - **A12 is the decision most likely to be overruled.** Binding a machine to a human's
@@ -278,8 +285,10 @@ be entered; that is the `oidc` source with a trusted issuer.
 - **A URL an admin registers is trusted on the admin's word** (A16). The blast radius is
   that admin's own organization, scoped by A1, capped by A12.
 - **Last-used coarsening** means a list may lag a minute behind. Stated in the panel.
-- **The copy migration (A18) runs while blue still links by CLI.** A link made between the
-  copy and the swap is not copied; the runbook's swap window names it, and the retired CLI
-  cannot make one afterwards.
+- **The operator links stop admitting at the swap (A18, A21).** A fleet that has not been
+  given an API key or a consent session before the swap is refused `401 unknown_identity`
+  by the incoming colour. The runbook's swap window names it; the retired CLI cannot make a
+  link afterwards. Accepted: the cost of dogfooding the self-serve path is one onboarding
+  per fleet, which is what a customer pays.
 - **A family ended by mcp-01 leaves a live-looking credential** (A20, _End_). The gap is
   visible in the list and closes with a callback slice.

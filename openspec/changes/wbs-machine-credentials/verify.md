@@ -1,8 +1,8 @@
 ## Verification record
 
 Drafted 2026-10-21 as an OpenSpec proposal only; nothing is implemented. A1 to A6 are
-Dany's owner decisions (A7 and A8 added 2026-10-22); A9 to A20 in design.md are assumed
-until he reads them. Sources read
+Dany's owner decisions (A7, A8 and A21 added 2026-10-22; A21 withdraws A19); A9 to A20 in
+design.md are assumed until he reads them. Sources read
 on 2026-10-21: `wbs-team-claims` (D5 to D7, `fleet-credentials` spec, verify.md slice 0),
 `organization-enterprise-sso` (provisioning tokens, audit widening),
 `organization-ownership-and-access` (task 6.5 credential epoch, 6.6 raw-Bearer refusal),
@@ -38,16 +38,15 @@ token** stays the SCIM secret and is not a credential source.
   chosen at consent claims as itself through its own refreshed session; revoking the
   credential refuses the next tool call and the refresh; the agents offered are only those
   bound to the signed-in account.
-- Slice 4: two pinned rows and one browser pair yield two credentials and an untouched pair;
-  a pinned row that was not copied admits nothing; the CLI, its store module, the runbook
-  section and the auth-integration section are gone; the secrets hook catches `wbs_mk_`.
+- Slice 4: a pinned `external_identity` row admits nothing and is unchanged; a groups-less
+  token of the configured issuer reads no credential; the CLI, its store module, the
+  runbook section and the auth-integration section are gone; the secrets hook catches
+  `wbs_mk_`; every fleet writes on dev through a self-serve credential.
 - Slice 5: a disagreeing discovery document registers nothing; a stranger issuer is refused
   with zero key fetches; a JWKS 503 is refused without another issuer's cache; two
   organizations trusting one URL never admit each other's subjects; a real GitHub Actions
   token is admitted on dev.
-- Slice 6: an issuer in the body is `400 invalid_body`; the fleet applications' tokens are
-  admitted as the copied credentials and a revoked one is `401 unknown_identity` on dev.
-- Slice 7: the secret is rendered once and absent after refresh, mutation, refusal and
+- Slice 6: the secret is rendered once and absent after refresh, mutation, refusal and
   unmount; a wrong id sends no revoke; a viewer's page sends no credentials request; a
   member sees only their own agents' credentials on both pages.
 

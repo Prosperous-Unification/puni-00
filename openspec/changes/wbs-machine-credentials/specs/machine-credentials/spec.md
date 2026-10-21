@@ -3,9 +3,9 @@
 ### Requirement: A member creates a credential for their own agents, an admin for any agent
 
 `POST /api/organization/machine-credentials` SHALL be accepted, after activation, from a
-current member of the active organization. The body SHALL name a `source` of `api_key`,
-`oidc` or `auth0` (`mcp_consent` is minted only at consent and SHALL be refused `400
-invalid_body` here), a `name` (1 to 80 characters, unique among the organization's
+current member of the active organization. The body SHALL name a `source` of `api_key` or
+`oidc` (`mcp_consent` is minted only at consent, and any other value, `auth0` included,
+SHALL be refused `400 invalid_body`), a `name` (1 to 80 characters, unique among the organization's
 unrevoked credentials), and a `personId` of a person of kind `agent` owned by the active
 organization and bound to an account that is a current member of it. A caller whose role is
 `member` or `viewer` SHALL be accepted only for a person bound to the caller's own account
@@ -69,24 +69,6 @@ a second is refused `409 subject_taken`.
 
 - **WHEN** an admin of A names a trusted issuer registered by B
 - **THEN** WBS answers `404 unknown_trusted_issuer` and writes nothing
-
-### Requirement: An Auth0 credential names only a client id
-
-For `source: 'auth0'` the body SHALL name a `clientId` (Auth0's client id grammar, 32
-characters of `[A-Za-z0-9]`); WBS SHALL store the issuer the deployment's discovery
-published and the subject `<clientId>@clients`. The body SHALL NOT be able to name an
-issuer. The same uniqueness as the OIDC pair applies.
-
-#### Scenario: A fleet application is registered
-
-- **WHEN** an admin posts `{ source: 'auth0', clientId: <id>, name: 'claire', personId: <claire> }`
-- **THEN** the credential's issuer is the configured issuer and its subject `<id>@clients`,
-  and a client-credentials token of that application for the WBS audience is admitted
-
-#### Scenario: An issuer in the body
-
-- **WHEN** the body carries `issuer`
-- **THEN** WBS answers `400 invalid_body` and writes nothing
 
 ### Requirement: A human at the MCP consent page may authorize an agent person instead of themself
 
@@ -163,11 +145,11 @@ opened the family.
 be-01 SHALL admit a request bearing `Authorization: Bearer <token>` by exactly one of: a
 WBS-signed delegation naming a live `mcp_consent` credential; a
 token with the `wbs_mk_` prefix whose SHA-256 digest is an unexpired secret of an unrevoked
-credential; a verified JWT of the configured issuer without a groups claim whose pair is an
-unrevoked `auth0` credential; a JWT verified against a trusted issuer's JWKS with the
+credential; a JWT verified against a trusted issuer's JWKS with the
 credential's audience (or the issuer's default) whose pair is an unrevoked `oidc` credential
 of that trusted issuer. A JWT of the configured issuer with a groups claim SHALL keep the
-browser login path. A `wbs_mk_` token SHALL never be parsed as a JWT. A verified token
+browser login path; one without a groups claim SHALL be refused `401 unknown_identity` with
+no credential lookup and no account created, whatever `external_identity` rows exist. A `wbs_mk_` token SHALL never be parsed as a JWT. A verified token
 matching no credential, a revoked credential or an expired secret SHALL be refused `401
 unknown_identity` with no account created or changed. A token whose issuer is neither the
 configured issuer nor a trusted issuer, an unverifiable token or a key set that cannot be
@@ -183,6 +165,12 @@ fetched SHALL be refused `401 invalid_token`, never admitted on a cached or defa
 
 - **WHEN** a request bears the secret of a revoked credential
 - **THEN** WBS answers `401 unknown_identity` and the users table is unchanged
+
+#### Scenario: A machine-to-machine token of the configured issuer
+
+- **WHEN** a verified JWT of the configured issuer arrives without a groups claim
+- **THEN** WBS answers `401 unknown_identity`, reads no credential, and the users table is
+  unchanged
 
 #### Scenario: A trusted issuer's token for an unknown subject
 
@@ -267,7 +255,7 @@ A revoked credential SHALL be listed only when `?include=revoked` is asked, with
 a new secret, shown once, and give the previous secret `expiresAt` 24 hours later, in one
 transaction with a `machine_credential_rotated` audit row. During the window both secrets
 SHALL be admitted; after it the previous one SHALL be `401 unknown_identity`. A second rotation
-inside the window SHALL be refused `409 rotation_in_progress`. On an `oidc`, `auth0` or
+inside the window SHALL be refused `409 rotation_in_progress`. On an `oidc` or
 `mcp_consent` credential rotation SHALL be refused `409 rotation_at_issuer`. A credential of
 another organization, a revoked one, or for a member one whose person is not bound to the
 caller's account SHALL be `404 not_found`.
@@ -371,8 +359,8 @@ and a read-only focusable field whose whole value can be selected; refresh, a la
 a refusal and unmount SHALL discard it; a metadata failure after a successful create or rotate
 SHALL keep the secret retrievable while showing the failure. Revoke SHALL require the exact
 selected credential id. Rows SHALL show source, person, last use with its minute coarseness,
-and for `api_key` the rotation window end when one is open; `oidc` and `auth0` rows offer no
-rotate control. Loss of access SHALL withdraw the panel with the page.
+and for `api_key` the rotation window end when one is open; `oidc` and `mcp_consent` rows
+offer no rotate control. Loss of access SHALL withdraw the panel with the page.
 
 #### Scenario: Secret shown once, then gone
 

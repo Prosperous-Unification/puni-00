@@ -1,13 +1,13 @@
 ## Why
 
 A fleet writes to WBS today only after a host operator runs
-`link-credential-cli.ts` in the live be-01 container, linking one Auth0
+`link-credential-cli.ts` in the live be-01 container, linking an Auth0
 machine-to-machine pair to a human's account. No member or admin can create,
-see, rotate or revoke a machine credential, the MCP consent page authorizes only
-the signed-in human, the one secret source is PUNI's own Auth0 tenant, and after
-organization activation a raw Bearer binds no organization
-(`no_active_organization`): the linked path dies exactly when a second tenant
-exists. Our fleets are the first customers of the fix.
+see, rotate or revoke a machine credential, the MCP consent page authorizes
+only the signed-in human, the one secret source is PUNI's own Auth0 tenant,
+which no customer would use, and after activation a raw Bearer binds no
+organization (`no_active_organization`). We use the offering we build: our
+fleets onboard self-serve as the first tenant.
 
 ## What Changes
 
@@ -22,9 +22,8 @@ exists. Our fleets are the first customers of the fix.
 - From: an `external_identity` row pinned to a person.
 - To: a `machine_credential` row of one organization, pinned to one agent
   person, recording its issuing account, with a source: a WBS-issued API key, an
-  OIDC token from a trusted issuer or proven OIDC connection, an Auth0
-  application in PUNI's tenant, or an MCP consent in which the human authorized
-  an agent person instead of themself.
+  OIDC token from a trusted issuer or proven OIDC connection, or an MCP consent
+  in which the human authorized an agent person instead of themself.
 
 **What a token may do**
 
@@ -38,7 +37,8 @@ exists. Our fleets are the first customers of the fix.
 - To: create, list with last use, rotate with bounded overlap, revoke; each act
   one `organization_audit` row: "<person> acted, issued by <account>".
 
-Impact: the operator CLI is retired; existing pinned links are migrated.
+Impact: the operator CLI is retired, nothing is migrated; PUNI's fleets are
+re-admitted self-serve.
 
 ## Non-Goals
 
@@ -47,13 +47,13 @@ Impact: the operator CLI is retired; existing pinned links are migrated.
 - How humans log in: Auth0 connections per organization are unchanged.
 - The fleet-wide credential epoch (organization-ownership task 6.5) stays the
   kill switch, untouched.
-- MCP `client_credentials`; changes to persons, claims or delegated claims;
-  SAML tenants as an OIDC source.
+- Auth0 machine-to-machine applications as a source; MCP `client_credentials`;
+  changes to persons, claims or delegated claims; SAML as an OIDC source.
 
 ## Constraints
 
 - Additive migrations with guarded `down.sql` in be-01 and mcp-01; blue and
-  green share one SQLite file; the audit vocabulary widens by compatible rebuild.
+  green share one SQLite file; audit vocabulary widens by compatible rebuild.
 - One verification path for every source; secrets stored only as digests and
   shown once; be-01 holds no refresh token.
 - Every refusal ships with a production-path negative and a `Proof:` comment.
@@ -63,7 +63,7 @@ Impact: the operator CLI is retired; existing pinned links are migrated.
 
 ### New Capabilities
 
-- `machine-credentials`: organization-owned credentials, their four sources,
+- `machine-credentials`: organization-owned credentials, their three sources,
   verification, lifecycle, audit, consent minting and the settings surfaces.
 
 ### Modified Capabilities
@@ -80,12 +80,13 @@ Rotation window (in `CONTEXT.md`); Fleet credential becomes an avoided name.
 
 ## Decisions Recorded
 
-No ADR. Owner decisions A1 to A8 are fixed; A9 to A20 are this draft's
-assumptions, each overrulable by id. All are in design.md, "Decisions".
+No ADR. Owner decisions A1 to A8 and A21 are fixed; A9 to A20 are this draft's
+assumptions, each overrulable by id (A19 withdrawn by A21). All are in
+design.md, "Decisions".
 
 ## Impact
 
 `@wbs/contracts`, `@wbs/core`, `@wbs/store-sqlite`, `@wbs/auth`, be-01
-(verification, routes, internal MCP routes, migrations, CLI retirement), mcp-01
+(verification, routes, internal MCP routes, migration, CLI retirement), mcp-01
 (consent page, store migration, delegation requests), fe-01 (settings panel,
 people page), `docs/auth-integration.md`, `docs/runbook-prod-deploy.md`.

@@ -4,7 +4,8 @@
       acts as the pinned person's bound account, scopes capped), A10 (headless machines
       outside the credential rules) and A20 (how a consent credential is minted, carried
       and ended). Slice 1 may proceed on A9, A13, A14 and A15; slice 2 waits for A12; slice
-      3 waits for A20; slice 5 waits for A16.
+      3 waits for A20; slice 5 waits for A16. A21 (no Auth0 source, no link migration) is
+      Dany's and fixed.
 
 ## 1. Schema and the verification path, API keys first
 
@@ -16,8 +17,8 @@
       `machine-credential-migration.db.test.ts` forward, back and the refusal with one row;
       negative: drop the guard and the rollback silently deletes credentials; watched.
 - [ ] 1.2 Red: `machine-credential.test.ts` in `@wbs/domain` for the pure admission decision
-      over a presented token kind (`api_key` digest, configured-issuer pair, trusted-issuer
-      pair, delegation with a credential), the matching rows, now, revocation and secret expiry: answer the principal
+      over a presented token kind (`api_key` digest, trusted-issuer pair, delegation with
+      a credential), the matching rows, now, revocation and secret expiry: answer the principal
       (account, capped scopes, organization, pin) or `unknown_identity` — test: one case per
       refusal and per source, a property that a revoked credential is never admitted
       whatever its secrets' expiries, and the two-organizations-one-issuer case.
@@ -115,29 +116,25 @@
       `claire`, a tool call claims a step as `claire`, the credential is revoked on the
       people page and the next tool call is refused; recorded in verify.md.
 
-## 4. Migration of operator links and the CLI's retirement
+## 4. Retirement of the operator links (A18, A21)
 
-- [ ] 4.1 Migration `copy_pinned_links_to_machine_credentials` (A18): every
-      `external_identity` row with `person_id` becomes an `auth0` credential of the person's
-      organization, named after the person, issued and created by the linked user; source rows kept;
-      `down.sql` refuses while a copied credential was rotated, revoked or used — test:
-      `pinned-link-copy-migration.db.test.ts` with two pinned rows and one browser pair:
-      two credentials, the browser pair untouched, rollback refused after one use; negative:
-      drop the `person_id IS NOT NULL` predicate and the browser pair becomes a credential;
-      watched.
-- [ ] 4.2 The verification path reads `machine_credential` only for groups-less tokens of
-      the configured issuer (A13 step 2); `readExistingOidcIdentity` no longer admits a
-      pinned link — test: `fleet-credential.controller.db.test.ts` rewritten: the
-      "pinned link that was not migrated" scenario answers `401 unknown_identity`, the
-      copied credential is admitted with capped scopes, the owner's row stays byte for
-      byte; negative: restore the link fallback and the not-migrated case passes; watched.
-- [ ] 4.3 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
+- [ ] 4.1 The verification path refuses every groups-less token of the configured issuer
+      `401 unknown_identity` with no credential lookup and no link read;
+      `readExistingOidcIdentity` and the pinned-row admission are deleted — test:
+      `fleet-credential.controller.db.test.ts` rewritten: a pinned `external_identity` row
+      admits nothing, the owner's row stays byte for byte, a browser token keeps its groups;
+      negative: restore the link read and the pinned-row case is admitted; watched.
+- [ ] 4.2 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
       `docs/auth-integration.md` "Fleet credentials" and `docs/runbook-prod-deploy.md`
       "Fleet credential links" to the settings page and the swap window of A18; add the
       `wbs_mk_` prefix to the `plaintext-secrets` hook — test: the hook's test with a
-      staged `wbs_mk_` literal exits 1; Burokrat `check-indexes` clean.
-- [ ] 4.4 Operator (not code): on dev, after the swap, confirm each fleet's credential in
-      the panel, rotate nothing, and record the applied state in puni-plan without secrets.
+      staged `wbs_mk_` literal exits 1; Burokrat `check-indexes` clean; no production
+      reader of `external_identity.person_id` remains (grep in the test).
+- [ ] 4.3 Operator (not code): before the swap, an admin issues one API-key credential per
+      fleet agent person on dev through the panel (slice 2) and each fleet harness holds
+      it; laptop Claude Code authorizes its agent at the consent page (slice 3); after the
+      swap, confirm every fleet writes and record the applied state in puni-plan without
+      secrets. The Auth0 machine-to-machine applications are deleted in the dashboard.
 
 ## 5. The OIDC source and trusted issuers
 
@@ -164,32 +161,22 @@
       OIDC token for audience `wbs`, is admitted on dev as its credential, and a claim as the
       pinned person is accepted; recorded in verify.md with the subject redacted.
 
-## 6. The Auth0 source
+## 6. The settings panel and the people page
 
-- [ ] 6.1 Create for `source: 'auth0'` (A19): `clientId` grammar, issuer from the
-      deployment's discovery, subject `<clientId>@clients`, `invalid_body` on an issuer in
-      the body, `subject_taken` — test: the admin controller test cases; negative: accept
-      the body's issuer and the "issuer in the body" case stores it; watched.
-- [ ] 6.2 Dev proof (not code): the two fleet applications' tokens are admitted as the
-      copied credentials, then one is revoked in the panel and its next request is
-      `401 unknown_identity`; recorded in verify.md with tokens redacted.
-
-## 7. The settings panel and the people page
-
-- [ ] 7.1 `machine-credentials-panel.tsx` composed by `organization-page.tsx` on
+- [ ] 6.1 `machine-credentials-panel.tsx` composed by `organization-page.tsx` on
       `@ui/core-01`/`@ui/saas-01`: loading, empty, rows, transport failure, modeled refusal,
       secret-shown-once with dismiss, copy warning and focusable field, exact-id revoke,
-      serialized writes, no rotate control on `oidc`/`auth0`/`mcp_consent`, a member's
+      serialized writes, no rotate control on `oidc`/`mcp_consent`, a member's
       rows narrowed to their own agents, withdrawn with the page —
       test: the panel's rendering tests mirrored from `provisioning-tokens-panel`; negative:
       keep the secret in state across refresh and the "secret shown once, then gone" case
       finds it rendered; watched.
-- [ ] 7.2 Trusted issuers section inside the same panel, admins only: register, list, remove with
+- [ ] 6.2 Trusted issuers section inside the same panel, admins only: register, list, remove with
       `in_use` shown — test: rendering tests; eye review per the UI acceptance rule.
-- [ ] 7.3 People page: an agent row's credential count, the list with revoke under exact-id
+- [ ] 6.3 People page: an agent row's credential count, the list with revoke under exact-id
       confirmation, a member offered only their own agents' lists — test: the people page
       rendering tests with an agent holding one consent credential; negative: offer the list
       on a stranger's agent and the member case observes the request; watched.
-- [ ] 7.4 A viewer's page renders no panel and sends no credentials request — test: the
+- [ ] 6.4 A viewer's page renders no panel and sends no credentials request — test: the
       organization page test with a viewer role; negative: render the panel on the list
       refusal and the case observes the request; watched.

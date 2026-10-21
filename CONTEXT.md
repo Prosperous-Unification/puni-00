@@ -524,9 +524,9 @@ identity, bot user, API user
 
 **Credential source**:
 Where a machine credential's secret lives and how WBS verifies it: a WBS-issued API key, an
-OIDC token of a trusted issuer, an Auth0 machine-to-machine application in PUNI's tenant, or
-an MCP consent in which a human authorized an agent person.
-_Avoid_: Credential type, auth method, grant type
+OIDC token of a trusted issuer, or an MCP consent in which a human authorized an agent
+person. Never an application in PUNI's own identity tenant.
+_Avoid_: Credential type, auth method, grant type, machine-to-machine application
 
 **Consent credential**:
 A machine credential minted when a signed-in human chooses an agent person bound to their
