@@ -2,6 +2,39 @@
 
 Drafted 2026-10-20, reshaped 2026-10-21 (core plus numbered kits), implemented 2026-10-21 in worktree `wt-design-system` on `feat/design-system-foundation` from `main` a1a33b2cc, merged with `main` f0cc432d7 before the gate. Slices 1 to 4 were run by the planning session; slices 5 to 10 by two Opus workers; every section below names its commands and the fault each check was watched failing under.
 
+## Gate findings 2026-10-21
+
+The h2puni gate on 0e6bedf26 and CI run 39513645384 (jobs `gate workspace` and `gate twilight`) failed on five findings. The branch first merged `main` 617beec66 (merge aa3c4af3f; `bun.lock` conflicted and was regenerated from main's lock with `bun install`, after which `bun install --frozen-lockfile` reported no changes). Every command below ran with `env -u CLAUDECODE NX_DAEMON=false NX_ISOLATE_PLUGINS=false`.
+
+| Failure                                                               | Cause                                                                                       | Fix                                                                                                                                                                                        |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `adr-index.test.ts`: ADR numbers unique and contiguous                | Main had taken 0041 for the migration-set rollback ADR                                      | Renamed ours to `docs/adr/0056-ui-kits-own-their-primitives.md`; updated `proposal.md` and `ui-core-01/DESIGN.md`, the only two references                                                 |
+| `sync.test.ts`: names every library project.json on disk              | The two kit manifests were missing from `RESTART_PATHS`                                     | Added both rows with a `Proof:` naming the CI run                                                                                                                                          |
+| `repo-namespacing-handoff.test.ts`: every alias has an allowed prefix | `@ui/` is not a product scope                                                               | Added `ui` to the product-less scopes, citing ADR 0056 (decision D5)                                                                                                                       |
+| `marker-color.test.ts`: the backdrop set (×2)                         | The surface tokens moved to `ui-saas-01/src/theme.css`                                      | Reads colour blocks from the kit theme (`THEME`) and the `--grid-dep-lit` dose from `styles.css`; `wbs-domain` `test` and `test:unit` now declare the theme as an input                    |
+| `pilot-policy.test.ts`: 11 cases of the radical-modularity pilot      | `undeclared binary content at libs/shared/adapters/ui-core-01/src/fonts/Geist-variable.ttf` | Declared both kit fonts in `docs/wiki-policy/policy.json` (external Google Fonts authority) and `docs/code-organization/rule-policy.json` (source: the fonts README), consumer `brand.css` |
+
+Proofs observed:
+
+- Alias scope: with `ui` added, injecting `@acme/x` -> `./libs/acme/src/index.ts` and `@ui/x` -> `./libs/shared/adapters/ui-x-01/src/index.ts` failed with `@acme/x: no product named acme`, `@acme/x: ./libs/acme/src/index.ts is not tracked` and `@ui/x: ./libs/shared/adapters/ui-x-01/src/index.ts is not tracked`; dropping `ui` failed with `no product named ui` for all three `@ui/` aliases. Both reverted; recorded beside the check.
+- Outside reads: before `theme.css` was declared, `workspace-targets.test.ts` failed with `wbs-domain:test does not declare libs/shared/adapters/ui-saas-01/src/theme.css`.
+- Marker backdrops: the test still resolves `#ffffff`, `#020618` and `#1d293d`, so the kit kept WBS's slate surfaces (A1).
+- Binary declarations: the negative is CI job `gate twilight` itself (2336 pass, 11 fail on the undeclared font). `bootstrap-policy.json` lists neither website nor kit fonts and its pilot case passed, so it was left unchanged.
+
+| Command                                                                                             | Observed                  |
+| --------------------------------------------------------------------------------------------------- | ------------------------- |
+| `bunx nx run tool-devsync:test --skip-nx-cache`                                                     | 894 pass, 0 fail          |
+| `bunx nx run wbs-domain:test --skip-nx-cache`                                                       | 1186 pass, 1 skip, 0 fail |
+| `bun test libs/wbs/domain/domain/src/marker-color.test.ts`                                          | 14 pass, 0 fail           |
+| `bun test --timeout 60000 src/policy/pilot-policy.test.ts` (Burokrat CLI)                           | 24 pass, 0 fail           |
+| `bun test --timeout 60000 src/architecture/inv-classify.architecture.test.ts`                       | 11 pass, 0 fail           |
+| `bun test --timeout 60000 src/rules/repository-policy.test.ts`                                      | 5 pass, 0 fail            |
+| `bun test --timeout 60000 src/rules/kind-inventory.test.ts`                                         | 22 pass, 0 fail           |
+| `bunx nx run-many -t lint typecheck -p tool-devsync wbs-domain shared-ui-core-01 shared-ui-saas-01` | 8 targets succeeded       |
+| `./node_modules/.bin/openspec validate --all --json`                                                | 264 passed, 0 failed      |
+
+The full Burokrat suite was not run locally (it exhausts laptop memory); CI carries it.
+
 ## Gate
 
 See the last section. The h2puni gate ran on the merged head under the host-wide heavy lock.
