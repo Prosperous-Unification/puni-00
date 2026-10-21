@@ -222,3 +222,80 @@ correction addressed, with no new breakage. It inspected all corrected policy an
 identity fault logs and their assertion oracles. Storage Task 1 is accepted; parent
 6a.1–6a.2 and WBS contract/conformance milestones remain in progress for the remaining
 storage slices. No durable provider or coordinator completion is implied.
+
+## S0 storage Task 2 candidate — SQLite admission
+
+The independent SQLite adapter consumes the accepted production planners within row-level
+transactions. A shared 15-case public-port contract now runs for memory and SQLite; the
+original direct codec/planner tests remain. Bootstrap publishes a checked, closed and
+fsynced sibling exclusively. Open never creates or resets trusted state and checks schema,
+migration/down hashes, portable records, physical identities, ownership, reservations and
+persisted configuration. Reads use a consistent transaction; writes acquire the lock before
+reading the trusted clock. Refusals persist only validated monotonic clock metadata.
+
+Observed initial red: the shared registration ran 13 memory cases successfully and failed
+loading the planned absent SQLite adapter. This is the planned initial TDD red, not an R5
+proof. Two later behavior reds caught target decoding before stale-owner refusal and an
+exclusive SQLite lock classified as corruption. Early ownership fences and bounded async
+lifecycle retries corrected those cases. The latter now throws contention after its budget.
+
+Fresh final checks in the isolated worktree, Bun 1.4.2, uid 1000:
+
+| Command                                                                                                                                                                                            | Observed result                                                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs ./apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts --timeout=60000` | 89 pass, 0 fail, 317 assertions across six files, 3.80s after restoring the final fault sweep |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                     | Exit 0, uncached, 2.0s                                                                        |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                          | Exit 0, uncached, 20.3s                                                                       |
+| `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/runs`                                                                                                                         | Exit 0, all matched files formatted                                                           |
+| `git diff --check`                                                                                                                                                                                 | Exit 0, no diagnostics                                                                        |
+| `bunx openspec validate twilight-agentic-workflows --json`                                                                                                                                         | Valid, seven existing long-requirement warnings                                               |
+
+The three real process tests contributed 27 assertions. Independent children raced public
+admission at capacity one and produced one winner. A dedicated child's COMMIT interception
+asserted an active transaction and staged attempt/reservation/revision, then emitted an IPC
+barrier; the independent parent still read the old snapshot, killed the child and reopened
+with no admission changes. Killing after acknowledged commit preserved all three records.
+All child waits are bounded and cleanup kills/reaps survivors. A real reservation-insert
+abort trigger separately proves rollback through public admission and successful admission
+after removing the fault. Non-root file/parent mode changes prove unreadability distinctly
+from absence; the tests refuse to claim this under uid zero.
+
+The final R5 sweep observed **54 valid faults**. Each targeted command used the source path
+above plus `--test-name-pattern <named case>`. Its oracle required exit 1, the intended
+failed test/assertion, a positive assertion count and no loader/parser failure. Every source
+fault was restored before the final green run. Adjacent `Proof:` comments identify the
+guards and cases; the fault families are:
+
+| Fault family                                                    | Observed failing oracle                                                                              |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Admission atomicity, persisted capacity, reservation intent     | Aborting reservation insertion leaves a changed run, or capacity-one admits a second live attempt    |
+| Owner fencing and refusal-clock persistence                     | Stale owner reaches damaged target state, or a regressed clock becomes accepted                      |
+| Schema/version/up/down hash, integrity diagnostic, foreign keys | Changed trusted schema or relationships pass open validation                                         |
+| Metadata and manifest/run/attempt/admission physical identities | Valid-shaped stored content disagrees with its physical key or immutable identity without throwing   |
+| Reservation matching and capacity overflow                      | Missing/extra reservations or over-capacity trusted state are accepted                               |
+| WAL/FULL/foreign-key settings                                   | Broken durability configuration is accepted                                                          |
+| Transaction cleanup and rollback failures                       | Failed writes survive or the original/rollback cause is lost                                         |
+| Async bounded contention and post-lock clock                    | Retry blocks its scheduled releaser, a lock becomes corruption, or expiry during lock wait is missed |
+| Open-without-create and exclusive publication                   | Missing trusted state is created, or a concurrent published target is replaced                       |
+| Required options, stored settings and configuration equality    | Invalid clocks/integers/path or changed organization/capacity/lease are accepted                     |
+| Missing records and file/parent access classification           | Required records are returned despite absence, or inaccessible state is misclassified                |
+
+Rejected attempts are excluded from that count: child scripts initially used test-only
+preload outside the runner; an unanchored Bun directory argument also collected generated
+dist tests; unmatched mutation anchors, an undeclared fixture variable and a missing test
+import failed setup. The final command uses `./apps/...` to anchor source discovery.
+An attempted SQLite closed-guard mutation survived because the driver already rejects
+closed operations; an exact-message baseline also failed, so both claims were withdrawn
+and the redundant guard removed. The shared closed-operation contract remains green.
+A redundant explicit initial-revision comparison was similarly removed because immutable
+identity comparison already enforces it. Physical attempt-ID proof was strengthened by
+corrupting both portable identities coherently against the unchanged database key, and
+early-fence proofs now reach positive assertions. None of these discarded attempts count
+as safety evidence.
+
+Independent Task 2 review is pending. Full host gate, full Dash/repository tests and build,
+CI secrets/migration lint and aggregate acceptance were not run for this candidate. The
+migration/down pair is exercised in provider tests, which does not establish CI lint.
+Process kill/reopen does not prove physical power-loss behavior. No second durable provider,
+artifact verification, outcome/inbox/receipt support, coordinator, guarded live WBS bridge
+or production deployment is claimed. Parent 6a.1–6a.2 remain unchecked.
