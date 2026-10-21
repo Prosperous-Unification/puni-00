@@ -21,6 +21,7 @@ import {
   MOST_PEOPLE_AT_ONCE,
   PertWeights,
   priorityLadderProblem,
+  refuseDemand,
   suggestStepCodes,
   ThreePointEstimate,
   type TypedDependency,
@@ -39,6 +40,7 @@ import {
   type PreparedAssignment,
   type PreparedAttempt,
   type PreparedEstimate,
+  type PreparedImport,
   type PreparedMeasure,
   type PreparedNamedEntry,
   type PreparedProgress,
@@ -506,6 +508,8 @@ export function prepareImport(
   }
   const rows = indexById(document.workItems, 'workItems');
   if (isRefusal(rows)) return rows;
+  const resourcePreparation = prepareResources(document, rows.byId);
+  if ('ok' in resourcePreparation) return resourcePreparation;
   // Proof: bypassing whole-graph hierarchy validation made the mounted self-cycle test return 204.
   const hierarchyRefusal = firstHierarchyRefusal(document.workItems, rows.byId);
   if (hierarchyRefusal !== null) return hierarchyRefusal;
@@ -772,6 +776,65 @@ export function prepareImport(
       serviceByFileId: preparedNamed(services.byId),
       typeByFileId: preparedNamed(types.byId),
       externalSystemByFileId: preparedNamed(externalSystems.byId),
+      ...resourcePreparation,
     },
+  };
+}
+
+/**
+ * The file's resources, their capacities and demands, resolved to file ids
+ * (`wbs-resources`): names cleaned and distinct, ids distinct, every capacity
+ * and demand naming a resource the file states, every demand a row it holds,
+ * no pair stated twice, and a demand on an exclusive resource exactly 1.
+ *
+ * Proof: with each refusal below bypassed alone, its case of `refuses a
+ * version-10 file whose resources do not resolve` (prepare-import.test.ts)
+ * answered ok; watched 2026-10-20.
+ */
+function prepareResources(
+  document: PlanDocumentImport,
+  rows: ReadonlyMap<string, DocumentRow>,
+): Pick<PreparedImport, 'resourceByFileId' | 'resourceCapacities' | 'demands'> | Refusal {
+  const named = normalizedNamed(document.directory.resources, 'directory.resources');
+  if ('ok' in named) return named;
+  const resources = indexById(document.directory.resources, 'directory.resources');
+  if (isRefusal(resources)) return resources;
+  const stated = new Set<string>();
+  for (const [at, { resourceId }] of document.resourceCapacities.entries()) {
+    if (!resources.byId.has(resourceId))
+      return refuses('unknown_ref', `resourceCapacities[${String(at)}].resourceId`, resourceId);
+    if (stated.has(resourceId))
+      return refuses('invalid_body', `resourceCapacities[${String(at)}].resourceId`, resourceId);
+    stated.add(resourceId);
+  }
+  const demanded = new Set<string>();
+  for (const [at, { workItemId, resourceId, units }] of document.demands.entries()) {
+    const resource = resources.byId.get(resourceId);
+    if (resource === undefined)
+      return refuses('unknown_ref', `demands[${String(at)}].resourceId`, resourceId);
+    if (!rows.has(workItemId))
+      return refuses('unknown_ref', `demands[${String(at)}].workItemId`, workItemId);
+    const pair = JSON.stringify([workItemId, resourceId]);
+    if (demanded.has(pair)) return refuses('invalid_body', `demands[${String(at)}]`);
+    demanded.add(pair);
+    const refusal = refuseDemand(resource.kind, units);
+    if (refusal !== null) return refuses('invalid_body', `demands[${String(at)}].units`, refusal);
+  }
+  return {
+    resourceByFileId: new Map(
+      document.directory.resources.map(({ id, name, kind, unitLabel }) => [
+        id,
+        { fileId: id, name, kind, unitLabel },
+      ]),
+    ),
+    resourceCapacities: document.resourceCapacities.map(({ resourceId, units }) => ({
+      resourceFileId: resourceId,
+      units,
+    })),
+    demands: document.demands.map(({ workItemId, resourceId, units }) => ({
+      workItemFileId: workItemId,
+      resourceFileId: resourceId,
+      units,
+    })),
   };
 }

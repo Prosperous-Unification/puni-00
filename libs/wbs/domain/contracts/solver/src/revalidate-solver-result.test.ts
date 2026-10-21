@@ -31,13 +31,14 @@ const slice = (over: Partial<SolverSlice> & { key: string }): SolverSlice => ({
   notBeforeUnits: 0,
   deadlineUnits: null,
   workItemIsMilestone: false,
+  demands: [],
   ...over,
 });
 
 const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
-  wireVersion: 3,
-  contractVersion: '7+0.2.0',
-  solverVersion: '0.2.0',
+  wireVersion: 4,
+  contractVersion: '7+0.3.0',
+  solverVersion: '0.3.0',
   objective: 'pri',
   budgetMs: 30_000,
   stageBudgetSplit: [0.6, 0.25, 0.15],
@@ -49,6 +50,7 @@ const request = (over: Partial<SolverRequest> = {}): SolverRequest => ({
   baselineOffsets: { a: 0, b: 0 },
   fastHint: { a: 0, b: 0 },
   elsewhere: {},
+  resources: {},
   ...over,
 });
 
@@ -80,7 +82,7 @@ const feasible = (
   offsets: Record<string, number>,
   over: Partial<SolverObjectiveValues> = {},
 ): SolverResponse => ({
-  wireVersion: 3,
+  wireVersion: 4,
   status: 'feasible',
   offsets,
   objectiveValues: valuesFor(offsets, over),
@@ -123,7 +125,7 @@ describe('revalidateSolverResult accepts', () => {
 
   it('a non-publishing response with nothing checked', () => {
     for (const status of ['infeasible', 'unknown'] as const) {
-      const result = revalidateSolverResult(request(), { wireVersion: 3, status });
+      const result = revalidateSolverResult(request(), { wireVersion: 4, status });
       // `published: false` is the point: the response is acceptable AND there is
       // no plan, and a caller that reads `ok` alone would publish nothing at all.
       expect(result).toEqual({ ok: true, published: false });
@@ -151,7 +153,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     rejects(
       revalidateSolverResult(
         omitted,
-        { wireVersion: 3, status: 'unknown' },
+        { wireVersion: 4, status: 'unknown' },
         real,
         canonicalPair(real, 'SS'),
       ),
@@ -178,7 +180,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
     rejects(
       revalidateSolverResult(
         forged,
-        { wireVersion: 3, status: 'unknown' },
+        { wireVersion: 4, status: 'unknown' },
         real,
         canonicalPair(real, 'FF'),
       ),
@@ -214,7 +216,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SF' as 'FS' }],
     });
     rejects(
-      revalidateSolverResult(unsupported, { wireVersion: 3, status: 'unknown' }),
+      revalidateSolverResult(unsupported, { wireVersion: 4, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -224,7 +226,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       edges: [{ predecessorKey: 'a', successorKey: 'b', type: 'SS', startWeightUnits: 1 } as never],
     });
     rejects(
-      revalidateSolverResult(misplaced, { wireVersion: 3, status: 'unknown' }),
+      revalidateSolverResult(misplaced, { wireVersion: 4, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -253,7 +255,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       elsewhere: {},
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 3, status: 'unknown' }),
+      revalidateSolverResult(malformed, { wireVersion: 4, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -266,7 +268,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       elsewhere: {},
     });
     rejects(
-      revalidateSolverResult(malformed, { wireVersion: 3, status: 'unknown' }),
+      revalidateSolverResult(malformed, { wireVersion: 4, status: 'unknown' }),
       'malformed-request',
     );
   });
@@ -283,7 +285,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         elsewhere: {},
       });
       rejects(
-        revalidateSolverResult(malformed, { wireVersion: 3, status: 'unknown' }),
+        revalidateSolverResult(malformed, { wireVersion: 4, status: 'unknown' }),
         'malformed-request',
       );
     }
@@ -299,7 +301,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       fastHint: { 'opaque-a': 0, 'opaque-b': 10 },
       elsewhere: {},
     });
-    expect(revalidateSolverResult(legal, { wireVersion: 3, status: 'unknown' })).toEqual({
+    expect(revalidateSolverResult(legal, { wireVersion: 4, status: 'unknown' })).toEqual({
       ok: true,
       published: false,
     });
@@ -322,7 +324,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
       elsewhere: {},
     });
     for (const status of ['infeasible', 'unknown'] as const) {
-      rejects(revalidateSolverResult(malformed, { wireVersion: 3, status }), 'malformed-request');
+      rejects(revalidateSolverResult(malformed, { wireVersion: 4, status }), 'malformed-request');
     }
     rejects(revalidateSolverResult(malformed, feasible({ a: 1 })), 'malformed-request');
   });
@@ -342,7 +344,7 @@ describe('revalidateSolverResult refuses the request it cannot judge', () => {
         fastHint: { a: 0 },
         elsewhere: {},
       });
-      expect(revalidateSolverResult(legal, { wireVersion: 3, status: 'infeasible' })).toEqual({
+      expect(revalidateSolverResult(legal, { wireVersion: 4, status: 'infeasible' })).toEqual({
         ok: true,
         published: false,
       });
@@ -414,6 +416,44 @@ describe('revalidateSolverResult checks capacity', () => {
     rejects(revalidateSolverResult(shared, feasible({ a: 0, b: 0 })), 'pool-overcapacity');
   });
 
+  it('refuses a response that runs two staging demanders at once (wire 4)', () => {
+    const staging = request({
+      pools: {},
+      resources: { staging: 1 },
+      slices: [
+        slice({ key: 'a', poolIds: [], demands: [{ resourceId: 'staging', units: 1 }] }),
+        slice({ key: 'b', poolIds: [], demands: [{ resourceId: 'staging', units: 1 }] }),
+      ],
+    });
+    const overlapping = revalidateSolverResult(staging, feasible({ a: 0, b: 5 }));
+    rejects(overlapping, 'pool-overcapacity');
+    if (!overlapping.ok) expect(overlapping.detail).toContain('resource "staging" carries 2 of 1');
+    expect(revalidateSolverResult(staging, feasible({ a: 0, b: 10 })).ok).toBe(true);
+  });
+
+  it('counts each demander at its own units of a divisible resource', () => {
+    const ram = request({
+      pools: {},
+      resources: { ram: 32 },
+      slices: [
+        slice({ key: 'a', poolIds: [], demands: [{ resourceId: 'ram', units: 16 }] }),
+        slice({ key: 'b', poolIds: [], demands: [{ resourceId: 'ram', units: 24 }] }),
+      ],
+    });
+    rejects(revalidateSolverResult(ram, feasible({ a: 0, b: 0 })), 'pool-overcapacity');
+    expect(revalidateSolverResult(ram, feasible({ a: 0, b: 10 })).ok).toBe(true);
+  });
+
+  it('refuses a request whose demand names a resource with no capacity', () => {
+    const unstated = request({
+      slices: [
+        slice({ key: 'a', demands: [{ resourceId: 'staging', units: 1 }] }),
+        slice({ key: 'b' }),
+      ],
+    });
+    rejects(revalidateSolverResult(unstated, feasible({ a: 0, b: 10 })), 'malformed-request');
+  });
+
   it('rejects a double-booked assignee and accepts consecutive slices', () => {
     const person = request({
       slices: [slice({ key: 'a', personId: 'p-1' }), slice({ key: 'b', personId: 'p-1' })],
@@ -442,7 +482,7 @@ describe('revalidateSolverResult recomputes the objective', () => {
     movement: term(27),
   };
   const answer = (values: SolverObjectiveValues): SolverResponse => ({
-    wireVersion: 3,
+    wireVersion: 4,
     status: 'feasible',
     offsets: { a: 0, b: 20 },
     objectiveValues: values,
@@ -507,7 +547,7 @@ describe('revalidateSolverResult recomputes the objective', () => {
       elsewhere: {},
     });
     const response: SolverResponse = {
-      wireVersion: 3,
+      wireVersion: 4,
       status: 'feasible',
       offsets: { a: 2_147_483_646 },
       objectiveValues: {

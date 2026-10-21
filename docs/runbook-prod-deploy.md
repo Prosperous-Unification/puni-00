@@ -178,6 +178,23 @@ has no pinned credential succeeds, and the `claim.person_id` cascade takes those
 every claim delegated under them) with no `in_use` refusal naming them and no revision moved
 on their work items. Rule: no person deletions during the swap window.
 
+Claim occupancy (`20261020130000_add_claim_occupancy`) is lost the same silent way, never
+overcommitted by WBS's own check: an outgoing-colour claim writes no `claim_occupancy` row, so
+its leaf holds nothing and every later claim on that leaf copies the empty vector until all of
+them are released; an outgoing-colour redo of a claim, or undo of a release, re-adds the claims
+without their rows. Rule: no claim redo, and no release undo, from the outgoing colour during
+the swap window. After a rollback to the older image the table stays but nothing reads or
+writes it: claims made or put back there hold nothing and check no capacity, and a release
+there drops its rows by cascade. `migrate-down-cli.ts` below this migration refuses while any
+row exists; release the claims that hold units first, and the occupancy is gone with them.
+
+Plan documents (`wbs-resources`, version 10) cross the window one way only. A file green
+exports is version 10; the outgoing be-01 knows versions 1 to 9 and refuses it loudly at
+`POST /api/projects/import` with 400 `unsupported_version` at `document.version`, importing
+nothing. A version 9 file the outgoing colour exports imports into green, carrying no
+resources, capacities or demands. Rule: during the swap window, import a green export only
+into green; after a rollback, re-export from the older image rather than importing a v10 file.
+
 **Rollback.** `migrate-down-cli.ts --to=<the migration before 20261019120000_add_claim>`
 runs each down in its own transaction, newest first: it reverses the two binding migrations
 (`20261019130100_add_external_identity_person`, `20261019130000_add_person_account`, each

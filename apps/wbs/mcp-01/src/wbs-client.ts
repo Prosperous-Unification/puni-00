@@ -57,6 +57,21 @@ export class SessionRefreshRefused extends Error {
   }
 }
 
+/**
+ * be-01 refused the organization delegation for this call, a modeled outcome
+ * the caller reads. `endsSession` when the bound membership or identity is
+ * gone: the family is already revoked and the caller must reauthorize.
+ */
+export class DelegationRefused extends Error {
+  constructor(
+    message: string,
+    readonly endsSession: boolean,
+  ) {
+    super(message);
+    this.name = 'DelegationRefused';
+  }
+}
+
 /** The configured Basic edge gate rejected the deployment credential. */
 export class EdgeGate extends Error {
   constructor(message: string) {

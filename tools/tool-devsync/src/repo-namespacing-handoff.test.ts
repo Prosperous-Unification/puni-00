@@ -566,7 +566,9 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
   const { candidates: tracked, products } = await documentContext();
   // The scopes an alias may carry: the two product-less ones plus one per declared product.
   // Derived rather than listed, so a second product's aliases need no edit here.
-  const scopes = new Set(['shared', 'tools', ...products]);
+  // `@ui/` is the design-system kit namespace from
+  // ../../../docs/adr/0056-ui-kits-own-their-primitives.md; its kits are tagged product:shared.
+  const scopes = new Set(['shared', 'tools', 'ui', ...products]);
   const failures: string[] = [];
   for (const [alias, targets] of Object.entries(base.compilerOptions.paths)) {
     const scope = /^@([a-z0-9-]+)\//.exec(alias)?.[1];
@@ -589,6 +591,12 @@ test('every alias has an allowed prefix and resolves to a tracked file', async (
   // into tsconfig.base.json failed here with `+ "@acme/x: no product named acme"` and
   // `+ "@acme/x: ./libs/acme/src/index.ts is not tracked"`; reverting the alias returned the
   // case to green (2026-09-16).
+  // Proof: with `ui` added to the scopes, injecting that `@acme/x` alias plus `@ui/x` ->
+  // ./libs/shared/adapters/ui-x-01/src/index.ts still failed here with
+  // `+ "@acme/x: no product named acme"`, `+ "@acme/x: ./libs/acme/src/index.ts is not tracked"`
+  // and `+ "@ui/x: ./libs/shared/adapters/ui-x-01/src/index.ts is not tracked"`; dropping `ui`
+  // failed with `no product named ui` for `@ui/core-01`, `@ui/core-01/testing` and `@ui/saas-01`
+  // (2026-10-21).
   expect(failures).toEqual([]);
 });
 

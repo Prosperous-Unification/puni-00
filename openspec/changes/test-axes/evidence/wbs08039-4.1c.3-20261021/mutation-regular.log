@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+241 |     try {
+242 |       const invocation = await inspect(setup);
+243 |       expect(invocation.exitCode).toBe(1);
+244 |       expect(invocation.stdout).toBe('');
+245 |       expect(invocation.stderr.length).toBeGreaterThan(0);
+246 |       if (fault === 'directory') expect(invocation.stderr).toContain('not a regular file');
+                                                                 ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "not a regular file"
+Received: "EISDIR: illegal operation on a directory, read\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:246:60)
+(fail) [TEST-AXES-105] refuses directory ledger authority [321.53ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1233.00ms]

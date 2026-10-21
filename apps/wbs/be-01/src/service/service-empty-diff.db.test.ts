@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -166,6 +167,8 @@ beforeEach(async () => {
     stepParallels: new StepParallelRepository(db, OPEN),
     directory: directoryStore,
     capacity: capacityStore,
+    demands: new DemandRepository(db, OPEN),
+    resourceCapacity: new ResourceCapacityRepository(db, OPEN),
     priorityBands: inMemoryPriorityBands(),
     dependencies: new DependencyRepository(db, OPEN),
     typedDependencies: new TypedDependencyRepository(db, OPEN),

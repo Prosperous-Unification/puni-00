@@ -665,6 +665,9 @@ another actor split the leaf` (memory, no revisions) answered the undo ok.
 
 Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the final head.
 
+Swarm rehearsal (2026-10-20): both changes exercised together for two fleets on a booted be-01,
+with the findings it raised, in `openspec/changes/wbs-resources/verify.md`, "Swarm rehearsal".
+
 ## Final gate on the merged head (2026-10-20)
 
 `bin/h2puni-gate.sh dd0a5749091dbcdfc6bfe9ee4ecf9cea2b9dc104` from `/home/puni1/puni-00-gate-tbf`
@@ -673,3 +676,61 @@ Commands (all with `env -u CLAUDECODE`): see the PR body for the counts on the f
 and Dash suites passed, `GATE_EXIT=0`. That head contains slices 1–3, the slice 2 follow-ups, the
 whole-change follow-ups (PR #589) and `origin/main` at 0e8909294. This commit changes only
 verify.md.
+
+## MCP delegation packet (tasks 2.5 MCP half, 6.4, 6.6) — gate 2026-10-21
+
+- Head `47863f26770f4185a2d4878dc376d2d535a9fc68` (packet 0dcc31b64 merged with main 617beec66).
+- `bin/h2puni-gate.sh 47863f26770f4185a2d4878dc376d2d535a9fc68` from `/home/puni1/puni-00-gate-tbf`,
+  launched 2026-10-21T01:58:26Z, log `/home/puni1/gate-mcp-delegation.log`:
+  `h2puni gate: running on 47863f26770f4185a2d4878dc376d2d535a9fc68`, 178 ✔ tasks, no ✖,
+  `Successfully ran targets test, lint, typecheck, build for 47 projects and 7 tasks they depend on`,
+  `… for 2 projects and 3 tasks they depend on`, `lint:source twilight-burokrat`, `lint twilight-dash`,
+  `solver-image-smoke wbs-be-01`, `GATE_EXIT=0`.
+- Review: internal Fable adversarial review of 0dcc31b64, no S1/S2 (record on PR #602).
+
+## Dev activation (2026-10-21, task 7.1 operator run)
+
+`docs/runbook-organization-activation.md` followed on h2puni: `BROWSER_SESSION_AUTHORITY` flipped
+to `enabled` (`.env` backup kept), host-side backup `data/pre-org-activation-20261021.db`
+(943,288,320 bytes, sha256 `4cf8b2cd…7509`), preflight on the copy as the runbook expects (482
+unmapped roots, 334 stream conflicts, 0 drift), dry run exit 0, apply exit 0: organization
+`default` (`651b4c8a-1413-44d2-868e-cdb03542804f`), super-admin `dany-1b998b1c7079`
+(`190c5947-7068-4b1e-ae63-183d21de24db`), 30 members, mapped roots project 334 / person 20 /
+service_team 42 / service 15 / tag 20 / external_system 5 / saved_plan 42 / resource 4, 0 pruned
+streams, 3 external identities. Afterwards: marker `activated`, 30 users `selection_required`
+with one candidate, preflight empty. Browser: the organization gate offered `default`, choosing it
+loaded the PUNI plan with "Organization: default" in the header.
+
+MCP delegation (PR #602, main `5a529fd94`) was deployed first: be-01 carries the RSA pair, mcp-01
+be-01's `INTERNAL_AUTH_SECRET`, startup logs `organization_delegation: on`. As the runbook states,
+an MCP session consented before activation is refused `403 no_active_organization` on every
+organization-bound call (observed on the headless wbs-dev session: `getApiOnboarding` answers
+`selection_required` with the one `default` membership); it must re-consent once.
+
+## Dev dispatch and the bound-claim proof (2026-10-21, operator run)
+
+Through the wbs-dev MCP re-consented after activation (the pre-activation consent bound no
+organization and answered `403 no_active_organization`; the stale OAuth client id that mcp-01
+had forgotten on restart is issue #607). Project `558ec5c7`, all writes undoable.
+
+- **Binding is an admin act.** `patchPerson {accountId}` on an agent person → 200 as super-admin;
+  the same command from a member session answered `forbidden` the day before.
+- **A bound claim holds occupancy.** `claimWorkItem` on 070.03 with slots 1 / ram 4 / disk 3 and
+  `assign: true` → `acquired` lists all three; the startable read shows the two steps under
+  `claimed` with holder, assignee and run, and `resources` slots 1/2, ram 4/8, disk 3/30; the
+  by-person work read lists both assignments and both claims.
+- **Exhaustion refuses and names holders.** Capacity of ram lowered to 4, then the same claim on
+  060.06.4 → `409 resources_exhausted {asked: 4, free: 0, holders: [070.03's holder]}`; the
+  startable read moved 060.06.4 to `doesNotFit` with `shortfall: 4`. Capacity restored, 060.06.4
+  claimed (slots 2/2, ram 8/8); a third slot claim refused on slots naming both holders.
+- **Release frees.** `releaseWorkItem` both → `claimed: []`, occupancy 0 on every resource.
+- **Observed, per spec, worth knowing:** release leaves the progress a claim stated and the
+  assignments `assign: true` wrote in place (only undo removes them); the proof reverted them with
+  `clearProgress` and `setAssignee null`.
+- **Dispatch.** Two fleet teams with `setCapacity 2`, four agent persons bound to the operator's
+  account, advisory labels on 070 / 060.06 (Claire) and 010 / 080 (Claude Code), a subtree claim
+  on 070, a delegated claim on 070.03 Impl under it and a claim on 060.06.4 Impl; both leaf claims
+  acquired the leaves' declared demands with no `resources` given. The team-filtered startable
+  read lists the allotment with `teams` naming the label's source row and `subtreeClaim` naming the
+  superagent on every 070 leaf. Ids and the full record: puni-plan
+  `fleets/coordination-contract-v2.md` §12.

@@ -17,7 +17,7 @@ from wbs_solver.validate import RequestRejected, validate_request
 def booking_request(person: str | None = "person-a", duration: int = 3) -> dict:
     request = a_request([a_slice("s", duration=duration, person=person,
                                   work_item_is_milestone=duration == 0)], horizon=12)
-    request.update(wireVersion=3, solverVersion="0.2.0", contractVersion="15+0.2.0",
+    request.update(wireVersion=4, solverVersion="0.3.0", contractVersion="17+0.3.0",
                    elsewhere={"person-a": [[0, 5]]})
     return request
 
@@ -97,7 +97,7 @@ class FixedBookings(unittest.TestCase):
 
     def test_fixed_booking_forces_the_selected_person_to_wait(self) -> None:
         response = self.solve(booking_request())
-        self.assertEqual(response["wireVersion"], 3)
+        self.assertEqual(response["wireVersion"], 4)
         self.assertEqual(response["offsets"]["s"], 5)
 
     def test_integer_valued_json_numbers_share_the_schema_integer_contract(self) -> None:
@@ -123,7 +123,7 @@ class FixedBookings(unittest.TestCase):
         request["horizonUnits"] = 96
         request["elsewhere"] = {"person-a": [[0, 48]]}
         request["slices"][0]["deadlineUnits"] = 48
-        self.assertEqual(self.solve(request), {"wireVersion": 3, "status": "infeasible"})
+        self.assertEqual(self.solve(request), {"wireVersion": 4, "status": "infeasible"})
 
     def test_person_calendar_does_not_spend_pool_capacity(self) -> None:
         request = booking_request(person="person-b")

@@ -1,6 +1,6 @@
+import { Button } from '@ui/saas-01';
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import {
   Modal,
   ModalContent,
@@ -8,7 +8,7 @@ import {
   ModalHeader,
   ModalTitle,
   ModalTrigger,
-} from '@/components/ui/modal';
+} from '@/components/wbs/modal';
 import type { Recalled, Remembered } from '@/lib/remembered';
 import type { RememberedPreferences } from '@/modules/preferences/contract';
 import {

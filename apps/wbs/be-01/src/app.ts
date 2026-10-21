@@ -77,6 +77,7 @@ import { historyRoutes } from './controller/history.routes';
 import { importRoutes } from './controller/import.routes';
 import { infrastructureEndpoints } from './controller/infrastructure-endpoints';
 import { gatewayAccessRoutes, internalRoutes } from './controller/internal.routes';
+import { mcpDelegationRoutes } from './controller/mcp-delegation.routes';
 import type { OidcRouteOptions } from './controller/oidc-options';
 import { organizationSelectionRoutes } from './controller/organization-selection.routes';
 import { projectRoutes } from './controller/project.routes';
@@ -97,6 +98,7 @@ import type { DatabaseHealth } from './repository/health-probe';
 import { type IssueBearerContext, REFUSE_BEARER_CONTEXT } from './runtime/bearer-context';
 import { nodeDigest } from './runtime/bun-runtime';
 import { type DelegationVerifier, REFUSE_DELEGATIONS } from './runtime/delegation';
+import { type McpDelegationAuthority, REFUSE_MCP_DELEGATION } from './runtime/mcp-delegation';
 import type { VerifiedCredentialOf } from './runtime/organization-credential';
 import {
   type OrganizationSelection,
@@ -271,6 +273,14 @@ export interface AppOptions {
   delegation?: DelegationVerifier;
   /** Direct bearer issuance stays refusing unless explicitly wired after activation. */
   bearerContext?: IssueBearerContext;
+  /**
+   * mcp-01's organization listing, delegation issuance and family authority
+   * reads (tasks 2.5, 6.4, 6.6). Absent, every one is refused
+   * (`REFUSE_MCP_DELEGATION`); boot always supplies the real one, which
+   * answers `pre_activation` before the marker and issues nothing without a
+   * signing key.
+   */
+  mcpDelegation?: McpDelegationAuthority;
   /**
    * Required for the same reason as `auth`, and for one more: the stub this
    * replaced answered every resume with `replaying, count: 0`, which no client
@@ -594,6 +604,7 @@ export function mountedEndpoints(
       organizations: opts.organizations,
     }),
     ...gatewayAccessRoutes(opts.projects, opts.organizations),
+    ...mcpDelegationRoutes(opts.mcpDelegation ?? REFUSE_MCP_DELEGATION),
   ] as const;
 }
 

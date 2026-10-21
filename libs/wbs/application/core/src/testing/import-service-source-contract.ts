@@ -263,6 +263,10 @@ async function exportDocument(
     stepParallels: source.stores.stepParallels,
     markers: graph.calendarMarkers,
     clock,
+    resourceFacts: {
+      resourceCapacitiesOf: (id) => source.stores.resourceCapacity.listFor(id),
+      demandsOf: (id) => source.stores.demands.listByProject(id),
+    },
   }).export({ ...project, timezone }, tree, LEGACY_ACCESS);
   if (!exported.ok) throw new Error(`imported project export refused: ${exported.error}`);
   return exported.value;
@@ -826,6 +830,7 @@ export function importServiceSourceContract(
             actuals: [],
             progress: [],
             measures: [],
+            demands: [],
             assignments: [],
             dependencies: [],
             removedEstimates: [],
@@ -1374,7 +1379,7 @@ export function importServiceSourceContract(
           if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
           const exported = await exportDocument(source, imported.projectId);
 
-          expect(exported.document.version).toBe(9);
+          expect(exported.document.version).toBe(10);
           expect(exported.typedDependencies).toEqual([]);
           expect(exported.steps.map(({ name, code }) => [name, code])).toEqual([
             ['Discover', codes[0]],
@@ -1430,7 +1435,7 @@ export function importServiceSourceContract(
           verifyStep === undefined
         )
           throw new Error('round-trip relationship references disappeared');
-        expect(exported.document.version).toBe(9);
+        expect(exported.document.version).toBe(10);
         expect(
           exported.typedDependencies.map(({ predecessor, successor, type }) => ({
             predecessor,
@@ -1804,6 +1809,109 @@ export function importServiceSourceContract(
           code: 'invalid_body',
           path: 'steps[2].code',
           detail: 'impl',
+        });
+        expect(await source.stores.projects.list()).toEqual(before);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('round-trips resources, their capacities and demands (wbs-resources)', async () => {
+      const source = await ownedSource();
+      try {
+        const file = roundTripFixture();
+        file.document.version = 10;
+        file.directory.resources = [
+          { id: 'res-ram', name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+          { id: 'res-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        ];
+        file.resourceCapacities = [
+          { resourceId: 'res-ram', units: 32 },
+          { resourceId: 'res-stage', units: 0 },
+        ];
+        // The parent's demand travels as stated and charges nothing: demands are not inherited.
+        file.demands = [
+          { workItemId: 'row-1', resourceId: 'res-ram', units: 2 },
+          { workItemId: 'row-build', resourceId: 'res-ram', units: 4 },
+          { workItemId: 'row-verify', resourceId: 'res-stage', units: 1 },
+        ];
+        const imported = await importService(source).import(file, ACTOR, LEGACY_ACCESS);
+        if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
+        const exported = await exportDocument(source, imported.projectId);
+        const resourceName = new Map(
+          exported.directory.resources.map(({ id, name }) => [id, name]),
+        );
+        const rowName = new Map(exported.workItems.map(({ id, name }) => [id, name]));
+        expect(exported.document.version).toBe(10);
+        expect(
+          exported.directory.resources.map(({ name, kind, unitLabel }) => ({
+            name,
+            kind,
+            unitLabel,
+          })),
+        ).toEqual([
+          { name: 'h2puni ram', kind: 'divisible', unitLabel: 'GB' },
+          { name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        ]);
+        expect(
+          exported.resourceCapacities
+            .map(({ resourceId, units }) => ({ resource: resourceName.get(resourceId), units }))
+            .sort((left, right) => String(left.resource).localeCompare(String(right.resource))),
+        ).toEqual([
+          { resource: 'h2puni ram', units: 32 },
+          { resource: 'staging', units: 0 },
+        ]);
+        expect(
+          exported.demands
+            .map(({ workItemId, resourceId, units }) => ({
+              row: rowName.get(workItemId),
+              resource: resourceName.get(resourceId),
+              units,
+            }))
+            .sort((left, right) => String(left.row).localeCompare(String(right.row))),
+        ).toEqual([
+          { row: 'Build release', resource: 'h2puni ram', units: 4 },
+          { row: 'Release', resource: 'h2puni ram', units: 2 },
+          { row: 'Verify release', resource: 'staging', units: 1 },
+        ]);
+        // A second import of the export reuses both resources by name.
+        const again = await importService(source).import(
+          await exportProject(source, imported.projectId),
+          ACTOR,
+          LEGACY_ACCESS,
+        );
+        if (!again.ok) throw new Error(`re-import refused at ${again.path}`);
+        expect((await source.stores.directory.listResources()).map(({ name }) => name)).toEqual([
+          'h2puni ram',
+          'staging',
+        ]);
+      } finally {
+        await source.close();
+      }
+    });
+
+    it('refuses a resource the directory holds under another kind, writing no project', async () => {
+      const source = await ownedSource();
+      try {
+        await source.stores.directory.addResource(
+          { id: 'held-stage', name: 'staging', kind: 'divisible', unitLabel: 'env' },
+          STAMP,
+        );
+        const before = await source.stores.projects.list();
+        const file = roundTripFixture();
+        file.document.version = 10;
+        file.directory.resources = [
+          { id: 'res-stage', name: 'staging', kind: 'exclusive', unitLabel: 'env' },
+        ];
+        file.demands = [{ workItemId: 'row-verify', resourceId: 'res-stage', units: 1 }];
+
+        const refused = await importService(source).import(file, ACTOR, LEGACY_ACCESS);
+
+        expect(refused).toEqual({
+          ok: false,
+          code: 'source_refused',
+          path: 'directory.resources[0].kind',
+          detail: 'kind_is_immutable',
         });
         expect(await source.stores.projects.list()).toEqual(before);
       } finally {

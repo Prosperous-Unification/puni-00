@@ -58,6 +58,32 @@ const ROOTS = [
   "INSERT INTO organization (id, name, created_at) VALUES ('org-b', 'B', 1)",
 ];
 
+/**
+ * A resource root (`20261020120000_add_resources`), kept apart from {@link ROOTS}
+ * because most cases here reverse the schema below the migration that adds it.
+ */
+const RESOURCE_ROOT =
+  "INSERT INTO resource (id, name, kind, unit_label) VALUES ('r1', 'RAM', 'divisible', 'GB')";
+
+/**
+ * Drops the bridge triggers in place, so roots written after the legacy
+ * organization stay unmapped without reversing every newer migration.
+ */
+function dropBridge(): void {
+  const db = openDatabase(path);
+  try {
+    const bridges = db
+      .query<{ name: string }, []>(
+        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE '%_organization%bridge'",
+      )
+      .all();
+    if (bridges.length === 0) throw new Error('the legacy bridge has no triggers to drop');
+    for (const { name } of bridges) db.run(`DROP TRIGGER \`${name}\``);
+  } finally {
+    db.close();
+  }
+}
+
 /** Every row of every table the previous release knows, as JSON, for byte comparison. */
 function legacyRows(): Record<string, unknown[]> {
   const db = openDatabase(path);
@@ -95,8 +121,9 @@ function withoutBridge(): void {
 
 describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
   it('reports an unmapped root of every kind, and only the unmapped ones', async () => {
-    withoutBridge();
+    dropBridge();
     seed([
+      RESOURCE_ROOT,
       ...ROOTS,
       "INSERT INTO tag (id, name) VALUES ('t2', 'mapped')",
       "INSERT INTO tag_organization VALUES ('t2', 'legacy', 'mapped')",
@@ -116,6 +143,7 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
       { kind: 'work_item_type', id: 'w1' },
       { kind: 'external_system', id: 'e1' },
       { kind: 'saved_plan', id: 'sp1' },
+      { kind: 'resource', id: 'r1' },
     ];
     for (const root of expected) expect(unmapped).toContainEqual(root);
     expect(unmapped).not.toContainEqual({ kind: 'tag', id: 't2' });
@@ -123,12 +151,19 @@ describe('OrganizationOwnershipRepository.findUnmappedRoots', () => {
 
   it('answers empty once every root is mapped', async () => {
     seed([
+      RESOURCE_ROOT,
       ...ROOTS,
       "INSERT INTO project_organization SELECT id, 'legacy' FROM project",
       "INSERT INTO saved_plan_organization SELECT id, 'legacy' FROM saved_plan",
-      ...['person', 'service_team', 'service', 'tag', 'work_item_type', 'external_system'].map(
-        (table) => `INSERT INTO ${table}_organization SELECT id, 'legacy', name FROM ${table}`,
-      ),
+      ...[
+        'person',
+        'service_team',
+        'service',
+        'tag',
+        'work_item_type',
+        'external_system',
+        'resource',
+      ].map((table) => `INSERT INTO ${table}_organization SELECT id, 'legacy', name FROM ${table}`),
     ]);
 
     expect(
@@ -248,6 +283,8 @@ describe('20260927130000_add_organization_ownership', () => {
     // The previous release's schema, populated the way it populates it, then
     // this migration applied, used by both releases, and reversed.
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261020130000_add_claim_occupancy',
+      '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
       '20261019120000_add_claim',
@@ -298,6 +335,8 @@ describe('20260927130000_add_organization_ownership', () => {
       "DELETE FROM tag WHERE id = 't-old'",
     ]);
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
+      '20261020130000_add_claim_occupancy',
+      '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
       '20261019130000_add_person_account',
       '20261019120000_add_claim',

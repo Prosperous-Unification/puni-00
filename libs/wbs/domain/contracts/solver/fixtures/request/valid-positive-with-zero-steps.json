@@ -7,12 +7,28 @@
     "work\u0000trailing": 96
   },
   "budgetMs": 30000,
-  "contractVersion": "16+0.2.0",
+  "contractVersion": "17+0.3.0",
   "edges": [
-    { "predecessorKey": "work\u0000leading", "successorKey": "work\u0000dev", "type": "FS" },
-    { "predecessorKey": "work\u0000dev", "successorKey": "work\u0000interior", "type": "FS" },
-    { "predecessorKey": "work\u0000interior", "successorKey": "work\u0000finish", "type": "FS" },
-    { "predecessorKey": "work\u0000finish", "successorKey": "work\u0000trailing", "type": "FS" }
+    {
+      "predecessorKey": "work\u0000leading",
+      "successorKey": "work\u0000dev",
+      "type": "FS"
+    },
+    {
+      "predecessorKey": "work\u0000dev",
+      "successorKey": "work\u0000interior",
+      "type": "FS"
+    },
+    {
+      "predecessorKey": "work\u0000interior",
+      "successorKey": "work\u0000finish",
+      "type": "FS"
+    },
+    {
+      "predecessorKey": "work\u0000finish",
+      "successorKey": "work\u0000trailing",
+      "type": "FS"
+    }
   ],
   "elsewhere": {},
   "fastHint": {
@@ -25,6 +41,7 @@
   "horizonUnits": 96,
   "objective": "pri",
   "pools": {},
+  "resources": {},
   "quantum": 48,
   "slices": [
     {
@@ -37,7 +54,8 @@
       "personId": null,
       "poolIds": [],
       "priorityWeight": 0,
-      "width": 1
+      "width": 1,
+      "demands": []
     },
     {
       "deadlineUnits": null,
@@ -49,7 +67,8 @@
       "personId": null,
       "poolIds": [],
       "priorityWeight": 0,
-      "width": 1
+      "width": 1,
+      "demands": []
     },
     {
       "deadlineUnits": null,
@@ -61,7 +80,8 @@
       "personId": null,
       "poolIds": [],
       "priorityWeight": 0,
-      "width": 1
+      "width": 1,
+      "demands": []
     },
     {
       "deadlineUnits": null,
@@ -73,7 +93,8 @@
       "personId": null,
       "poolIds": [],
       "priorityWeight": 0,
-      "width": 1
+      "width": 1,
+      "demands": []
     },
     {
       "deadlineUnits": null,
@@ -85,10 +106,11 @@
       "personId": null,
       "poolIds": [],
       "priorityWeight": 0,
-      "width": 1
+      "width": 1,
+      "demands": []
     }
   ],
-  "solverVersion": "0.2.0",
+  "solverVersion": "0.3.0",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
-  "wireVersion": 3
+  "wireVersion": 4
 }

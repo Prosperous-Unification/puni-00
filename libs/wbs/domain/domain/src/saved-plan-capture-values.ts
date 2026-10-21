@@ -3,6 +3,7 @@ import type { DependencyReach } from './dependency-reach';
 import type { EstimateMethod, EstimateRounding, PertWeights } from './estimate';
 import type { PriorityBand } from './priority-band';
 import type { Hold, Readiness } from './progress';
+import type { Demand, Resource, ResourceCapacity } from './resource';
 import type { StoredStepBlockage } from './step-blockage';
 import type { StoredStepParallel } from './step-parallel';
 import type { StoredActual, StoredEstimate, StoredMeasure, StoredProgress } from './step-values';
@@ -106,6 +107,18 @@ export interface PlanInputReads {
   readonly typedDependencies: readonly TypedDependency[];
   readonly assignments: readonly Assignment[];
   readonly capacity: ReadonlyMap<string, number>;
+  /**
+   * Every demand on a work item of the project and the project's stated
+   * resource capacities, read on the same snapshot (`wbs-resources` R5): the
+   * captured schedule levels them exactly as the live one does.
+   */
+  readonly demands: readonly Demand[];
+  readonly resourceCapacities: readonly ResourceCapacity[];
+  /**
+   * The resources the caller's directory holds, under its own names, read on
+   * the snapshot so a shared plan read can label the resource a bar waited for.
+   */
+  readonly resources: readonly Resource[];
   readonly priorityBands: readonly PriorityBand[];
   readonly people: readonly CapturedPerson[];
   readonly teams: readonly CapturedTeam[];

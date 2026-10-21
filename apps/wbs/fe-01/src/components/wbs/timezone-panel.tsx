@@ -1,8 +1,6 @@
+import { Button, Input, Label } from '@ui/saas-01';
 import { useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { type RefusalWords } from '@/lib/refusal';
 
 import { failureText } from './plan-refusal';

@@ -1,7 +1,8 @@
+import { Button } from '@ui/saas-01';
 import { isIsoDate, type IsoDate } from '@wbs/domain/workday';
 import { useState } from 'react';
 
-import { Button } from '../ui/button';
+import { withLeadWord } from './lead-word';
 import {
   Modal,
   ModalClose,
@@ -10,8 +11,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
-} from '../ui/modal';
-import { withLeadWord } from './lead-word';
+} from './modal';
 
 /** The engine's two days for the row, as the table shows them, or null on an undated plan. */
 export interface ForecastSpan {

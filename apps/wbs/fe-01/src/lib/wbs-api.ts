@@ -222,6 +222,12 @@ export interface SliceView {
   /** The team pool that set a capacity floor, or null for every other floor. */
   capacityTeamId: string | null;
   /**
+   * The resource whose pool set a capacity floor, and the units this slice
+   * held of it (`wbs-resources` R5). Present exactly when `boundBy` is
+   * `capacity` and the pool was a resource's; `capacityTeamId` is then null.
+   */
+  capacityResource?: { resourceId: string; units: number };
+  /**
    * How many of its team's slots this slice held while it ran — the
    * **effective** width be-01 scheduled with.
    *
@@ -1021,6 +1027,8 @@ export type DirectoryEffect =
        */
       fromId: string;
     }
+  /** The row's demand on the resource being removed goes with it (`wbs-resources`). */
+  | { kind: 'demand_removed'; units: number }
   | {
       kind: 'assumed_assignee_changed';
       /**
@@ -2370,9 +2378,11 @@ interface BatchAnswer {
     entity?: {
       id: string;
       name: string;
-      kind?: PersonKindView;
+      /** A person's kind, or a resource's on `createResource` (`wbs-resources`). */
+      kind?: PersonKindView | 'exclusive' | 'divisible';
       serviceIds?: string[];
       teamIds?: string[];
+      unitLabel?: string;
     };
   }[];
   undoable?: boolean;
@@ -2421,9 +2431,14 @@ function entryOf(answer: BatchAnswer): NonNullable<BatchAnswer['results'][number
 
 function personEntry(answer: BatchAnswer): PersonView {
   const entity = entryOf(answer);
-  if (entity.kind === undefined || entity.teamIds === undefined)
-    throw new Error('unexpected_response');
-  return { id: entity.id, name: entity.name, kind: entity.kind, teamIds: entity.teamIds };
+  const kind = personKindOf(entity.kind);
+  if (kind === null || entity.teamIds === undefined) throw new Error('unexpected_response');
+  return { id: entity.id, name: entity.name, kind, teamIds: entity.teamIds };
+}
+
+/** A person's kind off a batch entity, or null when the entity carries none or a resource's. */
+function personKindOf(kind: string | undefined): PersonKindView | null {
+  return kind === 'person' || kind === 'agent' ? kind : null;
 }
 
 /** A create-person result; memberships are available from the directory read. */
@@ -2431,8 +2446,9 @@ function personIdentityEntry(answer: BatchAnswer): PersonIdentityView {
   const entity = entryOf(answer);
   // Proof: requiring teamIds rejected be-01's successful create response with
   // `unexpected_response`; the directory-client create test observed it.
-  if (entity.kind === undefined) throw new Error('unexpected_response');
-  return { id: entity.id, name: entity.name, kind: entity.kind };
+  const kind = personKindOf(entity.kind);
+  if (kind === null) throw new Error('unexpected_response');
+  return { id: entity.id, name: entity.name, kind };
 }
 
 function teamEntry(answer: BatchAnswer): TeamView {

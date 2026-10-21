@@ -172,6 +172,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiProjectsByIdPeopleByPersonIdWork',
+    method: 'GET',
+    path: '/api/projects/:id/people/:personId/work',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiProjectsByIdSaved-plans',
     method: 'GET',
     path: '/api/projects/:id/saved-plans',
@@ -181,6 +187,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiProjectsByIdSaved-plansCompare',
     method: 'GET',
     path: '/api/projects/:id/saved-plans/compare',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiProjectsByIdResources',
+    method: 'GET',
+    path: '/api/projects/:id/resources',
     kind: 'read',
   },
   {
@@ -506,6 +518,24 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   { operationId: 'postInternalResume', method: 'POST', path: '/internal/resume', kind: 'control' },
+  {
+    operationId: 'postInternalMcpAuthority',
+    method: 'POST',
+    path: '/internal/mcp/authority',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpDelegation',
+    method: 'POST',
+    path: '/internal/mcp/delegation',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpOrganizations',
+    method: 'POST',
+    path: '/internal/mcp/organizations',
+    kind: 'control',
+  },
   {
     operationId: 'putApiOrganizationSession-policy',
     method: 'PUT',

@@ -1,0 +1,17 @@
+
+> nx run twilight-burokrat:"lint:source"
+
+> bunx eslint apps/twilight-structure/twilight-burokrat/cli/src
+
+(node:1625915) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+
+ NX   Successfully ran target lint:source for project twilight-burokrat
+
+
+  Run duration:      20.0s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     20.0s (1 task)
+  Recoverable time:  <1ms

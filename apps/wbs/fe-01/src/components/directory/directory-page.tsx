@@ -1,9 +1,8 @@
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@ui/saas-01';
 import { type ReactNode, type SubmitEvent, useEffect, useRef, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { CreatablePicker } from '@/components/wbs/creatable-picker';
 import {
   Modal,
   ModalContent,
@@ -11,8 +10,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
-} from '@/components/ui/modal';
-import { CreatablePicker } from '@/components/wbs/creatable-picker';
+} from '@/components/wbs/modal';
 import {
   type DirectoryEffect,
   directoryRefusalSentence,
@@ -135,6 +133,10 @@ export function effectSentence(effect: DirectoryEffect, on: EffectContext): stri
         : `No longer limited to ${String(effect.size)} at a time — the limit it inherits from ${
             on.rowNamed(effect.fromId) ?? 'a row above it'
           }. Dates may move earlier.`;
+    case 'demand_removed':
+      // Resources are removed through the command batch, not this page (wbs-resources
+      // 1.5 adds their screen); the sentence is here so a usage naming one still reads.
+      return `Its demand of ${String(effect.units)} on this resource goes.`;
     case 'assumed_assignee_changed':
       return `Assumed to be doing all of it: ${assumedName(effect.assumedNow)} now, ${assumedName(
         effect.assumedAfter,

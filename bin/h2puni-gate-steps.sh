@@ -27,7 +27,11 @@ trap 'rm -f -- "$openspec_report"' EXIT
 # refuses every injected fault before Nx while retaining the validator JSON in gate output.
 # Proof: h2puni-gate.test.sh case 22 observed the obsolete 1.3.0 invocation instead
 # of the required 1.12.0 contract; the real gate also rejected three legacy Twilight changes.
-bunx @fission-ai/openspec@1.12.0 validate --all --json | tee "$openspec_report"
+# Proof: on 2026-10-20, 1.14.3 validated a disposable change, then rejected the same
+# change with `#### Scenario` changed to `### Scenario`: exit 1, failed=1, passed=0.
+# Proof: h2puni-gate.test.sh removes the local executable. The earlier bunx
+# invocation reached later work; this path exits 127 before Nx can run.
+./node_modules/.bin/openspec validate --all --json | tee "$openspec_report"
 jq -s -e '
   length == 1 and
   (.[0] | type == "object") and

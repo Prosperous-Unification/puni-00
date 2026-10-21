@@ -306,7 +306,7 @@ function bootOptions(dbPath: string, port: number) {
 }
 
 describe('bootBe01', () => {
-  it('validates configured delegation keys before opening storage and keeps issuance inactive', async () => {
+  it('validates configured delegation keys before opening storage and keeps generic issuance inactive', async () => {
     const dir = tempDir('wbs-delegation-boot-');
     const dbPath = join(dir, 'test.db');
     let invalidKeyFailure: unknown;
@@ -351,10 +351,11 @@ describe('bootBe01', () => {
     running = await bootBe01(configured, {
       openSource: openSqliteSource,
       makeApp: (options) => {
-        // Proof: replacing this production binding with a live verifier or
-        // omitting it failed this configured-key composition assertion
-        // (2026-09-28).
-        expect(options.delegation).toBe(REFUSE_DELEGATIONS);
+        // A configured pair now composes the live verifier for mcp-01's
+        // delegations (tasks 2.5, 6.4); what it admits before activation is
+        // nothing, as the signed request below and `mcp-delegation.boot.db.test.ts` show.
+        expect(options.delegation).not.toBe(REFUSE_DELEGATIONS);
+        expect(options.mcpDelegation).toBeDefined();
         const app = buildApp(options);
         // The test listener opens no socket, so its matching test disposer
         // does not ask Elysia to stop a server that never started.
@@ -421,7 +422,7 @@ describe('bootBe01', () => {
       raw.close();
     }
     const observer = openDrizzle(dbPath);
-    const contractVersion = '7+0.2.0';
+    const contractVersion = '7+0.3.0';
     allocateGeneration(observer, 'p-1', contractVersion, 'abandoned', 1);
     const state = openDatabase(dbPath);
     try {
@@ -443,7 +444,7 @@ describe('bootBe01', () => {
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
       optimizer: {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('startup reconciliation must not spawn');
@@ -482,7 +483,7 @@ describe('bootBe01', () => {
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
       optimizer: {
-        solverVersion: '0.2.0',
+        solverVersion: '0.3.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('the settings write must not spawn');
@@ -750,7 +751,7 @@ describe('bootBe01', () => {
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled' as const,
         optimizer: {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('shutdown ordering must not spawn');
@@ -890,7 +891,7 @@ describe('bootBe01', () => {
       {
         ...bootOptions(dbPath, 0),
         optimizer: {
-          solverVersion: '0.2.0',
+          solverVersion: '0.3.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('this case must not spawn');

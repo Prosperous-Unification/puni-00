@@ -116,6 +116,12 @@ export interface PlanTree {
    */
   elsewhereHolders?: ElsewhereHolderLabel[];
   /**
+   * One label per resource a slice's `capacityResource` names (`wbs-resources`
+   * R5), so a reader is told which resource a bar waited for and in what unit.
+   * Present exactly when a displayed slice names one.
+   */
+  resourceLabels?: { id: string; name: string; unitLabel: string }[];
+  /**
    * Every slice the schedule placed, in the order the engine placed them.
    *
    * The projection in each row's `schedule` is what a table column shows; this

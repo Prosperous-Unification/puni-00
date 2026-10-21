@@ -9,7 +9,7 @@ import {
   useState,
 } from 'react';
 
-import { usePageShortcutsSuspended } from '@/components/ui/page-shortcuts';
+import { usePageShortcutsSuspended } from '@/components/wbs/page-shortcuts';
 
 import { type LeadWord, withLeadWord } from './lead-word';
 

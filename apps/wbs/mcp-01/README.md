@@ -2,8 +2,11 @@
 
 Streamable HTTP MCP server over be-01. Tools are derived from
 the shared HTTP descriptors in `@wbs/contracts`; auth, internal, operational, and browser organization-selection routes are excluded.
-Every tool call forwards the caller's Bearer token to be-01, so the same
-issuer, identity, scope, journal, and owner rules govern MCP and browser calls.
+Before organization activation every tool call forwards the caller's upstream
+Bearer token to be-01, so the same issuer, identity, scope, journal, and owner
+rules govern MCP and browser calls. After it, a session is bound at consent to
+one organization and each be-01 call carries a single-use signed delegation for
+that binding; see [Organizations](#organizations).
 
 ## Writing is two tools
 
@@ -12,7 +15,7 @@ an ordered list of typed commands (create, patch, move, estimate, dependency,
 capacity, directory entries…) applied all or none, recorded as **one undo**, and
 answering the id each `ref` became. A later command names what an earlier one
 created by its ref. The directory has no project, so its edits alone have
-`postApiDirectoryCommands`. 82 tools in all: the reads (the timezone list among them), the work-item page and single work-item reads, the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are claimed), the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the shared people restore-approval route, the two batches,
+`postApiDirectoryCommands`. 84 tools in all: the reads (the timezone list among them), the work-item page and single work-item reads, the startable read (`getApiProjectsByIdStartable`: which steps a team may claim, and which are claimed), the by-person read (`getApiProjectsByIdPeopleByPersonIdWork`: one person's assignments and claims in a project), the project resource read (`getApiProjectsByIdResources`: the directory's resources, the project's capacities and demands), the two person-load reads, the project rank read and move, the organization's capacity-mode read and switch (the switch refuses every delegated caller and so answers an MCP client with 403), the shared people restore-approval route, the two batches,
 undo, redo, the project and step routes, the export, the import, the six saved-plan
 routes — the five that create, list, read, rename and delete a snapshot, plus
 `getApiProjectsByIdSaved-plansCompare`, which answers what changed between two
@@ -107,6 +110,24 @@ There is no mcp-01 setting for this. The grant carries the chosen identity's own
 subject (`google-oauth2|…`, `github|…`, `email|…`), and be-01 resolves the
 forwarded upstream token to the WBS user that subject is mapped to, so a person
 who linked several methods acts as one user whichever one they used.
+
+## Organizations
+
+With `INTERNAL_AUTH_SECRET` set to be-01's own value, consent after activation
+asks be-01 which organizations the user may bind: one is chosen implicitly,
+several show a choice page, none refuses with `access_denied`. The
+organization, local user and upstream issuer are stored on the code, refresh
+family and session (`src/oauth.ts`). Each tool call then gets a fresh
+`wbs-be-01/via-mcp-01` delegation from be-01 for exactly that binding and the
+access token's scopes (`src/organization-authority.ts`); no tool argument or
+header can name another organization, and another organization's project
+answers 404. Every request rereads the family's membership; a removed member's
+request answers 401 and its refresh `invalid_grant`. A be-01 401 refreshes the
+upstream token and asks for a new delegation, never forwarding the raw token.
+A direct upstream token (not an mcp-01 session) and a session consented before
+activation reach be-01 unbound and are refused with `no_active_organization`.
+Unset, mcp-01 forwards the upstream token as before. Contract and deployment
+keys: `docs/auth-integration.md`, "MCP organization delegation".
 
 ## Durable sessions and key rotation
 

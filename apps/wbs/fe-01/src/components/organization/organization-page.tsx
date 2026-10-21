@@ -1,7 +1,7 @@
+import { buttonVariants } from '@ui/saas-01';
 import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
-import { buttonVariants } from '@/components/ui/button';
 import { useFeatureReachable } from '@/lib/session-features';
 import { cn } from '@/lib/utils';
 

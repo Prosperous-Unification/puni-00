@@ -1,4 +1,5 @@
 import { type Cell as TableCell, flexRender, type Header, useTable } from '@tanstack/react-table';
+import { Button } from '@ui/saas-01';
 import type { SettableStatus, WorkItemStatus } from '@wbs/domain/progress';
 import { parseStepNodeId } from '@wbs/domain/step-node';
 import {
@@ -15,8 +16,6 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-
-import { Button } from '@/components/ui/button';
 
 import { type CellCards, createCellCards } from './cell-card-store';
 import type { CellRef } from './cell-navigation';

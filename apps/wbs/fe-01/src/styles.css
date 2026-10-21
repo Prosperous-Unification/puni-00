@@ -21,7 +21,7 @@
  * **The guard stops the reset. It does not stop inheritance**, and that is not a
  * hole — it is the other half of the arrangement, and both halves are asserted
  * in `e2e/tailwind.spec.ts` rather than assumed. Two things cross the line by
- * inheriting: the **font family**, which is why `--font-sans` below says what it
+ * inheriting: the **font family**, which is why the kit's `--font-body` says what it
  * says, and the **text colour**, which follows `--foreground` from `<main>`. The
  * colour is deliberate — one palette across the page, and a grid pinned to the
  * user agent's `#000` while the chrome moved to a token is the version that
@@ -51,6 +51,14 @@
  */
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities) source(none);
+/*
+ * The palette: every vocabulary token, light and dark, from the SaaS kit.
+ * Unlayered on purpose, as this app's own tokens always were: an unlayered
+ * declaration beats every layered one, so the kit's values keep beating
+ * whatever `theme` declares, exactly as when they lived in this file. With the
+ * other imports, ahead of every rule, because an `@import` after one is void.
+ */
+@import '../../../../libs/shared/adapters/ui-saas-01/src/theme.css';
 
 @source './';
 
@@ -66,91 +74,41 @@
 @source not './**/*.test.tsx';
 
 /*
- * The design tokens, in shadcn's own names, so a component vendored from the
- * registry needs no edit to find its colours.
+ * The kit's primitives name their utilities in their own files, outside `src`,
+ * so the scan has to reach them: a class only the kit names — the pressed
+ * toggle's `aria-pressed:bg-primary`, the outline's `border-control-edge`, the
+ * centred modal's placement — is otherwise never emitted. The kit's tests are
+ * left out for the reason above.
  *
- * Two blocks rather than one: these are the *values*, and `@theme inline` below
- * is what turns them into utilities. Splitting them is what makes the dark set
- * possible at all — `.dark` re-points the same custom properties, and every
- * `bg-card` in the app follows without knowing anything about it.
+ * Proof: with this line removed, `e2e/header.spec.ts` `draws a pressed toggle
+ * filled and its neighbour plain, 3:1 apart` failed on `Plan pressed against
+ * Board · Expected: >= 3 · Received: 1` (light and dark), and two
+ * `e2e/status.spec.ts` cases timed out clicking `Set to Done` / `Set to In
+ * progress` in a dialog that never became stable. `e2e/control-edge.spec.ts`
+ * stayed green: without `border-control-edge` the outline's `border` paints
+ * `currentColor`, which clears 3:1 too. Watched 2026-10-21.
+ */
+@source '../../../../libs/shared/adapters/ui-saas-01/src';
+@source not '../../../../libs/shared/adapters/ui-saas-01/src/**/*.test.ts';
+@source not '../../../../libs/shared/adapters/ui-saas-01/src/**/*.test.tsx';
+
+/*
+ * This app's own vocabulary, beside the kit's.
  *
- * **Dark mode ships since `dark-mode`.** `lib/theme.ts` puts `.dark` on the
- * root from a remembered three-state answer — system, light, dark — and the
- * control is in the account menu. The foundation this block was written as
- * turned out to be exactly one attribute, as promised; what it did not buy was
- * the contrast review, which that change did and recorded.
+ * The palette — every shadcn token, light and dark, with `color-scheme`, the
+ * radius, the outline control's edge and the `--layer-*` order — lives in the
+ * SaaS kit's `theme.css`, imported above, and is not redeclared here;
+ * `styles.test.ts` refuses a redeclaration. What stays is what only WBS
+ * names: the popover shadow, the Find highlight, the status and node-reading
+ * hues, the quiet ink, and the grid surfaces below, all of them mixed from or
+ * measured against the kit's tokens.
  *
- * `color-scheme` is declared **beside the tokens, on the same two selectors**,
- * and nowhere else. It is what the platform reads rather than this app: the
- * scrollbar down the side of the plan, the calendar a `not-before` field drops,
- * the caret in every box, and — the fault it was found by — the `ButtonFace`
- * grey a `<button>` that names no background paints itself. Written from
- * JavaScript instead it would be a second declaration of the palette that could
- * disagree with the class; written here it cannot.
- *
- * `oklch` rather than hex: it is the registry's own notation since Tailwind v4,
- * and the lightness channel is what makes a hover shade a number rather than a
- * guess.
+ * Two kinds of block rather than one: these are the *values*, and `@theme
+ * inline` below is what turns the ones a utility needs into utilities. `.dark`
+ * re-points the same custom properties, on the root `lib/theme.ts` marks from
+ * a remembered three-state answer (system, light, dark).
  */
 :root {
-  color-scheme: light;
-
-  --radius: 0.5rem;
-
-  /*
-   * The two layers that stack across portals, as one ordering rather than two
-   * numbers that happen to agree. A modal (`components/ui/modal.tsx`) and the
-   * toast stack (`components/wbs/toasts.tsx`) are both portalled to `<body>`,
-   * so between them the z-index is the whole answer: at one shared `z-50` the
-   * sheet, later in the document, painted over a refusal raised while it was
-   * open (UI review F-085). A toast is what happened, so it is above whatever
-   * surface the reader was on when it happened.
-   *
-   * A portalled card (`hover-card.tsx`: hints, facts, the project list's card)
-   * and the hint's wait ring (`hint.tsx`) sit between the two: the card for a
-   * control on a sheet or in Project settings has to be drawn over that
-   * surface, or it is painted under it and nobody reads it (UI review #515
-   * review, F-131). The keyboard cheat sheet is a modal too, on
-   * `--layer-modal` (F-133).
-   */
-  --layer-modal: 50;
-  --layer-card: 55;
-  --layer-card-ring: 56;
-  --layer-toast: 60;
-
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  /*
-   * The edge of an `outline` button: the slate of `--muted-foreground` a few
-   * steps lighter, so the boundary that is the control's only cue clears 3:1
-   * on the page, the card and its own hover fill (3.64:1 on white, 3.32:1 on
-   * `--accent`; WCAG 1.4.11). `--input` stays the hairline a text box draws:
-   * as a button's edge it measured 1.22:1 light and 1.28:1 dark against the
-   * sign-in card (UI review F-124).
-   *
-   * Proof: with the `outline` variant back on `border-input`,
-   * `e2e/control-edge.spec.ts` `outline controls paint a 3:1 edge` failed on
-   * `Continue with SSO: outside · Expected: >= 3 · Received: 1.22…` (light) and
-   * `1.28…` (dark). Watched 2026-10-16.
-   */
-  --control-edge: oklch(0.62 0.03 257);
   /* A list that drops over the table (`PICKER_PANEL_STYLE`). Its own token
      because a 12% black shadow is invisible on the dark page, where a list
      ran into the rows under it with nothing at its edge (UI review F-022). */
@@ -209,29 +167,6 @@
 }
 
 .dark {
-  color-scheme: dark;
-
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  /* 4.17:1 on the card, 4.71:1 on the page, 3.43:1 on the hover fill. */
-  --control-edge: oklch(0.58 0.03 257);
   --popover-shadow: 0 0 0 1px oklch(1 0 0 / 14%), 0 6px 18px oklch(0 0 0 / 60%);
   --highlight: oklch(0.62 0.12 96);
   --status-done: oklch(0.72 0.15 148);
@@ -371,61 +306,28 @@
 }
 
 /*
- * The tokens as Tailwind theme keys, which is what emits `bg-card`,
- * `text-muted-foreground`, `rounded-lg` and the rest.
+ * This app's tokens as Tailwind theme keys: only the one a utility names
+ * (`text-quiet-ink`). Every vocabulary key — `bg-card`, `rounded-lg`,
+ * `font-sans` — comes from core's `vocabulary.css` through the kit's theme.
  *
  * `inline` is load-bearing: without it Tailwind copies each value into the
- * generated utility, and `.dark` re-pointing `--card` would then change
- * nothing at all. With it the utility reads the custom property at use time,
- * which is the whole mechanism a theme switch runs on.
+ * generated utility, and `.dark` re-pointing `--quiet-ink` would then change
+ * nothing at all.
  *
- * **`--font-sans` is the token, and its value is deliberately the generic
- * family the table was measured against.** The obvious thing to write here is
- * shadcn's `ui-sans-serif, system-ui, …` stack, and it was written, and the
- * browser gate refused it: `layout.spec.ts` failed at 1280×800 with `the
- * earliest-start field is 138px where this browser wants 143px`. The reason is
- * the guard's blind side. The reset stops at `[data-grid]`, but **inheritance
- * does not** — the cells carry `font: inherit` as inline styles of their own,
- * so the face `<main>` is given is the face the table is laid out in, and
- * `table-frame.ts`'s `not-before: 146` is a number Chromium gave for an
- * unconstrained `input[type=date]` in `sans-serif`. A different face is a
- * different number and a clipped date.
- *
- * So the token exists, everything reads it, and it says `sans-serif` until
- * somebody changes the face **and** re-measures that column. `H
- * header-fits-a-row` is the change that touches the type scale; this one is
- * the foundation, and shipping a face here would have been a geometry change
- * smuggled in under a palette.
+ * **`font-sans` is the kit's `--font-body`, and its value is deliberately the
+ * generic family the table was measured against.** shadcn's `ui-sans-serif,
+ * system-ui, …` stack was written here once, and the browser gate refused it:
+ * `layout.spec.ts` failed at 1280×800 with `the earliest-start field is 138px
+ * where this browser wants 143px`. The reset stops at `[data-grid]`, but
+ * **inheritance does not** — the cells carry `font: inherit` as inline styles
+ * of their own, so the face `<main>` is given is the face the table is laid
+ * out in, and `table-frame.ts`'s `not-before: 146` is a number Chromium gave
+ * for an unconstrained `input[type=date]` in `sans-serif`. A different face in
+ * the kit is a different number and a clipped date here, so it waits until
+ * somebody changes the face **and** re-measures that column.
  */
 @theme inline {
-  --font-sans: sans-serif;
-
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
   --color-quiet-ink: var(--quiet-ink);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-control-edge: var(--control-edge);
-  --color-ring: var(--ring);
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
 }
 
 /*
@@ -456,7 +358,7 @@
  * agent's `ButtonFace`, which follows no token at all.
  *
  * `ButtonFace` is not one colour, and that is the part worth writing down: it
- * is whatever the user agent thinks the page is, and `color-scheme` above is
+ * is whatever the user agent thinks the page is, and `color-scheme` in the kit's theme is
  * the only thing that tells it. Before this change the root declared none, so a
  * forced `.dark` page got the **light** face, `rgb(239, 239, 239)`, under
  * near-white ink — the Gantt's row labels at **1.10:1**, which is the whole of
@@ -772,7 +674,7 @@
    * every column.
    *
    * `@apply font-sans` rather than the family written out, so the one place a
-   * face is chosen stays `--font-sans` above — and the geometry warning beside
+   * face is chosen stays the kit's `--font-body` — and the geometry warning beside
    * it, that a different face is a different `not-before` column, keeps
    * applying. The size is the grid's own, written here rather than added to the
    * selector list above because that rule is about the grid **body** and this is

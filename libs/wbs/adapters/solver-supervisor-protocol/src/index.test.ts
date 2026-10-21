@@ -104,13 +104,23 @@ describe('decodeSupervisorStartFrame', () => {
       objective: 'pri',
     });
     expect(decode(frame()).request).toEqual({ wireVersion: 2, objective: 'pri' });
-    expect(() => decode(frame({ request: { wireVersion: 4, objective: 'pri' } }))).toThrow(
+    expect(() => decode(frame({ request: { wireVersion: 5, objective: 'pri' } }))).toThrow(
       /wireVersion/,
     );
   });
 
   it('carries fixed person calendars on solver wire 3 unchanged', () => {
     const request = { wireVersion: 3, objective: 'pri', elsewhere: { ana: [[0, 49]] } };
+    expect(decode(frame({ request })).request).toEqual(request);
+  });
+
+  it('carries resource demands and capacities on solver wire 4 unchanged', () => {
+    const request = {
+      wireVersion: 4,
+      objective: 'pri',
+      resources: { staging: 1 },
+      slices: [{ key: 'a', demands: [{ resourceId: 'staging', units: 1 }] }],
+    };
     expect(decode(frame({ request })).request).toEqual(request);
   });
 

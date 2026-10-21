@@ -1,3 +1,4 @@
+import { Button } from '@ui/saas-01';
 import {
   approveJoinRequest,
   type ClientReply,
@@ -6,7 +7,6 @@ import {
 } from '@wbs/contracts';
 import { useCallback, useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 

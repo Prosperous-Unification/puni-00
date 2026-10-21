@@ -1,6 +1,6 @@
+import { Button } from '@ui/saas-01';
 import type { KeyboardEvent, ReactNode } from 'react';
 
-import { Button } from '@/components/ui/button';
 import type { AttemptOutcomeView } from '@/lib/wbs-api';
 
 import { attemptEntryText } from './attempt-words';

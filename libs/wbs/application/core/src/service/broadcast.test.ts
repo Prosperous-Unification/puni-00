@@ -135,7 +135,7 @@ describe('what a project subscriber receives', () => {
     await add('Sockets', strip);
     broadcast.published.length = 0;
 
-    await service.remove(strip, OWNER, null);
+    await service.remove(strip, OWNER, null, { kind: 'legacy' });
 
     expect(broadcast.published).toEqual([]);
   });

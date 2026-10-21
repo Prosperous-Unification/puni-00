@@ -106,10 +106,12 @@ export interface Hintable {
  *
  * Separate from {@link Hintable} rather than a `kind` beside one string, so the
  * attribute a call site writes is the whole of what says which it is — there is
- * no second value that can fall out of step with the words. A wrapper component's
- * props are an interface, not a set of intrinsic JSX attributes, so React's
- * blanket permission for `data-*` on a DOM element does not reach it:
- * `<Button data-fact="…">` is a type error until the component says it takes one.
+ * no second value that can fall out of step with the words. TypeScript does not
+ * check a hyphenated JSX attribute against any component's props, so declaring
+ * these is not what lets a call site write them; it is what makes
+ * `data-fact-tone` a checked {@link FactTone} on the components that extend
+ * this. The kit's `Button` and `Input` (`@ui/saas-01`) do not, and take the
+ * attributes unchecked.
  */
 export interface Factable {
   [FACT_ATTRIBUTE]?: string;

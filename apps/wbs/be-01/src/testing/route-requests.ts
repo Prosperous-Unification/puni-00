@@ -72,6 +72,19 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
   'patchApiSaved-plansById': { name: 'Renamed snapshot' },
   postInternalForward: { message: { kind: 'route-probe' }, trace_id: 'route-probe' },
   postInternalResume: { resume_points: { subscription: -1 }, trace_id: 'route-probe' },
+  postInternalMcpDelegation: {
+    organizationId: ROUTE_ID,
+    userId: ROUTE_ID,
+    client: 'route-probe',
+    grant: 'route-probe',
+    scope: 'read',
+  },
+  postInternalMcpAuthority: {
+    issuer: 'https://idp.test',
+    subject: 'route-probe',
+    userId: ROUTE_ID,
+    organizationId: ROUTE_ID,
+  },
 };
 export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> =
   {

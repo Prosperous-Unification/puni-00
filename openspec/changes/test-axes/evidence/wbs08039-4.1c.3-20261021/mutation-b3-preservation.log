@@ -1,0 +1,69 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+ 96 | test('[TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder', async () => {
+ 97 |   const setup = fixture();
+ 98 |   const invocation = await inspect(setup);
+ 99 |   expect(invocation.exitCode, invocation.stderr).toBe(0);
+100 |   const observation = JSON.parse(invocation.stdout) as Ledger;
+101 |   expect(observation.performance).toEqual(setup.performance);
+                                        ^
+error: expect(received).toEqual(expected)
+
+@@ -63,43 +63,7 @@
+          "CI": "1",
+          "E2E_PORT_SHIFT": "6000",
+        },
+      },
+    },
+-   "specifications": {
+-     "baseJournalDigest": "a9936a06c1080e39d431d078ec1801ca16f210f206e14754ad2a8c711fbc252f",
+-     "baseRevision": "ee30b6ac324cef8ce916ac89864a146e823db5a2",
+-     "candidateJournalDigest": "1e6d44296cde4cc9e61a3887833d0460a83e8d7889dff1811415227caa6a2519",
+-     "evidenceDigest": "4d26509cf84f433f31705afc37034352245537847eb03448245bda8164c1c7aa",
+-     "selection": {
+-       "effective": [
+-         {
+-           "aliases": [],
+-           "capability": "example",
+-           "digest": "a1599a8794c63750694512ce5b9f23f138de2bc23f95a277b670c9e139549372",
+-           "scenarios": [
+-             {
+-               "id": "EXAMPLE-001",
+-               "title": "renders cells",
+-             },
+-             {
+-               "id": "EXAMPLE-002",
+-               "title": "second adopted case",
+-             },
+-           ],
+-           "source": "openspec/specs/example/spec.md",
+-           "title": "Rendering",
+-         },
+-       ],
+-       "inputs": [
+-         {
+-           "digest": "a7d32e8b7e3ac4c4b8a95a4b747a23b3325bc1ff03fd146902427fd7b5213336",
+-           "path": "openspec/specs/example/spec.md",
+-         },
+-       ],
+-       "operations": [],
+-       "removals": [],
+-     },
+-     "selectorVersion": 3,
+-     "unidentified": [],
+-   },
++   "specifications": {},
+  }
+
+- Expected  - 37
++ Received  + 1
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:101:35)
+(fail) [TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [388.93ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1297.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+560 |     dirname(setup.ledgerPath) +
+561 |     '/../' +
+562 |     dirname(setup.ledgerPath).split('/').slice(-1).join('') +
+563 |     '/ledger.json';
+564 |   const invocation = await invokeCli(args);
+565 |   expect(invocation.exitCode).toBe(1);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:565:31)
+(fail) [TEST-AXES-105] refuses noncanonical ledger authority path [338.67ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1256.00ms]

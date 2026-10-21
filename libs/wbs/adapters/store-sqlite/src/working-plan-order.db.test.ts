@@ -734,6 +734,7 @@ it('places every new subtree row and value group in SQLite authoritative order',
             recordedAt: 2,
           },
         ],
+        demands: [],
         assignments: [],
         dependencies: [
           {

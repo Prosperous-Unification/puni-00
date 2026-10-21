@@ -115,7 +115,7 @@ describe('delete sparse owner preservation', () => {
       );
       const before = await fixture.snapshot();
       const { workItems } = installWorkItem(fixture.requirements);
-      expect(await workItems.remove('parent', 'owner', strategy)).toEqual({
+      expect(await workItems.remove('parent', 'owner', strategy, { kind: 'legacy' })).toEqual({
         ok: false,
         reason: 'referenced_by_step_parallel',
         nodes: [
@@ -152,7 +152,7 @@ describe('delete sparse owner preservation', () => {
     const before = await fixture.snapshot();
     const policy = await fixture.stores.stepParallels.listByProject('p');
     const { workItems } = installWorkItem(fixture.requirements);
-    expect(await workItems.remove('parent', 'owner', 'cascade')).toEqual({
+    expect(await workItems.remove('parent', 'owner', 'cascade', { kind: 'legacy' })).toEqual({
       ok: false,
       reason: 'referenced_by_step_parallel',
       nodes: [
@@ -162,7 +162,9 @@ describe('delete sparse owner preservation', () => {
     });
     expect(await fixture.snapshot()).toEqual(before);
     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
-    expect((await workItems.remove('parent', 'owner', 'promote')).ok).toBe(true);
+    expect((await workItems.remove('parent', 'owner', 'promote', { kind: 'legacy' })).ok).toBe(
+      true,
+    );
     expect(await fixture.stores.workItems.findById('parent')).toBeNull();
     expect((await fixture.stores.workItems.findById('branch'))?.parentId).toBeNull();
     expect(await fixture.stores.stepParallels.listByProject('p')).toEqual(policy);
@@ -186,21 +188,21 @@ describe('delete sparse owner preservation', () => {
       },
     });
     const before = await fixture.snapshot();
-    expect(await workItems.remove('missing', 'owner', null)).toEqual({
+    expect(await workItems.remove('missing', 'owner', null, { kind: 'legacy' })).toEqual({
       ok: false,
       reason: 'not_found',
     });
-    expect(await workItems.remove('parent', 'stranger', 'cascade')).toEqual({
+    expect(await workItems.remove('parent', 'stranger', 'cascade', { kind: 'legacy' })).toEqual({
       ok: false,
       reason: 'forbidden',
     });
-    expect(await workItems.remove('parent', 'owner', null)).toEqual({
+    expect(await workItems.remove('parent', 'owner', null, { kind: 'legacy' })).toEqual({
       ok: false,
       reason: 'strategy_required',
     });
-    expect(await rejectedMessage(workItems.remove('parent', 'owner', 'cascade'))).toContain(
-      'delete sparse reader unavailable',
-    );
+    expect(
+      await rejectedMessage(workItems.remove('parent', 'owner', 'cascade', { kind: 'legacy' })),
+    ).toContain('delete sparse reader unavailable');
     expect(await fixture.snapshot()).toEqual(before);
     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
     await fixture.source.close();
@@ -249,9 +251,9 @@ for (const fault of ['maximum', 'step', 'project', 'parent', 'duplicate'] as con
       parent: 'owner is not a leaf',
       duplicate: 'duplicate step parallelism',
     };
-    expect(await rejectedMessage(workItems.remove('parent', 'owner', 'cascade'))).toContain(
-      messages[fault],
-    );
+    expect(
+      await rejectedMessage(workItems.remove('parent', 'owner', 'cascade', { kind: 'legacy' })),
+    ).toContain(messages[fault]);
     expect(await fixture.snapshot()).toEqual(before);
     expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
     await fixture.source.close();
@@ -266,7 +268,7 @@ it('copies detached exact refusal nodes and allows deletion when cleared', async
     ...fixture.requirements,
     stepParallels: { listByWorkItems: () => Promise.resolve(retained) },
   });
-  const refused = await workItems.remove('parent', 'owner', null);
+  const refused = await workItems.remove('parent', 'owner', null, { kind: 'legacy' });
   const expected = {
     ok: false,
     reason: 'referenced_by_step_parallel',
@@ -277,7 +279,7 @@ it('copies detached exact refusal nodes and allows deletion when cleared', async
   fact.stepId = 'mutated-step';
   expect(refused).toEqual(expected);
   retained.length = 0;
-  expect((await workItems.remove('parent', 'owner', null)).ok).toBe(true);
+  expect((await workItems.remove('parent', 'owner', null, { kind: 'legacy' })).ok).toBe(true);
   await fixture.source.close();
 });
 
@@ -288,9 +290,9 @@ it('throws when the required deletion sparse reader is absent before writes', as
   Reflect.deleteProperty(requirements, 'stepParallels');
   const { workItems } = installWorkItem(requirements);
   const before = await fixture.snapshot();
-  expect(await rejectedMessage(workItems.remove('parent', 'owner', null))).toContain(
-    'listByWorkItems',
-  );
+  expect(
+    await rejectedMessage(workItems.remove('parent', 'owner', null, { kind: 'legacy' })),
+  ).toContain('listByWorkItems');
   expect(await fixture.snapshot()).toEqual(before);
   expect(fixture.counts()).toEqual({ stamps: 0, ids: 0 });
   await fixture.source.close();

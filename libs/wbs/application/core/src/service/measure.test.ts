@@ -446,7 +446,7 @@ describe('the figures that are not days, through the structural commands', () =>
     await service.setMeasure(sockets, OWNER, DEV, 'token_actual', 15_400);
     await service.setMeasure(sockets, OWNER, DEV, 'hours_actual', 3);
 
-    await service.remove(sockets, OWNER, 'cascade');
+    await service.remove(sockets, OWNER, 'cascade', { kind: 'legacy' });
 
     expect(await measuresOn('Strip')).toEqual({
       token_actual: { [DEV]: 15_400 },
@@ -463,7 +463,7 @@ describe('the figures that are not days, through the structural commands', () =>
     const sockets = await add('Sockets', strip);
     await service.setMeasure(sockets, OWNER, DEV, 'hours_actual', 4);
 
-    await service.remove(sockets, OWNER, 'cascade');
+    await service.remove(sockets, OWNER, 'cascade', { kind: 'legacy' });
 
     expect(await measuresOn('Strip')).toEqual({ hours_actual: { [DEV]: 4 } });
   });

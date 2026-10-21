@@ -79,6 +79,7 @@ function oauthFixture(): {
   response: () => Promise<undefined>;
   endSession: () => void | Promise<void>;
   refreshSession: () => Promise<string>;
+  bearerFor: (sessionId: string | null, upstreamToken: string) => Promise<string>;
 } {
   return {
     verify: () => Promise.resolve({ iss: 'issuer', sub: 'caller' }),
@@ -86,6 +87,8 @@ function oauthFixture(): {
     endSession: () => undefined,
     // No case here ends in a be-01 401, so a refresh is a fixture fault and says so.
     refreshSession: () => Promise.reject(new Error('this fixture holds no session to refresh')),
+    // No session here is bound to an organization: the caller's token goes through as it came.
+    bearerFor: (_sessionId, upstreamToken) => Promise.resolve(upstreamToken),
   };
 }
 

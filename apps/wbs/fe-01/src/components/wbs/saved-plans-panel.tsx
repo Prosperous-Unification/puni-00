@@ -1,7 +1,5 @@
+import { Button, Input } from '@ui/saas-01';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 import { unreachable } from '../../lib/http';
 import type {

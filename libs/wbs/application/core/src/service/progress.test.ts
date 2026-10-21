@@ -390,7 +390,7 @@ describe('states through the structural commands', () => {
     const child = await add('Strip', branch);
     await service.setProgress(child, OWNER, DEV, 'done');
 
-    await service.remove(child, OWNER, 'cascade');
+    await service.remove(child, OWNER, 'cascade', { kind: 'legacy' });
 
     // Without this the statement is simply gone with the cascade while the
     // estimates beside it survive on the parent — the drift this change exists
@@ -421,7 +421,7 @@ describe('states through the structural commands', () => {
     await service.setProgress(child, OWNER, DEV, 'done');
     expect((await states()).get('Branch')).toBe('in_progress');
 
-    await service.remove(child, OWNER, 'cascade');
+    await service.remove(child, OWNER, 'cascade', { kind: 'legacy' });
 
     expect(stored(await progress.listByProject(projectId))).toEqual([
       { workItemId: branch, stepId: DEV, state: 'done' },

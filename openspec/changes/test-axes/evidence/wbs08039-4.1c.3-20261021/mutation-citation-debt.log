@@ -1,0 +1,37 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+199 |   const invocation = await inspect(setup);
+200 |   expect(invocation.exitCode).toBe(1);
+201 |   const observation = JSON.parse(invocation.stdout) as Ledger;
+202 |   expect(observation.performance).toEqual(setup.performance);
+203 |   expect(observation.scenarios[0].verdict).toEqual({ kind: 'unobserved-in-selection' });
+204 |   expect(observation.debt).toContainEqual({
+                                 ^
+error: expect(received).toContainEqual(expected)
+
+Expected to contain: {
+  kind: "citation",
+  caseId: "cells",
+  finding: "missing",
+}
+Received: [
+  {
+    kind: "scenario",
+    scenarioId: "EXAMPLE-001",
+    verdict: "unobserved-in-selection",
+  }, {
+    kind: "unidentified",
+    path: "openspec/specs/unrelated/spec.md",
+    title: "unidentified",
+  }
+]
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:204:28)
+(fail) [TEST-AXES-106] lost citation and unrelated unidentified B3 debt remain visible [334.20ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1255.00ms]

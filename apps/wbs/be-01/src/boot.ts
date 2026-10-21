@@ -3,9 +3,11 @@ import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
+  currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
   EnterpriseConnectionRepository,
+  ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
   NO_BOUND_ORGANIZATION,
@@ -13,12 +15,14 @@ import {
   openSqliteSource,
   OrganizationRepository,
   ProvisioningTokenRepository,
+  readOrganizationActivation,
   ScimUserRepository,
   SessionPolicyRepository,
   SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
+  SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
 } from '@wbs/store-sqlite';
@@ -40,12 +44,13 @@ import { UserRepository } from './repository/user';
 import { AuthoritativeDnsResolver, type DnsTransport } from './runtime/authoritative-dns/resolver';
 import { SocketDnsTransport } from './runtime/authoritative-dns/transport';
 import { type BackgroundFailureSource, createBackgroundFailure } from './runtime/be-supervisor';
-import { REFUSE_DELEGATIONS } from './runtime/delegation';
+import { delegationVerifier, type MappedUserOf, REFUSE_DELEGATIONS } from './runtime/delegation';
 import { REFUSE_DELEGATION_ISSUANCE } from './runtime/delegation-issuer';
-import { importDelegationKeys } from './runtime/delegation-keys';
+import { importDelegationKeys, type ImportedDelegationKeys } from './runtime/delegation-keys';
 import { runDomainProofWorker, startDomainProofWorker } from './runtime/domain-proof-worker';
 import { createEmailDelivery } from './runtime/email-delivery';
 import type { EmailDeliveryConfig } from './runtime/email-delivery-config';
+import { type McpDelegationAuthority, mcpDelegationAuthority } from './runtime/mcp-delegation';
 import { organizationCookieBinding } from './runtime/organization-cookie';
 import {
   nativeBrowserCredentialEvidence,
@@ -187,6 +192,63 @@ function browserComposition(
   };
 }
 
+/**
+ * MCP organization delegation (tasks 2.5, 6.4, 6.6): the verifier every
+ * route's identity resolver uses, and the authority mcp-01's internal routes
+ * call. Without a configured key pair every delegation is refused and nothing
+ * is issued. With one, nothing is listed or issued before the organization
+ * activation marker and every delegation is refused by organization access,
+ * so configuration alone still creates no authority.
+ *
+ * Delegated requests take their organization from the delegation, never a
+ * session binding, so this access needs no browser binding and serves both
+ * browser compositions.
+ */
+function mcpDelegationComposition(
+  db: ReturnType<typeof openSqliteSource>['db'],
+  services: BeServices,
+  keys: ImportedDelegationKeys | undefined,
+): Pick<AppOptions, 'delegation' | 'mcpDelegation'> & {
+  readonly mcpDelegation: McpDelegationAuthority;
+} {
+  const now = () => services.clock.now();
+  const users = new UserRepository(db, OPEN);
+  const mappedUserOf: MappedUserOf = async (pair) => {
+    const userId = await new ExternalIdentityRepository(db, OPEN).findUserId(pair);
+    return userId === null ? null : users.findById(userId);
+  };
+  const access = new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, now);
+  return {
+    // Proof: wiring REFUSE_DELEGATIONS here with keys configured made
+    // `lists, issues and verifies an MCP delegation only after activation`
+    // in `mcp-delegation.boot.db.test.ts` answer 401 to the issued delegation; watched 2026-10-21.
+    delegation:
+      keys === undefined
+        ? REFUSE_DELEGATIONS
+        : delegationVerifier(
+            keys.verifyKey,
+            mappedUserOf,
+            (issuer, jti, expiresAt, at) =>
+              new SqliteDelegationUse(db, services.gate).consume(issuer, jti, expiresAt, at),
+            now,
+            (userId) => users.findById(userId),
+          ),
+    mcpDelegation: mcpDelegationAuthority({
+      authenticate: (token) => services.auth.authenticateOrRefuse(token),
+      choices: new SqliteOrganizationSelection(db),
+      organizations: access,
+      credentialFactsOf: (principal, organizationId) =>
+        access.credentialFactsOf(principal, organizationId),
+      mappedUserOf,
+      isMember: (userId, organizationId) =>
+        Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
+      activationState: () => readOrganizationActivation(db),
+      signingKey: keys?.signingKey ?? null,
+      now,
+    }),
+  };
+}
+
 export interface RunningBe {
   /** Terminal worker failure; observation immediately replays an already-latched cause. */
   readonly backgroundFailure: BackgroundFailureSource;
@@ -235,9 +297,10 @@ export async function bootBe01(
   opts: BootOptions,
   dependencies: BootDependencies = { openSource: openSqliteSource },
 ): Promise<RunningBe> {
-  // Keys are parsed even while production refuses delegation, so a broken
-  // configured pair cannot hide until a later activation.
-  if (opts.delegationKeys !== undefined) await importDelegationKeys(opts.delegationKeys);
+  // Keys are parsed before storage opens, so a broken configured pair cannot
+  // hide until a later activation.
+  const delegationKeys =
+    opts.delegationKeys === undefined ? undefined : await importDelegationKeys(opts.delegationKeys);
   // Proof: dropping scheduling in the combined SMTP/DNS boot test observed0 workers instead of1.
   const schedulesProofs =
     opts.organizationDomainProofScheduling === undefined
@@ -419,11 +482,7 @@ export async function bootBe01(
               // started on.
               deployedCommit: () => readDeployedCommit(opts.commitDir),
               internalAuthSecret: opts.internalAuthSecret,
-              // Proof: replacing this with an accepting verifier failed
-              // `validates configured delegation keys before opening storage
-              // and keeps issuance inactive` at the production composition
-              // assertion (2026-09-28).
-              delegation: REFUSE_DELEGATIONS,
+              ...mcpDelegationComposition(db, services, delegationKeys),
               version: opts.version,
             });
             // Pushed before `listen`, because from here on there is something

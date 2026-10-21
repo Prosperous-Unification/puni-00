@@ -12,6 +12,7 @@ export {
   PINNED_CREDENTIAL,
 } from './stores/directory';
 export * from './stores/history-batch';
+export { CONFORMANCE_RESOURCES, seedResourceCase } from './stores/resources';
 export * from './stores/saved-plan-capture';
 export * from './stores/subtrees';
 export * from './testing/broken-source';

@@ -1,0 +1,206 @@
+{
+  "items": [
+    {
+      "id": "test-axes",
+      "type": "change",
+      "valid": false,
+      "issues": [
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser scenario observations join isolated publication and whole-tree specifications\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser Performance explicitly reviewed-empty membership\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser level composition joins complete real observations\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Every test resolves to exactly one level\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Performance execution measures the declared real WBS fixture\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Diagnostic test observations bind committed case sources\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Diagnostic test sources bind exact indexed ownership\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Diagnostic Performance sources bind exact indexed ownership\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Manual observation preserves the inspected verdict without certification\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Diagnostic committed SHA is the requested commit object\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Production scenario provenance is pinned to a reviewed base\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Canonical scenarios reconcile in both directions\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Active source inventory precedes reviewed lineage reconciliation\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Performance publication inspection reconciles immutable evidence\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Candidate-bound level facts have explicit authority\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Committed Conformance facts select a bounded target\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Committed Architecture facts bind declared rule fixtures\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Performance level observations join complete facts and publication\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Find-based Bun level targets execute literal selected files\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser membership review facts preserve unknown earlier rows\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Performance scenario observations are bounded to selected publication\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser Conformance observations bind complete committed selections\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser Conformance permits explicit reviewed-empty authority\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Capability scenario ledger remains a diagnostic\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser Architecture membership observations\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser Performance membership observations\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Version two scenario ledger joins Browser observations\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser-only capability scenario ledger\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser T2 diagnostic consumer\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Browser source levels bind exact case ownership and classification\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Shared validation isolated Unit runner\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Bun report observations bind selected sources without claiming level authority\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Shared failures isolated Unit runner\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Shared test levels isolated Unit runner\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        },
+        {
+          "level": "WARNING",
+          "path": "test-axes/spec.md",
+          "message": "ADDED \"Shared test evidence isolated Unit runner\": Requirement text is very long (>500 characters). Move examples and edge cases into scenarios, or split it into separate requirements that each state one behavior."
+        }
+      ],
+      "durationMs": 25
+    }
+  ],
+  "summary": {
+    "totals": {
+      "items": 1,
+      "passed": 0,
+      "failed": 1
+    },
+    "byType": {
+      "change": {
+        "items": 1,
+        "passed": 0,
+        "failed": 1
+      }
+    }
+  },
+  "version": "1.0",
+  "root": {
+    "path": "/home/df/.codex/worktrees/4a91/puni-00",
+    "source": "nearest"
+  }
+}

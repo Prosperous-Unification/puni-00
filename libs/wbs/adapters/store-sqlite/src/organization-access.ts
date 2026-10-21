@@ -86,6 +86,22 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     );
   }
 
+  /**
+   * The facts {@link admitTo} evaluates, for an evaluator in another process:
+   * mcp-01's refresh authority applies the same `credentialRuleRefusal` to a
+   * bound MCP family. Null when `principal` is not a member of
+   * `organizationId` now.
+   *
+   * @throws on malformed membership, connection, policy or lifecycle state.
+   */
+  async credentialFactsOf(
+    principal: OrganizationPrincipal,
+    organizationId: string,
+  ): Promise<{ readonly role: OrganizationRole; readonly facts: CredentialRuleFacts } | null> {
+    await Promise.resolve();
+    return readAccessFacts(this.db, organizationId, principal);
+  }
+
   async resolve(principal: OrganizationPrincipal): Promise<OrganizationAccessResolution> {
     const userId = principal.id;
     // Proof: answering `legacy` without reading the marker made `scopes the same

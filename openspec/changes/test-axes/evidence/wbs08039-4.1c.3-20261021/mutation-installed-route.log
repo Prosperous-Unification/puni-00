@@ -1,0 +1,29 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+258 |   const invocation = Bun.spawnSync(
+259 |     [process.execPath, join(packageDirectory, 'dist/bin.mjs'), ...operands(setup)],
+260 |     { stdout: 'pipe', stderr: 'pipe' },
+261 |   );
+262 |   expect(invocation.exitCode, invocation.stderr.toString()).toBe(1);
+263 |   expect(invocation.stderr.toString()).toBe('Twilight Burokrat validator exited 1\n');
+                                             ^
+error: expect(received).toBe(expected)
+
+- "Twilight Burokrat validator exited 1
++ "unknown command: inspect-scenario-ledger
++ usage: twilight-burokrat <validate-progress-receipt|validate-plan-tasks|validate-record|read-candidate|candidate-identity|inspect-evaluation-coverage|inspect-performance|inspect-performance-sources|inspect-performance-levels|inspect-performance-scenarios|inspect-scenario-ledger|inspect-browser-t2-policy|inspect-browser-t2|inspect-browser-scenario-ledger|inspect-browser-scenarios|inspect-browser-source-levels|inspect-browser-levels|inspect-browser-performance|inspect-browser-architecture|inspect-browser-conformance|inspect-browser-memberships|inspect-browser|inspect-bun-test-reports|inspect-test-reports|inspect-test-sources|inspect-spec-sources|inspect-manual|inspect-manual-observation|classify-candidate|content-manifest|validate-artifacts|extract-relationships|check-indexes|check-root-migration|validate-review-provenance|freeze-exhaustive|verify-exhaustive|evaluate-exhaustive-coverage|lint-local|lint-ci|check|explain|scenario|template|validate-policy-activation> ...
++ Twilight Burokrat validator exited 1
+  "
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:263:40)
+(fail) [TEST-AXES-106] installed dispatch retains debt exit and identical JSON [3664.70ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [4.59s]

@@ -2,7 +2,7 @@
 
 ### Requirement: MCP authorization binds one organization end to end
 
-mcp-01 SHALL require a user to select one current organization during OAuth consent. It SHALL bind the organization to the authorization code, grant, refresh family and access session. Changing organizations SHALL require fresh authorization. The credential or authenticated delegation reaching be-01 SHALL bind WBS user, organization, client, grant/family, granted scopes, audience and expiry; be-01 SHALL verify that binding, upstream identity where used, and current membership on every tool call. Client scopes SHALL only narrow membership permissions. Caller-supplied organization headers, tool arguments and upstream tokens without an accepted organization binding SHALL not confer access. A direct upstream-token path SHALL meet the same audience and binding contract or be refused.
+mcp-01 SHALL require a user to select one current organization during OAuth consent, or bind the only one a single-membership user has. It SHALL bind the organization to the authorization code, grant, refresh family and access session. Changing organizations SHALL require fresh authorization. The credential or authenticated delegation reaching be-01 SHALL bind WBS user, organization, client, grant/family, granted scopes, audience and expiry; be-01 SHALL verify that binding, upstream identity where used, and current membership on every tool call. Client scopes SHALL only narrow membership permissions. Caller-supplied organization headers, tool arguments and upstream tokens without an accepted organization binding SHALL not confer access. A direct upstream-token path SHALL meet the same audience and binding contract or be refused.
 
 #### Scenario: Binding lost during translation
 

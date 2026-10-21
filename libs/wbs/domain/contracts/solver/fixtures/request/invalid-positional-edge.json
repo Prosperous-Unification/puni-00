@@ -4,7 +4,7 @@
     "wi-2\u0000": 10
   },
   "budgetMs": 30000,
-  "contractVersion": "16+0.2.0",
+  "contractVersion": "17+0.3.0",
   "edges": [["wi-1\u0000step-a", "wi-2\u0000"]],
   "elsewhere": {},
   "fastHint": {
@@ -16,6 +16,7 @@
   "pools": {
     "team-platform": 2
   },
+  "resources": {},
   "quantum": 48,
   "slices": [
     {
@@ -28,7 +29,8 @@
       "personId": null,
       "poolIds": ["team-platform"],
       "priorityWeight": 2,
-      "width": 5
+      "width": 5,
+      "demands": []
     },
     {
       "deadlineUnits": 96,
@@ -40,10 +42,11 @@
       "personId": "p-1",
       "poolIds": [],
       "priorityWeight": 0,
-      "width": 1
+      "width": 1,
+      "demands": []
     }
   ],
-  "solverVersion": "0.2.0",
+  "solverVersion": "0.3.0",
   "stageBudgetSplit": [0.6, 0.25, 0.15],
-  "wireVersion": 3
+  "wireVersion": 4
 }
