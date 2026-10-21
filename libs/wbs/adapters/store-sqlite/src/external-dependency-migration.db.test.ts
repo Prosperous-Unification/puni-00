@@ -511,3 +511,41 @@ it('adds the complete incident index set without changing local rows', () => {
   expect(names).toContain('work_item_id_project');
   expect(names).toContain('step_id_project');
 });
+
+it.each(['owned-a', 'owned-b', 'incident-a', 'remove-a', 'remove-b2'] as const)(
+  'refuses a physical identity hidden by the %s filter before any mutation',
+  async (query) => {
+    const local = {
+      ...link('same-id'),
+      predecessor: { projectId: 'b', scope: 'whole' as const, workItemId: 'b2' },
+    };
+    await repository().add(local, stamp);
+    const sqlite = openDatabase(path);
+    try {
+      sqlite.run('DROP TRIGGER external_dependency_cross_identity_insert');
+      sqlite.run(
+        "INSERT INTO external_dependency(id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,predecessor_scope,successor_work_item_id,successor_scope,type) VALUES ('same-id','org','b','a','b','whole','a','whole','FS')",
+      );
+    } finally {
+      sqlite.close();
+    }
+    const localBefore = stored('SELECT * FROM typed_dependency ORDER BY id');
+    const externalBefore = stored('SELECT * FROM external_dependency ORDER BY id');
+    const revisionsBefore = stored('SELECT id,revision,updated_at FROM work_item ORDER BY id');
+    const repo = repository();
+    const read =
+      query === 'owned-a'
+        ? repo.listByProject('a')
+        : query === 'owned-b'
+          ? repo.listByProject('b')
+          : query === 'incident-a'
+            ? repo.listIncident(['a'])
+            : repo.removeAllFor([query === 'remove-a' ? 'a' : 'b2'], { ...stamp, at: 3 });
+    expect(await rejection(read)).toContain('duplicate unified dependency same-id');
+    expect(stored('SELECT * FROM typed_dependency ORDER BY id')).toEqual(localBefore);
+    expect(stored('SELECT * FROM external_dependency ORDER BY id')).toEqual(externalBefore);
+    expect(stored('SELECT id,revision,updated_at FROM work_item ORDER BY id')).toEqual(
+      revisionsBefore,
+    );
+  },
+);

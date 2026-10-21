@@ -272,15 +272,28 @@ function readPhysical(
       .all()
       .map((row) => ({ external: true as const, row, dependency: readExternalDependency(row) })),
   ];
-  const ids = new Set<string>();
+  const localIds = physical.filter((stored) => !stored.external).map(({ row }) => row.id);
+  const externalIds = physical.filter((stored) => stored.external).map(({ row }) => row.id);
+  const duplicate = [
+    ...tx
+      .select({ id: externalDependency.id })
+      .from(externalDependency)
+      .where(inArray(externalDependency.id, localIds))
+      .all(),
+    ...tx
+      .select({ id: typedDependency.id })
+      .from(typedDependency)
+      .where(inArray(typedDependency.id, externalIds))
+      .all(),
+  ].at(0);
+  // Proof: bypassing this counterpart lookup guard made all five `refuses a physical identity hidden by the %s filter before any mutation` cases resolve instead of refusing (2026-10-22).
+  if (duplicate !== undefined) throw new Error(`duplicate unified dependency ${duplicate.id}`);
   const keys = new Set<string>();
   for (const stored of physical) {
     const { dependency } = stored;
     const key = formatTypedDependencyKey(dependency);
-    // Proof: removing the ID or key term separately admitted corrupt rows in `refuses a duplicated physical identity instead of deduplicating corrupt rows` and `refuses duplicate trusted endpoint keys even when physical uniqueness is corrupted` (2026-10-22).
-    if (ids.has(dependency.id) || keys.has(key))
-      throw new Error(`duplicate unified dependency ${dependency.id}`);
-    ids.add(dependency.id);
+    // Proof: removing this key check admitted corrupt rows in `refuses duplicate trusted endpoint keys even when physical uniqueness is corrupted` (2026-10-22).
+    if (keys.has(key)) throw new Error(`duplicate unified dependency ${dependency.id}`);
     keys.add(key);
     const organizationId = assertEvidence(tx, dependency);
     // Proof: bypassing this comparison returned the foreign recorded organization in `refuses missing steps and mismatched recorded organization evidence on reads` (2026-10-22).
@@ -357,7 +370,7 @@ export class TypedDependencyRepository implements TypedDependencyStore {
       await Promise.resolve();
       this.db.transaction((tx) => {
         const prior = requirePhysical(tx, row.id);
-        // Proof: bypassing this comparison failed `refuses moving a typed dependency to another project without changing rows or revisions` at the required cannot-move reason (2026-10-22).
+        // Proof: bypassing only this comparison accepted a coherent destination owner and both valid destination endpoints in `refuses moving a typed dependency to another project without changing rows or revisions` (2026-10-22).
         if (prior.dependency.projectId !== row.projectId)
           throw new Error(`typed dependency ${row.id} cannot move to project ${row.projectId}`);
         const organizationId = assertEndpointsHeld(tx, row);
