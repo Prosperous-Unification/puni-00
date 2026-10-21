@@ -511,6 +511,24 @@
         }
       },
       {
+        "path": "libs/shared/adapters/ui-core-01/src/fonts/Geist-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "libs/shared/adapters/ui-core-01/src/brand.css",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://github.com/google/fonts/tree/main/ofl/geist"
+        }
+      },
+      {
+        "path": "libs/shared/adapters/ui-core-01/src/fonts/InterTight-variable.ttf",
+        "format": "font/ttf",
+        "consumer": "libs/shared/adapters/ui-core-01/src/brand.css",
+        "regenerationAuthority": {
+          "kind": "external",
+          "authority": "https://github.com/google/fonts/tree/main/ofl/intertight"
+        }
+      },
+      {
         "path": "apps/website/fe-01/public/apple-touch-icon.png",
         "format": "image/png",
         "consumer": "apps/website/fe-01/index.html",
