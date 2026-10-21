@@ -106,8 +106,8 @@ last holder.
 There is no undo, so the shape is always: find the commit, fix, gate, publish,
 dry-run, authorise, verify.
 
-> on h2puni in the WBS checkout — pull main, run `bin/h2puni-gate.sh`, report
-> failures only
+> on h2puni in the isolated gate worktree — run `bin/h2puni-gate.sh <sha>` on the
+> fix commit, report failures only
 
 Then publish and dry-run — still no `--execute`:
 

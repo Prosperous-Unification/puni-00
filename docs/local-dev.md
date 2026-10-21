@@ -79,11 +79,13 @@ bin/h2puni-gate.sh <sha>                        # full gate; <sha> is checked ou
 bun run format                                  # prettier --write
 ```
 
-Use the h2puni gate wrapper, not root `bun test` or the raw full Nx gate. Root `bun test` runs **0** of `fe-01`'s
-test files — they are Vitest + jsdom and `bun:test` does not discover them, so
-it reports a clean run having never looked at the frontend. Measured: root
-`bun test` = 357 tests / 50 files with nothing from the frontend (then at
-`apps/fe-01`; historical path); `bunx nx test fe-01` = 5 tests / 2 files.
+Use the h2puni gate wrapper, not root `bun test` or the raw full Nx gate. Root
+`bun test` collects `fe-01`'s Vitest and Playwright files and runs them under
+`bun:test`, which has neither jsdom nor the Playwright runner, so the run is a
+wall of unrelated failures, not a verdict. Measured 2026-10-21: `bun test
+apps/wbs/fe-01` = 2454 tests / 280 files, 722 fail, 93 errors
+(`Playwright Test did not expect test() to be called here`); the project's
+`test` target runs Vitest twice, in UTC and in Pacific/Auckland.
 
 `build` needs `shellcheck` on PATH (`brew install shellcheck`) and is no longer
 allowed to skip itself when it is absent.
