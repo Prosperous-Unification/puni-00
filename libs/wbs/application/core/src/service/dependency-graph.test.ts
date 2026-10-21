@@ -8,6 +8,7 @@ import {
   type DependencyGraphState,
   findDependencyGraphCycle,
   resolveDependencyGraph,
+  resolveDependencyGraphContext,
 } from './dependency-graph';
 
 const item = (id: string, parentId: string | null = null): WorkItem =>
@@ -137,4 +138,22 @@ it('refuses a typed node endpoint absent from the full tree', () => {
       typed: [nodeFs('missing-node', ['gone', 'dev'], ['B', 'dev'])],
     }),
   ).toThrow(/no work item gone in this project/);
+});
+
+it('exposes the same local graph with its own slices and scoped provenance', () => {
+  const context = resolveDependencyGraphContext('p1', {
+    ...base,
+    typed: [nodeFs('one', ['A', 'qa'], ['B', 'dev'])],
+  });
+  expect(context.graph).toEqual(
+    resolveDependencyGraph({ ...base, typed: [nodeFs('one', ['A', 'qa'], ['B', 'dev'])] }),
+  );
+  expect(context.tree.leafIds).toEqual(['A', 'B']);
+  expect(context.slicesByLeaf.get('A')?.map((slice) => slice.stepId)).toEqual(['dev', 'qa']);
+  expect(context.relationships[0]?.predecessor).toEqual({
+    projectId: 'p1',
+    scope: 'node',
+    workItemId: 'A',
+    stepId: 'qa',
+  });
 });

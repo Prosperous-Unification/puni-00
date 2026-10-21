@@ -164,6 +164,7 @@ export * from './claim';
 // The units a claim holds of its leaf's demand (wbs-resources R3, R4).
 export * from './occupancy';
 // Resources, their per-project capacity and per-work-item demand (wbs-resources R1).
+export * from './connected-step-node';
 export * from './resource';
 export * from './step-parallel';
 export * from './stored-vocabularies';

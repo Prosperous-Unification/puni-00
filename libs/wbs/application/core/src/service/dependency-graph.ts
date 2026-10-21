@@ -1,4 +1,5 @@
 import {
+  type ConnectedProjectGraph,
   DEFAULT_ESTIMATE_RULE,
   type DependencyReach,
   expandToLeaves,
@@ -68,6 +69,33 @@ export function findDependencyGraphCycle(state: DependencyGraphState): StepNodeC
  * is stored state the write boundary refuses.
  */
 export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGraph {
+  return prepareDependencyGraph(state).graph;
+}
+
+/**
+ * Prepares one unreduced project context using the graph guard's existing
+ * slicing. Estimate placeholders answer presence only, never scheduling days.
+ * Local typed endpoints acquire the supplied stable project identity.
+ */
+export function resolveDependencyGraphContext(
+  projectId: string,
+  state: DependencyGraphState,
+): ConnectedProjectGraph {
+  return {
+    projectId,
+    ...prepareDependencyGraph(state),
+    relationships: state.typed.map((dependency) => ({
+      ...dependency,
+      predecessor: { ...dependency.predecessor, projectId },
+      successor: { ...dependency.successor, projectId },
+    })),
+  };
+}
+
+/** Resolves the shared local slicing without manufacturing a project identity. */
+function prepareDependencyGraph(
+  state: DependencyGraphState,
+): Omit<ConnectedProjectGraph, 'projectId' | 'relationships'> {
   const index = indexTree(state.rows);
   const rowIds = new Set(state.rows.map((row) => row.id));
   // Proof: this endpoint validation absent and `refuses legacy endpoints absent
@@ -109,7 +137,7 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
     if (group === undefined) byLeaf.set(slice.workItemId, [slice]);
     else group.push(slice);
   }
-  return resolveStepNodeGraph(
+  const graph = resolveStepNodeGraph(
     index.leafIds,
     (leafId) => {
       const found = byLeaf.get(leafId);
@@ -130,6 +158,7 @@ export function resolveDependencyGraph(state: DependencyGraphState): StepNodeGra
       },
     },
   );
+  return { tree: index, slicesByLeaf: byLeaf, graph };
 }
 
 /** What a proposed change replaces in the stored state before the graph is asked. */

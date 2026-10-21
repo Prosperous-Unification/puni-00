@@ -275,26 +275,52 @@ export function resolveStepNodeGraph(
     });
   }
 
-  // The authored edges: every resolved predecessor node to every resolved
-  // successor node, one edge per pair and per relationship. Two relationships
-  // whose expansions overlap stay two edges, each naming its own record.
   for (const dependency of authored.dependencies) {
-    const before = resolveEndpoint(dependency, 'predecessor', slicesOf, authored.leavesUnder);
-    const after = resolveEndpoint(dependency, 'successor', slicesOf, authored.leavesUnder);
-    for (const predecessor of before) {
-      for (const successor of after) {
-        edges.push({
-          predecessor,
-          successor,
-          type: dependency.type,
-          provenance: 'authored',
-          relationshipId: dependency.id,
-        });
-      }
-    }
+    const context = { slicesOf, leavesUnder: authored.leavesUnder };
+    edges.push(...resolveAuthoredEdges(dependency, context, context));
   }
 
   return { nodes, edges };
+}
+
+/** One endpoint's own project lookups; missing required facts must throw. */
+export interface AuthoredEndpointContext {
+  readonly slicesOf: (leafId: string) => readonly GraphSlice[];
+  readonly leavesUnder: (workItemId: string) => readonly string[];
+}
+
+/**
+ * Expands one authored relationship to every endpoint pair using each side's
+ * own project. Local and connected graphs share all FS/SS/FF boundary rules.
+ * Throws for invalid selectors through the same endpoint resolver.
+ */
+export function resolveAuthoredEdges(
+  dependency: TypedDependency,
+  predecessorContext: AuthoredEndpointContext,
+  successorContext: AuthoredEndpointContext,
+): StepNodeGraphEdge[] {
+  const before = resolveEndpoint(
+    dependency,
+    'predecessor',
+    predecessorContext.slicesOf,
+    predecessorContext.leavesUnder,
+  );
+  const after = resolveEndpoint(
+    dependency,
+    'successor',
+    successorContext.slicesOf,
+    successorContext.leavesUnder,
+  );
+  // Proof: limiting before to its first leaf dropped two remote pairs and failed `expands every remote parent pair` (2026-10-22).
+  return before.flatMap((predecessor) =>
+    after.map((successor) => ({
+      predecessor,
+      successor,
+      type: dependency.type,
+      provenance: 'authored' as const,
+      relationshipId: dependency.id,
+    })),
+  );
 }
 
 /** The step-node graph {@link resolveStepNodeGraph} answers. */
