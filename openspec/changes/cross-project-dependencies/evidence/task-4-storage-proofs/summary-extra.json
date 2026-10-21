@@ -1,0 +1,79 @@
+[
+  {
+    "fault": "history-required-shape",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.56ms]"
+    ]
+  },
+  {
+    "fault": "history-endpoint-shape",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.62ms]"
+    ]
+  },
+  {
+    "fault": "history-project-shape",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.58ms]"
+    ]
+  },
+  {
+    "fault": "history-step-shape",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.55ms]"
+    ]
+  },
+  {
+    "fault": "history-whole-step",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/service/compensating.test.ts -t 'refuses partial scoped history'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: {",
+      "(fail) refuses partial scoped history and malformed new scoped history [0.62ms]"
+    ]
+  },
+  {
+    "fault": "fixture-predecessor-scope",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts -t 'refuses successor-owner'",
+    "observed": [
+      "Received: false",
+      "(fail) refuses successor-owner disagreement and owner changes [0.59ms]"
+    ]
+  },
+  {
+    "fault": "incident-closed-boundary",
+    "exit": 1,
+    "command": "bun test libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts -t 'passes typed links'",
+    "observed": [
+      "Received function did not throw",
+      "Received value: Promise { <resolved> }",
+      "(fail) the admitted working batch baseline > passes typed links through the batch and refuses cross-project and closed access [7.26ms]"
+    ]
+  },
+  {
+    "fault": "coherent-union-transaction",
+    "exit": 1,
+    "command": "bun test libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts -t 'keeps a coherent union'",
+    "observed": [
+      "(fail) keeps a coherent union while a rival commits a representation move between component reads [138.89ms]"
+    ]
+  }
+]

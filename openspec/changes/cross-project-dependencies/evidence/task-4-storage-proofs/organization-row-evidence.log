@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+264 |   await repo.add({ ...link(), predecessor:{projectId:'a',scope:'node',workItemId:'a',stepId:'a'} },stamp);
+265 |   const sqlite = openDatabase(path);
+266 |   try {
+267 |     sqlite.run('PRAGMA foreign_keys=OFF');
+268 |     sqlite.run("UPDATE external_dependency SET organization_id='foreign'");
+269 |     expect(await rejection(repo.listByProject('b'))).toContain('inconsistent organization');
+                                                           ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "inconsistent organization"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:269:54)
+(fail) refuses missing steps and mismatched recorded organization evidence on reads [139.18ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.91s]

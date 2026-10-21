@@ -1,0 +1,25 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+156 |             } else {
+157 |               const assignment = kind === 'identity' ? "id='source'" : writesExternal ? "successor_work_item_id='b'" : "predecessor_work_item_id='a'";
+158 |               sqlite.run(`UPDATE ${target} SET ${assignment} WHERE id='destination'`);
+159 |             }
+160 |           };
+161 |           expect(write, `${target} ${operation} ${kind}`).toThrow(`duplicate unified dependency ${kind}`);
+                                                                ^
+error: external_dependency update endpoints
+
+Expected substring: "duplicate unified dependency endpoints"
+
+Received function did not throw
+Received value: undefined
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:161:59)
+(fail) duplicates refuse across representations on insert and relevant update in both tables [134.67ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 8 expect() calls
+Ran 1 test across 1 file. [2.06s]

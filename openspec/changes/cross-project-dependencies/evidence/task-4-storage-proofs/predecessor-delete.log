@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+87 | });
+88 |
+89 | it('protects surviving external successors and permits deleting both ends', async () => {
+90 |   const repo = repository();
+91 |   await repo.add(link(), stamp);
+92 |   expect(await rejection(repo.removeAllFor(['a'],stamp))).toContain('surviving successor');
+                                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "surviving successor"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:92:59)
+(fail) protects surviving external successors and permits deleting both ends [123.59ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.30s]

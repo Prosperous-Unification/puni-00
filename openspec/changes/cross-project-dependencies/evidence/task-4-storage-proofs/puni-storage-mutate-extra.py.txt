@@ -1,0 +1,27 @@
+from pathlib import Path
+import re,subprocess,json
+root=Path('/tmp/puni-cross-storage');folder=Path('/tmp/puni-storage-mutations');cases=[]
+history='libs/wbs/application/core/src/service/compensating.ts';historytest='libs/wbs/application/core/src/service/compensating.test.ts'
+repo='libs/wbs/adapters/store-sqlite/src/typed-dependency.ts';external='libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts'
+def add(name,path,fn,test,pattern):cases.append((name,path,fn,test,pattern))
+add('history-required-shape',history,lambda s:re.sub(r'(function readJournalDependency\(value: unknown\): StoredTypedDependency \{\n)  if \([^\n]+\)',r'\1  if (false)',s),historytest,'refuses partial scoped history')
+add('history-endpoint-shape',history,lambda s:re.sub(r"if \(typeof candidate !== 'object'.*?\) throw new Error\('journal typed dependency endpoint is malformed'\);", "if (false) throw new Error('journal typed dependency endpoint is malformed');",s),historytest,'refuses partial scoped history')
+add('history-project-shape',history,lambda s:s.replace("if (typeof projectId !== 'string')",'if (false)'),historytest,'refuses partial scoped history')
+add('history-step-shape',history,lambda s:s.replace("if (!('stepId' in candidate) || typeof candidate.stepId !== 'string')",'if (false)'),historytest,'refuses partial scoped history')
+add('history-whole-step',history,lambda s:s.replace("if ('stepId' in candidate)",'if (false)'),historytest,'refuses partial scoped history')
+add('fixture-predecessor-scope','libs/wbs/adapters/store-memory/src/typed-dependency-fixture.ts',lambda s:s.replace(" || typeof row.predecessor.projectId !== 'string'",''),'libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts','refuses successor-owner')
+add('incident-closed-boundary','libs/wbs/application/core/src/module/plan-commands/working-plan.resource.ts',lambda s:s.replace('listIncident: (requestedProjectIds) => {\n      assertOpen();','listIncident: (requestedProjectIds) => {'),'libs/wbs/application/core/src/module/plan-commands/working-plan.test.ts','passes typed links')
+add('coherent-union-transaction',repo,lambda s:s.replace('return this.db.transaction(tx => readPhysical(tx, { owner: projectId }).map(({ dependency }) => dependency));','return readPhysical(this.db, { owner: projectId }).map(({ dependency }) => dependency);'),external,'keeps a coherent union')
+observed=[]
+for name,path,change,test,pattern in cases:
+ target=root/path;before=target.read_text();after=change(before)
+ if before==after:raise RuntimeError('no change '+name)
+ try:
+  target.write_text(after)
+  execution=subprocess.run(['bun','test',test,'-t',pattern],cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+  (folder/(name+'.log')).write_text(execution.stdout)
+  summary={'fault':name,'exit':execution.returncode,'command':'bun test '+test+' -t '+repr(pattern),'observed':[line for line in execution.stdout.splitlines() if '(fail)' in line or 'Received' in line][-5:]}
+  print(json.dumps(summary),flush=True);observed.append(summary)
+ finally:target.write_text(before)
+(folder/'summary-extra.json').write_text(json.dumps(observed,indent=2))
+if any(row['exit']==0 for row in observed):raise RuntimeError('surviving mutation')

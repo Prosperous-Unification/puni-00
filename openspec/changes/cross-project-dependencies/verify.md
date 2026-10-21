@@ -97,7 +97,7 @@ claim these observations in advance.
 | Required project state 2.2                      | Delete or corrupt abbreviation row; bypass trusted-row guard                                                                 | `project-address.controller.db.test.ts`: absent/malformed rows refuse                                                                     | Observed trusted decoder fault; [API proof](evidence/task-2-api.md)                                 |
 | Organization and bounded lookup 3.1             | Remove project/organization predicate or response bound                                                                      | `project-address-search.controller.db.test.ts` scoped/bounded/foreign cases                                                               | NOT RUN                                                                                             |
 | HTTP/MCP boundary 3.2                           | Remove shared endpoint/version shape validation                                                                              | Mounted HTTP/MCP malformed scope/type/ID cases                                                                                            | NOT RUN                                                                                             |
-| Relationship integrity 4.1                      | Remove each endpoint/project/step/organization/duplicate check                                                               | Unified repository and migration DB cases                                                                                                 | NOT RUN                                                                                             |
+| Relationship integrity 4.1                      | Remove each endpoint/project/step/organization/duplicate check                                                               | Unified repository and migration DB cases                                                                                                 | Observed/restored migration, store and review faults; [evidence](evidence/task-4-storage.md)        |
 | Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN                                                                                             |
 | Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | NOT RUN                                                                                             |
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                             |
@@ -132,18 +132,18 @@ claim these observations in advance.
 The following table records current check scope; unavailable gate output is not
 fabricated and no implementation completion is implied:
 
-| Required implementation/release check                                 | State                                                                                |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Focused Bun behavior/DB tests and API/conformance targets             | Completed slices 1.1/2.1/2.2: evidence below; remaining feature suites pending       |
-| Frontend configured Vitest and browser scenarios                      | API affected files: 121 passed; browser/full frontend pending                        |
-| `bunx nx run wbs-solver-py:test`                                      | NOT RUN                                                                              |
-| Current `./node_modules/.bin/openspec validate --all --json`          | NOT RUN                                                                              |
-| `bunx nx format:check --all`                                          | NOT RUN                                                                              |
-| Full test/lint/typecheck/build gate                                   | NOT RUN                                                                              |
-| CI secrets and migration lint                                         | NOT RUN                                                                              |
-| Isolated h2puni `bin/h2puni-gate.sh <candidate-sha>`                  | NOT RUN                                                                              |
-| Runtime semantic activation, migration/rollback rehearsal, deployment | NOT RUN                                                                              |
-| Implementation clean-worktree and pushed commit-range proof           | Reviewed grammar/storage/API integrated through c51ba1697; full pushed range pending |
+| Required implementation/release check                                 | State                                                                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Focused Bun behavior/DB tests and API/conformance targets             | Completed slices 1.1/2.1/2.2/4.1: evidence below; remaining feature suites pending                |
+| Frontend configured Vitest and browser scenarios                      | API affected files: 121 passed; browser/full frontend pending                                     |
+| `bunx nx run wbs-solver-py:test`                                      | NOT RUN                                                                                           |
+| Current `./node_modules/.bin/openspec validate --all --json`          | NOT RUN                                                                                           |
+| `bunx nx format:check --all`                                          | NOT RUN                                                                                           |
+| Full test/lint/typecheck/build gate                                   | NOT RUN                                                                                           |
+| CI secrets and migration lint                                         | NOT RUN                                                                                           |
+| Isolated h2puni `bin/h2puni-gate.sh <candidate-sha>`                  | NOT RUN                                                                                           |
+| Runtime semantic activation, migration/rollback rehearsal, deployment | NOT RUN                                                                                           |
+| Implementation clean-worktree and pushed commit-range proof           | Reviewed grammar/abbreviation API/dependency storage through 7e1b083d5; full pushed range pending |
 
 On h2puni use the isolated-worktree host gate, not raw full Nx commands; capture
 the printed `h2puni gate: running on <sha>`, full output and exit status. On
@@ -151,7 +151,7 @@ other authorized gate environments record actual configured CI-equivalent
 commands/output. Re-run final verification after implementation; reported
 earlier design checks do not cover a later candidate.
 
-**Decision:** Slices 1.1, 2.1 and 2.2 are implemented and independently reviewed.
+**Decision:** Slices 1.1, 2.1, 2.2 and 4.1 are implemented with the review scope recorded below.
 The feature remains incomplete; remaining behavior, integration and release
 verification block completion/archive/release. Slice evidence is not a full gate.
 
@@ -184,3 +184,24 @@ Original mounted project/import batch: 121 passed, 605 assertions. Changed-calle
 Seven watched production negatives were restored: manual grammar rejection, conflict translation, trusted namespace decoder, organization concealment, parent audit stamp, narrow audit-schema exemption, and complete outer-import rollback. For the last, forcing the outer refusal decision to commit produced two failed tests with real directory/mapping/association leaks; strengthened snapshots cover every SQLite table. Linked durable logs in the evidence report retain actual failures.
 
 External import, lookup, authoring, graph/capture/scheduling, editor UI and full frontend/browser suites remain later work. Backend-before-strict-client rollout ordering is specified but not operationally rehearsed. No full gate, CI, deployment or external authoring activation is claimed. WBS 010.03.2 is done as a reviewed implementation slice.
+
+## Task 4.1 — unified dependency storage completed 2026-10-22
+
+Astra High approved original `14b43aab4` after two P2 corrections in `da756535c`; integrated as `772fe335e` and `a7688e9f0`. Final test-only fixture typing correction `8d6083056` integrated as `7e1b083d5`. Root inspected its unchanged exact normalization expectations; that mechanical correction is outside the preceding scoped Astra verdict and remains in the eventual whole-branch review scope. [Implementation evidence](evidence/task-4-storage.md) and [independent review](evidence/task-4-storage-review.md) preserve this distinction.
+
+The unified store retains local legacy representation and adds scoped external rows with same-organization/composite endpoint ownership, restrictive deletion, coherent incident/owned reads, cross-table identity/key checks, atomic representation moves and old/new revision unions. Historical local capture remains explicit and refuses external incident facts rather than silently omitting them. Complete legacy journal values normalize to scoped endpoints; malformed mixed scope refuses. The additive migration has a paired down migration which refuses retained external relationships. This storage layer does not activate external authoring.
+
+Original final focused tests: 160 passed, 626 assertions. Mounted/core regressions: 212 passed, 716 assertions. Complete memory and SQLite conformance: 150 passed, 12,318 assertions. Migration/rollback ledger suites: 91 passed, 440 assertions. Review-fix focused tests: 47 passed, 209 assertions; the specific SQLite terminal certification passed 1,969 assertions while 74 other scenarios were explicitly filtered. Changed lint/format, migration lint and normal hooks passed; Tool Wiki remained inactive/uncertified.
+
+Fresh combined API/storage command at `a7688e9f0`:
+
+```sh
+bun test libs/wbs/adapters/store-sqlite/src/audit.test.ts libs/wbs/adapters/store-sqlite/src/import.service.db.test.ts libs/wbs/adapters/store-sqlite/src/typed-dependency.db.test.ts libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts libs/wbs/adapters/store-sqlite/src/typed-dependency-rollback.db.test.ts libs/wbs/application/core/src/service/compensating.test.ts libs/wbs/application/core/src/module/plan-import/module.test.ts apps/wbs/be-01/src/controller/project-address.controller.db.test.ts apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts apps/wbs/be-01/src/controller/typed-dependency-commands.controller.db.test.ts apps/wbs/be-01/src/controller/typed-dependency-graph.controller.db.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-store-memory,wbs-store-sqlite,wbs-be-01 --skipNxCache --parallel=1
+```
+
+Behavior: 215 passed, 990 assertions. Fresh memory/SQLite/backend and core/backend module types passed; core failed two new history-test fixture inference errors. The final correction retains literal discriminants and constructs the exact nested expected dependency independently; 38 history tests passed, 127 assertions. At integrated `7e1b083d5`, `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck --skipNxCache --outputStyle=static` passed core plus its module dependency uncached. No diagnostics were suppressed; API integration resolved the previously reported import scope and abbreviation audit-policy issues.
+
+Durable [fault artifacts](evidence/task-4-storage-proofs/) retain actual outputs and exact mutation scripts as text. Corrected SQL removals use valid SELECT statements instead of invalid empty migration statements. The review fixes prove differently owned filtered identity corruption and a coherent alternate-owner update are actually admitted if their respective checks are removed. The original owner-message proof is superseded; missing-local-table rollback remains diagnostic-only, while retained-external rollback independently proves destructive loss without its guard. Counts describe watched faults, not independently proved invariants. All production mutations were restored.
+
+Remaining graph/admission/lifecycle, complete capture/scheduling/history/UI, activation and release checks stay open. No full host gate, CI, build, deployment or completed external-dependency feature is claimed.

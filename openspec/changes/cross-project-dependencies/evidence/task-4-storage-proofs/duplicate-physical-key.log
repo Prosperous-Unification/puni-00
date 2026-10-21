@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:
+279 |   const sqlite = openDatabase(path);
+280 |   try {
+281 |     sqlite.run('DROP INDEX typed_dependency_endpoints');
+282 |     sqlite.run("INSERT INTO typed_dependency SELECT 'second',project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_work_item_id,successor_scope,successor_step_id,type,created_at,updated_at,created_by FROM typed_dependency");
+283 |   } finally { sqlite.close(); }
+284 |   expect(await rejection(repository().listIncident(['b']))).toContain('duplicate unified dependency');
+                                                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "duplicate unified dependency"
+Received: "(resolved)"
+
+      at <anonymous> (/tmp/puni-cross-storage/libs/wbs/adapters/store-sqlite/src/external-dependency-migration.db.test.ts:284:61)
+(fail) refuses duplicate trusted endpoint keys even when physical uniqueness is corrupted [119.27ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.23s]
