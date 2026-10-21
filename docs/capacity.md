@@ -3,11 +3,9 @@
 How many of a team may be at work at once on one plan, and what stating that
 number does to the plan's dates.
 
-Written because nothing else in this repo says it. The capacity program shipped
-as four changes — `capacity-engine` (#48), `capacity-write-paths` (#53),
-`capacity-ui` (#57), `capacity-per-project` (#58) — and every word explaining it
-to a reader lived inside those change folders, which nobody opens to answer
-"why did my dates move".
+The capacity program shipped as four changes — `capacity-engine` (#48),
+`capacity-write-paths` (#53), `capacity-ui` (#57), `capacity-per-project` (#58).
+This page answers "why did my dates move" without opening those change folders.
 
 ## The one-sentence version
 
@@ -152,9 +150,8 @@ visible:
    re-applies it.
 
 The third is defensible as "the plan remembers", and it is the one to reach for
-when a capacity appears that nobody typed today. It was recorded in
-`capacity-per-project/verify.md` and named nowhere a reader would look until
-this page.
+when a capacity appears that nobody typed today. It is recorded in
+`capacity-per-project/verify.md`.
 
 ## Capacity and priority are different questions
 

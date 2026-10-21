@@ -111,7 +111,8 @@ proxy: `/api/*` goes to be-01, `/ws*` to gw-01, and everything else to fe-01.
 
 Drive the flow through fe-01, not directly through the callback:
 
-1. Open the HTTPS WBS origin and choose **Continue with Okta**.
+1. Open the HTTPS WBS origin and choose the SSO button (**Continue with Okta** at the
+   2026-08-24 verification, **Continue with SSO** today).
 2. Sign in at Keycloak and confirm the browser returns to `/` with no token in
    JavaScript storage.
 3. Confirm `GET /api/projects` returns 200 with the HttpOnly cookie and a
@@ -191,9 +192,9 @@ check the emitted group values before chasing a write bug.
 
 Assign the WBS roles to each user and require `email_verified=true` before
 first-login linking. Real dev credentials live only in
-`/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The prior
-Okta values are retained only in `oidc-dev.env.okta.bak` until the trial expires
-on 2026-09-22; delete that backup after the expiry.
+`/home/puni1/wbs-dev/oidc-dev.env` on the deployment host (mode 600). The Okta
+trial expired on 2026-09-22, so its backup ([historical Okta mapping](#historical-okta-mapping))
+is due for deletion.
 
 Prod's swap reads its provider settings from `/home/puni1/wbs/oidc.env` (mode
 600), with the same five-key allowlist. No prod tenant or client is configured
@@ -390,33 +391,15 @@ docker exec be-01-<colour> bun run src/link-credential-cli.ts --unlink \
 
 ## Historical Okta mapping
 
-No code change is needed to reproduce the prior Okta configuration. Its mapping
-was:
+Okta used the same contract with no code change. Its block differed from the Auth0 one above only
+in `AUTH_ISSUER_DISCOVERY_URL=https://<okta-org>/oauth2/<authorization-server-id>`,
+`AUTH_AUDIENCE=<access-token audience configured on that authorization server>`, its own client ID
+and secret, and no `AUTH_METHODS`. Do not use the org authorization server if it cannot mint the
+custom audience and the `wbs_groups` claim (in both ID and access tokens) that WBS requires.
+Group values keep the environment prefix: `prod:wbs:*` in production, `dev:wbs:*` in development.
 
-```dotenv
-NODE_ENV=development
-AUTH_MODE=oidc
-BROWSER_SESSION_AUTHORITY=disabled
-AUTH_ISSUER_DISCOVERY_URL=https://<okta-org>/oauth2/<authorization-server-id>
-AUTH_CLIENT_ID=<WBS OIDC client id>
-AUTH_CLIENT_SECRET=<WBS OIDC client secret>
-AUTH_REDIRECT_URI=https://dev.wbs.bulletpoints.club/api/auth/okta/callback
-AUTH_SCOPE=openid profile email offline_access
-AUTH_AUDIENCE=<access-token audience configured on that authorization server>
-AUTH_GROUPS_CLAIM=wbs_groups
-```
-
-In Okta, configure the same exact redirect URI, Authorization Code + refresh
-token grants, PKCE, the audience used by `AUTH_AUDIENCE`, and a groups claim
-named `wbs_groups` in both ID and access tokens. Group values must retain the
-environment prefix; production uses `prod:wbs:*`, development uses
-`dev:wbs:*`. Do not use the org authorization server if it cannot mint the
-custom audience and groups claim required by WBS.
-
-The archived dev values live only in
-`/home/puni1/wbs-dev/oidc-dev.env.okta.bak` on the deployment host (mode 600)
-until 2026-09-22. Never copy them into the repository, logs, tests, or issue
-text.
+The archived dev values live only in `/home/puni1/wbs-dev/oidc-dev.env.okta.bak` on the
+deployment host (mode 600). Never copy them into the repository, logs, tests, or issue text.
 
 ## Local bypass
 
