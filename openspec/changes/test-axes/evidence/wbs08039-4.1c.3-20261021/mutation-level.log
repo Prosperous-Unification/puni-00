@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+183 | test('[TEST-AXES-104] mismatched lowest sufficient level remains unsupported debt', async () => {
+184 |   const setup = fixture();
+185 |   setup.authority.obligations[0].disposition.lowestSufficientLevel = 'unit';
+186 |   writeFileSync(setup.ledgerPath, JSON.stringify(setup.authority));
+187 |   const invocation = await inspect(setup);
+188 |   expect(invocation.exitCode).toBe(1);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:188:31)
+(fail) [TEST-AXES-104] mismatched lowest sufficient level remains unsupported debt [344.40ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [1255.00ms]

@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+242 |       const invocation = await inspect(setup);
+243 |       expect(invocation.exitCode).toBe(1);
+244 |       expect(invocation.stdout).toBe('');
+245 |       expect(invocation.stderr.length).toBeGreaterThan(0);
+246 |       if (fault === 'directory') expect(invocation.stderr).toContain('not a regular file');
+247 |       if (fault === 'symlink') expect(invocation.stderr).toContain('contains a symlink');
+                                                               ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "contains a symlink"
+Received: "scenario ledger authority is not a regular file\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:247:58)
+(fail) [TEST-AXES-105] refuses symlink ledger authority [311.43ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 4 expect() calls
+Ran 1 test across 1 file. [1214.00ms]

@@ -1,0 +1,311 @@
+{
+  "watchedFaults": 46,
+  "inconclusiveProbes": 2,
+  "files": [
+    {
+      "path": "browser-regression.log",
+      "bytes": 9414,
+      "sha256": "18db2aaf9d808c5a4c2d23cabc0a30a5bf382bb86b505af85cd8ee6c2cf53c1e"
+    },
+    {
+      "path": "build.log",
+      "bytes": 639,
+      "sha256": "781bba38a793ec1d1023cb856b84ea229cc32578261694afc613fad2462260b0"
+    },
+    {
+      "path": "commands.json",
+      "bytes": 5236,
+      "sha256": "3b400530c3300e20a11ec79feb8c6896c162d5fb0fca4d3e4fb131678450bd41"
+    },
+    {
+      "path": "format.log",
+      "bytes": 66,
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "path": "lint-source.log",
+      "bytes": 489,
+      "sha256": "610d57a6b6562116bbe43d74e706a47ad932cb232e88ffb5a6211230176977e7"
+    },
+    {
+      "path": "mutation-arity-wrong-seam.log",
+      "bytes": 478,
+      "sha256": "7aa61181af06373aced2c9d74b1283180cb5edb8b663b61327826870f982fe08"
+    },
+    {
+      "path": "mutation-arity.log",
+      "bytes": 1106,
+      "sha256": "45d7ab8781ab04979481d97729bf18894e11c13dbee4f6313b45a4a85beba275"
+    },
+    {
+      "path": "mutation-attempts.json",
+      "bytes": 987,
+      "sha256": "1fc264dc5377387c6508ddf93e08e0affad7ca3443f14caa4e44e6d9296eef2d"
+    },
+    {
+      "path": "mutation-authentication.log",
+      "bytes": 989,
+      "sha256": "eb16b1e066f4c284ebd35c6648c138c572edc12eaa69064c08794c07173423cd"
+    },
+    {
+      "path": "mutation-b3-preservation.log",
+      "bytes": 2402,
+      "sha256": "dbe6f2cfebecd00136f7a539725c1a9bec47feeb3a99920f69f3a0bacd8ce05a"
+    },
+    {
+      "path": "mutation-blank.log",
+      "bytes": 1016,
+      "sha256": "18876903c6eb42ee546f349eae24e2c91ae9217d142986ca5975fe3662c1b674"
+    },
+    {
+      "path": "mutation-canonical.log",
+      "bytes": 781,
+      "sha256": "0d783dd668858eae309e0dd614de8d59fd14f2d20068f50eb9d6c6a240076675"
+    },
+    {
+      "path": "mutation-certifies.log",
+      "bytes": 944,
+      "sha256": "a68d54c08bf6a7962351569500dbba3995081c67a6c42ae256d701124dd2dbef"
+    },
+    {
+      "path": "mutation-citation-debt.log",
+      "bytes": 1222,
+      "sha256": "7d9bd8ee218765df2091adbc0c5d2380e1c564acf27bff8edc8bd04c1ce079db"
+    },
+    {
+      "path": "mutation-closed.log",
+      "bytes": 758,
+      "sha256": "3932cd6000d4c6955f929a5248d0ba5807089890066cd86435a51d66a7951877"
+    },
+    {
+      "path": "mutation-debt-exit.log",
+      "bytes": 845,
+      "sha256": "4568137806f2291e78f8a89be7e3ec2e3a1c8fc673c4e146d5e85dc9083cae49"
+    },
+    {
+      "path": "mutation-diagnostic-authentication.log",
+      "bytes": 1275,
+      "sha256": "42a5eee7935f851ba18dbbe4280b792b645f2f10dde8ec5b87edcf92af13e9dc"
+    },
+    {
+      "path": "mutation-diagnostic-certifies.log",
+      "bytes": 1796,
+      "sha256": "a933d292075d389fb68afc3f96ab07298d16a1a38b13320dbdfadffdf67803e1"
+    },
+    {
+      "path": "mutation-digest-guard.log",
+      "bytes": 1259,
+      "sha256": "5f54912b69951dd44802a98cb46f76dba2415c7a975c7cd6bc291f1887f3be00"
+    },
+    {
+      "path": "mutation-disposition-kind.log",
+      "bytes": 834,
+      "sha256": "0d81d69d5b529d1a4bb6c5b535de2f21aa7b77d0192e96feb40e46103a4ceb20"
+    },
+    {
+      "path": "mutation-duplicate.log",
+      "bytes": 1013,
+      "sha256": "a1ed84248ea9dbad92e374782ecf2e778c2731fd4a875409250695730836ca61"
+    },
+    {
+      "path": "mutation-foreign.log",
+      "bytes": 1746,
+      "sha256": "b17e76e0fb7d78609f2c0f5cbccb4cbbc515df58dbc8bf0ecf823fb9ec90a325"
+    },
+    {
+      "path": "mutation-installed-route.log",
+      "bytes": 2030,
+      "sha256": "be480c2d68f5ba40e4493a7fcb68bac5c2c7465ebbc89540066926b5b42c8041"
+    },
+    {
+      "path": "mutation-level.log",
+      "bytes": 940,
+      "sha256": "e7e2e0af0462f04640d77df53daf2bec61812167325fe61bc9a6fd6d7cab8e9d"
+    },
+    {
+      "path": "mutation-manual-auth-wrong-seam.log",
+      "bytes": 306,
+      "sha256": "236edd93115567f87f6966b275bdfedc50b69e525fb5e1b2ac8fc72fa5ea8ee1"
+    },
+    {
+      "path": "mutation-manual-auth.log",
+      "bytes": 728,
+      "sha256": "3c98fcd43dd4ebb2df64f4253569e9a996ee1b04b10c730a9253a90022ac3dde"
+    },
+    {
+      "path": "mutation-manual-candidate.log",
+      "bytes": 723,
+      "sha256": "2b25990bbe2f68f7da987320e668cb7a5cf60289e72556a877da5158bbba1be0"
+    },
+    {
+      "path": "mutation-manual-certifies.log",
+      "bytes": 723,
+      "sha256": "c27c91dc9385ecf71cdf3d91dd3a87fc5a08bcdf6836cf1f1419e0f6ee7b7ac1"
+    },
+    {
+      "path": "mutation-manual-debt.log",
+      "bytes": 2389,
+      "sha256": "f5f75819831449076dac36c4e33919819a5c9c12ad1334b77f77cbe22b073fc7"
+    },
+    {
+      "path": "mutation-manual-instant.log",
+      "bytes": 724,
+      "sha256": "bd2e75da2d2c990dba332159b3db81e5c159e55f466ae1656d91b9a4ce50f79c"
+    },
+    {
+      "path": "mutation-manual-nested-certifies.log",
+      "bytes": 730,
+      "sha256": "ed22471a85bc248038a6692cb4995fd750ad25c415b4754452cafa5a3b8db755"
+    },
+    {
+      "path": "mutation-manual-nested-revision.log",
+      "bytes": 729,
+      "sha256": "fbdb8e42a8505ec21db38a267f3d70d4cde4b6c33220ff6ab77be1bb5ebcbd17"
+    },
+    {
+      "path": "mutation-manual-nested-scenario.log",
+      "bytes": 729,
+      "sha256": "4961c88424425535c835823a1b2f2ceaf4c5cba8904dfda2f98a122a5f29049f"
+    },
+    {
+      "path": "mutation-manual-pin.log",
+      "bytes": 717,
+      "sha256": "e0984748b6a9a9fb61567217844402010821a394bbb68836e66d5cfdcb775bde"
+    },
+    {
+      "path": "mutation-manual-policy.log",
+      "bytes": 720,
+      "sha256": "a2ccab1ec7eb7c6bc6045f27b7454f1d2dd9b091461b6a1ce0940a1d598ca15d"
+    },
+    {
+      "path": "mutation-manual-revision.log",
+      "bytes": 722,
+      "sha256": "78416e62b4dbd3ee6837687ca4c35370dff5a2077325b2e1e22ef21facd78b69"
+    },
+    {
+      "path": "mutation-manual-scenario.log",
+      "bytes": 722,
+      "sha256": "0dc8004b6229c1251064058ea41622340210c6c678a2b133f22743892e33a4fb"
+    },
+    {
+      "path": "mutation-manual-title.log",
+      "bytes": 719,
+      "sha256": "1a98db3964eea65068885ade34bff0f6f2bd1871f2dfb830f04ddf9d54bd3199"
+    },
+    {
+      "path": "mutation-obligation-order.log",
+      "bytes": 2739,
+      "sha256": "ea360e10854df4b5516ae11bf73f4fed229f39eedf9fd1addf703048118f9c49"
+    },
+    {
+      "path": "mutation-payload-digest.log",
+      "bytes": 1059,
+      "sha256": "b7de7644f96e78221353c9d90b1386445187916565a562827a56e850e5dcfcfc"
+    },
+    {
+      "path": "mutation-performance-auth.log",
+      "bytes": 745,
+      "sha256": "8dcb5caaeedb5740dd89672d119e7268e0018b9ef44d8243e407838c8ae06556"
+    },
+    {
+      "path": "mutation-performance-capability.log",
+      "bytes": 893,
+      "sha256": "1258c46ac2b23d8bc98688a55be0be4920701a46a59ae2f15e52ff96c85886fb"
+    },
+    {
+      "path": "mutation-performance-certifies.log",
+      "bytes": 740,
+      "sha256": "5eacd7d551103e92197c87896d2877b04a42d502607f977cea0fe83a9fbb8acd"
+    },
+    {
+      "path": "mutation-performance-pin.log",
+      "bytes": 781,
+      "sha256": "e437e6ceb8020e9fe78ca779b9962ebc368ffb131d8ec43541f792055f1cd314"
+    },
+    {
+      "path": "mutation-performance-revision.log",
+      "bytes": 889,
+      "sha256": "be414820f2c43e37862a6d3169a324747228bafd8617ecd52c4a9b61ec1a325d"
+    },
+    {
+      "path": "mutation-pins.log",
+      "bytes": 1877,
+      "sha256": "e27953ab00a0c092f6a993b11df1ec0607c7ad59405f22f2eac146707c617243"
+    },
+    {
+      "path": "mutation-regular.log",
+      "bytes": 969,
+      "sha256": "978494d09789910b9aa22943950c9abbb205908d4c3b585d034c947702562d11"
+    },
+    {
+      "path": "mutation-scenario-shape.log",
+      "bytes": 852,
+      "sha256": "54a96b4760e56c9460583bc5d11d73efb1938bcedafcbcee3244f44703cbaa9b"
+    },
+    {
+      "path": "mutation-symlink.log",
+      "bytes": 1046,
+      "sha256": "010850a8a76a37948d683f54ee7c3f3da6b2280669c0c944c799b4541310cdea"
+    },
+    {
+      "path": "mutation-unassigned.log",
+      "bytes": 845,
+      "sha256": "f62d0b96ac79a6303a88e18f4e9ed0b49cde86240bdafaff794c3db4c47580a2"
+    },
+    {
+      "path": "mutation-unidentified-debt.log",
+      "bytes": 1043,
+      "sha256": "7a5bc852738c38f2b0c069694eee47ce6eafb0721d081cd7e2819de2638d91b2"
+    },
+    {
+      "path": "mutation-upstream-preservation.log",
+      "bytes": 4483,
+      "sha256": "4331f27e4e31a18b7346e85c8a740b4985925c98e0fa4799b8e0089543e21076"
+    },
+    {
+      "path": "mutation-utf8.log",
+      "bytes": 799,
+      "sha256": "8bf2845e00b43161a4e4be1276acf50e7b08fee0bb5943ddb29b4329aa294644"
+    },
+    {
+      "path": "mutation-version.log",
+      "bytes": 766,
+      "sha256": "1f8a9dadd3a62e9d0d36bb3ae8d95aae60c581ea4b03d5285f60a638fe3b1162"
+    },
+    {
+      "path": "mutations.json",
+      "bytes": 35062,
+      "sha256": "b42281016e50b23d72fa88a465a210a2cc7322da65389a5ab36e1c04cc113379"
+    },
+    {
+      "path": "openspec-all.json",
+      "bytes": 244034,
+      "sha256": "7146d6dc6173c536a708accf30df50689d591ff85a12fd19c608f3464ea1e027"
+    },
+    {
+      "path": "openspec-strict.json",
+      "bytes": 12479,
+      "sha256": "4608d72c669b4f03a5da911d5c0d995bd40bdf83ab50db83ef919706b6ff499f"
+    },
+    {
+      "path": "owning.log",
+      "bytes": 5081,
+      "sha256": "47cf5bbd8752fd5589c41a3c2de3de6bdc54e047c5eec3c92938a066de2e0fe7"
+    },
+    {
+      "path": "restored-regression.log",
+      "bytes": 24561,
+      "sha256": "5b4ca2cbcc7af8a1e67ed5227ec4b224027cae39754162094a14ad6daa84cf7e"
+    },
+    {
+      "path": "scenario-provenance.json",
+      "bytes": 23,
+      "sha256": "69f68e931b302aa3b86201bae9ead3c51c615b1b4344192722916597ec328572"
+    },
+    {
+      "path": "typecheck.log",
+      "bytes": 338,
+      "sha256": "c4c48059e1f6d268c0df95b7eec09f4203b2145d7970a15ca010dd4e0c518a6e"
+    }
+  ]
+}

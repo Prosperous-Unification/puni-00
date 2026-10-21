@@ -1,0 +1,15 @@
+
+> nx run twilight-burokrat:typecheck
+
+> bunx tsc --build --force apps/twilight-structure/twilight-burokrat/cli/tsconfig.json
+
+
+
+
+ NX   Successfully ran target typecheck for project twilight-burokrat
+
+
+  Run duration:      1.3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     1.3s (1 task)
+  Recoverable time:  <1ms

@@ -5663,21 +5663,59 @@ verification record; it does not rerun code tests, CI, the host gate or live dev
 
 ## WBS080.39 4.1c.3 fresh closure evidence (2026-10-21)
 
-Scope: verification of the existing capability scenario diagnostic ledger on base
+Fresh verification of the existing capability scenario diagnostic ledger on base
 `69a8b38f4f63ef4242ca1ed12926909fa2b5b127`, in managed isolated worktree
 `/home/df/.codex/worktrees/4a91/puni-00`, branch
-`feat/wbs08039-scenario-ledger-proof`. No production change or new scenario allocation.
-Task 4.1c.3 remains unchecked pending fresh watched negatives, scoped acceptance and
-independent exact-candidate review. Parent 4.1, T2, source reconciliation,
-certification and WBS080.39 remain open.
+`feat/wbs08039-scenario-ledger-proof`. No production code, scenario ID or allocation
+journal changed. Existing adjacent `Proof:` comments remain unchanged. Task 4.1c.3
+remains unchecked pending independent exact-candidate review; parent 4.1, T2, source
+reconciliation, certification and WBS080.39 remain open.
 
-Fresh owning command (repository root):
-`TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts --timeout=120000`.
-Exit 0: **59 pass, 0 fail, 201 assertions**, 43.13 seconds. This includes real
-Manual states, missing/unreadable authority and report boundaries, canonical complete
-digest/reordering and built installed dispatch. Durable output:
-[evidence/wbs08039-4.1c.3-20261021/owning.log](evidence/wbs08039-4.1c.3-20261021/owning.log).
-Bun reports 1.4.2; repository-pinned OpenSpec reports 1.14.3. Dependencies are the
-existing root node_modules reused through an ignored worktree-local symlink; no install
-was performed. Full repository checks, host gate, exact-head CI, integration and deploy
-have not run in this worker. Additional evidence follows before task closure.
+The durable [command receipts](evidence/wbs08039-4.1c.3-20261021/commands.json)
+record exact repository-root commands, exit statuses, runtime/dependency provenance
+and raw output links. Bun is 1.4.2; repository-pinned OpenSpec is 1.14.3. The ignored
+worktree-local node_modules symlink reuses the existing root dependencies; no install
+was performed.
+
+| Fresh check                                                            | Observed output                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Owning scenario-ledger suite, before faults                            | Exit 0; 59 pass, 0 fail, 201 assertions, 43.13s                                       |
+| Restored ledger/Performance-scenarios/Performance-levels/Manual suites | Exit 0; 263 pass, 0 fail, 879 assertions, 117.33s                                     |
+| Existing v2 Browser ledger regression                                  | Exit 0; 88 pass, 0 fail, 304 assertions, 92.67s                                       |
+| Uncached Nx twilight-burokrat:lint:source                              | Exit 0; 20.0s                                                                         |
+| Uncached Nx twilight-burokrat:typecheck                                | Exit 0; 1.3s; target uses `tsc --build --force`                                       |
+| Uncached Nx twilight-burokrat:build                                    | Exit 0; target/dependencies successful, 2.3s                                          |
+| Freshly built installed scenario provenance                            | Exit 0; `{"unidentified":[]}`                                                         |
+| Pinned OpenSpec 1.14.3 `validate --all --json`                         | Exit 0; 264/264 valid (246 changes, 18 specs)                                         |
+| Changed Markdown/JSON Prettier and `git diff --check`                  | Exit 0; all matched files formatted; no whitespace errors                             |
+| Pinned OpenSpec 1.14.3 selected `--strict --json`                      | **Exit 1**; 35 preexisting requirement-length WARNINGs (>500 characters), zero ERRORs |
+
+The coordinator explicitly kept strict warning cleanup outside this bounded slice;
+strict validation is not claimed passing. The ordinary all-artifact validation passed.
+Both restored suites include source/built installed dispatch, complete canonical digest
+and preservation assertions. Missing and mode-000 unreadable ledger authority and Manual
+report cases passed separately. The v1 suite retains actual current, stale, failed,
+skipped and overdue Manual observations. The v2 extension remains unchanged.
+
+All **46** production guard/dependency faults in the historical ledger matrix were
+freshly injected and watched fail selected owning assertions with Bun exit 1. The
+[matrix](evidence/wbs08039-4.1c.3-20261021/mutations.json) records the exact production
+path, literal search/replacement, selected test pattern, named failing tests, raw
+assertion log, pre-fault/restored SHA-256 and byte-equality restoration. Each source was
+restored in `finally` before the next fault. The complete restored four-file suite then
+passed all 263 tests. This exercises closed authority/path/schema checks, exact
+Performance and repinned nested Manual joins, debt/output preservation, canonical
+ordering/digest, CLI arity/debt status and built installed dispatch.
+
+Two initial experiments changed an earlier shared occurrence (Browser diagnostic
+helper and another CLI branch's arity guard). Their tests correctly stayed green;
+they prove nothing about the intended guard and are **excluded** from the 46. The
+[inconclusive receipts](evidence/wbs08039-4.1c.3-20261021/mutation-attempts.json) and
+separate `*-wrong-seam.log` files preserve them. Correcting each mutation to the
+specific ledger seam produced its watched assertion failure. No product defect was
+found or repaired.
+
+Only docs/evidence are committed. No full repository gate, host gate, exact-head CI,
+integration, deployment, source reconciliation or WBS write was performed by this
+worker. The diagnostic fixtures grant no coverage, admission, authentication or
+certification. Independent review and coordinator release acceptance remain pending.

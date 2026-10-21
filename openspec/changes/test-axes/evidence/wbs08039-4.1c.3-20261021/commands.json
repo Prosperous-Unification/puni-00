@@ -1,0 +1,80 @@
+{
+  "baseRevision": "69a8b38f4f63ef4242ca1ed12926909fa2b5b127",
+  "worktree": "/home/df/.codex/worktrees/4a91/puni-00",
+  "branch": "feat/wbs08039-scenario-ledger-proof",
+  "runtime": "Bun 1.4.2",
+  "openSpecVersion": "1.14.3",
+  "dependencySource": "Ignored node_modules symlink to /home/df/wd/puni/puni-00/node_modules; no installation performed",
+  "workingDirectory": "repository root",
+  "testCommandPrefix": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts",
+  "mutationCommand": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts --test-name-pattern <mutations.json pattern> --timeout=120000",
+  "nxEnvironment": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096",
+  "commands": [
+    {
+      "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts --timeout=120000",
+      "exitCode": 0,
+      "observed": "59 pass, 0 fail, 201 assertions, 43.13 seconds; includes canonical digest, source and built installed dispatch",
+      "log": "owning.log"
+    },
+    {
+      "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-scenarios.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-levels.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts --timeout=120000",
+      "exitCode": 0,
+      "observed": "263 pass, 0 fail, 879 assertions, 117.33 seconds; restored after every watched fault",
+      "log": "restored-regression.log"
+    },
+    {
+      "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger-browser.test.ts --timeout=120000",
+      "exitCode": 0,
+      "observed": "88 pass, 0 fail, 304 assertions, 92.67 seconds; existing v2 Browser extension; includes real built installed dispatch",
+      "log": "browser-regression.log"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096 bunx nx run twilight-burokrat:lint:source --skip-nx-cache",
+      "exitCode": 0,
+      "observed": "20.0 seconds; cache skipped",
+      "log": "lint-source.log"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096 bunx nx run twilight-burokrat:typecheck --skip-nx-cache",
+      "exitCode": 0,
+      "observed": "1.3 seconds; cache skipped; target uses tsc --build --force",
+      "log": "typecheck.log"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096 bunx nx run twilight-burokrat:build --skip-nx-cache",
+      "exitCode": 0,
+      "observed": "2.3 seconds; cache skipped; target and dependencies successful",
+      "log": "build.log"
+    },
+    {
+      "command": "bun apps/twilight-structure/twilight-burokrat/cli/dist/bin.mjs scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md",
+      "exitCode": 0,
+      "observed": "unidentified:[]; stderr empty",
+      "log": "scenario-provenance.json"
+    },
+    {
+      "command": "OPENSPEC_TELEMETRY=0 bun node_modules/@fission-ai/openspec/bin/openspec.js validate test-axes --strict --json",
+      "exitCode": 1,
+      "observed": "35 existing requirement-length WARNINGs (>500 characters), zero ERRORs; strict mode treats warnings as invalid; stderr empty. Coordinator ruled warning cleanup outside this bounded slice; this check is not passing.",
+      "log": "openspec-strict.json"
+    },
+    {
+      "command": "OPENSPEC_TELEMETRY=0 bun node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json",
+      "exitCode": 0,
+      "observed": "264/264 valid (246 changes, 18 specs), zero failed; stderr empty",
+      "log": "openspec-all.json"
+    },
+    {
+      "command": "bun node_modules/prettier/bin/prettier.cjs --check openspec/changes/test-axes/verify.md openspec/changes/test-axes/evidence/wbs08039-4.1c.3-20261021/*.json; git diff --check",
+      "exitCode": 0,
+      "observed": "All matched Markdown/JSON files use Prettier code style; diff whitespace check passed",
+      "log": "format.log"
+    }
+  ],
+  "limits": [
+    "Diagnostic fixtures do not establish repository-wide acceptance, coverage, source reconciliation, admission, authentication or certification.",
+    "No production code, scenario identifiers or allocation journal changed.",
+    "Independent exact-candidate review remains coordinator-owned; task checkbox remains open until review.",
+    "No full repository gate, host gate, exact-head CI, push, merge, deployment or WBS write performed by this worker."
+  ]
+}

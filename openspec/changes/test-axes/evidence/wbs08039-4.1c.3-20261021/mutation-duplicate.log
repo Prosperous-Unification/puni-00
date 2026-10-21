@@ -1,0 +1,27 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+175 |     rewrite(setup, (authority) => {
+176 |       authority['obligations'] = obligations;
+177 |     });
+178 |     const invocation = await inspect(setup);
+179 |     expect(invocation.exitCode).toBe(1);
+180 |     expect(invocation.stdout).toBe('');
+                                    ^
+error: expect(received).toBe(expected)
+
+- ""
++ "{"schemaVersion":1,"kind":"scenario-ledger","revision":"694cd6013cfc2108927346174070916bfc593652","... (3512 bytes truncated) ...ifies":false,"observationDigest":"5297ef28d325da7a7c0c3ab83cc486a56169e408c353c824a003b0086b8ba198"}
++ "
+
+- Expected  - 1
++ Received  + 2
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:180:31)
+(fail) [TEST-AXES-105] refuses duplicate [309.94ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [1224.00ms]

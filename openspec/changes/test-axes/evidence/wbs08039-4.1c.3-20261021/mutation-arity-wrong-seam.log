@@ -1,0 +1,12 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+(pass) [TEST-AXES-105] refuses unsupported operands [] [213.16ms]
+(pass) [TEST-AXES-105] refuses unsupported operands ["--now","2026-02-30T00:00:00.000Z"] [169.47ms]
+(pass) [TEST-AXES-105] refuses unsupported operands ["--now","2026-10-15T00:00:00.000Z","extra"] [196.33ms]
+
+ 3 pass
+ 56 filtered out
+ 0 fail
+ 9 expect() calls
+Ran 3 tests across 1 file. [1478.00ms]
