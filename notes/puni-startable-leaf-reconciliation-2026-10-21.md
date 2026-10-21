@@ -29,31 +29,124 @@ it has no children, no `fact_end`, and every predecessor has a `fact_end`.
 
 ## 2. The headline
 
-**None of the 17 is a startable implementation slice.** Every one resolves to
-already-merged work, another fleet's open branch, an owner decision, or a hold.
-The verdicts:
+**None of the 17 is a startable implementation slice.** Every item has exactly
+one verdict from TASK-567's fixed set:
 
-| verdict                                           | count | items                                                             |
-| ------------------------------------------------- | ----- | ----------------------------------------------------------------- |
-| `done-on-main`, checkbox stale                    | 1     | 080.29.01                                                         |
-| `partially-done`, blocked on operator credentials | 2     | 070.02, 070.03                                                    |
-| `owned-elsewhere` (other fleet branches open)     | 4     | 010.4.13.3, 010.5.4, 080.25, 080.39                               |
-| `needs-dany`                                      | 5     | 010.3.08, 060.06.5, 060.10, 060.11, the unnumbered interview item |
-| `blocked` (hold or upstream)                      | 4     | 030.6, 060.05.4, 060.06.2, 080.04                                 |
-| out of this repo (private `puni-pr-00`)           | 1     | 060.03                                                            |
-| **genuinely `startable`**                         | **0** | —                                                                 |
+| verdict           | count | items                                            |
+| ----------------- | ----- | ------------------------------------------------ |
+| `done-on-main`    | 5     | 060.03, 060.11, 070.02, 070.03, 080.29.01        |
+| `owned-elsewhere` | 4     | 010.4.13.3, 010.5.4, 080.25, 080.39              |
+| `needs-dany`      | 4     | 010.3.08, 060.06.5, 060.10, unnumbered interview |
+| `blocked`         | 4     | 030.6, 060.05.4, 060.06.2, 080.04                |
+| `startable`       | 0     | —                                                |
 
-The §3 pre-start check was run once for the whole set rather than per item,
-because its two queries are global:
+The §3 pre-start check was applied to every row below before assigning a
+verdict. The branch query is global, so one invocation is the complete answer
+for all 17; the PR query used `--state all`, then matched each item number,
+owning change and known branch family:
 
-- `git ls-remote --heads origin 'refs/heads/task-*'` → one ref only,
-  `task-558-scroll-repro` (`35b5c7af`, unmerged, deliberately preserved). No
-  Claire lane holds any item below.
-- `gh pr list --state open` → **42 open PRs, none in the `task-*` namespace.**
-  Every one carries another fleet's prefix (`feat/*`, `batch-10/*`,
-  `integration/*`, `ui-review/*`, `plan/*`, `docs/*`, `fix/*`, `followup/*`).
+- `git ls-remote --heads origin 'refs/heads/task-*'` →
+  `task-558-scroll-repro` (`35b5c7af`, unrelated) and this task's own
+  `task-567-startable-reconciliation` (`964df767`). No other Claire task branch
+  owns an item below.
+- `gh pr list --state all --limit 1000` → **618 PRs scanned, 43 open**. The only
+  open `task-*` PR is this reconciliation (#619). Item-specific live ownership
+  is recorded below; merged and closed PRs were not misreported as active.
 
-## 3. Per-item verdicts and paste-ready digests
+The public evidence is pinned to `2bec392baf5398e52edf46f8e93dabd89f30e0fe`.
+For the three private-site rows, the owning OpenSpec pair was also read at
+private `puni-pr-00` `origin/main` =
+`03ece81ca07171dcc6e2294f0362ba63c03b0c69`. In the paths column, `tasks` and
+`verify` mean that change's `tasks.md` and `verify.md`; both were read.
+
+| item             | verdict           | owning OpenSpec evidence, tree result and contradiction                                                                                                                                                                                                                                                                                                                                                               | all-state ownership result                                       |
+| ---------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 010.3.08         | `needs-dany`      | `read-only-step-board/{tasks,verify}.md`: tasks 3.1–3.2 still say focused acceptance/review/gate are open; `verify.md` says independent review, host gate and exact-head CI remain pending. The Board itself is on main via #274/#286, while the WBS title still asks for Dany's broader design interview.                                                                                                            | no live owner PR                                                 |
+| 010.4.13.3       | `owned-elsewhere` | `set-step-node-parallelism`, `add-step-node-blocking` and `step-node-attempts` `{tasks,verify}.md` retain later-stage work and exact integration limits.                                                                                                                                                                                                                                                              | open #408, #411, #494 plus the wider step-node family            |
+| 010.5.4          | `owned-elsewhere` | `organization-ownership-and-access/{tasks,verify}.md` retains activation, invitation, DNS, gateway and MCP work; `verify.md` explicitly says deployment wiring and the rest of 2.5 are not done.                                                                                                                                                                                                                      | open #407 and #413; other slices merged/closed                   |
+| 030.6            | `blocked`         | `automatic-trusted-activation/{tasks,verify}.md`: 54 checklist entries remain open and `verify.md` says Tool Wiki returned `inactive`, `certified:false`; the WBS row independently carries `hold=blocked`.                                                                                                                                                                                                           | #328/#348 merged; no replacement owner PR found                  |
+| 060.03           | `done-on-main`    | Public and private `puni-website-{funnel,prototype}/{tasks,verify}.md`: task 1.1 remains unchecked, but private `verify.md` records the site target, static routes, publication scan and portability checks passing. The private tree contains `apps/website/site`; private #35/#40 and the WBS receipt record the dev release. The prototype tasks file itself warns that unchecked boxes are not claims of absence. | private main owns it; no competing public owner PR               |
+| 060.05.4         | `blocked`         | `puni-website-funnel/{tasks,verify}.md` section 6.1–6.3 remains unchecked; the WBS row carries `hold=blocked` pending the 30-day Funnel-panel baseline.                                                                                                                                                                                                                                                               | no live owner PR                                                 |
+| 060.06.2         | `blocked`         | `website-request-retention-lifecycle/{tasks,verify}.md`: 2.2 and 4.1–4.3 remain open; migration 010 exists, but the external activation/head witness and restore drill do not.                                                                                                                                                                                                                                        | #292/#318 merged; component PRs closed; no live successor owner  |
+| 060.06.5         | `needs-dany`      | `puni-website-funnel/{tasks,verify}.md` 5.1–5.5 remain unchecked. Task 5.1 explicitly requires provider/privacy approval and a dedicated key with a $100/month ceiling; merged #329/#348 covers the guardrails half only.                                                                                                                                                                                             | no live owner PR                                                 |
+| 060.10           | `needs-dany`      | Public/private website `{tasks,verify}.md` leave publication work unchecked while private evidence proves filtered approved-post publication. #338/#348 and private #47/#49 delivered three `approved:false` drafts and the response-time guard; approval and dates remain Dany-only.                                                                                                                                 | no live implementation owner PR                                  |
+| 060.11           | `done-on-main`    | Private `puni-website-prototype/{tasks,verify}.md` leaves 0.1–0.4 unchecked, but `verify.md` records 13 portability tests, bidirectional clean-copy checks and the governed baseline. Public #277/#336 and private main contain the companion and contract. This is a checkbox/tree contradiction.                                                                                                                    | private main owns it; no competing owner PR                      |
+| 070.02           | `done-on-main`    | `enroll-existing-hosts/{tasks,verify}.md`: #568 proves the named host registration. Tasks 8/8c and six absent operator Secrets block the broader production graph, not the h4claw registration item; the WBS note is stale.                                                                                                                                                                                           | no live owner PR                                                 |
+| 070.03           | `done-on-main`    | Same pair: #567/#572 prove the named h3mon registration, resize, reboot persistence and service probes. Tasks 8/8c and six operator Secrets remain a separate activation blocker; the WBS note is stale.                                                                                                                                                                                                              | no live owner PR                                                 |
+| 080.04           | `blocked`         | `log-failure-records/{tasks,verify}.md`: 2.5–2.6 remain open; `verify.md` quotes the 49/900 loss and confirms upstream issue #46970 was still open through collector v0.163.0.                                                                                                                                                                                                                                        | #345/#348 merged; no live owner PR                               |
+| 080.25           | `owned-elsewhere` | `progress-receipt-authority/{tasks,verify}.md`: all seven tasks remain unchecked and `verify.md` explicitly claims no live authority, publication or activation.                                                                                                                                                                                                                                                      | #441 open; #601 merged; #555 closed                              |
+| 080.29.01        | `done-on-main`    | `puni-website-funnel/{tasks,verify}.md` task 2.1 is unchecked, while the tree contains the API, contracts, store and paired migrations 001–010; #119/#285 merged them. This is the direct checkbox/tree contradiction.                                                                                                                                                                                                | no live owner PR                                                 |
+| 080.39           | `owned-elsewhere` | `test-axes/{tasks,verify}.md` keeps parent tasks 2.1, 2.2, 2.2a and 4.1 open; `verify.md` limits the latest evidence to a child slice. This contradicts WBS `readiness=ready`, not the tree's in-flight status.                                                                                                                                                                                                       | open #414, #419–#423 and #426; #574 merged only a recovery slice |
+| unnumbered D1–D8 | `needs-dany`      | `wbs-team-claims/{tasks,verify}.md` says a real M2M token has no `wbs_groups` and records the credentials-exchange choice as “Decision owed to Dany”. `add-work-item-statuses/{tasks,verify}.md` proves plan document v6 landed, so that half of the WBS note is stale.                                                                                                                                               | no live owner PR                                                 |
+
+## 3. Paste-ready WBS-note digests
+
+Each entry below is deliberately self-contained and uses only the fixed verdict
+set.
+
+- **010.3.08 — `needs-dany`.** Exact public main `2bec392ba`. The read-only
+  Board is merged (#274/#286), but the WBS item asks for the broader R9 design
+  interview; `read-only-step-board` also leaves review/gate close-out 3.1–3.2
+  open. Dany must decide the richer status/write-policy scope before dispatch.
+- **010.4.13.3 — `owned-elsewhere`.** Exact public main `2bec392ba`. The
+  step-node changes retain later stages, with live PRs #408, #411 and #494 plus
+  their branch family. Do not dispatch a duplicate lane.
+- **010.5.4 — `owned-elsewhere`.** Exact public main `2bec392ba`.
+  `organization-ownership-and-access` still owns activation, invitations, DNS,
+  gateway and MCP work; #407 and #413 are open. Do not dispatch a duplicate.
+- **030.6 — `blocked`.** Exact public main `2bec392ba`. The WBS row says
+  `hold=blocked`; `automatic-trusted-activation` has 54 open tasks and its
+  verification says Tool Wiki is `inactive`, `certified:false`.
+- **060.03 — `done-on-main`.** Exact public main `2bec392ba`; exact private
+  main `03ece81ca`. The private tree contains the governed Astro/Novaform site,
+  static-route/publication checks and portability proof; private #35/#40 record
+  the dev release. The unchecked roadmap box is stale, not absent code.
+- **060.05.4 — `blocked`.** Exact public main `2bec392ba`. Funnel tasks
+  6.1–6.3 remain open and the WBS row says `hold=blocked` pending the 30-day
+  Funnel-panel baseline.
+- **060.06.2 — `blocked`.** Exact public main `2bec392ba`. Migration 010 is
+  merged, but retention tasks 2.2 and 4.1–4.3 still require the external
+  activation/head witness and a successful restore drill.
+- **060.06.5 — `needs-dany`.** Exact public main `2bec392ba`. Guardrails,
+  caps, pause/resume, alerts and the panel are merged (#329/#348). Remaining
+  task 5.1 needs provider/privacy approval and a dedicated $100/month key before
+  5.2–5.5 can proceed.
+- **060.10 — `needs-dany`.** Exact public main `2bec392ba`; exact private
+  main `03ece81ca`. Three evidence-backed drafts and the no-false-SLA guard
+  landed (#338/#348; private #47/#49), but each draft still needs approval and
+  a publication date.
+- **060.11 — `done-on-main`.** Exact public main `2bec392ba`; exact private
+  main `03ece81ca`. The private companion, governed baseline, 13 portability
+  tests and bidirectional clean-copy proof are present (#277/#336). Roadmap
+  tasks 0.1–0.4 remain unchecked despite the verified tree.
+- **070.02 — `done-on-main` with stale note.** Exact public main
+  `2bec392ba`. PR #568 proves h4claw is k3s Ready and
+  `localhost:3000` returns 200. Tick this host-registration item to release
+  successors; separately track tasks 8/8c and the six operator Secrets that
+  block production observability activation.
+- **070.03 — `done-on-main` with stale note.** Exact public main
+  `2bec392ba`. PRs #567/#572 prove h3mon registration, 15,602 MiB, reboot
+  persistence and six service probes. Tick this host-registration item; the
+  same separate tasks 8/8c and six operator Secrets still block activation.
+- **080.04 — `blocked`.** Exact public main `2bec392ba`. The immediate alert
+  is merged (#345/#348), but 2.5–2.6 remain open: the live pipeline depends on
+  070.07/070.08 and upstream issue #46970 still lacks the timeout-retry fix.
+- **080.25 — `owned-elsewhere`.** Exact public main `2bec392ba`. All seven
+  `progress-receipt-authority` tasks remain open; #441 is the live owner and
+  issuer/custody/policy/rotation/publication choices still need owner approval.
+- **080.29.01 — `done-on-main`.** Exact public main `2bec392ba`. The API,
+  contracts, SQLite store and paired migrations 001–010 exist and were merged
+  through #119/#285. Funnel task 2.1 is an unchecked checkbox/tree
+  contradiction; do not rebuild it.
+- **080.39 — `owned-elsewhere`.** Exact public main `2bec392ba`. WBS says
+  `readiness=ready`, but parent test-axes tasks 2.1/2.2/2.2a/4.1 remain open;
+  #414, #419–#423 and #426 are live, while #574 merged only a recovery slice.
+- **Unnumbered D1–D8 — `needs-dany`.** Exact public main `2bec392ba`. Plan
+  document v6 is already merged, but a real Auth0 M2M token has no
+  `wbs_groups`; `wbs-team-claims/verify.md` records the credentials-exchange
+  choice as “Decision owed to Dany”.
+
+## 4. Detailed evidence
 
 ### 080.29.01 — BE: request contracts, store and reversible migrations
 
@@ -89,8 +182,8 @@ SQL"); the tree is now one migration further along at **010**.
 
 ### 070.02 — Register h4claw as the k3s server · 070.03 — Register h3mon as the observability node
 
-**`partially-done`, then blocked on operator-owned credentials. Correcting an
-overstatement I made earlier today: these are _not_ simply done.**
+**`done-on-main` for the two named host-registration items, with a separate
+production-activation blocker.**
 
 What Claire's own tasks proved: TASK-564 closed with PR #568 merged, exact-head
 CI green, k3s **Ready** and `localhost:3000` returning 200. TASK-565 closed with
@@ -228,14 +321,16 @@ already-shipped read-only Board's close-out, not the broader interview. The
 unnumbered item is the 2026-10-19 D1–D8 interview record asking to verify the
 Auth0 M2M groups claim and plan document v6.
 
-### 060.03 · 060.10 · 060.11 — outside this repo
+### 060.03 and 060.11 — `done-on-main`; 060.10 — `needs-dany`
 
-All three live in private `puni-pr-00/apps/website/site` (Astro/Novaform site,
-launch copy, private companion and portability contract). Editorial approval,
-publication dates and the `puni.dev` cutover are owner decisions; the public
-repo carries only the runbook and live-check side via #348.
+All three use private `puni-pr-00` evidence at exact main `03ece81ca`. The
+Astro/Novaform site and the companion/portability contract are verified in the
+private tree despite stale unchecked roadmap boxes, so 060.03 and 060.11 are
+`done-on-main`. The launch-copy implementation and false-SLA guard are also
+landed, but draft approval and publication dates are owner decisions, so 060.10
+is `needs-dany`.
 
-## 4. What this changes
+## 5. What this changes
 
 1. **The plan's startable count is not actionable.** 17 reported, 0 real. A
    fleet that trusts `readiness` or the dependency graph alone will either
