@@ -135,5 +135,9 @@ holding the laptop's h4claw public key. Logs under the session scratchpad `h4-ap
    the ANSI-coloured log; the watcher now greps with `-a`.
 8. Re-apply with the gh tasks: run 5 `ok=37 changed=2 failed=0 skipped=2` (exactly `Fetch the
 pinned gh package` and `Install the pinned gh`; the new probe passed), run 6
-   `ok=37 changed=0 failed=0 skipped=2`. Fourth real gate on `51ca24c6f…` started 14:22 UTC
-   (log `~/gate-51ca24c6.log`); its result is the gate of record for 2.2.
+   `ok=37 changed=0 failed=0 skipped=2`. Fourth real gate on `51ca24c6f…`, detached, log
+   `~/gate-51ca24c6.log`: printed `h2puni gate: running on 51ca24c6f26c999367ee573994a6752eb829db5b`,
+   OpenSpec validated, Nx ran `test, lint, typecheck, build` for 49 projects in 45 m 21 s, then
+   `test, typecheck, build` for twilight-burokrat and twilight-dash in 49 m 55 s, their lints and
+   `wbs-be-01:solver-image-smoke` (4 m 31 s); `GATE_EXIT=0` at 16:06 UTC, 104 min after launch.
+   That is the gate of record for 2.2: h4claw is a working second gate host.

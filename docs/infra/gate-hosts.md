@@ -2,11 +2,10 @@
 
 A gate host runs `bin/h2puni-gate.sh <sha>` exactly as h2puni does, under its own host-wide heavy
 lock, so gates on different hosts run in parallel. h2puni is the original gate host. h4claw is the
-second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05). The role and its
-convergence are proven in a Docker lab. **The live h4claw apply waits for Dany's authorization.**
-Until its evidence is in
-[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md), use only
-h2puni.
+second, configured by `infra/ansible/playbooks/gate-host.yml` (WBS 070.05) and live since
+2026-10-21: the apply converged twice and a full gate exited 0 there, recorded in
+[the gate-host-role verification](../../openspec/changes/gate-host-role/verify.md). Gate on it as
+`puni1` from `~/puni-00-gate-tbf`; a full gate takes about 100 minutes.
 
 ## What the role sets up
 
