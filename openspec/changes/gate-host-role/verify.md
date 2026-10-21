@@ -107,3 +107,15 @@ holding the laptop's h4claw public key. Logs under the session scratchpad `h4-ap
    tasks that install the interpreter at `~/.node-24.18.1/bin/node`, the PATH segment in
    `bashrc.j2`, a validate probe, and the contract test expectations. The lab convergence
    claim above predates this; the live re-apply below is its proof.
+5. Re-apply with the Node tasks: run 3 `ok=34 changed=6 failed=0 skipped=1` (exactly the five
+   Node tasks and the re-rendered `~/.bashrc`), run 4 `ok=33 changed=0 failed=0 skipped=2`.
+6. Second real gate as `puni1` on main `69a8b38f…`, detached on the host (`nohup setsid`), log
+   `~/gate-69a8b38f.log`: printed the running-on line, OpenSpec validated, Nx ran
+   `test, lint, typecheck, build` for 49 projects in 39 m 9 s; 179 tasks green, one failed,
+   `tool-devsync:test`, `GATE_EXIT=1`. The failing cases are the Performance-level tests that
+   hard-code `E2E_PORT_SHIFT=6000`: be-01's shifted port 9100 is node_exporter on h4claw
+   (`*:9100`, a k3s telemetry host), so the production preflight correctly refused
+   `Performance shifted port 9100 is occupied` and the tests that expected other refusals saw
+   that one. h2puni has 9100 free, CI's runner too. The host is right; the test's fixed shift is
+   the defect, fixed on `fix/devsync-performance-shift-probe` (the test probes a free shift at
+   load). The gate of record for 2.2 is the next run on that fix.
