@@ -272,6 +272,14 @@ even for repeated fact bytes. Expected revisions remain concurrency predicates, 
 request IDs. This permits recovery/reattachment cycles and same-session human continuations
 without mistaking them for redelivery of an earlier launch.
 
+Trusted attempt reads validate the complete retained transition provenance. Validate each
+historical execution or consumption reply against its own predecessor, then incorporate
+completion and receipt transitions and compare the final reconstructed attempt with the
+stored current attempt. Missing provenance or disagreement throws. Never equate an old
+reply directly with current state or accept unexplained attempt-revision gaps. This is
+attempt validation; the shared run revision also changes for other attempts and inbox
+receives and is not reconstructed from one attempt's history.
+
 ## Artifact boundary
 
 `retainArtifact` computes the digest, durably retains bytes and metadata, reads them back,
