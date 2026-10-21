@@ -80,7 +80,7 @@ run_modules_resolution() {
 
 prepare_gate_steps_path() {
   local fixture_root=$1 include_jq=$2 include_tee=${3:-yes} include_bun=${4:-yes}
-  mkdir -p "$fixture_root/bin" "$fixture_root/reports"
+  mkdir -p "$fixture_root/bin" "$fixture_root/reports" "$fixture_root/node_modules/.bin"
   ln -s "$(type -P mktemp)" "$fixture_root/bin/mktemp"
   ln -s "$(type -P rm)" "$fixture_root/bin/rm"
   if [[ $include_jq == yes ]]; then
@@ -104,8 +104,7 @@ prepare_gate_steps_path() {
   # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
   printf '%s\n' \
     '#!/bin/bash' \
-    'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
-    'if [[ $1 == @fission-ai/openspec@1.12.0 ]]; then' \
+    'printf '\''./node_modules/.bin/openspec %s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
     '  case $GATE_OPEN_SPEC_MODE in' \
     '    failed) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":7,"failed":1}}}'\'' ;;' \
     '    empty) printf '\''%s\n'\'' '\''{"summary":{"totals":{"passed":0,"failed":0}}}'\'' ;;' \
@@ -117,7 +116,12 @@ prepare_gate_steps_path() {
     '    *) exit 64 ;;' \
     '  esac' \
     '  exit 0' \
-    'fi' \
+    >"$fixture_root/node_modules/.bin/openspec"
+  chmod +x "$fixture_root/node_modules/.bin/openspec"
+  # shellcheck disable=SC2016 # These variables belong to the generated fake, not this process.
+  printf '%s\n' \
+    '#!/bin/bash' \
+    'printf '\''%s\n'\'' "$*" >>"$GATE_CALL_LOG"' \
     'printf '\''later\n'\'' >"$GATE_LATER_MARKER"' \
     >"$fixture_root/bin/bunx"
   chmod +x "$fixture_root/bin/bunx"
@@ -131,7 +135,7 @@ run_gate_steps_fixture() {
     GATE_BUN_MODE="$bun_mode" \
     PATH="$fixture_root/bin" \
     TMPDIR="$fixture_root/reports" \
-    /bin/bash "$repo_root/bin/h2puni-gate-steps.sh" "$repo_root" HEAD \
+    /bin/bash "$repo_root/bin/h2puni-gate-steps.sh" "$fixture_root" HEAD \
     >"$fixture_root/stdout" 2>"$fixture_root/stderr"
 }
 
@@ -491,7 +495,7 @@ prepare_gate_steps_path "$failed_spec_fixture" yes
 status=0
 run_gate_steps_fixture "$failed_spec_fixture" failed || status=$?
 expect_status 1 "$status" 'an exit-zero OpenSpec report with a failed spec refuses the gate steps'
-expect_equal '@fission-ai/openspec@1.12.0 validate --all --json' \
+expect_equal './node_modules/.bin/openspec validate --all --json' \
   "$(sed -n 2p "$failed_spec_fixture/calls" 2>/dev/null)" 'the gate invokes the pinned validator contract'
 if [[ -e $failed_spec_fixture/later ]]; then
   fail 'the failed OpenSpec report allowed later Nx work'
@@ -519,6 +523,7 @@ fi
 # 24. A missing validator is a required-tool failure, not permission to continue.
 missing_validator_fixture="$scratch/missing-validator"
 prepare_gate_steps_path "$missing_validator_fixture" yes
+rm "$missing_validator_fixture/node_modules/.bin/openspec"
 status=0
 run_gate_steps_fixture "$missing_validator_fixture" missing || status=$?
 expect_status 127 "$status" 'a missing OpenSpec validator refuses the gate steps'
@@ -729,7 +734,7 @@ else
   fail 'the gate does not install against the frozen lockfile'
 fi
 install_line=$(grep -n '^bun install' "$install_order_fixture/calls" | head -1 | cut -d: -f1)
-validate_line=$(grep -n '^@fission-ai/openspec@1\.12\.0 validate' "$install_order_fixture/calls" | head -1 | cut -d: -f1)
+validate_line=$(grep -n '^\./node_modules/\.bin/openspec validate' "$install_order_fixture/calls" | head -1 | cut -d: -f1)
 if [[ -n $install_line && -n $validate_line && $install_line -lt $validate_line ]]; then
   pass 'the install precedes OpenSpec validation'
 else
@@ -748,7 +753,7 @@ if grep -q 'lockfile is frozen' "$failed_install_fixture/stderr"; then
 else
   fail 'the refused install hid the installer message'
 fi
-if grep -q '^@fission-ai/openspec' "$failed_install_fixture/calls"; then
+if grep -q '^\./node_modules/\.bin/openspec' "$failed_install_fixture/calls"; then
   fail 'the refused install allowed OpenSpec validation'
 else
   pass 'the refused install stops before OpenSpec validation'
@@ -765,7 +770,7 @@ prepare_gate_steps_path "$missing_bun_fixture" yes yes no
 status=0
 run_gate_steps_fixture "$missing_bun_fixture" passed || status=$?
 expect_status 127 "$status" 'a missing installer refuses the gate steps'
-if grep -q '^@fission-ai/openspec' "$missing_bun_fixture/calls" 2>/dev/null; then
+if grep -q '^\./node_modules/\.bin/openspec' "$missing_bun_fixture/calls" 2>/dev/null; then
   fail 'the missing installer allowed OpenSpec validation'
 else
   pass 'the missing installer stops before OpenSpec validation'

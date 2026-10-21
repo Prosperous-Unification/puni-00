@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, expect, test } from 'bun:test';
 
 const cli = process.env['OPENSPEC_CLI'];
-if (!cli) throw new Error('OPENSPEC_CLI must name the installed pinned 1.12.0 openspec.js');
+if (!cli) throw new Error('OPENSPEC_CLI must name the installed pinned 1.14.3 openspec.js');
 const openspec = cli;
 
 const fixtures: string[] = [];
@@ -74,7 +74,8 @@ function artifact(status: Status, id: string): ArtifactState {
 
 test('the integration target runs the pinned CLI', () => {
   const version = Bun.spawnSync([process.execPath, openspec, '--version']);
-  expect(version.stdout.toString().trim()).toBe('1.12.0');
+  // Proof: OPENSPEC_CLI pointed at 1.12.0 fails this test with expected 1.14.3, received 1.12.0.
+  expect(version.stdout.toString().trim()).toBe('1.14.3');
 });
 
 test('the pinned CLI blocks planning while design.md is absent', () => {
