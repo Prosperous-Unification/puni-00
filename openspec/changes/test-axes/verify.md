@@ -5668,8 +5668,8 @@ Fresh verification of the existing capability scenario diagnostic ledger on base
 `/home/df/.codex/worktrees/4a91/puni-00`, branch
 `feat/wbs08039-scenario-ledger-proof`. No production code, scenario ID or allocation
 journal changed. Existing adjacent `Proof:` comments remain unchanged. Task 4.1c.3
-remains unchecked pending independent exact-candidate review; parent 4.1, T2, source
-reconciliation, certification and WBS080.39 remain open.
+is checked after the independent exact-candidate review recorded below; parent 4.1,
+T2, source reconciliation, certification and WBS080.39 remain open.
 
 The durable [command receipts](evidence/wbs08039-4.1c.3-20261021/commands.json)
 record exact repository-root commands, exit statuses, runtime/dependency provenance
@@ -5721,7 +5721,7 @@ found or repaired.
 Only docs/evidence are committed. No full repository gate, host gate, exact-head CI,
 integration, deployment, source reconciliation or WBS write was performed by this
 worker. The diagnostic fixtures grant no coverage, admission, authentication or
-certification. Independent review and coordinator release acceptance remain pending.
+certification. Coordinator release acceptance remains pending.
 
 The final full base-to-candidate whitespace check initially exited 2 on CRLF or
 trailing whitespace in `build.log`, `lint-source.log`, `typecheck.log` and
@@ -5731,3 +5731,12 @@ tab and CR on each LF-delimited line. Command receipts preserve their original a
 normalized SHA-256 and changed line numbers; assertion text, outcomes and line order
 are preserved. The complete base-to-prospective-candidate `git diff --check` then
 exited 0, and the regenerated artifact inventory matches all normalized bytes.
+
+Independent Astra-high review approved exact candidate
+`893f918216e1c1419945336cd03ed76b8770cb22` with no Critical, Important or Minor
+findings. The reviewer independently checked all 62 artifact hashes, 46 watched
+mutation/restoration receipts, two excluded inconclusive probes, unchanged production,
+specs, tests and scenario allocation, restored 263+88 passing tests, the 35-warning
+strict baseline and the full-range whitespace check. This closes only Task 4.1c.3.
+Parent 4.1, T2, source reconciliation, certification and WBS080.39 remain open;
+coordinator release/CI/host acceptance and external WBS synchronization remain separate.
