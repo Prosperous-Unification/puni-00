@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261022210000_add_project_abbreviations',
         '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',
         '20261019130100_add_external_identity_person',
@@ -404,6 +405,8 @@ describe('the optimizer migration', () => {
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
+            name !== 'project_abbreviation' &&
+            name !== 'project_abbreviation_counter' &&
             name !== 'browser_auth_association' &&
             name !== 'browser_auth_lifecycle' &&
             name !== 'shared_people_audit' &&

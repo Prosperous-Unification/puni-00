@@ -3264,6 +3264,42 @@ export const externalSystemOrganization = sqliteTable(
   (t) => [uniqueIndex('external_system_organization_name').on(t.organizationId, t.name)],
 );
 
+/** Persisted address code; migration triggers allocate legacy writes and synchronize ownership. */
+export const projectAbbreviation = sqliteTable(
+  'project_abbreviation',
+  {
+    projectId: text('project_id')
+      .primaryKey()
+      .references(() => project.id, { onDelete: 'cascade' }),
+    namespace: text('namespace').notNull(),
+    abbreviation: text('abbreviation').notNull(),
+  },
+  (t) => [
+    uniqueIndex('project_abbreviation_namespace_code').on(t.namespace, t.abbreviation),
+    index('project_abbreviation_code').on(t.abbreviation),
+    check(
+      'project_abbreviation_grammar',
+      sql`length(${t.abbreviation}) BETWEEN 1 AND 20 AND ${t.abbreviation} GLOB '[A-Z]*' AND ${t.abbreviation} NOT GLOB '*[^A-Z0-9_-]*' AND instr(${t.abbreviation}, char(0)) = 0`,
+    ),
+  ],
+);
+
+/** Global monotonic legacy allocation ordinal; 26^5 is the exhausted sentinel. */
+export const projectAbbreviationCounter = sqliteTable(
+  'project_abbreviation_counter',
+  {
+    singleton: integer('singleton').primaryKey().notNull(),
+    next: integer('next').notNull(),
+  },
+  (t) => [
+    check('project_abbreviation_counter_singleton', sql`${t.singleton} = 1`),
+    check(
+      'project_abbreviation_counter_range',
+      sql`typeof(${t.next}) = 'integer' AND ${t.next} BETWEEN 0 AND 11881376`,
+    ),
+  ],
+);
+
 export const projectOrganization = sqliteTable(
   'project_organization',
   {
