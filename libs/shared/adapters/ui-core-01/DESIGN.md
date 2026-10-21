@@ -3,7 +3,7 @@
 Read this before generating or reviewing any UI, then the `DESIGN.md` of the kit the app uses.
 Terms are in [CONTEXT.md](CONTEXT.md); the behaviour contract is
 `openspec/changes/design-system-foundation`; the decision is
-[ADR 0041](../../../../docs/adr/0041-ui-kits-own-their-primitives.md).
+[ADR 0056](../../../../docs/adr/0056-ui-kits-own-their-primitives.md).
 
 ## Principles
 

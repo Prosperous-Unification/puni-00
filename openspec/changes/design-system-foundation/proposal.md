@@ -49,7 +49,7 @@ Core, kit, theme, palette, primitive, variant, catalogue, registry: `libs/shared
 
 ## Decisions Recorded
 
-- [ADR 0041](../../../docs/adr/0041-ui-kits-own-their-primitives.md)
+- [ADR 0056](../../../docs/adr/0056-ui-kits-own-their-primitives.md)
 
 ## Impact
 
