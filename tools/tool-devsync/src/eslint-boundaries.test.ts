@@ -110,9 +110,10 @@ describe('the effective production and test boundaries', () => {
         '@twilight-burokrat/judge',
         '../../../../twilight-burokrat/cli/src/contracts',
       ]) {
-        expect(await ruleIds(path, `await import('${alias}');`)).toContain(
-          '@nx/enforce-module-boundaries',
-        );
+        expect(
+          await ruleIds(path, `await import('${alias}');`),
+          `reject ${alias} from ${path}`,
+        ).toContain('@nx/enforce-module-boundaries');
       }
       expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
       const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
@@ -125,9 +126,10 @@ describe('the effective production and test boundaries', () => {
       'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts',
       'apps/twilight-structure/twilight-dash/cli/src/check-runs/run-activation-checks.ts',
     ])
-      expect(await ruleIds(path, "await import('@twilight-burokrat/contracts');")).toContain(
-        '@nx/enforce-module-boundaries',
-      );
+      expect(
+        await ruleIds(path, "await import('@twilight-burokrat/contracts');"),
+        `reject contracts alias from ${path}`,
+      ).toContain('@nx/enforce-module-boundaries');
   }, 30_000);
 
   it('a UI kit reaches shared browser code and nothing of a product or of Bun', async () => {

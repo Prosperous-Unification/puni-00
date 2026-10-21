@@ -130,7 +130,7 @@ Final candidate checks, run in the isolated worktree with Bun 1.4.2:
 | `bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/runs/admission.test.ts apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts --timeout=60000` | Exit 0; 20 pass, 0 fail, 110 assertions |
 | `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/eslint-boundaries.test.ts --timeout=60000`                                                   | Exit 0; 28 pass, 174 assertions         |
 | `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                   | Exit 0; cache skipped, 1.8s             |
-| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                        | Exit 0; cache skipped, 16.4s            |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                        | Exit 0; cache skipped, 17.8s            |
 | `bunx eslint apps/twilight-structure/twilight-dash/cli/src/runs tools/tool-devsync/src/eslint-boundaries.test.ts`                                                                                                | Exit 0; no diagnostics                  |
 | `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/runs apps/twilight-structure/twilight-dash/eslint.product.mjs tools/tool-devsync/src/eslint-boundaries.test.ts`                             | Exit 0; all matched files formatted     |
 | `git diff --check`                                                                                                                                                                                               | Exit 0; no whitespace errors            |
@@ -177,3 +177,42 @@ warnings. Strict validation fails on those warnings in unchanged requirements; t
 strict-success observation above used OpenSpec 1.12.0. Full Dash test/build, exact-SHA h2
 gate, CI, durable adapters, live guarded WBS bridge, complete binding recovery and production
 deployment have not been verified by this slice. Independent review is pending.
+
+Independent review of `cf06a77b4` rejected this candidate. It reproduced two malformed
+trusted-state cases that incorrectly returned applied intents: current run without its
+immutable initial identity, and existing attempt ID without its immutable admission.
+It also invalidated the relative-import and file-scope policy mutation claims above:
+those two logs failed loading the policy, before any boundary assertion. Only allowance
+removal and alias widening currently establish policy breakability. The prior four-proof
+statement and adjacent source comment are superseded pending valid reruns. Fix round 1
+will repair the missing identity checks, prove them, and correct these evidence claims.
+The final lint log duration also needs alignment (retained log 17.8s, earlier summary
+16.4s); both runs reported success. No slice acceptance is claimed.
+
+### Fix round 1
+
+Four new tests first failed on the real planners with the missing half of a trusted
+identity pair: two returned applied intents and two returned identity_conflict instead
+of throwing. Symmetric current/initial-run and attempt/admission presence checks now
+throw before collision comparisons. Each of the four guards was separately removed;
+its exact test failed at `toThrow` (one assertion), then passed after restoration. The
+focused pattern `without its` changed from 0 pass/4 fail to 4 pass/0 fail.
+
+The policy fault harness used `String.replace` with source text as a replacement string.
+The alias's literal `$'` expanded to the suffix and produced an unterminated string in
+the relative/path mutations. Those two historical runs remain invalid proofs. The
+corrected harness inserts literal text, first verifies that the mutated module imports,
+and requires the named boundary assertion plus a positive assertion count. Fresh valid
+allowance-removal, alias-widening, relative-import and peer-path mutations then failed
+at their intended assertions after respectively 1, 2, 3 and 13 assertions. The last two
+specifically named the forbidden relative contracts import and `runs/plan-ownership.ts`
+peer. All policies were restored; the full boundary suite passed. Source Proof comments
+now describe these valid observations.
+
+Fresh checks after the fixes, using the exact commands above: admission/clock **24 pass,
+0 fail, 116 assertions**; boundary suite **28 pass, 174 assertions**; uncached typecheck
+exit 0 (2.0s); uncached lint exit 0 (19.9s); Prettier and whitespace checks exit 0.
+The prior candidate's lint duration is corrected to 17.8s: 16.4s was a different earlier
+successful run before mechanical helper renaming. The fix has its own fresh run and
+does not rely on that earlier measurement. Scoped re-review is pending; all previously
+listed durable/bridge/host-gate limitations remain.

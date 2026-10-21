@@ -503,6 +503,85 @@ test('trusted missing records and arithmetic overflow throw without reservations
   expect((await fixture.runs.readRun(fixture.run.runId)).capacity.reserved).toBe(0);
 });
 
+async function createAdmissionFacts() {
+  const fixture = await createAdmissionFixture({ capacity: 2, leaseMilliseconds: 100 });
+  unwrapReply(
+    await fixture.runs.admitAttempt(
+      { ownership: fixture.ownership, runId: fixture.run.runId, expectedRevision: 0 },
+      fixture.admission,
+    ),
+  );
+  const snapshot = await fixture.runs.readRun(fixture.run.runId);
+  return {
+    fixture,
+    guard: {
+      ownership: fixture.ownership,
+      runId: fixture.run.runId,
+      expectedRevision: snapshot.run.revision,
+    },
+    facts: {
+      ownership: fixture.ownership,
+      observedAt: 1000,
+      lastObservedAt: 1000,
+      capacity: snapshot.capacity,
+      run: snapshot.run,
+      manifest: createManifest(),
+      attempts: snapshot.attempts,
+      admissions: [fixture.admission],
+    },
+    authority: {
+      current: fixture.ownership,
+      requested: fixture.ownership,
+      observedAt: 1000,
+      lastObservedAt: 1000,
+    },
+  };
+}
+
+test('run creation rejects a current run without its immutable initial identity', async () => {
+  const { fixture, facts, authority } = await createAdmissionFacts();
+  expect(() =>
+    planRunCreation(authority, fixture.run, undefined, facts.run, facts.manifest),
+  ).toThrow('run initial identity does not exist');
+  expect((await fixture.runs.readRun(fixture.run.runId)).run.revision).toBe(1);
+});
+
+test('run creation rejects an initial identity without its current run before collision checks', async () => {
+  const { fixture, facts, authority } = await createAdmissionFacts();
+  expect(() =>
+    planRunCreation(
+      authority,
+      { ...fixture.run, maxAttempts: 4 },
+      fixture.run,
+      undefined,
+      facts.manifest,
+    ),
+  ).toThrow('run does not exist');
+});
+
+test('admission rejects an attempt collision without its immutable admission identity', async () => {
+  const { fixture, facts, guard } = await createAdmissionFacts();
+  const changed = {
+    ...fixture.admission,
+    identity: { ...fixture.admission.identity, occurrenceId: occurrenceId('changed') },
+  };
+  expect(() => planAdmission({ ...facts, admissions: [] }, guard, changed)).toThrow(
+    'admission identity does not exist',
+  );
+  expect((await fixture.runs.readRun(fixture.run.runId)).capacity.reserved).toBe(1);
+});
+
+test('admission rejects an immutable identity without its attempt before collision checks', async () => {
+  const { fixture, facts, guard } = await createAdmissionFacts();
+  const changed = {
+    ...fixture.admission,
+    identity: { ...fixture.admission.identity, occurrenceId: occurrenceId('changed') },
+  };
+  expect(() => planAdmission({ ...facts, attempts: [] }, guard, changed)).toThrow(
+    'admitted attempt does not exist',
+  );
+});
+
 test('run creation requires a retained manifest before any reservation', async () => {
   const fixture = await createAdmissionFixture({ capacity: 1, leaseMilliseconds: 100 });
   await rejects(

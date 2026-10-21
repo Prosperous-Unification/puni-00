@@ -55,7 +55,7 @@ export function planManifestRetention(
   return { kind: 'applied', value: manifest };
 }
 
-/** Plans immutable initial run configuration against retained manifest content. */
+/** Plans immutable initial run configuration against retained manifest content. Missing halves of a persisted run/initial-identity pair throw before collision checks. */
 export function planRunCreation(
   authority: MutationAuthority,
   run: Run,
@@ -71,18 +71,21 @@ export function planRunCreation(
   decodeManifest(manifest);
   // Proof: bypassing retained-manifest identity matching failed the trusted missing-records test.
   if (manifest.digest !== run.manifestDigest) throw new Error('run manifest differs');
+  // Proof: removing this guard made `run creation rejects a current run without its immutable initial identity` accept an applied revision-zero overwrite intent.
+  if (initial === undefined && current !== undefined)
+    throw new Error('run initial identity does not exist');
   if (initial !== undefined) {
+    // Proof: removing this guard made `run creation rejects an initial identity without its current run before collision checks` return identity_conflict instead of throwing.
+    if (current === undefined) throw new Error('run does not exist');
     // Proof: bypassing initial identity comparison failed the exact run/admission identity test.
     if (canonicalJson(initial) !== canonicalJson(run))
       return { kind: 'refused', reason: 'identity_conflict' };
-    // Proof: removing the trusted current-run guard failed the trusted missing-records test.
-    if (current === undefined) throw new Error('run does not exist');
     return { kind: 'duplicate', value: current };
   }
   return { kind: 'applied', value: run };
 }
 
-/** Plans one queued admission from a consistent provider view. Duplicate identities precede revision checks but never current-owner validation. */
+/** Plans one queued admission from a consistent provider view. Duplicate identities precede revision checks but never current-owner validation. Missing halves of an attempt/admission pair throw before collision checks. */
 export function planAdmission(
   facts: AdmissionFacts,
   guard: RunGuard,
@@ -103,13 +106,16 @@ export function planAdmission(
   const previous = facts.admissions.find(
     (candidate) => candidate.attemptId === admission.attemptId,
   );
+  const attempt = facts.attempts.find((candidate) => candidate.attemptId === admission.attemptId);
+  // Proof: removing this guard made `admission rejects an attempt collision without its immutable admission identity` produce an applied replacement under a changed occurrence.
+  if (attempt !== undefined && previous === undefined)
+    throw new Error('admission identity does not exist');
   if (previous !== undefined) {
+    // Proof: removing this guard made `admission rejects an immutable identity without its attempt before collision checks` return identity_conflict instead of throwing.
+    if (attempt === undefined) throw new Error('admitted attempt does not exist');
     // Proof: bypassing immutable admission comparison failed the exact run/admission identity test.
     if (canonicalJson(previous) !== canonicalJson(admission))
       return { kind: 'refused', reason: 'identity_conflict' };
-    const attempt = facts.attempts.find((candidate) => candidate.attemptId === admission.attemptId);
-    // Proof: removing the retained-attempt guard failed the trusted missing-records test.
-    if (attempt === undefined) throw new Error('admitted attempt does not exist');
     return {
       kind: 'duplicate',
       value: { attempt, runRevision: facts.run.revision, reserveSlot: false },

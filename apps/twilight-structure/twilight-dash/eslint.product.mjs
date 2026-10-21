@@ -119,9 +119,10 @@ export default ({
         'apps/twilight-structure/twilight-dash/cli/src/runs/record-codecs.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/plan-admission.ts',
       ],
-      // Proof: removing this allowance or independently widening its alias, relative
-      // specifier or paths failed `Dash run storage reaches exactly the contracts alias
-      // at its two scoped paths` against the effective ESLint policy.
+      // Proof (review fix 1): `Dash run storage reaches exactly the contracts alias at its
+      // two scoped paths` observed valid mutations load, then allowance removal fail contracts
+      // admission; alias/relative widening fail their named denials; and path widening fail
+      // the plan-ownership.ts peer denial (1/2/3/13 assertions). Loader failures were excluded.
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
   ];
