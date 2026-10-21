@@ -50,6 +50,8 @@ export function addressPageQueryOf(input: PageQueryInput, url: URL) {
   const limit = limitOf(input.limit);
   const search = input.q === undefined || input.q.trim() === '' ? '' : searchOf(input.q);
   const cursor = input.cursor === undefined ? null : decodeCursor(input.cursor);
+  // Proof: removing this guard failed all four mounted JSON-null cases (alphabetic/numeric/empty discovery and selected-project paging returned 200 instead of 400, 2026-10-22).
+  if (input.cursor !== undefined && cursor === null) return null;
   return limit === null || search === null || cursor === undefined
     ? null
     : { limit, search, cursor };
@@ -229,7 +231,9 @@ export class ProjectAddressSearch {
           cursor['binding'] !== binding ||
           typeof cursor['revision'] !== 'string' ||
           typeof cursor['workItemId'] !== 'string' ||
-          !['whole', 'node', 'descendant-step'].includes(String(cursor['scope'])) ||
+          // Proof: removing string/literal scope validation failed mounted `rejects array cursor scope before stale revision checks` (409 instead of 400; current revision remains a passing control, 2026-10-22).
+          typeof cursor['scope'] !== 'string' ||
+          !['whole', 'node', 'descendant-step'].includes(cursor['scope']) ||
           !(cursor['scope'] === 'whole'
             ? cursor['stepId'] === null
             : typeof cursor['stepId'] === 'string'))

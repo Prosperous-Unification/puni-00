@@ -353,3 +353,44 @@ function captureState() {
         .sort(),
     }));
 }
+
+it.each(['a', '010', ''])(
+  'rejects present JSON null discovery cursor for token "%s"',
+  async (q) => {
+    await create('ada', 'Alpha', 'ALPHA');
+    expect(
+      await h.call('ada', 'GET', `/api/project-addresses/projects?q=${q}&cursor=bnVsbA`),
+    ).toEqual({ status: 400, body: { error: 'invalid_query' } });
+  },
+);
+it('rejects present JSON null selected project cursor', async () => {
+  const selected = await create('ada', 'Alpha', 'ALPHA');
+  expect(
+    await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates?cursor=bnVsbA`),
+  ).toEqual({ status: 400, body: { error: 'invalid_query' } });
+});
+it.each(['current', 'stale'])(
+  'rejects array cursor scope before %s revision checks',
+  async (observation) => {
+    const selected = await create('ada', 'Selected', 'P');
+    work(selected, 'leaf');
+    const page = await candidates(selected, 'limit=1');
+    if (page.nextCursor === null) throw new Error('continuation missing');
+    const cursor = decodeCursor(page.nextCursor) as Record<string, unknown> & { v: 1 };
+    const revision = observation === 'current' ? page.addressRevision : 'old';
+    const altered = encodeCursor({ ...cursor, scope: ['node'], stepId: 'anything', revision });
+    expect(
+      await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates?cursor=${altered}`),
+    ).toEqual({ status: 400, body: { error: 'invalid_query' } });
+  },
+);
+
+it('fails malformed frozen placement evidence visibly during mounted candidate lookup', async () => {
+  const selected = await create('ada', 'Selected', 'P');
+  work(selected, 'leaf');
+  h.sqlite.run("UPDATE work_item SET frozen_number='bad' WHERE id='leaf'");
+  expect(await h.call('ada', 'GET', `/api/projects/${selected}/address-candidates`)).toEqual({
+    status: 500,
+    body: expect.anything(),
+  });
+});

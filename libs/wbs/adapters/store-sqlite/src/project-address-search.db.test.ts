@@ -126,3 +126,24 @@ it('rejects malformed trusted step evidence at capture before returning detached
       },
     );
 });
+
+it('rejects malformed trusted placement evidence at capture before returning detached facts', async () => {
+  const writer = openDatabase(path);
+  try {
+    writer.run(
+      "INSERT INTO work_item(id,project_id,position,name,frozen_number) VALUES('broken','a1',10,'broken','bad')",
+    );
+  } finally {
+    writer.close();
+  }
+  await repository()
+    .withSnapshot({ id: 'ada' }, (reader) => reader.capture('a1'))
+    .then(
+      () => {
+        throw new Error('capture admitted malformed placement evidence');
+      },
+      (cause: unknown) => {
+        expect(cause).toEqual(new Error('malformed project address placement'));
+      },
+    );
+});

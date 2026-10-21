@@ -158,7 +158,7 @@ class AddressReader implements ProjectAddressSnapshot {
       .from(workItem)
       .where(eq(workItem.projectId, projectId))
       .all();
-    // Proof: removing placement validation failed mounted `fails corrupt placement and step facts visibly rather than issuing an observation` (200 instead of 500 for bad frozen number, 2026-10-22).
+    // Proof: removing this validation failed `rejects malformed trusted placement evidence at capture before returning detached facts` with `capture admitted malformed placement evidence`; mounted malformed-frozen-number lookup also returned 200 instead of 500 (2026-10-22).
     for (const placement of placements) {
       if (
         typeof placement.id !== 'string' ||
