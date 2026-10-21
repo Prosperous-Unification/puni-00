@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:
+35 |
+36 | test('retains exact local and foreign placements without rounding', () => {
+37 |   const before = stage();
+38 |   const after = stage();
+39 |   (after.starts as Map<string, number>).set(sliceKey('b', null), 1.3000000000000003);
+40 |   expect(canonicalConnectedStageInput(before)).not.toBe(canonicalConnectedStageInput(after));
+                                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not ""
+
+      at <anonymous> (/tmp/puni-cross-stage-identity/libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts:40:52)
+(fail) retains exact local and foreign placements without rounding [0.33ms]
+
+ 0 pass
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]

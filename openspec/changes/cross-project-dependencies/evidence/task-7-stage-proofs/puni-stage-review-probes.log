@@ -1,0 +1,10 @@
+PASS JSON preserves each finite placement exactly
+PASS next representable local finish changes identity
+PASS original removed selector retains identity
+PASS empty project remains identity with null anchor
+{"label":"cross-project workflow with existing endpoint","accepted":true,"sameBytes":false}
+{"label":"missing original selector","accepted":true,"sameBytes":false}
+{"label":"invalid graph node kind","accepted":true,"sameBytes":false}
+{"label":"NaN person identity","accepted":true,"sameBytes":true}
+{"label":"null optional demands","accepted":true,"sameBytes":true}
+{"mutationRows":125,"failed":108,"survived":17}

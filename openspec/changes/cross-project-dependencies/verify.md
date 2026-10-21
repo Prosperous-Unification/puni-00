@@ -309,3 +309,45 @@ real connected derivation and live projection. No completed feature, host gate,
 current green CI, build or deployment is claimed. Earlier pushed checkpoint
 `b3f318912` CI run `39693163327` has a failed browser shard and ongoing workspace/
 Twilight jobs; the failure is being investigated, not treated as a passing gate.
+
+## Task 7 — reviewed exact stage identity foundation, optimization runtime open
+
+Independent Astra review approved `94baeab1e` for canonical identity over authoritative
+typed captures; nonbehavioral JSDoc/Proof/test-name corrections are `4332ca115`.
+Integrated as `2ad64e22d` and `a79e8eabd`; all three domain files match that reviewed
+branch plus its exact requested wording corrections. See [implementation](evidence/task-7-stage-identity.md),
+[review](evidence/task-7-stage-identity-review.md), [wording correction](evidence/task-7-stage-identity-wording.md)
+and [proof artifacts](evidence/task-7-stage-proofs/).
+
+The pure domain serializer preserves exact real placement coordinates, original scoped
+selectors, reduced graph/order/ownership, complete project ranks/anchors and scheduling
+constraints. It excludes display labels and does not schedule, compute SHA, prove authored
+capture completeness or validate baseline feasibility. Its input is an authoritative typed
+capture, not an untrusted request parser. Runtime stage construction must establish those
+upstream facts before using these bytes in the complete question key.
+
+Root's fresh integration command from the domain project directory:
+
+```sh
+bun test ./src/canonical-connected-stage-input.test.ts ./src/canonical-schedule-input.test.ts ./src/connected-step-node.test.ts ./src/schedule-connected.test.ts
+```
+
+Passed **175 tests / 258 assertions / four files**. Independent Astra ran the same focused
+set successfully. The author's named domain suite passed 1,331 tests, with one existing
+optional performance skip; the invalid root-cwd emitted-test discovery run is retained
+and explicitly not counted as a source-domain pass. Author named lint/typecheck, explicit
+spec types and format passed. Root's actual uncached `wbs-domain:typecheck` passed on
+`a79e8eabd`; normal original/follow-up commit hooks passed (Tool Wiki inactive/uncertified).
+
+The 125 production fault probes contain 108 assertion-failing runs and 17 explicit
+redundant/constant survivors. These are not 108 independent unsafe-acceptance proofs:
+some distinguish diagnostics, some overlap, and combined removals expose redundant
+checks. The matrix and reports preserve those limits. The 60 serialization-property
+omissions include redundant fields; no missing independent valid-typed identity dimension
+was found by review. Malformed values outside declared types are an upstream boundary
+obligation and are not claimed to be exhaustively refused here.
+
+Only stage-identity WBS leaf `b52f23c6-c7b8-4aec-ad80-83c8a0c3c279` is complete. All
+full 7.1–7.4 checkboxes remain open: wire/Python, stage selection, complete hash tuple,
+publication, terminal certificates, Retry/restart and persistence are not delivered by
+these domain files. Full host gate, final CI/build/deployment remain pending.

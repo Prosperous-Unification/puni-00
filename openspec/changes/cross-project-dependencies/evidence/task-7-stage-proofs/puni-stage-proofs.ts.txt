@@ -1,0 +1,49 @@
+import ts from '/tmp/puni-cross-stage-identity/node_modules/typescript';
+import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+const base='/tmp/puni-cross-stage-identity';
+const path=base+'/libs/wbs/domain/domain/src/canonical-connected-stage-input.ts';
+const original=readFileSync(path,'utf8');
+mkdirSync('/tmp/puni-stage-proofs',{recursive:true});
+const rows:string[]=[];
+function probe(label:string,source:string){
+ writeFileSync(path,source);
+ const run=spawnSync('bun',['test','libs/wbs/domain/domain/src/canonical-connected-stage-input.test.ts'],{cwd:base,encoding:'utf8'});
+ const output=run.stdout+run.stderr;
+ writeFileSync('/tmp/puni-stage-proofs/'+label.replace(/[^a-zA-Z0-9-]/g,'_')+'.log',output);
+ const failures=[...output.matchAll(/\(fail\) ([^\n]+)/g)].map(m=>m[1]);
+ if(run.status!==0 && failures.length===0) throw new Error(label+' has no test assertion failure');
+ rows.push(`${label}\t${run.status}\t${failures.join(' | ')}`);
+}
+try{
+ const labels=['stage kind','capacity mode','connected order','duplicate project','rank evidence','stage owner','duplicate row','ownership keys','ownership','duplicate slice','active project anchor','placement keys','reversed placement','duplicate relationship','relationship type','selector project','selector scope','selector step','relationship ownership','relationship evidence','graph provenance','graph type','finite','slice pools','defined canonical fact','selector identity'];
+ for(const label of labels) probe('guard-'+label,original.replace('if (!condition)',`if (!condition && !message.includes(${JSON.stringify(label)}))`));
+ probe('dependency-elsewhere',original.replace('  checkElsewhere(input.elsewhere);',''));
+ probe('combined-nonfinite',original.replace('if (!condition)',`if (!condition && !['finite','rank evidence','reversed placement'].some(part=>message.includes(part)))`));
+ probe('dependency-graph',original.replace('  validateResolvedGraph(input);',''));
+ probe('combined-duplicate-slice',original.replace('  validateResolvedGraph(input);','').replace('if (!condition)',`if (!condition && !message.includes('duplicate slice'))`));
+ probe('combined-ownership',original.replace('if (!condition)',`if (!condition && !['ownership','active project anchor','relationship ownership'].some(part=>message.includes(part)))`));
+ const parsed=ts.createSourceFile(path,original,ts.ScriptTarget.Latest,true);
+ let guardAt=0;
+ function guards(n:ts.Node){if(ts.isCallExpression(n)&&n.expression.getText(parsed)==='requireFact'){const condition=n.arguments[0];probe(`individual-guard-${++guardAt}`,original.slice(0,condition.getStart(parsed))+'true'+original.slice(condition.end));}ts.forEachChild(n,guards)}
+ guards(parsed);
+ let serial:ts.Node|undefined;
+ function find(n:ts.Node){if(ts.isVariableDeclaration(n)&&n.name.getText(parsed)==='canonical')serial=n.initializer;ts.forEachChild(n,find)}
+ find(parsed);if(!serial)throw new Error('no serializer');
+ let index=0;
+ function visit(n:ts.Node){if(ts.isPropertyAssignment(n)){
+  const start=n.getFullStart();let end=n.end;if(original[end]===',')end++;
+  probe(`field-${++index}-${n.name.getText(parsed)}`,original.slice(0,start)+original.slice(end));
+ }ts.forEachChild(n,visit)}
+ visit(serial);
+ const properties:ts.PropertyAssignment[]=[];
+ function collect(n:ts.Node){if(ts.isPropertyAssignment(n))properties.push(n);ts.forEachChild(n,collect)}collect(serial);
+ function removeProperties(names:string[]){let edited=original;for(const n of properties.filter(n=>names.includes(n.name.getText(parsed))).sort((a,b)=>b.getFullStart()-a.getFullStart())){let end=n.end;if(original[end]===',')end++;edited=edited.slice(0,n.getFullStart())+edited.slice(end)}return edited;}
+ probe('combined-rank-bytes',removeProperties(['rank','ranks']));
+ probe('combined-type-bytes',removeProperties(['type']));
+ probe('membership-placement-guard',original.replace('[...keys].every((key) => stage.starts.has(key) && stage.finishes.has(key))','true'));
+ probe('surplus-start-guard',original.replace('stage.starts.size === keys.size','true'));
+ probe('surplus-finish-guard',original.replace('stage.finishes.size === keys.size','true'));
+
+}finally{writeFileSync(path,original);writeFileSync('/tmp/puni-stage-proofs.tsv',rows.join('\n')+'\n')}
+console.log(rows.length+' probes');
