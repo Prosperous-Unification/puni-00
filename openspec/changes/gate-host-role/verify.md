@@ -138,3 +138,10 @@ pinned gh package` and `Install the pinned gh`; the new probe passed), run 6
    `pip -r` never removes packages dropped from the lock (the probe proves only the OR-Tools
    version); no dpkg hold on gh (nothing else on the host installs gh; a GitHub apt source would
    change that); the venv assert has no negative; the `tbf` suffix mirrors h2puni's tree name.
+10. Gate of record for this change, on h4claw as `puni1`, head
+    `a370595b6d4fe271958c22ea9485fb511b40c799` (the branch with the review fixes and main
+    534ba44b2 merged in; the previous head 1d2f13f8b lacked PR #612 and failed
+    `tool-devsync:test` on the 9100 refusal, which is the branch's own gap, not the host's):
+    printed the running-on line, Nx ran `test, lint, typecheck, build` for 49 projects in
+    45 m 31 s and the two Twilight projects in 50 m 29 s, lints and `solver-image-smoke`
+    (3 m 38 s) green, `GATE_EXIT=0` at 18:45 UTC. CI on the same head: all checks green.
