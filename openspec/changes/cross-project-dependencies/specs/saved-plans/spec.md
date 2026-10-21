@@ -52,25 +52,29 @@ A save with missing, unreadable or malformed required external evidence SHALL fa
 
 ### Requirement: Saved and current schedules preserve capture mode
 
-In isolated mode, saved-plan capture and comparison against `current` SHALL release the
-coherent read snapshot before scheduling over the detached captured values. Scheduling SHALL
-NOT hold the isolated capture's database read transaction open.
+In isolated mode without external dependencies, saved-plan capture and comparison against
+`current` SHALL release the coherent read snapshot before scheduling over detached captured
+values. Scheduling SHALL NOT hold that ordinary isolated capture's database read transaction open.
 
-In shared mode only, capture and comparison against `current` SHALL keep one dedicated read-only
-snapshot open through authorization, project rank, assignments, influencer and target inputs,
-optimized-cache selection and non-admitting rank-ordered scheduling. The target schedule and
-captured evidence SHALL detach by value before the snapshot connection closes. No generation,
-solver slot, queue entry or event SHALL be written by this snapshot read. Saved-plan body hashing,
-serialization, quota checks and persistence SHALL occur after the snapshot closes.
+In shared mode, or for externally connected components in isolated capacity mode, capture and
+comparison against `current` SHALL keep one dedicated read-only snapshot open through
+authorization, closure discovery, project rank, assignments, connected inputs, combined
+derivation and sequential non-admitting optimized-cache selection. Every stage SHALL observe
+the same snapshot, including cache publications. Returned target schedules and captured evidence
+SHALL detach by value before closure. The transaction and connection SHALL close on success,
+modeled refusal or throw. No generation, solver slot, queue entry or event SHALL be written by this snapshot read. Saved-plan
+body hashing, serialization, quota checks and persistence SHALL occur after the snapshot closes.
 
 The saved target schedule SHALL remain immutable historical display evidence after influencers
-are edited or deleted. Captured target inputs alone SHALL NOT be presented as sufficient to
-replay that shared schedule; this requirement introduces no durable upstream history or booking ledger.
+or external endpoints are edited or deleted. Captured target inputs alone SHALL NOT be presented
+as sufficient to replay a shared or externally connected schedule; required captured external
+evidence SHALL retain its original meaning. This requirement introduces no durable upstream
+history or booking ledger.
 The same existing absent-schedule policy SHALL apply to save and `current` comparison.
 
 #### Scenario: isolated scheduling releases the snapshot
 
-- **GIVEN** an isolated project is saved or compared against `current`
+- **GIVEN** an isolated project without external dependencies is saved or compared against `current`
 - **WHEN** scheduling starts over its captured values
 - **THEN** the capture read snapshot is already closed
 
@@ -79,6 +83,19 @@ The same existing absent-schedule policy SHALL apply to save and `current` compa
 - **GIVEN** a shared project has ranked influencers whose displayed bookings move its dates
 - **WHEN** it is saved or compared against `current` while an influencer changes
 - **THEN** its inputs and selected schedule reflect one snapshot of the chain, with no solver admission
+
+#### Scenario: isolated external capture selects caches in one snapshot
+
+- **GIVEN** isolated-capacity A and B have external dependencies and the saved/current capture snapshot has begun
+- **WHEN** another connection publishes a matching optimized result between the capture's stage selections
+- **THEN** both stages use the pre-publication snapshot and the new result is eligible only in a subsequent capture
+- **AND** the read transaction remains open through connected derivation, then closes before body hashing, serialization, quota checks or persistence
+
+#### Scenario: isolated external refusal closes the snapshot
+
+- **GIVEN** an isolated externally connected capture owns its dedicated read snapshot
+- **WHEN** connected derivation returns a modeled unavailable state or throws for malformed required evidence
+- **THEN** the read transaction and connection close without solver admission or a partially persisted saved plan
 
 #### Scenario: shared history survives influencer deletion
 

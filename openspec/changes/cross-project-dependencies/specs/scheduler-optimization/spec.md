@@ -14,6 +14,8 @@ step. Zero-duration unknown slices SHALL remain nodes and SHALL consume no
 resources. A versioned contract change SHALL retire stale optimized results.
 Independent response validation SHALL recheck every materialized real typed
 boundary, including external incoming and outgoing boundaries, before publication.
+These scheduling constraints SHALL follow the existing hold reduction;
+authored relationship and hold evidence SHALL remain captured separately.
 
 #### Scenario: External FS targets the second step
 
@@ -44,6 +46,9 @@ connected step-node graph. It SHALL allow project-level cycles when the resolved
 step-node graph is acyclic and SHALL reject actual resolved cycles. Dependency
 eligibility and typed boundary inequalities SHALL precede project rank and
 work-item priority.
+
+The scheduling constraints SHALL be resolved after the existing hold reduction;
+authored cycle validation SHALL continue to use the unreduced graph.
 
 #### Scenario: A project resumes after another project's work
 
@@ -121,7 +126,8 @@ its project's placement after validation of all component constraints.
 ### Requirement: Optimizer refusals preserve valid connected placement
 
 Pending or failed optimization SHALL retain the current valid placement with
-its visible state; an unavailable required engine SHALL remain explicit. A
+its visible state; `boundary-infeasible` SHALL also retain that placement with
+its scoped explanation. An unavailable required engine SHALL remain explicit. A
 candidate violating any external constraint SHALL be refused before publication
 and SHALL NOT replace any part of the valid composite placement.
 
@@ -131,6 +137,53 @@ and SHALL NOT replace any part of the valid composite placement.
 - **WHEN** the candidate finishes B after the FS boundary allows
 - **THEN** independent publication validation rejects the candidate
 - **AND** the prior valid composite placement remains available with the refusal state
+
+### Requirement: Fixed-boundary infeasibility has a scoped outcome
+
+A validated fixed-boundary quantized subproblem proved infeasible SHALL produce
+`boundary-infeasible`, including when it contains no authored deadline. Its
+certificate SHALL identify the captured question, project, objective, quantum,
+contract and effective boundary/local constraints. It SHALL NOT certify the
+whole plan or its authored deadlines infeasible. Unknown, timeout, malformed
+requests and invalid answers SHALL retain distinct failure dispositions.
+
+#### Scenario: Real placement fits between two solver quanta
+
+- **GIVEN** fixed A finishes at 0.2, one-day B precedes fixed C starting at 1.2, no deadlines exist, and quantum is 48
+- **WHEN** conservative quantization yields B start at least 10 units and at most 9 units
+- **THEN** the outcome is `boundary-infeasible` for that captured subproblem, not invalid-output or plan-infeasible
+- **AND** real composite placement with B at 0.2 through 1.2 remains displayed with a scoped resolution explanation
+- **AND** preparation does not invent a feasible quantized baseline or classify the empty integer window as a malformed request
+
+#### Scenario: An unrelated deadline does not change certificate scope
+
+- **GIVEN** the same fixed-boundary subproblem also contains an authored deadline that does not bind B
+- **WHEN** the validated subproblem is proved infeasible
+- **THEN** its certificate still concerns the captured fixed-boundary quantized subproblem
+- **AND** the application does not claim the authored deadline or whole plan is infeasible
+
+### Requirement: Boundary infeasibility is cached without retry loops
+
+The system SHALL persist `boundary-infeasible` separately with its scoped
+certificate and release the attempt's slot. Reads, capture and restart SHALL
+retain the valid composite and visible explanation. Automatic admission SHALL
+NOT re-enqueue the certified question; manual Retry SHALL return typed
+not-retryable for that identity. Changed placement-relevant inputs SHALL create
+a new question eligible for normal admission.
+
+#### Scenario: An unchanged boundary certificate survives restart
+
+- **GIVEN** a certified boundary-infeasible question is persisted
+- **WHEN** the service restarts, the plan is read, and manual Retry is requested with the same identity
+- **THEN** no new attempt is admitted and Retry reports not-retryable with boundary-infeasible state
+- **AND** the previous valid composite remains visible with the captured boundary explanation
+
+#### Scenario: Moving the fixed successor permits a fresh question
+
+- **GIVEN** the 0.2-to-1.2 fixed-boundary question was certified infeasible at quantum 48
+- **WHEN** C's fixed start moves to 1.25 and the next connected observation captures that change
+- **THEN** the old certificate does not classify the new question and normal admission is allowed
+- **AND** the historical certificate retains its original boundary values
 
 ### Requirement: Connected optimization has bounded and stated proof scope
 
@@ -181,12 +234,23 @@ coherently and SHALL NOT admit solver work, allocate generations or publish
 events. Missing required external state SHALL fail visibly rather than be
 treated as an empty graph.
 
+Externally connected components SHALL retain that snapshot through derivation
+and sequential cache selection even in isolated capacity mode, detaching before
+closure. Ordinary isolated captures SHALL retain their existing lifetime.
+
 #### Scenario: Capture does not enqueue optimization
 
 - **GIVEN** a saved-plan or retained live capture includes an optimized external project without a ready current result
 - **WHEN** the capture derives the connected placement
 - **THEN** it records the valid displayed placement and explicit optimization state
 - **AND** no generation, queue entry, solver slot or event is allocated by that capture
+
+#### Scenario: An isolated connected capture excludes concurrent publication
+
+- **GIVEN** an isolated-capacity component has external relationships and its capture snapshot has begun
+- **WHEN** another connection publishes a matching optimized result between its stage selections
+- **THEN** every stage in the capture uses the pre-publication snapshot
+- **AND** only a subsequent capture can select that publication
 
 ### Requirement: Solver boundaries are checked before connected publication
 

@@ -99,6 +99,16 @@ capacities, assignments, rank and endpoint labels. One dedicated SQLite snapshot
 owns authorization, closure discovery, input capture and optimized-cache
 selection. Capture reads never admit solver work or publish events.
 
+For externally connected components, including isolated capacity mode, keep
+that snapshot open through combined derivation and sequential optimized-cache
+selection. Detach the final inputs, boundary evidence and selected schedules
+before closing it. A cache publication committed after the snapshot begins is
+visible only to a later capture, never to a later optimization stage in the
+current capture. Close on success, modeled refusal and throw. Ordinary isolated
+captures without external dependencies still close before scheduling their
+detached values. Saved body hashing, serialization, quota checks and persistence
+remain outside every capture transaction.
+
 For graph validation, follow incident external relationships to closure. For a
 connected schedule, also include shared-person connections in both directions
 when capacity mode is shared. Every project read starts from the same captured
@@ -129,7 +139,14 @@ levelling algorithm or weakening local validation.
 Compute each project's slices with its own estimate method, rounding, step
 ordering and widths. Preserve the existing removal of on-hold subtrees before
 both engines; do not reinterpret hold, completion or readiness as part of this
-change. Keep legacy reach per project rather than assigning one reach to the
+change. The hard scheduling constraints are those remaining after this hold
+reduction: remove held leaves, fully held ancestors and incident scheduling
+edges; partly held selectors expand over their surviving leaves. Apply that
+same reduction to external edges, so a successor does not wait for a held
+external predecessor solely because of that relationship. The authored
+relationship, captured hold evidence and existing readiness semantics remain
+visible; cycle and structural validation still examine the unreduced authored
+graph. Keep legacy reach per project rather than assigning one reach to the
 combined forest.
 
 Map dated projects onto a shared workday origin using
@@ -182,9 +199,45 @@ FS, SS and FF separately and retain provenance for diagnostics. External person
 occupancy produces fixed intervals; local teams/resources retain their own
 capacities. Add explicit boundary constraints to the versioned solver request,
 its Python model and independent Bun response validation. Validate both
-quantized solver values and materialized real workday boundaries. A quantization
-refusal retains the existing visible refusal/floor policy; it never weakens an
-external constraint.
+quantized solver values and materialized real workday boundaries. Quantization
+never weakens an external constraint.
+
+Fixed external boundaries introduce a modeled infeasible optimization subproblem
+even when the real composite is feasible. For example, A finishing at 0.2 and C
+starting at 1.2 force a one-day B between them to start at 0.2. At quantum 48,
+the conservative lower start is 10 and upper start is 9: there is no integer
+solution. This is neither invalid solver output nor proof that the plan's
+authored deadlines are impossible. The existing `evaluateSolverOutcome` rule
+classifying infeasible by presence of deadline entries must not be reused for
+these requests.
+
+Add a distinct `boundary-infeasible` terminal outcome for a validated connected
+stage's fixed-boundary quantized subproblem. Its certificate records the exact
+question identity, stage project/objective, quantum and contract version,
+external boundary identities/values, and all effective local constraints.
+The certificate's scope is that captured subproblem only, regardless of whether
+the question also contains authored deadlines. A validated contradictory-bound
+preflight or a proven-infeasible solver response can establish this outcome;
+unknown, timeout, malformed requests and invalid answers retain their separate
+failure dispositions. Existing no-external-boundary behavior is unchanged.
+Preparation must permit this modeled answer before requiring a feasible
+quantized baseline. Keep the feasible real composite as separate evidence;
+never fabricate a feasible `baselineOffsets` witness for an empty integer
+window or classify that expected window as a malformed request. Any solver
+seed remains distinct from a validated feasible baseline in the new contract.
+
+Persist this outcome separately from failed/invalid-output and plan-infeasible
+deadline certificates, with versioned cache/wire/public DTOs and strict decoding.
+Keep the valid composite placement, release the solver slot, and explain visibly
+that optimization cannot fit the captured external boundaries at the stated
+resolution. Do not mark the complete connected plan unschedulable, blame an
+unrelated deadline or call this an optimality/quantisation-floor result.
+Repeated reads do not automatically re-admit the exact certified question;
+manual Retry returns the typed not-retryable boundary-infeasible state. Changed
+boundaries or other placement-relevant inputs produce a fresh identity and
+normal admission, without discarding historical evidence. Exercise this outcome
+through preparation, solver exit, persistence, capture, restart and Retry, not
+only the Python model.
 
 Each cache identity includes the local inputs, boundary placements for that
 stage, relationship identities/types, calendar anchors, capacity mode, rank

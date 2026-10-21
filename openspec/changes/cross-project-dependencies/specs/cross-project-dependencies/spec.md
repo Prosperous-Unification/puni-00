@@ -39,7 +39,7 @@ Validation SHALL include every affected project's authored, legacy and workflow 
 
 ### Requirement: Dependencies remain hard constraints before priority
 
-The scheduler SHALL honor dependency eligibility and each FS, SS or FF boundary inequality before using project or work-item priority to choose between eligible work. A lower-ranked project or lower-priority work item SHALL remain a valid predecessor. Both schedule engines and every displayed project projection SHALL satisfy the same connected constraints.
+After the existing hold reduction, the scheduler SHALL honor dependency eligibility and each remaining FS, SS or FF inequality before project or work-item priority. A lower-ranked project or lower-priority work item SHALL remain a valid predecessor. Both engines and every displayed projection SHALL satisfy the same reduced connected constraints; authored graph validation SHALL remain unreduced.
 
 #### Scenario: Higher-priority task waits locally
 
@@ -52,6 +52,28 @@ The scheduler SHALL honor dependency eligibility and each FS, SS or FF boundary 
 - **GIVEN** a high-ranked project's task has a low-ranked project's task as its FS predecessor
 - **WHEN** dates are calculated with shared people enabled or disabled
 - **THEN** the predecessor finishes before the successor starts without requiring a project-rank edit
+
+### Requirement: Held external work retains existing scheduling semantics
+
+Scheduling SHALL remove held leaves, fully held ancestors and incident edges,
+including external edges, using the existing hold reduction. Partly held
+selectors SHALL expand over surviving leaves. The authored relationships and
+captured hold evidence SHALL remain visible, and readiness SHALL retain the
+same semantics as equivalent local relationships. Hold SHALL NOT disable
+authored cycle or structural validation.
+
+#### Scenario: Held external predecessor does not delay placement
+
+- **GIVEN** A's five-day leaf is the only FS predecessor of B's unheld leaf and both project anchors are known
+- **WHEN** A's leaf is put on hold and the connected schedule is read
+- **THEN** neither engine places A's held leaf or delays B solely for that relationship
+- **AND** the external relationship, A's hold evidence and existing local-equivalent readiness remain inspectable
+
+#### Scenario: Held relationships still participate in authored cycle checks
+
+- **GIVEN** held A precedes B through an external relationship
+- **WHEN** B is proposed as A's predecessor on the same resolved nodes
+- **THEN** authored graph validation refuses the actual cycle despite A being absent from scheduling input
 
 ### Requirement: Connected derivation uses one coherent captured state
 
