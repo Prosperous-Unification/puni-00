@@ -52,12 +52,20 @@ CapturedScheduler)` orchestrates capture-derived optimization and projection.
   and terminal `boundary-infeasible` certificate. HTTP/cache/Python discriminate
   this from invalid authored plan, corrupt output and required-engine absence.
 
+Graph guard observation and complete scheduling capture are separate boundaries:
+4.3 reads minimal authored graph facts inside the existing admitted transaction,
+then uses the same domain resolver as full capture. Its resulting-state guard
+waits for this minimal observation and 4.2 admission, never for 6.1 scheduling.
+5.1 can build and test capture/lifetime foundations in parallel, but its live
+connected projection remains unchecked until 6.1 supplies actual derivation.
+No fake schedule or old shared-chain representation closes that integration.
+
 Safe initial parallel work: **1.1** owns only new pure grammar files/tests and
 its domain barrel export; **2.1** owns abbreviation migration, SQLite allocator,
 schema and DB tests. They share no edit ownership. **2.2** integrates their
 interfaces into project ports/contracts/composition. After **4.1**, command
 admission **4.2** and connected capture **5.1** can proceed independently;
-resulting-state guards wait for both. After **6.1**, solver wire/Python work and
+resulting-state guards use the minimal authored observation and admission. After **6.1**, solver wire/Python work and
 frontend lookup can proceed separately. One integrator owns shared barrels,
 composition, `work-item.resource.ts`, `chain-snapshot.ts`, migration identities
 and solver versions. Do not schedule competing edits to those files.

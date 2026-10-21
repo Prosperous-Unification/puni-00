@@ -149,6 +149,24 @@ captures without external dependencies still close before scheduling their
 detached values. Saved body hashing, serialization, quota checks and persistence
 remain outside every capture transaction.
 
+Graph validation captures a smaller authored observation than scheduling:
+per-project trees, steps, estimate presence, legacy reach/edges and scoped typed
+relationships. Its transaction-bound reader borrows the command's admitted
+transaction and applies proposed local overrides before discovering new closure.
+It does not open a second connection, invoke scheduling or reduce held subtrees.
+Both this observation and the full plan capture adapt to one domain graph
+resolver that reuses the existing endpoint expansion helper with separate
+predecessor/successor project contexts. Resulting-state guards therefore do not
+wait for placement or solver implementation.
+
+Owned relationship counts cannot establish the absence of external constraints;
+incoming relationships may belong to another successor owner. Read incident
+relationships in both directions, including for step-reference guards. Each
+staged graph-affecting command gets a fresh effective observation; preserve the
+existing per-command validation and whole-batch rollback behavior. A proposed
+new edge may introduce a new component, so closure must include proposed endpoints
+rather than only the previously connected set.
+
 For graph validation, follow incident external relationships to closure. For a
 connected schedule, also include shared-person connections in both directions
 when capacity mode is shared. Every project read starts from the same captured
@@ -156,6 +174,22 @@ component, rather than computing different schedules according to the requested
 project. Isolated mode follows explicit dependencies but namespaces people per
 project. Components without external dependencies keep the existing local or
 shared-people path.
+
+The full detached connected capture carries explicit organization, capacity
+mode, rank-ordered project inputs with required live abbreviations and one
+scoped relationship collection. Per-project historical input fields retain their
+local relationship representation; the unified collection preserves external
+identity separately. In shared mode, topology discovery alternates dependency
+and shared-person connections to a fixed point before capturing each required
+project once. An external edge anywhere across shared-person bridges selects
+the connected path. Ordinary isolated plans with no incident external edges
+retain the existing early-close path; no search-page bound truncates closure.
+
+The capture foundation and minimal graph observation can be implemented in
+parallel. A discriminated live connected projection is wired only when actual
+connected derivation exists; until then the capture task's live integration
+remains incomplete. Never disguise a connected component as an old rank chain
+or manufacture a schedule to satisfy a type.
 
 Resolve each project's workflow and legacy edges using its own step order and
 `depReach`, then combine those resolved nodes with typed external edges. Whole
