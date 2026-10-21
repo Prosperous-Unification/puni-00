@@ -592,6 +592,9 @@ for (const expires of ['5m', '-1s']) {
 }
 
 for (const fault of ['missing', 'unreadable'] as const) {
+  // Proof: adding 5.1 s after each ready acknowledgment made both cases time out
+  // at the old 10 s total; this 30 s total passed both. Withheld readiness still
+  // failed with `ready: worker deadline` at the unchanged 10 s operation bound.
   test(`a fresh mounted process fails closed when shared browser revocation authority is ${fault}`, async () => {
     dir = mkdtempSync(join(tmpdir(), 'wbs-mounted-authority-'));
     const path = join(dir, 'shared.db');
@@ -639,7 +642,7 @@ for (const fault of ['missing', 'unreadable'] as const) {
     } finally {
       sqlite.close();
     }
-  });
+  }, 30_000);
 }
 
 for (const nextSecret of ['same', 'rotated'] as const) {
