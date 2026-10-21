@@ -26,7 +26,7 @@
 Use focused tests from the repository root, including the existing scratch preload:
 
 ```sh
-bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/runs --timeout=60000
+bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs --timeout=60000
 bunx nx run twilight-dash:typecheck
 bunx nx run twilight-dash:lint
 ```
@@ -139,6 +139,7 @@ store snapshot.
 **Files:** Extend `records.ts`, `record-codecs.ts`, `run-store.ts`,
 `testing/memory-stores.ts`, `sqlite/run-store.ts`, `sqlite/schema.ts` and the initial migration
 pair before their first released schema. Create `artifact-store.ts`, `record-outcome.ts`,
+`retain-manifest.ts`, `record-execution.ts`, `verify-artifacts.ts`,
 `sqlite/artifact-store.ts`, `testing/artifact-store-contract.ts`, `artifact-store.test.ts`,
 `outcomes.test.ts`, `sqlite/outcomes.db.test.ts`.
 
@@ -149,10 +150,26 @@ Add `artifacts` to both factories. Export
 completion: Completion): Promise<StoreReply<Attempt>>` and
 `verifyArtifacts(artifacts: ArtifactStore, references: readonly ArtifactRef[]): Promise<void>`.
 The latter verifies retained evidence; it is not an authorization checker.
+Add verified application operations
+`retainManifest(runs: RunStore, artifacts: ArtifactStore, ownership: Ownership, manifest: Manifest): Promise<StoreReply<Manifest>>`
+and `recordExecution(runs: RunStore, artifacts: ArtifactStore, guard: AttemptGuard, fact: ExecutionFact): Promise<StoreReply<Attempt>>`.
+Snapshot each request before awaiting verification. Manifest retention verifies prompt and
+policy references; execution verifies interrupted quiescence, waiting prompt/quiescence
+and unresolved evidence. Facts without references need no artifact reads. Raw RunStore
+methods document already-verified-artifact preconditions. These wrappers establish byte
+integrity, not the truth of executor observations. Decision/receipt wrappers enter Task 4.
+`retainArtifact` returns the design's narrow `ArtifactRetention` union: retained reference
+or metadata conflict. Check existing content integrity before either response. The trusted
+`commitOutcome` port requires already verified artifacts; `recordOutcome` snapshots the
+completion before its first await and commits exactly that verified snapshot. Delegate
+integrity to `readArtifact` without duplicating hashing or coupling provider transactions.
+The later coordinator receives only a bound verified completion callback and a RunStore
+capability excluding raw commit; coordinator wiring and its bypass check remain outside S0.
 
 - [ ] Write shared artifact cases: identical retention is idempotent, different metadata is refused, returned-byte mutation cannot affect stored bytes, missing reference throws, length/digest mismatch throws. SQLite adds corruption-after-close and reopen verification.
 - [ ] Write the execution transition matrix: no launch without exact claim; wrong operation key refuses; takeover does not imply interruption; unknown effect stays unresolved and keeps capacity; determinate quiescence releases once; retry increments ordinal, preserves operation key and cannot exceed maxAttempts. A lost launch acknowledgement with no locator is still uncertain.
 - [ ] Write completion cases through `recordOutcome`: missing/corrupt evidence or output produces no outcome, intent or revision change; valid completion stores matching intent and outcome together, releases only settled capacity and enters pending progress. End-of-turn text alone is insufficient input.
+- [ ] Exercise verified manifest/execution operations: missing/corrupt prompt, policy or execution evidence cannot persist a manifest or change state, revisions or reservations. Callers cannot mutate references while reads are pending. Remove their verification calls separately and observe intended assertions fail before restoring.
 - [ ] Implement immutable blob retention/readback, closed transition table, evidence verification and indivisible outcome/outbox mutation. Persist exact command identity for idempotency; same command with conflicting authority/outcome refuses even after a later state transition.
 - [ ] Install an SQLite abort trigger on outbox insertion, invoke `recordOutcome`, reopen, and assert the prior running state, revision and reservation remain. Remove the trigger and prove both outcome and outbox persist. Kill/reopen after successful commit and show the outcome stays pending without new admission.
 - [ ] Break artifact bytes in the real durable provider and remove the production verification call separately; the missing/corrupt-artifact test must expose the missing guard. Bypass the outcome transaction and quiescence requirement separately; capture failing rollback/capacity tests. Restore checks and run the whole new subtree, typecheck and lint.
@@ -185,6 +202,11 @@ SELECT RAISE(ABORT, 'injected outbox fault'); END;` through its separate test co
 `RunStore.receiveDecision`, `consumeDecision`, `reconcileReceipt`. All incoming evidence is
 verified through `ArtifactStore` before calling the trusted store; real authentication and
 WBS readback remain the bridge/inbox caller's responsibility outside S0.
+Add verified `receiveDecision` and `reconcileReceipt` application operations following
+Task 3's snapshot-before-await boundary; verify authorization and receipt evidence before
+calling the trusted persistence methods. They check byte integrity, not authentication
+or remote acceptance. Prove bypassed verification admits a missing/corrupt reference that
+the restored public application operation rejects without mutating the run.
 
 - [ ] Write shared receipt cases: exact pending intent becomes terminal and removes outbox atomically; duplicate acknowledgement is idempotent across reopen; wrong command digest, claim, run, attempt or project refuses without mutation. A generic WBS progress observation cannot be constructed as exact receipt evidence by the fixture.
 - [ ] Write shared inbox cases: same authorized decision before/after reopen is consumed once; identical receive after consumption is still duplicate; changed actor/choice under one ID refuses; wrong correlation/choice refuses; a competing decision cannot consume an already-resumed wait. A wait never satisfies business completion.

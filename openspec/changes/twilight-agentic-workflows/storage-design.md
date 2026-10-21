@@ -140,8 +140,11 @@ interface RunStore {
   consumeDecision(guard: AttemptGuard, decisionId: DecisionId): Promise<StoreReply<Attempt>>;
   reconcileReceipt(guard: AttemptGuard, receipt: CommandReceipt): Promise<StoreReply<Attempt>>;
 }
+type ArtifactRetention =
+  | { readonly kind: 'retained'; readonly reference: ArtifactRef }
+  | { readonly kind: 'refused'; readonly reason: 'metadata_conflict' };
 interface ArtifactStore {
-  retainArtifact(content: Uint8Array, mediaType: string): Promise<ArtifactRef>;
+  retainArtifact(content: Uint8Array, mediaType: string): Promise<ArtifactRetention>;
   readArtifact(reference: ArtifactRef): Promise<Uint8Array>;
 }
 interface Admission {
@@ -237,17 +240,39 @@ identity to recognize duplicates after state changes; do not deduplicate from st
 ## Artifact boundary
 
 `retainArtifact` computes the digest, durably retains bytes and metadata, reads them back,
-checks digest/length, then returns a reference. Repetition is idempotent only for equal bytes
-and metadata. Returned/read byte arrays cannot mutate stored content. `readArtifact` throws
-on absence, unreadability, truncation or digest mismatch.
+checks digest/length, then returns `retained` with the reference. Repetition with equal bytes
+and metadata returns the same reference. Valid requests for existing bytes with different
+media types return `metadata_conflict` without changing stored content. Existing content
+integrity is checked before either response; a metadata conflict cannot conceal damaged
+storage. Returned/read byte arrays cannot mutate stored content. `readArtifact` throws on
+absence, unreadability, truncation, digest mismatch or inconsistent retained metadata.
 
 `recordOutcome(runStore, artifactStore, guard, completion): Promise<StoreReply<Attempt>>`
-in `record-outcome.ts` reads and verifies every referenced artifact, including quiescence
-evidence, before calling `commitOutcome`. A dangling or corrupted artifact therefore cannot
+in `record-outcome.ts` snapshots and validates the completion before awaiting any reads,
+then verifies every referenced artifact, including quiescence evidence, before committing
+that same snapshot. `verifyArtifacts` delegates integrity checks to `readArtifact`; it does
+not recalculate the provider's hashes. A dangling or corrupted artifact therefore cannot
 produce a successful outcome/outbox through the production composition boundary. The same
 verification helper is used when retaining manifest prompt/policy references and accepting
-wait/decision/evidence references. The coordinator cannot import an unchecked convenience
-writer. Artifact writes precede run writes: a crash may leave an unreferenced retained blob,
+wait/decision/evidence references. Task 3 supplies small verified `retainManifest` and
+`recordExecution` application operations alongside `recordOutcome`. They snapshot requests
+before awaits and verify manifest prompts/tool policies, interrupted quiescence evidence,
+waiting prompt/quiescence evidence and unresolved evidence as applicable. Facts with no
+artifact references require no artifact reads. Task 4 adds corresponding verified decision
+and receipt operations when those ports exist. These checks establish retained evidence
+integrity, not that a worker actually stopped; factual quiescence remains the executor and
+coordinator's responsibility. Raw RunStore methods explicitly require that their callers
+have already verified referenced artifacts.
+
+`commitOutcome` is a trusted persistence port operation:
+its caller must first verify every artifact in that exact completion. It rechecks local
+authority, revisions and state and atomically persists the outcome/outbox; it does not
+verify an independent ArtifactStore. A future coordinator receives a bound `recordOutcome`
+callback and a RunStore capability excluding `commitOutcome`. Its composition and import
+checks must prevent raw artifact-bearing mutation/provider access; the same capability
+restriction applies to manifest retention, execution evidence, decisions and receipts.
+Task 3 proves the application boundary
+without introducing a speculative coordinator. Artifact writes precede run writes: a crash may leave an unreferenced retained blob,
 but never justifies committing a reference to an unverified blob. No garbage collection or
 replacement means a verified reference stays valid unless storage is damaged; subsequent
 reads fail loudly on such damage. Out-of-process power-loss guarantees remain bounded by the
