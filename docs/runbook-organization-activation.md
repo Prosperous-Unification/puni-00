@@ -22,13 +22,14 @@ schema rollback across it is refused (`openspec/changes/organization-ownership-a
 Only restoring the backup taken in step 1 returns to `pre_activation`, and that loses every
 write made after it.
 
-**After activation every Bearer-only client is refused.** That includes mcp-01 and the
-`wbs-dev` MCP, which forward the caller's token without the browser's organization cookie.
-They answer `403 no_active_organization` until the MCP and delegation tasks of
-`organization-ownership-and-access` ship: 2.5 (audience-specific bearer, gateway and MCP
-delegation), 6.4 (bind MCP grants to an organization), 6.5 (MCP credential epoch) and
-6.6 (reject unbound upstream tokens). The operator activates only after accepting that loss
-knowingly. Proof: `organization-activation.boot.db.test.ts`.
+**After activation every Bearer-only client without a selection is refused**
+(`403 no_active_organization`; proof: `organization-activation.boot.db.test.ts`). mcp-01
+keeps working only if, before activation, be-01 has the delegation key pair
+(`WBS_DELEGATION_SIGNING_KEY`, `WBS_DELEGATION_VERIFY_KEY`) and mcp-01 has be-01's
+`INTERNAL_AUTH_SECRET`; its users then reconnect once and are bound to an organization
+(`docs/auth-integration.md`, "MCP organization delegation"). MCP sessions opened before
+activation stay unbound and are refused until task 6.5 revokes them at the cutover. The
+operator activates only after accepting that loss knowingly.
 
 ## Step 0: stop if `BROWSER_SESSION_AUTHORITY` is `disabled`
 

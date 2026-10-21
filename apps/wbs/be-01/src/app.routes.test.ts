@@ -270,7 +270,18 @@ const WRITE_SCOPE_OPERATIONS = [
   'postApiSpacesByIdProjectsByProjectIdMove',
   'putApiOrganizationSession-policy',
 ] as const;
-const INTERNAL_OPERATIONS = ['postInternalForward'] as const;
+const INTERNAL_OPERATIONS = [
+  'postInternalForward',
+  'postInternalMcpAuthority',
+  'postInternalMcpDelegation',
+  'postInternalMcpOrganizations',
+] as const;
+/** Internal routes whose own handler then needs the user's upstream Bearer, absent here. */
+const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
+  'postInternalGatewayProjectAccess',
+  'postInternalMcpOrganizations',
+  'postInternalMcpDelegation',
+]);
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
 const GATEWAY_BROWSER_OPERATIONS = [
   'postInternalGatewayProjectBrowserAccess',
@@ -387,6 +398,9 @@ const NO_ORIGIN_OPERATIONS = [
   'getMetrics',
   'getPlansBy-solutionBySlug',
   'postInternalForward',
+  'postInternalMcpAuthority',
+  'postInternalMcpDelegation',
+  'postInternalMcpOrganizations',
   'postInternalGatewayProjectAccess',
   'postInternalResume',
   'getApiOrganizationSso-connections',
@@ -760,8 +774,9 @@ describe('shared HTTP shape reachability through the production app', () => {
             refusal !== undefined && REQUEST_BOUNDARY_ERRORS.has(refusal) ? refusal : null,
         }).toEqual({
           operationId: shape.operationId,
-          boundaryError:
-            shape.operationId === 'postInternalGatewayProjectAccess' ? 'unauthenticated' : null,
+          boundaryError: UPSTREAM_BEARER_OPERATIONS.has(shape.operationId)
+            ? 'unauthenticated'
+            : null,
         });
         expect({ operationId: shape.operationId, reply }).not.toEqual({
           operationId: shape.operationId,
