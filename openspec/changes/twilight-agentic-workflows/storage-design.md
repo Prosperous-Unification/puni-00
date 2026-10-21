@@ -301,7 +301,10 @@ StoreReply<Ownership>` handles acquisition; `planRenewal(current: Ownership,
 requested: Ownership, observedAt: Timestamp, lastObservedAt: Timestamp,
 leaseMilliseconds: number): StoreReply<Ownership>` handles renewal. These functions perform
 no I/O and never read an ambient clock. The adapters persist the returned ownership and
-clock observation within the same transaction; conflicts publish no partial mutation.
+clock observation within the same transaction. A typed refusal persists a validated clock
+observation without changing ownership, runs, attempts or reservations: refused requests
+also observed time and must not make later clock regression acceptable. Throws roll back
+the transaction. Conflicts publish no partial domain mutation.
 `OwnershipStatus` has the exact fields defined with provider lifecycle below.
 
 ## Providers and configuration

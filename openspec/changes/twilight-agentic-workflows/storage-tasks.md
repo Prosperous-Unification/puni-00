@@ -42,6 +42,12 @@ Root selects the exact commit and gate host after review.
 **Files:** Create `records.ts`, `record-codecs.ts`, `run-store.ts`,
 `plan-ownership.ts`, `plan-admission.ts`, `testing/memory-stores.ts`,
 `testing/fixtures.ts`, `admission.test.ts`.
+Update repository paths `apps/twilight-structure/twilight-dash/eslint.product.mjs` and
+`tools/tool-devsync/src/eslint-boundaries.test.ts` only for an exact
+`@twilight-burokrat/contracts` allowance at `runs/record-codecs.ts` and
+`runs/plan-admission.ts`, reusing the existing canonical JSON/hash implementation. Prove
+the effective policy still rejects sibling aliases, relative imports and peer files;
+observe failures when removing the allowance or widening its alias/file scope.
 Read existing `../clock.ts`, `../authority/authority-store.ts`,
 `../authority/generations.ts` and their tests before implementing.
 
@@ -124,7 +130,7 @@ store snapshot.
 - [ ] Implement explicit bootstrap publication and open validation, schema/migration pair, store-local settings and semantic transactions. Use `BEGIN IMMEDIATE` for writes and consistent read transactions; retain the independent portable version. Configure and verify SQLite foreign keys, WAL and FULL synchronization.
 - [ ] Write a real production-path rollback test: install a SQLite trigger that aborts the reservation insert, call `admitAttempt`, reopen, and assert no attempt, revision increment or reservation survived. Then drop the trigger and prove admission succeeds. This exercises the real transaction, not a fake method that throws before entering it.
 - [ ] Write independent-process capacity-one contention using ready/go barriers. Both children call the public provider methods; exactly one wins admission and all other outcomes are typed capacity/revision/owner refusals according to the chosen identical-owner fixture. A database lock held through the configured retry budget must throw contention and preserve state.
-- [ ] Write crash-before-commit and crash-after-commit subprocess tests. An externally installed abort/pause trigger can establish the before-commit barrier; parent kills the child then reopens. Before commit yields neither admission nor reservation; after committed acknowledgement yields both. Timeouts fail loudly and all children are cleaned up.
+- [ ] Write crash-before-commit and crash-after-commit subprocess tests. In the dedicated test child, intercept the real SQLite COMMIT call only around public `admitAttempt`: assert an active transaction and its staged attempt/reservation/revision, publish a synchronous barrier marker, then block with a bounded timeout. The parent verifies its independent reader still sees the old snapshot, kills the child and reopens. Delegate every other driver call unchanged; add no production test hook. Before commit yields neither admission nor reservation; after committed acknowledgement yields both. Timeouts fail loudly and all children are cleaned up. Bun 1.4.2 has no `Database.function`, so a pause-trigger UDF is not the barrier mechanism.
 - [ ] Run contract and focused SQLite tests, typecheck and lint. Bypass the transaction boundary, persisted capacity lookup and open-without-create refusal separately; watch their negative tests fail. Restore guards, rerun and record actual proofs in `verify.md`.
 - [ ] Request root review. Do not claim a second durable provider or power-loss validation.
 

@@ -109,3 +109,71 @@ apps/twilight-structure/twilight-dash/cli/src/activation/observation-commands.db
 
 Full host gate, CI, product implementation, R5 fault injection, live executor prompts,
 deployment, second-provider durability and runtime recovery remain unverified here.
+
+## S0 storage Task 1 candidate — 2026-10-22
+
+The seven-method RunStore subset, pure ownership/admission/manifest/run planners and
+memory test provider are implemented. This is a review candidate, not completed S0.
+The current attempt union is queued-only; safe retry transitions and referenced artifact
+bytes enter later slices. WBS rows `030.09` and `030.10` remain `in_progress`.
+
+The implementation worker observed the initial focused test fail on the absent
+`record-codecs` module, then pass with 3 tests and 12 assertions. Two further public-port
+reds found real defects: stale ownership looked up an absent run before refusing, and
+an `owner_busy` refusal failed to preserve the latest clock observation. Both were fixed.
+Typed refusals now preserve validated clock metadata without changing domain state.
+
+Final candidate checks, run in the isolated worktree with Bun 1.4.2:
+
+| Command                                                                                                                                                                                                          | Observed output                         |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts apps/twilight-structure/twilight-dash/cli/src/runs/admission.test.ts apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts --timeout=60000` | Exit 0; 20 pass, 0 fail, 110 assertions |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bun test --preload ./tools/test/scratch/preload.ts tools/tool-devsync/src/eslint-boundaries.test.ts --timeout=60000`                                                   | Exit 0; 28 pass, 174 assertions         |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                                                                                                                   | Exit 0; cache skipped, 1.8s             |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`                                                                                                                        | Exit 0; cache skipped, 16.4s            |
+| `bunx eslint apps/twilight-structure/twilight-dash/cli/src/runs tools/tool-devsync/src/eslint-boundaries.test.ts`                                                                                                | Exit 0; no diagnostics                  |
+| `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/runs apps/twilight-structure/twilight-dash/eslint.product.mjs tools/tool-devsync/src/eslint-boundaries.test.ts`                             | Exit 0; all matched files formatted     |
+| `git diff --check`                                                                                                                                                                                               | Exit 0; no whitespace errors            |
+
+Earlier lint/typecheck runs exposed and then corrected brand-constructor arguments,
+async/assertion style, the absent exact contracts import allowance and unnecessary test
+string escapes. Empty captured full-lint output was diagnosed with ESLint `--debug`;
+the final named target passed. Initial Nx socket warnings were avoided with the two
+explicit environment settings above. Root's comparison run of the same uncached lint
+target in the original clean checkout also passed (18.2s); no environment exemption
+was used to accept the candidate.
+
+R5 evidence: the worker independently injected 43 domain/codec/provider faults and
+four import-policy faults, observed their named assertions fail (exit 1), restored every
+fault and ran the final green checks above. Production-adjacent `Proof:` comments name
+the specific faults and tests; the tests and planners are under `runs/`.
+
+| Fault family                                                                                                                      | Observed negative oracle                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Capacity, stale epoch, lease expiry, expected epoch, owner/store/organization binding, busy ownership                             | Capacity-one admits a second run, or the stale/mismatched owner writes or renews                                   |
+| Clock regression, invalid clock adapter, lost clock on refusal                                                                    | Regressed/invalid time is accepted; owner_busy at 1050 permits renewal at 1049                                     |
+| Run/admission identity, initial/stale revision, operation key, retry budget, ordinal, active occurrence                           | Conflicting identity mutates, stale revision reserves, or another queued attempt is admitted                       |
+| Missing run/manifest/attempt, mismatched manifest binding, immutable manifest, initial run configuration                          | Trusted malformed facts/read state are accepted instead of throwing                                                |
+| Canonical JSON/hash, digest/ID/reference codecs, portable version/discriminant/unknown fields, positive/safe integer and overflow | Invalid portable content is accepted or an unsafe number reaches stored state                                      |
+| Snapshot cloning, closed provider, unowned mutation/renewal, pre-read fencing                                                     | Caller mutation changes retained state, a closed/unowned store operates, or stale authority reads the target first |
+| Removed exact contracts allowance                                                                                                 | Legitimate codec/planner import is rejected                                                                        |
+| Widened alias, relative import or file scope                                                                                      | Judge/relative imports or peer files become allowed                                                                |
+
+The canonicalization fault initially survived because a bad digest masked it. The test
+was strengthened with noncanonical JSON carrying a recomputed matching digest; the
+same fault then failed for canonicalization. Missing-record pure-planner cases inject
+malformed trusted facts because the public memory port cannot delete retained state;
+public create/read cases separately prove absent-manifest/run refusal. No filesystem
+unreadability or crash durability is claimed by memory tests.
+
+Domain mutation command: the focused admission command above with
+`--test-name-pattern <named test prefix>`. Policy mutation command: the boundary suite
+above with `--test-name-pattern 'Dash run storage reaches'`. The policy allowance is
+limited to `@twilight-burokrat/contracts` at the exact codec and admission-planner paths;
+it reuses the existing canonical JSON/hash implementation.
+
+Regular locked OpenSpec 1.14.3 validation reports valid with seven existing long-requirement
+warnings. Strict validation fails on those warnings in unchanged requirements; the older
+strict-success observation above used OpenSpec 1.12.0. Full Dash test/build, exact-SHA h2
+gate, CI, durable adapters, live guarded WBS bridge, complete binding recovery and production
+deployment have not been verified by this slice. Independent review is pending.

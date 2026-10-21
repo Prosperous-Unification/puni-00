@@ -93,6 +93,43 @@ describe('the effective production and test boundaries', () => {
       );
   }, 30_000);
 
+  it('Dash run storage reaches exactly the contracts alias at its two scoped paths', async () => {
+    const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
+    for (const path of [
+      'apps/twilight-structure/twilight-dash/cli/src/runs/record-codecs.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/plan-admission.ts',
+    ]) {
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      if (!isRecord(options)) throw new Error('Dash run storage boundary options are malformed');
+      expect(await ruleIds(path, "await import('@twilight-burokrat/contracts');")).not.toContain(
+        '@nx/enforce-module-boundaries',
+      );
+      for (const alias of [
+        '@twilight-burokrat/judge',
+        '../../../../twilight-burokrat/cli/src/contracts',
+      ]) {
+        expect(await ruleIds(path, `await import('${alias}');`)).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      }
+      expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
+      const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
+      expect(withoutLocalAlias).toEqual(peerOptions);
+    }
+    for (const path of [
+      peer,
+      'apps/twilight-structure/twilight-dash/cli/src/clock.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/runs/plan-ownership.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/check-runs/run-activation-checks.ts',
+    ])
+      expect(await ruleIds(path, "await import('@twilight-burokrat/contracts');")).toContain(
+        '@nx/enforce-module-boundaries',
+      );
+  }, 30_000);
+
   it('a UI kit reaches shared browser code and nothing of a product or of Bun', async () => {
     // The design system's kits are `product:shared ring:adapter runtime:browser`
     // (`openspec/changes/design-system-foundation`): a product may reach them, so
