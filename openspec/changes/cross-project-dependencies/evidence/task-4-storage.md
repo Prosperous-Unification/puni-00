@@ -223,3 +223,5 @@ Fault outputs are retained in [task-4-storage-proofs](task-4-storage-proofs/), w
 - [typed_dependency_cross_identity_insert.log](task-4-storage-proofs/typed_dependency_cross_identity_insert.log)
 - [typed_dependency_cross_identity_update.log](task-4-storage-proofs/typed_dependency_cross_identity_update.log)
 - [work-item-evidence.log](task-4-storage-proofs/work-item-evidence.log)
+
+Independent Astra High subsequently approved the final mechanical test-only correction; see [fixture followup review](task-4-storage-fixture-review.md). The complete integrated slice has reviewed source changes; final whole-branch/release checks remain pending.

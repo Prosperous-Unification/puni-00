@@ -239,6 +239,25 @@ structural changes, estimate changes affecting legacy anchors and undo/redo.
 Readiness and startable reads evaluate external progress through this same
 captured relationship graph, preserving the current relationship-type rules.
 
+Borrowed observation capabilities require an irreversible adapter-owned lifetime,
+separate from organization authority. SQLite creates a fresh scope and borrowed
+live/fanout readers for each unit-of-work run; a source-wide reader or a mutable
+current-token slot would revive an old capability in a later transaction. The
+lifetime expires before COMMIT/ROLLBACK on every outcome. Acquisition, retained
+capture/scheduler/cache callbacks, early returns and asynchronous continuations
+check it before further reads. Owned observations apply the same expiry rule
+while retaining connection ownership; borrowed observations never settle or
+close their caller's transaction.
+
+Refused replay's existing journal-only repair receives a fresh OPEN-gated base
+store scope after successful rollback, without borrowed live/fanout capability.
+It remains inside the coordinator turn and outside the transaction catch; a
+repair failure must not trigger another rollback. Existing WorkingPlan close
+and edit-grant expiry remain independent. This requires an adapter scope factory,
+not a generic core Scope redesign. Production-source tests must prove that old
+callbacks cannot revive during the next transaction and suspended captures
+cannot resume reads after settlement.
+
 ### D5. Combined Fast scheduling with project-specific inputs
 
 Introduce a resolved scheduling input boundary beside the existing graph seam.
