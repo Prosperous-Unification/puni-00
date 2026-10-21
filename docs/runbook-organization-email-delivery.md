@@ -33,7 +33,7 @@ activation are supplied by this code change.
 | `WBS_SMTP_USERNAME`, `WBS_SMTP_PASSWORD` | Both required/nonempty only for plain; both forbidden for none              |
 
 The relay identity is verified with configured CA bytes and server name, with
-TLS1.2 as the minimum. PLAIN credentials are sent only after verified TLS.
+TLS 1.2 as the minimum. PLAIN credentials are sent only after verified TLS.
 Configured CA bytes are read at startup; rotating settings or the CA file requires
 a controlled process restart using the existing deployment runbook. Absence of
 configuration does not weaken the independent organization activation gates.
@@ -51,7 +51,7 @@ native socket close and a 10s total allowance. These are absolute eligibility de
 wall-time guarantee while the process or OS is not scheduled. Inbound plaintext is bounded at 64KiB
 in aggregate; the client's 8KiB partial-buffer guard is not a complete-reply cap.
 
-Success requires final post-DATA250, exactly the intended accepted recipient,
+Success requires final post-DATA 250, exactly the intended accepted recipient,
 no rejected recipient and observed native close. This proves relay acceptance,
 not inbox receipt, deliverability or address ownership. Address ownership still
 requires the signed-in user to consume the current expiring code once.
