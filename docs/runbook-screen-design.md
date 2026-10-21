@@ -48,6 +48,57 @@ the source for anything; what is agreed there is rewritten as code.
 7. **Review.** Dany opens the screen in the dev deploy, both palettes, desktop and phone. The PR
    carries a screenshot of every state. The measured checks run in the gate.
 
+## Starting from a design
+
+The order above is the order even when the design comes first. A sketch, a competitor's page or
+a frame someone drew before the intent existed is input to step 1, not a replacement for it: write
+the intent from it, then explore on the board with the kit's cards, settle, story, build. A design
+that arrives as Figma or HTML is read for its decisions and re-expressed from the kit; its pixels
+are never pasted.
+
+## Where an agent fits
+
+| Step                    | Agent                    | Dany                                 |
+| ----------------------- | ------------------------ | ------------------------------------ |
+| 1 Brief                 | yes                      | reviews the intent                   |
+| 2 Explore               | first draft on the board | reacts on the board, decides         |
+| 3 Settle                | writes the sentences     | confirms                             |
+| 4 New shape in the kit  | yes                      | approves the re-sync                 |
+| 5 Screen story, 6 Build | yes                      |                                      |
+| 7 Review                | screenshots in the PR    | eye review, both palettes, phone     |
+| `/design-sync`          |                          | always; approval grants write access |
+
+An agent reads `DESIGN.md` and the stories to know what exists, treats the intent as the spec and a
+board as a picture, and never decides a kit's look on its own.
+
+## A new product or a new look: a new kit
+
+A different purpose is a different kit, never a flag on `@ui/saas-01` ([ADR 0056](adr/0056-ui-kits-own-their-primitives.md)).
+The kit is built before its first screen, by copying the shape of `libs/shared/adapters/ui-saas-01`:
+
+1. `libs/shared/adapters/ui-<kit>/` with `project.json` named `shared-ui-<kit>` and tagged
+   `scope:shared type:ui runtime:browser ring:adapter product:shared`, `package.json` named
+   `@ui/<kit>`, `src/theme.css` importing core's `vocabulary.css` and assigning every token in both
+   palettes, the primitives with their stories and tests, `DESIGN.md`, `README.md`, `.storybook/`,
+   `components.json`, `registry.json` and `.design-sync/config.json`.
+2. The `@ui/<kit>` alias in `tsconfig.base.json`; the app that adopts it adds the same alias to its
+   Vite, Vitest and tsconfig files (fe-01's `vite-config.test.ts` pins that pattern) and imports the
+   theme from its `styles.css`.
+3. The repository-wide pins that only the full gate checks, each with its own test: the manifest
+   in `RESTART_PATHS` (`tools/tool-devsync/src/sync.ts`), the oracle row in
+   `tools/tool-devsync/src/workspace-projects.test.ts`, a `binaryDeclarations` entry in
+   `docs/wiki-policy/policy.json` and `docs/code-organization/rule-policy.json` for every font or
+   image, the committed target facts in `docs/wiki-policy/relationships*.json` when an existing
+   test target gains an input, and the next free ADR number if the kit earns one.
+4. Before the host gate, run `tool-devsync:test` and the Burokrat `pilot-policy` and
+   `committed-target-facts` suites locally; they are where a new library fails first.
+5. Add the kit's row to core `DESIGN.md`, then run `/design-sync` from the kit directory. It creates
+   a second design-system project, `PUNI <kit>`, with that kit's cards. Boards for that product use
+   that project.
+
+The core stays as it is: vocabulary and brand constants, never a component, so two kits can look
+nothing alike and still name the same roles.
+
 ## Keeping the canvas honest
 
 - Re-sync after every PR that changes a kit. One line in the PR checklist: "kit changed, synced".

@@ -57,14 +57,15 @@ Every kit assigns all of these, in both palettes. Utilities are the shadcn names
 
 ## Kits
 
-| Kit                  | Purpose                                                     | Status  |
-| -------------------- | ----------------------------------------------------------- | ------- |
-| `@ui/saas-01`        | dense application chrome: WBS and future product UIs        | planned |
-| `@ui/agency-site-01` | the agency site look: big radius, display type, gold accent | later   |
+| Kit                  | Purpose                                                     | Status        |
+| -------------------- | ----------------------------------------------------------- | ------------- |
+| `@ui/saas-01`        | dense application chrome: WBS and future product UIs        | in use by WBS |
+| `@ui/agency-site-01` | the agency site look: big radius, display type, gold accent | later         |
 
 ## Designing screens
 
-Screens are explored on Claude Design, settled as screen stories and built in the app:
+Screens are explored on Claude Design, settled as screen stories and built in the app; a design
+that arrives first feeds the intent; a new look is a new kit:
 [runbook](../../../../docs/runbook-screen-design.md).
 
 ## For agents
