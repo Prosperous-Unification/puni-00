@@ -1,8 +1,8 @@
-# Twilight Structure
+# Twilight Structure requirement catalog
 
-Status: user-requirement catalog, updated 2026-09-08. Implementation proposals and
-the executed documentation trial are indexed in [README](README.md). This catalog
-records user direction; the proposed OpenSpec deltas have not been synchronized.
+Status: updated 2026-09-08. This catalog records user direction; the proposed OpenSpec
+deltas have not been synchronized. Implementation proposals and the executed documentation
+trial are indexed in the [README](README.md).
 
 ## Intent
 
@@ -10,11 +10,8 @@ Vesper Shipyards is the software factory service for building the other software
 in `puni-00`. It runs on Twilight Structure, whose Twilight Dash execution tool
 has a frontend and backend using a stack similar to WBS, with LangChain/LangGraph
 for agent orchestration and ACP as the primary interface to coding-agent sessions.
-
-Naming note, 2026-09-19: in this catalog, Vesper Shipyards is the customer-facing
-software factory, Twilight Structure is its tool suite, Twilight Navigator owns
-request shaping through planning, Twilight Dash owns implementation through release
-and environments, and Twilight Burokrat owns rules, templates and evidence gates.
+Names carry their 2026-09-19 meaning and tool ownership from
+[names and boundaries](names.md).
 
 The desired outcome is a traceable software delivery loop: shape a request,
 specify it, plan resources and dependencies, implement and review it, exercise it

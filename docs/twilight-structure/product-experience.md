@@ -2,9 +2,8 @@
 
 Status: proposed product behavior, 2026-09-06. Contracts and implementation order
 live in the [control-plane change](../../openspec/changes/twilight-control-plane/proposal.md).
-This page describes what the person sees; it is not a claim that these screens exist.
-What the service must guarantee is the [control-plane spec](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md)
-and is not restated here.
+This page describes what the person sees, not screens that exist; service guarantees
+live in the [control-plane spec](../../openspec/changes/twilight-control-plane/specs/twilight/control-plane/spec.md).
 
 The first useful experience: choose a client repository, describe the outcome,
 pick a delivery profile, watch discovery and specifications become a budgeted
@@ -30,8 +29,9 @@ WBS remains the work-planning editor. Twilight Navigator links or embeds it with
 repository and planning revision, not an independent editable task board. The
 [Backlog-backed migration](client-repositories.md) supplies the later storage change.
 A candidate's evidence view separates pinned prior receipts from completions it
-produces and shows every change's plan reference. Concurrent planning edits show whether semantic preconditions were preserved by
-authorized disjoint reconciliation or a real conflict needs a new decision. The
+produces and shows every change's plan reference. Concurrent planning edits show
+whether semantic preconditions were preserved by authorized disjoint reconciliation or
+a real conflict needs a new decision. The
 accepted receipt names both the requested basis and the committed revision.
 
 ## Environments
@@ -155,7 +155,7 @@ back.
 
 ## Focus profile
 
-This is the canonical description of the adaptation of the inspected
+This section owns the adaptation of the inspected
 [i-have-adhd convention](research/knowledge-patterns.md). It is an optional
 per-actor preference, not a medical label, and it changes presentation only.
 

@@ -32,13 +32,9 @@ text said the work was of a kind it was not.
 
 ## Three answers to one question, on purpose
 
-0009's table is the record; this is the half of it that is 0008's to defend.
-
-| Dimension     | Rule                                             | Because                                                |
-| ------------- | ------------------------------------------------ | ------------------------------------------------------ |
-| Team, service | **Override** — own set instead of the ancestor's | One answer at a time; a row naming its own has decided |
-| Tag           | **Accumulate** — own ∪ every ancestor's          | A child of a `Risk` parent is still risky              |
-| Type          | **Neither** — own, or nothing (0009)             | A child of an `Epic` is emphatically not an `Epic`     |
+[0009's table](0009-a-work-item-type-does-not-inherit-at-all.md) is the record: team and
+service **override**, tag **accumulates**, type does **neither**. This is the half of it that
+is 0008's to defend.
 
 The line between 0008 and 0009 is whether the statement **stays true as you
 descend**. A tag does: `Risk` said of a parent is said of the work under it, so

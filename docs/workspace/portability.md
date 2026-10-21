@@ -1,6 +1,6 @@
 # Copying projects between PUNI workspaces
 
-The public source of the companion's shared configuration is `tools/workspace/portability.ts`. Run it from the reviewed public checkout. Repository visibility, Git history, credentials, application packages and release configuration remain independent.
+The public source of the companion's shared configuration is `tools/workspace/portability.ts`. Run it from the reviewed public checkout. Repository visibility, Git history, credentials, application packages and release configuration remain independent ([ADR 0037](../adr/0037-public-and-private-monorepos-share-a-portable-project-contract.md)).
 
 ```sh
 bun tools/workspace/portability.ts sync PUBLIC_CHECKOUT PRIVATE_CHECKOUT
@@ -16,7 +16,7 @@ bun tools/workspace/portability.ts copy PUBLIC_CHECKOUT PRIVATE_CHECKOUT apps/we
 - in either `nx.json`: `nxCloudId`, `nxCloudAccessToken`, `nxCloudUrl`, `nxCloudEncryptionKey`, the self-hosted `s3`, `gcs`, `azure` or `sharedFs` blocks, a `tasksRunnerOptions` runner holding an `accessToken`, and a runner or plugin module named `nx-cloud` or ending in `-cache` (such as `@nx/s3-cache`);
 - in the running process's environment: `NX_CLOUD_ACCESS_TOKEN`, `NX_CLOUD_AUTH_TOKEN`, `NX_SELF_HOSTED_REMOTE_CACHE_SERVER` and `NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN`.
 
-These are the detected settings, not proof that no remote cache exists: a configuration outside this list, such as one in an `extends` base or a differently named module, is not detected. The receipt's `files` hashes do not establish integrity. `check` compares the destination's actual portable files with the source; only the receipt's `fingerprint` is compared with the receipt itself. All required source components must be readable before synchronization writes anything. Other compiler options, aliases, product policy and application dependencies remain workspace-owned. The governance baseline is this portable inventory; lefthook hooks, the wiki and CI stay repository-owned (batch 10 decision A18).
+These are the detected settings, not proof that no remote cache exists: a configuration outside this list, such as one in an `extends` base or a differently named module, is not detected. The receipt's `files` hashes do not establish integrity. `check` compares the destination's actual portable files with the source; only the receipt's `fingerprint` is compared with the receipt itself. All required source components must be readable before synchronization writes anything. Other compiler options, aliases, product policy and application dependencies remain workspace-owned, as do lefthook hooks, the wiki and CI ([ADR 0037](../adr/0037-public-and-private-monorepos-share-a-portable-project-contract.md), batch 10 A18).
 
 Every workspace declares `version: 1` and `visibility: public|private` in `workspace.portability.json`. Each transferable project declares the following in its `project.json`, alongside its name, product tag and four Nx targets:
 

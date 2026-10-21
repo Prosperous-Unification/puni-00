@@ -38,8 +38,8 @@ or horizontal overflow. The initial search interaction closed its own dialog on
 Enter; preventing that key's default activation fixed the observed failure.
 
 Formatting and the server's ESLint check passed. The final restarted server
-returned HTTP 200 with the current preview. No application build, full repository gate, live-agent call,
-cloud-browser acceptance or deployment was run for this throwaway mock.
+returned HTTP 200 with the current preview. No application build, full repository
+gate, live-agent call, cloud-browser acceptance or deployment was run for this mock.
 
 Screenshots: [overview](work-view-prototype-A.png),
 [conversation](work-view-prototype-B.png), [delivery board](work-view-prototype-C.png).
