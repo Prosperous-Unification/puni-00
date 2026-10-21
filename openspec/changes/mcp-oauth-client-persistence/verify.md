@@ -90,3 +90,9 @@ check on the pushed head, not by any local run.
   [#623](https://github.com/Prosperous-Unification/puni-00/issues/623).
 - S3-6 and S3-7: the review marked them note-only, needing no change. Their text was not
   passed to this change's author, so they are recorded here by id only.
+
+## Gate of record (h4claw) — 2026-10-21
+
+- `bin/h2puni-gate.sh 555ab9c8d474161d209a0655fe852ef99fbfed9f` on h4claw (`~/gate-555ab9c8.log`): first Nx pass 49 projects + 9 dependents in 45m 10s, twilight pass 2 projects in 50m 14s, `solver-image-smoke` 3m 28s, `GATE_EXIT=0` at 22:28:28 UTC.
+- CI on 555ab9c8d: every check green (CodeQL "No new alerts in code changed by this pull request").
+- Not observed live: a real MCP client across a dev deploy (tasks.md 4.3 stays open until the next dev deploy).
