@@ -1,6 +1,6 @@
 import { type } from 'arktype';
 
-import { project } from './project-response';
+import { documentProject } from './project-response';
 import { requestSchema, responseSchema } from './schema-shape';
 import { numberedWorkItem, workItemTree } from './work-item-response';
 
@@ -160,7 +160,7 @@ export const planDocument = workItemTree.omit('typedDependencies', 'workItems').
     stepId: 'string',
     reference: 'string',
   }).array(),
-  project,
+  project: documentProject,
   document: planHeader,
   settings: planSettings,
   capacity: type({ teamId: 'string', size: 'number' }).array(),

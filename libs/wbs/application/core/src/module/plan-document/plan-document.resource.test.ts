@@ -12,6 +12,7 @@ import { classifyPlanDocument, PlanDocumentService } from './plan-document.resou
 
 const PROJECT: Project & { timezone: string } = {
   id: 'project-1',
+  abbreviation: 'PLAN',
   name: 'Release plan',
   ownerId: 'owner-1',
   restricted: true,
@@ -1263,6 +1264,8 @@ test('v9 zero-fact export retains canonical bytes', async () => {
   // resource facts, with those lists taken off and its version read as 9, is
   // the v9 golden byte for byte.
   const exported = structuredClone(await exportDocument());
+  // Historical golden predates additive captured abbreviation metadata.
+  Reflect.deleteProperty(exported.project, 'abbreviation');
   const { resources, ...directoryBefore } = exported.directory;
   const { resourceCapacities, demands, ...rest } = exported;
   expect({ resources, resourceCapacities, demands }).toEqual({
@@ -1353,10 +1356,10 @@ test('exports only the resources its capacities and demands name (wbs-resources)
   ]);
 });
 
-test('v10 resources export retains canonical bytes', async () => {
+test('v10 resources export retains canonical bytes including captured abbreviation', async () => {
   const bytes = JSON.stringify(await exportWithResources());
   expect(new Bun.CryptoHasher('sha256').update(bytes).digest('hex')).toBe(
-    'f8bf291a161b40edf3bf9cd4ef05677d8b86bd775fa709bbd253799037763024',
+    'cc1daf472039e6a596444d95d1f3c7aa9aea6a37284e5a1c9291b831364c161c',
   );
 });
 

@@ -9,6 +9,7 @@ import type { ScheduleRead } from '../../ports/scheduler';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -29,7 +30,7 @@ async function seeded(fault?: 'refuse' | 'throw') {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = await graph.projects.create('Blockage authoring', OWNER);
+  const created = expectCreated(await graph.projects.create('Blockage authoring', OWNER));
   const projectId = created.project.id;
   await source.stores.projects.update(projectId, { restricted: true }, { at: 1, by: OWNER });
   const step = created.steps[0];

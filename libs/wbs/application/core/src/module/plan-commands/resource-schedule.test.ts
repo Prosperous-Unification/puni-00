@@ -8,6 +8,7 @@ import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -36,7 +37,7 @@ async function seeded() {
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
   );
-  const created = await graph.projects.create('Levelling', F);
+  const created = expectCreated(await graph.projects.create('Levelling', F));
   const projectId = created.project.id;
   for (const step of created.steps) {
     await source.stores.steps.add(

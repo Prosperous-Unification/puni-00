@@ -231,6 +231,7 @@ async function seedProject(db: ReturnType<typeof openDrizzle>): Promise<{
     ],
     { at: 1, by: ownerId },
   );
+  if (typeof project === 'string') throw new Error(`fixture project creation refused: ${project}`);
   return { projectId: project.id, ownerId };
 }
 

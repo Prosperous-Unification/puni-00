@@ -114,6 +114,7 @@ export type UniqueIndexColumns = readonly [string, ...string[]];
  * becoming a `taken`. Observed 2026-08-31.
  */
 export const UNIQUE_INDEXES = {
+  projectAbbreviation: ['project_abbreviation.namespace', 'project_abbreviation.abbreviation'],
   personName: ['person.name'],
   resourceName: ['resource.name'],
   provenAuth0Connection: ['organization_sso_connection.auth0_connection'],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { failureText } from '@/components/wbs/plan-refusal';
 import type { PlanRefresh, RefreshResource } from '@/lib/plan-refresh';
 import { type WbsProblem, WbsRequestError } from '@/lib/wbs-api';
 
@@ -308,4 +309,25 @@ it('rereads only a completed request before a sparse command refusal', async () 
         'That change cannot be made while the affected steps have individual parallelism overrides.',
     },
   ]);
+});
+
+it('classifies project abbreviation refusals without throwing', () => {
+  const problems = [
+    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'invalid_abbreviation' } },
+    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'abbreviation_taken' } },
+    { kind: 'refusal', operation: 'postApiProjects', refusal: { error: 'abbreviation_exhausted' } },
+    {
+      kind: 'refusal',
+      operation: 'patchApiProjectsById',
+      refusal: { error: 'invalid_abbreviation' },
+    },
+    {
+      kind: 'refusal',
+      operation: 'patchApiProjectsById',
+      refusal: { error: 'abbreviation_taken' },
+    },
+  ] as const;
+  for (const problem of problems) {
+    expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(problem.refusal.error);
+  }
 });

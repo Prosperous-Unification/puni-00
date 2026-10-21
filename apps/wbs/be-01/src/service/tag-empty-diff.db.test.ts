@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
@@ -154,7 +155,7 @@ beforeEach(async () => {
     broadcast: recordingBroadcaster(),
   });
 
-  const created = await projects.create('Rewire the shed', ownerId);
+  const created = expectCreated(await projects.create('Rewire the shed', ownerId));
   projectId = created.project.id;
   steps = created.steps;
   await projects.update(projectId, ownerId, { startDate: '2026-09-01' });

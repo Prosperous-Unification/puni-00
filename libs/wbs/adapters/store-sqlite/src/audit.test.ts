@@ -121,6 +121,9 @@ const EXEMPT = new Set([
   // A project's solution link, part of its settings: the project row's own
   // audit columns and revision move with every write of it.
   'projectSolution',
+  // Address metadata shares the parent project's audit/revision transaction.
+  // Proof: injecting auditColumns() into its schema failed the exemption guard (2026-10-22).
+  'projectAbbreviation',
   // An audit record is its own authorship: `actor_id` and `created_at` are
   // the act it records, not audit columns about the row.
   'organizationAudit',

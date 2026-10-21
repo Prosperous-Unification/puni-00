@@ -110,17 +110,17 @@ export class ImportedPlanResource {
     steps: readonly Step[],
     stamp: WriteStamp,
     access: ResourceAccess,
-  ): Promise<void> {
-    if (access.kind === 'scoped') {
-      await this.#scope.stores.projects.createInOrganization(
-        project,
-        steps,
-        stamp,
-        access.scope.organizationId,
-      );
-    } else {
-      await this.#scope.stores.projects.create(project, steps, stamp);
-    }
+  ): Promise<'abbreviation_taken' | 'abbreviation_exhausted' | null> {
+    const created =
+      access.kind === 'scoped'
+        ? await this.#scope.stores.projects.createInOrganization(
+            project,
+            steps,
+            stamp,
+            access.scope.organizationId,
+          )
+        : await this.#scope.stores.projects.create(project, steps, stamp);
+    return typeof created === 'string' ? created : null;
   }
 
   /** @throws when the created project refuses its priority bands. */

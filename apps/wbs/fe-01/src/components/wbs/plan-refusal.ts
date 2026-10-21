@@ -41,6 +41,9 @@ function projectCreateCode(refusal: RefusalOf<'postApiProjects'>): string {
     case 'not_a_member':
     case 'sso_required':
     case 'reauthentication_required':
+    case 'invalid_abbreviation':
+    case 'abbreviation_taken':
+    case 'abbreviation_exhausted':
     case 'forbidden':
       return refusal.error;
     default:
@@ -101,6 +104,8 @@ function projectPatchCode(refusal: RefusalOf<'patchApiProjectsById'>): string {
     case 'bad_pert_weights':
     case 'invalid_timezone':
     case 'optimizer_unavailable':
+    case 'invalid_abbreviation':
+    case 'abbreviation_taken':
     case 'solution_taken':
     case 'dependency_cycle':
     case 'organization_context_changed':

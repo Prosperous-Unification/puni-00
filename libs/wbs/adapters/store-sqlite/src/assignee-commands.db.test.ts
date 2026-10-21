@@ -8,6 +8,7 @@ import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
@@ -74,7 +75,7 @@ async function seeded(store: (typeof STORES)[number]) {
       { at: 1, by: id },
     );
   }
-  const created = await graph.projects.create('Assignees', F);
+  const created = expectCreated(await graph.projects.create('Assignees', F));
   const projectId = created.project.id;
   if (isMemory) {
     // The memory source keeps a project's steps apart from the step table its progress reads.

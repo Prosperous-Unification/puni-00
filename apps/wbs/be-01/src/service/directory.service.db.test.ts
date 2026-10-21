@@ -88,6 +88,7 @@ async function roofProject(): Promise<{ projectOf: string; workItemOf: string }>
     projects,
     broadcast: recordingBroadcaster(),
   }).create('Roof', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
   const workItemOf = crypto.randomUUID();
   await workItems.insert(newItem(workItemOf, 10, 'Shingle', created.project.id), [], wrote());
   return { projectOf: created.project.id, workItemOf };
@@ -133,6 +134,7 @@ beforeEach(async () => {
     projects,
     broadcast: recordingBroadcaster(),
   }).create('Rollout', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
   projectId = created.project.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;

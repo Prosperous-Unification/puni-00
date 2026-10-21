@@ -648,6 +648,7 @@ export function importServiceSourceContract(
         expect(project).toEqual({
           id: imported.projectId,
           name: 'Exact imported plan',
+          abbreviation: 'EXA',
           ownerId: ACTOR,
           restricted: true,
           estimateMethod: 'pessimistic',

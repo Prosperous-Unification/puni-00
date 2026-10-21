@@ -8,6 +8,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installSavedPlans } from './check';
 import { SAVED_PLANS_LABEL } from './contract';
@@ -34,7 +35,7 @@ async function seeded() {
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
   });
-  const created = await projects.create('Plan', owner.id);
+  const created = expectCreated(await projects.create('Plan', owner.id));
   return {
     projects,
     projectId: created.project.id,
@@ -237,7 +238,7 @@ describe('a saved plan and step allowances', () => {
       broadcast: recordingBroadcaster(),
       scheduler: fastScheduler,
     });
-    const created = await projects.create('Plan', owner.id);
+    const created = expectCreated(await projects.create('Plan', owner.id));
     const qa = created.steps.find((step) => step.name === 'QA');
     if (qa === undefined) throw new Error('no QA step');
     const stamp = { at: STAMP_AT, by: owner.id };

@@ -5,6 +5,7 @@ import {
   DEFAULT_ESTIMATE_RULE,
   isIsoDate,
   isTimezone,
+  parseProjectAbbreviation,
   PertWeights,
 } from '@wbs/domain';
 import { NO_ALLOWANCE, STEP_POSITION_STEP, suggestStepCodes } from '@wbs/domain';
@@ -55,6 +56,8 @@ export type UpdateOutcome =
   | {
       ok: false;
       reason:
+        | 'invalid_abbreviation'
+        | 'abbreviation_taken'
         | 'not_found'
         | 'forbidden'
         | 'bad_start_date'
@@ -84,7 +87,12 @@ export type UpdateOutcome =
 
 /** A scoped viewer may not create; legacy access and every writing role may. */
 export type CreateOutcome =
-  { ok: true; value: ProjectWithSteps } | { ok: false; reason: 'forbidden' };
+  | { ok: true; value: ProjectWithSteps }
+  | {
+      ok: false;
+      reason:
+        'forbidden' | 'invalid_abbreviation' | 'abbreviation_taken' | 'abbreviation_exhausted';
+    };
 
 /** Whether the caller may write `project`, found through the caller's access. */
 export type EditAuthorization =
@@ -179,15 +187,24 @@ export class ProjectService {
     name: string,
     ownerId: string,
     access: ResourceAccess,
+    abbreviation?: string,
   ): Promise<CreateOutcome> {
     if (access.kind === 'scoped' && !canWriteInOrganization(access.scope.role)) {
       return { ok: false, reason: 'forbidden' };
     }
-    return { ok: true, value: await this.createProject(name, ownerId, access) };
+    const parsed = abbreviation === undefined ? undefined : parseProjectAbbreviation(abbreviation);
+    if (parsed !== undefined && !parsed.ok) return parsed;
+    const created = await this.createProject(name, ownerId, access, parsed?.abbreviation);
+    return typeof created === 'string'
+      ? { ok: false, reason: created }
+      : { ok: true, value: created };
   }
 
   /** Unscoped legacy creation for callers outside the project routes. */
-  create(name: string, ownerId: string): Promise<ProjectWithSteps> {
+  create(
+    name: string,
+    ownerId: string,
+  ): Promise<ProjectWithSteps | 'abbreviation_taken' | 'abbreviation_exhausted'> {
     return this.createProject(name, ownerId, LEGACY);
   }
 
@@ -195,7 +212,8 @@ export class ProjectService {
     name: string,
     ownerId: string,
     access: ResourceAccess,
-  ): Promise<ProjectWithSteps> {
+    abbreviation?: string,
+  ): Promise<ProjectWithSteps | 'abbreviation_taken' | 'abbreviation_exhausted'> {
     // Built before the row, because the row's own `createdAt` is this act's
     // instant: the project and the starting steps arriving in one transaction
     // are one beginning, and they are dated from one reading of the clock.
@@ -203,6 +221,7 @@ export class ProjectService {
     const project: NewProject = {
       id: this.clock.newId(),
       name,
+      ...(abbreviation === undefined ? {} : { abbreviation }),
       ownerId,
       restricted: false,
       // PERT is the default: it is the reason three points are collected, and
@@ -256,7 +275,7 @@ export class ProjectService {
             access.scope.organizationId,
           )
         : await this.opts.projects.create(project, steps, stamp);
-    return { project: written, steps };
+    return typeof written === 'string' ? written : { project: written, steps };
   }
 
   /**
@@ -445,6 +464,12 @@ export class ProjectService {
           ? 'ordinary'
           : 'refused';
     if (edit === 'refused') return { ok: false, reason: 'forbidden' };
+    // Proof: bypassing grammar made mounted `refuses invalid manual input without writes` accept an empty code with 200 instead of 422 (2026-10-22).
+    if (patch.abbreviation !== undefined) {
+      const parsed = parseProjectAbbreviation(patch.abbreviation);
+      if (!parsed.ok) return parsed;
+      patch.abbreviation = parsed.abbreviation;
+    }
     const project = found;
     // After the authorization check, so a reader of a restricted project still
     // learns `forbidden` rather than a fact about how this box is wired.
@@ -482,6 +507,7 @@ export class ProjectService {
     // The in-transaction classification refused: demoted, or the project
     // changed hands or restriction, since the request was read.
     if (written === 'forbidden') return { ok: false, reason: 'forbidden' };
+    if (written === 'abbreviation_taken') return { ok: false, reason: written };
     if (written === 'solution_taken') return { ok: false, reason: 'solution_taken' };
     const updated = written;
     // Gone between the read and the write. Reporting success would tell the

@@ -9,6 +9,7 @@ import { replay } from '../src/module/realtime/realtime.feature';
 import { savePlan } from '../src/module/saved-plans/save-plan';
 import { clockOf } from '../src/ports/clock';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
+import { expectCreated } from '../src/testing/expect-created';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
 
 type OperationName = 'batch' | 'save' | 'replay' | 'retention';
@@ -112,7 +113,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
   const actor = { id: 'owner', username: 'owner', scopes: ['write'] as const };
 
   try {
-    const project = await graph.projects.create('Browser composition', actor.id);
+    const project = expectCreated(await graph.projects.create('Browser composition', actor.id));
     const deniedBatch = await runCommandBatch(runner, {
       projectId: project.project.id,
       access: LEGACY_ACCESS,

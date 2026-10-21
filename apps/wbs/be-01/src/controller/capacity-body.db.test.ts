@@ -247,6 +247,8 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
       projects: projectStore,
       broadcast: recordingBroadcaster(),
     }).create(name, ownerId);
+    if (typeof created === 'string')
+      throw new Error(`fixture project creation refused: ${created}`);
     return created.project.id;
   }
 

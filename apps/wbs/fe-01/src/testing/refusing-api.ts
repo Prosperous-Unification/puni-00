@@ -246,6 +246,7 @@ function isProjectApiMethod(key: string): key is keyof ProjectApi {
 function projectWire(projectId: string, patch: ProjectPatch = {}) {
   return {
     id: projectId,
+    abbreviation: 'FAKE',
     name: patch.name ?? 'Fake project',
     ownerId: 'fake-owner',
     restricted: patch.restricted ?? false,

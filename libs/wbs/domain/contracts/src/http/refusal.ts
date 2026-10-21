@@ -421,6 +421,9 @@ type BareRefusalCode =
   | 'optimizer_unavailable'
   /** Another of the organization's projects holds the requested solution slug. */
   | 'solution_taken'
+  | 'abbreviation_taken'
+  | 'abbreviation_exhausted'
+  | 'invalid_abbreviation'
   | 'engine_unavailable'
   | 'snapshot_busy'
   | 'invalid_client'
@@ -590,6 +593,8 @@ export interface ImportRefusal {
     | 'deadline_before_project_start'
     | 'engine_unavailable'
     | 'source_refused'
+    | 'abbreviation_taken'
+    | 'abbreviation_exhausted'
     /** A row with several types; `detail` lists every such row's file id. */
     | 'work_item_takes_one_type';
   path: string;

@@ -6,6 +6,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -226,7 +227,9 @@ describe('the admitted working batch baseline', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Working baseline', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Working baseline', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -377,7 +380,8 @@ describe('the admitted working batch baseline', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Working lifecycle', OWNER)).project.id;
+      const projectId = expectCreated(await publicGraph.projects.create('Working lifecycle', OWNER))
+        .project.id;
       let retainedRead:
         (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
       const runner = createPlanCommandRunner({
@@ -461,7 +465,9 @@ describe('the admitted working batch baseline', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Lazy retained plan', OWNER)).project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Lazy retained plan', OWNER),
+      ).project.id;
       const created = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -549,8 +555,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Global reload barrier', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Global reload barrier', OWNER),
+      ).project.id;
       const row = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -658,8 +665,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Ordered targeted rows', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Ordered targeted rows', OWNER),
+      ).project.id;
       for (const [position, id] of ['z', 'a', 'b', 'c'].entries()) {
         await source.stores.workItems.insert(
           workItemRow({ id, projectId, position: (position + 1) * 10, name: `Row ${id}` }),
@@ -699,8 +707,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Ordered incident edges', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Ordered incident edges', OWNER),
+      ).project.id;
       for (const [position, id] of ['z', 'a', 'b', 'c'].entries()) {
         await source.stores.workItems.insert(
           workItemRow({ id, projectId, position: (position + 1) * 10, name: `Row ${id}` }),
@@ -747,8 +756,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Ordered dependency writes', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Ordered dependency writes', OWNER),
+      ).project.id;
       for (const id of ['a', 'b', 'c', 'd', 'e']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,
@@ -816,7 +826,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Retained subtree restore', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Retained subtree restore', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -968,7 +980,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Targeted label refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Targeted label refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const created = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
@@ -1052,8 +1066,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Targeted edge refusal', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Targeted edge refusal', OWNER),
+      ).project.id;
       const target = await publicGraph.workItems.create(projectId, OWNER, {
         parentId: null,
         afterId: null,
@@ -1152,8 +1167,9 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Bounded row refresh', OWNER)).project
-        .id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Bounded row refresh', OWNER),
+      ).project.id;
       const retainedCount = 200;
       for (let index = 0; index < retainedCount; index += 1) {
         await source.stores.workItems.insert(
@@ -1229,8 +1245,10 @@ describe('targeted working-plan refreshes', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectA = (await publicGraph.projects.create('Targeted project A', OWNER)).project.id;
-      const projectB = (await publicGraph.projects.create('Targeted project B', OWNER)).project.id;
+      const projectA = expectCreated(await publicGraph.projects.create('Targeted project A', OWNER))
+        .project.id;
+      const projectB = expectCreated(await publicGraph.projects.create('Targeted project B', OWNER))
+        .project.id;
       const rowA = await publicGraph.workItems.create(projectA, OWNER, {
         parentId: null,
         afterId: null,
@@ -1311,7 +1329,9 @@ describe('working plan value failures', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Refused value refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Refused value refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1378,7 +1398,9 @@ describe('working plan value failures', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const createdProject = await publicGraph.projects.create('Throwing value refresh', OWNER);
+      const createdProject = expectCreated(
+        await publicGraph.projects.create('Throwing value refresh', OWNER),
+      );
       const projectId = createdProject.project.id;
       const stepId = createdProject.steps[0].id;
       await source.stores.steps.add(
@@ -1445,8 +1467,9 @@ describe('working plan value failures', () => {
         { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
         { at: 1, by: OWNER },
       );
-      const projectId = (await publicGraph.projects.create('Throwing dependency refresh', OWNER))
-        .project.id;
+      const projectId = expectCreated(
+        await publicGraph.projects.create('Throwing dependency refresh', OWNER),
+      ).project.id;
       for (const id of ['a', 'b', 'c']) {
         await source.stores.workItems.insert(workItemRow({ id, projectId }), [], {
           at: 2,

@@ -162,10 +162,22 @@ export function projectRoutes(
       async ({ body, principal }): Promise<HttpReply<typeof createProject>> => {
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await projects.createWithin(body.name, principal.id, resolved.access);
-        return outcome.ok
-          ? { ok: true, status: 200, body: outcome.value }
-          : { ok: false, status: 403, body: { error: outcome.reason } };
+        const outcome = await projects.createWithin(
+          body.name,
+          principal.id,
+          resolved.access,
+          body.abbreviation,
+        );
+        if (outcome.ok) return { ok: true, status: 200, body: outcome.value };
+        switch (outcome.reason) {
+          case 'forbidden':
+            return { ok: false, status: 403, body: { error: outcome.reason } };
+          case 'invalid_abbreviation':
+            return { ok: false, status: 422, body: { error: outcome.reason } };
+          case 'abbreviation_taken':
+          case 'abbreviation_exhausted':
+            return { ok: false, status: 409, body: { error: outcome.reason } };
+        }
       },
       { classifyRequestFailure: classifyBodyFailure },
     ),
@@ -323,10 +335,12 @@ export function projectRoutes(
             return { ok: false, status: 403, body: { error: outcome.reason } };
           case 'bad_start_date':
           case 'bad_pert_weights':
+          case 'invalid_abbreviation':
           case 'invalid_timezone':
             return { ok: false, status: 422, body: { error: outcome.reason } };
           // Proof: mapping this to 422 made the mounted unavailable-optimizer test receive 500 instead of 409.
           case 'optimizer_unavailable':
+          case 'abbreviation_taken':
           case 'solution_taken':
             return { ok: false, status: 409, body: { error: outcome.reason } };
           case 'dependency_cycle':

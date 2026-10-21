@@ -34,16 +34,27 @@ export function readProjectAbbreviation(
     .where(eq(project.id, projectId))
     .get();
   if (stored === undefined) return undefined;
+  return decodeProjectAbbreviation(stored);
+}
+
+/** Validates joined trusted state without issuing another query. Missing or malformed state throws. */
+export function decodeProjectAbbreviation(stored: {
+  readonly projectId: string;
+  readonly organizationId: string | null;
+  readonly namespace: string | null;
+  readonly abbreviation: string | null;
+}): StoredProjectAbbreviation {
   // Proof: returning undefined here failed `storage read and write require a persisted row` (2026-10-22).
   if (stored.abbreviation === null || stored.namespace === null)
-    throw new Error(`project ${projectId} abbreviation is missing`);
+    throw new Error(`project ${stored.projectId} abbreviation is missing`);
   // Proof: disabling this guard returned bad.code in `storage read refuses malformed trusted code` (2026-10-22).
   if (!/^[A-Z][A-Z0-9_-]{0,19}$/.test(stored.abbreviation))
-    throw new Error(`project ${projectId} abbreviation is malformed`);
+    throw new Error(`project ${stored.projectId} abbreviation is malformed`);
   // Proof: the guard's absence returned org:b for org:a in `storage read refuses forged trusted namespace` (2026-10-22).
   const namespace = stored.organizationId === null ? 'legacy' : `org:${stored.organizationId}`;
+  // Proof: removing this guard made mounted `rejects forged trusted namespaces before rendering project labels` return 200 instead of 500 (2026-10-22).
   if (stored.namespace !== namespace)
-    throw new Error(`project ${projectId} abbreviation namespace is malformed`);
+    throw new Error(`project ${stored.projectId} abbreviation namespace is malformed`);
   return {
     projectId: stored.projectId,
     namespace: stored.namespace,
@@ -54,6 +65,8 @@ export function readProjectAbbreviation(
 /**
  * Changes a normalized code on the caller's connection or borrowed transaction.
  * SQL enforces grammar and namespace uniqueness; callers translate modeled conflicts.
+ * User edits must accompany the parent project audit/revision update in the same transaction;
+ * legacy allocator and migration writes retain the parent creation audit.
  * @throws When the required persisted row is missing or SQL refuses the value.
  */
 export function writeProjectAbbreviation(

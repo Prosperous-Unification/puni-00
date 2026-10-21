@@ -24,6 +24,7 @@ import type { Broadcaster } from './ports/project-event';
 import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
+import { expectCreated } from './testing/expect-created';
 import { fastScheduler } from './testing/scheduler-fixture';
 
 function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
@@ -269,7 +270,7 @@ test('accountful composition exposes auth when its source and runtime both offer
 describe('composeServices', () => {
   test('commits a mixed-store batch and rolls every store back on refusal', async () => {
     const { graph, runner } = fixture();
-    const project = await graph.projects.create('Plan', 'owner');
+    const project = expectCreated(await graph.projects.create('Plan', 'owner'));
     const committed = await runner.run(project.project.id, 'owner', [
       { kind: 'createTeam', ref: 'team', name: 'Platform' },
       {
@@ -347,7 +348,7 @@ describe('composeServices', () => {
 
   test('denies a foreign save and persists an owner save through independent history', async () => {
     const { graph } = fixture();
-    const project = await graph.projects.create('Private', 'owner');
+    const project = expectCreated(await graph.projects.create('Private', 'owner'));
     await graph.projects.update(project.project.id, 'owner', { restricted: true });
     const foreign = { id: 'other', username: 'other', scopes: ['write'] as const };
     const owner = { id: 'owner', username: 'owner', scopes: ['write'] as const };
@@ -374,7 +375,7 @@ describe('composeServices', () => {
     // Proof: giving ReplayOrchestrator a second buffer changed this answer from
     // the buffered tree_replaced event to `{status:"denied", reason:"out_of_range"}`.
     const { graph, runner, source } = fixture();
-    const project = await graph.projects.create('Replay', 'owner');
+    const project = expectCreated(await graph.projects.create('Replay', 'owner'));
     const subscription = `project:${project.project.id}`;
     const before = await source.stores.eventLog.latestSeq(subscription);
     for (const name of ['First buffered', 'Second buffered']) {
@@ -430,7 +431,7 @@ describe('composeServices', () => {
 
   test('shares runtime identities while creating a fresh scope, collector and graph per batch', async () => {
     const { graph, source, clock, runtime } = fixture();
-    const project = await graph.projects.create('Identities', 'owner');
+    const project = expectCreated(await graph.projects.create('Identities', 'owner'));
     const scopes: Scope[] = [];
     const broadcasts: Broadcaster[] = [];
     const graphs: WritingServices[] = [];
@@ -478,7 +479,7 @@ describe('composeServices', () => {
 
   test('discards a stale journal entry through the fresh repair scope', async () => {
     const { graph, runner, source } = fixture();
-    const project = await graph.projects.create('Repair', 'owner');
+    const project = expectCreated(await graph.projects.create('Repair', 'owner'));
     await runner.run(project.project.id, 'owner', [
       { kind: 'createWorkItem', name: 'Original', parentId: null, afterId: null },
     ]);
@@ -637,7 +638,7 @@ describe('servicesOver', () => {
   test("installs Project per supplied scope, over that scope's own stores", async () => {
     const { first, second } = await twoScopes();
 
-    const created = await first.projects.create('Alpha', OWNER);
+    const created = expectCreated(await first.projects.create('Alpha', OWNER));
     // Proof (2026-09-24): memoizing one `installProject(...)` result in a module-level `let` and
     // handing it to every `servicesOver` call left this case failing (0 pass, 1 fail, run alone
     // with `-t`): the second scope read the first scope's `Alpha` project instead of null.

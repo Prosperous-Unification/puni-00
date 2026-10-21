@@ -45,6 +45,7 @@ beforeEach(async () => {
     projects: publicStores.projects,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
 
   fixture = {
     uow: sqliteUnitOfWork(db, coordinator, admitted),

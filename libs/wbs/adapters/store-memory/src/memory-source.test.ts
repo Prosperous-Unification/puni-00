@@ -637,7 +637,9 @@ describe('the staged memory source', () => {
     expect(first).toBe('pending');
     releaseBatch();
     await batch;
-    expect((await publicWrite)?.name).toBe('After batch');
+    const written = await publicWrite;
+    if (typeof written === 'string') throw new Error(`fixture update refused: ${written}`);
+    expect(written?.name).toBe('After batch');
   });
 
   it('discards refused state and gives the next batch a fresh scope', async () => {

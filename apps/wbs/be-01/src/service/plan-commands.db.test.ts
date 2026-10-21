@@ -226,6 +226,7 @@ beforeEach(async () => {
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
   projectId = created.project.id;
   steps = created.steps;
 });
@@ -913,6 +914,7 @@ describe('the priority a create writes', () => {
       projects: projectStore,
       broadcast: recordingBroadcaster(),
     }).create('Tile it', ownerId);
+    if (typeof other === 'string') throw new Error(`fixture project creation refused: ${other}`);
     const plain = applied(
       await runner.run(other.project.id, ownerId, [
         { kind: 'createWorkItem', ref: 'w', parentId: null, afterId: null, name: 'Grout' },

@@ -144,6 +144,7 @@ beforeEach(async () => {
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Shed', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture project creation refused: ${created}`);
   projectId = created.project.id;
   devId = (await stepNamed('Dev')).id;
   qaId = (await stepNamed('QA')).id;
@@ -253,6 +254,7 @@ describe('StepService.rename', () => {
       projects: projectStore,
       broadcast: recordingBroadcaster(),
     }).create('Roof', ownerId);
+    if (typeof other === 'string') throw new Error(`fixture project creation refused: ${other}`);
     const theirs = (await stepStore.listByProject(other.project.id)).at(0);
     if (theirs === undefined) throw new Error('the other project was created without steps');
 

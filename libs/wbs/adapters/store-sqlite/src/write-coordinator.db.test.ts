@@ -238,6 +238,7 @@ beforeEach(async () => {
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   }).create('Rewire the shed', ownerId);
+  if (typeof created === 'string') throw new Error(`fixture creation refused: ${created}`);
   projectId = created.project.id;
 });
 

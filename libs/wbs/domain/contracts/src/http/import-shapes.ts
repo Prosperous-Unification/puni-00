@@ -65,7 +65,8 @@ export const importProject = defineEndpointShape({
       status: 409,
       schema: responseSchema(
         type({
-          error: "'engine_unavailable' | 'source_refused'",
+          error:
+            "'engine_unavailable' | 'source_refused' | 'abbreviation_taken' | 'abbreviation_exhausted'",
           path: 'string',
           detail: 'string | null',
         }),

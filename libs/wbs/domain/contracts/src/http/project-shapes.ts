@@ -53,10 +53,20 @@ export const createProject = defineEndpointShape({
   // failing the mounted mutation inventory; watched 2026-10-13.
   policies: [...writePolicies, { kind: 'organization-resource', operation: 'mutation' }],
   // Proof: a tolerant body made the mounted undeclared-create test receive 200 instead of 422.
-  body: requestSchema(type({ name: 'string' })),
+  body: requestSchema(type({ name: 'string', 'abbreviation?': 'string' })),
   bodyMedia,
   responses: [{ kind: 'json', status: 200, schema: projectWithSteps }],
-  refusals: [...bodyRefusals, organizationRefusal, organizationContextRefusal, forbidden],
+  refusals: [
+    ...bodyRefusals,
+    organizationRefusal,
+    organizationContextRefusal,
+    forbidden,
+    { status: 422, schema: responseSchema(type({ error: "'invalid_abbreviation'" })) },
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'abbreviation_taken' | 'abbreviation_exhausted'" })),
+    },
+  ],
   document: { summary: 'Create a project with its starting steps.' },
 });
 
@@ -211,6 +221,7 @@ export const patchProject = defineEndpointShape({
   body: requestSchema(
     type({
       'name?': 'string',
+      'abbreviation?': 'string',
       'restricted?': 'boolean',
       'estimateMethod?': "'pert' | 'optimistic' | 'realistic' | 'pessimistic'",
       'depReach?': "'whole-item' | 'anchor-slice'",
@@ -238,14 +249,20 @@ export const patchProject = defineEndpointShape({
     {
       status: 422,
       schema: responseSchema(
-        type({ error: "'bad_start_date' | 'bad_pert_weights' | 'invalid_timezone'" }),
+        type({
+          error:
+            "'bad_start_date' | 'bad_pert_weights' | 'invalid_timezone' | 'invalid_abbreviation'",
+        }),
       ),
     },
     {
       status: 409,
       // `dependency_cycle`: a `depReach` change that would close a step-node cycle.
       schema: responseSchema(
-        type({ error: "'optimizer_unavailable' | 'solution_taken' | 'dependency_cycle'" }),
+        type({
+          error:
+            "'optimizer_unavailable' | 'solution_taken' | 'dependency_cycle' | 'abbreviation_taken'",
+        }),
       ),
     },
   ],

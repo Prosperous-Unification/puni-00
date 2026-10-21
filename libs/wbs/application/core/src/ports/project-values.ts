@@ -11,6 +11,8 @@ import type {
 export interface Project {
   id: string;
   name: string;
+  /** Persisted organization-scoped address; edits preserve stable project identity. */
+  abbreviation: string;
   ownerId: string;
   restricted: boolean;
   /** How this project turns its three-point estimates into one planning number. */
@@ -73,7 +75,8 @@ export interface Project {
 
 /**
  * A project as it is **written**: everything {@link Project} declares except the
- * three settings, which the repository fills from the column defaults.
+ * abbreviation and three settings. The store allocates the address and fills
+ * the settings from column defaults.
  *
  * The split exists because those three are read-published and default-written.
  * Requiring them on the create path would make every caller and fixture state
@@ -84,9 +87,11 @@ export interface Project {
  */
 export type NewProject = Omit<
   Project,
-  'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
+  'abbreviation' | 'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'
 > &
-  Partial<Pick<Project, 'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'>>;
+  Partial<
+    Pick<Project, 'abbreviation' | 'optimizationEnabled' | 'scheduleEngine' | 'scheduleObjective'>
+  >;
 
 /**
  * A project as one account sees it: null when that account has never opened it.
@@ -111,6 +116,7 @@ export interface ProjectWithAccess extends Project {
 }
 
 export interface ProjectPatch {
+  abbreviation?: string;
   name?: string;
   restricted?: boolean;
   estimateMethod?: EstimateMethod;

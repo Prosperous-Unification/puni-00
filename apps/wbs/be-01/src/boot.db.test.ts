@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
@@ -497,7 +498,7 @@ describe('bootBe01', () => {
       await Bun.sleep(10);
     }
     expect(health?.status).toBe(200);
-    const created = await running.services.projects.create('Optimizer', 'local-dev');
+    const created = expectCreated(await running.services.projects.create('Optimizer', 'local-dev'));
 
     expect(
       await running.services.projects.update(created.project.id, 'local-dev', {
@@ -529,7 +530,9 @@ describe('bootBe01', () => {
     }
     expect(health?.status).toBe(200);
 
-    const created = await running.services.projects.create('Local plan', 'local-dev');
+    const created = expectCreated(
+      await running.services.projects.create('Local plan', 'local-dev'),
+    );
 
     expect(created.project.ownerId).toBe('local-dev');
   });

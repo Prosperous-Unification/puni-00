@@ -6,6 +6,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { WorkItem } from '../../ports/work-item-store';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 
@@ -30,7 +31,7 @@ async function seeded() {
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
   );
-  const created = await graph.projects.create('Startable', OWNER);
+  const created = expectCreated(await graph.projects.create('Startable', OWNER));
   const projectId = created.project.id;
   // The memory source keeps a project's steps apart from the step table its progress reads.
   for (const step of created.steps) {

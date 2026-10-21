@@ -39,9 +39,9 @@ export interface ImportAdmission {
 /** A typed store refusal encountered after preparation and admission. */
 export interface ImportSourceRefusal {
   ok: false;
-  code: 'source_refused';
+  code: 'source_refused' | 'abbreviation_taken' | 'abbreviation_exhausted';
   path: string;
-  detail: string;
+  detail: string | null;
 }
 
 /** A viewer's import after activation: reading an organization is not importing into it. */
@@ -363,7 +363,12 @@ export class ImportService {
           scheduleEngine: settings.scheduleEngine,
           scheduleObjective: settings.scheduleObjective,
         };
-        await writes.createProject(project, steps, stamp, access);
+        const creationRefusal = await writes.createProject(project, steps, stamp, access);
+        if (creationRefusal !== null)
+          return {
+            commit: false,
+            value: { ok: false, code: creationRefusal, path: 'project', detail: null },
+          };
         await writes.replacePriorityBands(projectId, prepared.priorityBands, stamp);
         for (const capacity of prepared.capacity) {
           const teamId = teamsByFileId.get(capacity.teamFileId);
@@ -548,6 +553,7 @@ export class ImportService {
             endpoint.scope === 'whole'
               ? {
                   scope: 'whole' as const,
+                  projectId,
                   workItemId: resolvedId(
                     rowsByFileId,
                     endpoint.workItemId,
@@ -556,6 +562,7 @@ export class ImportService {
                 }
               : {
                   scope: endpoint.scope,
+                  projectId,
                   workItemId: resolvedId(
                     rowsByFileId,
                     endpoint.workItemId,

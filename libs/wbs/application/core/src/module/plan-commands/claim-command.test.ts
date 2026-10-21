@@ -8,6 +8,7 @@ import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
+import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -61,7 +62,7 @@ async function seeded(identities: Identities = BOUND) {
       { at: 1, by: id },
     );
   }
-  const created = await graph.projects.create('Claims', F);
+  const created = expectCreated(await graph.projects.create('Claims', F));
   const projectId = created.project.id;
   // The project's starting steps, Dev then QA, stand for the spec's Impl and Review.
   // The memory source keeps a project's steps apart from the step table its progress reads.

@@ -8,6 +8,7 @@ import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { expectCreated } from '@wbs/core/testing/expect-created';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { sql } from 'drizzle-orm';
@@ -61,7 +62,7 @@ async function seeded(hold?: Hold) {
       { at: 1, by: id },
     );
   }
-  const created = await graph.projects.create('Race', F);
+  const created = expectCreated(await graph.projects.create('Race', F));
   const projectId = created.project.id;
   for (const [id, name] of [
     ['claire', 'claire'],

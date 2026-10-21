@@ -1,5 +1,5 @@
 import type { Project, ProjectStore, ProjectWithAccess, Step, UserStore } from '@wbs/core';
-import { DEFAULT_ESTIMATE_RULE } from '@wbs/domain';
+import { DEFAULT_ESTIMATE_RULE, suggestProjectAbbreviationCandidates } from '@wbs/domain';
 
 import { inMemoryUsers } from './auth-fixture';
 
@@ -17,9 +17,14 @@ import { inMemoryUsers } from './auth-fixture';
  * pass against a project no `create` can produce.
  */
 export function projectRow(overrides: Partial<Project> = {}): Project {
+  const id = overrides.id ?? crypto.randomUUID();
   return {
-    id: crypto.randomUUID(),
+    id,
     name: 'Rewire the shed',
+    abbreviation: `P${id
+      .replaceAll(/[^A-Za-z0-9]/g, '')
+      .slice(0, 19)
+      .toUpperCase()}`,
     ownerId: 'owner',
     restricted: false,
     estimateMethod: 'pert',
@@ -90,11 +95,47 @@ export function inMemoryProjects(
    * assert who wrote and when without a database to read audit columns from.
    */
 
+  function createProject(
+    project: Parameters<ProjectStore['create']>[0],
+    starting: readonly Step[],
+    organizationId: string | null,
+  ): Project | 'abbreviation_taken' | 'abbreviation_exhausted' {
+    const names = new Set(starting.map((r) => r.name));
+    if (names.size !== starting.length) {
+      throw new Error(`duplicate step name in ${project.id}`);
+    }
+    // The settings the caller left out, filled the way `ProjectRepository`
+    // fills them from the column defaults. A fixture that stored the input
+    // whole would answer `undefined` where production answers `false`.
+    const namespace = organizationId;
+    const occupied = new Set(
+      [...projects.values()]
+        .filter((row) => (owning.get(row.id) ?? null) === namespace)
+        .map((row) => row.abbreviation),
+    );
+    const abbreviation =
+      project.abbreviation ??
+      suggestProjectAbbreviationCandidates(project.name).find((code) => !occupied.has(code));
+    if (abbreviation === undefined) return 'abbreviation_exhausted';
+    if (occupied.has(abbreviation)) return 'abbreviation_taken';
+    const written = {
+      ...project,
+      abbreviation,
+      optimizationEnabled: project.optimizationEnabled ?? false,
+      scheduleEngine: project.scheduleEngine ?? 'fast',
+      scheduleObjective: project.scheduleObjective ?? 'pri',
+    } satisfies Project;
+    projects.set(written.id, written);
+    steps.set(written.id, [...starting]);
+    return written;
+  }
+
   const store: ProjectStore = {
-    async createInOrganization(project, starting, stamp, organizationId) {
-      const written = await store.create(project, starting, stamp);
+    createInOrganization(project, starting, _stamp, organizationId) {
+      const written = createProject(project, starting, organizationId);
+      if (typeof written === 'string') return Promise.resolve(written);
       owning.set(written.id, organizationId);
-      return written;
+      return Promise.resolve(written);
     },
     // No dependent rows live in this store, so nothing it holds can cross.
     findCrossReferences: () => Promise.resolve([]),
@@ -121,22 +162,7 @@ export function inMemoryProjects(
       );
     },
     create(project, starting, _stamp) {
-      const names = new Set(starting.map((r) => r.name));
-      if (names.size !== starting.length) {
-        return Promise.reject(new Error(`duplicate step name in ${project.id}`));
-      }
-      // The settings the caller left out, filled the way `ProjectRepository`
-      // fills them from the column defaults. A fixture that stored the input
-      // whole would answer `undefined` where production answers `false`.
-      const written = {
-        ...project,
-        optimizationEnabled: project.optimizationEnabled ?? false,
-        scheduleEngine: project.scheduleEngine ?? 'fast',
-        scheduleObjective: project.scheduleObjective ?? 'pri',
-      } satisfies Project;
-      projects.set(written.id, written);
-      steps.set(written.id, [...starting]);
-      return Promise.resolve(written);
+      return Promise.resolve(createProject(project, starting, null));
     },
     findById(id) {
       const found = projects.get(id);
@@ -205,8 +231,19 @@ export function inMemoryProjects(
     update(id, patch, _stamp) {
       const existing = projects.get(id);
       if (existing === undefined) return Promise.resolve(null);
+      if (
+        patch.abbreviation !== undefined &&
+        [...projects.values()].some(
+          (row) =>
+            row.id !== id &&
+            (owning.get(row.id) ?? null) === (owning.get(id) ?? null) &&
+            row.abbreviation === patch.abbreviation,
+        )
+      )
+        return Promise.resolve('abbreviation_taken');
       const updated: Project = {
         ...existing,
+        abbreviation: patch.abbreviation ?? existing.abbreviation,
         name: patch.name ?? existing.name,
         restricted: patch.restricted ?? existing.restricted,
         estimateMethod: patch.estimateMethod ?? existing.estimateMethod,

@@ -107,6 +107,7 @@ const IN_USE: StepUsage = {
 
 const PROJECT = {
   id: 'p1',
+  abbreviation: 'PLAN',
   name: 'Plan',
   ownerId: 'owner',
   restricted: false,

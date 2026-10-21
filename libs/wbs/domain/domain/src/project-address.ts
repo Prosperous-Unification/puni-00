@@ -65,3 +65,15 @@ function isLocalReference(reference: string): boolean {
   // a dot check each failed `rejects malformed local and qualified references`.
   return /^[0-9]+(?:\.[0-9]+)*(?![\s\S])/.test(reference) || parseStepReference(reference) !== null;
 }
+
+/** The deterministic name family is finite; exhaustion does not scan unrelated codes. */
+export function suggestProjectAbbreviationCandidates(name: string): readonly string[] {
+  const suggestions = suggestProjectAbbreviations(name);
+  const stem = suggestions.at(0);
+  if (stem === undefined) throw new Error('project recommendations are empty');
+  const candidates = [...suggestions];
+  for (let first = 0; first < 26; first += 1)
+    for (let second = 0; second < 26; second += 1)
+      candidates.push(stem + String.fromCharCode(65 + first, 65 + second));
+  return [...new Set(candidates)];
+}
