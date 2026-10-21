@@ -83,7 +83,8 @@ bounded diagnostic and keep service protection unresolved. All-store completion 
 
 - [ ] Preserve state files, live routing, container IDs/labels, registry manifest
       digests, image/build records, installed executor identities and candidate gate receipts.
-- [ ] Reconcile the reported SHA mismatch for each tier. Independently prove the source
+- [ ] Distinguish inherited base-image metadata from application identity for each tier.
+      Independently prove the source
       chain where possible; retain an explicit unrecoverable-provenance finding otherwise.
 - [ ] Repair the identity-producing contract if faulty. If historic provenance cannot
       be proved, replace it only via an accepted release after W02/W04 prerequisites and

@@ -24,9 +24,10 @@ client-service baseline:
 1. **SQLite backups are reporting failure.** The hourly h1 service's latest run exited
    1, and its previous 24 hours contain repeated failure messages. A timer exists;
    the newest usable backup and recovery point were not established.
-2. **Production release identity is inconsistent.** State files record `0afc7775…`,
-   while the routed backend/gateway container revision labels report `0d9b296a…`; frontend lacks
-   a revision label. The complete accepted source/build/gate chain is unresolved.
+2. **Production application provenance is unproven.** State files record `0afc7775…`.
+   A follow-up identified backend/gateway OCI revision `0d9b296a…` as inherited Bun
+   base-image metadata, not a competing PUNI revision. All three tiers lack `WBS_SHA`;
+   the complete accepted application source/build/gate chain remains unresolved.
 3. **Main merges are not protected by GitHub checks.** Live API reads show
    `protected:false`, an explicit unprotected response, and only a release-tag ruleset.
    Strong CI implementation therefore does not guarantee enforcement before merge.
@@ -45,8 +46,8 @@ an application outage. They establish specific operational/control gaps.
 | Historical proof    | Credited linked k3d/QEMU/promtool/release evidence only for its recorded environment, revision and scenario; did not silently promote it to current production proof                                                        |
 | Unverified          | Current Kubernetes resource/Flux state due to host privilege limits; full gate; browser/client journeys; live recovery; provider inventories/billing; effective OpenClaw permissions; longitudinal delivery/health outcomes |
 
-The local source and dev backend identify the assessed revision. Production containers have been running eight weeks and report conflicting
-historical revision metadata; their complete source provenance is unresolved. **Passing current-source tests is not evidence
+The local source and dev backend identify the assessed revision. Production containers have been running eight weeks and expose base-image
+metadata without an application identity; their complete source provenance is unresolved. **Passing current-source tests is not evidence
 that their behavior is active in production.** Readiness here means evidence against
 the client outcome, not a percentage of completed tasks. Unknown is not passing.
 No code or infrastructure was changed by the assessment, and no full repository
@@ -158,7 +159,7 @@ an agreed owner; the roles proposed here are not a claim that staffing is assign
 | Application scaling          | Fleet mechanisms and application constraints are explicit                                       | Workload baseline, stateful bottleneck treatment and measured improvement absent from demonstrated client journey — [infrastructure](infrastructure.md)                      |
 | Health/session observability | Structured logging/redaction, alert rules and populated metrics backend                         | Sampled app metrics lack operational series; live alert/correlation/client access proof missing — [OBS-01/02](observability-cost.md)                                         |
 | Change quality/speed         | Real modular boundaries, CI, tests and detailed failure-proof artifacts                         | New rules often observe-only; integration/operator bottleneck and throughput gain not measured — [delivery](delivery.md)                                                     |
-| CI/CD                        | Tested gate selection, artifacts, deploy state machines and migration controls                  | No main protection, production identity mismatch, k3s promotion not fully accepted live — [delivery](delivery.md)                                                            |
+| CI/CD                        | Tested gate selection, artifacts, deploy state machines and migration controls                  | No main protection, unproven production application identity, k3s promotion not fully accepted live — [delivery](delivery.md)                                                |
 | Reusable features            | Shared UI/validation/failure utilities and WBS auth exist                                       | Cross-product utility reuse is narrower than a client starter or second-app auth adoption — [delivery](delivery.md), [security](security-assistant.md)                       |
 | Assistant operations         | Existing gateway and CLI observed                                                               | Effective policy, client provisioning, task/upgrade/recovery/offboarding acceptance unverified — [security](security-assistant.md)                                           |
 | Delivery metrics/cost        | Trial/review accounting and portable export implemented and tested; prior economic models exist | Operational adoption, client/provider attribution, human effort and representative outcomes missing — [MET-01/COST-01](observability-cost.md)                                |

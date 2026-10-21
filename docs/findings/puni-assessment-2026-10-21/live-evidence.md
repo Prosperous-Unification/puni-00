@@ -70,9 +70,25 @@ Caddy's live admin configuration was retrieved inside its container and parsed
 without printing the full configuration. Only host/path matchers and reverse-proxy
 upstream dial addresses were emitted. Production `/api/*` routes to `be-01-green:3100`,
 `/ws*` to `gw-01-green:3200`, and the frontend fallback to `fe-01-blue:80`.
-The observed containers therefore match live routing; the conflicting source metadata
+The observed containers therefore match live routing. Follow-up inspection below
+identifies the differing OCI revision as base-image metadata; application provenance
 remains unresolved. A label, state file or container image ID alone cannot reconstruct
 the accepted source-to-build-to-gate provenance.
+
+### Follow-up correction before assessment merge
+
+On 2026-10-21, a further read-only `docker inspect` selected OCI source, title,
+version, revision and `WBS_SHA` from those three running containers:
+
+| Containers                   | OCI source                                    | Title / version         | Application `WBS_SHA` |
+| ---------------------------- | --------------------------------------------- | ----------------------- | --------------------- |
+| `be-01-green`, `gw-01-green` | `https://github.com/oven-sh/bun`              | `bun` / `1.3.14-alpine` | absent                |
+| `fe-01-blue`                 | `https://github.com/caddyserver/caddy-docker` | `Caddy` / `v2.11.4`     | absent                |
+
+The backend/gateway revision remained `0d9b296a…`. It identifies the inherited Bun
+image, not an independently established PUNI revision. This corrects the original
+interpretation of a conflicting application SHA while retaining the raw observations.
+The source/build/gate chain is still unproven; no label or state was changed.
 
 | Probe                                                                                | Fresh result                                                              | Limit                                                                                         |
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
