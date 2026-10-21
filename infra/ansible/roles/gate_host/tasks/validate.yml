@@ -39,7 +39,7 @@
 - name: Resolve gh the way the activation tests do
   become_user: '{{ puni_gate_user }}'
   ansible.builtin.command:
-    argv: [bash, -c, '. "$HOME/.bashrc"; command -v gh; /usr/bin/gh --version | head -n 1']
+    argv: [bash, -c, '. "$HOME/.bashrc"; command -v gh; /usr/bin/gh --version']
   register: puni_gate_gh_probe
   changed_when: false
 
@@ -49,8 +49,31 @@
       - puni_gate_gh_probe.stdout_lines[0] == '/usr/bin/gh'
       - puni_gate_gh_probe.stdout_lines[1] is match('^gh version ' + (puni_gate_gh_version | regex_escape) + ' ')
     fail_msg: 'The gate host resolves {{ puni_gate_gh_probe.stdout_lines }}, not the pinned gh'
-  # Proof (h4claw, 2026-10-21): before the gh tasks existed this probe failed with
-  # `gh: command not found` (rc 127), the host state behind the third live gate's 60 failures.
+  # Proof (h4claw, 2026-10-21): the probe's exact command run as puni1 with the path pointed at a
+  # missing binary exited 127 (`/usr/bin/ghx: No such file or directory`), which fails the probe
+  # task itself; the earlier `| head -n 1` form had swallowed that status (rc 0, empty output).
+  # The host state behind the third live gate's 60 failures was exactly this missing file.
+
+# The spec grants the account Docker and nothing else; a pre-existing sudo membership or a
+# sudoers drop-in would survive `append: true`, so the probes check the result, not the task.
+- name: Try to escalate as the gate account
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv: [bash, -c, 'id -nG; sudo -n true 2>&1; printf "sudo_rc=%s\n" "$?"']
+  register: puni_gate_sudo_probe
+  changed_when: false
+
+- name: Require the gate account without sudo
+  ansible.builtin.assert:
+    that:
+      - "'sudo' not in puni_gate_sudo_probe.stdout_lines[0].split(' ')"
+      - puni_gate_sudo_probe.stdout_lines[-1] != 'sudo_rc=0'
+    fail_msg: 'The gate account reports {{ puni_gate_sudo_probe.stdout_lines }}; it must not escalate'
+  # Proof (2026-10-21): the assertion, fed recorded probe outputs through the controller image
+  # (set_fact, localhost), passed `['puni1 docker', 'sudo_rc=1']` and failed both
+  # `['puni1 docker sudo', 'sudo_rc=1']` and `['puni1 docker', 'sudo_rc=0']`. Live on h4claw the
+  # probe printed `puni1 docker`, sudo's refusal line and `sudo_rc=1`; a sudoer gate account was
+  # not created to watch the probe itself produce the failing lines.
 
 - name: Read the gate tree state
   become_user: '{{ puni_gate_user }}'
@@ -101,6 +124,9 @@
         (puni_gate_python_probe.stdout_lines[1] in
         (lookup('ansible.builtin.file', puni_gate_solver_requirements) | regex_findall('(?m)^ortools==(\S+)')))
     fail_msg: 'The gate python3 reports {{ puni_gate_python_probe.stdout_lines }}'
+  # No negative observed for this assertion: a venv with another OR-Tools would need a second
+  # hash-locked requirements file. `pip -r` never removes packages dropped from the lock, so the
+  # probe proves the solver version, not that the venv equals CI's install.
 
 # The production resolver, sourced from the gate tree, names the lock this host's gates take;
 # the account must be able to create the lock file and its records beside it.

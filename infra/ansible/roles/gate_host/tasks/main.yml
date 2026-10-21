@@ -15,10 +15,13 @@
       - puni_gate_node_lock.sha256 is match('^[0-9a-f]{64}$')
       - puni_gate_gh_lock.sha256 is match('^[0-9a-f]{64}$')
       - puni_gate_authorized_keys is defined
+      - puni_gate_authorized_keys is sequence
+      - puni_gate_authorized_keys is not string
       - puni_gate_authorized_keys | length > 0
     fail_msg: >-
       A gate host needs Ubuntu on amd64, the fixed puni1 account, a Bun archive lock equal to
-      .bun-version, sha256 locks for Node and gh, and the gate account's authorized keys
+      .bun-version, sha256 locks for Node and gh, and the gate account's authorized keys as a
+      list (a single string would be written one character per line and lock the account out)
 
 - name: Install gate prerequisites
   tags: [gate_host]

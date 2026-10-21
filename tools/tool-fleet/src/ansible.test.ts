@@ -657,8 +657,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(tasks).toContain('update: false');
     expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_bun_lock.sha256 }}'");
     // Nx's bin is `#!/usr/bin/env node`: a gate host without a pinned Node on the gate PATH exits
-    // 127 at the first Nx script. Proof: dropping the `.node-` segment from the template's PATH
-    // failed the second expectation (h4claw live gate, 2026-10-21).
+    // 127 at the first Nx script (h4claw's first live gate, 2026-10-21). Proof: dropping the
+    // `.node-` segment from the template's PATH failed the second expectation locally.
     expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_node_lock.sha256 }}'");
     expect(bashrc).toContain('{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin');
     // twilight-dash's activation tests hash and run /usr/bin/gh; a gate host without it fails 60
@@ -667,7 +667,8 @@ describe('the Ansible host and k3s contract', () => {
     expect(tasks).toContain("checksum: 'sha256:{{ puni_gate_gh_lock.sha256 }}'");
     expect(tasks).toContain("deb: '/var/cache/puni-gate-gh-{{ puni_gate_gh_lock.sha256 }}.deb'");
     expect(tasks).toContain('extra_args: --require-hashes');
-    expect(tasks).not.toMatch(/groups: \[[^\]]*sudo/);
+    // Proof: `groups: [docker, sudo]` and the string form `groups: docker,sudo` both failed this.
+    expect(tasks).not.toMatch(/groups:.*sudo/);
   });
 
   it('ships no role defaults for required security or identity state', async () => {

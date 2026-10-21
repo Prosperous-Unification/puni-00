@@ -3,7 +3,7 @@
 ## Repository checks, 2026-10-21
 
 ```text
-env -u CLAUDECODE bun test ./tools/tool-fleet/src/                          585 pass, 0 fail
+env -u CLAUDECODE bun test ./tools/tool-fleet/src/                          587 pass, 0 fail (2026-10-21 16:15 UTC)
 env -u CLAUDECODE bun test ./tools/tool-devsync/src/repo-namespacing-handoff.test.ts   15 pass, 0 fail
 bunx nx run-many -t lint typecheck -p tool-fleet --skip-nx-cache            Successfully ran targets lint, typecheck
 bunx nx format:check --all                                                   exit 0
@@ -68,25 +68,6 @@ So there is **no GATE_EXIT or wall time**. This partial run does not exercise
 `solver-image-smoke`. The laptop's Docker daemon could not have run it faithfully anyway: the
 daemon cannot see paths inside the lab container.
 
-## Live h4claw: not run
-
-Not run:
-
-- The privileged apply waits for Dany's authorization.
-- h2puni's `~/.puni/fleet/2026-enroll` holds only `id_admin` and `id_admin.pub`: no `vars.json`,
-  no `known_hosts` and no controller image.
-- The recorded path is the laptop controller as root through h2puni (the 2026-09-27
-  enrollment).
-
-No preflight, backup, apply or gate has run on h4claw. Read-only facts from 2026-10-21, as
-`claw`:
-
-- Ubuntu 26.04 and Python 3.14.4.
-- `/tmp` is a 7.6 GB tmpfs.
-- No `unzip`, `shellcheck`, `python3-venv` or `node`.
-- `puni-fleet` (uid 1002) exists.
-- There is no `puni1` account.
-
 ## Live h4claw (2026-10-21, Dany's go)
 
 Controller: the pinned `fleet-controller` image on the laptop, `ansible_user: root` with
@@ -141,3 +122,19 @@ pinned gh package` and `Install the pinned gh`; the new probe passed), run 6
    `test, typecheck, build` for twilight-burokrat and twilight-dash in 49 m 55 s, their lints and
    `wbs-be-01:solver-image-smoke` (4 m 31 s); `GATE_EXIT=0` at 16:06 UTC, 104 min after launch.
    That is the gate of record for 2.2: h4claw is a working second gate host.
+9. Internal Fable review of the whole branch at 5b651964a (read-only; no S1). Fixed on the branch:
+   the gh probe's `| head -n 1` swallowed a missing binary (the pipeline's status was head's; on
+   h4claw as `puni1` the piped form exited 0, the unpiped form 127, so the probe now runs
+   `/usr/bin/gh --version` bare and asserts its first line); a new escalation probe
+   (`id -nG; sudo -n true; sudo_rc=`) with an assert that fails on a `sudo` group or `sudo_rc=0`
+   (negatives fed through the controller image with `set_fact`; live h4claw printed `puni1 docker`,
+   sudo's refusal, `sudo_rc=1`); `puni_gate_authorized_keys` must be a list, not a string (live
+   `--tags validate -e 'puni_gate_authorized_keys=ssh-ed25519 AAAA'` failed at the input assert,
+   `failed=1`, before any task; a string would have been written one character per line);
+   the contract test now refuses `groups:` naming `sudo` in either spelling (both injected,
+   both failed); proof wording in `ansible.test.ts` and `validate.yml` says what was observed;
+   proposal.md names the Node, gh and toolchain changes; the stale "not run" section is gone.
+   Read-only validate pass after the fixes: `ok=17 changed=0 failed=0`. Not fixed, recorded:
+   `pip -r` never removes packages dropped from the lock (the probe proves only the OR-Tools
+   version); no dpkg hold on gh (nothing else on the host installs gh; a GitHub apt source would
+   change that); the venv assert has no negative; the `tbf` suffix mirrors h2puni's tree name.
