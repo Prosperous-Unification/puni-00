@@ -1,0 +1,10 @@
+---
+# A second h2puni-style gate host: `bin/h2puni-gate.sh <sha>` as puni1, under the host's own
+# heavy lock. Runbook: docs/infra/gate-hosts.md. `--tags validate` reruns only the read-only
+# probes.
+- name: Configure gate hosts
+  hosts: gate_hosts
+  become: true
+  gather_facts: true
+  roles:
+    - gate_host

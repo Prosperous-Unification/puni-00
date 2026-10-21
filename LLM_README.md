@@ -33,7 +33,7 @@ bunx nx run <project>:lint:fast                 # editing only, ~4s; `lint` is u
 
 `bun test` at the repo root is **not** the gate: it collects fe-01's files, which fail on the DOM
 `bun:test` has no jsdom for. On h2puni, use `bin/h2puni-gate.sh <sha>` and do NOT check that sha
-out first: lanes share the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`.
+out first: lanes share the gate tree, and a checkout outside the lock is how one lane's gate came to report about another's head (TASK-328). Raw full Nx gates bypass the lock; `build` needs `shellcheck`. Second gate host, own lock: [gate hosts](docs/infra/gate-hosts.md).
 
 **Rules: `AGENTS.md`** (symlinked to CLAUDE.md/GEMINI.md) — read it, it governs every change.
 

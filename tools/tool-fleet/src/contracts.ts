@@ -75,6 +75,13 @@ const ToolchainSchema = type({
     // Bun that runs the host-owned WBS solver supervisor (infra/ansible/roles/solver).
     // Proof: making solverBun optional made the same missing-lock negative resolve.
     solverBun: BinaryLock,
+    // Node that runs Nx's bin on a gate host (infra/ansible/roles/gate_host); required like the
+    // Bun lock, so a toolchain without it is refused before any gate exits 127 for want of node.
+    gateNode: BinaryLock,
+    // GitHub CLI at /usr/bin/gh on a gate host: twilight-dash's activation tests run the real
+    // offline `gh attestation verify` from that path. Required like the Node lock; GitHub's apt
+    // repository carries only the newest release, so the pin is the release .deb.
+    gateGh: BinaryLock,
     '+': 'reject',
   },
   // Ubuntu packages installed at an exact version by host roles.

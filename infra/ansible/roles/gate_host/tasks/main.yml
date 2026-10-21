@@ -1,0 +1,257 @@
+---
+# Makes a fleet host run `bin/h2puni-gate.sh <sha>` as h2puni does, under its own heavy lock.
+# Docker itself is the host's existing engine: this role neither installs nor reconfigures it.
+- name: Require supported host and gate inputs
+  tags: [gate_host, validate]
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution == 'Ubuntu'
+      - ansible_distribution_version in ['24.04', '26.04']
+      - ansible_architecture in ['x86_64', 'amd64']
+      - puni_gate_user == 'puni1'
+      - puni_gate_bun_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - puni_gate_bun_lock.version == puni_gate_bun_version
+      - puni_gate_bun_lock.sha256 is match('^[0-9a-f]{64}$')
+      - puni_gate_node_lock.sha256 is match('^[0-9a-f]{64}$')
+      - puni_gate_gh_lock.sha256 is match('^[0-9a-f]{64}$')
+      - puni_gate_authorized_keys is defined
+      - puni_gate_authorized_keys is sequence
+      - puni_gate_authorized_keys is not string
+      - puni_gate_authorized_keys | length > 0
+    fail_msg: >-
+      A gate host needs Ubuntu on amd64, the fixed puni1 account, a Bun archive lock equal to
+      .bun-version, sha256 locks for Node and gh, and the gate account's authorized keys as a
+      list (a single string would be written one character per line and lock the account out)
+
+- name: Install gate prerequisites
+  tags: [gate_host]
+  ansible.builtin.apt:
+    # python3-packaging is what ansible.builtin.pip imports on the host.
+    name: [git, jq, perl, python3-packaging, python3-venv, shellcheck, unzip]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Read the Docker group
+  tags: [gate_host]
+  ansible.builtin.getent:
+    database: group
+    key: docker
+
+# Membership in the docker group is root-equivalent on this host: the gate builds and runs the
+# solver image. The account has no sudo grant and exists only for gates.
+- name: Create the gate account
+  tags: [gate_host]
+  ansible.builtin.user:
+    name: '{{ puni_gate_user }}'
+    home: '{{ puni_gate_home }}'
+    create_home: true
+    shell: /bin/bash
+    system: true
+    groups: [docker]
+    append: true
+
+- name: Create the gate SSH directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.ssh'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0700'
+
+- name: Install the exact gate authorized keys
+  tags: [gate_host]
+  ansible.builtin.copy:
+    dest: '{{ puni_gate_home }}/.ssh/authorized_keys'
+    content: |
+      {{ puni_gate_authorized_keys | join('\n') }}
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0600'
+
+# The parent of the lock path that `resolve_heavy_lock_path` hard-codes; the lock library creates
+# the lock file, its holder record and its queue inside it.
+- name: Create the heavy-lock directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.cache'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+- name: Fetch the pinned Bun archive
+  tags: [gate_host]
+  ansible.builtin.get_url:
+    url: '{{ puni_gate_bun_lock.url }}'
+    dest: '/var/cache/puni-gate-bun-{{ puni_gate_bun_lock.sha256 }}.zip'
+    checksum: 'sha256:{{ puni_gate_bun_lock.sha256 }}'
+    mode: '0644'
+
+- name: Create the per-checksum Bun unpack directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '/var/cache/puni-gate-bun-{{ puni_gate_bun_lock.sha256 }}'
+    state: directory
+    mode: '0755'
+
+- name: Unpack the pinned Bun archive
+  tags: [gate_host]
+  ansible.builtin.unarchive:
+    src: '/var/cache/puni-gate-bun-{{ puni_gate_bun_lock.sha256 }}.zip'
+    dest: '/var/cache/puni-gate-bun-{{ puni_gate_bun_lock.sha256 }}'
+    remote_src: true
+    creates: '/var/cache/puni-gate-bun-{{ puni_gate_bun_lock.sha256 }}/bun-linux-x64/bun'
+
+- name: Create the pinned Bun directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+- name: Install the pinned Bun
+  tags: [gate_host]
+  ansible.builtin.copy:
+    src: '/var/cache/puni-gate-bun-{{ puni_gate_bun_lock.sha256 }}/bun-linux-x64/bun'
+    dest: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin/bun'
+    remote_src: true
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+# The official installer ships `bunx` as this same link; the gate steps call `bunx`.
+- name: Link bunx to the pinned Bun
+  tags: [gate_host]
+  ansible.builtin.file:
+    src: bun
+    dest: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin/bunx'
+    state: link
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    follow: false
+
+# Nx's bin (`node_modules/.bin/nx`) is `#!/usr/bin/env node`, so the gate's `bun run format:check`,
+# `lint`, `test`, `typecheck` and `build` all need a Node on PATH. Proof (h4claw, 2026-10-21): without
+# it the first gate exited 127 right after the frozen install, `env: 'node': No such file or directory`.
+- name: Fetch the pinned Node archive
+  tags: [gate_host]
+  ansible.builtin.get_url:
+    url: '{{ puni_gate_node_lock.url }}'
+    dest: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}.tar.xz'
+    checksum: 'sha256:{{ puni_gate_node_lock.sha256 }}'
+    mode: '0644'
+
+- name: Create the per-checksum Node unpack directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}'
+    state: directory
+    mode: '0755'
+
+- name: Unpack the pinned Node archive
+  tags: [gate_host]
+  ansible.builtin.unarchive:
+    src: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}.tar.xz'
+    dest: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}'
+    remote_src: true
+    creates: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}/node-v{{ puni_gate_node_version }}-linux-x64/bin/node'
+
+- name: Create the pinned Node directory
+  tags: [gate_host]
+  ansible.builtin.file:
+    path: '{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin'
+    state: directory
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+# Only the interpreter: npm and corepack stay out, Bun installs the dependencies.
+- name: Install the pinned Node
+  tags: [gate_host]
+  ansible.builtin.copy:
+    src: '/var/cache/puni-gate-node-{{ puni_gate_node_lock.sha256 }}/node-v{{ puni_gate_node_version }}-linux-x64/bin/node'
+    dest: '{{ puni_gate_home }}/.node-{{ puni_gate_node_version }}/bin/node'
+    remote_src: true
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0755'
+
+# twilight-dash's activation tests hash and run `/usr/bin/gh` as the offline attestation verifier.
+# Proof (h4claw, 2026-10-21): without it the third live gate failed `twilight-dash:test` with 60
+# cases reading `ENOENT: no such file or directory, open '/usr/bin/gh'`. GitHub's apt repository
+# serves only the newest release, so the pinned release .deb is fetched by checksum instead.
+- name: Fetch the pinned gh package
+  tags: [gate_host]
+  ansible.builtin.get_url:
+    url: '{{ puni_gate_gh_lock.url }}'
+    dest: '/var/cache/puni-gate-gh-{{ puni_gate_gh_lock.sha256 }}.deb'
+    checksum: 'sha256:{{ puni_gate_gh_lock.sha256 }}'
+    mode: '0644'
+
+- name: Install the pinned gh
+  tags: [gate_host]
+  ansible.builtin.apt:
+    deb: '/var/cache/puni-gate-gh-{{ puni_gate_gh_lock.sha256 }}.deb'
+
+# h2puni puts its pinned Bun on PATH from ~/.bashrc above the interactivity guard; the gate
+# steps call `bun`, `node` (through Nx's shebang) and `python3` from PATH, so this file is how
+# all three resolve to the pins.
+- name: Render the gate shell environment
+  tags: [gate_host]
+  ansible.builtin.template:
+    src: bashrc.j2
+    dest: '{{ puni_gate_home }}/.bashrc'
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0644'
+
+- name: Install the reviewed solver requirements
+  tags: [gate_host]
+  ansible.builtin.copy:
+    src: '{{ puni_gate_solver_requirements }}'
+    dest: '{{ puni_gate_home }}/.solver-requirements.lock'
+    owner: '{{ puni_gate_user }}'
+    group: '{{ puni_gate_user }}'
+    mode: '0644'
+
+# CI installs the same lock with --require-hashes; wbs-solver-py's tests import it through the
+# `python3` the PATH above resolves to this environment.
+- name: Install the solver Python environment
+  tags: [gate_host]
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.pip:
+    requirements: '{{ puni_gate_home }}/.solver-requirements.lock'
+    virtualenv: '{{ puni_gate_home }}/.venv-solver'
+    virtualenv_command: /usr/bin/python3 -m venv
+    extra_args: --require-hashes
+
+# A full clone: the gate checks arbitrary shas out under its lock, which a blobless clone
+# would fetch lazily over the network inside the locked window. `update: false` because the
+# gate owns the head after the first clone; moving it here would race a running gate.
+- name: Clone the gate tree
+  tags: [gate_host]
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.git:
+    repo: '{{ puni_gate_repository_url }}'
+    dest: '{{ puni_gate_checkout }}'
+    update: false
+
+- name: Install the gate tree dependencies once
+  tags: [gate_host]
+  become_user: '{{ puni_gate_user }}'
+  ansible.builtin.command:
+    argv:
+      ['{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin/bun', install, --frozen-lockfile]
+    chdir: '{{ puni_gate_checkout }}'
+    creates: '{{ puni_gate_checkout }}/node_modules'
+  environment:
+    PATH: '{{ puni_gate_home }}/.bun-{{ puni_gate_bun_version }}/bin:/usr/local/bin:/usr/bin:/bin'
+    TMPDIR: '{{ puni_gate_tmpdir }}'
+
+- name: Prove the gate account can run a gate
+  tags: [gate_host, validate]
+  ansible.builtin.import_tasks: validate.yml
