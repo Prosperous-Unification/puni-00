@@ -48,3 +48,45 @@ restored; every `Proof:` comment names the same fault and test.
 - A refresh grant still neither checks nor extends the registered client (unchanged). A client
   that only refreshes for over 24 hours finds its `client_id` expired at its next authorization
   and is told to register again.
+
+## Review of PR #622 (2026-10-21): merge after fixes
+
+Fresh results after the fixes, same laptop scope (`wbs-mcp-01` targets only):
+
+| Command                                                                     | Result                                            |
+| --------------------------------------------------------------------------- | ------------------------------------------------- |
+| `env -u CLAUDECODE bunx nx run wbs-mcp-01:test --skip-nx-cache`             | 460 pass, 0 fail, 2007 `expect()` calls, 19 files |
+| `bunx nx run wbs-mcp-01:typecheck` / `:lint` / `:build` (`--skip-nx-cache`) | all succeeded, lint 0 problems                    |
+| migration lint on `20261021120000_mcp_client/migration.sql`                 | exit 0                                            |
+| `bunx openspec validate --all --json`                                       | 266 items, 266 passed, 0 failed                   |
+
+### Fixed
+
+| Finding                                                                               | Change                                                                                                                                                                                                                     | Failure proof (fault → failing test)                                                                                            |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| S2-1 a stored client kept authorizing to a callback removed from `HOSTED_REDIRECTS`   | `/authorize` also requires `isListedRedirect(redirectUri)`; same `invalid_request`                                                                                                                                         | dropping `isListedRedirect` → `refuses a stored redirect that is no longer on the allowlist` answered 302 instead of 400        |
+| CI: CodeQL alert #19 `js/insufficient-password-hash` at `session-store.ts` `digestOf` | `oauthError` renamed `protocolError` (see below)                                                                                                                                                                           | CodeQL on the pushed head; not runnable locally                                                                                 |
+| S3-1 RFC citation for `invalid_client` was wrong                                      | comment now says token-endpoint code (RFC 6749 §5.2) reused because §4.1.2.1 forbids a redirect; README, `CONTEXT.md`, `docs/auth-integration.md` say the 400 reaches the browser and client re-registration is unobserved | wording only                                                                                                                    |
+| S3-3 an extension computed before a concurrent promotion could shorten it             | `extendClient` sets `MAX(expires_at, ?)`                                                                                                                                                                                   | plain `SET expires_at = ?` → `never shortens a lifetime when an extension follows a promotion` read 1600000 instead of 87400000 |
+| S3-4 `admitClient` JSDoc claimed cross-process counting with no negative              | JSDoc softened to what holds: the IMMEDIATE transaction takes the write lock first; no two-process test                                                                                                                    | wording only                                                                                                                    |
+| S3-5 migration comment overstated "additive"                                          | comment and proposal now say an older release refuses to open the migrated store (ledger not a prefix), as for the binding migration, and `rollbackMcpStore` has no production caller                                      | wording only; the edited `migration.sql` changes its checksum, which is safe because no store has applied it                    |
+
+CodeQL path (SARIF of analysis 1999916783 for `refs/pull/622/merge`): the source was "a call to
+oauthError", classified as a password by CodeQL's name heuristics. It flowed through the test
+helper `tokenResponse`, into `credentials.refresh_token` in `oauth.test.ts`, then
+`McpSessionStore.familyForRefreshToken`/`prepareRefresh` and on to `digestOf`'s SHA-256. The
+same alert (#19) has been open on `main` since 2026-10-13, at the line `digestOf` held then. This
+PR moved `digestOf` (to make room for `clientOf`), which changed the alert fingerprint, so the PR
+check reported it as new. No password is involved: the hashed value is a 256-bit random refresh
+token, and a fast digest is the right lookup key for it. Renaming the helper removes the
+misclassified source rather than suppressing the alert. Whether CodeQL agrees is shown by the
+check on the pushed head, not by any local run.
+
+### Recorded, not changed
+
+- S3-2: the #607 symptom recurs at lower frequency, because a proven client lives 24 h while
+  its refresh family lives 14 days idle / 30 days absolute, and a refresh neither checks nor
+  extends the client. Follow-up issue
+  [#623](https://github.com/Prosperous-Unification/puni-00/issues/623).
+- S3-6 and S3-7: the review marked them note-only, needing no change. Their text was not
+  passed to this change's author, so they are recorded here by id only.

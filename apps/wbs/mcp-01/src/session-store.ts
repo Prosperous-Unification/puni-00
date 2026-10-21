@@ -375,8 +375,9 @@ export class McpSessionStore {
 
   /**
    * Registers the client `create` builds when `admits` accepts the census of clients live at
-   * `now`, under one IMMEDIATE transaction so two processes sharing the store (blue and green
-   * mid-swap) count each other's registrations. `create` runs only once admitted, so a refused
+   * `now`. Census and insert run in one IMMEDIATE transaction, which takes SQLite's write lock
+   * first, so another writer on the store (blue and green mid-swap) cannot register between
+   * them; no test exercises two processes here. `create` runs only once admitted, so a refused
    * registration consumes no client id.
    *
    * @returns the registered client, or `null` when `admits` refused.
@@ -449,10 +450,16 @@ export class McpSessionStore {
     ).map(clientOf);
   }
 
-  /** Moves the client's sliding lifetime to `expiresAt`; a vanished client stays absent. */
+  /**
+   * Moves the client's sliding lifetime forward to `expiresAt`, never back, so an extension
+   * computed before a concurrent promotion (another process) cannot shorten the promoted
+   * lifetime. A vanished client stays absent.
+   */
   extendClient(clientId: string, expiresAt: number): void {
+    // Proof: 2026-10-21, `SET expires_at = ?` without MAX failed `never shortens a lifetime
+    // when an extension follows a promotion` (store-migrations.test.ts).
     this.db
-      .query('UPDATE mcp_client SET expires_at = ? WHERE client_id = ?')
+      .query('UPDATE mcp_client SET expires_at = MAX(expires_at, ?) WHERE client_id = ?')
       .run(expiresAt, clientId);
   }
 

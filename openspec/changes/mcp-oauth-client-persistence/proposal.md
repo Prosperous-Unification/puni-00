@@ -29,8 +29,9 @@ choices and reauthentication markers stay in memory; they are minutes-long.
 
 ## Constraints
 
-The migration is additive (blue and green share the store mid-swap) and ships
-its `down.sql`. A promotion reservation held across one code exchange stays in
+The migration is additive in schema and ships its `down.sql`; as with the
+binding migration, an older release refuses to open the migrated store. A stored
+client's redirect is re-checked against the current allowlist. A promotion reservation held across one code exchange stays in
 process memory: a stored reservation would outlive a process that died
 mid-exchange and refuse that client's later exchanges until it expired. Stored
 rows are trusted state: a malformed row throws rather than reading as an absent

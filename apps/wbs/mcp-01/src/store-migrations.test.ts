@@ -760,6 +760,15 @@ describe('MCP registered-client migration', () => {
     reopened.close();
   });
 
+  it('never shortens a lifetime when an extension follows a promotion', () => {
+    const store = new McpSessionStore(':memory:', [KEY]);
+    admit(store, client('client-a', NOW + 1_000));
+    store.promoteClient('client-a', NOW + 86_400_000);
+    store.extendClient('client-a', NOW + 600_000);
+    expect(store.client('client-a', NOW)?.expiresAt).toBe(NOW + 86_400_000);
+    store.close();
+  });
+
   it.each([
     ['unparseable redirect_uris', "UPDATE mcp_client SET redirect_uris = 'not json'"],
     ['an empty redirect list', "UPDATE mcp_client SET redirect_uris = '[]'"],

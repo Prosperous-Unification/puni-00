@@ -14,6 +14,14 @@
 - [x] 2.2 Unknown or expired `client_id` at authorize answers `400 invalid_client` with `error_description`; other malformed requests stay `invalid_request`. Tests: `answers invalid_client with a re-register hint for an unknown client_id`, `answers invalid_client once an unproven client expires across a restart`, `keeps the request error for a malformed authorization of a registered client`.
   - Proof: answering `invalid_request` for the unknown client, or `invalid_client` for the malformed or unregistered-redirect branches, fails those tests.
 
+## 2b. Review fixes (PR #622)
+
+- [x] 2b.1 Authorization re-checks a stored redirect against the current allowlist (`isListedRedirect`). Test: `refuses a stored redirect that is no longer on the allowlist`.
+  - Proof: dropping `isListedRedirect` from the check makes that test answer 302.
+- [x] 2b.2 `extendClient` only moves a lifetime forward (`MAX`). Test: `never shortens a lifetime when an extension follows a promotion`.
+  - Proof: plain `SET expires_at = ?` fails that test.
+- [x] 2b.3 `oauthError` renamed `protocolError` to remove the CodeQL `js/insufficient-password-hash` misclassification (see `verify.md`).
+
 ## 3. Names and docs
 
 - [x] 3.1 Rename `InMemoryMcpOAuth` to `McpOAuthServer` across mcp-01 sources and tests (mechanical).

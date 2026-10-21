@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { BrowserOidcClient, JwtClaims } from '@wbs/auth';
+import { Database } from 'bun:sqlite';
 import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
@@ -3181,6 +3182,27 @@ describe('registered clients across a restart', () => {
     expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.1')).status).toBe(429);
     expect((await registrationResponse(server.oauth, [CALLBACK], '203.0.113.2')).status).toBe(201);
     server.close();
+  });
+
+  it('refuses a stored redirect that is no longer on the allowlist', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'mcp-oauth-unlisted-'));
+    const path = join(root, 'sessions.sqlite');
+    const store = new McpSessionStore(path, [Buffer.alloc(32, 17)]);
+    const { oauth } = fixture({ store });
+    const clientId = await register(oauth);
+    const removed = 'https://removed.example/callback';
+    const planted = new Database(path, { strict: true });
+    planted
+      .query('UPDATE mcp_client SET redirect_uris = ? WHERE client_id = ?')
+      .run(JSON.stringify([CALLBACK, removed]), clientId);
+    planted.close();
+
+    const refused = await oauth.response(new Request(authorizeUrl(clientId, removed)));
+    expect(refused?.status).toBe(400);
+    expect(await refused?.json()).toEqual({ error: 'invalid_request' });
+    expect((await oauth.response(new Request(authorizeUrl(clientId))))?.status).toBe(302);
+    store.close();
+    rmSync(root, { recursive: true, force: true });
   });
 
   it('deletes an expired client from the store when the next request sweeps', async () => {

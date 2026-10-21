@@ -154,8 +154,10 @@ keys: `docs/auth-integration.md`, "MCP organization delegation".
 refresh families and sessions, so a restart or deploy keeps every client's
 `client_id`; authorization codes, pending logins and organization choices are
 minutes-long and stay in memory. An unknown or expired `client_id` at
-`/mcp/oauth/authorize` answers `400 invalid_client` with an `error_description`
-asking the client to register again (`src/oauth.ts`). On dev it must be
+`/mcp/oauth/authorize` answers `400 invalid_client` to the browser with an
+`error_description` asking for a new registration; whether a client re-registers
+on its own is unobserved (`src/oauth.ts`). A stored client's redirect must still
+be on today's allowlist. On dev it must be
 `/data/mcp-session.sqlite`, the path inside `wbs-dev-src` backed by the host's
 `/home/puni1/wbs-dev/data` mount; host paths are not visible inside the
 container. `MCP_STORE_KEY_CURRENT` is base64 for 32 random bytes.

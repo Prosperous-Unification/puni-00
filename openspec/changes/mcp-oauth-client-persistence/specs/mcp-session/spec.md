@@ -34,7 +34,10 @@ Authorization with a `client_id` that is not registered or whose lifetime has
 ended SHALL answer `400` with `error` `invalid_client` and an
 `error_description` saying the client must register again, without redirecting.
 Every other malformed authorization request, including a redirect URI the known
-client did not register, SHALL keep answering `invalid_request`.
+client did not register, SHALL keep answering `invalid_request`. A stored
+client's redirect URI SHALL also be admissible under the current redirect
+allowlist at every authorization, so a callback removed from the allowlist stops
+authorizing once the release without it starts.
 
 #### Scenario: Unknown client_id
 
@@ -47,3 +50,9 @@ client did not register, SHALL keep answering `invalid_request`.
 - **GIVEN** a registered client
 - **WHEN** authorization names a redirect URI it did not register
 - **THEN** the response stays 400 `invalid_request`
+
+#### Scenario: Stored redirect removed from the allowlist
+
+- **GIVEN** a stored client whose registered redirect URIs include one no longer on the allowlist
+- **WHEN** authorization names that redirect URI
+- **THEN** the response is 400 `invalid_request`, while its still-listed redirect authorizes

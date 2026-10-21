@@ -240,8 +240,11 @@ refused with 429 when that ceiling cannot cover the browser and code-exchange
 window; a successful exchange promotes the client to 24 hours. Registered
 clients live in the MCP store (`MCP_STORE_PATH`), so restarts and deploys keep
 them and their lifetimes; authorization with an unknown or expired `client_id`
-answers `400 invalid_client` with an `error_description` to register again,
-while other malformed authorization requests stay `invalid_request`. Registration is
+answers `400 invalid_client` to the browser with an `error_description` asking
+for a new registration (automatic re-registration by clients is unobserved),
+while other malformed authorization requests stay `invalid_request`. A stored
+client's redirect is re-checked against `HOSTED_REDIRECTS` and the loopback
+rule at every authorization, so removing a callback takes effect at deploy. Registration is
 capped at 20 unproven and 100 proven clients per forwarding source plus 1,000
 globally; pending authorization is capped at five per client and 1,000 globally;
 unredeemed grants and live sessions are each capped at 1,000 globally. New
