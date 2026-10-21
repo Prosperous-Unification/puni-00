@@ -268,3 +268,10 @@ it('refuses each foreign local endpoint project independently even when work-ite
     ).toThrow(/local relationship/);
   }
 });
+
+it('refuses duplicate empty project identities without ownership masking', () => {
+  const empty = project('empty', [], []);
+  expect(() => resolveConnectedGraph({ projects: [empty, empty], external: [] })).toThrow(
+    /duplicate project empty/,
+  );
+});

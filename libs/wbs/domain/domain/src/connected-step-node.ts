@@ -52,7 +52,7 @@ export function resolveConnectedGraph(input: ConnectedGraphInput): ConnectedGrap
   const relationships = new Map<string, ScopedTypedDependency>();
   const graph: StepNodeGraph = { nodes: [], edges: [] };
   for (const project of input.projects) {
-    // Proof: omitting project identity uniqueness made `refuses duplicate project and work-item ownership` accept the duplicate (2026-10-22).
+    // Proof: omitting project identity uniqueness made `refuses duplicate empty project identities without ownership masking` accept duplicate empty projects (2026-10-22).
     if (projects.has(project.projectId)) throw new Error(`duplicate project ${project.projectId}`);
     projects.set(project.projectId, project);
     for (const workItemId of project.tree.leavesUnder.keys()) {
