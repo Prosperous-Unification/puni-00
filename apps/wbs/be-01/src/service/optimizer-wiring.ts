@@ -36,6 +36,7 @@ const fast: FastScheduler = (
   deadlines,
   typed,
   elsewhere,
+  resourceCapacities,
 ) =>
   schedule(
     rows,
@@ -48,6 +49,7 @@ const fast: FastScheduler = (
     typed,
     undefined,
     elsewhere,
+    resourceCapacities,
   );
 
 /** Fast-only scheduler for isolated service fixtures. */

@@ -217,6 +217,103 @@ describe('claimWorkItem in a batch', () => {
     }
   });
 
+  it('claims and assigns in one entry; undo clears both the claim and the assignment', async () => {
+    const { source, runner, projectId, steps, claims, entries } = await seeded();
+    const [impl, review] = steps;
+    const assignees = async () =>
+      (await source.stores.directory.assignmentsFor('090'))
+        .map(({ stepId, personId }) => [stepId, personId])
+        .toSorted(([left = ''], [right = '']) => left.localeCompare(right));
+    try {
+      await runner.run(projectId, F, [
+        { kind: 'setAssignee', workItemId: '090', stepId: review, personId: 'stranger' },
+      ]);
+      const before = await entries(F);
+      const answer = await runner.run(projectId, F, [
+        { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
+      ]);
+      expect(answer).toMatchObject({
+        ok: true,
+        results: [{ alreadyHeld: false, assignedStepIds: [impl, review] }],
+      });
+      expect(await entries(F)).toBe(before + 1);
+      // Repeated by the holder it writes nothing, so it assigns nothing either.
+      expect(
+        await runner.run(projectId, F, [
+          { kind: 'claimWorkItem', workItemId: '090', personId: 'claire', assign: true },
+        ]),
+      ).toMatchObject({ ok: true, results: [{ alreadyHeld: true, assignedStepIds: [] }] });
+      const both = [impl, review].map((stepId) => [stepId, 'claire']);
+      expect(await assignees()).toEqual(
+        both.toSorted(([left = ''], [right = '']) => left.localeCompare(right)),
+      );
+      expect(
+        (await claims())
+          .map(({ stepId, personId }) => [stepId ?? '', personId])
+          .toSorted(([left = ''], [right = '']) => left.localeCompare(right)),
+      ).toEqual(both.toSorted(([left = ''], [right = '']) => left.localeCompare(right)));
+      expect(await runner.undo(projectId, F)).toMatchObject({ ok: true });
+      expect(await claims()).toEqual([]);
+      // The assignee the step had before the claim comes back, not an empty one.
+      expect(await assignees()).toEqual([[review, 'stranger']]);
+      expect(await runner.redo(projectId, F)).toMatchObject({ ok: true });
+      expect(await claims()).toHaveLength(2);
+      expect(await assignees()).toEqual(
+        both.toSorted(([left = ''], [right = '']) => left.localeCompare(right)),
+      );
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('leaves assignments untouched when assign is false or absent', async () => {
+    const { source, runner, projectId, steps } = await seeded();
+    const [impl, review] = steps;
+    try {
+      await runner.run(projectId, F, [
+        { kind: 'setAssignee', workItemId: '090', stepId: review, personId: 'stranger' },
+      ]);
+      expect(
+        await runner.run(projectId, F, [
+          {
+            kind: 'claimWorkItem',
+            workItemId: '090',
+            personId: 'claire',
+            steps: [impl],
+            assign: false,
+          },
+          {
+            kind: 'claimWorkItem',
+            workItemId: '090',
+            personId: 'claire',
+            steps: [review],
+            runId: 'r',
+          },
+        ]),
+      ).toMatchObject({ ok: true });
+      expect(await source.stores.directory.assignmentsFor('090')).toEqual([
+        { workItemId: '090', stepId: review, personId: 'stranger' },
+      ]);
+    } finally {
+      await source.close();
+    }
+  });
+
+  it('assigns nothing with a subtree claim, which claims no step', async () => {
+    const { source, runner, projectId } = await seeded();
+    try {
+      expect(
+        await runner.run(projectId, F, [
+          { kind: 'claimWorkItem', workItemId: '080', personId: 'claire', assign: true },
+        ]),
+      ).toMatchObject({ ok: true, results: [{ assignedStepIds: [] }] });
+      for (const id of ['080', '080.25', '080.26'])
+        expect(await source.stores.directory.assignmentsFor(id)).toEqual([]);
+    } finally {
+      await source.close();
+    }
+  });
+
   it('refuses a claim on a leaf whose only worked step is done: it reads done', async () => {
     const { source, runner, projectId, steps, claims } = await seeded();
     const [impl] = steps;

@@ -8,7 +8,7 @@ import { OPTIMIZATION_LABEL, type OptimizationRequirements } from './contract';
 import { optimizationModule } from './module';
 
 const PROJECT = '11111111-1111-4111-8111-111111111111';
-const CONTRACT = '7+0.2.0';
+const CONTRACT = '7+0.3.0';
 const BUDGET_MS = 60_000;
 
 const INPUT: ScheduleInput = {
@@ -43,7 +43,7 @@ function requirements(): OptimizationRequirements {
   return {
     repository: {} as unknown as OptimizationRequirements['repository'],
     contractVersion: CONTRACT,
-    solverVersion: '0.2.0',
+    solverVersion: '0.3.0',
     budgetMs: BUDGET_MS,
     ownerId: 'owner',
     now: () => 10,

@@ -94,7 +94,7 @@ it('uses an addressed retirement cause when selected display changes at equal lo
       optimization: {
         inputHash: 'same',
         generation: 1,
-        contractVersion: '7+0.2.0',
+        contractVersion: '7+0.3.0',
         budgetMs: 60_000,
         variants: { pri: { state: 'ready', proof: 'proven' }, time: { state: 'idle' } },
         schedules: { pri: selected, time: null },
@@ -112,7 +112,7 @@ it('uses an addressed retirement cause when selected display changes at equal lo
       optimization: {
         inputHash: 'same',
         generation: null,
-        contractVersion: '7+0.2.0',
+        contractVersion: '7+0.3.0',
         budgetMs: 60_000,
         variants: { pri: { state: 'idle' }, time: { state: 'idle' } },
         schedules: { pri: null, time: null },

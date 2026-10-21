@@ -1,4 +1,5 @@
 import type { PlanDocument, PlanDocumentImport } from '@wbs/contracts';
+import type { Demand, ResourceCapacity } from '@wbs/domain';
 
 import type { CalendarMarkerReader } from '../../ports/calendar-marker-read';
 import type { Clock } from '../../ports/clock';
@@ -21,13 +22,21 @@ type PlanDirectory = Pick<
   | 'listServices'
   | 'listWorkItemTypes'
   | 'listExternalSystems'
+  | 'listResources'
 >;
+
+/** The project's resource capacities and demands an export reads (`wbs-resources`). */
+export interface ResourceFactsReader {
+  resourceCapacitiesOf(projectId: string): Promise<ResourceCapacity[]>;
+  demandsOf(projectId: string): Promise<Demand[]>;
+}
 
 export interface PlanDocumentServiceOptions {
   stepParallels: Pick<StepParallelStore, 'listByProject'>;
   directory: PlanDirectory;
   markers: CalendarMarkerReader;
   clock: Pick<Clock, 'now'>;
+  resourceFacts: ResourceFactsReader;
 }
 
 /**

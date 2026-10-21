@@ -10,6 +10,7 @@ import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AuthService } from '@wbs/core/service/auth.service';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
+import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
 import { StepNodeAttemptRepository } from '@wbs/store-sqlite/step-node-attempt';
 import { StepParallelRepository } from '@wbs/store-sqlite/step-parallel';
@@ -121,6 +122,7 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
         clock: testClock,
         projects: projectStore,
         capacity: capacityStore,
+        resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         broadcast,
       }),
       priorityBands: testPriorityBandService(),
@@ -150,6 +152,8 @@ describe('setCapacity on POST /api/projects/:id/commands', () => {
         typedDependencies: new TypedDependencyRepository(db, OPEN),
         directory: directoryStore,
         capacity: capacityStore,
+        demands: new DemandRepository(db, OPEN),
+        resourceCapacity: new ResourceCapacityRepository(db, OPEN),
         priorityBands: inMemoryPriorityBands(),
         subtrees: new SubtreeRepository(db, OPEN),
         journal: new CommandJournalRepository(db, OPEN),

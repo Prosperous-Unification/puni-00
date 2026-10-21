@@ -4,6 +4,7 @@ import type { CapacityStore } from './capacity-store';
 import type { LivePlanStore } from './chain-snapshot-store';
 import type { ClaimStore } from './claim-store';
 import type { CommandJournalStore } from './command-journal-store';
+import type { DemandStore } from './demand-store';
 import type { DependencyStore } from './dependency-store';
 import type { DirectoryStore } from './directory-store';
 import type { EstimateStore } from './estimate-store';
@@ -14,6 +15,7 @@ import type { PriorityBandStore } from './priority-band-store';
 import type { StepProgressStore } from './progress-store';
 import type { ProjectRankStore, SharedPeopleStore } from './project-rank-store';
 import type { ProjectStore } from './project-store';
+import type { ResourceCapacityStore } from './resource-capacity-store';
 import type { SavedPlanCaptureStore } from './saved-plan-capture-store';
 import type { SavedPlanStore } from './saved-plan-store';
 import type { StepBlockageStore } from './step-blockage-store';
@@ -37,6 +39,8 @@ export interface PlanTransactionalStores {
   projectRanks?: ProjectRankStore & SharedPeopleStore;
   directory: DirectoryStore;
   capacity: CapacityStore;
+  /** How many units of each resource a project's plan may use (`wbs-resources`). */
+  resourceCapacity: ResourceCapacityStore;
   priorityBands: PriorityBandStore;
   calendarMarkers: CalendarMarkerStore;
   eventLog: EventLogStore;
@@ -55,6 +59,8 @@ export interface PlanTransactionalStores {
   attempts: StepNodeAttemptStore;
   /** Who occupies a step or reserves a subtree now (`wbs-team-claims`). */
   claims: ClaimStore;
+  /** What each work item needs of each resource (`wbs-resources`). */
+  demands: DemandStore;
   dependencies: DependencyStore;
   typedDependencies: TypedDependencyStore;
   subtrees: SubtreeStore;

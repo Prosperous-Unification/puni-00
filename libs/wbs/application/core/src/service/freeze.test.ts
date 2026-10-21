@@ -176,7 +176,7 @@ describe('deletion against a frozen project', () => {
     await add('Test', cable);
     await service.freeze(projectId, OWNER);
 
-    await service.remove(cable, OWNER, null);
+    await service.remove(cable, OWNER, null, { kind: 'legacy' });
 
     expect(await numbered()).toEqual({ Strip: '010', Test: '030' });
   });

@@ -27,6 +27,9 @@ export function installPlanDocument(requirements: PlanDocumentRequirements): Pla
         factoryReturnKind: 'sync-value',
       }),
       clock: DiBag.createProvider(() => requirements.clock, { factoryReturnKind: 'sync-value' }),
+      resourceFacts: DiBag.createProvider(() => requirements.resourceFacts, {
+        factoryReturnKind: 'sync-value',
+      }),
     })
     .buildContainer();
   // Proof (2026-09-23): returning a structurally assignable `exposed` object with `bag` left the

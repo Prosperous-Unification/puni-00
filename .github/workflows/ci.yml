@@ -722,11 +722,9 @@ jobs:
           base="$(bun run tools/tool-git-hooks/src/hooks/corpus-version-base.ts)"
           bun run tools/tool-git-hooks/src/hooks/corpus-version-lint.ts "$base" HEAD
 
-      # The scope and version are both explicit on purpose. `bunx openspec`
-      # resolves an unrelated package on npm that has no bin, so the step died
-      # with "could not determine executable" rather than validating anything;
-      # it only worked locally because volta has the real CLI on PATH. Pinning
-      # the version stops a CLI release from changing what this gate means.
+      # package.json pins @fission-ai/openspec; the frozen install above provides
+      # its executable and locked dependencies. Use that path directly so an
+      # absent local installation cannot resolve a different package or CLI.
       #
       # `--json` used to only *emit* JSON. Nothing read it, so what actually
       # gated was the process exit status — an inference from the command's own
@@ -755,20 +753,14 @@ jobs:
       - name: OpenSpec
         run: |
           set -euo pipefail
-          bunx @fission-ai/openspec@1.12.0 validate --all --json \
+          ./node_modules/.bin/openspec validate --all --json \
             | tee "$RUNNER_TEMP/openspec-validate.json"
           jq -e '.summary.totals.failed == 0 and .summary.totals.passed > 0' \
             "$RUNNER_TEMP/openspec-validate.json" > /dev/null
 
-      # `tool-workflows:integration` is the only check that runs the real CLI
-      # against the twilight-v1 schema graph, and it refuses to start without
-      # OPENSPEC_CLI naming an installed 1.12.0 `bin/openspec.js`. That kept it
-      # out of `run-many`, so the edge it proves — planning stays blocked until
-      # design.md exists — was outside the merge gate while its Proof comment sat
-      # in schema.yaml. The package is installed into a scratch directory rather
-      # than resolved out of bunx's cache, so the path is a fact of this step
-      # rather than a guess about Bun's internals; the test then asserts
-      # `--version` is 1.12.0 before probing anything.
+      # The integration target probes twilight-v1 against the same locked CLI
+      # as validation. Its version assertion rejects a stale installation before
+      # checking that planning stays blocked until design.md exists.
       #
       # Proof: with `design` removed from twilight-v1's `tasks.requires`, this
       # target failed on `Expected: "blocked" / Received: "ready"`, observed
@@ -779,12 +771,8 @@ jobs:
       - name: OpenSpec schema graph (pinned CLI)
         run: |
           set -euo pipefail
-          pin="$(mktemp -d)"
-          echo '{"name":"openspec-pin","private":true}' > "$pin/package.json"
-          (cd "$pin" && bun add @fission-ai/openspec@1.12.0)
-          cli="$pin/node_modules/@fission-ai/openspec/bin/openspec.js"
-          test -f "$cli" || { echo "pinned CLI not installed at $cli"; exit 1; }
-          OPENSPEC_CLI="$cli" bunx nx run tool-workflows:integration
+          OPENSPEC_CLI="$PWD/node_modules/@fission-ai/openspec/bin/openspec.js" \
+            bunx nx run tool-workflows:integration
 
   # The Twilight shard: Twilight Burokrat's own targets, its explicit source lint and the packed
   # package suite — 28 minutes of the single job's 62 on main 262d006c, almost all of it one

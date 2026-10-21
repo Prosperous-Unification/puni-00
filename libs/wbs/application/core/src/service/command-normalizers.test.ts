@@ -1,6 +1,6 @@
 import { commandDefinitions, defineCommand } from '@wbs/contracts';
 import { type } from 'arktype';
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
 import { type CommandNormalizerRecord, commandNormalizers } from './command-normalizers';
 
@@ -175,4 +175,50 @@ test('refuses an empty step list on a claim and a release', () => {
     expect(() =>
       commandNormalizers[kind]({ kind, workItemId: 'w', personId: 'p', steps: [] } as never),
     ).toThrow('steps_must_name_a_step');
+});
+
+describe('a claim’s resources (wbs-resources R4)', () => {
+  const claim = (resources: unknown) =>
+    commandNormalizers.claimWorkItem({
+      kind: 'claimWorkItem',
+      workItemId: 'w',
+      personId: 'p',
+      resources,
+    } as never);
+
+  test('keeps absent absent and each entry as given', () => {
+    expect(claim(undefined)).not.toHaveProperty('resources');
+    expect(claim([{ resourceId: 'ram', units: 6 }]).resources).toEqual([
+      { resourceId: 'ram', units: 6 },
+    ]);
+  });
+
+  test('refuses resources naming one resource twice', () => {
+    expect(() =>
+      claim([
+        { resourceId: 'ram', units: 6 },
+        { resourceId: 'ram', units: 8 },
+      ]),
+    ).toThrow('resources_must_name_each_resource_once');
+  });
+
+  test('refuses an empty list, a non-list, a malformed entry and units outside 1 to the bound', () => {
+    expect(() => claim([])).toThrow('resources_must_name_a_resource');
+    expect(() => claim({ resourceId: 'ram', units: 1 })).toThrow('resources_must_be_a_list');
+    expect(() => claim(['ram'])).toThrow('resources_must_be_a_list');
+    expect(() => claim([{ units: 1 }])).toThrow('resourceId_must_be_an_id');
+    expect(() => claim([{ resourceId: 'ram' }])).toThrow('units_required');
+    for (const units of [0, 1.5, null, '2'])
+      expect(() => claim([{ resourceId: 'ram', units }])).toThrow(
+        'units_must_be_a_whole_number_from_1',
+      );
+    expect(() => claim([{ resourceId: 'ram', units: 1_000_000_001 }])).toThrow(
+      'units_must_be_at_most_1000000000',
+    );
+    expect(() =>
+      claim(
+        Array.from({ length: 51 }, (_, index) => ({ resourceId: `r${String(index)}`, units: 1 })),
+      ),
+    ).toThrow('resources_must_be_at_most_50');
+  });
 });

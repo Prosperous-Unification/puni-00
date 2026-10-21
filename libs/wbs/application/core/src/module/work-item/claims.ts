@@ -1,9 +1,14 @@
 import type {
+  BelowDeclaredDemand,
+  BelowHeldOccupancy,
   Claim,
   ClaimHolder,
   ClaimRefusal,
+  OccupancyHolder,
   OrganizationRole,
   ReleaseRefusal,
+  ResourcesExhausted,
+  ResourceUnits,
   WorkItemStatus,
 } from '@wbs/domain';
 
@@ -17,6 +22,13 @@ export interface ClaimInput {
   readonly stepIds: readonly string[] | null;
   readonly runId: string | null;
   readonly parentClaimId: string | null;
+  /** Also assign the claimant to every step the claim writes (`wbs-resources` R7). */
+  readonly assign: boolean;
+  /**
+   * What the claim asks to hold in place of the leaf's declared demand
+   * (`wbs-resources` R4), or null for the declared demand.
+   */
+  readonly resources: readonly ResourceUnits[] | null;
 }
 
 /** What `releaseWorkItem` asks of one work item once its refs are resolved. */
@@ -31,8 +43,14 @@ export interface NamedClaimHolder extends ClaimHolder {
   readonly name: string;
 }
 
+/** An occupancy holder as the wire names it: the person's name beside the decision's holder. */
+export interface NamedOccupancyHolder extends OccupancyHolder {
+  readonly name: string;
+}
+
 /** Claim and release refusals that carry nothing beside their reason. */
 export type PlainClaimReason =
+  | 'resources_on_subtree'
   | 'person_not_bound'
   | 'credential_not_for_person'
   | 'parent_claim_unknown'
@@ -57,13 +75,26 @@ export type ClaimRefusalOutcome =
       readonly ok: false;
       readonly reason: 'inside_subtree_claim' | 'overlaps_subtree_claim';
       readonly holder: NamedClaimHolder;
-    };
+    }
+  | ({ readonly ok: false } & BelowDeclaredDemand)
+  | ({ readonly ok: false } & BelowHeldOccupancy)
+  | ({ readonly ok: false } & Omit<ResourcesExhausted, 'holders'> & {
+        readonly holders: readonly NamedOccupancyHolder[];
+      });
 
 /** What a successful claim answers: whether it wrote nothing, and the claims it holds. */
 export interface Claimed {
   readonly alreadyHeld: boolean;
   /** The claims written, or for `alreadyHeld` the ones already holding every step. */
   readonly claimIds: readonly string[];
+  /** The steps the claim made the claimant the assignee of; empty without `assign`. */
+  readonly assignedStepIds: readonly string[];
+  /**
+   * The units this claim newly acquired (`wbs-resources` R3, R4): the leaf's
+   * occupancy on its first claim, what a later claim's ask adds above the
+   * standing copy, and empty for a subtree claim and `alreadyHeld`.
+   */
+  readonly acquired: readonly ResourceUnits[];
 }
 
 const ADMIN_ROLES: ReadonlySet<OrganizationRole> = new Set(['admin', 'super_admin']);
@@ -130,6 +161,12 @@ export function refusalOf(
     if (name === undefined) throw new Error(`claim ${holder.claimId} names an absent person`);
     return { ...holder, name };
   };
+  const occupant = (holder: OccupancyHolder): NamedOccupancyHolder => {
+    const name = nameOf.get(holder.personId);
+    if (name === undefined)
+      throw new Error(`a claim on ${holder.workItemId} names an absent person`);
+    return { ...holder, name };
+  };
   switch (refusal.reason) {
     case 'not_startable':
       return { ok: false, reason: refusal.reason, status: refusal.status };
@@ -140,6 +177,11 @@ export function refusalOf(
     case 'inside_subtree_claim':
     case 'overlaps_subtree_claim':
       return { ok: false, reason: refusal.reason, holder: named(refusal.holder) };
+    case 'below_declared_demand':
+    case 'below_held_occupancy':
+      return { ok: false, ...refusal };
+    case 'resources_exhausted':
+      return { ok: false, ...refusal, holders: refusal.holders.map(occupant) };
     default:
       return { ok: false, reason: refusal.reason };
   }

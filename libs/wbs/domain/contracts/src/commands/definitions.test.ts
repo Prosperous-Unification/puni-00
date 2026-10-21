@@ -30,6 +30,7 @@ const PINNED_COMMAND_KINDS = [
   'setMeasure',
   'clearMeasure',
   'setAssignee',
+  'assignSubtree',
   'claimWorkItem',
   'releaseWorkItem',
   'addDependency',
@@ -42,6 +43,8 @@ const PINNED_COMMAND_KINDS = [
   'unfreezeProject',
   'unfreezeWorkItem',
   'setCapacity',
+  'setResourceCapacity',
+  'setDemand',
   'setStepAllowance',
   'setPriorityBands',
   'createTeam',
@@ -59,6 +62,9 @@ const PINNED_COMMAND_KINDS = [
   'createWorkItemType',
   'patchWorkItemType',
   'deleteWorkItemType',
+  'createResource',
+  'patchResource',
+  'deleteResource',
 ] as const satisfies readonly PlanCommandWire['kind'][];
 
 interface CommandDescriptor {

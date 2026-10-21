@@ -25,6 +25,9 @@ function readFast(ask: ScheduleAsk): ScheduleRead | Promise<ScheduleRead> {
             ask.input.reach,
             ask.input.deadlines,
             ask.input.typed,
+            undefined,
+            ask.input.elsewhere,
+            ask.input.resourceCapacities,
           ),
           optimization: null,
         };

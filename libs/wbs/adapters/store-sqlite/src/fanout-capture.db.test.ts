@@ -119,14 +119,14 @@ it('captures staged upstream displacement on the borrowed writer without admitti
   try {
     ready.db.run(sql.raw("UPDATE project SET schedule_engine = 'optimized' WHERE id = 'a1'"));
     const inputHash = scheduleInputHash(chain.input);
-    const generation = allocateGeneration(ready.db, 'a1', '16+0.2.0', inputHash, 1);
+    const generation = allocateGeneration(ready.db, 'a1', '17+0.3.0', inputHash, 1);
     ready.db
       .insert(optimizedScheduleCache)
       .values({
         projectId: 'a1',
         inputHash,
         generation,
-        contractVersion: '16+0.2.0',
+        contractVersion: '17+0.3.0',
         budgetMs: 1000,
         objective: 'pri',
         status: 'ok',
@@ -167,7 +167,7 @@ it('captures staged upstream displacement on the borrowed writer without admitti
     );
   const options = {
     schedulerOf,
-    optimization: { contractVersion: '16+0.2.0', budgetMs: 1000, now: () => 100 },
+    optimization: { contractVersion: '17+0.3.0', budgetMs: 1000, now: () => 100 },
   };
   connection.db.run(sql.raw('BEGIN IMMEDIATE'));
   try {

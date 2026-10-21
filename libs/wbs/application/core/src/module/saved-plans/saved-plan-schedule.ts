@@ -1,4 +1,5 @@
 import {
+  chargedDemandsOf,
   deadlineOffsetsOf,
   effectiveTeamsOf,
   type Elsewhere,
@@ -57,6 +58,9 @@ export function scheduleInputOfCaptured(
     rounding: reads.project.estimateRounding,
   };
   const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
+  const capacityByResource = new Map(
+    reads.resourceCapacities.map(({ resourceId, units }) => [resourceId, units] as const),
+  );
   // The same fold the projection does over its own `assignmentsOf` read: one
   // entry per work item, step id to person id.
   const assigneesOf = new Map<string, Record<string, string>>();
@@ -75,6 +79,9 @@ export function scheduleInputOfCaptured(
     assigneesOf,
     effectiveTeamsOf(rows),
     reads.capacity,
+    // The live projection's own fold over the captured demands, so a captured
+    // plan levels resources exactly as the live read does.
+    chargedDemandsOf(reads.demands, capacityByResource),
   );
   // A manual date is an offset before the pass, exactly as in the projection:
   // the engine never sees a calendar, so weekends are counted in one place.
@@ -129,6 +136,7 @@ export function scheduleInputOfCaptured(
       typed: reads.typedDependencies,
       // Proof: dropping this projection failed the captured elsewhere calendar test (undefined).
       ...(elsewhere === undefined ? {} : { elsewhere }),
+      ...(capacityByResource.size === 0 ? {} : { resourceCapacities: capacityByResource }),
     },
     heldLeafIds,
   );
@@ -149,6 +157,7 @@ export function schedulePlanInput(reads: PlanInputReads, elsewhere?: Elsewhere):
     undefined,
     // Proof: omitting this argument places the captured assigned slice at 0 instead of 5.
     input.elsewhere,
+    input.resourceCapacities,
   );
 }
 

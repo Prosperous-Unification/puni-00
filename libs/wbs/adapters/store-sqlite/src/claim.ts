@@ -2,9 +2,11 @@ import {
   type Claim,
   type ClaimIdentity,
   claimIdentityOf,
+  type ClaimOccupancy,
   type ClaimStore,
   type ClaimWriteOutcome,
   type CredentialPair,
+  type OccupancyRow,
   type ProgressKey,
   type StampedClaim,
   unstampClaim,
@@ -17,7 +19,7 @@ import type { Drizzle } from './db';
 import { DirectoryRepository } from './directory';
 import type { Gate } from './gate';
 import { bumpWorkItems } from './revision';
-import { claim, stepProgress, workItem } from './schema';
+import { claim, claimOccupancy, resource, stepProgress, workItem } from './schema';
 
 /**
  * Claims in the `claim` table (`20261019120000_add_claim`) and the
@@ -30,6 +32,9 @@ import { claim, stepProgress, workItem } from './schema';
  *
  * The identity reads are the directory's: `person.account_id` and
  * `external_identity.person_id` (`wbs-team-claims` D5, D6).
+ *
+ * Each claim's occupancy rows (`claim_occupancy`, `wbs-resources` R3) are
+ * written with it and go with it by cascade.
  *
  * @throws for a stored claim with no writing account, a stamped read of a claim
  * with no write instant, a removal of a claim that is not stored, and every
@@ -61,6 +66,23 @@ export class ClaimRepository implements ClaimStore {
   async findById(projectId: string, claimId: string): Promise<Claim | null> {
     const found = (await this.read(projectId, claimId)).at(0);
     return found === undefined ? null : unstampClaim(found);
+  }
+
+  async occupancyOf(projectId: string): Promise<OccupancyRow[]> {
+    return await this.db
+      .select({
+        claimId: claimOccupancy.claimId,
+        workItemId: claim.workItemId,
+        personId: claim.personId,
+        runId: claim.runId,
+        resourceId: claimOccupancy.resourceId,
+        units: claimOccupancy.units,
+      })
+      .from(claimOccupancy)
+      .innerJoin(claim, eq(claim.id, claimOccupancy.claimId))
+      .innerJoin(workItem, eq(workItem.id, claim.workItemId))
+      .where(eq(workItem.projectId, projectId))
+      .orderBy(asc(claim.workItemId), asc(claimOccupancy.resourceId), asc(claimOccupancy.claimId));
   }
 
   boundAccountOf(personId: string): Promise<string | null> {
@@ -108,10 +130,27 @@ export class ClaimRepository implements ClaimStore {
     claims: readonly Claim[],
     stated: readonly ProgressKey[],
     stamp: WriteStamp,
+    occupancy: readonly ClaimOccupancy[],
   ): Promise<ClaimWriteOutcome> {
+    const ids = new Set(claims.map(({ id }) => id));
+    const stray = occupancy.find(({ claimId }) => !ids.has(claimId));
+    if (stray !== undefined) throw new Error(`occupancy names claim ${stray.claimId} not added`);
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx): ClaimWriteOutcome => {
+        const resourceIds = [...new Set(occupancy.map(({ resourceId }) => resourceId))];
+        const known =
+          resourceIds.length === 0
+            ? []
+            : tx
+                .select({ id: resource.id })
+                .from(resource)
+                .where(inArray(resource.id, resourceIds))
+                .all();
+        // Proof: with this check removed, the SQLite certification failed its
+        // `claims.occupancy:hold-read-cascade` case, which asks for
+        // unknown_resource; watched 2026-10-20.
+        if (known.length !== resourceIds.length) return 'unknown_resource';
         for (const each of claims) {
           const held = tx
             .select({ id: claim.id })
@@ -145,6 +184,11 @@ export class ClaimRepository implements ClaimStore {
             .values({ ...each, ...auditOnCreate(stamp), createdBy: each.accountId })
             .run();
         }
+        for (const row of occupancy) {
+          tx.insert(claimOccupancy)
+            .values({ ...row, ...auditOnCreate(stamp) })
+            .run();
+        }
         for (const key of stated) {
           tx.insert(stepProgress)
             .values({ ...key, state: 'in_progress', statedAt: stamp.at, ...auditOnCreate(stamp) })
@@ -175,7 +219,8 @@ export class ClaimRepository implements ClaimStore {
             : tx.select({ id: claim.id }).from(claim).where(inArray(claim.id, ids)).all();
         if (stored.length !== new Set(ids).size)
           throw new Error(`a claim to remove is not stored: ${ids.join(', ')}`);
-        // Delegated claims under a removed one go with it: `parent_claim_id` cascades.
+        // Delegated claims under a removed one go with it (`parent_claim_id`
+        // cascades), and every removed claim's occupancy rows with it.
         if (ids.length > 0) tx.delete(claim).where(inArray(claim.id, ids)).run();
         for (const { workItemId, stepId } of cleared) {
           tx.delete(stepProgress)

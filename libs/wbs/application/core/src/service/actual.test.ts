@@ -315,7 +315,7 @@ describe('actuals through the structural commands', () => {
     await service.setEstimate(sockets, OWNER, DEV, days(1, 2, 3));
     await service.setActual(sockets, OWNER, DEV, 5);
 
-    await service.remove(sockets, OWNER, 'cascade');
+    await service.remove(sockets, OWNER, 'cascade', { kind: 'legacy' });
 
     expect((await shown()).get('Strip')).toEqual({ [DEV]: 5 });
   });
