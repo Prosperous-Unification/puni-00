@@ -336,3 +336,10 @@ Typecheck first required a test-only captured-array annotation change from `unkn
 `unknown[]`; the focused regressions ran again after that type-only correction. No runtime
 implementation changed after the subtree green. Scoped re-review remains pending, and all
 previous aggregate gate, live integration and power-loss limitations remain.
+
+Scoped re-review of `e89ac9d4e..de01475e9` marked I1 addressed with no new breakage. It
+inspected the migration-derived comparison, ten regression outcomes and both new fault
+logs, confirming that installed state is not repaired and extra rollback triggers remain
+usable. Storage Task 2 is accepted. Parent 6a.1–6a.2 and WBS durable-provider/conformance
+milestones remain in progress for artifacts, execution/outcomes, inbox/receipts and final
+provider-selection/aggregate acceptance. This is not coordinator readiness.
