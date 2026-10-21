@@ -1,6 +1,5 @@
 import {
   addWorkdays,
-  allowanceOf,
   type AllowancePercent,
   assumedAssignee,
   type Attempt,
@@ -10,20 +9,16 @@ import {
   CalendarRangeError,
   canDepend,
   canReparent,
-  chargedDemandsOf,
   type ChargedEstimate,
   chargedWorkdays,
-  chargedWorkdaysOf,
   type Claim,
   type Days,
   deadlineOffsetOf,
-  deadlineOffsetsOf,
   decideClaim,
   decideRelease,
   type Demand,
   type DependencyEndpoint,
   deriveNumbers,
-  effectiveTeamsOf,
   type EstimateRule,
   estimateUnitOf,
   findTypedEndpointDefect,
@@ -57,10 +52,8 @@ import {
   type Readiness,
   refuseDemand,
   refuseOccupancy,
-  resolveStepResources,
   type Resource,
   type ResourceCapacity,
-  type ResourceDemand,
   type ResourceOccupancy,
   type ResourceUnits,
   rollUp,
@@ -74,22 +67,16 @@ import {
   type Scheduled,
   type SettableStatus,
   type Sibling,
-  type Slice,
-  sliceKey,
   SOLVER_OBJECTIVES,
   type SolverObjectiveName,
   type Span,
   spanOfAttempts,
-  type StepAllowances,
   type StepNodeCycle,
   type StepNodeRef,
-  type StepPolicy,
   type StepState,
   treeOrder,
   type TypedDependency,
   UNKNOWN,
-  withoutHeldSubtrees,
-  workdaysBetween,
   workedStepsOf,
   type WorkItemStatus,
 } from '@wbs/domain';
@@ -189,6 +176,7 @@ import {
 import { DependencyGraphGuard, resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
+import { prepareScheduleParts } from '../../service/schedule-parts';
 import { workItemStatusesOf } from '../../service/work-item-statuses';
 import {
   type Claimed,
@@ -222,26 +210,6 @@ function statusOfRow(statuses: ReadonlyMap<string, WorkItemStatus>, id: string):
  * absent schedule and a zero-day one look identical to a caller, and only one of
  * them is a plan.
  */
-/**
- * The deadlines a project **off the calendar** offers, which is none of them.
- *
- * No longer the placeholder it was: the plan read now resolves the stored
- * `deadline` column against `project.startDate` and hands the offsets to
- * `schedule()`. This constant is what is left of that state — the one branch
- * where there is still nothing to say, because a project with no start date has
- * no day zero to count workdays from. It is the same rule the floors beside it
- * take and the same one 6.1's write path takes when it asks such a project
- * nothing about a deadline it is being handed.
- *
- * An empty map is the true value there rather than a stand-in: a plan whose
- * dates cannot be resolved states no deadline to the hash, so it keys the same
- * as a plan that has none, and both read the same cached row.
- *
- * Frozen into a module constant rather than built per read so the empty case
- * cannot be handed a map somebody later writes into.
- */
-export const NO_DEADLINES: ReadonlyMap<string, number> = new Map<string, number>();
-
 const UNSCHEDULED: Scheduled = {
   duration: 0,
   estimated: false,
@@ -253,171 +221,8 @@ const UNSCHEDULED: Scheduled = {
   critical: false,
 };
 
-/**
- * The project's plan as slices: one per leaf and step, in step order.
- *
- * The order is the project's, and it is the order the work runs in — Dev
- * finishes, then QA starts. That was an assumption written as a sum until this
- * change; it is now an edge, and the schedule can say when each step's part of
- * a work item happens rather than only when the whole of it does.
- *
- * A pair nobody has estimated carries `null` rather than zero, which is what
- * lets the schedule report it as unestimated instead of instant. Every leaf
- * gets a slice for every step even so, because an unestimated `Dev` in front of
- * an estimated `QA` is what hands `QA` the work item's predecessors.
- *
- * Two shapes the project's own step list does not cover:
- *
- * - **No steps at all.** Reachable — a project's last step can be removed. Each
- *   leaf gets one slice belonging to nobody, so the plan still schedules
- *   instead of losing every row that a neighbour depends on.
- * - **An estimate naming a step the project does not hold.** Not reachable
- *   through the API — every write that names a step is refused with
- *   `unknown_step`, and `estimate.step_id` is a foreign key — but the days are
- *   somebody's typing and they already count towards today's duration. They are
- *   kept, in a slice after the steps the project does hold, rather than dropped
- *   silently or thrown over the whole project's read.
- */
+export { NO_DEADLINES, slicesOf } from '../../service/schedule-slices';
 export { poolsFor } from '@wbs/domain';
-
-/**
- * The slices a plan runs, from rows that are already in memory.
- *
- * Exported since `saved-plan-schedule.ts` — a **second** production caller —
- * needs the same slicing the live projection gets. A saved plan that computed
- * its own slices would be a second arithmetic over one estimate rule, and the
- * bar a saved plan draws would drift from the bar the live plan draws for the
- * same numbers. There is one `slicesOf`, and both callers pass it detached
- * values.
- *
- * The tests reach it directly too, exactly as {@link poolsFor} beside it does
- * and for the same kind of reason: `dual-optimized-scheduler/tasks.md` §1.8
- * requires the `ORDER BY` proof to assert the **raw `schedule()` argument
- * tuple** — the `rows` and `slices` arrays as Fast receives them — rather than
- * a hash of them, because 1.1(c) normalises the row order away by design and a
- * hash assertion there can never fail.
- */
-export function slicesOf(
-  rows: readonly WorkItem[],
-  estimates: readonly StoredEstimate[],
-  hasChildren: ReadonlySet<string>,
-  /**
-   * The project's steps in step order, each with its allowance. Every estimate
-   * must name one of them: {@link allowanceOf} throws for a step outside this
-   * list rather than charging it at no allowance.
-   */
-  steps: readonly StepPolicy[],
-  /**
-   * The project's whole estimate arithmetic — method, weights and rounding.
-   * The number a slice runs for is `chargedWorkdaysOf`'s own, so the bar the chart
-   * draws and the figure the table prints are one number rather than two
-   * roundings of one estimate.
-   */
-  rule: EstimateRule,
-  /**
-   * Each work item's assignees by step, from which every slice's person is
-   * read.
-   *
-   * The planner takes the person per slice and never derives one, so this is
-   * the only place the assumed assignee becomes a queue: a work item with one
-   * named person carries them on **every** slice, which is what "when just one
-   * is assigned it is assumed they do both" means once time is involved.
-   */
-  assigneesOf: ReadonlyMap<string, Record<string, string>>,
-  /**
-   * Each row's effective team set — its own, or the nearest ancestor's, from
-   * {@link effectiveTeamsOf}.
-   *
-   * Passed in rather than resolved here, because the reading is shared: the
-   * table cell, the cards, the Gantt and the export all show the same inherited
-   * label, and a second walk here would be the copy that drifts.
-   */
-  teamOf: ReadonlyMap<string, { teamIds: readonly string[] }>,
-  /**
-   * How many people each **sized** team may have at work at once. A team nobody
-   * has sized is simply absent, and its work draws from no pool.
-   */
-  teamSizes: ReadonlyMap<string, number>,
-  /**
-   * Each leaf's charged demand vector, from `chargedDemandsOf`: its own
-   * demands on resources the project states a capacity for, clamped to it.
-   * Charged on **every** step's slice of the leaf (`wbs-resources` R2), as the
-   * team pools are; a leaf absent from the map demands nothing.
-   */
-  demandsOf: ReadonlyMap<string, readonly ResourceDemand[]>,
-): Slice[] {
-  const inProject = new Set(rows.map((row) => row.id));
-  const allowances: StepAllowances = new Map(steps.map((step) => [step.id, step.allowancePercent]));
-  const units = new Map(steps.map((step) => [step.id, step.estimateUnit]));
-  const days = new Map<string, number>();
-  for (const estimate of estimates) {
-    if (hasChildren.has(estimate.workItemId)) continue;
-    if (!inProject.has(estimate.workItemId)) continue;
-    // The shared slice seam: Fast, the solver request and a saved plan's
-    // schedule all read charged effort from here, so the allowance is applied
-    // once, before rounding, for every scheduler.
-    //
-    // Proof: with the allowance replaced by 0 here, `schedules charged effort,
-    // and the edit changes the canonical input` failed on `Expected: 3,
-    // Received: 2` (2026-09-27).
-    days.set(
-      sliceKey(estimate.workItemId, estimate.stepId),
-      chargedWorkdaysOf(
-        estimateUnitOf(units, estimate.stepId),
-        estimate,
-        rule,
-        allowanceOf(allowances, estimate.stepId),
-      ),
-    );
-  }
-
-  const order = steps.map((step) => step.id);
-  const slices: Slice[] = [];
-  for (const row of rows) {
-    if (hasChildren.has(row.id)) continue;
-    const resourcesFor = (stepId: string | null) =>
-      resolveStepResources(
-        row.maxParallel,
-        stepId,
-        assigneesOf.get(row.id) ?? {},
-        teamOf.get(row.id)?.teamIds ?? [],
-        teamSizes,
-      );
-    // Present only on a leaf that demands something, so a plan with no
-    // demand hands the engines the slices it always did.
-    // Proof: `{}` in place of the vector made `serialises two leaves on the
-    // one staging environment and names it` (resource-schedule.test.ts) place
-    // demanding blocks on top of each other; watched 2026-10-20.
-    const vector = demandsOf.get(row.id) ?? [];
-    const demands = vector.length === 0 ? {} : { demands: vector };
-    if (order.length === 0) {
-      const { personId, width, poolIds } = resourcesFor(null);
-      slices.push({
-        workItemId: row.id,
-        stepId: null,
-        days: null,
-        personId,
-        width,
-        poolIds,
-        ...demands,
-      });
-      continue;
-    }
-    for (const stepId of order) {
-      const { personId, width, poolIds } = resourcesFor(stepId);
-      slices.push({
-        workItemId: row.id,
-        stepId,
-        days: days.get(sliceKey(row.id, stepId)) ?? null,
-        personId,
-        width,
-        poolIds,
-        ...demands,
-      });
-    }
-  }
-  return slices;
-}
 
 interface CanonicalScheduleParts {
   readonly input: ScheduleInput;
@@ -426,14 +231,6 @@ interface CanonicalScheduleParts {
   readonly rule: EstimateRule;
 }
 
-/**
- * Assemble the one canonical solver/Fast input from repository readings.
- *
- * Both the interactive tree read and the restart queue pump call this seam.
- * Keeping the slicing, assignments, calendar offsets, capacity and reach here
- * prevents a restarted solve from rebuilding a different hash than the plan
- * read that enqueued it.
- */
 /**
  * Which schedule a project is **drawn by**: Fast, or the ready optimized
  * variant the project selects.
@@ -470,6 +267,14 @@ function selectedSchedule(
   return { schedule: ready, displayed: project.scheduleObjective, awaitingSolve: false };
 }
 
+/**
+ * Assemble the one canonical solver/Fast input from repository readings.
+ *
+ * Both the interactive tree read and the restart queue pump call this seam.
+ * Keeping the slicing, assignments, calendar offsets, capacity and reach here
+ * prevents a restarted solve from rebuilding a different hash than the plan
+ * read that enqueued it.
+ */
 function canonicalScheduleParts(
   project: Project,
   rows: readonly LabelledWorkItem[],
@@ -484,83 +289,18 @@ function canonicalScheduleParts(
   /** The project's stated resource capacities. */
   resourceCapacities: readonly ResourceCapacity[],
 ): CanonicalScheduleParts {
-  const hasChildren = new Set(rows.map((row) => row.parentId).filter((id) => id !== null));
-  const capacityByResource = new Map(
-    resourceCapacities.map(({ resourceId, units }) => [resourceId, units] as const),
-  );
-  const assigneesOf = new Map<string, Record<string, string>>();
-  for (const assignment of assignments) {
-    assigneesOf.set(assignment.workItemId, {
-      ...(assigneesOf.get(assignment.workItemId) ?? {}),
-      [assignment.stepId]: assignment.personId,
-    });
-  }
-  const rule: EstimateRule = {
-    method: project.estimateMethod,
-    pertWeights: project.pertWeights,
-    rounding: project.estimateRounding,
-  };
-  const slices = slicesOf(
+  return prepareScheduleParts(
+    project,
     rows,
     estimates,
-    hasChildren,
+    edges,
+    typed,
+    assignments,
     steps,
-    rule,
-    assigneesOf,
-    effectiveTeamsOf(rows),
     poolSizes,
-    chargedDemandsOf(demands, capacityByResource),
+    demands,
+    resourceCapacities,
   );
-  const notBefore = new Map<string, number>();
-  if (project.startDate !== null) {
-    for (const row of rows) {
-      if (row.startNoEarlierThan === null) continue;
-      notBefore.set(row.id, workdaysBetween(project.startDate, row.startNoEarlierThan));
-    }
-  }
-  const deadlines =
-    project.startDate === null
-      ? NO_DEADLINES
-      : deadlineOffsetsOf(
-          project.startDate,
-          new Map(
-            rows
-              .filter((row): row is typeof row & { deadline: IsoDate } => row.deadline !== null)
-              .map((row) => [row.id, row.deadline]),
-          ),
-        );
-  // On hold takes a leaf, and every ancestor all of whose leaves are held, out
-  // of the input before either engine reads it (ADR 0032). Blocked, readiness
-  // and blocked by proxy change nothing here.
-  // Proof: this reduction bypassed (an empty held set) made `lets a successor
-  // start at day zero, and reports the held row with no schedule` fail — the
-  // held row came back scheduled over days 0 to 5; watched 2026-09-29.
-  const heldLeafIds = new Set(
-    rows.filter((row) => row.hold === 'on_hold' && !hasChildren.has(row.id)).map((row) => row.id),
-  );
-  return {
-    input: withoutHeldSubtrees(
-      {
-        rows,
-        edges,
-        slices,
-        notBefore,
-        poolSizes,
-        reach: project.depReach,
-        deadlines,
-        typed,
-        // Stated only when the project states one, so every plan with no
-        // resource keeps the input, and the hash, it had before.
-        // Proof: left out, both levelling cases of resource-schedule.test.ts
-        // threw `no capacity for resource …`; watched 2026-10-20.
-        ...(capacityByResource.size === 0 ? {} : { resourceCapacities: capacityByResource }),
-      },
-      heldLeafIds,
-    ),
-    hasChildren,
-    assigneesOf,
-    rule,
-  };
 }
 
 /** One compensating command, or a `batch` of them when there are several. */

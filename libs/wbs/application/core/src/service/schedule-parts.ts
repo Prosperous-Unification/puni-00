@@ -11,7 +11,7 @@ import {
 } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
-import { NO_DEADLINES, slicesOf } from '../module/work-item/work-item.resource';
+import { NO_DEADLINES, slicesOf } from './schedule-slices';
 
 /** Canonical placement input and display facts prepared under one project's own settings. */
 export interface ScheduleParts {
@@ -24,7 +24,10 @@ export interface ScheduleParts {
 
 /** Prepare real charged slices, inherited capacities, calendar constraints and held reduction once. */
 export function prepareScheduleParts(
-  project: PlanInputReads['project'],
+  project: Pick<
+    PlanInputReads['project'],
+    'estimateMethod' | 'pertWeights' | 'estimateRounding' | 'startDate' | 'depReach'
+  >,
   rows: readonly (Parameters<typeof slicesOf>[0][number] & {
     readonly teamIds: readonly string[];
   })[],

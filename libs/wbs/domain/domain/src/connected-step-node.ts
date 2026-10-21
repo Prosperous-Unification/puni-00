@@ -7,7 +7,10 @@ import {
 } from './slice-edges';
 import { formatTypedDependencyKey, type ScopedTypedDependency } from './typed-dependency';
 
-/** One project's unreduced graph, prepared using its own steps, reach and estimate presence. */
+/**
+ * One project's graph prepared using its own tree, steps, reach and estimate presence.
+ * Authored contexts retain held work; placement contexts use the held-reduced tree and slices.
+ */
 export interface ConnectedProjectGraph {
   readonly projectId: string;
   readonly tree: TreeIndex;
