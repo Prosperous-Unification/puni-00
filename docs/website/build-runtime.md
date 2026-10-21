@@ -1,6 +1,6 @@
 # Build runtime setup
 
-The Build experience is the claim-bound conversation harness: React, the AI SDK UI message stream, the existing Bun API and OpenRouter. There is no prospect sign-in ([ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md), [retire-prospect-sign-in](../../openspec/changes/retire-prospect-sign-in/proposal.md)). The [change contract](../../openspec/changes/build-ai-chat-harness/design.md) owns behavior; this page owns deployment configuration. Implementation and verification are tracked in that change's tasks and verify files.
+The Build experience is the claim-bound conversation harness: React, the AI SDK UI message stream, the existing Bun API and OpenRouter. There is no prospect sign-in ([ADR 0039](../adr/0039-anonymous-paid-chat-bound-to-the-browser-claim.md), [retire-prospect-sign-in](../../openspec/changes/retire-prospect-sign-in/proposal.md)). The [change contract](../../openspec/changes/build-ai-chat-harness/design.md) owns behavior, implementation and verification; this page owns deployment configuration.
 
 ## OpenRouter
 
@@ -27,33 +27,29 @@ Missing credentials are an activation dependency, not evidence of working infere
 
 The preview Compose file explicitly sets `DEMO_AUTH=0` and `OPENROUTER_ENABLED=0`. Its `environment` entries override the protected `env_file`: adding `OPENROUTER_ENABLED=1` to `runtime/runtime.env` alone will not enable inference. Keep the base release disabled and retain a separate reviewed activation configuration with the release receipts.
 
-1. Create a dedicated OpenRouter key with a $100 monthly ceiling, model/provider restrictions and the required privacy settings. Verify current endpoint compatibility, prices and processor wording. Store the key and approved nonsecret model/provider/rate settings in the protected file. Catalog research is not proof of account eligibility or successful paid accounting.
-2. After those checks, an operator may apply a separate Compose override containing only the following enable switch. Use the same release Compose file, image IDs, runtime file and database path; validate the merged configuration with `docker compose ... config --quiet`, then recreate the API. Retain the exact override and runtime change receipt outside Git; never print expanded configuration containing credentials.
+The enable override contains only this switch; the steps that apply it are in [Anonymous conversation activation](#anonymous-conversation-activation):
 
-   ```yaml
-   services:
-     api:
-       environment:
-         OPENROUTER_ENABLED: '1'
-   ```
+```yaml
+services:
+  api:
+    environment:
+      OPENROUTER_ENABLED: '1'
+```
 
-3. Run the bounded real-provider checks in **Activation evidence** above. Inspect provider-side debit and the durable operation/usage record without copying request content or credentials into logs. A successful reply alone does not prove accounting. Unknown usage is settled at its full reservation; do not edit a settled amount to make another request succeed.
-4. To disable inference, recreate the API using the base Compose configuration without the enable override. Retain the same database and runtime file so saved requests and manual conversion remain available. Confirm provider readiness is unavailable and all services remain healthy.
-
-Configuration-only proof on 2026-09-29: with a synthetic env file containing `OPENROUTER_ENABLED=1`, `docker compose -f deploy/website/dev/compose.yml config --format json` still resolved the API flag to `0`. Adding the override above resolved it to `1`; both configurations retained `DEMO_AUTH=0`. No service was started and no live setting was changed by this proof. The deployed runtime still contains only its operator credential, so steps 1–3 remained pending at that time.
+Configuration-only proof on 2026-09-29: with a synthetic env file containing `OPENROUTER_ENABLED=1`, `docker compose -f deploy/website/dev/compose.yml config --format json` still resolved the API flag to `0`. Adding the override above resolved it to `1`; both configurations retained `DEMO_AUTH=0`. No service was started and no live setting was changed by this proof. The deployed runtime still contains only its operator credential, so the key, provider-check and smoke steps of the then sequence remained pending at that time.
 
 ## Anonymous conversation activation
 
 The [Build AI chat harness](../../openspec/changes/build-ai-chat-harness/design.md) answers visitors without sign-in, bound to the browser draft claim under the conversation allowance (8 visitor turns, 400 completion tokens per reply, $0.15 per conversation, $0.30 and three conversations per source per UTC day, $10 per site day). The host-side commands, the Compose override file and the receipts live in the private companion: `puni-pr-00` `deploy/website/dev/README.md`, section "Activating AI chat" (puni-pr-00 PR #19). This page states the order and the gates; it never holds a key.
 
 1. **Key.** Dany creates a dedicated OpenRouter key with a $100 monthly limit, the model allowlist `openai/gpt-4.1-mini`, the provider allowlist `azure/swedencentral` and zero data retention. The key goes straight into the mode-0600 runtime file (`/home/puni1/puni-site-dev/runtime/runtime.env` on preview), never into Git, chat, a shell history or a screenshot.
-2. **Nonsecret settings.** Add `OPENROUTER_MODEL`, `OPENROUTER_PROVIDER` and both rates re-read from the [endpoint catalog](provider-activation.md) that day to the same file. `OPENROUTER_PRIVACY_VERIFIED` stays `0` until step 5.
+2. **Nonsecret settings.** Add `OPENROUTER_MODEL`, `OPENROUTER_PROVIDER` and both rates re-read from the [endpoint catalog](provider-activation.md) that day to the same file; catalog research is not proof of account eligibility or successful paid accounting. `OPENROUTER_PRIVACY_VERIFIED` stays `0` until step 5.
 3. **Source identification.** The API environment carries `TRUSTED_PROXY_HOPS=1` behind the gateway; the API refuses to start on an `https` app origin without it and refuses a request missing the forwarded hop. Sources are salted hashes of the client address (an IPv6 address by its /64), with a per-UTC-day salt shared through the database and deleted after a day.
 4. **Evaluation corpus.** On h2puni, against a loopback API with the real key, run `bun apps/website/be-01/src/conversation/eval-cli.ts`. It drives the twelve scripts in `apps/website/be-01/eval/sales-corpus.json` through `POST /conversation/stream` and prints pass/fail and token totals only (`--show` prints transcripts locally and is never used on a shared terminal). Record the totals in the change's `verify.md`. **Any failed assertion blocks activation**; fix the prompt and rerun.
 5. **Privacy gate.** Verify a real response's provider identifier and the key's privacy settings, then set `OPENROUTER_PRIVACY_VERIFIED=1`. The privacy page must name OpenRouter, Inc. and Microsoft Azure OpenAI Service (Sweden Central) as processors before the next step; missing wording blocks activation.
-6. **Enable.** Apply the reviewed Compose override that contains only `OPENROUTER_ENABLED: '1'` (the private runbook names the file), validate the merged configuration with `docker compose ... config --quiet` and recreate the API with the same images, runtime file and database.
-7. **Bounded smoke.** One conversation to handoff on the live preview: a streamed reply, final usage, the account debit on OpenRouter, a replay of the same key without a second charge, Stop with its operation settled at the reserved ceiling and the conversation still usable, and a proposal submission. Record the evidence in `verify.md` and the private receipt without copying conversation text or credentials.
-8. **Disable.** Recreate the API without the override. `GET /conversation` reports `disabled`, saved conversations stay readable and the manual brief keeps working.
+6. **Enable.** Apply the reviewed Compose override that contains only `OPENROUTER_ENABLED: '1'` (the private runbook names the file), validate the merged configuration with `docker compose ... config --quiet` and recreate the API with the same release Compose file, images, runtime file and database. Retain the exact override and runtime change receipt outside Git; never print expanded configuration containing credentials.
+7. **Bounded smoke.** Run the checks in [Activation evidence](#activation-evidence) with one conversation to handoff on the live preview: a streamed reply, final usage, the account debit on OpenRouter, a replay of the same key without a second charge, Stop with its operation settled at the reserved ceiling and the conversation still usable, and a proposal submission. Inspect the provider-side debit and the durable operation/usage record; a successful reply alone does not prove accounting, and a settled amount is never edited to make another request succeed. Record the evidence in `verify.md` and the private receipt without copying conversation text or credentials.
+8. **Disable.** Recreate the API from the base Compose configuration without the override, keeping the same database and runtime file. `GET /conversation` reports `disabled`, saved conversations stay readable, the manual brief and manual conversion keep working, and all services remain healthy.
 
 Locally, `DEMO_AUTH=1` answers the anonymous conversation with canned replies labelled **Simulated** and reserves nothing; `apps/website/fe-01/browser/conversation-api.mjs` serves a scripted OpenRouter stream through the real admission, cancel and settlement code for the browser regression. Neither proves the real provider.
 
@@ -104,4 +100,4 @@ Recorded for `website-on-k3s`, not built here (design D7): a Traefik `RateLimit`
 
 ## Funnel
 
-The operator page shows a Funnel panel below Guardrails: per UTC day for the last 30 days, the drafts, started conversations, captured briefs, exhausted conversations by reason, proposal requests split into manual and from-chat, and ceiling-settled operations, with the from-chat share of the window's proposal requests. Every figure is a count over rows the funnel already stores (`GET /operator/funnel`, operator session only, counts only); no analytics script or beacon runs in the browser, and a conversion is a `proposal_submission` row. Exhaustions count on the conversation's first day, and days whose drafts were erased by [draft retention](draft-retention.md) undercount drafts, conversations and briefs. The Guardrails panel's `Ceiling-settled today` line is how far today's spend may over-count: operations whose usage never arrived were settled at their full reservation. The counting rules are in the [website-funnel-counts design](../../openspec/changes/website-funnel-counts/design.md).
+The operator page shows a Funnel panel below Guardrails: per UTC day for the last 30 days, the drafts, started conversations, captured briefs, exhausted conversations by reason, proposal requests split into manual and from-chat, and ceiling-settled operations, with the from-chat share of the window's proposal requests. Every figure is a count over rows the funnel already stores (`GET /operator/funnel`, operator session only, counts only); no analytics script or beacon runs in the browser, and a conversion is a `proposal_submission` row. Exhaustions count on the conversation's first day, and days whose drafts were erased by [draft retention](draft-retention.md) undercount drafts, conversations and briefs. The Guardrails panel's [`Ceiling-settled today`](#reading-the-operator-panels) line bounds the spend over-count. The counting rules are in the [website-funnel-counts design](../../openspec/changes/website-funnel-counts/design.md).
