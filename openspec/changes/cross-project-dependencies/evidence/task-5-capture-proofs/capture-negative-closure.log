@@ -1,0 +1,143 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+56 | }
+57 | test('captures both incident directions once with local projection and own labels', async () => {
+58 |   await snapshots().withSnapshot({ id: 'ada' }, 'a1', async (snapshot) => {
+59 |     const captured = await snapshot.captureConnected('a1');
+60 |     const reverse = await snapshot.captureConnected('a2');
+61 |     expect(captured).toEqual(reverse);
+                          ^
+error: expect(received).toEqual(expected)
+
+@@ -106,115 +106,10 @@
+              "typeIds": [],
+            },
+          ],
+        },
+      },
+-     {
+-       "abbreviation": "PA2",
+-       "projectId": "a2",
+-       "rank": 2,
+-       "reads": {
+-         "actuals": [],
+-         "assignments": [],
+-         "capacity": Map {},
+-         "demands": [],
+-         "dependencies": [],
+-         "estimates": [],
+-         "externalSystems": [],
+-         "measures": [],
+-         "people": [],
+-         "priorityBands": [
+-           {
+-             "defaultValue": 10,
+-             "label": "Critical",
+-             "startsAt": 1,
+-           },
+-           {
+-             "defaultValue": 30,
+-             "label": "High",
+-             "startsAt": 21,
+-           },
+-           {
+-             "defaultValue": 50,
+-             "label": "Medium",
+-             "startsAt": 41,
+-           },
+-           {
+-             "defaultValue": 70,
+-             "label": "Low",
+-             "startsAt": 61,
+-           },
+-           {
+-             "defaultValue": 90,
+-             "label": "Lowest",
+-             "startsAt": 81,
+-           },
+-         ],
+-         "progress": [],
+-         "project": {
+-           "abbreviation": "PA2",
+-           "createdAt": 1,
+-           "depReach": "whole-item",
+-           "estimateMethod": "pert",
+-           "estimateRounding": "ceil",
+-           "id": "a2",
+-           "name": "a2",
+-           "optimizationEnabled": false,
+-           "ownerId": "ada",
+-           "pertWeights": {
+-             "optimistic": 1,
+-             "pessimistic": 1,
+-             "realistic": 4,
+-           },
+-           "restricted": false,
+-           "revision": 0,
+-           "scheduleEngine": "fast",
+-           "scheduleObjective": "pri",
+-           "solutionRef": null,
+-           "startDate": null,
+-           "timezone": "UTC",
+-         },
+-         "resourceCapacities": [],
+-         "resources": [],
+-         "services": [],
+-         "stepBlockages": [],
+-         "stepParallels": [],
+-         "steps": [],
+-         "tags": [],
+-         "teams": [],
+-         "typedDependencies": [],
+-         "workItemTypes": [],
+-         "workItems": [
+-           {
+-             "deadline": null,
+-             "externalRefs": [],
+-             "factEnd": null,
+-             "factStart": null,
+-             "frozenNumber": null,
+-             "hold": null,
+-             "id": "a2",
+-             "maxParallel": 1,
+-             "name": "a2",
+-             "notes": "",
+-             "parentId": null,
+-             "position": 10,
+-             "priority": null,
+-             "projectId": "a2",
+-             "readiness": null,
+-             "revision": 0,
+-             "serviceId": null,
+-             "serviceIds": [],
+-             "serviceTeamId": null,
+-             "startNoEarlierThan": null,
+-             "startNoEarlierThanReason": null,
+-             "tagIds": [],
+-             "teamIds": [],
+-             "typeIds": [],
+-           },
+-         ],
+-       },
+-     },
+    ],
+    "relationships": [
+      {
+        "id": "edge",
+        "predecessor": {
+
+- Expected  - 105
++ Received  + 0
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:61:22)
+      at async readOpenSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:566:18)
+      at async withSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:120:29)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:58:21)
+(fail) captures both incident directions once with local projection and own labels [155.80ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.11s]

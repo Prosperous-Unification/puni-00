@@ -1,0 +1,4 @@
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts(69,5): error TS2322: Type '(value: void | PromiseLike<void>) => void' is not assignable to type '() => never'.
+  Type 'void' is not assignable to type 'never'.
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts(285,31): error TS2722: Cannot invoke an object which is possibly 'undefined'.
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts(286,31): error TS2722: Cannot invoke an object which is possibly 'undefined'.

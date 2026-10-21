@@ -1,0 +1,21 @@
+
+> nx run wbs-store-sqlite:typecheck
+
+> bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts(379,23): error TS2749: 'DirectoryRepository' refers to a value, but is being used as a type here. Did you mean 'typeof DirectoryRepository'?
+Warning: command "bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json" exited with non-zero status code
+
+
+ NX   Running target typecheck for project wbs-store-sqlite failed
+
+Failed tasks:
+
+- wbs-store-sqlite:typecheck
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      5.5s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     5.5s (1 task)
+  Recoverable time:  <1ms

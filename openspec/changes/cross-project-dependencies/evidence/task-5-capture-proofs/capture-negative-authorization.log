@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+330 | async function failureOf(reading: Promise<unknown>): Promise<Error> {
+331 |   try { await reading; } catch (failure) {
+332 |     if (failure instanceof Error) return failure;
+333 |     throw failure;
+334 |   }
+335 |   throw new Error('expected observation to refuse');
+                  ^
+error: expected observation to refuse
+      at failureOf (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:335:13)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:291:19)
+      at async readOpenSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:566:18)
+      at async withSnapshot (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts:120:29)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:290:21)
+(fail) requires existing admitted organization authority even for cached components [157.74ms]
+
+ 0 pass
+ 17 filtered out
+ 1 fail
+Ran 1 test across 1 file. [2.08s]

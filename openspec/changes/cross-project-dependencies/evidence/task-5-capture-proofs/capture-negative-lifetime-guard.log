@@ -1,0 +1,21 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+52 |     await reading;
+53 |   } catch (failure) {
+54 |     if (failure instanceof Error) return failure;
+55 |     throw failure;
+56 |   }
+57 |   throw new Error('expected lifetime refusal');
+                 ^
+error: expected lifetime refusal
+      at failureOf (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:57:13)
+      at async refuses (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:115:25)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:118:13)
+(fail) source borrowed readers expire after success and never revive in the next run [142.70ms]
+
+ 0 pass
+ 10 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.09s]

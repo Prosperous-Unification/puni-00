@@ -1,0 +1,110 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts:
+(pass) captures both incident directions once with local projection and own labels [148.98ms]
+(pass) shared closure alternates person bridges and incoming dependencies without rank cutoff [149.88ms]
+(pass) concurrent predecessor edit yields one coherent state until next observation [109.14ms]
+(pass) refuses missing required ownership [112.81ms]
+(pass) snapshot capability expires when callback closes [101.81ms]
+
+libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:
+(pass) the chain snapshot > shared runtime selects mode within its authorized snapshot [165.69ms]
+237 |       throw new Error('expected shared');
+238 |     expect(shared.influencers.map((each) => each.projectId)).toEqual(['a1', 'a2']);
+239 |     expect(await reader.readProject('absent')).toEqual({ kind: 'not_found' });
+240 |     write('DROP TRIGGER project_organization_frozen_update');
+241 |     write("UPDATE project_organization SET organization_id = 'org-b' WHERE resource_id = 'a3'");
+242 |     expect((await failureOf(reader.readProject('a3'))).message).toContain(
+                                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "references outside its organization"
+Received: "project a3 abbreviation namespace is malformed"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:242:65)
+(fail) the chain snapshot > resolves background reads from actual ownership and activation [152.02ms]
+269 |       'invalid stored shared_people',
+270 |     );
+271 |     write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+272 |     write('DROP TRIGGER project_organization_frozen_delete');
+273 |     write("DELETE FROM project_organization WHERE resource_id = 'a3'");
+274 |     expect((await failureOf(reader.readProject('a3'))).message).toContain(
+                                                                      ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "project ownership is absent"
+Received: "project a3 abbreviation namespace is malformed"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/chain-snapshot.db.test.ts:274:65)
+(fail) the chain snapshot > refuses corrupt mode and broken background ownership [173.53ms]
+(pass) the chain snapshot > borrows staged mode without committing or closing the caller transaction [143.49ms]
+(pass) the chain snapshot > refuses a broken project-owned readable dependency [139.67ms]
+(pass) the chain snapshot > never materializes upstream assignments for isolated or legacy targets [163.25ms]
+(pass) the chain snapshot > never lists organization projects or ranks for isolated or legacy targets [169.69ms]
+(pass) the chain snapshot > reads mode on the authorized connection before a concurrent authority-bound edit [142.39ms]
+(pass) the chain snapshot > keeps background mode assignments and dates coherent and closes on throw [151.45ms]
+(pass) the chain snapshot > refuses writes through the production read-only factory [137.39ms]
+(pass) the chain snapshot > refuses a borrowed capture capability outside its readable project list [140.44ms]
+(pass) the chain snapshot > throws when rank and its trusted readable-list dependency disagree [127.41ms]
+(pass) the chain snapshot > throws when its trusted capture dependency loses a ranked project [130.94ms]
+(pass) the chain snapshot > schedules transitive bookings and closes with no runtime writes [141.88ms]
+(pass) the chain snapshot > keeps concurrent rank, assignment and date edits outside its snapshot [159.93ms]
+(pass) the chain snapshot > selects cache publication from the same snapshot and never calls live admission [178.35ms]
+(pass) the chain snapshot > stores an eligible old shared result only at H1 and never serves it for captured H2 [185.18ms]
+(pass) the chain snapshot > refuses removed membership and foreign targets without naming them [140.16ms]
+(pass) the chain snapshot > keeps pending target optimization absent under the saved S4 policy [149.32ms]
+(pass) the chain snapshot > keeps an unrepresentable shared target infeasible under the saved S4 policy [160.97ms]
+(pass) the chain snapshot > uses ranked ties before the unranked tail [167.33ms]
+(pass) the chain snapshot > rejects a crossing assignee and captures only organization-local directory entries [170.26ms]
+(pass) the chain snapshot > stores detached shared dates that survive upstream edits and deletion [185.56ms]
+(pass) the chain snapshot > closes and preserves a concurrent committed edit when capture throws [142.63ms]
+(pass) detached live snapshot guards > refuses a legacy aggregate read after activation [135.89ms]
+(pass) detached live snapshot guards > reuses captured scheduling across aggregate target closures [143.75ms]
+(pass) detached live snapshot guards > captures persisted blockage facts in the aggregate entry from its snapshot [141.32ms]
+(pass) detached live snapshot guards > keeps the incoming basis and full input identity across rename and unrelated rank changes [179.99ms]
+(pass) detached live snapshot guards > copies sparse adapter rows into private export evidence [148.52ms]
+(pass) detached live snapshot guards > detaches sparse export evidence before closing its owned snapshot [150.38ms]
+(pass) detached live snapshot guards > closes its owned connection after successful detached projection [148.07ms]
+(pass) detached live snapshot guards > closes its owned connection after authorization refusal [129.32ms]
+(pass) detached live snapshot guards > closes its owned connection after dependency failure [124.57ms]
+(pass) detached live snapshot guards > rejects an unreadable ranked live project [132.77ms]
+(pass) detached live snapshot guards > rejects a live target omitted by its rank dependency [122.97ms]
+
+libs/wbs/adapters/store-sqlite/src/saved-plan-capture.db.test.ts:
+(pass) capturing a project’s plan input > captures sparse parallel facts on the SQLite snapshot before concurrent clear [103.77ms]
+(pass) capturing a project’s plan input > captures direct blockage on the same SQLite snapshot before a concurrent clear [90.64ms]
+(pass) capturing a project’s plan input > keeps captured node endpoints after step reorder and live relationship removal [100.29ms]
+(pass) capturing a project’s plan input > leaves the plan input hash byte-identical when markers are added [91.86ms]
+(pass) capturing a project’s plan input > reads everything inside one deferred transaction and closes its connection [87.46ms]
+(pass) capturing a project’s plan input > captures the team the capacity map names and the person nobody is assigned to [90.14ms]
+(pass) capturing a project’s plan input > answers null for a project it cannot find, and still closes the connection [92.11ms]
+(pass) capturing a project’s plan input > rolls back and closes the connection when a read throws [81.86ms]
+(pass) capturing a project’s plan input > does not enclose a stranger’s write, because the snapshot is on its own connection [94.98ms]
+(pass) capturing a project’s plan input > encloses that same write when the capture is run on the shared process handle [78.88ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 1 [93.51ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 2 [103.98ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 3 [88.76ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 4 [88.33ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 5 [110.93ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 6 [100.43ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 7 [94.46ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 8 [93.28ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 9 [87.68ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 10 [98.09ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 11 [98.27ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 12 [95.37ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 13 [98.33ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 14 [105.45ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 15 [97.21ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 16 [91.24ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 17 [90.46ms]
+(pass) capturing a project’s plan input > captures entirely before or entirely after an edit committed at read 18 [99.98ms]
+
+2 tests failed:
+(fail) the chain snapshot > resolves background reads from actual ownership and activation [152.02ms]
+(fail) the chain snapshot > refuses corrupt mode and broken background ownership [173.53ms]
+
+ 66 pass
+ 2 fail
+ 245 expect() calls
+Ran 68 tests across 3 files. [10.66s]

@@ -1,0 +1,34 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+58 |   await source.uow.run(async () => {
+59 |     const before=queries.length;
+60 |     released.release();
+61 |     if (pending===undefined) throw new Error('missing paused read');
+62 |     expect((await pending).message).toContain('closed');
+63 |     expect(queries.slice(before)).toEqual([]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "select "id", "project_id", "parent_id", "position", "name", "notes", "frozen_number", "start_no_earlier_than", "start_no_earlier_than_reason", "deadline", "fact_start", "fact_end", "readiness", "hold", "priority", "service_team_id", "service_id", "max_parallel", "revision" from "work_item" where "work_item"."project_id" = ? order by "work_item"."id" asc",
++   "select "work_item_team"."work_item_id", "work_item_team"."team_id" from "work_item_team" inner join "work_item" on "work_item_team"."work_item_id" = "work_item"."id" where "work_item"."project_id" = ? order by "work_item_team"."team_id" asc",
++   "select "work_item_tag"."work_item_id", "work_item_tag"."tag_id" from "work_item_tag" inner join "work_item" on "work_item_tag"."work_item_id" = "work_item"."id" where "work_item"."project_id" = ? order by "work_item_tag"."tag_id" asc",
++   "select "work_item_service"."work_item_id", "work_item_service"."service_id" from "work_item_service" inner join "work_item" on "work_item_service"."work_item_id" = "work_item"."id" where "work_item"."project_id" = ? order by "work_item_service"."service_id" asc",
++   "select "work_item_work_item_type"."work_item_id", "work_item_work_item_type"."type_id" from "work_item_work_item_type" inner join "work_item" on "work_item_work_item_type"."work_item_id" = "work_item"."id" where "work_item"."project_id" = ? order by "work_item_work_item_type"."type_id" asc",
++   "select "work_item_external_ref"."id", "work_item_external_ref"."work_item_id", "work_item_external_ref"."system_id", "work_item_external_ref"."url", "work_item_external_ref"."name" from "work_item_external_ref" inner join "work_item" on "work_item_external_ref"."work_item_id" = "work_item"."id" where "work_item"."project_id" = ? order by "work_item_external_ref"."position" asc",
++ ]
+
+- Expected  - 1
++ Received  + 8
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:63:35)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) project steps continuation performs zero expired SQL after success [136.42ms]
+
+ 0 pass
+ 81 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [2.05s]

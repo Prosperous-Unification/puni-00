@@ -1,0 +1,24 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:
+111 |           old.readProject('a1'),
+112 |           old.readAggregate('ada', access),
+113 |           old.readExport('a1', access),
+114 |         ])
+115 |           expect((await failureOf(reading)).message).toContain('closed');
+116 |         expect(queries.length).toBe(before);
+                                     ^
+error: expect(received).toBe(expected)
+
+Expected: 8
+Received: 30
+
+      at refuses (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:116:32)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-snapshot-lifetime.db.test.ts:118:13)
+(fail) source borrowed readers expire after success and never revive in the next run [143.69ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [2.06s]

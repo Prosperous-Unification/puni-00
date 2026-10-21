@@ -1,0 +1,26 @@
+from pathlib import Path
+import subprocess
+root=Path('/tmp/puni-cross-capture')
+chain=root/'libs/wbs/adapters/store-sqlite/src/chain-snapshot.ts'
+capture=root/'libs/wbs/adapters/store-sqlite/src/connected-plan-capture.ts'
+checks=[
+('begin',chain,lambda s:s[:s.index('  async withProjectSnapshot')].replace('transaction.begin();','').replace('transaction.commit();','').replace('transaction.rollback();','')+s[s.index('  async withProjectSnapshot'):], 'concurrent predecessor edit|cache publication'),
+('closure',capture,lambda s:s.replace('      pending.add(relationship.predecessor.projectId);',''), 'captures both incident directions'),
+('shared-closure',capture,lambda s:s.replace('for (const neighbor of neighbors) pending.add(neighbor.projectId);','for (const neighbor of neighbors) void neighbor;'), 'shared closure'),
+('authorization',capture,lambda s:s.replace("(access.kind === 'scoped' && owner.organizationId !== access.scope.organizationId)",'false'), 'requires existing admitted organization'),
+('expiry',chain,lambda s:s.replace("if (!open) throw new Error('chain snapshot is closed');",'void open;'), 'snapshot capability expires'),
+('close',chain,lambda s:s[:s.index('  async withProjectSnapshot')].replace('connection.close();','')+s[s.index('  async withProjectSnapshot'):], 'owned connected'),
+('rank',capture,lambda s:s.replace("if (rank === undefined) throw new Error('connected project rank is absent');",''), 'missing component rank'),
+('lost-project',capture,lambda s:s.replace("if (reads === null) throw new Error('connected project disappeared inside snapshot');",''), 'project lost by the full-input'),
+]
+for name,path,mutate,pattern in checks:
+    original=path.read_text()
+    changed=mutate(original)
+    if changed == original: raise RuntimeError('mutation missed '+name)
+    try:
+        path.write_text(changed)
+        completed=subprocess.run(['bun','test','libs/wbs/adapters/store-sqlite/src/connected-plan-capture.db.test.ts','--test-name-pattern',pattern],cwd=root,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        Path('/tmp/capture-negative-'+name+'.log').write_text(completed.stdout)
+        print(name,completed.returncode,completed.stdout[-600:])
+        if completed.returncode == 0: raise RuntimeError('mutation survived '+name)
+    finally: path.write_text(original)

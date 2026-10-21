@@ -71,16 +71,16 @@ These are tracking receipts, not evidence that package implementation is done.
 
 ## Delta spec sync
 
-| Capability                 | Status                             | Note                                        |
-| -------------------------- | ---------------------------------- | ------------------------------------------- |
-| project-addresses          | Partial: 1.1, 2.1, 2.2, 3.1        | Delta retained; no main-spec sync performed |
-| cross-project-dependencies | Partial: 4.1 storage               | Delta retained; no main-spec sync performed |
-| wbs-domain                 | Partial: graph and resolved engine | Delta retained; no main-spec sync performed |
-| plan-import                | N/A: unimplemented                 | Delta retained; no main-spec sync performed |
-| saved-plans                | N/A: unimplemented                 | Delta retained; no main-spec sync performed |
-| live-plan-snapshot         | N/A: unimplemented                 | Delta retained; no main-spec sync performed |
-| scheduler-optimization     | N/A: unimplemented                 | Delta retained; no main-spec sync performed |
-| plan-command-registry      | N/A: unimplemented                 | Delta retained; no main-spec sync performed |
+| Capability                 | Status                                  | Note                                        |
+| -------------------------- | --------------------------------------- | ------------------------------------------- |
+| project-addresses          | Partial: 1.1, 2.1, 2.2, 3.1             | Delta retained; no main-spec sync performed |
+| cross-project-dependencies | Partial: storage and capture foundation | Delta retained; no main-spec sync performed |
+| wbs-domain                 | Partial: graph and resolved engine      | Delta retained; no main-spec sync performed |
+| plan-import                | N/A: unimplemented                      | Delta retained; no main-spec sync performed |
+| saved-plans                | N/A: unimplemented                      | Delta retained; no main-spec sync performed |
+| live-plan-snapshot         | N/A: unimplemented                      | Delta retained; no main-spec sync performed |
+| scheduler-optimization     | N/A: unimplemented                      | Delta retained; no main-spec sync performed |
+| plan-command-registry      | N/A: unimplemented                      | Delta retained; no main-spec sync performed |
 
 ## Failure-proof register
 
@@ -267,5 +267,45 @@ Only the domain foundation WBS leaf is done (currently 010.06.2, stable ID
 `02ce784a-cdad-4cf1-ba20-a81b206c1938`). The complete 6.1 checkbox stays open:
 core preparation, calendars, runtime callback/lifetime and connected live
 projection are separate work. Pure core placement now has an independent lane
-under the accepted capture value; this does not approve the capture adapter's
-outstanding asynchronous-continuation finding.
+under the accepted capture value. The capture continuation finding was subsequently
+fixed and independently approved as recorded below.
+
+## Task 5.1 — reviewed connected capture foundation, live integration open
+
+Astra approved original `467ad3f12` plus lifetime correction `ed5b19b6f`,
+integrated as `627e648a3` and `dd7456145`. See [implementation](evidence/task-5-capture.md),
+[independent review and re-review](evidence/task-5-capture-review.md), and
+[retained outputs/probes](evidence/task-5-capture-proofs/).
+The complete connected capture follows both relationship directions and shared-person
+adjacency, preserves each project's facts, and uses one owned observation or the
+admitted writer. Required fresh UoW lifetimes expire irreversibly before settlement;
+post-await SQL and cached derivation accesses recheck the same lifetime.
+
+The independent initial probe exposed 5/1/1 SQL reads after expiry in a subsequent
+transaction. After the fix, the unchanged reviewer probe passed 3 tests / 6 assertions
+with all three SQL lists exactly empty. The new 85-case continuation matrix covers
+success, refusal and throw. Thirteen separately removed guards produced actual
+selected failures: eleven demonstrate post-expiry SQL, one demonstrates cached
+value reuse despite eventual outward refusal, and one establishes error precedence
+without claiming further SQL. Earlier aggregate-cache, import-filter and diagnostic
+only attempts are explicitly distinguished in the report. All production mutations
+were restored.
+
+Root's fresh combined integration at `dd7456145` passed **398 tests / 1,774 assertions /
+22 files** (`puni-capture-integrated-tests.log`), combining the implementation report's
+19-file command with read-continuation and both address-lookup adapter/controller
+suites. Actual uncached Nx core/module, SQLite and backend/module typechecks passed
+(`puni-capture-integrated-types.log`):
+
+```sh
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-core,wbs-store-sqlite,wbs-be-01 --skipNxCache --parallel=1 --outputStyle=static
+```
+
+The integrated adapter files match the reviewed branch exactly. The only integration
+conflict retained both the graph and capture type exports. Normal hooks passed and
+reported Tool Wiki inactive/uncertified. Capture foundation WBS stable ID
+`dead9960-3be7-4f8a-aee6-93bb9c315459` is done; full task 5.1 remains unchecked for
+real connected derivation and live projection. No completed feature, host gate,
+current green CI, build or deployment is claimed. Earlier pushed checkpoint
+`b3f318912` CI run `39693163327` has a failed browser shard and ongoing workspace/
+Twilight jobs; the failure is being investigated, not treated as a passing gate.

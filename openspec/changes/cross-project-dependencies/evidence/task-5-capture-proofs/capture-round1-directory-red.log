@@ -1,0 +1,54 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:
+86 |   else await first;
+87 |   await source.uow.run(async () => {
+88 |     const before = queries.length;
+89 |     released.release();
+90 |     if (pending === undefined) throw new Error('missing paused read');
+91 |     expect((await pending).message).toContain('closed');
+                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "closed"
+Received: "tags entry \"t\" of organization \"org-a\" is reached from outside it: work_item_tag:foreign"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:91:37)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) directory reference evidence refuses before classification after success [136.44ms]
+86 |   else await first;
+87 |   await source.uow.run(async () => {
+88 |     const before = queries.length;
+89 |     released.release();
+90 |     if (pending === undefined) throw new Error('missing paused read');
+91 |     expect((await pending).message).toContain('closed');
+                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "closed"
+Received: "tags entry \"t\" of organization \"org-a\" is reached from outside it: work_item_tag:foreign"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:91:37)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) directory reference evidence refuses before classification after refusal [88.50ms]
+86 |   else await first;
+87 |   await source.uow.run(async () => {
+88 |     const before = queries.length;
+89 |     released.release();
+90 |     if (pending === undefined) throw new Error('missing paused read');
+91 |     expect((await pending).message).toContain('closed');
+                                         ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "closed"
+Received: "tags entry \"t\" of organization \"org-a\" is reached from outside it: work_item_tag:foreign"
+
+      at <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/read-continuation.db.test.ts:91:37)
+      at async <anonymous> (/tmp/puni-cross-capture/libs/wbs/adapters/store-sqlite/src/sqlite-unit-of-work.ts:49:30)
+(fail) directory reference evidence refuses before classification after throw [89.94ms]
+
+ 0 pass
+ 82 filtered out
+ 3 fail
+ 4 expect() calls
+Ran 3 tests across 1 file. [2.38s]
