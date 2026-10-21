@@ -31,23 +31,24 @@ it('normalizes legacy local typed history and preserves touched identities', () 
     predecessor: { scope: 'whole', workItemId: 'a' },
     successor: { scope: 'node', workItemId: 'b', stepId: 's' },
     type: 'FS',
+  } as const;
+  const scopedDependency = {
+    ...dependency,
+    predecessor: { ...dependency.predecessor, projectId: 'p' },
+    successor: { ...dependency.successor, projectId: 'p' },
   };
   const command = readCommand({ do: 'add_typed_dependency', dependency });
-  expect(command).toEqual({
-    do: 'add_typed_dependency',
-    dependency: {
-      ...dependency,
-      predecessor: { ...dependency.predecessor, projectId: 'p' },
-      successor: { ...dependency.successor, projectId: 'p' },
-    },
-  });
+  expect(command).toEqual({ do: 'add_typed_dependency', dependency: scopedDependency });
   expect(touchedBy(command)).toEqual(['a', 'b']);
   expect(subjectOf(command)).toEqual({ workItemId: 'b', stepId: null });
   const batch = readCommand({
     do: 'batch',
     steps: [{ do: 'remove_typed_dependency', dependency }],
   });
-  expect(batch).toEqual({ do: 'batch', steps: [{ ...command, do: 'remove_typed_dependency' }] });
+  expect(batch).toEqual({
+    do: 'batch',
+    steps: [{ do: 'remove_typed_dependency', dependency: scopedDependency }],
+  });
 });
 
 it('refuses partial scoped history and malformed new scoped history', () => {
