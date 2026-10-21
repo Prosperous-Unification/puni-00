@@ -89,7 +89,10 @@ export function authorizeImportIn(db: Drizzle): BeforeImport {
 }
 
 /** Rechecks current membership/project ownership without creating an audit or grant. */
-export function authorizeProjectFanoutIn(db: Drizzle): BeforeProjectUpdate {
+export function authorizeProjectFanoutIn(
+  db: Drizzle,
+  lifetime: ReadSnapshotLifetime,
+): BeforeProjectUpdate {
   return async (projectId, actorId, access) => {
     if (access.kind === 'legacy') return { ok: true };
     const organizationId = access.scope.organizationId;
@@ -97,6 +100,8 @@ export function authorizeProjectFanoutIn(db: Drizzle): BeforeProjectUpdate {
       projectId,
       organizationId,
     );
+    // Proof: removing this check made `fanout authorizeProjectUpdate` issue 1 expired membership query.
+    lifetime.assertOpen();
     if (project === null) return { ok: false, reason: 'not_found' };
     const membership = db
       .select({ role: organizationMembership.role })
@@ -119,7 +124,10 @@ export function authorizeProjectFanoutIn(db: Drizzle): BeforeProjectUpdate {
 }
 
 /** Bare step removal has creator policy and never inherits a scoped recovery grant. */
-export function authorizeStepFanoutIn(db: Drizzle): BeforeStepRemoval {
+export function authorizeStepFanoutIn(
+  db: Drizzle,
+  lifetime: ReadSnapshotLifetime,
+): BeforeStepRemoval {
   return async (projectId, actorId, access) => {
     if (access.kind === 'legacy') return { ok: true };
     const organizationId = access.scope.organizationId;
@@ -127,6 +135,8 @@ export function authorizeStepFanoutIn(db: Drizzle): BeforeStepRemoval {
       projectId,
       organizationId,
     );
+    // Proof: removing this check made `fanout authorizeStepRemoval` issue 1 expired membership query.
+    lifetime.assertOpen();
     if (project === null) return { ok: false, reason: 'not_found' };
     const membership = db
       .select({ role: organizationMembership.role })
@@ -200,6 +210,7 @@ export async function resolveDirectoryWriteIn(
   db: Drizzle,
   directory: DirectoryStore,
   address: DirectoryWriteAddress,
+  lifetime: ReadSnapshotLifetime,
 ): Promise<DirectoryWriteResolution> {
   if (address.access.kind === 'legacy') return Promise.resolve({ ok: true, organizationIds: [] });
   const { organizationId } = address.access.scope;
@@ -254,6 +265,8 @@ export async function resolveDirectoryWriteIn(
       addressed.resourceId,
       organizationId,
     );
+    // Proof: removing this check exposed foreign-reference details instead of expiry in `directory reference evidence`.
+    lifetime.assertOpen();
     if (foreign.length > 0)
       throw new Error(
         `${addressed.catalog} entry "${addressed.resourceId}" of organization "${organizationId}" is reached from outside it: ${foreign.join(', ')}`,

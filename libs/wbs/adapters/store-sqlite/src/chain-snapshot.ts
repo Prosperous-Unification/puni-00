@@ -398,6 +398,8 @@ export function createLivePlanStore(
     readExport: (projectId, access) =>
       observe(async (db, lifetime) => {
         const captured = await readLivePlanIn(db, projectId, access, options, lifetime);
+        // Proof: removing this check made `export sequence continuation` issue 13 expired SQL queries.
+        lifetime.assertOpen();
         if (captured.kind !== 'shared') return captured;
         const directory = new DirectoryRepository(db, OPEN);
         // Proof: separate post-snapshot directory and marker rereads each failed mounted structured-export coherence.
@@ -488,6 +490,8 @@ async function readLiveAggregateIn(
   const captures = new Map<string, PlanInputReads>();
   const scheduling = new Map<string, ScheduleRead>();
   function readSchedule(request: CapturedScheduleAsk): ScheduleRead {
+    // Proof: removing this check made `aggregate cached schedule` return 1 cached value after expiry.
+    lifetime.assertOpen();
     const key = `${request.projectId}:${scheduleInputHash(request.input)}:${request.engine}:${request.objective}:${String(request.enabled)}`;
     const held = scheduling.get(key);
     if (held !== undefined) return held;
@@ -515,6 +519,7 @@ async function readLiveAggregateIn(
     const chain = await readChain(shared, project.id);
     if (chain.kind === 'not_found')
       throw new Error('ranked target disappeared inside aggregate snapshot');
+    const metadata = await readLiveMetadataIn(db, project.id, lifetime);
     entries.push({
       rank: index + 1,
       basis: chain.kind === 'scheduled' ? incomingCalendarHash(chain.input.elsewhere) : null,
@@ -523,13 +528,7 @@ async function readLiveAggregateIn(
         organizationId: access.scope.organizationId,
         chain,
         project,
-        steps: await projects.stepsOf(project.id),
-        workItems: await new WorkItemRepository(db, OPEN).listByProject(project.id),
-        attempts: await new StepNodeAttemptRepository(db, OPEN).listByProject(project.id),
-        // Proof: replacing only this aggregate capture with [] failed
-        // `captures persisted blockage facts in the aggregate entry`; watched 2026-10-13.
-        blockages: await new StepBlockageRepository(db, OPEN).listByProject(project.id),
-        seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${project.id}`),
+        ...metadata,
       },
     });
   }
@@ -572,6 +571,8 @@ async function readLiveProjectIn(
 ): Promise<Exclude<LivePlanRead, { kind: 'access_refused' }>> {
   const projects = new ProjectRepository(db, OPEN);
   const project = await projects.findById(projectId);
+  // Proof: removing this check made `live project first response` issue 4 expired SQL queries.
+  lifetime.assertOpen();
   if (project === null) return { kind: 'not_found' };
   const access: ChainAccess =
     admitted ??
@@ -591,20 +592,23 @@ async function readLiveProjectIn(
         });
   if (access.kind === 'legacy') return { kind: 'isolated' };
   const owned = await projects.findInOrganization(projectId, access.scope.organizationId);
+  // Proof: removing this check made `project owned continuation` issue 2 expired SQL queries.
+  lifetime.assertOpen();
   if (owned === null) return { kind: 'not_found' };
   if (readCapacityMode(db, access.scope.organizationId) === 'isolated') return { kind: 'isolated' };
+  const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);
+  // Proof: removing this check made `project rank continuation` issue 4 expired SQL queries.
+  lifetime.assertOpen();
   const readable = await Promise.all(
-    (await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId)).map(
-      async (ranked) => {
-        const visible = await projects.findInOrganization(
-          ranked.projectId,
-          access.scope.organizationId,
-        );
-        // Proof: removing this guard failed the broken ranked-project live read with an unrelated null dereference.
-        if (visible === null) throw new Error('rank names an unreadable project');
-        return visible;
-      },
-    ),
+    ranks.map(async (ranked) => {
+      const visible = await projects.findInOrganization(
+        ranked.projectId,
+        access.scope.organizationId,
+      );
+      // Proof: removing this guard failed the broken ranked-project live read with an unrelated null dereference.
+      if (visible === null) throw new Error('rank names an unreadable project');
+      return visible;
+    }),
   );
   const snapshot = await readChainSnapshotIn(
     db,
@@ -618,18 +622,34 @@ async function readLiveProjectIn(
   const chain = await readChain(snapshot, projectId);
   // Proof: removing this guard made the omitted-target rank dependency resolve instead of rejecting trusted state.
   if (chain.kind === 'not_found') throw new Error('live target disappeared inside its snapshot');
+  const metadata = await readLiveMetadataIn(db, projectId, lifetime);
   return {
     kind: 'shared',
     organizationId: access.scope.organizationId,
     chain,
     project: owned,
-    steps: await projects.stepsOf(projectId),
-    workItems: await new WorkItemRepository(db, OPEN).listByProject(projectId),
-    attempts: await new StepNodeAttemptRepository(db, OPEN).listByProject(projectId),
-    // Proof: replacing this capture with [] failed `reads a direct timestamp
-    // and the exact downstream root (shared)`; watched 2026-10-13.
-    blockages: await new StepBlockageRepository(db, OPEN).listByProject(projectId),
-    // Proof: reading the bare project ID failed mounted metadata cases with seq -1 instead of 11.
-    seq: await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${projectId}`),
+    ...metadata,
   };
+}
+
+/** Sequential live metadata reads refuse expiry before moving to the next repository. */
+async function readLiveMetadataIn(db: Drizzle, projectId: string, lifetime: ReadSnapshotLifetime) {
+  // Proof: removing this check made `project chain continuation` issue 1 expired SQL query.
+  lifetime.assertOpen();
+  const steps = await new ProjectRepository(db, OPEN).stepsOf(projectId);
+  // Proof: removing this check made `project steps continuation` issue 6 expired SQL queries.
+  lifetime.assertOpen();
+  const workItems = await new WorkItemRepository(db, OPEN).listByProject(projectId);
+  // Proof: removing this check made `project work-items continuation` issue 1 expired SQL query.
+  lifetime.assertOpen();
+  const attempts = await new StepNodeAttemptRepository(db, OPEN).listByProject(projectId);
+  // Proof: removing this check made `project attempts continuation` issue 1 expired SQL query.
+  lifetime.assertOpen();
+  // Proof: replacing aggregate/direct blockage capture with [] failed their existing persisted blockage tests.
+  const blockages = await new StepBlockageRepository(db, OPEN).listByProject(projectId);
+  // Proof: removing this check made `project blockages continuation` issue 1 expired SQL query.
+  lifetime.assertOpen();
+  // Proof: reading the bare project ID failed mounted metadata cases with seq -1 instead of 11.
+  const seq = await new DrizzleEventLogStore(db, OPEN).latestSeq(`project:${projectId}`);
+  return { steps, workItems, attempts, blockages, seq };
 }

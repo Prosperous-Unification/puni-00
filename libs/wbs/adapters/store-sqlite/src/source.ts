@@ -142,9 +142,12 @@ function openSqliteSourceWithSeams(
                     },
                     authorizeProjectUpdate: guardRead(
                       lifetime,
-                      authorizeProjectFanoutIn(process.db),
+                      authorizeProjectFanoutIn(process.db, lifetime),
                     ),
-                    authorizeStepRemoval: guardRead(lifetime, authorizeStepFanoutIn(process.db)),
+                    authorizeStepRemoval: guardRead(
+                      lifetime,
+                      authorizeStepFanoutIn(process.db, lifetime),
+                    ),
                     authorizeRankMove: guardRead(lifetime, authorizeRankMoveIn(process.db)),
                     authorizeModeSwitch: guardRead(lifetime, authorizeModeSwitchIn(process.db)),
                     // Proof: removing this borrowed binding made a valid mounted
@@ -156,7 +159,7 @@ function openSqliteSourceWithSeams(
                       Promise.resolve(resolveLifecycleOwnerIn(process.db, projectId)),
                     ),
                     resolveDirectoryWrite: guardRead(lifetime, (address) =>
-                      resolveDirectoryWriteIn(process.db, admitted.directory, address),
+                      resolveDirectoryWriteIn(process.db, admitted.directory, address, lifetime),
                     ),
                   },
               };
