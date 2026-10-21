@@ -41,7 +41,10 @@ design A6 is not needed.
 bridge port on the harness factory, not on `createSession`:
 
 ```ts
-const harness = createClaudeCode({ port: 4123, portEndpoint: { url: 'ws://127.0.0.1:4123' } });
+const harness = createClaudeCode({
+  port: 4123,
+  portEndpoint: { url: "ws://127.0.0.1:4123" },
+});
 const local = createLocalSandbox({ cwd, ports: [4123] });
 const net = await local.createSession();
 const session = await agent.createSession({ sandboxSession: net });
@@ -58,3 +61,19 @@ sandbox that is acceptable: the host is the trust boundary.
 **Not run:** a live prompt through the session. It would spend model tokens, which needs
 Dany's explicit go. Until then 0.1 is open on the live half only; the Bun and sandbox half
 is answered and design A7's fallback is not needed.
+
+## Accepted plan reconciliation, 2026-10-21
+
+Updated planning only: unified CTT hints; S7a/S7b delivery dependencies; immutable binding
+manifests; worker/effect reconciliation; abstract persistence with SQLite as the current
+adapter choice. Earlier spike observations above are retained as historical evidence.
+They do not verify the new coordinator or prove live executor/recovery behavior.
+
+Validation for this planning amendment:
+
+- `bunx @fission-ai/openspec@1.12.0 validate twilight-agentic-workflows --strict`: exit 0, change valid. This validates this change only, not every unrelated OpenSpec in the monorepo.
+- `bunx prettier@3.9.6 --check` on the changed Markdown: exit 0, all matched files use Prettier code style.
+- WBS command-batch preflight: 129 resulting items, 117 dependency edges, no explicit dependency cycle; retained item IDs and existing unrelated plan content. Remote read-back verified all 31 note/name updates, six new items and 19 new dependency edges; 129 items, 117 edges, no schedule error.
+
+No product implementation, deployment, paid prompt or runtime recovery test is part of
+this documentation update.

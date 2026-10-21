@@ -23,7 +23,8 @@ future. WBS may end up inside Navigator, inside Dash, or a separate tool both us
 ## Assumptions
 
 Each is a decision a careful colleague would take today, recorded so Dany can overturn it by
-id. None is confirmed.
+id. The accepted integration refinements below govern API, persistence, binding retention,
+recovery and delivery order; other product assumptions remain proposed.
 
 - **A1 WBS placement.** WBS stays its own product (names.md, 2026-09-19). Navigator writes
   the plan; Dash writes execution facts: claims, progress, measures, external refs. Dash
@@ -35,14 +36,14 @@ id. None is confirmed.
 - **A3 Planning authority.** WBS be-01 is the planning store this layer reads and writes.
   The Backlog.md migration (control-plane M2, Tasks 9 and 10) is not a prerequisite and stays
   parked. ADR 0027 keeps its proposed status; its spike is not this change.
-- **A4 Where the binding lives.** Until 020.08 gives WBS a per-type step graph, the workflow
+- **A4 Where the binding lives.** During the first compatibility milestone, before W0–W12 deliver type-specific DAGs, the workflow
   binding is a repository file, `.twilight/workflows.yaml`, keyed by work item type then
   step code. It may name only step codes the project holds; Burokrat refuses others.
 - **A5 Step kind.** WBS steps carry no kind yet. The binding's executor kind stands in for
-  it. When 020.08 lands kind on the step, WBS wins and the binding must agree or be refused.
+  it. When W1/W9 expose workflow activity requirements, WBS owns them and the execution binding must agree or be refused.
 - **A6 First activity classes.** `plan` (api-model, code mode optional), `impl` (cli-harness,
   Claude Code), `review` (api-model with a second model, or cli-harness), `verify` (tool: the
-  h2puni gate under its lock), `integrate` (tool for the merge, then human). Defaults pinned
+  h2puni gate under its lock), `integrate` (human approval, then a guarded merge tool). Defaults pinned
   in the binding, never in code.
 - **A7 Sandbox.** The first worker is the coordinator's host: a dedicated worktree per
   attempt on the laptop or h2puni. Which sandbox provider `HarnessAgent` gets is decided by
@@ -55,7 +56,7 @@ id. None is confirmed.
 - **A9 Identity.** One coordinator runs under one fleet credential pinned to one agent
   person. Each attempt records as its agent run the session id its adapter returns.
 - **A10 Retirement.** `tools/harness-example`'s ACP client, fake agent and log move into
-  Dash; the example project and the LangGraph dependency go when slice 6 is green.
+  Dash; the example project and the LangGraph dependency go when S7a and the replacement adapter conformance suite are green.
 - **A11 Dogfood.** The first governed change is a small real work item in the puni-00 WBS
   project, chosen at slice 8, not this change itself.
 
@@ -64,13 +65,13 @@ id. None is confirmed.
 Everything new is Twilight Dash's: it takes time, holds credentials and changes the world.
 The one static piece, the binding's schema and validator, is Burokrat's.
 
-| Unit                                                      | Responsibility                                                                                     |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`             |
-| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port, the five adapters, the provider registry, the fakes                       |
-| `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a fleet credential; every refusal typed         |
-| `twilight-dash/cli/src/runs/`                             | Run store (SQLite), attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands |
-| `.twilight/workflows.yaml`                                | puni-00's own binding                                                                              |
+| Unit                                                      | Responsibility                                                                                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `twilight-burokrat/cli/src/contracts/workflow-binding.ts` | ArkType schema of the binding; `twib validate workflow-binding <file> --steps <codes>`                                    |
+| `twilight-dash/cli/src/agents/`                           | `ActivityExecutor` port, the five adapters, the provider registry, the fakes                                              |
+| `twilight-dash/cli/src/bridge/`                           | WBS HTTP client over `@wbs/contracts` shapes under a fleet credential; every refusal typed                                |
+| `twilight-dash/cli/src/runs/`                             | RunStore/ArtifactStore ports and adapters, attempt states, the interpreter, `run-coordinator` and `inspect-runs` commands |
+| `.twilight/workflows.yaml`                                | puni-00's own binding                                                                                                     |
 
 Dash does not import WBS app internals; the shared contracts package is the boundary, as
 `twin` already does with the export.
@@ -78,7 +79,7 @@ Dash does not import WBS app internals; the shared contracts package is the boun
 ## The port
 
 ```ts
-type ExecutorKind = 'api-model' | 'cli-harness' | 'acp' | 'tool' | 'human';
+type ExecutorKind = "api-model" | "cli-harness" | "acp" | "tool" | "human";
 
 interface ActivityExecutor {
   readonly kind: ExecutorKind;
@@ -94,13 +95,13 @@ interface ActivityExecutor {
 }
 
 type Usage =
-  | { kind: 'measured'; inputTokens: number; outputTokens: number }
-  | { kind: 'unknown'; reason: 'acp-v1-no-usage' | 'tool' | 'human' };
+  | { kind: "measured"; inputTokens: number; outputTokens: number }
+  | { kind: "unknown"; reason: "acp-v1-no-usage" | "tool" | "human" };
 
 interface TurnOutcome {
   text: string;
   usage: Usage;
-  finish: 'end_turn' | 'max_steps' | 'refused' | 'cancelled';
+  finish: "end_turn" | "max_steps" | "refused" | "cancelled";
 }
 ```
 
@@ -167,37 +168,90 @@ code throws.
 
 ## Run coordination
 
-The run store is Dash's third store, beside the lease authority and the observation store,
-sharing no table or lock with them (the pattern of ADR 0051). One coordinator per store.
+### Accepted boundaries
 
-| State                | Entered when                                        | Leaves by                                            |
-| -------------------- | --------------------------------------------------- | ---------------------------------------------------- |
-| `queued`             | a startable step matched a binding and the cap held | claim succeeds → `running`; refusal → `skipped`      |
-| `running`            | the claim is held and the adapter session is open   | outcome → `succeeded` or `failed`; human → waiting   |
-| `waiting_for_person` | the class is `human` or the adapter asked           | operator resume → `running`; cancel → `cancelled`    |
-| `interrupted`        | the coordinator restarted with the attempt running  | retry budget left → new `queued` attempt; else fail  |
-| `succeeded`          | the turn finished and progress was stated           | terminal; the next step code becomes a candidate     |
-| `failed`             | the adapter or a write refused after retries        | terminal; the claim is released, the Board shows why |
-| `skipped`            | WBS refused the claim                               | terminal                                             |
-| `cancelled`          | an operator cancelled                               | terminal; claim released                             |
+The coordinator depends on semantic `RunStore` and `ArtifactStore` ports, and on the WBS
+HTTP bridge. WBS's WorkflowRepository remains behind WBS's own API. SQLite is the current
+adapter choice, not part of the core contract: any store satisfying atomicity, revision,
+uniqueness, fencing, consistent-read and recovery requirements can implement the ports.
+SQL, SQLite `user_version`, connection handles and provider migration details stay inside
+adapters. Memory is a test provider, not proof of durability. A second durable adapter runs
+the same conformance suite before interchangeability is claimed.
 
-Attempt identity is (claim id, step node id, ordinal); a retry is a new attempt and the
-claim stays held across retries of one step. The coordinator is a reconcile loop, level
-triggered like a Kubernetes controller: every tick, and every restart, rebuilds the walk from
-WBS (step graph, progress, claims) and the attempt table, seeds done steps as complete, takes
-the frontier and admits up to the cap. Nothing about the walk is persisted; the walker holds
-no journal. Restart resume: on boot every `running` row becomes `interrupted` before any new
-admission, and that is the only reconciliation. The walk over a leaf is today's step order
-read from WBS; the interface takes an ordered list of step nodes, so the parked DAG replaces
-the list without touching the states. The walker is `configurable-tree-traversal`: its
-unreleased 0.8.0 (`main`, 2026-09-13) has DAG mode with explicit identity, `dependsOn`,
-`ON_READY`/`ON_COMPLETE` and async concurrency, verified under Bun on 2026-10-21; what a
-durable coordinator still needs from it (journal replay, waits, retries, cancellation,
-per-vertex failure) is specified in
-[configurable-tree-traversal#2](https://github.com/dany-fedorov/configurable-tree-traversal/issues/2),
-and slice 6 consumes whichever of those land before it, writing the rest in the host. The lifecycle gets a model-based test
-(`fc.asyncModelRun`) with sabotage proofs before any of it runs against a real agent, as the
-2026-09-22 finding requires for concurrency code.
+RunStore operations atomically admit an attempt with capacity/identity/owner checks, store
+immutable binding manifests, commit outcomes with outgoing WBS intents, and deduplicate
+incoming decisions and command receipts. ArtifactStore stores immutable content with
+integrity and retention metadata; verify uploads before committing an outcome reference.
+Version portable records independently of each adapter's physical schema. WBS and RunStore
+are separate commits: use an outbox and guarded idempotent writes/read-back reconciliation,
+not a distributed exactly-once promise. Store names or filesystem paths in CLI configuration
+select adapters; the core does not require a database file.
+
+### One hints API
+
+Use CTT's existing hint adapters/runners with accepted-work seeds, `DEFER_READY`, guarded
+host settlement and ID-keyed `summary()`. There is no separate `planDag` graph input or
+scheduler entry point. A compatibility adapter maps the current ordered steps into explicit
+edges; the later type-workflow adapter supplies pinned DAG instances through the same hints.
+The full declared graph must be discovered and validated before WBS admission, independently
+of deferred work. Include disconnected/source-less cycle components. A lazy summary states
+that discovery is incomplete; summary itself invokes no user callbacks.
+
+Deferred work does not satisfy dependencies. Kernel-ready IDs are filtered against durable
+running/wait/retry facts, current WBS eligibility and capacity before launch. `settle` is
+bound to the current runner/execution generation and only reports WBS-accepted business
+outcomes; late/conflicting results refuse and identical duplicates are idempotent. Rebuilt
+runners consume durable accepted facts, not serialized queues or deferred handles. Agent
+turn completion alone never advances business progress.
+
+### Admission and recovery
+
+Persist admission/launch intent before external calls. Reserve capacity atomically, acquire
+the exact WBS claim, persist session/worker locators, validate outputs, then atomically save
+the outcome and outgoing progress intent. Deliver that intent idempotently and confirm its
+WBS receipt before releasing successors. `effect_succeeded_pending_progress` preserves the
+result while the WBS update is retried; it must not cause the activity to run again.
+
+On startup, obtain/fence valid ownership before changing attempt state. Inventory running
+attempts and locate surviving workers/sessions and their effects by operation identity.
+Reattach when safe; otherwise cancel/quiesce and confirm termination before replacement.
+A coordinator dying is not proof that an agent died. Unknown worker/effect state is an
+explicit `unresolved` outcome for operator reconciliation, never automatic retry. Keep
+capacity reserved while physical work may survive. Completion/release checks exact
+claim/run/attempt authority; local fencing cannot promise protection against an external
+system that does not enforce it.
+
+Attempt state distinguishes queued, running, waiting-for-person, reconciling, interrupted,
+effect-succeeded-pending-progress, unresolved and terminal outcomes. An attempt becomes
+interrupted only after recovery establishes that safe interpretation. A retry creates a new
+attempt ordinal within the persisted budget while retaining the logical operation key.
+Human waits persist prompts/correlation keys and use an authorized deduplicated inbox;
+release running capacity only after work settles. WBS business progress stays authoritative.
+
+### Binding pinning and repair
+
+Before admission, retain the complete canonical binding manifest, its digest, schema
+version and immutable prompt/tool-policy/executor-version references. A digest without
+content cannot recover a run. The manifest stores secret-provider references, never secret
+values. Restart loads the retained manifest: editing the live file affects future runs,
+not existing ones. Explicit security revocation can stop existing work independently.
+Re-pinning compares expected run/binding revisions, fences affected workers, and invalidates
+changed activities plus their downstream provenance closure. Unchanged class configuration
+alone does not prove an old output is reusable when its inputs changed.
+
+### Delivery gates
+
+S7a/slice 6a implements the safe coordinator with a linear compatibility workflow and fake
+executor crash tests. It precedes any deployed coordinator or real dogfood (I5.02/I5.04).
+S7b/slice 6b reuses that runtime for W6/W9 type-specific workflow instances, parallel joins,
+adoption and repair epochs. W0–W12 remain required for the user's DAG vision; a linear
+workflow demonstration is not product completion. Expanded multi-provider/type-DAG tests
+follow, but surviving-worker/uncertain-effect safety is mandatory in S7a already.
+
+The shared planning project is
+[Agentic workflows — WBS, CTT and portable persistence](https://dev.wbs.bulletpoints.club/?project=eeb8e50a-6ee6-49e4-a533-e10b1e29939d).
+CTT 0.8.0 is published; the unified API additions are planned in issue #2 and must not be
+claimed as already available. CTT owns no durable journal, storage provider or agent SDK.
 
 ## Governance cutover
 
@@ -220,11 +274,11 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 
 ## Risks and the spikes that retire them
 
-| Risk                                                     | Spike          | Fallback                                          |
-| -------------------------------------------------------- | -------------- | ------------------------------------------------- |
-| `HarnessAgent` or a local sandbox does not run under Bun | 0.1            | Claude Agent SDK direct behind the same port      |
-| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2            | plain tool calling for `plan`                     |
-| Harness packages break between 1.0.x releases            | 0.3            | exact pins, one renovate lane, the port absorbs   |
-| ACP attempts report no usage                             | modelled       | `Usage.unknown`, shown, never defaulted           |
-| Two coordinators on one store                            | design         | one store, one process, the lease authority later |
-| `configurable-tree-traversal` 0.8.0 unpublished          | issue #2 there | pin a git revision until the npm release          |
+| Risk                                                     | Spike              | Fallback                                                          |
+| -------------------------------------------------------- | ------------------ | ----------------------------------------------------------------- |
+| `HarnessAgent` or a local sandbox does not run under Bun | 0.1                | Claude Agent SDK direct behind the same port                      |
+| `@ai-sdk/code-mode` needs Node 22 and an exact `ai` pin  | 0.2                | plain tool calling for `plan`                                     |
+| Harness packages break between 1.0.x releases            | 0.3                | exact pins, one renovate lane, the port absorbs                   |
+| ACP attempts report no usage                             | modelled           | `Usage.unknown`, shown, never defaulted                           |
+| Concurrent or surviving owners                           | S7a recovery proof | fence ownership, inspect workers/effects; unresolved blocks retry |
+| Unified CTT deferral/summary not implemented             | issue #2           | complete S2 before coordinator admission                          |

@@ -61,18 +61,40 @@
       credentials; negative: drop the `person_not_bound` mapping and the write is retried
       forever — watched, bounded, `Proof:`.
 
-## 6. Run store and interpreter
+## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
-- [ ] 6.1 Red: `run-store.db.test.ts` — schema `user_version 1`, attempt identity, every
-      transition in the design table, refusal of an unknown transition.
-- [ ] 6.2 Red: `coordinator.model.test.ts` with `fc.asyncModelRun` over admit, finish, fail,
-      kill, resume and the cap; sabotage proofs: cap removed, restart marking removed, retry
-      budget removed — each watched failing.
-- [ ] 6.3 Green: the interpreter over an ordered step-node list; `run-coordinator
---repository --project --binding --store --max-active [--once]`, `inspect-runs`,
-      `resume-attempt`, `cancel-attempt`. The prototype's plan→implement→revise flow re-run
-      through it with the fake ACP agent; same assertions pass; LangGraph removed and
-      `tools/harness-example` retired (design A10).
+- [ ] 6a.1 Red: shared RunStore/ArtifactStore conformance tests for atomic admission,
+      capacity, revision and owner conflicts, immutable manifests, outcome/outbox atomicity,
+      inbox deduplication and receipt reconciliation. No SQL or engine-specific schema in ports.
+- [ ] 6a.2 Green: semantic ports and memory fixture, then the currently selected durable
+      adapter (SQLite). Keep physical schema/migrations in that adapter and select it by configuration.
+- [ ] 6a.3 Red/green: binding manifest retention and integrity, pinned prompt/tool-policy
+      versions, restart after working-tree edits, explicit revocation and provenance-aware re-pinning.
+- [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
+      DEFER_READY, generation-checked settlement and callback-free summary. Require complete
+      discovery/validation and filter durable waits/running/retry state before admission.
+- [ ] 6a.5 Red/green: persist admission/launch intent, exact claim receipts and operation-key
+      locators; commit outcomes and outbox atomically, reconcile WBS acceptance before successors.
+- [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,
+      progress-before-ack, duplicate signals, stale owner and unresolved worker/effect state.
+      Fault injection must catch bypassed fencing, duplicate replacement and premature capacity release.
+- [ ] 6a.7 Green: ownership acquisition/fencing, worker lookup/reattach or verified quiescence,
+      receipt/effect reconciliation and explicit unresolved operator path. Never mass-mark running
+      attempts interrupted merely because the coordinator restarted.
+- [ ] 6a.8 Provide run-coordinator, inspect-runs, resume-attempt, cancel-attempt and
+      reconcile-attempt operations over adapter configuration. Demonstrate safe compatibility
+      execution with fake adapters before I5.02 deployment or I5.04 real dogfood.
+
+## 6b. Type-specific workflows and provider proof (S7b)
+
+- [ ] 6b.1 After S7a and W6/W9, consume pinned type-workflow instances and occurrence IDs
+      through the same hints/runtime path; no second interpreter and no flattened column chain.
+- [ ] 6b.2 Prove parallel joins, graph-aware claim races, repair epochs, adoption/re-pinning,
+      retained artifacts and stale-result refusal across restart.
+- [ ] 6b.3 Run identical storage contracts against a second durable adapter chosen for deployment;
+      any conformant store is eligible. Prove versioned transfer with paused writers before claiming portability.
+- [ ] 6b.4 Finish W0–W12 product acceptance: distinct type DAGs in one project, migrated facts,
+      schedules, editor/boards, imports/exports and full recovery. Compatibility dogfood is not this gate.
 
 ## 7. Twilight flows as activity classes
 
@@ -84,14 +106,17 @@
 - [ ] 7.3 Prompts for `plan` and `review` that read the work item through the bridge and
       write the OpenSpec artifacts; one golden run against the fake model per prompt.
 
-## 8. Governance cutover
+## 8. Compatibility dogfood and staged governance cutover
 
 - [ ] 8.1 WBS: the puni-00 project's work item types and step codes match the binding; the
       coordinator's fleet credential linked on dev per `docs/auth-integration.md`.
 - [ ] 8.2 `docs/runbook-agentic-workflows.md`: start, inspect, resume, cancel, what each
       refusal means; linked from `docs/twilight-structure/README.md` and `LLM_README.md`.
-- [ ] 8.3 Dogfood (design A11): one small real work item claimed, run through `plan`,
+- [ ] 8.3 After S7a recovery proofs, I1–I4 bindings/adapters/bridge and a supervised deployment, dogfood (design A11): one small real work item claimed, run through `plan`,
       `impl`, `review`, `verify`, `integrate`, merged; attempts, claims, measures and the PR
       recorded in verify.md.
 - [ ] 8.4 Amend the control-plane proposal and Tasks 1 and 6, and the runtime-patterns note,
       as design "What this amends" lists; `openspec validate --all --json` green.
+
+- [ ] 8.5 Record separate compatibility and type-DAG milestones in the operator runbook.
+      New-work cutover has an explicit fallback to manual; full type-DAG completion requires S7b/W12.

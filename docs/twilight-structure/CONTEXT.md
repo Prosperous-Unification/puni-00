@@ -261,7 +261,7 @@ usage; a retry is a new attempt on the same claim.
 _Avoid_: Job, execution, session, try
 
 **Run store**:
-Twilight Dash's SQLite store of runs and attempts for one coordinator, separate from the
+Twilight Dash's durable record of runs, attempts and recovery facts, separate from the
 lease authority and the observation store.
 _Avoid_: Checkpoint, state file, database
 

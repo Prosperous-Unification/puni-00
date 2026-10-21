@@ -34,3 +34,15 @@ without a provider prefix.
 - **WHEN** the `cli-harness` adapter opens a session through the fake harness
 - **THEN** the attempt records the harness session id as its agent run and the same id is
   on the WBS claim
+
+### Requirement: Executors declare recovery capabilities and uncertain outcomes
+
+Each executor SHALL declare whether it can locate an operation's session, inspect effects,
+reattach, deduplicate launch and cancel/quiesce physical work. It SHALL return serializable
+locators and explicit uncertain outcomes to the coordinator; it SHALL NOT directly mutate
+RunStore or WBS. Recovery SHALL not infer process identity from a reusable PID alone.
+
+#### Scenario: Session creation succeeds before its locator is saved
+
+- **WHEN** the coordinator dies in that interval
+- **THEN** recovery locates the session by operation identity or reports unresolved; it does not blindly launch again
