@@ -52,3 +52,22 @@ The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` 
 
 - **WHEN** undo would restore a dependency whose external endpoint no longer exists
 - **THEN** undo visibly refuses without restoring a dangling relationship or partially replaying its batch
+
+#### Scenario: Explicit endpoint project preserves stable identity
+
+- **GIVEN** a typed command contains an endpoint with explicit `projectId` and stable work-item/step IDs or a supported node ID
+- **WHEN** the command binds inside its successor-owned batch
+- **THEN** it preserves the explicit project and validates each endpoint against that project's current facts
+- **AND** an omitted endpoint project retains the existing batch-local interpretation
+
+#### Scenario: Explicit project cannot borrow a local alias
+
+- **WHEN** a typed endpoint supplies both `projectId` and `workItemRef`, including when the project equals the batch owner
+- **THEN** shared HTTP/MCP semantic admission rejects the conflicting form without writes
+
+#### Scenario: Legacy read authority does not grant external authoring
+
+- **GIVEN** a caller has deployment-wide legacy access rather than admitted organization authority
+- **WHEN** it attempts to author an external typed relationship
+- **THEN** the write is forbidden without inferring a grant from endpoint ownership records
+- **AND** its existing authorized local dependency behavior is unchanged

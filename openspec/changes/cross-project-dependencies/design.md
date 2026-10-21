@@ -131,6 +131,42 @@ An admitted batch remains scoped to one successor project. A client creating
 relationships owned by two successor projects submits separate authorized
 batches; external endpoint lookup does not broaden batch authority.
 
+#### Command endpoint admission
+
+Extend the existing typed commands and their authoritative shared command
+registry, not a separate external-link write route. An omitted endpoint
+`projectId` means the batch owner and retains existing local ID/alias forms.
+An explicit `projectId` requires stable endpoint IDs (or the existing `sn1`
+node encoding), never `workItemRef`, even when naming the owner. Whole, node
+and descendant-step combinations retain their current field exclusions.
+Explicit IDs are opaque nonempty strings without surrounding whitespace; no
+new UUID-only restriction applies to existing opaque identities. Normalize
+these forms once into a precise local-versus-explicit command union, then
+bind both to required scoped endpoints. Qualified text resolves before writes;
+write commands never rebind an address string or require a lookup revision
+for already resolved stable IDs.
+
+One coupled implementation lane owns shared wire shapes, semantic parsing,
+local alias binding and endpoint admission. The admitted transaction rechecks
+current session/binding/organization membership and successor edit authority.
+A narrow required capability supplies checked detached predecessor evidence;
+it does not expose remote mutation or broaden the retained working plan.
+External authoring requires scoped organization authority; deployment-wide
+legacy access continues local commands but does not acquire an external write
+grant from a project's ownership record. Update/remove look up the existing
+relationship only in the owner's set and recheck old as well as new endpoints.
+Foreign/absent endpoints and a second successor owner remain concealed.
+
+Refresh the retained owner's rows only for owner-local endpoint IDs. The unified
+store already bumps the actual old/new endpoint union; remote revision/label
+evidence comes from the checked transaction capability. History stays owned by
+the successor. Resulting-state graph validation, remote replay preconditions and
+post-commit connected announcements must be integrated before authoring is
+activated. A parser fixture or permissive graph mock cannot prove a valid
+external mounted write. Calendar and solver availability do not gate endpoint
+admission. Calendar-unavailable and optimization response producers remain
+with their real derivation slices; do not invent successful placeholder results.
+
 ### D4. Coherent capture and actual graph validation
 
 Extend the captured-plan port with a detached collection of connected projects,
