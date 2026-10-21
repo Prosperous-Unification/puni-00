@@ -43,9 +43,9 @@ an OIDC source, changes to claims.
 
 ## Decisions
 
-A1 to A8 and A21 are Dany's and fixed (the task brief of 2026-10-21 and his additions of
-2026-10-22). A9 to A20 are **assumed** by this draft; each is overrulable by id without
-moving another decision unless noted. A19 is withdrawn by A21.
+A1 to A8, A21 and A22 are Dany's and fixed (the task brief of 2026-10-21 and his additions
+of 2026-10-22). A9 to A20 are **assumed** by this draft; each is overrulable by id without
+moving another decision unless noted. A14 is superseded by A22; A19 is withdrawn by A21.
 
 **A1. Tenant = WBS organization**, one deployment, row-level scoping.
 
@@ -93,12 +93,12 @@ account that created it (A7). A partial unique index on `(issuer, subject)` wher
 `source = 'oidc'` keeps a pair on one credential deployment-wide, as
 `external_identity_issuer_subject` does; `mcp_family_id` is unique.
 `machine_credential_secret (id, credential_id, digest, expires_at, created_at)` holds the
-API-key digests, `digest` unique and CHECKed like `organization_scim_token.digest`, at most
-two live per credential. Why not per-source columns for the secret too: rotation needs two
+API-key digests, indexed by `credential_id` and read only through it (A22), `digest`
+CHECKed like `organization_scim_token.digest`, at most two live per credential. Why not per-source columns for the secret too: rotation needs two
 digests with their own expiries, and a row per secret is what the provisioning tokens
 already proved. Why not a child table per source: the verification path reads one
-credential row by one of three lookups (digest, pair, family), and a later JWT source
-would differ only in how its key set is found. Why not reuse `external_identity`: it
+credential row by one of three lookups (primary key, pair, family), and a later JWT
+source would differ only in how its key set is found. Why not reuse `external_identity`: it
 is the sign-in table of human accounts, has no organization and no revocation, and a browser
 pair in it must never be mistaken for a machine.
 
@@ -141,9 +141,12 @@ role.
 **A13. Verification path order.** For a request with `Authorization: Bearer <token>` and
 no cookie:
 
-1. The token starts with `wbs_mk_`: SHA-256 it, read `machine_credential_secret` by digest,
-   require the secret unexpired and the credential unrevoked, else `401 unknown_identity`.
-   Never a JWT parse.
+1. The token starts with `wbs_mk_`: it must be `wbs_mk_<credential id>.<secret>` (A22).
+   Split at the first `.`; a token without one, or with an id that is not a credential id,
+   is `401 unknown_identity` with no read. Read `machine_credential` by primary key, require
+   it unrevoked, SHA-256 the secret and compare it in constant time against each of that
+   credential's unexpired secrets (two inside a rotation window); no match is
+   `401 unknown_identity`. No digest scan, no other header, never a JWT parse.
 2. Otherwise decode the JWT header and `iss` without verifying. `iss` equal to the
    configured issuer: verify with today's verifier (audience, RS256, JWKS). A token with a
    groups claim is a browser login as before. A verified token without one is
@@ -167,10 +170,7 @@ request) and a failed write is a server fault like any other. Membership of the 
 the credential's organization is rechecked by `resolve` as today; an account removed from the
 organization is `403 not_a_member` with the credential intact.
 
-**A14. API key format.** `wbs_mk_` + 256 random bits as base64url (43 characters), returned
-once, stored as the SHA-256 hex digest. The fixed prefix lets step 1 of A13 route without a
-database read and lets a secret scanner match it. The `plaintext-secrets` hook gains the
-prefix.
+**A14. Superseded by A22.** (It fixed the key as `wbs_mk_` + secret, looked up by digest.)
 
 **A15. Rotation window: 24 hours, fixed.** The provisioning tokens' window, reused. A
 second `rotate` during the window is `409 rotation_in_progress`; revoke ends both secrets
@@ -262,6 +262,15 @@ then I don't want to do M2M as well; I need a self-serving setup where I use the
 that I try to build." The sources are `api_key`, `oidc` and `mcp_consent`; an application in
 PUNI's Auth0 tenant is not a way in, today's operator-linked path is not migrated (A18), and
 PUNI's fleets dogfood the self-serve offering as the first tenant.
+
+**A22. API key format (Dany, 2026-10-22).** The key is `wbs_mk_<credential id>.<secret>`,
+sent as `Authorization: Bearer`: the id selects the credential by primary key, the secret's
+SHA-256 digest is compared in constant time against that credential's live secrets (two
+during the rotation window), no digest scan, no custom `x-wbs-api-key-*` headers, one
+Authorization header and one boundary parser. Rotation therefore happens under one stable
+credential id. The credential id is public (UI, audit, `last_used_at`); the secret is 256
+random bits as base64url, shown once and stored as its SHA-256 hex digest. The
+`plaintext-secrets` hook matches the whole `wbs_mk_<id>.` form.
 
 ## Risks / Trade-offs
 

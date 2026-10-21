@@ -22,8 +22,8 @@ route SHALL answer `403 no_active_organization`.
 #### Scenario: An API key is created and shown once
 
 - **WHEN** an admin of A posts `{ source: 'api_key', name: 'claire', personId: <claire> }`
-- **THEN** the response carries a secret starting with `wbs_mk_`, storage holds only its
-  SHA-256 digest in `machine_credential_secret`, the list shows the credential without any
+- **THEN** the response carries a key of the form `wbs_mk_<the credential's id>.<secret>`,
+  storage holds only the secret's SHA-256 digest in `machine_credential_secret`, the list shows the credential without any
   secret, and one `machine_credential_created` audit row names the actor as issuer, the
   person and the source and holds neither the secret nor its digest
 
@@ -143,13 +143,16 @@ opened the family.
 ### Requirement: One verification path admits every source
 
 be-01 SHALL admit a request bearing `Authorization: Bearer <token>` by exactly one of: a
-WBS-signed delegation naming a live `mcp_consent` credential; a
-token with the `wbs_mk_` prefix whose SHA-256 digest is an unexpired secret of an unrevoked
-credential; a JWT verified against a trusted issuer's JWKS with the
+WBS-signed delegation naming a live `mcp_consent` credential; an API key
+`wbs_mk_<credential id>.<secret>` whose id selects an unrevoked credential by primary key
+and whose secret's SHA-256 digest equals, compared in constant time, one of that
+credential's unexpired secrets; a JWT verified against a trusted issuer's JWKS with the
 credential's audience (or the issuer's default) whose pair is an unrevoked `oidc` credential
 of that trusted issuer. A JWT of the configured issuer with a groups claim SHALL keep the
 browser login path; one without a groups claim SHALL be refused `401 unknown_identity` with
-no credential lookup and no account created, whatever `external_identity` rows exist. A `wbs_mk_` token SHALL never be parsed as a JWT. A verified token
+no credential lookup and no account created, whatever `external_identity` rows exist. A `wbs_mk_` token SHALL never be parsed as a JWT, SHALL never be matched by scanning digests,
+and a malformed one (no `.`, or an id that is no credential) SHALL be refused `401
+unknown_identity` without a read. No header other than `Authorization` SHALL carry a key. A verified token
 matching no credential, a revoked credential or an expired secret SHALL be refused `401
 unknown_identity` with no account created or changed. A token whose issuer is neither the
 configured issuer nor a trusted issuer, an unverifiable token or a key set that cannot be
@@ -160,6 +163,16 @@ fetched SHALL be refused `401 invalid_token`, never admitted on a cached or defa
 - **WHEN** a request bears a live API key of credential C of organization A
 - **THEN** it is admitted as C's person's account with scopes `read` and `write`, bound to A
   without any cookie, and `GET /api/projects` lists A's projects only
+
+#### Scenario: A secret under another credential's id
+
+- **WHEN** a request bears `wbs_mk_<id of credential A>.<live secret of credential B>`
+- **THEN** WBS answers `401 unknown_identity` and reads only credential A's secrets
+
+#### Scenario: A key in a custom header
+
+- **WHEN** a request carries a live key in `x-wbs-api-key` and no `Authorization` header
+- **THEN** it is treated as unauthenticated, exactly as a request with no credential
 
 #### Scenario: A revoked API key
 
@@ -252,9 +265,10 @@ A revoked credential SHALL be listed only when `?include=revoked` is asked, with
 ### Requirement: Rotation overlaps for a bounded window
 
 `POST /api/organization/machine-credentials/:id/rotate` on an `api_key` credential SHALL issue
-a new secret, shown once, and give the previous secret `expiresAt` 24 hours later, in one
-transaction with a `machine_credential_rotated` audit row. During the window both secrets
-SHALL be admitted; after it the previous one SHALL be `401 unknown_identity`. A second rotation
+a new secret, shown once as `wbs_mk_<the same credential id>.<new secret>`, and give the
+previous secret `expiresAt` 24 hours later, in one transaction with a
+`machine_credential_rotated` audit row. During the window both secrets SHALL be admitted
+under the one credential id; after it the previous one SHALL be `401 unknown_identity`. A second rotation
 inside the window SHALL be refused `409 rotation_in_progress`. On an `oidc` or
 `mcp_consent` credential rotation SHALL be refused `409 rotation_at_issuer`. A credential of
 another organization, a revoked one, or for a member one whose person is not bound to the
@@ -263,8 +277,8 @@ caller's account SHALL be `404 not_found`.
 #### Scenario: Both secrets live, then one
 
 - **WHEN** an admin rotates C at T0
-- **THEN** C's old secret is admitted at T0 + 23 h and refused `401 unknown_identity` at
-  T0 + 25 h, while the new secret is admitted at both
+- **THEN** the new key carries C's unchanged id, C's old secret is admitted at T0 + 23 h and
+  refused `401 unknown_identity` at T0 + 25 h, while the new secret is admitted at both
 
 #### Scenario: Rotating an OIDC credential
 

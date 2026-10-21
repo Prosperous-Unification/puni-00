@@ -80,9 +80,9 @@ Rotation window (in `CONTEXT.md`); Fleet credential becomes an avoided name.
 
 ## Decisions Recorded
 
-No ADR. Owner decisions A1 to A8 and A21 are fixed; A9 to A20 are this draft's
-assumptions, each overrulable by id (A19 withdrawn by A21). All are in
-design.md, "Decisions".
+No ADR. Owner decisions A1 to A8, A21 and A22 are fixed; A9 to A20 are this
+draft's assumptions, each overrulable by id (A14 superseded by A22, A19
+withdrawn by A21). All are in design.md, "Decisions".
 
 ## Impact
 

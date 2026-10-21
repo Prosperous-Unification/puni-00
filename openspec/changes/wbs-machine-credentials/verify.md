@@ -1,7 +1,8 @@
 ## Verification record
 
 Drafted 2026-10-21 as an OpenSpec proposal only; nothing is implemented. A1 to A6 are
-Dany's owner decisions (A7, A8 and A21 added 2026-10-22; A21 withdraws A19); A9 to A20 in
+Dany's owner decisions (A7, A8, A21 and A22 added 2026-10-22; A21 withdraws A19, A22
+supersedes A14); A9 to A20 in
 design.md are assumed until he reads them. Sources read
 on 2026-10-21: `wbs-team-claims` (D5 to D7, `fleet-credentials` spec, verify.md slice 0),
 `organization-enterprise-sso` (provisioning tokens, audit widening),
@@ -23,7 +24,9 @@ token** stays the SCIM secret and is not a credential source.
 
 ## What must be observed before any slice is called done
 
-- Slice 1: a `wbs_mk_` token never reaches the JWT verifier (the fall-through negative);
+- Slice 1: a `wbs_mk_` token never reaches the JWT verifier (the fall-through negative); a
+  secret presented under another credential's id is refused and only that credential's
+  secrets are read; the digest comparison is constant-time (timing proof);
   a revoked credential is refused whatever its secrets' expiries (property); a machine key
   lists its organization's projects only and is refused on `GET /api/organization/members`;
   the enforcing-organization and session-policy cases admit a machine key; the

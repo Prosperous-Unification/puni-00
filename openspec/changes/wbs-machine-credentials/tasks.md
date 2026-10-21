@@ -17,18 +17,22 @@
       `machine-credential-migration.db.test.ts` forward, back and the refusal with one row;
       negative: drop the guard and the rollback silently deletes credentials; watched.
 - [ ] 1.2 Red: `machine-credential.test.ts` in `@wbs/domain` for the pure admission decision
-      over a presented token kind (`api_key` digest, trusted-issuer pair, delegation with
-      a credential), the matching rows, now, revocation and secret expiry: answer the principal
+      over a presented token kind (`api_key` id and secret, trusted-issuer pair,
+      delegation with a credential), the matching rows, now, revocation and secret expiry: answer the principal
       (account, capped scopes, organization, pin) or `unknown_identity` — test: one case per
       refusal and per source, a property that a revoked credential is never admitted
       whatever its secrets' expiries, and the two-organizations-one-issuer case.
 - [ ] 1.3 Green: store port `MachineCredentials` (SQLite and memory, conformance suite):
-      `byDigest`, `byPair`, `touchLastUsed` (coarse to 60 s). Negative: remove the
-      `revoked_at IS NULL` predicate from `byDigest` and the revoked-key case passes;
+      `byId` with its live secrets, `byPair`, `touchLastUsed` (coarse to 60 s); the
+      constant-time digest comparison in `@wbs/domain`. Negatives: remove the
+      `revoked_at IS NULL` predicate from `byId` and the revoked-key case passes; compare
+      with `===` and the timing proof (`oauth-timing-safe.proof.ts` precedent) reddens;
       watched, restored, `Proof:` adjacent.
-- [ ] 1.4 Verification path step 1 (A13) in `middleware/authenticated.ts` and
-      `authentication.feature.ts`: `wbs_mk_` prefix routes to the digest lookup and never to
-      the JWT verifier; the principal carries the direct organization context; `resolve`
+- [ ] 1.4 Verification path step 1 (A13, A22) in `middleware/authenticated.ts` and
+      `authentication.feature.ts`: `wbs_mk_<id>.<secret>` is parsed once at the boundary,
+      routes to `byId` and never to the JWT verifier, a malformed key or a secret under
+      another credential's id is `unknown_identity`, a key in a custom header is
+      unauthenticated; the principal carries the direct organization context; `resolve`
       scopes it — test: `machine-credential.controller.db.test.ts` admits a live key to its
       organization's projects only, refuses a revoked key `401 unknown_identity`, and
       `GET /api/organization/members` answers `403 insufficient_scope`; negative: let a
@@ -67,11 +71,12 @@
       each; negatives: write the audit row outside the transaction and the "audit cannot be
       written" scenario stores a credential; drop the own-account predicate and the
       stranger's-agent case creates; watched.
-- [ ] 2.4 Rotate and revoke (A11, A15), members for their own agents only: second secret, previous `expires_at = now + 24 h`,
+- [ ] 2.4 Rotate and revoke (A11, A15, A22), members for their own agents only: second
+      secret under the unchanged credential id, previous `expires_at = now + 24 h`,
       `rotation_in_progress`, `rotation_at_issuer`, revoke ends both, `404 not_found` on a
       stranger's or revoked credential — test: the two-secrets-then-one scenario with an
       injected clock, revoke mid-window; negative: drop the `expires_at` predicate from
-      `byDigest` and the T0 + 25 h case admits the old secret; watched.
+      the live-secrets read and the T0 + 25 h case admits the old secret; watched.
 - [ ] 2.5 Person usage: `pinnedCredentials` becomes `machineCredentials`; `deletePerson`
       `in_use` and cascade; `patchPerson` unbind/rebind refused `in_use` — test: the
       directory conformance cases updated and the rebind case added; negative: skip the
@@ -127,8 +132,8 @@
 - [ ] 4.2 Delete `link-credential-cli.ts`, `credential-link.ts` and their tests; rewrite
       `docs/auth-integration.md` "Fleet credentials" and `docs/runbook-prod-deploy.md`
       "Fleet credential links" to the settings page and the swap window of A18; add the
-      `wbs_mk_` prefix to the `plaintext-secrets` hook — test: the hook's test with a
-      staged `wbs_mk_` literal exits 1; Burokrat `check-indexes` clean; no production
+      `wbs_mk_<id>.` form to the `plaintext-secrets` hook — test: the hook's test with a
+      staged `wbs_mk_<id>.<secret>` literal exits 1; Burokrat `check-indexes` clean; no production
       reader of `external_identity.person_id` remains (grep in the test).
 - [ ] 4.3 Operator (not code): before the swap, an admin issues one API-key credential per
       fleet agent person on dev through the panel (slice 2) and each fleet harness holds
