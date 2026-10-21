@@ -5,6 +5,19 @@
   "projectType": "library",
   "tags": ["scope:infra", "type:scripts", "runtime:bun", "ring:adapter"],
   "targets": {
+    "check:docs": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "{workspaceRoot}/**/*"],
+      "options": {
+        "commands": [
+          "bun tools/tool-devsync/src/check-documents.ts",
+          "bun test --preload ./tools/test/scratch/preload.ts ./tools/tool-devsync/src/adr-index.test.ts ./tools/tool-devsync/src/retired-roots.test.ts --timeout=60000",
+          "bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-root-migration working . HEAD docs/findings/root-migration.v1.json"
+        ],
+        "parallel": false
+      }
+    },
     "test-levels:verify": {
       "executor": "nx:run-commands",
       "cache": false,
