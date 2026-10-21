@@ -38,7 +38,7 @@ throw. Adapter schema versions are independent and never enter these records.
 
 The following aliases are distinct branded strings constructed by boundary decoders:
 `StoreId`, `OrganizationId`, `RunId`, `AttemptId`, `OwnerId`, `ManifestDigest`, `ArtifactDigest`, `OperationKey`,
-`CommandId`, `DecisionId`, `CorrelationKey`, `ProjectId`, `WorkItemId`, `ClaimId`, `PersonId`,
+`CommandId`, `ExecutionCommandId`, `DecisionId`, `CorrelationKey`, `ProjectId`, `WorkItemId`, `ClaimId`, `PersonId`,
 `AgentRunId`, `OccurrenceId`. Digests are lowercase SHA-256; IDs are nonempty bounded strings.
 `Revision`, `Epoch`, `Ordinal` and epoch-millisecond `Timestamp` are nonnegative safe integers;
 epochs and attempt ordinals start at one. Increment overflow throws. No ambient clock read:
@@ -134,7 +134,7 @@ interface RunStore {
   createRun(ownership: Ownership, run: Run): Promise<StoreReply<Run>>;
   readRun(runId: RunId): Promise<RunSnapshot>;
   admitAttempt(guard: RunGuard, admission: Admission): Promise<StoreReply<Attempt>>;
-  recordExecution(guard: AttemptGuard, fact: ExecutionFact): Promise<StoreReply<Attempt>>;
+  recordExecution(guard: AttemptGuard, command: ExecutionCommand): Promise<StoreReply<Attempt>>;
   commitOutcome(guard: AttemptGuard, completion: Completion): Promise<StoreReply<Attempt>>;
   receiveDecision(ownership: Ownership, decision: Decision): Promise<StoreReply<Decision>>;
   consumeDecision(guard: AttemptGuard, decisionId: DecisionId): Promise<StoreReply<Attempt>>;
@@ -159,6 +159,10 @@ type ExecutionFact =
   | { kind: 'unresolved'; reason: string; evidence: ArtifactRef }
   | { kind: 'interrupted'; quiescence: Quiescence }
   | { kind: 'waiting'; claim: ClaimAuthority; wait: HumanWait; quiescence: Quiescence };
+interface ExecutionCommand {
+  readonly commandId: ExecutionCommandId;
+  readonly fact: ExecutionFact;
+}
 interface Completion {
   readonly outcome: AttemptOutcome;
   readonly intent: ProgressIntent;
@@ -167,7 +171,9 @@ interface Completion {
 ```
 
 `recordExecution` records named facts with a closed transition table; it is not a patch or
-an arbitrary status setter. `commitOutcome` is the indivisible outcome/outbox operation,
+an arbitrary status setter. The caller generates an execution command ID once and reuses it
+for retries. A new observation or continuation uses a new ID even when its fact bytes match
+an older command. `commitOutcome` is the indivisible outcome/outbox operation,
 not an external API call. All expected conflicts return the union above; operational
 failures (unreadability, corrupt records, exhausted database contention) throw named errors.
 No connection, table, SQL fragment, filesystem path, generic transaction or arbitrary JSON
@@ -207,6 +213,11 @@ patch crosses either port. Construction and close remain provider lifecycle conc
    a nonempty unique choice set and quiescence. Quiescence must name the attempt's operation
    and retained evidence. Only its acceptance releases capacity, exactly once. A queued
    launch intent whose response was lost cannot be declared absent merely by lacking a locator.
+   A fresh execution command may record reattachment from reconciling to running with the
+   same claim and known locator; a differing previously recorded locator refuses. This stores
+   an observation and performs no physical launch. The caller must establish actual session
+   identity through the executor recovery contract. Repeated observation bytes alone never
+   identify a retry.
 5. **Completion.** Only claimed queued/running/reconciling/unresolved attempts can complete;
    the completion's intent authority and outcome must equal the recorded attempt and supplied
    outcome. Success requires quiescence with effect succeeded; failure/cancellation requires
@@ -236,6 +247,15 @@ For all idempotent methods, an exact duplicate returns its committed value befor
 old expected revisions but after ownership and full identity equality. An ID collision with
 different content refuses rather than becoming a duplicate. Persist enough immutable request
 identity to recognize duplicates after state changes; do not deduplicate from state kind alone.
+
+Execution command history is keyed by store-wide `ExecutionCommandId`, separately from WBS
+progress command identity. Retain the exact run/attempt target, fact and original committed
+reply. After validating the current owner, the same ID with equal target/fact returns that
+reply as duplicate without changing the current state; the same ID with different target or
+fact returns identity_conflict. A fresh ID goes through current revision and transition checks,
+even for repeated fact bytes. Expected revisions remain concurrency predicates, not implicit
+request IDs. This permits recovery/reattachment cycles and same-session human continuations
+without mistaking them for redelivery of an earlier launch.
 
 ## Artifact boundary
 

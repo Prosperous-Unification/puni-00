@@ -143,7 +143,7 @@ pair before their first released schema. Create `artifact-store.ts`, `record-out
 `sqlite/artifact-store.ts`, `testing/artifact-store-contract.ts`, `artifact-store.test.ts`,
 `outcomes.test.ts`, `sqlite/outcomes.db.test.ts`.
 
-**Interfaces:** Introduce `ArtifactStore`, `ArtifactRef`, `ExecutionFact`, `Completion`,
+**Interfaces:** Introduce `ArtifactStore`, `ArtifactRef`, `ExecutionFact`, `ExecutionCommand`, `Completion`,
 `ProgressIntent` and `RunStore.recordExecution/commitOutcome` exactly as the design defines.
 Add `artifacts` to both factories. Export
 `recordOutcome(runs: RunStore, artifacts: ArtifactStore, guard: AttemptGuard,
@@ -152,7 +152,7 @@ completion: Completion): Promise<StoreReply<Attempt>>` and
 The latter verifies retained evidence; it is not an authorization checker.
 Add verified application operations
 `retainManifest(runs: RunStore, artifacts: ArtifactStore, ownership: Ownership, manifest: Manifest): Promise<StoreReply<Manifest>>`
-and `recordExecution(runs: RunStore, artifacts: ArtifactStore, guard: AttemptGuard, fact: ExecutionFact): Promise<StoreReply<Attempt>>`.
+and `recordExecution(runs: RunStore, artifacts: ArtifactStore, guard: AttemptGuard, command: ExecutionCommand): Promise<StoreReply<Attempt>>`.
 Snapshot each request before awaiting verification. Manifest retention verifies prompt and
 policy references; execution verifies interrupted quiescence, waiting prompt/quiescence
 and unresolved evidence. Facts without references need no artifact reads. Raw RunStore
@@ -168,6 +168,7 @@ capability excluding raw commit; coordinator wiring and its bypass check remain 
 
 - [ ] Write shared artifact cases: identical retention is idempotent, different metadata is refused, returned-byte mutation cannot affect stored bytes, missing reference throws, length/digest mismatch throws. SQLite adds corruption-after-close and reopen verification.
 - [ ] Write the execution transition matrix: no launch without exact claim; wrong operation key refuses; takeover does not imply interruption; unknown effect stays unresolved and keeps capacity; determinate quiescence releases once; retry increments ordinal, preserves operation key and cannot exceed maxAttempts. A lost launch acknowledgement with no locator is still uncertain.
+- [ ] Persist explicit execution command identities. Launch, record recovery, then use a fresh command ID to record reattachment to the same claim/locator: running applies. Redelivering the original ID after that cycle returns its original duplicate reply without changing current state. Reusing an ID with a different fact/attempt refuses; a fresh ID with stale revisions refuses. Revision guards are not request IDs. Task 4 continuations use the same rule.
 - [ ] Write completion cases through `recordOutcome`: missing/corrupt evidence or output produces no outcome, intent or revision change; valid completion stores matching intent and outcome together, releases only settled capacity and enters pending progress. End-of-turn text alone is insufficient input.
 - [ ] Exercise verified manifest/execution operations: missing/corrupt prompt, policy or execution evidence cannot persist a manifest or change state, revisions or reservations. Callers cannot mutate references while reads are pending. Remove their verification calls separately and observe intended assertions fail before restoring.
 - [ ] Implement immutable blob retention/readback, closed transition table, evidence verification and indivisible outcome/outbox mutation. Persist exact command identity for idempotency; same command with conflicting authority/outcome refuses even after a later state transition.

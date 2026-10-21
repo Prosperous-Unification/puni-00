@@ -22,6 +22,28 @@ adapter schema versions. Memory SHALL NOT establish durability.
 - **WHEN** an adapter cannot atomically reserve capacity and persist admission intent
 - **THEN** it is refused as nonconformant rather than weakening the coordinator's guarantee
 
+### Requirement: Execution observations carry retry identities
+
+Execution observations SHALL carry caller-assigned stable command identities. Replaying a
+command under current ownership with the same run, attempt and fact SHALL return its original
+reply without changing current state; changed content SHALL refuse. Fresh command identities
+SHALL pass current revision and state checks even when their facts match an older command.
+
+#### Scenario: Reattachment repeats an earlier locator
+
+- **WHEN** a running attempt enters recovery and a fresh command records reattachment to its same claim and known locator with current revisions
+- **THEN** the observation applies and the attempt returns to running without RunStore launching any work
+
+#### Scenario: An earlier observation is redelivered
+
+- **WHEN** the original execution command is redelivered after later state transitions under current ownership
+- **THEN** its original reply is returned as duplicate and the current attempt state and revisions remain unchanged
+
+#### Scenario: An execution command identity is reused with different content
+
+- **WHEN** an existing execution command ID names a different run, attempt or fact
+- **THEN** the request refuses as an identity conflict without changing state
+
 ### Requirement: Coordination uses the unified hints API
 
 The coordinator SHALL rebuild CTT hints from versioned WBS facts and accepted outcomes.

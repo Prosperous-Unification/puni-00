@@ -270,6 +270,16 @@ Twilight Dash's durable record of runs, attempts and recovery facts, separate fr
 lease authority and the observation store.
 _Avoid_: Checkpoint, state file, database
 
+**Execution fact**:
+An observation of an attempt's claim, session, recovery, wait or quiescence, recorded
+without performing the activity.
+_Avoid_: Business outcome, launch instruction
+
+**Execution command**:
+A request to record one execution fact for a named attempt, with a stable identity reused
+for retries of that request. A later observation of the same session is a distinct command.
+_Avoid_: Fact digest, revision, WBS progress command
+
 **Lifecycle point**:
 A named stage, activity, tool, decision, rework, trigger or profile-change event
 of a compiled workflow, the one key space for policies and hooks.
