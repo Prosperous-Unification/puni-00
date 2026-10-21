@@ -24,34 +24,23 @@ observability stack: **[docs/local-dev.md](./docs/local-dev.md)**.
 
 ## Before you push
 
-```sh
-bin/h2puni-gate.sh
-```
-
-The h2puni wrapper runs the same format and Nx commands as CI while holding the
-canonical heavy-work lock. CI also runs a secrets scan, migration lint and
-`openspec validate`, on every push and PR. `build` needs `shellcheck`
-(`brew install shellcheck`).
-
-Root `bun test` is **not** the suite — it runs none of `fe-01`'s tests and
-still reports success. Use the Nx gate.
+Run `bin/h2puni-gate.sh <sha>`, not root `bun test`; what it runs and what CI adds:
+[LLM_README.md, _Commands_](./LLM_README.md#commands).
 
 ## Working on this repo
 
 Most of the work here is done by AI agents, and the rules that govern it are
 machine-facing:
 
-| File                                     | Read it when                                         |
-| ---------------------------------------- | ---------------------------------------------------- |
-| **[HUMAN_README.md](./HUMAN_README.md)** | operating this: deploying, prod triage, from a phone |
-| **[AGENTS.md](./AGENTS.md)**             | always — five rules that govern every change         |
-| [LLM_README.md](./LLM_README.md)         | orienting in the codebase: landmines, open findings  |
-| [docs/local-dev.md](./docs/local-dev.md) | running things locally                               |
-| `openspec/`                              | proposing a change (intent → specs → tasks → verify) |
-
-`AGENTS.md` is the real file; `CLAUDE.md` and `GEMINI.md` are symlinks to it so
-every agent CLI loads the same rules.
+| File                                       | Read it when                                         |
+| ------------------------------------------ | ---------------------------------------------------- |
+| **[HUMAN_README.md](./HUMAN_README.md)**   | operating this: deploying, prod triage, from a phone |
+| **[AGENTS.md](./AGENTS.md)**               | always — five rules that govern every change         |
+| [LLM_README.md](./LLM_README.md)           | orienting in the codebase: commands, deploy, routing |
+| [docs/findings](./docs/findings/README.md) | landmines and open findings                          |
+| [docs/local-dev.md](./docs/local-dev.md)   | running things locally                               |
+| `openspec/`                                | proposing a change (intent → specs → tasks → verify) |
 
 Changes to observable behavior, contracts, migrations, deploy safety or
-architecture go through OpenSpec — start with `/opsx:new`. Docs and mechanical
+architecture go through OpenSpec (start with `/opsx:new`); docs and mechanical
 refactors do not.
