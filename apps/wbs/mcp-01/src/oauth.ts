@@ -180,7 +180,7 @@ export interface OAuthRouteEvidence {
  * restart; codes, pending logins, organization choices and reauthentication markers are short
  * lived and stay in this process.
  */
-export class InMemoryMcpOAuth implements McpOAuthHandler {
+export class McpOAuthServer implements McpOAuthHandler {
   /**
    * Clients whose promotion to proven is reserved while their code exchange signs a token; they
    * count against the proven per-source cap. Held in memory, not stored: a reservation lives only
@@ -1375,14 +1375,14 @@ export function mcpOAuthFromEnv(
   env: Readonly<Record<string, string | undefined>>,
   routeEvidence?: (evidence: OAuthRouteEvidence) => void,
   fetchImpl?: FetchLike,
-): InMemoryMcpOAuth {
+): McpOAuthServer {
   const secret = config.INTERNAL_AUTH_SECRET;
   let client: BrowserOidcClient | undefined;
   const get = () => (client ??= browserOidcClientFromEnv(env, { allowMissingAccessExpiry: true }));
   let upstreamVerifier: TokenVerifier | undefined;
   const verifyUpstream = (token: string) =>
     (upstreamVerifier ??= oidcTokenVerifierFromEnv(env)).verify(token);
-  return new InMemoryMcpOAuth(
+  return new McpOAuthServer(
     config,
     {
       authorizationUrl: (input) => get().authorizationUrl(input),

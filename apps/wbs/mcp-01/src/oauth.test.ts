@@ -8,7 +8,7 @@ import { describe, expect, it } from 'bun:test';
 
 import type { McpConfig } from './config';
 import { mcpFetchHandler, mcpHttpResponse } from './http';
-import { InMemoryMcpOAuth, mcpOAuthFromEnv, type OAuthRouteEvidence } from './oauth';
+import { mcpOAuthFromEnv, McpOAuthServer, type OAuthRouteEvidence } from './oauth';
 import type { DerivedTool } from './openapi-tools';
 import type { McpRefreshAuthority, McpRefreshAuthorityReader } from './refresh-authority';
 import { createServer } from './server';
@@ -83,7 +83,7 @@ function fixture(
     authorizationCalls,
     exchangeCalls,
     routeEvidence,
-    oauth: new InMemoryMcpOAuth(CONFIG, provider, {
+    oauth: new McpOAuthServer(CONFIG, provider, {
       groupsClaim: 'wbs_groups',
       groupPrefix: 'dev',
       now: () => now,
@@ -107,7 +107,7 @@ function fixture(
   };
 }
 
-async function register(oauth: InMemoryMcpOAuth): Promise<string> {
+async function register(oauth: McpOAuthServer): Promise<string> {
   const response = await oauth.response(
     new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/register', {
       body: JSON.stringify({ redirect_uris: [CALLBACK], token_endpoint_auth_method: 'none' }),
@@ -122,7 +122,7 @@ async function register(oauth: InMemoryMcpOAuth): Promise<string> {
 }
 
 async function registrationResponse(
-  oauth: InMemoryMcpOAuth,
+  oauth: McpOAuthServer,
   redirectUris: readonly unknown[],
   source = '203.0.113.1',
 ): Promise<Response> {
@@ -164,7 +164,7 @@ function browserCookie(previous: string | undefined, response: Response): string
   return pair;
 }
 
-function pendingMaps(oauth: InMemoryMcpOAuth): {
+function pendingMaps(oauth: McpOAuthServer): {
   contexts: Map<string, unknown>;
   records: Map<string, unknown>;
 } {
@@ -180,16 +180,16 @@ function pendingMaps(oauth: InMemoryMcpOAuth): {
   return { contexts: pending.contexts, records: pending.transactions.records };
 }
 
-function transactionCount(oauth: InMemoryMcpOAuth): number {
+function transactionCount(oauth: McpOAuthServer): number {
   return pendingMaps(oauth).contexts.size;
 }
 
-function grantCount(oauth: InMemoryMcpOAuth): number {
+function grantCount(oauth: McpOAuthServer): number {
   return (oauth as unknown as { grants: Map<string, unknown> }).grants.size;
 }
 
 async function completedAuthorization(
-  oauth: InMemoryMcpOAuth,
+  oauth: McpOAuthServer,
   verifier: string,
   registeredClientId?: string,
 ): Promise<{ callback: Request; clientId: string; response: Response }> {
@@ -208,7 +208,7 @@ async function completedAuthorization(
   return { callback, clientId, response };
 }
 
-async function authorizationCode(oauth: InMemoryMcpOAuth, verifier: string): Promise<string> {
+async function authorizationCode(oauth: McpOAuthServer, verifier: string): Promise<string> {
   const { response } = await completedAuthorization(oauth, verifier);
   return (
     new URL(response.headers.get('location') ?? 'https://invalid').searchParams.get('code') ?? ''
@@ -216,7 +216,7 @@ async function authorizationCode(oauth: InMemoryMcpOAuth, verifier: string): Pro
 }
 
 async function tokenResponse(
-  oauth: InMemoryMcpOAuth,
+  oauth: McpOAuthServer,
   clientId: string,
   code: string,
   verifier: string,
@@ -238,7 +238,7 @@ async function tokenResponse(
   return response;
 }
 
-async function promoteClient(oauth: InMemoryMcpOAuth, source: string): Promise<string> {
+async function promoteClient(oauth: McpOAuthServer, source: string): Promise<string> {
   const registration = await registrationResponse(oauth, [CALLBACK], source);
   expect(registration.status).toBe(201);
   const clientId = ((await registration.json()) as { client_id: string }).client_id;
@@ -274,7 +274,7 @@ async function promoteClient(oauth: InMemoryMcpOAuth, source: string): Promise<s
   return clientId;
 }
 
-describe('InMemoryMcpOAuth', () => {
+describe('McpOAuthServer', () => {
   // Proof: serializing request bodies or query strings here exposes credentials;
   // these records retain only bounded grant classifications and the route path.
   it('records OAuth route evidence without request secrets', async () => {
@@ -2552,7 +2552,7 @@ describe('OAuth client redirects', () => {
   });
 
   async function registeredClient(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     redirectUris: readonly string[],
   ): Promise<string> {
     const registration = await registrationResponse(oauth, redirectUris);
@@ -2561,7 +2561,7 @@ describe('OAuth client redirects', () => {
   }
 
   async function codeFor(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     clientId: string,
     redirectUri: string,
     verifier: string,
@@ -2583,7 +2583,7 @@ describe('OAuth client redirects', () => {
   }
 
   function exchange(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     clientId: string,
     code: string,
     verifier: string,
@@ -2701,7 +2701,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
 
   /** Signs in with `scope` (omitted when undefined) and returns the issued token body. */
   async function signIn(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     scope: string | undefined,
   ): Promise<{ access_token: string; refresh_token: string; scope: string }> {
     const clientId = await register(oauth);
@@ -2741,7 +2741,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     locations: { id: 'path' },
   };
 
-  function endpoint(oauth: InMemoryMcpOAuth, be01Calls: string[]) {
+  function endpoint(oauth: McpOAuthServer, be01Calls: string[]) {
     return mcpFetchHandler(
       () =>
         createServer({
@@ -2863,7 +2863,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
   };
 
   function refresh(
-    oauth: InMemoryMcpOAuth,
+    oauth: McpOAuthServer,
     refreshToken: string,
     scope?: string,
   ): Promise<Response | undefined> {
@@ -2881,7 +2881,7 @@ describe('MCP write scope, refresh and revocation through the mounted endpoint',
     );
   }
 
-  function revoke(oauth: InMemoryMcpOAuth, token: string): Promise<Response | undefined> {
+  function revoke(oauth: McpOAuthServer, token: string): Promise<Response | undefined> {
     return oauth.response(
       new Request('https://dev.wbs.bulletpoints.club/mcp/oauth/revoke', {
         body: new URLSearchParams({ token }),
