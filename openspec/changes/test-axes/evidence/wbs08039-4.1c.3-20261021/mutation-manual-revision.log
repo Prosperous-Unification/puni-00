@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+419 |         '--now',
+420 |         now,
+421 |       ],
+422 |       { stdout: 'pipe', stderr: 'pipe' },
+423 |     );
+424 |     expect(invocation.exitCode).toBe(1);
+                                      ^
+error: expect(received).toBe(expected)
+
+Expected: 1
+Received: 0
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:424:33)
+(fail) [TEST-AXES-107] refuses substituted Manual revision despite repinned outer digest [1620.60ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [2.52s]

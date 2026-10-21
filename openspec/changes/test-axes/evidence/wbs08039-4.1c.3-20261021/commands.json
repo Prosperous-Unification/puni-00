@@ -1,0 +1,115 @@
+{
+  "baseRevision": "69a8b38f4f63ef4242ca1ed12926909fa2b5b127",
+  "worktree": "/home/df/.codex/worktrees/4a91/puni-00",
+  "branch": "feat/wbs08039-scenario-ledger-proof",
+  "runtime": "Bun 1.4.2",
+  "openSpecVersion": "1.14.3",
+  "dependencySource": "Ignored node_modules symlink to /home/df/wd/puni/puni-00/node_modules; no installation performed",
+  "workingDirectory": "repository root",
+  "testCommandPrefix": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts",
+  "mutationCommand": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts --test-name-pattern <mutations.json pattern> --timeout=120000",
+  "nxEnvironment": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096",
+  "commands": [
+    {
+      "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts --timeout=120000",
+      "exitCode": 0,
+      "observed": "59 pass, 0 fail, 201 assertions, 43.13 seconds; includes canonical digest, source and built installed dispatch",
+      "log": "owning.log"
+    },
+    {
+      "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-scenarios.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/performance-levels.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/manual.test.ts --timeout=120000",
+      "exitCode": 0,
+      "observed": "263 pass, 0 fail, 879 assertions, 117.33 seconds; restored after every watched fault",
+      "log": "restored-regression.log"
+    },
+    {
+      "command": "TOOL_WIKI_TRUSTED_NODE_MODULES=$PWD/node_modules bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger-browser.test.ts --timeout=120000",
+      "exitCode": 0,
+      "observed": "88 pass, 0 fail, 304 assertions, 92.67 seconds; existing v2 Browser extension; includes real built installed dispatch",
+      "log": "browser-regression.log"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096 bunx nx run twilight-burokrat:lint:source --skip-nx-cache",
+      "exitCode": 0,
+      "observed": "20.0 seconds; cache skipped",
+      "log": "lint-source.log"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096 bunx nx run twilight-burokrat:typecheck --skip-nx-cache",
+      "exitCode": 0,
+      "observed": "1.3 seconds; cache skipped; target uses tsc --build --force",
+      "log": "typecheck.log"
+    },
+    {
+      "command": "NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_SOCKET_DIR=/tmp/wbs08039-nx NODE_OPTIONS=--max-old-space-size=4096 bunx nx run twilight-burokrat:build --skip-nx-cache",
+      "exitCode": 0,
+      "observed": "2.3 seconds; cache skipped; target and dependencies successful",
+      "log": "build.log"
+    },
+    {
+      "command": "bun apps/twilight-structure/twilight-burokrat/cli/dist/bin.mjs scenario validate . openspec/changes/test-axes/specs/test-axes/spec.md",
+      "exitCode": 0,
+      "observed": "unidentified:[]; stderr empty",
+      "log": "scenario-provenance.json"
+    },
+    {
+      "command": "OPENSPEC_TELEMETRY=0 bun node_modules/@fission-ai/openspec/bin/openspec.js validate test-axes --strict --json",
+      "exitCode": 1,
+      "observed": "35 existing requirement-length WARNINGs (>500 characters), zero ERRORs; strict mode treats warnings as invalid; stderr empty. Coordinator ruled warning cleanup outside this bounded slice; this check is not passing.",
+      "log": "openspec-strict.json"
+    },
+    {
+      "command": "OPENSPEC_TELEMETRY=0 bun node_modules/@fission-ai/openspec/bin/openspec.js validate --all --json",
+      "exitCode": 0,
+      "observed": "264/264 valid (246 changes, 18 specs), zero failed; stderr empty",
+      "log": "openspec-all.json"
+    },
+    {
+      "command": "bun node_modules/prettier/bin/prettier.cjs --check openspec/changes/test-axes/verify.md openspec/changes/test-axes/evidence/wbs08039-4.1c.3-20261021/*.json; git diff --check",
+      "exitCode": 0,
+      "observed": "All matched Markdown/JSON files use Prettier code style; diff whitespace check passed",
+      "log": "format.log"
+    },
+    {
+      "command": "git diff --check 69a8b38f4f63ef4242ca1ed12926909fa2b5b127",
+      "exitCode": 0,
+      "observed": "Full base-to-prospective-candidate diff passes after normalizing captured log whitespace; original full-range check before normalization exited 2 on the four named logs."
+    }
+  ],
+  "limits": [
+    "Diagnostic fixtures do not establish repository-wide acceptance, coverage, source reconciliation, admission, authentication or certification.",
+    "No production code, scenario identifiers or allocation journal changed.",
+    "Independent exact-candidate review remains coordinator-owned; task checkbox remains open until review.",
+    "No full repository gate, host gate, exact-head CI, push, merge, deployment or WBS write performed by this worker."
+  ],
+  "logNormalization": {
+    "reason": "Full base-to-candidate diff whitespace check found CRLF and trailing whitespace in captured tool output; earlier working-diff-only check did not cover committed files.",
+    "rule": "Split at LF and strip trailing space, tab and CR from each line; preserve all other bytes and line order.",
+    "logs": [
+      {
+        "path": "build.log",
+        "beforeSha256": "781bba38a793ec1d1023cb856b84ea229cc32578261694afc613fad2462260b0",
+        "normalizedSha256": "dcabeb9d7dbe3c04b02e48307e90d3f4ed4898ea1698aa65b526f330a3c89b68",
+        "changedLines": [12, 13]
+      },
+      {
+        "path": "lint-source.log",
+        "beforeSha256": "610d57a6b6562116bbe43d74e706a47ad932cb232e88ffb5a6211230176977e7",
+        "normalizedSha256": "7e5753722338c02a2b162dd7e41fa07bb0deba5211c3d31b522312fef689572e",
+        "changedLines": [4, 5]
+      },
+      {
+        "path": "typecheck.log",
+        "beforeSha256": "c4c48059e1f6d268c0df95b7eec09f4203b2145d7970a15ca010dd4e0c518a6e",
+        "normalizedSha256": "9c59a7ab19f7dfece545d9c9430ed84b21929b889d5dad3a86b61b75de4a9ea0",
+        "changedLines": [4, 5]
+      },
+      {
+        "path": "mutation-arity.log",
+        "beforeSha256": "45d7ab8781ab04979481d97729bf18894e11c13dbee4f6313b45a4a85beba275",
+        "normalizedSha256": "04a0d19fbc2d54c36c5fbffb47d7b06e09399928925ab6ea7ae4076dd5cfd4c8",
+        "changedLines": [6]
+      }
+    ]
+  }
+}

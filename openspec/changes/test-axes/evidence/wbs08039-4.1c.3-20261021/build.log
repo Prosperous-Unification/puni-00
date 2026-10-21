@@ -1,0 +1,25 @@
+
+ NX   Running target build for project twilight-burokrat and 4 tasks it depends on:
+
+
+✔  nx run shared-validation:build
+✔  nx run shared-test-levels:build
+✔  nx run tool-test-clock-reads:build
+✔  nx run shared-test-evidence:build
+
+> nx run twilight-burokrat:build
+
+> bun src/packaging/build.ts
+
+
+
+
+ NX   Successfully ran target build for project twilight-burokrat and 4 tasks it depends on
+
+
+Output of 4 successful tasks were not shown. Run with --verbose or --output-style=static to see it.
+
+  Run duration:      2.3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     2.2s (2 tasks)
+  Recoverable time:  <1ms

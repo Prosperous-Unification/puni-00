@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+101 |   expect(observation.performance).toEqual(setup.performance);
+102 |   expect(observation.authentication).toEqual({ kind: 'absent' });
+103 |   expect(observation.certifies).toBe(false);
+104 |   expect(observation.evaluatedAt).toBe(now);
+105 |   const { observationDigest, ...payload } = observation;
+106 |   expect(observationDigest).toBe(hashCanonical(payload));
+                                  ^
+error: expect(received).toBe(expected)
+
+Expected: "e74197c9cf06a7eb3796cc110881e061e444ca9094b39892a32ec99971042ade"
+Received: "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:106:29)
+(fail) [TEST-AXES-106] complete report diagnostic flags and canonical digest survive reorder [352.68ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 6 expect() calls
+Ran 1 test across 1 file. [1260.00ms]

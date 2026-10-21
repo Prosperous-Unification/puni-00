@@ -5660,3 +5660,83 @@ noncertifying, with authentication absent and level/isolation unresolved as reco
 above; release checks do not promote those report facts. No production deployment,
 trusted activation or parent completion is inferred. This append changes only the
 verification record; it does not rerun code tests, CI, the host gate or live dev checks.
+
+## WBS080.39 4.1c.3 fresh closure evidence (2026-10-21)
+
+Fresh verification of the existing capability scenario diagnostic ledger on base
+`69a8b38f4f63ef4242ca1ed12926909fa2b5b127`, in managed isolated worktree
+`/home/df/.codex/worktrees/4a91/puni-00`, branch
+`feat/wbs08039-scenario-ledger-proof`. No production code, scenario ID or allocation
+journal changed. Existing adjacent `Proof:` comments remain unchanged. Task 4.1c.3
+is checked after the independent exact-candidate review recorded below; parent 4.1,
+T2, source reconciliation, certification and WBS080.39 remain open.
+
+The durable [command receipts](evidence/wbs08039-4.1c.3-20261021/commands.json)
+record exact repository-root commands, exit statuses, runtime/dependency provenance
+and captured output links. Bun is 1.4.2; repository-pinned OpenSpec is 1.14.3. The ignored
+worktree-local node_modules symlink reuses the existing root dependencies; no install
+was performed.
+
+| Fresh check                                                            | Observed output                                                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Owning scenario-ledger suite, before faults                            | Exit 0; 59 pass, 0 fail, 201 assertions, 43.13s                                       |
+| Restored ledger/Performance-scenarios/Performance-levels/Manual suites | Exit 0; 263 pass, 0 fail, 879 assertions, 117.33s                                     |
+| Existing v2 Browser ledger regression                                  | Exit 0; 88 pass, 0 fail, 304 assertions, 92.67s                                       |
+| Uncached Nx twilight-burokrat:lint:source                              | Exit 0; 20.0s                                                                         |
+| Uncached Nx twilight-burokrat:typecheck                                | Exit 0; 1.3s; target uses `tsc --build --force`                                       |
+| Uncached Nx twilight-burokrat:build                                    | Exit 0; target/dependencies successful, 2.3s                                          |
+| Freshly built installed scenario provenance                            | Exit 0; `{"unidentified":[]}`                                                         |
+| Pinned OpenSpec 1.14.3 `validate --all --json`                         | Exit 0; 264/264 valid (246 changes, 18 specs)                                         |
+| Changed Markdown/JSON Prettier and `git diff --check`                  | Exit 0; all matched files formatted; no whitespace errors                             |
+| Pinned OpenSpec 1.14.3 selected `--strict --json`                      | **Exit 1**; 35 preexisting requirement-length WARNINGs (>500 characters), zero ERRORs |
+
+The [base comparison](evidence/wbs08039-4.1c.3-20261021/strict-baseline.json)
+proves the complete referenced spec and each of the 35 warning-named requirement
+sections are byte-identical between base `69a8b38f` and candidate `7a63b3082`.
+The coordinator explicitly kept strict warning cleanup outside this bounded slice;
+strict validation is not claimed passing. The ordinary all-artifact validation passed.
+Both restored suites include source/built installed dispatch, complete canonical digest
+and preservation assertions. Missing and mode-000 unreadable ledger authority and Manual
+report cases passed separately. The v1 suite retains actual current, stale, failed,
+skipped and overdue Manual observations. The v2 extension remains unchanged.
+
+All **46** production guard/dependency faults in the historical ledger matrix were
+freshly injected and watched fail selected owning assertions with Bun exit 1. The
+[matrix](evidence/wbs08039-4.1c.3-20261021/mutations.json) records the exact production
+path, literal search/replacement, selected test pattern, named failing tests, captured
+assertion log, pre-fault/restored SHA-256 and byte-equality restoration. Each source was
+restored in `finally` before the next fault. The complete restored four-file suite then
+passed all 263 tests. This exercises closed authority/path/schema checks, exact
+Performance and repinned nested Manual joins, debt/output preservation, canonical
+ordering/digest, CLI arity/debt status and built installed dispatch.
+
+Two initial experiments changed an earlier shared occurrence (Browser diagnostic
+helper and another CLI branch's arity guard). Their tests correctly stayed green;
+they prove nothing about the intended guard and are **excluded** from the 46. The
+[inconclusive receipts](evidence/wbs08039-4.1c.3-20261021/mutation-attempts.json) and
+separate `*-wrong-seam.log` files preserve them. Correcting each mutation to the
+specific ledger seam produced its watched assertion failure. No product defect was
+found or repaired.
+
+Only docs/evidence are committed. No full repository gate, host gate, exact-head CI,
+integration, deployment, source reconciliation or WBS write was performed by this
+worker. The diagnostic fixtures grant no coverage, admission, authentication or
+certification. Coordinator release acceptance remains pending.
+
+The final full base-to-candidate whitespace check initially exited 2 on CRLF or
+trailing whitespace in `build.log`, `lint-source.log`, `typecheck.log` and
+`mutation-arity.log`; the earlier working-diff-only check had missed committed log
+content. Those four captured logs are normalized by stripping only trailing space,
+tab and CR on each LF-delimited line. Command receipts preserve their original and
+normalized SHA-256 and changed line numbers; assertion text, outcomes and line order
+are preserved. The complete base-to-prospective-candidate `git diff --check` then
+exited 0, and the regenerated artifact inventory matches all normalized bytes.
+
+Independent Astra-high review approved exact candidate
+`893f918216e1c1419945336cd03ed76b8770cb22` with no Critical, Important or Minor
+findings. The reviewer independently checked all 62 artifact hashes, 46 watched
+mutation/restoration receipts, two excluded inconclusive probes, unchanged production,
+specs, tests and scenario allocation, restored 263+88 passing tests, the 35-warning
+strict baseline and the full-range whitespace check. This closes only Task 4.1c.3.
+Parent 4.1, T2, source reconciliation, certification and WBS080.39 remain open;
+coordinator release/CI/host acceptance and external WBS synchronization remain separate.

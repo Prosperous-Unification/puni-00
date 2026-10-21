@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:
+633 |     ];
+634 |   });
+635 |   const invocation = await inspect(setup);
+636 |   expect(invocation.exitCode).toBe(1);
+637 |   expect(invocation.stdout).toBe('');
+638 |   expect(invocation.stderr).toContain('disposition');
+                                  ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "disposition"
+Received: "Manual needs external policy.manual\n"
+
+      at <anonymous> (/home/df/.codex/worktrees/4a91/puni-00/apps/twilight-structure/twilight-burokrat/cli/src/evidence/scenario-ledger.test.ts:638:29)
+(fail) [TEST-AXES-105] unknown disposition refuses at closed variant boundary [408.56ms]
+
+ 0 pass
+ 58 filtered out
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [1316.00ms]
