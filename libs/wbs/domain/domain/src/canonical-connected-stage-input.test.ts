@@ -686,7 +686,7 @@ test('refuses unsupported selectors, relationship types and graph provenance', (
   Object.assign(s.input.graph.edges[0], { type: 'SS' });
   expect(() => canonicalConnectedStageInput(s)).toThrow('graph type');
 });
-test('refuses foreign workflow endpoints through the shared graph validator', () => {
+test('refuses absent workflow endpoints through the shared graph validator', () => {
   const s = mutableStage();
   s.input.graph.edges[0].predecessor.leafId = 'absent';
   expect(() => canonicalConnectedStageInput(s)).toThrow('endpoint');

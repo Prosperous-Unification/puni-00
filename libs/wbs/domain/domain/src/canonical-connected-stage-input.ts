@@ -40,10 +40,13 @@ function canonicalEndpoint(endpoint: ScopedDependencyEndpoint) {
  * real placements or mutating source maps. Sets sort bytewise; each leaf keeps
  * its actual step order. Descriptive labels and frozen numbers carry no meaning.
  *
- * Throws on absent, contradictory or nonfinite stage evidence. The existing
- * graph boundary checks nodes/endpoints; it cannot detect an authored edge the
- * caller omitted. Original selectors may address rows removed by reduction.
- * Core validates baseline feasibility; this function performs no scheduling.
+ * Consumes an authoritative typed capture. Checks exact reduced ownership,
+ * project/rank/anchor and placement evidence, finite numeric constraints, supplied
+ * graph nodes/endpoints and the listed relationship vocabulary/ownership invariants.
+ * Upstream capture validates identifiers and types; this is not a full parser.
+ * Omitted authored edges cannot be inferred, and original selectors may address
+ * rows removed by reduction. Core validates baseline feasibility; this function
+ * performs no scheduling.
  * SHA-256 and the objective/runtime/budget/quantum tuple belong to adapters.
  */
 export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage): string {
@@ -89,7 +92,7 @@ export function canonicalConnectedStageInput(stage: ConnectedOptimizationStage):
   // removing it together with graph validation admitted the duplicate (redundant guards).
   requireFact(keys.size === input.slices.length, 'duplicate slice');
   // Proof: removing this call admitted `refuses missing graph node` and
-  // `refuses foreign workflow endpoints through the shared graph validator`.
+  // `refuses absent workflow endpoints through the shared graph validator`.
   validateResolvedGraph(input);
   // Proof: removal admitted `refuses malformed elsewhere evidence through the existing boundary`.
   checkElsewhere(input.elsewhere);
