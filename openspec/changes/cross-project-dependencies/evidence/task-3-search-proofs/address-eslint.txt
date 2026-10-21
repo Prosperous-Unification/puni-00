@@ -1,0 +1,36 @@
+
+/tmp/puni-cross-address/apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts
+    1:1   error  Run autofix to sort these imports!                                                                                  simple-import-sort/imports
+   11:17  error  Returning a void expression from an arrow function shorthand is forbidden. Please add braces to the arrow function  @typescript-eslint/no-confusing-void-expression
+   79:51  error  Invalid type "string | null" of template literal expression                                                         @typescript-eslint/restrict-template-expressions
+   80:64  error  Invalid type "string | null" of template literal expression                                                         @typescript-eslint/restrict-template-expressions
+   81:57  error  Invalid type "string | null" of template literal expression                                                         @typescript-eslint/restrict-template-expressions
+  117:91  error  Invalid type "string | null" of template literal expression                                                         @typescript-eslint/restrict-template-expressions
+
+/tmp/puni-cross-address/apps/wbs/be-01/src/testing/project-address-search-fixture.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.db.test.ts
+   1:1   error  Run autofix to sort these imports!                                                                                  simple-import-sort/imports
+  12:15  error  Returning a void expression from an arrow function shorthand is forbidden. Please add braces to the arrow function  @typescript-eslint/no-confusing-void-expression
+  26:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                                          @typescript-eslint/await-thenable
+  26:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead              @typescript-eslint/no-confusing-void-expression
+
+/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-revision.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-address/libs/wbs/domain/contracts/src/http/project-address-shapes.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+✖ 16 problems (16 errors, 0 warnings)
+  10 errors and 0 warnings potentially fixable with the `--fix` option.
+

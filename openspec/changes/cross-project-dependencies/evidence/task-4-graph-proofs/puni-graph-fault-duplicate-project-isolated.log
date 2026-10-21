@@ -1,0 +1,32 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+269 |   }
+270 | });
+271 |
+272 | it('refuses duplicate empty project identities without ownership masking', () => {
+273 |   const empty = project('empty', [], []);
+274 |   expect(() => resolveConnectedGraph({ projects: [empty, empty], external: [] })).toThrow(/duplicate project empty/);
+                                                                                        ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /duplicate project empty/
+
+Received function did not throw
+Received value: {
+  graph: {
+    nodes: [],
+    edges: [],
+  },
+  projectIdByWorkItem: Map {},
+  relationships: Map {},
+}
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:274:83)
+(fail) refuses duplicate empty project identities without ownership masking [0.36ms]
+
+ 0 pass
+ 13 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [25.00ms]

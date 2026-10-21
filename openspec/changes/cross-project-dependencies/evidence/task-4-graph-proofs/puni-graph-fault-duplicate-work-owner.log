@@ -1,0 +1,70 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+186 |   expect(() => resolveConnectedGraph({ projects: [a, a], external: [] })).toThrow(
+187 |     /duplicate project/,
+188 |   );
+189 |   expect(() =>
+190 |     resolveConnectedGraph({ projects: [a, project('b', ['A'], ['build'])], external: [] }),
+191 |   ).toThrow(/work item A.*ownership/);
+          ^
+error: expect(received).toThrow(expected)
+
+Expected pattern: /work item A.*ownership/
+
+Received function did not throw
+Received value: {
+  graph: {
+    nodes: [
+      {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "design",
+        },
+        at: 0,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "test",
+        },
+        at: 1,
+      }, {
+        kind: "step",
+        ref: {
+          workItemId: "A",
+          stepId: "build",
+        },
+        at: 0,
+      }
+    ],
+    edges: [
+      {
+        predecessor: {
+          leafId: "A",
+          at: 0,
+        },
+        successor: {
+          leafId: "A",
+          at: 1,
+        },
+        type: "FS",
+        provenance: "workflow",
+      }
+    ],
+  },
+  projectIdByWorkItem: Map(1) {
+    "A": "b",
+  },
+  relationships: Map {},
+}
+
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:191:5)
+(fail) refuses duplicate project and work-item ownership even without relationships [0.52ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [24.00ms]

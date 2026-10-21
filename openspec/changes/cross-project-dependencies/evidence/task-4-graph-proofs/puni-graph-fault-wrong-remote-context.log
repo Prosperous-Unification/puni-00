@@ -1,0 +1,22 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+67 |     if (project === undefined) throw new Error(`no project ${projectId} in connected graph`);
+68 |     return {
+69 |       leavesUnder: (workItemId) => {
+70 |         const leaves = project.tree.leavesUnder.get(workItemId);
+71 |         if (leaves === undefined)
+72 |           throw new Error(`no work item ${workItemId} in project ${projectId}`);
+                                                                                   ^
+error: no work item BP in project a
+      at leavesUnder (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.ts:72:79)
+      at resolveEndpoint (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/slice-edges.ts:351:18)
+      at resolveAuthoredEdges (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/slice-edges.ts:308:17)
+      at resolveConnectedGraph (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.ts:110:10)
+      at <anonymous> (/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts:136:17)
+(fail) expands every remote parent pair using each endpoint tree and own step identity [0.60ms]
+
+ 0 pass
+ 11 filtered out
+ 1 fail
+Ran 1 test across 1 file. [26.00ms]

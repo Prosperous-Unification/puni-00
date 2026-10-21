@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/domain/src/connected-step-node.test.ts:
+(pass) refuses absent and empty slices instead of creating a boundary [0.46ms]
+
+ 1 pass
+ 11 filtered out
+ 0 fail
+ 2 expect() calls
+Ran 1 test across 1 file. [24.00ms]

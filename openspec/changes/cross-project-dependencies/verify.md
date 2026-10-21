@@ -71,16 +71,16 @@ These are tracking receipts, not evidence that package implementation is done.
 
 ## Delta spec sync
 
-| Capability                 | Status                 | Note                                        |
-| -------------------------- | ---------------------- | ------------------------------------------- |
-| project-addresses          | Partial: 1.1, 2.1, 2.2 | Delta retained; no main-spec sync performed |
-| cross-project-dependencies | Partial: 4.1 storage   | Delta retained; no main-spec sync performed |
-| wbs-domain                 | N/A: unimplemented     | Delta retained; no main-spec sync performed |
-| plan-import                | N/A: unimplemented     | Delta retained; no main-spec sync performed |
-| saved-plans                | N/A: unimplemented     | Delta retained; no main-spec sync performed |
-| live-plan-snapshot         | N/A: unimplemented     | Delta retained; no main-spec sync performed |
-| scheduler-optimization     | N/A: unimplemented     | Delta retained; no main-spec sync performed |
-| plan-command-registry      | N/A: unimplemented     | Delta retained; no main-spec sync performed |
+| Capability                 | Status                      | Note                                        |
+| -------------------------- | --------------------------- | ------------------------------------------- |
+| project-addresses          | Partial: 1.1, 2.1, 2.2, 3.1 | Delta retained; no main-spec sync performed |
+| cross-project-dependencies | Partial: 4.1 storage        | Delta retained; no main-spec sync performed |
+| wbs-domain                 | Partial: graph foundation   | Delta retained; no main-spec sync performed |
+| plan-import                | N/A: unimplemented          | Delta retained; no main-spec sync performed |
+| saved-plans                | N/A: unimplemented          | Delta retained; no main-spec sync performed |
+| live-plan-snapshot         | N/A: unimplemented          | Delta retained; no main-spec sync performed |
+| scheduler-optimization     | N/A: unimplemented          | Delta retained; no main-spec sync performed |
+| plan-command-registry      | N/A: unimplemented          | Delta retained; no main-spec sync performed |
 
 ## Failure-proof register
 
@@ -95,11 +95,11 @@ claim these observations in advance.
 | Grammar 1.1 / 2.2                               | Remove length, leading-letter, character or first-dot check individually                                                     | `project-address.test.ts` named grammar cases, then `project-address.controller.db.test.ts` malformed admission                           | 1.1: 11 restored failures; 2.2 HTTP: observed rejection bypass, [API proof](evidence/task-2-api.md) |
 | Backfill/allocation 2.1                         | Omit backfill or allocator; disable namespace trigger/unique index; exhaust counter                                          | `project-abbreviation-migration.db.test.ts` old-writer/concurrent/backfill/namespace/exhaustion cases                                     | Observed; see task2 storage evidence and diagnostic-only limits                                     |
 | Required project state 2.2                      | Delete or corrupt abbreviation row; bypass trusted-row guard                                                                 | `project-address.controller.db.test.ts`: absent/malformed rows refuse                                                                     | Observed trusted decoder fault; [API proof](evidence/task-2-api.md)                                 |
-| Organization and bounded lookup 3.1             | Remove project/organization predicate or response bound                                                                      | `project-address-search.controller.db.test.ts` scoped/bounded/foreign cases                                                               | NOT RUN                                                                                             |
+| Organization and bounded lookup 3.1             | Remove project/organization predicate or response bound                                                                      | `project-address-search.controller.db.test.ts` scoped/bounded/foreign cases                                                               | Observed selected lookup faults; [search evidence](evidence/task-3-search.md)                       |
 | HTTP/MCP boundary 3.2                           | Remove shared endpoint/version shape validation                                                                              | Mounted HTTP/MCP malformed scope/type/ID cases                                                                                            | NOT RUN                                                                                             |
 | Relationship integrity 4.1                      | Remove each endpoint/project/step/organization/duplicate check                                                               | Unified repository and migration DB cases                                                                                                 | Observed/restored migration, store and review faults; [evidence](evidence/task-4-storage.md)        |
 | Current write authority 4.2                     | Bypass current access, successor owner or remote endpoint shape                                                              | `cross-project-dependency-commands.controller.db.test.ts` revoked/foreign/second-owner cases; assert no partial state                     | NOT RUN                                                                                             |
-| Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | NOT RUN                                                                                             |
+| Actual graph 4.3                                | Omit expanded pair; use project DAG; use target reach globally; skip each structural admission site                          | `connected-step-node.test.ts` and mounted cycle/structural cases, retaining valid interleaving positive                                   | Foundation observed; structural integration NOT RUN; [graph evidence](evidence/task-4-graph.md)     |
 | Lifecycle/history 4.4                           | Remove deletion refusal, incident map, touched-ID/replay graph/current-access check separately                               | External deletion/hand-down/concurrent undo/redo controller cases                                                                         | NOT RUN                                                                                             |
 | Coherent capture 5.1                            | Remove transaction; read cache/derive after closure; replace borrowed DB; omit close                                         | `connected-plan-capture.db.test.ts` concurrent endpoint and cache publication, borrowed and lifecycle cases                               | NOT RUN                                                                                             |
 | Capture authority/completeness 5.1              | Omit closure or authorization; delete/corrupt/unreadably supply required evidence                                            | Production factory capture cases; distinguish absence/unreadability where contract does                                                   | NOT RUN                                                                                             |
@@ -205,3 +205,44 @@ Behavior: 215 passed, 990 assertions. Fresh memory/SQLite/backend and core/backe
 Durable [fault artifacts](evidence/task-4-storage-proofs/) retain actual outputs and exact mutation scripts as text. Corrected SQL removals use valid SELECT statements instead of invalid empty migration statements. The review fixes prove differently owned filtered identity corruption and a coherent alternate-owner update are actually admitted if their respective checks are removed. The original owner-message proof is superseded; missing-local-table rollback remains diagnostic-only, while retained-external rollback independently proves destructive loss without its guard. Counts describe watched faults, not independently proved invariants. All production mutations were restored.
 
 Remaining graph/admission/lifecycle, complete capture/scheduling/history/UI, activation and release checks stay open. No full host gate, CI, build, deployment or completed external-dependency feature is claimed.
+
+## Task 3.1 — authorized address lookup completed 2026-10-22
+
+Astra approved the implementation and three review fixes at `1b89328d5`;
+see [implementation](evidence/task-3-search.md), [review](evidence/task-3-search-review.md),
+and [integration test type correction](evidence/task-3-search-types-fix.md).
+Integration commits are `63287849f`, `731b68a92` and test-only `3451ca740`.
+The combined eight-file run passed 148 tests / 724 assertions; core/backend
+Nx typechecks passed. The dedicated SQLite target initially failed on test
+callback narrowing; after the stable alias correction, that actual target
+passed with cache skipped and five adapter tests passed. Earlier root checks
+passed 67 frontend tests and one socket test; unchanged frontend/socket paths
+were not rerun for the test-only fix.
+
+[Output and fault artifacts](evidence/task-3-search-proofs/) retain initial
+failures and corrected proofs. Nineteen original fault runs and three new
+runs show actual selected failures; the old zero-test placement run is
+explicitly invalid. This closes lookup only, not endpoint writes, picker UI,
+full contracts, host gate, CI or deployment.
+
+## Task 4.3 — reviewed graph foundation, integration still open
+
+Astra approved `cb6f4c45a`, integrated as `ec69ee0e4` and `3980e0bb5`.
+[Implementation](evidence/task-4-graph.md), [review](evidence/task-4-graph-review.md)
+and [proof output](evidence/task-4-graph-proofs/) cover own-project expanded
+nodes, actual cycle resolution, both incident directions, overlays and required
+authority/lifetime interfaces. There are 146 passing foundation tests plus a
+14-test follow-up; the lookup integration adds the combined 148-test run.
+Forty watched fault runs are audited with diagnostic-only and superseded
+attempts explicitly distinguished. Concrete admitted SQLite authority,
+existing guard facade and structural transaction callers remain unimplemented;
+4.3 stays unchecked. WBS foundation leaf 010.05.2.1 alone is done.
+
+## Integration checkpoint
+
+Fresh `origin/main` at `e6e4e296f` was merged as `9182ddc92` before these
+foundations. Draft [PR #630](https://github.com/Prosperous-Unification/puni-00/pull/630)
+contains the developing change. CI on that earlier checkpoint is running;
+no current candidate green gate or deployment is claimed. Tool Wiki normal
+hooks still report inactive/uncertified. Full exact-SHA host gate, final CI,
+remaining implementation and deployment evidence are required.

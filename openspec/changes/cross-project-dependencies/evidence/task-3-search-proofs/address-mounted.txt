@@ -1,0 +1,20 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/project-address-search.controller.db.test.ts:
+(pass) alphabetic prefix is bounded and organization scoped [157.51ms]
+(pass) numeric input is not external discovery [109.47ms]
+(pass) selected project scopes steps and work items and caps flattened candidates [101.53ms]
+(pass) manual punctuation and lowercase resolve and malformed syntax precedes stale [121.32ms]
+(pass) foreign and absent addresses have identical refusal [93.46ms]
+(pass) refuses malformed queries and cursor reuse across query project organization and kind [130.20ms]
+(pass) keeps exact Unicode name matching and literal punctuation [99.76ms]
+(pass) refuses duplicate numbers and missing endpoints without changing database state [127.33ms]
+(pass) changes revision for leafhood and uncoded step order but keeps label-only edits [117.13ms]
+{"level":"error","time":1792622764205,"service":"be-01","err":{"occurrence_id":"AE_F4BCFX13JSXP5EXEPGXE3FNMF6","fingerprint":"fp1_5e24cfa614f0be0aa798d632f11b6f46","stack":["Error: project 6ab92bdc-08e6-40bd-bcd2-1a0fb8f57839 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at searchProjects (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:46:32)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:71:32)","    at async withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:27:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:12:37)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+{"level":"error","time":1792622764211,"service":"be-01","err":{"occurrence_id":"AE_04N8WVHTMQ59MSP32RTKE619GW","fingerprint":"fp1_d2e532bb32ce92a21c4eab0acf034990","stack":["Error: project 6ab92bdc-08e6-40bd-bcd2-1a0fb8f57839 abbreviation is missing","    at decodeProjectAbbreviation (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-abbreviation.ts:49:15)","    at capture (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:56:26)","    at <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/service/project-address-search.ts:87:33)","    at withSnapshot (/tmp/puni-cross-address/libs/wbs/adapters/store-sqlite/src/project-address-search.ts:27:29)","    at async <anonymous> (/tmp/puni-cross-address/libs/wbs/application/core/src/http/project-address.routes.ts:18:37)"],"as_string_format":"derived","v":"corj/v0.15"},"msg":"unexpected endpoint failure"}
+(pass) fails missing abbreviation evidence visibly even outside the discovery match [108.01ms]
+
+ 10 pass
+ 0 fail
+ 79 expect() calls
+Ran 10 tests across 1 file. [3.33s]

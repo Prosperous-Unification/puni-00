@@ -1,0 +1,37 @@
+
+> nx run wbs-fe-01:"test:unit" --args=src/lib/wbs-api.test.ts
+
+> TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 src/lib/wbs-api.test.ts
+
+(node:2390631) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vitest.config" without a file extension (vitest.node.config.ts:3:24). Add the file extension
+  - import "./vitest.node-suites" without a file extension (vitest.node.config.ts:4:29). Add the file extension
+  - JSON import "./vitest.node-suites.json" without import attributes (vitest.node-suites.ts:1:22). Add `with { type: 'json' }`
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-cross-address/apps/wbs/fe-01
+
+No test files found, exiting with code 1
+
+filter: src/lib/wbs-api.test.ts
+include: playwright-config.test.ts, src/components/board/step-board.test.ts, src/components/spaces/single-flight.test.ts, src/components/wbs/attempt-words.test.ts, src/components/spaces/space-gantt.test.ts, src/components/wbs/cell-card-store.test.ts, src/components/wbs/column-hints.test.ts, src/components/wbs/dep-graph.test.ts, src/components/wbs/dep-picker.test.ts, src/components/wbs/depends-input.test.ts, src/components/wbs/drag-drop.test.ts, src/components/wbs/duration-words.test.ts, src/components/wbs/estimate-draft.test.ts, src/components/wbs/gantt-geometry.test.ts, src/components/wbs/import-with-ai-guide.test.ts, src/components/wbs/initials.test.ts, src/components/wbs/logical-grid.test.ts, src/components/wbs/marker-rule-density.test.ts, src/components/wbs/marker-rule-ink.test.ts, src/components/wbs/mention.test.ts, src/components/wbs/name-notes.test.ts, src/components/wbs/optimization-cue-reading.test.ts, src/components/wbs/plan-chart-input.test.ts, src/components/wbs/plan-completeness.test.ts, src/components/wbs/plan-render-rows.test.ts, src/components/wbs/plan-terminal-tail.test.ts, src/components/wbs/plan-viewport.test.ts, src/components/wbs/pointed-row-store.test.ts, src/components/wbs/project-picker.test.ts, src/components/wbs/short-date.test.ts, src/components/wbs/status-offers.test.ts, src/components/wbs/wbs-rows.test.ts, src/deadline-copy.test.ts, src/lib/local-write.test.ts, src/lib/plan-refresh.test.ts, src/lib/refusal.test.ts, src/lib/saved-plan-compare.test.ts, src/lib/step-view.test.ts, src/modules/calendar-markers/calendar-markers.feature.test.ts, src/modules/calendar-markers/calendar-markers.resource.test.ts, src/modules/channel.model.test.ts, src/modules/directory-management/directory-management.feature.test.ts, src/modules/directory-management/module.test.ts, src/modules/directory/directory.resource.test.ts, src/modules/plan-commands/plan-commands.feature.test.ts, src/modules/plan-feed/delivered-plan-store.model.test.ts, src/modules/plan-feed/plan-feed.feature.test.ts, src/modules/plan-feed/plan-feed.resource.test.ts, src/modules/plan-feed/presence-store.model.test.ts, src/modules/plan-feed/same-steps.test.ts, src/modules/plan-writer/busy-store.model.test.ts, src/modules/plan-writer/plan-writer.test.ts, src/modules/preferences/module.test.ts, src/modules/preferences/preferences.feature.test.ts, src/modules/preferences/preferences.resource.test.ts, src/modules/project/composition.test.ts, src/modules/project/project-catalog.feature.test.ts, src/node-tier.test.ts, src/runtime/application-runtime.test.ts, src/runtime/browser-sign-out.test.ts, src/runtime/lifetime-slot.model.test.ts, src/runtime/lifetime-slot.test.ts, src/runtime/project-runtime.model.test.ts, src/runtime/project-runtime.test.ts, src/runtime/retirement-join.test.ts, src/runtime/session-exit.model.test.ts, src/runtime/session-runtime.model.test.ts, src/runtime/session-runtime.test.ts, src/test-tiers.test.ts, src/testing/fake-project-api.test.ts, src/testing/plan-fixture-command-results.test.ts, src/testing/record-calls.test.ts, src/testing/refusing-api.test.ts, vitest-budget.test.ts, vitest.view-level.test.ts, src/components/wbs/hover-card-placement.test.ts
+exclude:  **/node_modules/**, **/.git/**, src/**/*.zoned.test.{ts,tsx}
+
+Warning: command "TZ=UTC bunx vitest run --config vitest.node.config.ts --testTimeout=30000 --hookTimeout=30000 src/lib/wbs-api.test.ts" exited with non-zero status code
+
+
+ NX   Running target test:unit for project wbs-fe-01 failed
+
+Failed tasks:
+
+- wbs-fe-01:test:unit
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      277ms
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     267ms (1 task)
+  Recoverable time:  <1ms

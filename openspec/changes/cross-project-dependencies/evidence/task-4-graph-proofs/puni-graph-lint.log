@@ -1,0 +1,93 @@
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+warning No cached ProjectGraph is available. The rule will be skipped.
+          If you encounter this error as part of running standard `nx` commands then please open an issue on https://github.com/nrwl/nx
+          @nx/enforce-module-boundaries
+
+/tmp/puni-cross-graph/libs/wbs/application/core/src/index.ts
+  170:1  error  Run autofix to sort these exports!  simple-import-sort/exports
+
+/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.test.ts
+    1:48  error  'ScopedTypedDependency' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    1:48  error  'ScopedTypedDependency' is defined but never used                                                       unused-imports/no-unused-imports
+   50:5   error  Async method 'requireProject' has no 'await' expression                                                 @typescript-eslint/require-await
+   63:7   error  Async method 'findById' has no 'await' expression                                                       @typescript-eslint/require-await
+   68:7   error  Async method 'stepsOf' has no 'await' expression                                                        @typescript-eslint/require-await
+   70:18  error  Async method 'listByProject' has no 'await' expression                                                  @typescript-eslint/require-await
+   71:18  error  Async method 'listByProject' has no 'await' expression                                                  @typescript-eslint/require-await
+   72:21  error  Async method 'listByProject' has no 'await' expression                                                  @typescript-eslint/require-await
+   74:7   error  Async method 'listIncident' has no 'await' expression                                                   @typescript-eslint/require-await
+  206:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  206:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  209:58  error  Async arrow function has no 'await' expression                                                          @typescript-eslint/require-await
+  213:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  213:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  220:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  220:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  229:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  229:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  231:51  error  Async arrow function has no 'await' expression                                                          @typescript-eslint/require-await
+  234:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  234:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  237:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  237:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  243:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  243:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  245:61  error  Async arrow function has no 'await' expression                                                          @typescript-eslint/require-await
+  246:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  246:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  249:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  249:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  254:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  254:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  257:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  257:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  274:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  274:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  275:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  275:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  281:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  281:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  287:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  287:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+  292:44  error  Async arrow function has no 'await' expression                                                          @typescript-eslint/require-await
+  293:3   error  Unexpected `await` of a non-Promise (non-"Thenable") value                                              @typescript-eslint/await-thenable
+  293:9   error  Placing a void expression inside another expression is forbidden. Move it to its own statement instead  @typescript-eslint/no-confusing-void-expression
+
+/tmp/puni-cross-graph/libs/wbs/application/core/src/service/connected-dependency-graph.ts
+  205:11  error  Prefer using an optional chain expression instead, as it's more concise and easier to read  @typescript-eslint/prefer-optional-chain
+
+/tmp/puni-cross-graph/libs/wbs/application/core/src/service/dependency-graph.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-graph/libs/wbs/domain/domain/src/connected-step-node.test.ts
+  1:1  error  Run autofix to sort these imports!  simple-import-sort/imports
+
+/tmp/puni-cross-graph/libs/wbs/domain/domain/src/index.ts
+  167:1  error  Run autofix to sort these exports!  simple-import-sort/exports
+
+✖ 50 problems (50 errors, 0 warnings)
+  5 errors and 0 warnings potentially fixable with the `--fix` option.
+
