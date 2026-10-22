@@ -33,6 +33,7 @@ import {
   JoinRequestRepository,
   OnboardingRepository,
   openSqliteSource,
+  OrganizationLimitGaugeRepository,
   OrganizationLimitsRepository,
   OrganizationRepository,
   ProjectRankRepository,
@@ -381,6 +382,10 @@ export class OrganizationHarness {
         clock: testClock,
         directory: directoryStore,
         broadcast: recordingBroadcaster(),
+        organizationLimits: new OrganizationLimitGaugeRepository(
+          db,
+          TEST_ORGANIZATION_DEFAULT_LIMITS,
+        ),
       }),
       capacity: testCapacityService(),
       priorityBands: testPriorityBandService(),
@@ -582,6 +587,7 @@ export class OrganizationHarness {
     migrate(path);
     const source = openSqliteSource({
       dbPath: path,
+      organizationDefaultLimits: TEST_ORGANIZATION_DEFAULT_LIMITS,
       openReadOnlyConnection,
       onFanoutCapture,
       onCapturedFanout,

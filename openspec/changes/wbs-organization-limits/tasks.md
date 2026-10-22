@@ -53,21 +53,38 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
 
 ## 2. The agent-person cap
 
-- [ ] 2.1 `patchPerson { kind: 'agent' }` and the directory add with kind `agent` refuse
+- [x] 2.1 `patchPerson { kind: 'agent' }` and the directory add with kind `agent` refuse
       `agent_person_limit { cap, current, added: 1 }` from inside the directory store's
       transaction under the gate, under scoped access only; `agent → person` never consults
       it — Red: `directory-command-organization.controller.db.test.ts`: the ninth agent
       refused, demote then promote applied, legacy access applied without a read. R5 fault:
       read the count before the transaction and two concurrent promotions at 7 of 8 both
       land (observed with the gate bypassed, then restored); drop the `kind === 'agent'`
-      predicate and renaming an agent at the cap is refused; watched.
-- [ ] 2.2 Plan import counts the agents it would create and refuses the whole import with
+      predicate and renaming an agent at the cap is refused; watched. Built 2026-10-22: the
+      check is `DirectoryService.refuseAgentPersons` over a new store port
+      `OrganizationLimitGauge` that only the catalogs a unit of work admits carry, so the
+      count is read in the batch's `BEGIN IMMEDIATE` under its turn; the red cases live in
+      `agent-person-limit.controller.db.test.ts` (be-01) and the race in
+      `agent-person-limit-race.db.test.ts` (store-sqlite), not in the directory controller
+      test. `createPerson` carries no kind on the wire, so the add with kind `agent` is
+      reachable only through the import; it is checked in `addPersonWithin` all the same
+      (`directory.resource.test.ts`). With the gate bypassed SQLite refuses the second
+      `BEGIN IMMEDIATE`, so "both land" was observed through a stale count instead.
+- [x] 2.2 Plan import counts the agents it would create and refuses the whole import with
       `added` — Red: `plan-import-organization.controller.db.test.ts`: three agents over the
       cap write nothing, three under it import. R5 fault: check per person instead of the
-      total and an import of three at 6 of 8 writes two; watched.
-- [ ] 2.3 Refusal shape in `@wbs/contracts` (`agent_person_limit` on the command refusal
+      total and an import of three at 6 of 8 writes two; watched. Built 2026-10-22 in
+      `agent-person-limit.controller.db.test.ts`; the import is all or none, so with the
+      whole-import check removed the per-person check of `addPersonWithin` answered 500 and
+      wrote nothing rather than writing two; an agent the organization already holds by name
+      counts nothing.
+- [x] 2.3 Refusal shape in `@wbs/contracts` (`agent_person_limit` on the command refusal
       union with its detail), described for the MCP batch tool — Red: the refusal fixture
-      type test and the OpenAPI emit diff.
+      type test and the OpenAPI emit diff. Built 2026-10-22: `agent_person_limit` with
+      `LimitRefusalDetail` in `refusal.ts` (batch arm with its position, import arm without),
+      409 arms in the batch and import shapes, the `patchPerson` command description; no
+      OpenAPI document is checked in, so the emit is proven by `import-shapes.test.ts` and
+      the mounted tests answering 500 with either arm removed.
 
 ## 3. The claim cap
 

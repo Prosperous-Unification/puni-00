@@ -843,6 +843,11 @@ const declaration: SourceDeclaration = {
         return openers.livePlans(caseId);
       },
     },
+    organizationLimits: {
+      kind: 'absent',
+      reason:
+        'The limits gauge has no conformance cases until its memory twin (wbs-organization-limits slice 3); organization-limits.db.test.ts proves it.',
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     projectRanks: {
       kind: 'offered',

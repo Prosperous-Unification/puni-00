@@ -1,6 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
+import { limitCrossed } from './organization-limits-shapes';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planDocumentRequest } from './plan-document-shapes';
 import { responseSchema } from './schema-shape';
@@ -70,6 +71,15 @@ export const importProject = defineEndpointShape({
           detail: 'string | null',
         }),
       ),
+    },
+    // The import would create more agent persons than the organization's cap
+    // allows (`wbs-organization-limits` L9); nothing is written.
+    // Proof: with this arm's code replaced, `refuses an import of three agents
+    // at 6 of 8, writing nothing` answered 500 "returned an undeclared
+    // refusal"; watched 2026-10-22.
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'agent_person_limit'", ...limitCrossed })),
     },
   ],
   document: {

@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { InMemoryOidcTransactionStore, InMemoryTokenStore } from '@wbs/auth';
+import { NO_ADMISSION } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
+import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource } from '@wbs/store-sqlite';
 import { openSpaceDatabase } from '@wbs/store-sqlite/testing/space-database';
@@ -719,6 +721,78 @@ describe('bootBe01', () => {
       source: 'default',
       limits: configured,
       usage: { agentPersons: 0, concurrentClaims: 0, capacityUnits: [] },
+    });
+  });
+
+  // A batch over the booted source's own unit of work, through the scoped
+  // access the disabled composition cannot resolve over HTTP.
+  it('enforces the agent person cap with the configured defaults once activated', async () => {
+    const dir = tempDir('wbs-agent-cap-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      for (const [id, kind] of [
+        ['bot', 'agent'],
+        ['kat', 'person'],
+      ] as const) {
+        seed.run('INSERT INTO person (id, name, kind) VALUES (?, ?, ?)', [id, id, kind]);
+        seed.run(
+          "INSERT INTO person_organization (resource_id, organization_id, name) VALUES (?, 'org-a', ?)",
+          [id, id],
+        );
+      }
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let composed: Parameters<typeof buildApp>[0] | undefined;
+    running = await bootBe01(
+      {
+        ...bootOptions(dbPath, 0),
+        organizationDefaultLimits: { ...TEST_ORGANIZATION_DEFAULT_LIMITS, maxAgentPersons: 1 },
+      },
+      {
+        openSource: openSqliteSource,
+        makeApp: (options) => {
+          composed = options;
+          const app = buildApp(options);
+          app.stop = () => Promise.resolve(app);
+          return app;
+        },
+        startListener: (_app, _port, ready) => {
+          ready();
+        },
+      },
+    );
+    const writes = composed?.writes;
+    if (writes === undefined) throw new Error('boot composed no batch writes');
+    const promoted = await writes.uow.run(async (scope) => ({
+      commit: false,
+      value: await writes
+        .batch(scope, recordingBroadcaster(), NO_ADMISSION)
+        .directory.patchPersonWithin(
+          'kat',
+          'ada',
+          { kind: 'agent' },
+          { kind: 'scoped', scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' } },
+        ),
+    }));
+    expect(promoted).toEqual({
+      ok: false,
+      reason: 'agent_person_limit',
+      cap: 1,
+      current: 1,
+      added: 1,
     });
   });
 

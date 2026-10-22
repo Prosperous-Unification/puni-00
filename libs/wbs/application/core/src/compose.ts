@@ -152,7 +152,14 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       dependencyGraph,
       beforeRemove: shared.beforeStepRemoval,
     }).steps,
-    directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
+    directory: installDirectory({
+      clock,
+      directory: stores.directory,
+      broadcast,
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
+    }).directory,
     workItems: installWorkItem({
       ...(stores.livePlans === undefined ? {} : { livePlans: stores.livePlans }),
       clock,

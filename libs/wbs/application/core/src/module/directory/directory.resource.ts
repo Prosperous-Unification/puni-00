@@ -1,9 +1,11 @@
 import {
   cleanName,
+  type LimitCrossed,
   mayBindAccountInOrganization,
   type OrganizationScope,
   PERSON_KINDS,
   type PersonKind,
+  refuseLimit,
   type ResourceKind,
 } from '@wbs/domain';
 
@@ -32,6 +34,7 @@ import type {
   DirectoryWriteResolution,
 } from '../../ports/fanout-capture-store';
 import type { ResourceAccess } from '../../ports/organization-access';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ExternalSystem, Service, Tag, WorkItemType } from '../../ports/work-item-store';
 import type { WriteStamp } from '../../ports/write-stamp';
@@ -69,6 +72,12 @@ export interface DirectoryServiceOptions {
   broadcast: Broadcaster;
   /** The instant every write is dated from and the ids it mints — see {@link Clock}. */
   clock: Clock;
+  /**
+   * The organization limits an agent person's creation consults
+   * (`wbs-organization-limits` L9). Absent from legacy fixture graphs and
+   * the memory source; a scoped acquisition without it throws.
+   */
+  organizationLimits?: OrganizationLimitGauge;
 }
 
 /**
@@ -1214,6 +1223,53 @@ export class DirectoryService {
   }
 
   /**
+   * Whether `added` more agent persons would cross the organization's cap,
+   * read through the caller's access (`wbs-organization-limits` L9): null
+   * when they fit, the cap and count when they do not. Legacy access has no
+   * organization to own a cap, so nothing is capped and nothing is read; that
+   * is the modeled optional case, not a default.
+   *
+   * Callers hold the write's transaction: the import asks once for every agent
+   * it would create before creating any.
+   *
+   * Proof: with legacy access answered as a cap of 0, `admits a promotion and
+   * an import with no organization to own a cap`
+   * (agent-person-limit.controller.db.test.ts) was refused; watched 2026-10-22.
+   *
+   * @throws when this graph was composed without organization limits.
+   */
+  refuseAgentPersonsWithin(access: ResourceAccess, added: number): Promise<LimitCrossed | null> {
+    if (access.kind === 'legacy') return Promise.resolve(null);
+    return this.refuseAgentPersons(access.scope, added);
+  }
+
+  /**
+   * {@link refuseAgentPersonsWithin} under scoped access: the count is read
+   * through the gauge of the stores this graph was built over, which is the
+   * batch's own transaction under its write turn (L10).
+   *
+   * Proof, each watched 2026-10-22 in agent-person-limit-race.db.test.ts:
+   * with the gauge answering the count it read first for every later batch
+   * (a count read outside the batch's turn), `lands exactly one, the other
+   * refused naming the winner in its count` landed both, 9 agents of 8; with
+   * the admitted catalog of a bound source built without the gauge, every
+   * activated case of agent-person-limit.controller.db.test.ts threw this
+   * method's composition error (3 pass, 9 fail).
+   *
+   * @throws when this graph was composed without organization limits.
+   */
+  private async refuseAgentPersons(
+    scope: OrganizationScope,
+    added: number,
+  ): Promise<LimitCrossed | null> {
+    const limits = this.opts.organizationLimits;
+    if (limits === undefined)
+      throw new Error('an agent person was added under scoped access without organization limits');
+    const reading = await limits.readAgentPersonCap(scope.organizationId);
+    return refuseLimit({ cap: reading.cap, current: reading.current, added });
+  }
+
+  /**
    * {@link addPerson} through the caller's access. Under scoped access every
    * team must be the organization's; an existing person of that local name
    * joins them, as the legacy add does, and a new one gets an opaque root.
@@ -1264,6 +1320,13 @@ export class DirectoryService {
         }
       }
       return { ok: true, value: { id: existing.id, name: existing.name, kind: existing.kind } };
+    }
+    // Proof: with this check removed, `refuses adding an agent at the cap,
+    // creating and mapping nothing` (directory.resource.test.ts) created and
+    // mapped the agent; watched 2026-10-22.
+    if (kind === 'agent') {
+      const crossed = await this.refuseAgentPersons(scope, 1);
+      if (crossed !== null) return { ok: false, reason: 'agent_person_limit', ...crossed };
     }
     let addedKind: Person['kind'] | undefined;
     // The root alone first: on a collision the legacy add answers the existing
@@ -1339,7 +1402,8 @@ export class DirectoryService {
     // absent one, changing nothing` in
     // `directory-command-organization.controller.db.test.ts` answer 500
     // instead of 404 for B's person; watched 2026-09-27.
-    if ((await this.ownEntry('people', personId, scope)) === undefined) {
+    const held = await this.ownEntry('people', personId, scope);
+    if (held === undefined) {
       return { ok: false, reason: 'not_found' };
     }
     await this.refuseForeignReach('people', personId, scope);
@@ -1350,6 +1414,18 @@ export class DirectoryService {
     // watched 2026-09-27.
     if (patch.teamIds !== undefined && !(await this.ownsAll('teams', patch.teamIds, scope))) {
       return { ok: false, reason: 'unknown_team' };
+    }
+    // Only a person becoming an agent acquires one; an agent staying one, a
+    // demotion, a rename or a re-team never consults the cap (L9).
+    // Proof, each watched 2026-10-22 in agent-person-limit.controller.db.test.ts:
+    // with `held.kind !== 'agent'` dropped, `renames an agent and re-teams it
+    // at the cap, restating its kind` was refused (11 pass, 1 fail); with the
+    // whole check removed, `refuses the ninth agent by patchPerson…`, `refuses
+    // a batch adding two agents where one is free…` and `keeps every agent
+    // above a lowered cap…` were applied (9 pass, 3 fail).
+    if (patch.kind === 'agent' && held.kind !== 'agent') {
+      const crossed = await this.refuseAgentPersons(scope, 1);
+      if (crossed !== null) return { ok: false, reason: 'agent_person_limit', ...crossed };
     }
     if (clean !== undefined) {
       const renamed = await this.renameLocal('people', personId, clean, actorId, scope);

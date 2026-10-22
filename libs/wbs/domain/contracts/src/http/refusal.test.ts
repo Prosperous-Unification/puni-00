@@ -45,6 +45,23 @@ export function refusalTypeCases() {
   // @ts-expect-error A marker/lookup refusal cannot be combined with batch metadata.
   expectTypeOf<Refusal>(mixedNotFound);
   expectTypeOf<CommandRefusal>({ error: 'taken', at: 0, kind: 'createTeam', name: 'Team' });
+  const crossed = { cap: 8, current: 8, added: 1 };
+  expectTypeOf<CommandRefusal>({
+    error: 'agent_person_limit',
+    at: 0,
+    kind: 'patchPerson',
+    ...crossed,
+  });
+  // The plan import names the numbers without a command position.
+  expectTypeOf<Refusal>({ error: 'agent_person_limit', ...crossed });
+  // @ts-expect-error An organization limit refusal always names what it added.
+  expectTypeOf<CommandRefusal>({
+    error: 'agent_person_limit',
+    at: 0,
+    kind: 'patchPerson',
+    cap: 8,
+    current: 8,
+  });
   // @ts-expect-error An arbitrary detail bag is not a directory refusal.
   expectTypeOf<Refusal>({ error: 'taken', at: 0, kind: 'createTeam', arbitrary: true });
   expectTypeOf<CommandRefusal>({

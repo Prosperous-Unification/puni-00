@@ -107,6 +107,9 @@ function refusalWords(refusal: PlanImportRefusal): string {
       return 'Sign in again, then import the file again.';
     case 'organization_context_changed':
       return 'The organization changed in another tab. Reload, then import again.';
+    case 'agent_person_limit':
+      // The numbers are the refusal's own (`wbs-organization-limits` L14).
+      return `Organization limit: this plan would add ${String(refusal.added)} agent persons to the ${String(refusal.current)} of ${String(refusal.cap)} the organization holds, so nothing was imported.`;
     default:
       return unreachable(refusal);
   }

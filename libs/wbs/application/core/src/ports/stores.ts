@@ -10,6 +10,7 @@ import type { DirectoryStore } from './directory-store';
 import type { EstimateStore } from './estimate-store';
 import type { EventLogStore } from './event-log-store';
 import type { MeasureStore } from './measure-store';
+import type { OrganizationLimitGauge } from './organization-limits';
 import type { PlanEventStore } from './plan-event-store';
 import type { PriorityBandStore } from './priority-band-store';
 import type { StepProgressStore } from './progress-store';
@@ -38,6 +39,14 @@ export interface PlanTransactionalStores {
    */
   projectRanks?: ProjectRankStore & SharedPeopleStore;
   directory: DirectoryStore;
+  /**
+   * The organization limits a write consults inside its own transaction
+   * (`wbs-organization-limits`). Optional only for legacy fixture adapters
+   * and the memory source, which has no organization limits yet (its twin is
+   * slice 3 of the change); an acquisition under scoped access through a
+   * graph without it throws rather than admitting uncapped.
+   */
+  organizationLimits?: OrganizationLimitGauge;
   capacity: CapacityStore;
   /** How many units of each resource a project's plan may use (`wbs-resources`). */
   resourceCapacity: ResourceCapacityStore;

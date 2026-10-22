@@ -531,6 +531,10 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'unknown_resource':
     case 'exclusive_demand_is_one':
       return refusal.error;
+    // An organization limit (`wbs-organization-limits` L9): the people page's
+    // copy naming the numbers is slice 6; until then the code itself.
+    case 'agent_person_limit':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }

@@ -1011,6 +1011,11 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures do not install the SQLite organization rank writer.',
     },
+    organizationLimits: {
+      kind: 'absent',
+      reason:
+        'The memory twin of the organization limits gauge is slice 3 of wbs-organization-limits.',
+    },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {

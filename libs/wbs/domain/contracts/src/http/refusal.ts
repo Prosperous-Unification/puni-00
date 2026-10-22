@@ -214,7 +214,19 @@ export type CommandRefusalCode =
    * `deleteWorkItem` promoting the parent while claims sit on more than one
    * deleted row, or on that parent as well; names the holders.
    */
-  | 'children_claimed';
+  | 'children_claimed'
+  /**
+   * `patchPerson` making an agent, or an add of an agent, past the
+   * organization's cap (`wbs-organization-limits` L9); names the numbers.
+   */
+  | 'agent_person_limit';
+
+/** What an organization limit refusal names: the cap, what was held and what the write would add. */
+export interface LimitRefusalDetail {
+  cap: number;
+  current: number;
+  added: number;
+}
 
 /** One claim a claim refusal names: the claim, its person by id and name, and its run. */
 export interface ClaimRefusalHolder {
@@ -363,7 +375,9 @@ export type CommandRefusalDetail = {
                                 free: number;
                                 holders: OccupancyRefusalHolder[];
                               }
-                            : Record<never, never>);
+                            : C extends 'agent_person_limit'
+                              ? LimitRefusalDetail
+                              : Record<never, never>);
 };
 
 type BareRefusalCode =
@@ -496,7 +510,8 @@ type SharedCommandCode =
   | 'referenced_by_step_parallel'
   | 'already_claimed'
   | 'unknown_team'
-  | 'unknown_person';
+  | 'unknown_person'
+  | 'agent_person_limit';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -527,6 +542,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     /** Bare from the by-person read; with its command context from a batch. */
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
+    /** Without a command position from the plan import; with one from a batch. */
+    agent_person_limit: LimitRefusalDetail | CommandRefusalDetail['agent_person_limit'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
