@@ -1103,3 +1103,16 @@ shared client, boot readiness, full receiver build and exact-SHA host gate remai
 Task6/final integration. No live deployment, durable coordinator integration or
 physical worker quiescence is claimed. No new migration or secret was added;
 separate migration/secrets scans were not run by the worker.
+
+Independent Task5 review approved spec compliance and quality at
+`e9ab79a08bd9b91e0a70f841d2fc8effbf670ef3`, with no Critical, Important or Minor
+findings. It confirmed shared claim behavior, normalization without canonical
+alias mutation, exact live/bound write identity, complete rollback and retained
+replay. The inherited Task3 reference-order Minor is resolved by equal-command
+coverage and its independent sorting-fault proof. All48 referenced logs and the
+restoration mechanism were reviewed with their stated outcome classifications.
+Unchanged storage/migration guarantees retain accepted Tasks1–4 evidence; this
+review does not recertify their entire fault matrices. Only Task5 is accepted;
+mounted HTTP/client/readiness and final receiver gates remain open. Commit hooks
+also passed plaintext-secrets, formatting and lint; migration hooks were not
+applicable, and external Tool Wiki activation remains absent (`certified:false`).
