@@ -17,6 +17,7 @@ let h: OrganizationHarness;
 let projectA: string;
 let projectB: string;
 let leaf: string;
+let firstStepId: string;
 
 beforeAll(async () => {
   const { publicKey } = await generateKeyPair('RS256');
@@ -60,6 +61,13 @@ beforeEach(async () => {
   });
   if (rows.status !== 200) throw new Error(`leaf refused: ${JSON.stringify(rows)}`);
   leaf = (rows.body as { results: { id: string }[] }).results[0]?.id ?? '';
+  const firstStep = h.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id = ? ORDER BY position,id LIMIT 1',
+    )
+    .get(projectA);
+  if (firstStep === null) throw new Error('created project has no first step');
+  firstStepId = firstStep.id;
   addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'codex', 'org-a', h.userId('dany'));
   addAgentPerson(h.sqlite, 'mems-agent', 'org-a', h.userId('mem'));
@@ -338,6 +346,7 @@ describe('a key pinned to one person', () => {
     kind: 'claimWorkItem',
     workItemId: leaf,
     personId,
+    steps: [firstStepId],
     ...extra,
   });
   const refused = (error: string) => ({
@@ -366,12 +375,19 @@ describe('a key pinned to one person', () => {
     });
     if (created.status !== 200) throw new Error(`child refused: ${JSON.stringify(created)}`);
     const under = (created.body as { results: { id: string }[] }).results[0]?.id ?? '';
-    expect((await batch([claim('claire')])).status).toBe(200);
+    expect(
+      (await batch([{ kind: 'claimWorkItem', workItemId: leaf, personId: 'claire' }])).status,
+    ).toBe(200);
     const parentClaim = h.sqlite
       .query<{ id: string }, [string]>('SELECT id FROM claim WHERE work_item_id = ?')
       .get(leaf)?.id;
     expect(parentClaim).toBeDefined();
-    const delegated = { kind: 'claimWorkItem', workItemId: under, personId: 'codex' };
+    const delegated = {
+      kind: 'claimWorkItem',
+      workItemId: under,
+      personId: 'codex',
+      steps: [firstStepId],
+    };
     expect(await batch([delegated])).toEqual(refused('credential_not_for_person'));
     expect(claimsOf('codex')).toBe(0);
     expect((await batch([{ ...delegated, parentClaim }])).status).toBe(200);
