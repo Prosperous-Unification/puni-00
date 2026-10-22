@@ -5177,3 +5177,12 @@ The bounded coordinator dispatch, mounted file-journal/kubectl tests, nine watch
 production faults, configured checks and limits are recorded in
 [verify-k8s-binary-preflight.md](verify-k8s-binary-preflight.md). This prerequisite
 accepts binary observations only; parent 10.1/10.2 and semantic admission remain open.
+
+Independent Astra review accepted the amended packet after reproducing and
+closing the sticky heartbeat-loss defect. Integrated at `66df7ee07`, the
+combined configured `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+tool-deploy:test --outputStyle=stream` passed **1,238/1,238**, 3,290
+assertions across 40 files
+(`/tmp/puni-integrated-preflight-tool-deploy-test.log`). This includes the
+live marked-Lease regression and mounted fresh/resumed preflight refusal.
+The exact integrated SHA still requires the canonical h2puni gate and fresh CI.
