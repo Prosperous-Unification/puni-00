@@ -212,3 +212,11 @@ local/connected view union, retaining its explicit connected presentation refusa
 until the cue slice lands. Each of eight equalities and five comparison failures
 has a watched generated-client fault; URL binding has a watched API fault.
 Parent 7.3/7.4/9.2 remain incomplete.
+
+Task 9.2 bounded cue prerequisite (2026-10-22): pure connected cue reading now
+preserves captured scope/fixed identities and positions, distinguishes both
+terminal evidence arms, keeps terminal selection/Retry unavailable, retains a
+selected ready sibling, suppresses stale arithmetic and throws on unknown
+internal discriminators. Complete `chartReadOf` optimization equality is covered.
+The connected HTTP refusal remains explicit. Mounted B2/B3, reconciliation B4,
+remaining B5 proofs and activation are pending; 7.3/7.4/9.2 stay unchecked.

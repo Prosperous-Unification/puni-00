@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ALL_RESOURCES, resourcesFor } from '@/lib/plan-refresh';
 import type { ProjectStreamDeps, SocketHandlers } from '@/lib/project-stream';
-import type { PlanOptimizationView } from '@/lib/wbs-api';
+import type { LocalPlanOptimizationView as PlanOptimizationView } from '@/lib/wbs-api';
 import { DEV, fakeProjectApi } from '@/testing/fake-project-api';
 import { publishApplicationRuntimeForEachTest, render } from '@/testing/live-application';
 import { NO_SAVED_PLANS } from '@/testing/no-saved-plans';

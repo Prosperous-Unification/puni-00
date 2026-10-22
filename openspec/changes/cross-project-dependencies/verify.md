@@ -2884,3 +2884,64 @@ Focused verification details:
 - Strengthened URL fixture to cover pending and a correctly paired terminal certificate for both matching/foreign URL IDs: 79 API tests passed. Bypassing URL binding then failed exactly the two foreign-project cases (pending/terminal), receiving presentation refusal instead of project mismatch; `/tmp/puni-semantic-url-fault-final.log`. Matching IDs pass semantic/contextual validation and reach the deliberately retained presentation refusal.
 - Full contracts lint command `bunx eslint libs/wbs/domain/contracts/src libs/wbs/domain/contracts/solver/src`: passed. A subsequent standalone `nx run wbs-core:typecheck --outputStyle=stream` with daemon/plugin isolation disabled passed both module and core compiler tasks.
 - Normal commit hooks passed lint, format, plaintext secrets, private nesting and author trailers; tool-wiki returned its explicit inactive/noncertified state because the external activation root is not provisioned. Migration/doc-cap hooks had no matching files.
+
+### Connected cue B1 pure presentation packet (2026-10-22)
+
+This bounded packet derives captured-scope presentation from the generated
+connected optimization type. It preserves local output, distinguishes terminal
+rounded-bounds evidence from initial-model infeasibility, retains the selected
+sibling's label, qualifies comparisons, suppresses stale arithmetic, and throws
+for unknown internal state/proof/evidence/scope discriminators. The HTTP connected
+refusal stays in place; this does not enable mounted connected presentation.
+
+TDD command, from `apps/wbs/fe-01`:
+`bunx vitest run --config vitest.node.config.ts src/components/wbs/optimization-cue-reading.test.ts`.
+Initial run: 10 failed, 33 passed (43 collected). The failures named missing
+scope/details/floor/retention/stale wording, absent discriminator throws and the
+silent displayed-finish fallback. Restored implementation: 44 passed after adding
+complete `chartReadOf` optimization equality.
+
+Independent production faults, each run with that exact command and restored
+before the next experiment, all exited 1 with the intended assertion:
+
+- Replace the unknown state throw with `return null`: unknown internal state no longer throws.
+- Replace the unknown proof throw with `return null`: unknown internal proof no longer throws.
+- Replace the unknown evidence throw with empty words: unknown internal evidence no longer throws.
+- Replace the unknown scope throw with `return null`: unknown internal scope no longer throws.
+- Restore Fast fallback for missing displayed connected finish: contradiction no longer throws.
+- Add `boundary-infeasible` to aggregate Retry admission: both terminal cases receive a forbidden Retry objective.
+- Replace non-ready row refusal with null: both terminal selection refusal assertions fail.
+- Omit optimization propagation in `chartReadOf`: full captured optimization equality receives undefined.
+
+Session fault outputs: `/tmp/cue-b1-proof-{state,proof,evidence,scope,finish,retry,selection,chart}.log`.
+These are pure reader/adapter proofs. Mounted action/HintLayer/focus/browser
+geometry, real producer integration, Retry reconciliation, live runtime and host
+gate verification remain unrun for this packet; B2–B5 and parent 7.3/7.4/9.2 remain
+open. Ready scope currently carries no question hash; terminal details preserve
+the certificate question hash that exists on the wire.
+
+Fresh configured frontend typecheck passed with the semantic packet's generated
+`LocalPlanOptimizationView` / `ConnectedPlanOptimizationView` union applied:
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck`.
+The B1 commit depends on those exports, supplied separately by the semantic-wire
+packet. The existing local integration fixture import is narrowed to the local
+arm to prevent unrelated spread helpers from manufacturing a mixed union.
+
+The initial Nx lint invocation exited 1 after 5m12s without diagnostic stdout;
+changed-file ESLint subsequently identified and corrected the import sort/type
+syntax and the intentional singleton-discriminator runtime check. The initial
+configured Nx pure target exited 1 without collected test output, so it is not
+counted as a passing test run. A serialized configured full-tier investigation
+also reported infrastructure/date child-process failures in `playwright-config`,
+`vitest-budget`, `node-tier` and `short-date`; these do not establish a clean
+full-tier baseline. Exact session investigation logs are `/tmp/cue-b1-unit.log`
+and `/tmp/cue-b1-nx-unit.log`. Full lint/test and the canonical host gate remain
+required on the combined candidate.
+
+Final bounded verification: `TZ=UTC bunx vitest run --config vitest.node.config.ts
+src/components/wbs/optimization-cue-reading.test.ts
+src/components/wbs/plan-chart-input.test.ts` passed 62 tests in 2 files (44 cue,
+18 chart-input). Explicit ESLint over the five changed frontend files exited 0.
+`openspec validate --all --json` passed. Serialized broad investigations were
+interrupted with exit 130 after the failures above; no broad passing claim is
+made. Normal commit hooks and combined-candidate host/CI checks are separate.

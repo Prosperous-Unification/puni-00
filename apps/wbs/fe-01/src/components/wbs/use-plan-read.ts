@@ -191,6 +191,7 @@ export function chartReadOf(read: PlanRead, generation: number): ChartRead {
     depReach: read.depReach,
     pertWeights: read.pertWeights,
     estimateRounding: read.estimateRounding,
+    // Proof: omitting this field failed the complete captured optimization equality in optimization-cue-reading.test.ts (2026-10-22).
     ...(read.optimization === undefined ? {} : { optimization: read.optimization }),
     timezone: read.timezone ?? null,
     stepNodes: read.stepNodes,
