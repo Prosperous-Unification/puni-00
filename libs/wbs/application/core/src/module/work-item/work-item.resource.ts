@@ -191,6 +191,7 @@ import {
 } from '../../service/compensating';
 import { resolveConnectedDependencyGraph } from '../../service/connected-dependency-graph';
 import { deriveExecutionReadiness } from '../../service/connected-readiness';
+import { type ConnectedTreeProjection, projectConnectedTree } from '../../service/connected-tree';
 import { type DependencyGraphChange, resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import type { NumberedWorkItem } from '../../service/numbered-work-item';
@@ -1824,7 +1825,7 @@ export class WorkItemService {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.read(projectId, access);
       if (captured.kind === 'connected')
-        throw new Error('connected tree projection is unsupported');
+        return presentConnectedTree(projectConnectedTree(captured, projectId));
       if (captured.kind !== 'isolated') {
         const tree = projectSharedTree(captured);
         if (
@@ -2127,7 +2128,7 @@ export class WorkItemService {
     if (this.opts.livePlans !== undefined) {
       const captured = await this.opts.livePlans.readProject(projectId);
       if (captured.kind === 'connected')
-        throw new Error('connected tree projection is unsupported');
+        return presentConnectedTree(projectConnectedTree(captured, projectId));
       if (captured.kind !== 'isolated') return projectSharedTree(captured);
     }
     return this.treeIsolated(projectId);
@@ -8988,6 +8989,42 @@ function projectSharedTree(
   return 'kind' in tree || !namesAResource(tree) ? tree : withResourceLabels(tree, reads.resources);
 }
 
+/** Present one captured connected member without local scheduling or further IO. */
+function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
+  const { reads, metadata, placement } = projection;
+  if (placement.kind !== 'scheduled')
+    throw new Error(`connected tree placement ${placement.kind} is unsupported`);
+  const people = new Set(reads.assignments.map((assignment) => assignment.personId));
+  const tree = projectTree(
+    {
+      project: metadata.project,
+      rows: [...metadata.workItems],
+      steps: [...metadata.steps],
+      seq: metadata.seq,
+      stored: reads.estimates,
+      recorded: reads.actuals,
+      stated: reads.progress,
+      measured: reads.measures,
+      edges: reads.dependencies,
+      authored: reads.typedDependencies,
+      assigned: reads.assignments,
+      assignedPeople: reads.people
+        .filter((person) => people.has(person.id))
+        .map(({ id, name }) => ({ id, name })),
+      attempts: metadata.attempts,
+      blockages: metadata.blockages,
+      slotsOf: reads.capacity,
+      demands: reads.demands,
+      resourceCapacities: reads.resourceCapacities,
+      priorityBands: [...reads.priorityBands],
+      elsewhereHolders: [],
+    },
+    projection,
+  );
+  const connected = { ...tree, connectedDependencies: [...projection.dependencies] };
+  return namesAResource(connected) ? withResourceLabels(connected, reads.resources) : connected;
+}
+
 /** Whether any bar of the displayed schedule waited for a resource's pool. */
 function namesAResource(tree: PlanTree): boolean {
   return tree.slices.some((slice) => slice.capacityResource !== undefined);
@@ -9024,8 +9061,12 @@ function withResourceLabels(tree: PlanTree, catalog: readonly Resource[]): PlanT
 
 /** Pure live projection shared by isolated reads and coherent shared observations. */
 type TreeSchedule =
-  ScheduleRead | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
+  | ScheduleRead
+  | ConnectedTreeProjection
+  | { readonly kind: 'unavailable'; readonly reason: Exclude<ScheduleError, null> };
 
+function projectTree(reads: TreeReads, scheduling: ConnectedTreeProjection): PlanTree;
+function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable;
 function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | EngineUnavailable {
   const {
     project,
@@ -9082,28 +9123,41 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   // node graph below separately refuses missing legacy endpoints as malformed
   // trusted state; its precise node projection never supplies this row status.
   const rowIds = new Set(rows.map((row) => row.id));
-  const itemStatuses = workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
-    edges: edges.filter((edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId)),
-    typed: authored,
-  });
+  // Proof: replacing component statuses with the target-only fold made the
+  // mounted remote-held predecessor test read ready instead of blocked_by_proxy
+  // (2026-10-22).
+  const itemStatuses =
+    scheduling.kind === 'connected'
+      ? scheduling.readiness.statuses
+      : workItemStatusesOf(rows, rollUpWorkItemStatuses(rows, statedTotals), {
+          edges: edges.filter(
+            (edge) => rowIds.has(edge.predecessorId) && rowIds.has(edge.successorId),
+          ),
+          typed: authored,
+        });
   // Canonical readings use complete topology for blockage propagation and
   // workflow/authored predecessors for waiting (ADR 0053). Row proxy remains
   // independent; it cannot turn a sibling endpoint into a node predecessor.
-  const nodeProjection = projectNodeReadings({
-    graph: resolveDependencyGraph({
-      rows,
-      steps,
-      estimates: stored,
-      legacy: edges,
-      typed: authored,
-      reach: project.depReach,
-    }),
-    holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
-    statusOf: itemStatuses,
-    stated,
-    running,
-    blocked: blockages,
-  });
+  // Proof: recomputing these nodes from target-only topology made the mounted
+  // remote blockage test lose blocked_by_proxy and its remote root (2026-10-22).
+  const nodeProjection =
+    scheduling.kind === 'connected'
+      ? scheduling.readiness.nodes
+      : projectNodeReadings({
+          graph: resolveDependencyGraph({
+            rows,
+            steps,
+            estimates: stored,
+            legacy: edges,
+            typed: authored,
+            reach: project.depReach,
+          }),
+          holdOf: new Map(rows.map((row) => [row.id, row.hold] as const)),
+          statusOf: itemStatuses,
+          stated,
+          running,
+          blocked: blockages,
+        });
   // The write path refuses an edge that would close a cycle, but two clients
   // drawing conflicting edges at the same instant are each checked against the
   // graph as they read it. If one ever lands, every read of this project must
@@ -9191,7 +9245,21 @@ function projectTree(reads: TreeReads, scheduling: TreeSchedule): PlanTree | Eng
   let scheduledSlices: IdentifiedSlice[] = [];
   try {
     if (scheduling.kind !== 'unavailable') {
-      const scheduleRead = scheduling;
+      // Proof: replacing this selection with schedule(canonical.input's local
+      // arguments) made the mounted full/paged/detail test read 0→2.5 instead
+      // of 1.5→4 across distinct anchors (2026-10-22).
+      const scheduleRead =
+        scheduling.kind === 'connected'
+          ? scheduling.placement.kind === 'scheduled'
+            ? {
+                kind: 'scheduled' as const,
+                fast: scheduling.placement.schedule,
+                optimization: null,
+              }
+            : (() => {
+                throw new Error('connected scheduled placement missing');
+              })()
+          : scheduling;
       // The projection **and** the slices: a row's column shows its own span,
       // and a chart draws the slices the span is a projection of.
       // The reach comes off the project being scheduled, read beside the ladder

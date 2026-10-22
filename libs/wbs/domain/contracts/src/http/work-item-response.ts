@@ -23,6 +23,22 @@ const typedEndpoint = type({
   // fields while allowing additive metadata` accept a numeric node ID; watched 2026-09-27.
   'stepNodeId?': 'string',
 });
+const connectedEndpoint = type({
+  // Proof: widening projectId to unknown made the mounted malformed captured
+  // navigation identity test answer 200 instead of 500 (2026-10-22).
+  endpoint: typedEndpoint.and({ projectId: 'string' }),
+  isLeaf: 'boolean',
+  revision: 'number',
+  name: 'string',
+  projectAbbreviation: 'string',
+  workItemNumber: 'string',
+  step: type({ id: 'string', name: 'string', code: 'string | null', position: 'number' }).or(
+    'null',
+  ),
+  qualifiedReference: 'string | null',
+  stepReference: 'string | null',
+  stepNodeId: 'string | null',
+});
 /**
  * One attempt at a step node as the work-item read answers it
  * (`step-node-attempts` D4): instants in epoch milliseconds, UTC; end and
@@ -211,6 +227,13 @@ const optimization = type({
  */
 export const workItemTree = type({
   workItems: numberedWorkItem.array(),
+  'connectedDependencies?': type({
+    id: 'string',
+    projectId: 'string',
+    type: "'FS' | 'SS' | 'FF'",
+    predecessor: connectedEndpoint,
+    successor: connectedEndpoint,
+  }).array(),
   'typedDependencies?': type({
     id: 'string',
     predecessor: typedEndpoint,

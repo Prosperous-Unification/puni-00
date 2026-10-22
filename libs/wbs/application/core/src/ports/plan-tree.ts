@@ -12,6 +12,7 @@ import type {
   ScheduledSlice,
 } from '@wbs/domain';
 
+import type { ConnectedTreeDependency } from '../service/connected-tree';
 import type { NumberedWorkItem } from '../service/numbered-work-item';
 import type { TeamCapacity } from './capacity-store';
 // Documentation boundary: this type-only name resolves a JSDoc member and emits no JavaScript.
@@ -83,6 +84,8 @@ export interface PlanOptimization {
 /** A successful project-tree read, excluding absence and engine refusal. */
 export interface PlanTree {
   workItems: NumberedWorkItem[];
+  /** Authored incident connected links with captured endpoint navigation evidence. */
+  connectedDependencies?: ConnectedTreeDependency[];
   seq: number;
   scheduleError: ScheduleError;
   /**
