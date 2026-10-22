@@ -3659,3 +3659,288 @@ test('synthetic mounted external authoring conceals foreign organization endpoin
   expect(effects()).toEqual(before);
   expect(pushes).toEqual([]);
 });
+
+async function nodeAuthoringFixture(synthetic?: true) {
+  const fixture = await open(undefined, synthetic);
+  await harness.register('grace');
+  harness.member('org-a', 'grace', 'member');
+  harness.sqlite
+    .query('UPDATE organization_membership SET role=? WHERE organization_id=? AND user_id=?')
+    .run('member', 'org-a', fixture.principal.id);
+  harness.sqlite
+    .query('UPDATE project SET owner_id=?,restricted=1 WHERE id=?')
+    .run(harness.userId('grace'), fixture.predecessor.projectId);
+  for (const endpoint of [fixture.predecessor, fixture.owner]) {
+    harness.sqlite
+      .query(
+        "UPDATE project SET start_date='2026-10-19', estimate_method='realistic', estimate_rounding='exact' WHERE id=?",
+      )
+      .run(endpoint.projectId);
+    harness.sqlite
+      .query("UPDATE work_item SET readiness='ready' WHERE id=?")
+      .run(endpoint.workItemId);
+  }
+  const predecessorStep = workflowStep(fixture.predecessor.projectId, 'Dev');
+  const successorStep = workflowStep(fixture.owner.projectId, 'Dev');
+  harness.sqlite
+    .query(
+      'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,2,2,2)',
+    )
+    .run(fixture.predecessor.workItemId, predecessorStep);
+  const predecessor = { ...fixture.predecessor, scope: 'node' as const, stepId: predecessorStep };
+  const commands = (encoded: boolean) => [
+    { kind: 'createWorkItem', ref: 'REMOTE.010', name: 'Staged successor' },
+    { kind: 'setStatus', workItemRef: 'REMOTE.010', status: 'ready' },
+    {
+      kind: 'setEstimate',
+      workItemRef: 'REMOTE.010',
+      stepId: successorStep,
+      days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+    },
+    {
+      kind: 'addTypedDependency',
+      type: 'FS',
+      predecessor: encoded
+        ? {
+            projectId: predecessor.projectId,
+            scope: 'node',
+            stepNodeId: `sn1.${predecessor.workItemId}.${predecessorStep}`,
+          }
+        : predecessor,
+      successor: { scope: 'node', workItemRef: 'REMOTE.010', stepId: successorStep },
+    },
+  ];
+  return { ...fixture, predecessorStep, successorStep, node: predecessor, commands };
+}
+
+// Proof: forcing bindTypedEndpoint's project to the owner made split-node admission return 404 instead of 200.
+// Proof: passing the dotted workItemRef through as its ID made split-node admission return 404 instead of 200.
+for (const encoded of [false, true])
+  test(`node authoring ${encoded ? 'encoded' : 'split'} remote endpoint binds staged dotted alias locally and schedules FS`, async () => {
+    const fixture = await nodeAuthoringFixture(true);
+    const route = `/api/projects/${fixture.owner.projectId}`;
+    const before = effects();
+    const forbidden = await fixture.request(
+      `/api/projects/${fixture.predecessor.projectId}/commands`,
+      {
+        commands: [
+          {
+            kind: 'patchWorkItem',
+            workItemId: fixture.predecessor.workItemId,
+            patch: { name: 'Forbidden' },
+          },
+        ],
+      },
+    );
+    expect(forbidden.status).toBe(403);
+    expect(effects()).toEqual(before);
+    const response = await fixture.request(`${route}/commands`, {
+      commands: fixture.commands(encoded),
+    });
+    expect(response.status).toBe(200);
+    const successor = harness.sqlite
+      .query<{ id: string; projectId: string; revision: number }, []>(
+        "SELECT id,project_id AS projectId,revision FROM work_item WHERE name='Staged successor'",
+      )
+      .get();
+    if (successor === null) throw new Error('staged node successor missing');
+    expect(successor).toMatchObject({ projectId: fixture.owner.projectId, revision: 3 });
+    const relationships = harness.sqlite
+      .query(
+        'SELECT predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id,type FROM external_dependency',
+      )
+      .all();
+    expect(relationships).toEqual([
+      {
+        predecessor_project_id: fixture.predecessor.projectId,
+        predecessor_work_item_id: fixture.predecessor.workItemId,
+        predecessor_scope: 'node',
+        predecessor_step_id: fixture.predecessorStep,
+        successor_project_id: fixture.owner.projectId,
+        successor_work_item_id: successor.id,
+        successor_scope: 'node',
+        successor_step_id: fixture.successorStep,
+        type: 'FS',
+      },
+    ]);
+    expect(harness.sqlite.query('SELECT id FROM typed_dependency').all()).toEqual([]);
+    expect(
+      harness.sqlite
+        .query<{ revision: number }, [string]>('SELECT revision FROM work_item WHERE id=?')
+        .get(fixture.predecessor.workItemId),
+    ).toEqual({ revision: 1 });
+    const journal = harness.sqlite
+      .query<{ kind: string; preconditions: string; payload: string }, [string]>(
+        'SELECT kind,preconditions,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+      )
+      .get(fixture.owner.projectId);
+    if (journal === null) throw new Error('staged node journal missing');
+    expect(JSON.parse(journal.preconditions)).toMatchObject({
+      externalRevisions: {
+        from: [{ ...fixture.predecessor, revision: 0 }],
+        expected: [{ ...fixture.predecessor, revision: 1 }],
+      },
+    });
+    expect(journal.kind).toBe('batch');
+    const payload = JSON.parse(journal.payload) as { forward: CompensatingCommand };
+    if (payload.forward.do !== 'batch') throw new Error('staged node batch forward missing');
+    expect(payload.forward.steps.find((step) => step.do === 'add_typed_dependency')).toMatchObject({
+      do: 'add_typed_dependency',
+      dependency: {
+        projectId: fixture.owner.projectId,
+        predecessor: fixture.node,
+        successor: {
+          projectId: fixture.owner.projectId,
+          workItemId: successor.id,
+          scope: 'node',
+          stepId: fixture.successorStep,
+        },
+        type: 'FS',
+      },
+    });
+    expect(journal.payload).toContain(successor.id);
+    expect(journal.payload).not.toContain('REMOTE.010');
+    const tree = await fixture.request(`${route}/work-items`, undefined, 'GET');
+    expect(tree.status).toBe(200);
+    const view = (await tree.json()) as { workItems: { id: string }[] };
+    expect(view.workItems.find((row) => row.id === successor.id)).toMatchObject({
+      id: successor.id,
+      revision: 3,
+      schedule: { earliestStart: 2, earliestFinish: 3 },
+    });
+    expect(view).toMatchObject({
+      scheduleError: null,
+      connectedDependencies: [
+        {
+          type: 'FS',
+          predecessor: { endpoint: fixture.node, revision: 1 },
+          successor: {
+            endpoint: {
+              projectId: fixture.owner.projectId,
+              workItemId: successor.id,
+              scope: 'node',
+              stepId: fixture.successorStep,
+            },
+            revision: 3,
+          },
+        },
+      ],
+    });
+  });
+
+for (const dormant of [false, true])
+  test(`node authoring ${dormant ? 'dormant refusal' : 'later absent operation'} rolls back staged alias estimate relationship history and events`, async () => {
+    const fixture = await nodeAuthoringFixture(dormant ? undefined : true);
+    const before = effects();
+    const commands = fixture.commands(false);
+    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      commands: dormant
+        ? commands
+        : [
+            ...commands,
+            { kind: 'patchWorkItem', workItemId: 'absent-node-row', patch: { name: 'Never' } },
+          ],
+    });
+    expect(response.status).toBe(dormant ? 409 : 404);
+    expect(await response.json()).toEqual({
+      error: dormant ? 'external_dependencies_inactive' : 'not_found',
+      at: dormant ? 3 : 4,
+      kind: dormant ? 'addTypedDependency' : 'patchWorkItem',
+    });
+    expect(effects()).toEqual(before);
+  });
+
+// Proof: removing typedEvidence's node-parent or descendant-leaf guard independently made its mounted case return 500 instead of 409.
+// The downstream real graph still refused; neither mutation proves an unsafe commit.
+for (const shape of ['node-parent', 'descendant-leaf', 'wrong-project-step'] as const)
+  test(`node authoring mounted and direct parity refuses ${shape} with full rollback`, async () => {
+    const fixture = await nodeAuthoringFixture(true);
+    if (shape === 'node-parent') {
+      // A real child makes the remote endpoint a parent without granting its reader edit access.
+      harness.sqlite
+        .query('UPDATE project SET restricted=0 WHERE id=?')
+        .run(fixture.predecessor.projectId);
+      expect(
+        (
+          await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+            commands: [
+              {
+                kind: 'createWorkItem',
+                parentId: fixture.predecessor.workItemId,
+                name: 'Remote child',
+              },
+            ],
+          })
+        ).status,
+      ).toBe(200);
+      harness.sqlite
+        .query('UPDATE project SET restricted=1 WHERE id=?')
+        .run(fixture.predecessor.projectId);
+    }
+    const predecessor =
+      shape === 'descendant-leaf'
+        ? { ...fixture.node, scope: 'descendant-step' as const }
+        : shape === 'wrong-project-step'
+          ? { ...fixture.node, stepId: fixture.successorStep }
+          : fixture.node;
+    const input = {
+      predecessor,
+      successor: { ...fixture.owner, scope: 'node' as const, stepId: fixture.successorStep },
+      type: 'FS' as const,
+    };
+    const reason =
+      shape === 'node-parent'
+        ? 'rolled_up'
+        : shape === 'descendant-leaf'
+          ? 'not_a_parent'
+          : 'not_found';
+    const before = effects();
+    const commands = fixture
+      .commands(false)
+      .map((command, index) => (index === 3 ? { ...command, predecessor } : command));
+    const response = await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+      commands,
+    });
+    expect(response.status).toBe(shape === 'wrong-project-step' ? 404 : 409);
+    expect(await response.json()).toEqual({ error: reason, at: 3, kind: 'addTypedDependency' });
+    expect(effects()).toEqual(before);
+    expect(
+      await semantic(fixture, async (service) => {
+        const patched = await service.patch(fixture.owner.workItemId, fixture.principal.id, {
+          name: 'Must roll back',
+        });
+        if (!patched.ok) throw new Error('prior node patch refused');
+        return service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, input);
+      }),
+    ).toEqual({ ok: false, reason });
+    expect(effects()).toEqual(before);
+  });
+
+test('node authoring direct semantic service accepts the same stable remote node pair', async () => {
+  const fixture = await nodeAuthoringFixture(true);
+  const input = {
+    predecessor: fixture.node,
+    successor: { ...fixture.owner, scope: 'node' as const, stepId: fixture.successorStep },
+    type: 'FS' as const,
+  };
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, input),
+    ),
+  ).toMatchObject({ ok: true });
+  expect(
+    harness.sqlite
+      .query(
+        'SELECT predecessor_scope,predecessor_step_id,successor_scope,successor_step_id,type FROM external_dependency',
+      )
+      .all(),
+  ).toEqual([
+    {
+      predecessor_scope: 'node',
+      predecessor_step_id: fixture.predecessorStep,
+      successor_scope: 'node',
+      successor_step_id: fixture.successorStep,
+      type: 'FS',
+    },
+  ]);
+});
