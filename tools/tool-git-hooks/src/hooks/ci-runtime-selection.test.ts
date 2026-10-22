@@ -81,6 +81,40 @@ function change(path: string): Change {
   return { status: 'M', oldMode: '100644', newMode: '100644', oldPath: path, newPath: path };
 }
 
+const packetPaths = [
+  'openspec/changes/example/.openspec.yaml',
+  'openspec/changes/example/proposal.md',
+  'openspec/changes/example/design.md',
+  'openspec/changes/example/tasks.md',
+  'openspec/changes/example/verify.md',
+  'openspec/changes/example/specs/capability/spec.md',
+];
+
+const unknownSpecPaths = [
+  'openspec/config.yaml',
+  'openspec/schemas/example/schema.yaml',
+  'openspec/hooks/validate.ts',
+  'openspec/scripts/check.ts',
+  'openspec/fixtures/proposal.md',
+  'openspec/changes/example/fixtures/proposal.md',
+  'openspec/changes/example/system-prompt.md',
+  'openspec/changes/example/specs/capability/fixture.md',
+  'openspec/changes/archive/proposal.md',
+  'openspec/changes/archive/example/proposal.md',
+];
+
+function packetGraph(): ProjectGraph {
+  const configured = graph();
+  configured.nodes['validator'] = node('validator', {
+    test: { inputs: ['{workspaceRoot}/**/*'] },
+  });
+  configured.nodes['spec-consumer'] = node('spec-consumer', {
+    test: { inputs: ['{workspaceRoot}/openspec/changes/example/design.md'] },
+  });
+  configured.dependencies['spec-consumer'] = [];
+  return configured;
+}
+
 async function plan(changes: Change[], configured = graph()) {
   return selectRuntimeProjectsFromGraph(
     configured,
@@ -111,6 +145,7 @@ function workspace(
   path = 'modules/core/source.ts',
   operation: 'modify' | 'delete' | 'rename' = 'modify',
   configuredGraph = graph(),
+  initialFiles: Record<string, string> = {},
 ) {
   const root = scratchSync('ci-runtime-selection-');
   roots.push(root);
@@ -132,7 +167,8 @@ function workspace(
   );
   for (const [name, project] of Object.entries(configuredGraph.nodes)) {
     const configured = { ...project.data, name };
-    if (name !== 'validator') delete configured.targets?.['test']?.inputs;
+    if (['core', 'middle', 'consumer', 'unrelated'].includes(name))
+      delete configured.targets?.['test']?.inputs;
     write(
       root,
       `modules/${name}/project.json`,
@@ -149,6 +185,7 @@ function workspace(
   write(root, 'fixtures/example.md', 'Runtime fixture\n');
   write(root, 'scripts/process.sh', 'exit 0\n');
   write(root, 'generated-contract/schema.json', '{}\n');
+  for (const [path, content] of Object.entries(initialFiles)) write(root, path, content);
   git(root, 'init', '-q');
   git(root, 'config', 'user.name', 'CI runtime proof');
   git(root, 'config', 'user.email', 'runtime@example.invalid');
@@ -202,6 +239,67 @@ function taskDependencyGraph(continuous: boolean): ProjectGraph {
 }
 
 describe('runtime task graph selection', () => {
+  it.each(packetPaths)(
+    'recognizes regular OpenSpec packet input %s beside source',
+    async (path) => {
+      for (const status of ['A', 'M']) {
+        const artifact = change(path);
+        if (status === 'A') {
+          artifact.status = 'A';
+          artifact.oldPath = null;
+          artifact.oldMode = '000000';
+        }
+        expect((await plan([change('modules/core/source.ts'), artifact])).projects).toEqual([
+          'consumer',
+          'core',
+          'middle',
+        ]);
+      }
+    },
+  );
+
+  it('keeps explicit OpenSpec consumers and universal validator tests for a packet', async () => {
+    expect((await plan(packetPaths.map(change), packetGraph())).projects).toEqual([
+      'spec-consumer',
+      'validator',
+    ]);
+  });
+
+  it.each(unknownSpecPaths)('broadens unknown OpenSpec input %s', async (path) => {
+    expect((await plan([change('modules/core/source.ts'), change(path)])).projects).toEqual([
+      'consumer',
+      'core',
+      'middle',
+      'unrelated',
+      'validator',
+    ]);
+  });
+
+  it.each([
+    ['A', '000000', '100755'],
+    ['A', '000000', '120000'],
+    ['M', '100644', '100755'],
+    ['M', '100755', '100644'],
+    ['M', '120000', '120000'],
+    ['T', '100644', '120000'],
+    ['T', '120000', '100644'],
+    ['C', '100644', '100644'],
+  ])(
+    'broadens packet status %s with modes %s -> %s despite declared consumers',
+    async (status, oldMode, newMode) => {
+      const artifact = { ...change(packetPaths[2]), status, oldMode, newMode };
+      if (status === 'A') artifact.oldPath = null;
+      expect((await plan([artifact], packetGraph())).projects).toEqual([
+        'consumer',
+        'core',
+        'middle',
+        'spec-consumer',
+        'unrelated',
+        'validator',
+      ]);
+    },
+  );
+
   it.each([false, true])(
     'preserves cross-project task dependency consumers, continuous=%s',
     async (continuous) => {
@@ -316,6 +414,127 @@ describe('runtime task graph selection', () => {
 });
 
 describe('production runtime selector with actual Nx workspaces', () => {
+  it.each(['add', 'modify'])(
+    'keeps source plus %s OpenSpec packet scoped with actual Nx',
+    (operation) => {
+      const initialFiles =
+        operation === 'modify'
+          ? Object.fromEntries(packetPaths.map((path) => [path, 'original\n']))
+          : {};
+      const history = workspace('modules/core/source.ts', 'modify', packetGraph(), initialFiles);
+      for (const path of packetPaths) write(history.root, path, 'updated\n');
+      git(history.root, 'add', '.');
+      git(history.root, 'commit', '-qm', 'required OpenSpec packet');
+      history.head = git(history.root, 'rev-parse', 'HEAD');
+      expect(selectChanges(history.root, history.base, history.head).scope).toBe('code');
+      const execution = invoke(history);
+      expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+      expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+        'consumer',
+        'core',
+        'middle',
+        'spec-consumer',
+        'validator',
+      ]);
+    },
+    15000,
+  );
+
+  it('retains explicit and universal runtime inputs for a packet without source changes', () => {
+    const history = workspace('modules/core/source.ts', 'modify', packetGraph());
+    history.base = history.head;
+    for (const path of packetPaths) write(history.root, path, 'packet\n');
+    git(history.root, 'add', '.');
+    git(history.root, 'commit', '-qm', 'packet only');
+    history.head = git(history.root, 'rev-parse', 'HEAD');
+    expect(selectChanges(history.root, history.base, history.head).scope).toBe('code');
+    const execution = invoke(history);
+    expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+    expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+      'spec-consumer',
+      'validator',
+    ]);
+  }, 15000);
+
+  it.each(unknownSpecPaths)(
+    'broadens committed unknown OpenSpec input %s',
+    (path) => {
+      const history = workspace();
+      write(history.root, path, 'unmodeled\n');
+      git(history.root, 'add', '.');
+      git(history.root, 'commit', '-qm', 'unknown OpenSpec input');
+      history.head = git(history.root, 'rev-parse', 'HEAD');
+      const execution = invoke(history);
+      expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+      expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+        'consumer',
+        'core',
+        'middle',
+        'unrelated',
+        'validator',
+      ]);
+    },
+    15000,
+  );
+
+  it.each([
+    'executable',
+    'symlink',
+    'type-change',
+    'former-executable',
+    'former-symlink',
+    'delete',
+    'rename',
+  ])(
+    'broadens committed packet %s despite explicit and universal consumers',
+    (fault) => {
+      const path = packetPaths[2];
+      const history = workspace('modules/core/source.ts', 'modify', packetGraph(), {
+        [path]: 'original\n',
+      });
+      if (fault === 'former-executable') chmodSync(join(history.root, path), 0o755);
+      if (fault === 'former-symlink') {
+        rmSync(join(history.root, path));
+        symlinkSync('../../../modules/core/source.ts', join(history.root, path));
+      }
+      if (fault === 'former-executable' || fault === 'former-symlink') {
+        git(history.root, 'add', '.');
+        git(history.root, 'commit', '-qm', 'nonregular base');
+      }
+      if (fault === 'executable' || fault === 'symlink') {
+        git(history.root, 'rm', path);
+        git(history.root, 'commit', '-qm', 'absent artifact base');
+      }
+      history.base = git(history.root, 'rev-parse', 'HEAD');
+      if (fault === 'delete') rmSync(join(history.root, path));
+      else if (fault === 'rename')
+        git(history.root, 'mv', path, 'openspec/changes/example/proposal.md');
+      else if (fault === 'symlink' || fault === 'type-change') {
+        if (fault === 'type-change') rmSync(join(history.root, path));
+        mkdirSync(dirname(join(history.root, path)), { recursive: true });
+        symlinkSync('../../../modules/core/source.ts', join(history.root, path));
+      } else {
+        if (fault === 'former-symlink') rmSync(join(history.root, path));
+        write(history.root, path, 'updated\n');
+        chmodSync(join(history.root, path), fault === 'executable' ? 0o755 : 0o644);
+      }
+      git(history.root, 'add', '.');
+      git(history.root, 'commit', '-qm', fault);
+      history.head = git(history.root, 'rev-parse', 'HEAD');
+      const execution = invoke(history);
+      expect(execution.exitCode, execution.stderr.toString()).toBe(0);
+      expect(parseRuntimeSelection(execution.stdout.toString()).projects).toEqual([
+        'consumer',
+        'core',
+        'middle',
+        'spec-consumer',
+        'unrelated',
+        'validator',
+      ]);
+    },
+    15000,
+  );
+
   it('uses the requested graph, merges target defaults and preserves transitive modules through the public API', async () => {
     const history = workspace();
     const selection = await selectRuntimeProjects(

@@ -42,6 +42,21 @@ Code-check selection SHALL include affected owning modules and transitive depend
 - **WHEN** a source dependency, fixture or subprocess input changes
 - **THEN** all known consumer tests are selected, or the affected module suite is selected where precise test ownership is unavailable
 
+#### Scenario: Source change with its required OpenSpec packet
+
+- **WHEN** source changes include regular added or modified recognized active-change artifacts
+- **THEN** runtime selection retains affected source modules and declared packet consumers without widening solely because the packet has no runtime owner
+
+#### Scenario: A change packet without runtime consumers
+
+- **WHEN** a regular active-change artifact changes and no runtime target consumes it
+- **THEN** the plan remains code scope with required workspace lint, OpenSpec and security validation, and an explained empty runtime selection
+
+#### Scenario: Unknown or nonregular OpenSpec inputs
+
+- **WHEN** an OpenSpec path is outside the recognized active-change artifact names, or an artifact changes through deletion, rename or unsupported object modes
+- **THEN** unknown impact or unsupported evidence retains conservative runtime coverage
+
 #### Scenario: Rename and deletion
 
 - **WHEN** an imported source or test input is deleted or renamed

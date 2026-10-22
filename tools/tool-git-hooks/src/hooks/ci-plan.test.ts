@@ -22,7 +22,7 @@ function git(root: string, ...args: string[]): string {
   return invocation.stdout.toString().trim();
 }
 
-function history(path: string) {
+function history(path: string, content?: string) {
   const root = scratchSync('ci-plan-');
   write(root, '.gitignore', 'node_modules/\n.nx/\n');
   write(root, 'package.json', JSON.stringify({ name: 'ci-plan-fixture', private: true }));
@@ -67,7 +67,11 @@ function history(path: string) {
   git(root, 'add', '.');
   git(root, 'commit', '--quiet', '-m', 'base');
   const base = git(root, 'rev-parse', 'HEAD');
-  write(root, path, path.endsWith('.md') ? '# Updated findings\n' : 'export const example = 2;\n');
+  write(
+    root,
+    path,
+    content ?? (path.endsWith('.md') ? '# Updated findings\n' : 'export const example = 2;\n'),
+  );
   git(root, 'add', '.');
   git(root, 'commit', '--quiet', '-m', 'candidate');
   return { root, base, head: git(root, 'rev-parse', 'HEAD') };
@@ -125,6 +129,50 @@ describe('production CI plan and execution', () => {
 
   test('separates unrelated validator lint from runtime projects', () => {
     const invocation = invokePlan(history('modules/core/source.ts'));
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+    expect(JSON.parse(invocation.stdout.toString()) as unknown).toMatchObject({
+      mode: 'affected',
+      projects: ['core'],
+      workspaceProjects: ['core'],
+      twilightProjects: [],
+      twilight: 'skip',
+    });
+  }, 20000);
+
+  test('keeps a required OpenSpec packet in code validation without unrelated runtime suites', () => {
+    const candidate = history('openspec/changes/feature/.openspec.yaml', 'schema: sdd-lean\n');
+    const invocation = invokePlan(candidate);
+    expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
+    expect(JSON.parse(invocation.stdout.toString()) as unknown).toMatchObject({
+      mode: 'affected',
+      projects: [],
+      workspaceProjects: [],
+      twilightProjects: [],
+      twilight: 'skip',
+    });
+    const execution = invokeRuntime(candidate, 'workspace');
+    expect(execution.invocation.exitCode, execution.invocation.stderr.toString()).toBe(0);
+    const commands = readFileSync(execution.calls, 'utf8').trim().split('\n');
+    expect(commands).toHaveLength(2);
+    expect(commands[0]).toContain('affected -t lint');
+    expect(commands[1]).toContain('run twilight-burokrat:lint:source');
+    expect(execution.invocation.stdout.toString()).toContain(
+      'Validated plan has no runtime projects',
+    );
+  }, 20000);
+
+  test('selects source modules when their required OpenSpec packet is added in the same change', () => {
+    const candidate = history('modules/core/source.ts');
+    write(candidate.root, 'openspec/changes/feature/.openspec.yaml', 'schema: sdd-lean\n');
+    write(
+      candidate.root,
+      'openspec/changes/feature/proposal.md',
+      '## Why\n\nKeep the changed core module scoped.\n',
+    );
+    git(candidate.root, 'add', 'openspec');
+    git(candidate.root, 'commit', '--quiet', '-m', 'required change packet');
+    candidate.head = git(candidate.root, 'rev-parse', 'HEAD');
+    const invocation = invokePlan(candidate);
     expect(invocation.exitCode, invocation.stderr.toString()).toBe(0);
     expect(JSON.parse(invocation.stdout.toString()) as unknown).toMatchObject({
       mode: 'affected',

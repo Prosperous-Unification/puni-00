@@ -16,6 +16,8 @@ For code, distinguish runtime target inputs from lint-only inputs while retainin
 
 Runtime projection retains both normal and continuous cross-project task edges, including explicit dependsOn projects with no source-import edge. PR workspace lint runs independently: native affected lint includes Dash and excludes Burokrat's inactive global authority target; the existing Burokrat source-lint command runs explicitly for every code plan. Twilight runtime selection cannot suppress either active source linter.
 
+Active OpenSpec change packets remain code-scope inputs. Regular added or modified `.openspec.yaml`, proposal, design, tasks, verify and capability delta-spec files are recognized workflow inputs for unknown-impact detection. Their complete paths still feed Nx affected selection, preserving explicit and universal runtime consumers. Required workspace OpenSpec and security checks run even when no runtime module consumes a packet. Recognition does not claim that OpenSpec semantically validates every artifact: the pinned validator reads change metadata, delta specs and schema-tracked tasks. Archive paths, unknown siblings, configuration, hooks, scripts and fixtures receive no packet exemption. Deletions, renames and unsupported object modes retain all runtime modules.
+
 Integrate a docs job and scope-aware code jobs with the existing gate aggregate. Keep formatting and security checks in both paths. The browser scope consumes the same explained prose verdict. Preserve full-event branches and exact merge-base revalidation.
 
 ## Risks / Trade-offs

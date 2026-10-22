@@ -23,6 +23,25 @@ function isStrings(value: unknown): value is string[] {
 
 const RUNTIME_TARGETS = ['test', 'typecheck', 'build', 'test:package'];
 
+/** Active-change artifacts have known workflow consumers; this does not classify them as prose. */
+function isChangeArtifact(path: string): boolean {
+  // Proof: accepting all openspec/ paths failed all ten committed unknown-OpenSpec CLI negatives.
+  return /^openspec\/changes\/(?!archive\/)[a-z][a-z0-9-]*\/(?:\.openspec\.yaml|(?:proposal|design|tasks|verify)\.md|specs\/[a-z][a-z0-9-]*\/spec\.md)$/.test(
+    path,
+  );
+}
+
+/** Only ordinary file additions and content edits establish an artifact's reviewed input shape. */
+function isRegularArtifact(change: Change): boolean {
+  // Proof: dropping newMode admitted executable/symlink additions; dropping oldMode admitted
+  // a formerly executable design.md. Each committed-packet CLI negative failed with its guard removed.
+  return (
+    change.newMode === '100644' &&
+    ((change.status === 'A' && change.oldMode === '000000' && change.oldPath === null) ||
+      (change.status === 'M' && change.oldMode === '100644' && change.oldPath === change.newPath))
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -84,7 +103,8 @@ function retainScopedInputs(graph: ProjectGraph): ProjectGraph {
  * target would let lint-only workspace inputs select unrelated tests; retaining only root target
  * names would discard runtime inputs of dependency targets such as registry or test:unit.
  * Unknown paths require every module. Ownership, scoped runtime inputs and reviewed prose establish
- * known impact; universal validation globs alone cannot do so. Actual affected selection keeps them.
+ * known impact, as do regular active-change OpenSpec artifacts. Universal validation globs alone
+ * cannot do so. Actual affected selection keeps every file and every declared runtime input.
  * Deletions and renames also widen because the candidate graph cannot prove former consumers.
  */
 export async function selectRuntimeProjectsFromGraph(
@@ -175,6 +195,20 @@ export async function selectRuntimeProjectsFromGraph(
       ],
     };
   }
+  for (const change of changes) {
+    const artifact = [change.oldPath, change.newPath].find(
+      (path): path is string => path !== null && isChangeArtifact(path),
+    );
+    // Proof: removing this refusal narrowed five nonregular committed packet cases to their declared consumers.
+    if (artifact !== undefined && !isRegularArtifact(change)) {
+      return {
+        projects: allProjects,
+        reasons: [
+          `Unsupported OpenSpec artifact change for ${artifact}; all runtime modules required`,
+        ],
+      };
+    }
+  }
   const paths = new Set<string>();
   for (const change of changes) {
     for (const path of [change.oldPath, change.newPath]) {
@@ -191,7 +225,7 @@ export async function selectRuntimeProjectsFromGraph(
   const recognitionGraph = retainScopedInputs(runtimeGraph);
   const recognitionConfig = { ...nxJson, namedInputs: retainScopedNames(nxJson.namedInputs) };
   for (const file of files) {
-    if (isProsePath(file.file)) continue;
+    if (isProsePath(file.file) || isChangeArtifact(file.file)) continue;
     const recognized = await filterAffected(
       recognitionGraph,
       [file],
@@ -207,6 +241,8 @@ export async function selectRuntimeProjectsFromGraph(
     }
   }
   // Proof: using recognitionGraph here dropped validator for known core source in the universal-runtime negative.
+  // Proof: stripping packet files dropped both consumers; using recognitionGraph dropped the universal
+  // validator in the packet-only actual-Nx CLI regression. Both mutations failed before restoration.
   const affected = await filterAffected(runtimeGraph, files, nxJson, packageJson);
   const projects = allProjects.filter((name) => Object.hasOwn(affected.nodes, name));
   return {

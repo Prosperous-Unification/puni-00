@@ -5,7 +5,7 @@ An ordinary assessment Markdown edit selects five projects for tests. A measured
 ## What Changes
 
 - Classify validated commit diffs into focused documentation validation or affected code checks. Reviewed prose changes do not start unrelated application, browser, build, or validator regression suites.
-- Select runtime targets using their own input dependencies rather than unrelated lint inputs. Include affected dependent modules; narrow test-file execution only where complete dependency coverage is proven.
+- Select runtime targets using their own input dependencies rather than unrelated lint inputs. Required OpenSpec change packets retain their declared consumers without forcing every runtime module. Include affected dependent modules; narrow test-file execution only where complete dependency coverage is proven.
 - Treat fixture, process, contract, configuration, deletion and rename inputs explicitly. Unknown impact requires broader checks; invalid or missing evidence fails.
 - Record selected checks, selection reasons and elapsed times. Stable required checks refuse failed, cancelled, absent or unexplained skipped work.
 
