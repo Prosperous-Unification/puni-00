@@ -121,7 +121,7 @@ test('command responses cannot substitute an authority receipt or omit exact wri
       kind: 'write',
       authority: { ownerId: 'owner', generation: 1 },
       basisAfter: `rb1:${'a'.repeat(64)}`,
-      applied: [],
+      applied: [{ index: 0, kind: 'setProgress' }],
     },
   ]) {
     const client = clientFromShapes(
@@ -147,3 +147,143 @@ for (const [status, body] of [
     expect((await client.acquireRuntimeAuthority(request)).kind).toBe('failure');
   });
 }
+
+const runtimeClaim = {
+  claimId: 'claim',
+  workItemId: 'leaf',
+  stepId: 'dev',
+  parentClaimId: null,
+  execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' },
+};
+const runtimeAuthority = { ownerId: 'owner', generation: 1 };
+const runtimeBasis = `rb1:${'a'.repeat(64)}`;
+
+for (const [label, applied] of [
+  ['empty', []],
+  ['oversized', Array.from({ length: 201 }, (_, index) => ({ index, kind: 'setProgress' }))],
+  ['nonzero first', [{ index: 7, kind: 'setProgress' }]],
+  [
+    'gap',
+    [
+      { index: 0, kind: 'setProgress' },
+      { index: 2, kind: 'setProgress' },
+    ],
+  ],
+  [
+    'duplicate',
+    [
+      { index: 0, kind: 'setProgress' },
+      { index: 0, kind: 'setProgress' },
+    ],
+  ],
+  [
+    'reversed',
+    [
+      { index: 1, kind: 'setProgress' },
+      { index: 0, kind: 'setProgress' },
+    ],
+  ],
+] as const) {
+  for (const operation of ['applyRuntimeCommands', 'lookupRuntimeReceipt'] as const) {
+    test(`rejects ${label} applied sequence in otherwise complete ${operation} write receipt`, async () => {
+      const body = {
+        ...receipt,
+        acceptance: {
+          kind: 'write',
+          authority: runtimeAuthority,
+          claim: runtimeClaim,
+          basisAfter: runtimeBasis,
+          applied,
+        },
+      };
+      const client = clientFromShapes(
+        runtimeCommandShapes,
+        fetchTransport('http://wbs.test', () => Promise.resolve(Response.json(body))),
+      );
+      const reply =
+        operation === 'applyRuntimeCommands'
+          ? await client.applyRuntimeCommands(
+              createWriteRequest(Math.min(200, Math.max(1, applied.length))),
+            )
+          : await client.lookupRuntimeReceipt({
+              params: { id: 'project', commandId: 'c' },
+              query: { personId: 'person', expectedLedgerId: 'ledger' },
+            });
+      expect(reply).toMatchObject({
+        kind: 'failure',
+        failure: { code: 'invalid_response', reason: 'schema', status: 200 },
+      });
+    });
+  }
+}
+for (const length of [1, 200]) {
+  for (const operation of ['applyRuntimeCommands', 'lookupRuntimeReceipt'] as const) {
+    test(`accepts complete contiguous ${String(length)}-command ${operation} write receipt`, async () => {
+      const applied = Array.from({ length }, (_, index) => ({ index, kind: 'setProgress' }));
+      const body = {
+        ...receipt,
+        acceptance: {
+          kind: 'write',
+          authority: runtimeAuthority,
+          claim: runtimeClaim,
+          basisAfter: runtimeBasis,
+          applied,
+        },
+      };
+      const client = clientFromShapes(
+        runtimeCommandShapes,
+        fetchTransport('http://wbs.test', () => Promise.resolve(Response.json(body))),
+      );
+      const reply =
+        operation === 'applyRuntimeCommands'
+          ? await client.applyRuntimeCommands(createWriteRequest(length))
+          : await client.lookupRuntimeReceipt({
+              params: { id: 'project', commandId: 'c' },
+              query: { personId: 'person', expectedLedgerId: 'ledger' },
+            });
+      expect(reply).toMatchObject({ kind: 'success', body });
+    });
+  }
+}
+function createWriteRequest(length: number) {
+  return {
+    params: { id: 'project' },
+    body: {
+      schemaVersion: 1 as const,
+      commandId: 'c',
+      personId: 'person',
+      expectedLedgerId: 'ledger',
+      authority: runtimeAuthority,
+      expectedBasis: runtimeBasis,
+      action: {
+        kind: 'write' as const,
+        claim: runtimeClaim,
+        commands: Array.from({ length }, () => ({
+          kind: 'setProgress' as const,
+          workItemId: 'leaf',
+          stepId: 'dev',
+          state: 'done' as const,
+        })),
+      },
+    },
+  };
+}
+
+test('lookup preserves complete authority and claim receipt variants', async () => {
+  for (const acceptance of [
+    { kind: 'authority', authority: runtimeAuthority },
+    { kind: 'claim', authority: runtimeAuthority, claim: runtimeClaim, basisAfter: runtimeBasis },
+  ]) {
+    const body = { ...receipt, acceptance };
+    const client = clientFromShapes(
+      runtimeCommandShapes,
+      fetchTransport('http://wbs.test', () => Promise.resolve(Response.json(body))),
+    );
+    expect(
+      await client.lookupRuntimeReceipt({
+        params: { id: 'project', commandId: 'c' },
+        query: { personId: 'person', expectedLedgerId: 'ledger' },
+      }),
+    ).toMatchObject({ kind: 'success', body });
+  }
+});

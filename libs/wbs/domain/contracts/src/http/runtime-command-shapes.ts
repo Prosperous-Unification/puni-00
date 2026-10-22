@@ -87,24 +87,38 @@ const writeAcceptance = type({
   applied: type({
     index: count,
     kind: '"setProgress" | "setMeasure" | "patchWorkItem" | "releaseWorkItem"',
-  }).array(),
+  })
+    .array()
+    // Proof: fix1-P01 omitted this bound; empty applied sequences became
+    // successful command and lookup replies in the isolated client negatives.
+    .atLeastLength(1)
+    // Proof: fix1-P02 omitted this bound; 201 applied entries became
+    // successful command and lookup replies with every other field valid.
+    .atMostLength(200)
+    .describe(
+      'Ordered applied commands; each index equals its zero-based position. Standard Schema additionally validates this dependent order.',
+    ),
 });
-const receiptResponse: SchemaShape<RuntimeReceipt> = responseSchema(
-  type({
-    ...receiptFields,
-    acceptance: authorityAcceptance.or(claimAcceptance).or(writeAcceptance),
-  }),
+const receiptResponse: SchemaShape<RuntimeReceipt> = enforceAppliedOrder(
+  responseSchema(
+    type({
+      ...receiptFields,
+      acceptance: authorityAcceptance.or(claimAcceptance).or(writeAcceptance),
+    }),
+  ),
 );
 // Proof: P6-06 replaced this response schema with unknown; the shared client
 // accepted wrong versions, missing authority and unsafe generations.
 const authorityResponse: SchemaShape<AuthorityReceipt> = responseSchema(
   type({ ...receiptFields, acceptance: authorityAcceptance }),
 );
-const commandResponse: SchemaShape<ClaimReceipt | WriteReceipt> = responseSchema(
-  type({ ...receiptFields, acceptance: claimAcceptance }).or({
-    ...receiptFields,
-    acceptance: writeAcceptance,
-  }),
+const commandResponse: SchemaShape<ClaimReceipt | WriteReceipt> = enforceAppliedOrder(
+  responseSchema(
+    type({ ...receiptFields, acceptance: claimAcceptance }).or({
+      ...receiptFields,
+      acceptance: writeAcceptance,
+    }),
+  ),
 );
 const liveClaim = type({
   id: identity,
@@ -249,3 +263,44 @@ export const runtimeCommandShapes = [
   applyRuntimeCommands,
   lookupRuntimeReceipt,
 ] as const;
+
+/**
+ * Preserves the validated receipt while rejecting impossible applied sequences.
+ * JSON Schema carries array bounds and the order description; Standard Schema
+ * enforces the dependent correspondence between each index and its position.
+ */
+function enforceAppliedOrder<T extends RuntimeReceipt>(shape: SchemaShape<T>): SchemaShape<T> {
+  const standard = shape.validator['~standard'];
+  return {
+    ...shape,
+    validator: {
+      '~standard': {
+        ...standard,
+        validate: async (candidate: unknown) => {
+          const checked = await standard.validate(candidate);
+          // Proof: fix1-P04 omitted forwarding; a wrong receipt variant
+          // threw TypeError instead of returning the modeled client failure.
+          if (checked.issues !== undefined) return checked;
+          const acceptance = checked.value.acceptance;
+          if (acceptance.kind === 'write') {
+            const invalidPosition = acceptance.applied.findIndex(
+              (command, index) => command.index !== index,
+            );
+            // Proof: fix1-P03 omitted this check; nonzero/gapped/duplicate/
+            // reversed indexes became successful replies on both endpoints.
+            if (invalidPosition !== -1)
+              return {
+                issues: [
+                  {
+                    message: 'Applied command index must equal its zero-based position',
+                    path: ['acceptance', 'applied', invalidPosition, 'index'],
+                  },
+                ],
+              };
+          }
+          return checked;
+        },
+      },
+    },
+  };
+}

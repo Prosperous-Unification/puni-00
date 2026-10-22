@@ -1190,3 +1190,42 @@ Independent Task6 review, full receiver review/build, CI and exact-SHA host gate
 remain pending. These checks do not prove Dash durable intent/pin/grant storage,
 credential retrieval, executor quiescence, session ordering or CTT settlement;
 parent5/6a.5–7 are not wholly complete. No live deployment or model call occurred.
+
+Task6 independent review found Important I1: the response shape accepted empty,
+gapped and duplicate-index write applied arrays. Its earlier incomplete-write
+negative also omitted claim, masking this defect. Review therefore did not accept
+Task6. A Minor about expected error/startup output in inherited regression tests
+is retained for whole-branch review; it does not invalidate their passing assertions.
+
+Fix1 requires1–200 applied entries and contiguous indexes on both command and
+lookup success responses. A local SchemaShape refinement delegates structural
+validation and forwards its issues before checking validated write indexes.
+It preserves the original successful value/type. JSON/OpenAPI records the bounds
+and order description; dependent ordering executes through Standard Schema.
+Generic JSON-Schema-only consumers must additionally enforce that invariant.
+
+The isolated complete-envelope batch first produced4 pass/12 fail, then16 pass
+with all invalid sequences rejected. Four watched faults each failed and restored
+exact bytes: minimum/maximum omissions accepted empty/201-entry responses;
+order omission accepted eight invalid sequences across both routes; removing
+structural issue forwarding caused TypeError instead of modeled validation
+failure. This last case is forwarding/backstop evidence, not unsafe acceptance.
+Aggregate restored GREEN is not four immediate fault/restoration/pass pairs.
+
+Fix1 covering command:
+
+```sh
+bun test ./libs/wbs/domain/contracts/src/http/runtime-command-shapes.test.ts ./libs/wbs/domain/contracts/src/http/runtime-command-client.test.ts ./apps/wbs/be-01/src/controller/runtime-command.controller.db.test.ts ./libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts --timeout=10000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-contracts,wbs-core,wbs-be-01 --skip-nx-cache
+```
+
+Observed67 tests/231 assertions across4 files pass. The combined static command
+historically exited1: seven targets passed, contracts typecheck found test-control
+literal widening. Adding satisfies RuntimeReceipt changed test typing only;
+final contracts32 tests/64 assertions and both contracts static targets passed
+(the latter24.2s). Thus each scoped component passes, without claiming the first
+combined command exited0. Actual OpenAPI emission confirms bounds/order metadata
+on both success schemas; formatting/diff checks pass. Exact output and four-fault
+byte manifest remain in task-6-evidence/fix1-* and the appended task report.
+Scoped independent re-review is pending. No full124 regression repetition,
+receiver full gate, live call or coordinator recovery claim was made by this fix.

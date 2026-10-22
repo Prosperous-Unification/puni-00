@@ -96,3 +96,56 @@ function _compileBoundary() {
     },
   };
 }
+
+test('write receipt ordering reports the exact invalid index after complete field validation', async () => {
+  const receipt = {
+    schemaVersion: 1,
+    ledgerId: 'ledger',
+    scope: { organizationId: 'org', projectId: 'project', personId: 'person' },
+    commandId: 'command',
+    requestDigest: 'a'.repeat(64),
+    actorId: 'actor',
+    acceptance: {
+      kind: 'write',
+      authority: { ownerId: 'owner', generation: 1 },
+      claim: {
+        claimId: 'claim',
+        workItemId: 'leaf',
+        stepId: 'dev',
+        parentClaimId: null,
+        execution: { storeId: 'store', runId: 'run', attemptId: 'attempt', sessionId: 'session' },
+      },
+      basisAfter: `rb1:${'a'.repeat(64)}`,
+      applied: [
+        { index: 0, kind: 'setProgress' },
+        { index: 2, kind: 'setMeasure' },
+      ],
+    },
+  } satisfies RuntimeReceipt;
+  for (const schema of [
+    applyRuntimeCommands.responses[0].schema,
+    lookupRuntimeReceipt.responses[0].schema,
+  ]) {
+    const checked = await validateSchema<RuntimeReceipt>(schema, receipt);
+    expect(checked.issues).toEqual([
+      {
+        message: 'Applied command index must equal its zero-based position',
+        path: ['acceptance', 'applied', 1, 'index'],
+      },
+    ]);
+    const valid = {
+      ...receipt,
+      acceptance: {
+        ...receipt.acceptance,
+        applied: [
+          { index: 0, kind: 'setProgress' },
+          { index: 1, kind: 'setMeasure' },
+        ],
+      },
+    } satisfies RuntimeReceipt;
+    const accepted = await validateSchema<RuntimeReceipt>(schema, valid);
+    expect(accepted.issues).toBeUndefined();
+    if (accepted.issues !== undefined) throw new Error('valid sequence refused');
+    expect(accepted.value).toBe(valid);
+  }
+});
