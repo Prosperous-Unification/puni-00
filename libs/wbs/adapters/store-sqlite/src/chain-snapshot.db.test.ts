@@ -886,6 +886,7 @@ describe('detached live snapshot guards', () => {
       schedulerOf: () => ({
         supports: (engine) => fast.supports(engine),
         read,
+        readResolvedFast: fast.readResolvedFast,
       }),
     });
     const observed = await store.readAggregate('ada', access);

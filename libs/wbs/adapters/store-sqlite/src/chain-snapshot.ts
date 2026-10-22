@@ -26,7 +26,7 @@ import {
   capturedOptimizationReaderOf,
   type CapturedOptimizationReaderOptions,
 } from './captured-optimization-reader';
-import { captureConnectedPlanIn } from './connected-plan-capture';
+import { captureConnectedPlanIn, discoverConnectedTopologyIn } from './connected-plan-capture';
 import {
   type Connection,
   type Drizzle,
@@ -620,16 +620,15 @@ async function readLiveProjectIn(
   // Proof: removing this check made `project owned continuation` issue 2 expired SQL queries.
   lifetime.assertOpen();
   if (owned === null) return { kind: 'not_found' };
-  const incident = await new TypedDependencyRepository(db, OPEN).listIncident([projectId]);
+  const mode = readCapacityMode(db, access.scope.organizationId);
+  // Proof: restoring the materializing listIncident scout made the mounted isolated
+  // query-count test grow from 13 to 51 statements across 19 local edges.
+  const topology = discoverConnectedTopologyIn(db, projectId, mode, lifetime);
   lifetime.assertOpen();
   // The legacy isolated path remains cheap when no foreign relationship exists.
   // Proof: bypassing this arm made `actual isolated live route captures remote readiness without a calendar`
   // return isolated, hiding the unfinished remote FS prerequisite.
-  if (
-    incident.some(
-      (relationship) => relationship.predecessor.projectId !== relationship.successor.projectId,
-    )
-  ) {
+  if (topology.hasExternal) {
     const capture = await captureConnectedPlanIn(
       db,
       access,
@@ -674,7 +673,7 @@ async function readLiveProjectIn(
     const readiness = deriveConnectedReadiness(capture, projection.authored, attemptsByProject);
     return { kind: 'connected', projection, readiness, metadataByProject };
   }
-  if (readCapacityMode(db, access.scope.organizationId) === 'isolated') return { kind: 'isolated' };
+  if (mode === 'isolated') return { kind: 'isolated' };
   const ranks = await new ProjectRankRepository(db, OPEN).orderIn(access.scope.organizationId);
   // Proof: removing this check made `project rank continuation` issue 4 expired SQL queries.
   lifetime.assertOpen();

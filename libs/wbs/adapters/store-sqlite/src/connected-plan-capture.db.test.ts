@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { type OptimizedScheduleRead, scheduleInputOfCaptured } from '@wbs/core';
+import { scheduleResolved } from '@wbs/domain';
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 import { sql } from 'drizzle-orm';
 
@@ -54,6 +55,7 @@ function snapshots() {
     now: () => 1,
     schedulerOf: () => ({
       supports: () => true,
+      readResolvedFast: scheduleResolved,
       read: () => {
         throw new Error('capture admitted scheduler');
       },
@@ -164,6 +166,7 @@ test('connected isolated cache publication stays invisible through sequential se
     optimization: { contractVersion: 'capture-test', budgetMs: 1000, now: () => 1 },
     schedulerOf: (readCaptured) => ({
       supports: () => true,
+      readResolvedFast: scheduleResolved,
       read: (ask) => {
         if (readCaptured === undefined) throw new Error('missing captured reader');
         cacheStates.push(readCaptured(ask));
@@ -348,6 +351,7 @@ test.each(['success', 'refusal', 'throw'] as const)(
       now: () => 1,
       schedulerOf: () => ({
         supports: () => true,
+        readResolvedFast: scheduleResolved,
         read: () => {
           throw new Error('unexpected schedule');
         },
@@ -486,6 +490,7 @@ test('borrowed live reader refuses acquisition and reads after its one-way scope
     lifetime,
     schedulerOf: () => ({
       supports: () => true,
+      readResolvedFast: scheduleResolved,
       read: () => {
         throw new Error('unexpected schedule');
       },

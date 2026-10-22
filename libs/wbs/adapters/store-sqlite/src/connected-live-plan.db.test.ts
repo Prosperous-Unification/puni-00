@@ -100,3 +100,122 @@ test('shared aggregate refuses a connected component instead of returning rank-o
     'connected aggregate is unsupported',
   );
 });
+
+test('a shared person peer selects the same external component from either target', async () => {
+  write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+  write("INSERT INTO work_item (id,project_id,position,name) VALUES ('a3','a3',10,'a3')");
+  write("INSERT INTO step (id,project_id,name,position) VALUES ('a3-s','a3','Build',10)");
+  write("INSERT INTO person (id,name) VALUES ('p','P')");
+  write(
+    "INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('p','org-a','P')",
+  );
+  for (const id of ['a1', 'a3']) {
+    write(`INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${id}','${id}-s','p')`);
+  }
+  const direct = await reader().read('a1', access);
+  expect(direct.kind).toBe('connected');
+  if (direct.kind !== 'connected') throw new Error('connected expected');
+  expect(direct.projection.capture.projects.map((member) => member.projectId)).toEqual([
+    'a1',
+    'a2',
+    'a3',
+  ]);
+  const peer = await reader().read('a3', access);
+  expect(peer.kind).toBe('connected');
+  if (peer.kind !== 'connected') throw new Error('connected expected');
+  expect(peer.projection.capture.projects.map((member) => member.projectId)).toEqual([
+    'a1',
+    'a2',
+    'a3',
+  ]);
+  expect(peer.projection.placement.kind).toBe('dependency_calendar_missing');
+});
+
+test('alternating person and external bridges select one component from every rank', async () => {
+  write("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+  write("DELETE FROM external_dependency WHERE id = 'edge'");
+  for (const id of ['a3', 'a4']) {
+    write(
+      `INSERT INTO work_item (id,project_id,position,name) VALUES ('${id}','${id}',10,'${id}')`,
+    );
+    write(`INSERT INTO step (id,project_id,name,position) VALUES ('${id}-s','${id}','Build',10)`);
+  }
+  for (const personId of ['p', 'q']) {
+    write(`INSERT INTO person (id,name) VALUES ('${personId}','${personId}')`);
+    write(
+      `INSERT INTO person_organization (resource_id,organization_id,name) VALUES ('${personId}','org-a','${personId}')`,
+    );
+  }
+  for (const [id, personId] of [
+    ['a1', 'p'],
+    ['a2', 'p'],
+    ['a3', 'q'],
+    ['a4', 'q'],
+  ])
+    write(
+      `INSERT INTO assignment (work_item_id,step_id,person_id) VALUES ('${id}','${id}-s','${personId}')`,
+    );
+  write(
+    "INSERT INTO external_dependency (id,organization_id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('bridge','org-a','a3','a2','a3','a2','whole','whole','FS')",
+  );
+  for (const id of ['a1', 'a2', 'a3', 'a4']) {
+    const observed = await reader().read(id, access);
+    expect(observed.kind).toBe('connected');
+    if (observed.kind !== 'connected') throw new Error(`connected expected for ${id}`);
+    expect(observed.projection.capture.projects.map((member) => member.projectId)).toEqual([
+      'a1',
+      'a2',
+      'a3',
+      'a4',
+    ]);
+    expect(observed.projection.placement.kind).toBe('dependency_calendar_missing');
+  }
+});
+
+test('remote SS attempt evidence crosses actual SQLite live capture', async () => {
+  write("UPDATE external_dependency SET type = 'SS' WHERE id = 'edge'");
+  const before = await reader().read('a1', access);
+  if (before.kind !== 'connected') throw new Error('expected connected');
+  expect(before.readiness.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(false);
+  write(
+    "INSERT INTO step_node_attempt (work_item_id,step_id,attempt_number,started_at,ended_at,outcome) VALUES ('a2','a2-s',1,1,2,'failed')",
+  );
+  const after = await reader().read('a1', access);
+  if (after.kind !== 'connected') throw new Error('expected connected');
+  expect(after.readiness.eligibilityByNode.get(sliceKey('a1', 'a1-s'))?.canStart).toBe(true);
+  expect(after.metadataByProject.get('a2')?.attempts).toHaveLength(1);
+});
+
+test('unconnected isolated routing query count is independent of local edges', async () => {
+  write("DELETE FROM external_dependency WHERE id = 'edge'");
+  async function count() {
+    const queries: string[] = [];
+    const observed = await createLivePlanStore({
+      kind: 'owned',
+      openConnection: () =>
+        openReadOnlyConnection(path, {
+          logQuery(query) {
+            queries.push(query);
+          },
+        }),
+      schedulerOf: () => fastScheduler,
+    }).read('a1', access);
+    expect(observed.kind).toBe('isolated');
+    return queries.length;
+  }
+  const empty = await count();
+  for (let at = 0; at < 20; at++) {
+    const number = String(at);
+    const predecessor = String(at - 1);
+    write(
+      `INSERT INTO work_item (id,project_id,position,name) VALUES ('local-${number}','a1',${String(at + 20)},'local-${number}')`,
+    );
+    if (at > 0)
+      write(
+        `INSERT INTO typed_dependency (id,project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type) VALUES ('local-edge-${number}','a1','local-${predecessor}','local-${number}','whole','whole','FS')`,
+      );
+  }
+  const with19LocalRelationships = await count();
+  expect(with19LocalRelationships).toBe(empty);
+  expect(empty).toBeLessThanOrEqual(10);
+});

@@ -729,3 +729,21 @@ selected assertions, including the valid 20-character abbreviation boundary.
 The integrated three source hashes match the frozen correction packet. Local
 and remote submission lifetimes remain separate; the full frontend suite and
 final PR CI are pending.
+
+## Tasks 5.1 / 6.3 / 8.4 — connected producer slice, corrected
+
+The [first independent review](evidence/task-5-live-readiness-initial-review.md)
+rejected shared-person bridge routing, required test typechecks and a local-link
+dependent ordinary-read cost. The [correction packet](evidence/task-5-live-readiness-correction-packet.md)
+and [Astra re-review](evidence/task-5-live-readiness-correction-review.md)
+record the fix, exact [eight-file hashes](evidence/task-5-live-readiness-correction-sha256.txt),
+276 passing selected tests, actual configured core/store/backend typechecks and
+lint, and three independently observed production-path faults. Ordinary isolated
+reads measured nine statements with zero or 19 local links. The approved
+producer remains bounded: claim/start admission, tree/HTTP/frontend delivery,
+optimizer and export consumers are still open; external authoring remains dormant.
+After applying the reviewed 22-file source commit and eight-file correction,
+all eight hashes matched the frozen packet. Integrated selected suites passed
+170/170 (529 assertions), and uncached configured core/store/backend Nx
+typechecks plus both module-check dependencies ran and passed. The final
+CI/host gate remains pending.

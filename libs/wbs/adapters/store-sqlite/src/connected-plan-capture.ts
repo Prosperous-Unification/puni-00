@@ -1,6 +1,6 @@
 import type { ChainAccess, ConnectedPlanCapture, Project, StoredTypedDependency } from '@wbs/core';
 import { captureLocalTypedDependency } from '@wbs/core';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, or } from 'drizzle-orm';
 
 import type { CaptureReadSeam } from './capture-read-seam';
 import type { Drizzle } from './db';
@@ -9,9 +9,82 @@ import { ProjectRepository } from './project';
 import { ProjectRankRepository } from './project-rank';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 import { readConnectedPlanInputIn } from './saved-plan-capture';
-import { assignment, projectOrganization, workItem } from './schema';
+import { assignment, externalDependency, projectOrganization, workItem } from './schema';
 import { readCapacityMode } from './shared-people-mode';
 import { TypedDependencyRepository } from './typed-dependency';
+
+/** Discovers the undirected external/person component without materializing local links. */
+export function discoverConnectedTopologyIn(
+  db: Drizzle,
+  projectId: string,
+  mode: 'isolated' | 'shared',
+  lifetime: ReadSnapshotLifetime,
+): { projects: ReadonlySet<string>; hasExternal: boolean } {
+  const pending = new Set([projectId]);
+  if (mode === 'isolated') {
+    lifetime.assertOpen();
+    const edge = db
+      .select({ id: externalDependency.id })
+      .from(externalDependency)
+      .where(
+        or(
+          eq(externalDependency.predecessorProjectId, projectId),
+          eq(externalDependency.successorProjectId, projectId),
+        ),
+      )
+      .limit(1)
+      .get();
+    if (edge === undefined) return { projects: pending, hasExternal: false };
+  }
+  let hasExternal = false;
+  for (const id of pending) {
+    lifetime.assertOpen();
+    const edges = db
+      .select({
+        predecessor: externalDependency.predecessorProjectId,
+        successor: externalDependency.successorProjectId,
+      })
+      .from(externalDependency)
+      .where(
+        or(
+          eq(externalDependency.predecessorProjectId, id),
+          eq(externalDependency.successorProjectId, id),
+        ),
+      )
+      .all();
+    if (edges.length > 0) hasExternal = true;
+    for (const edge of edges) {
+      // Proof: deleting predecessor traversal made the mounted bidirectional
+      // capture fail with `connected topology omitted an external endpoint`.
+      pending.add(edge.predecessor);
+      pending.add(edge.successor);
+    }
+    if (mode !== 'shared') continue;
+    const people = db
+      .select({ personId: assignment.personId })
+      .from(assignment)
+      .innerJoin(workItem, eq(workItem.id, assignment.workItemId))
+      .where(eq(workItem.projectId, id))
+      .all();
+    if (people.length > 0) {
+      const neighbors = db
+        .select({ projectId: workItem.projectId })
+        .from(assignment)
+        .innerJoin(workItem, eq(workItem.id, assignment.workItemId))
+        .where(
+          inArray(
+            assignment.personId,
+            people.map(({ personId }) => personId),
+          ),
+        )
+        .all();
+      // Proof: omitting person traversal made the mounted a3 peer return shared despite a2→a1.
+      for (const neighbor of neighbors) pending.add(neighbor.projectId);
+    }
+  }
+  lifetime.assertOpen();
+  return { projects: pending, hasExternal };
+}
 
 /** Borrows an admitted snapshot; topology and full reads never own transaction lifecycle. */
 export async function captureConnectedPlanIn(
@@ -39,8 +112,8 @@ export async function captureConnectedPlanIn(
   const projects = new ProjectRepository(db, OPEN);
   const relationships = new Map<string, StoredTypedDependency>();
   const admittedProjects = new Map<string, Project>();
-  const pending = new Set([projectId]);
-  for (const id of pending) {
+  const topology = discoverConnectedTopologyIn(db, projectId, mode, lifetime);
+  for (const id of topology.projects) {
     lifetime.assertOpen();
     if (admittedProjects.has(id)) continue;
     const project = await projects.findInOrganization(id, organizationId);
@@ -55,33 +128,13 @@ export async function captureConnectedPlanIn(
       if (prior !== undefined && JSON.stringify(prior) !== JSON.stringify(relationship))
         throw new Error('connected relationship identity disagrees');
       relationships.set(relationship.id, relationship);
-      // Proof: omitted predecessor traversal lost a2 in `captures both incident directions once`.
-      pending.add(relationship.predecessor.projectId);
-      pending.add(relationship.successor.projectId);
-    }
-    lifetime.assertOpen();
-    if (mode === 'shared') {
-      const people = db
-        .select({ personId: assignment.personId })
-        .from(assignment)
-        .innerJoin(workItem, eq(workItem.id, assignment.workItemId))
-        .where(eq(workItem.projectId, id))
-        .all();
-      if (people.length > 0) {
-        const neighbors = db
-          .select({ projectId: workItem.projectId })
-          .from(assignment)
-          .innerJoin(workItem, eq(workItem.id, assignment.workItemId))
-          .where(
-            inArray(
-              assignment.personId,
-              people.map(({ personId }) => personId),
-            ),
-          )
-          .all();
-        // Proof: omitted neighbor traversal lost a3/a4 in `shared closure alternates person bridges`.
-        for (const neighbor of neighbors) pending.add(neighbor.projectId);
-      }
+      // Proof: deleting predecessor traversal made the mounted bidirectional
+      // capture throw here instead of silently omitting a2.
+      if (
+        !topology.projects.has(relationship.predecessor.projectId) ||
+        !topology.projects.has(relationship.successor.projectId)
+      )
+        throw new Error('connected topology omitted an external endpoint');
     }
   }
   lifetime.assertOpen();

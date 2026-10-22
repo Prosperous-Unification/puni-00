@@ -30,7 +30,7 @@ describe('connected live readiness', () => {
     expect(derive().eligibilityByNode.get(sliceKey('b', 'build'))?.canStart).toBe(false);
     const a = connectedReads('A', null);
     const held = connectedCapture(
-      { ...a, progress: [{ workItemId: 'a', stepId: 'build', state: 'done' }] },
+      { ...a, progress: [{ workItemId: 'a', stepId: 'build', state: 'done', statedAt: 1 }] },
       connectedReads('B', null),
     );
     expect(derive(held).eligibilityByNode.get(sliceKey('b', 'build'))?.canStart).toBe(true);
@@ -82,7 +82,7 @@ describe('connected live readiness', () => {
     expect(() =>
       derive(
         connectedCapture(
-          { ...a, progress: [{ workItemId: 'a', stepId: 'foreign', state: 'done' }] },
+          { ...a, progress: [{ workItemId: 'a', stepId: 'foreign', state: 'done', statedAt: 1 }] },
           foreign,
         ),
       ),
@@ -92,7 +92,7 @@ describe('connected live readiness', () => {
         connectedCapture(
           {
             ...a,
-            stepBlockages: [{ workItemId: 'a', stepId: 'foreign', blockedAt: 1, blockedBy: 'u' }],
+            stepBlockages: [{ workItemId: 'a', stepId: 'foreign', blockedAt: 1 }],
           },
           foreign,
         ),
