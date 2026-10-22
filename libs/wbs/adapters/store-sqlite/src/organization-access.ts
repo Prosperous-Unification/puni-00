@@ -330,3 +330,17 @@ export function validateStoredRole(role: string, organizationId: string): Organi
   // Narrowed by the membership test above, which is the boundary this is.
   return role as OrganizationRole;
 }
+
+/**
+ * Intersects current stored authority with the authenticated scope's role ceiling.
+ * Fresh membership can revoke authority, never restore the account privileges a
+ * machine or consent credential did not authenticate.
+ *
+ * Proof: returning the stored role unchanged made mounted machine batch/replay
+ * and step recovery negatives fail, the saved-plan ceiling test write a plan,
+ * and the Retry ceiling test return not-retryable rather than forbidden
+ * (2026-10-22). Borrowed fan-out has its own ceiling negative.
+ */
+export function capStoredRole(role: OrganizationRole, ceiling: OrganizationRole): OrganizationRole {
+  return ORGANIZATION_ROLES.indexOf(role) >= ORGANIZATION_ROLES.indexOf(ceiling) ? role : ceiling;
+}

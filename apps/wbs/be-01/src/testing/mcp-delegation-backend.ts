@@ -101,6 +101,32 @@ const server = Bun.serve({
       );
       return new Response(run.stdout.toString(), { status: 200 });
     }
+    if (request.method === 'POST' && path === '/__fixture/restrict-project') {
+      const { id, restricted } = (await request.json()) as { id: string; restricted: boolean };
+      backend.sqlite.run('UPDATE project SET restricted = ?, owner_id = ? WHERE id = ?', [
+        restricted ? 1 : 0,
+        restricted ? 'u-grace' : 'u-dany',
+        id,
+      ]);
+      return Response.json({ id, restricted });
+    }
+    if (request.method === 'POST' && path === '/__fixture/write-state') {
+      const tables = [
+        'project',
+        'work_item',
+        'step',
+        'calendar_marker',
+        'command_journal',
+        'saved_plan',
+        'saved_plan_body',
+        'organization_audit',
+        'event_log',
+        'event_sequencer',
+      ];
+      return Response.json(
+        tables.map((table) => backend.sqlite.query(`SELECT * FROM ${table} ORDER BY rowid`).all()),
+      );
+    }
     if (request.method === 'POST' && path === '/__fixture/remove-member') {
       const { username } = (await request.json()) as { username: string };
       backend.sqlite.run('DELETE FROM organization_membership WHERE user_id = ?', [

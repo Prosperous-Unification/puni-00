@@ -945,7 +945,7 @@ describe('organization-scoped writes', () => {
         "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', ?, 'member', 1)",
         [ownerId],
       );
-      const editor = { actorId: ownerId, auditId: 'audit-1' };
+      const editor = { actorId: ownerId, auditId: 'audit-1', role: 'super_admin' as const };
 
       expect(
         await repo.editInOrganization(foreign.id, { name: 'Taken' }, wrote(), 'org-a', editor),

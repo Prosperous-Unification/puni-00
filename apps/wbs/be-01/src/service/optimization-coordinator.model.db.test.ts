@@ -2169,7 +2169,7 @@ class SharedRetry implements SharedCommand {
         objective: 'pri',
         inputHash: committed.input_hash,
         input: inputFor(world, committed.input_hash),
-        scoped: { organizationId: 'org-a', actorId: 'ada' },
+        scoped: { organizationId: 'org-a', actorId: 'ada', role: 'super_admin' as const },
       }),
       'Retry decision waited for recipient transport',
     );

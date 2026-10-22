@@ -39,6 +39,7 @@ import {
 import { isUniqueViolation, messagesOf, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
 import { isScheduleEngine, isSolverObjective, unknownStoredValue } from './optimizer-rows';
+import { capStoredRole } from './organization-access';
 import {
   decodeProjectAbbreviation,
   readProjectAbbreviation,
@@ -1045,7 +1046,7 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string,
-    editor: { readonly actorId: string; readonly auditId: string },
+    editor: { readonly actorId: string; readonly auditId: string; readonly role: OrganizationRole },
   ): Promise<Project | null | 'forbidden' | 'solution_taken' | 'abbreviation_taken'> {
     try {
       return await this.write(id, patch, stamp, organizationId, editor);
@@ -1079,6 +1080,7 @@ export class ProjectRepository implements ProjectStore {
     organizationId: string,
     actorId: string,
     detail: RecoveryAuditDetail,
+    role: OrganizationRole,
   ): Promise<'ordinary' | 'recovery' | 'forbidden' | null> {
     const addressed = and(
       eq(project.id, projectId),
@@ -1093,7 +1095,7 @@ export class ProjectRepository implements ProjectStore {
     return await this.gate.enter(async () => {
       await Promise.resolve();
       return this.db.transaction((tx) => {
-        const classified = classifyWithin(tx, addressed, organizationId, actorId);
+        const classified = classifyWithin(tx, addressed, organizationId, actorId, role);
         if (classified === null) return null;
         if (classified === 'refused') return 'forbidden';
         if (classified === 'recovery') {
@@ -1116,7 +1118,11 @@ export class ProjectRepository implements ProjectStore {
     patch: ProjectPatch,
     stamp: WriteStamp,
     organizationId: string | null,
-    editor: { readonly auditId: string; readonly actorId: string } | null = null,
+    editor: {
+      readonly auditId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    } | null = null,
   ): Promise<Project | null> {
     const addressed =
       organizationId === null
@@ -1172,7 +1178,13 @@ export class ProjectRepository implements ProjectStore {
         (tx) => {
           let edit: 'ordinary' | 'recovery' = 'ordinary';
           if (editor !== null && organizationId !== null) {
-            const classified = classifyWithin(tx, addressed, organizationId, editor.actorId);
+            const classified = classifyWithin(
+              tx,
+              addressed,
+              organizationId,
+              editor.actorId,
+              editor.role,
+            );
             // Not the organization's (any more): null, as for an absent project,
             // before any permission is judged.
             if (classified === null) return null;
@@ -1440,6 +1452,7 @@ export function classifyProjectWriteIn(
   projectId: string,
   organizationId: string,
   actorId: string,
+  role: OrganizationRole,
 ): 'ordinary' | 'recovery' | 'refused' | null {
   // Proof: dropping the organization predicate made the store-path foreign
   // Retry answer forbidden instead of not_found; watched 2026-09-28.
@@ -1457,12 +1470,14 @@ export function classifyProjectWriteIn(
     ),
     organizationId,
     actorId,
+    role,
   );
 }
 
 /**
  * `actorId`'s write to the project `addressed` selects, classified from the
- * membership and project as `tx` reads them (see `classifyProjectEdit`):
+ * membership and project as `tx` reads them, capped by the authenticated `role`
+ * (see `classifyProjectEdit`):
  * null when the organization does not own the project.
  */
 function classifyWithin(
@@ -1470,6 +1485,7 @@ function classifyWithin(
   addressed: SQL | undefined,
   organizationId: string,
   actorId: string,
+  role: OrganizationRole,
 ): 'ordinary' | 'recovery' | 'refused' | null {
   const current = tx
     .select({ restricted: project.restricted, ownerId: project.ownerId })
@@ -1491,7 +1507,7 @@ function classifyWithin(
   return classifyProjectEdit(current, {
     organizationId,
     userId: actorId,
-    role: storedRole(membership.role, organizationId),
+    role: capStoredRole(storedRole(membership.role, organizationId), role),
   });
 }
 

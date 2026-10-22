@@ -83,6 +83,7 @@ describe('scoped solution links', () => {
     store().editInOrganization(id, patch, { at: 2, by: 'ada' }, organizationId, {
       actorId: 'ada',
       auditId: crypto.randomUUID(),
+      role: 'super_admin',
     });
   const insertLink = (projectId: string, organizationId: string, slug: string) =>
     raw((db) =>

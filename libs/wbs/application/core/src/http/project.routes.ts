@@ -7,6 +7,7 @@ import {
   recordProjectOpen,
   retryProjectOptimization,
 } from '@wbs/contracts';
+import type { OrganizationRole } from '@wbs/domain';
 import type { SolverObjectiveName } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
@@ -33,7 +34,11 @@ export interface OptimizationRetry {
     readonly objective: SolverObjectiveName;
     readonly inputHash: string;
     readonly input: ScheduleInput;
-    readonly scoped?: { readonly organizationId: string; readonly actorId: string };
+    readonly scoped?: {
+      readonly organizationId: string;
+      readonly actorId: string;
+      readonly role: OrganizationRole;
+    };
   }): Promise<
     | { readonly kind: 'forbidden' | 'not_found' }
     | { readonly kind: 'stale-input-hash'; readonly currentInputHash: string }
@@ -403,6 +408,7 @@ export function projectRoutes(
                 scoped: {
                   organizationId: resolved.access.scope.organizationId,
                   actorId: principal.id,
+                  role: resolved.access.scope.role,
                 },
               }
             : {}),

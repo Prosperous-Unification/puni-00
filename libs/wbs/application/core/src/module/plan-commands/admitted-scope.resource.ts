@@ -78,6 +78,7 @@ export class AdmittedScope {
       organization.organizationId,
       actorId,
       detail,
+      organization.role,
     );
     if (admitted === null) return 'not_found';
     // Proof: skipping this refusal made `refuses a viewer every batch, undo

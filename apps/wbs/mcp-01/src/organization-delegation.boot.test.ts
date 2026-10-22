@@ -456,6 +456,46 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(members.text).toContain('insufficient_scope');
   });
 
+  test('a consent cannot borrow its super-admin account’s restricted-project recovery', async () => {
+    const saved = await tool(sessions['dany'] ?? '', 'postApiProjectsByIdSaved-plans', {
+      id: ids.launch,
+      name: 'Consent cap original',
+    });
+    expect(saved.isError).toBe(false);
+    const savedId = (JSON.parse(saved.text) as { savedPlan: { id: string } }).savedPlan.id;
+    await fixture('restrict-project', { id: ids.launch, restricted: true });
+    try {
+      const before = await fixture('write-state', {});
+      for (const [name, args] of [
+        ['postApiProjectsByIdSaved-plans', { id: ids.launch, name: 'Outside consent cap' }],
+        ['patchApiSaved-plansById', { id: savedId, name: 'Outside consent cap' }],
+        ['deleteApiSaved-plansById', { id: savedId }],
+        [
+          'postApiProjectsByIdCommands',
+          { id: ids.launch, commands: [{ kind: 'createWorkItem', name: 'Outside consent cap' }] },
+        ],
+        ['postApiProjectsByIdUndo', { id: ids.launch }],
+        ['postApiProjectsByIdRedo', { id: ids.launch }],
+        ['postApiProjectsByIdSteps', { id: ids.launch, name: 'Outside consent cap' }],
+        [
+          'postApiProjectsByIdOptimizationRetry',
+          { id: ids.launch, objective: 'pri', inputHash: 'ignored' },
+        ],
+        [
+          'postApiProjectsByIdCalendar-markers',
+          { id: ids.launch, name: 'Outside consent cap', date: '2026-10-22' },
+        ],
+      ] as const) {
+        const refused = await tool(claire.access, name, args);
+        expect(refused.isError).toBe(true);
+        expect(refused.text).toContain('forbidden');
+        expect(await fixture('write-state', {})).toEqual(before);
+      }
+    } finally {
+      await fixture('restrict-project', { id: ids.launch, restricted: false });
+    }
+  });
+
   test('refresh keeps the agent alive as the agent', async () => {
     const refreshed = await refreshWith(claire.refresh, claire.clientId);
     expect(refreshed.status).toBe(200);

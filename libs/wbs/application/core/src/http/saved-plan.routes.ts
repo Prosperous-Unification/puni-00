@@ -326,6 +326,7 @@ export function savedPlanRoutes(
             ? {
                 organizationId: resolved.access.scope.organizationId,
                 actorId: principal.id,
+                role: resolved.access.scope.role,
                 operation: 'rename' as const,
               }
             : undefined;
@@ -354,6 +355,7 @@ export function savedPlanRoutes(
             ? {
                 organizationId: resolved.access.scope.organizationId,
                 actorId: principal.id,
+                role: resolved.access.scope.role,
                 operation: 'delete' as const,
               }
             : undefined;

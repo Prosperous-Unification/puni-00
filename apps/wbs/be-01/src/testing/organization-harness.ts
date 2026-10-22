@@ -861,7 +861,7 @@ export class OrganizationHarness {
             objective: 'pri',
             inputHash,
             input,
-            scoped: { organizationId, actorId },
+            scoped: { organizationId, actorId, role: 'super_admin' },
           })
         ).kind;
       },
