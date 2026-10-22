@@ -333,7 +333,7 @@ Use installed `yaml:parseAllDocuments` with explicit strict YAML 1.2 and unique-
 - Produces `runWorkflowBindingCommand(args: readonly string[], repositoryRoot: string): string`, where `args` is the entire five-element command after executable removal. It validates exact grammar first and returns `readWorkflowBinding(...).bindingDigest`; it never writes stdout itself.
 - Changes `runCli` routing: identify the `validate workflow-binding` prefix before generic three-argument record validation, then print returned digest plus newline. No new RecordKind, generic validate alias, CLI process globals in pure contracts or authority status.
 
-- [ ] **Step 1: Write CLI red tests.** Add to loader test file, reusing its real temporary-root fixture. The actual process tests exercise cwd; no process-global chdir is needed.
+- [x] **Step 1: Write CLI red tests.** Add to loader test file, reusing its real temporary-root fixture. The actual process tests exercise cwd; no process-global chdir is needed.
 
 ```ts
 import { invokeCli } from './invoke-cli';
@@ -369,8 +369,8 @@ test('prints only the accepted digest with real cwd and exit status', () => {
 
 Add invalid empty/extra/repeated flags, empty/duplicate step segments, unknown step, missing prompt and malformed YAML cases; all refuse with named stderr and empty success stdout. Spawn one `qa` case and one cwd mismatch case. Exercise a preexisting valid JSON record through both `validate` and `validate-record` to prove legacy dispatch remains; `validate-record workflow-binding ...` remains unsupported.
 
-- [ ] **Step 2: Run red.** `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/workflow-binding.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000`. Expect current generic RecordKind/unknown-command output to fail the new routing assertions before implementing dispatch.
-- [ ] **Step 3: Add grammar and dispatch, then documentation.** Implement the named helper with exact five-argument parsing and no file reads before successful grammar validation. Use this branch before generic record routing:
+- [x] **Step 2: Run red.** `bun test ./apps/twilight-structure/twilight-burokrat/cli/src/workflow-binding.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000`. Expect current generic RecordKind/unknown-command output to fail the new routing assertions before implementing dispatch.
+- [x] **Step 3: Add grammar and dispatch, then documentation.** Implement the named helper with exact five-argument parsing and no file reads before successful grammar validation. Use this branch before generic record routing:
 
 ```ts
 if (args[0] === 'validate' && args[1] === 'workflow-binding') {
@@ -382,8 +382,8 @@ if (args[0] === 'validate' && args[1] === 'workflow-binding') {
 
 Document the accepted command, cwd-root anchor, whole-type fallback, digest covering original prompt bytes, required prompt files, and no authority/backend-availability guarantee. Link the contract design; do not copy its full schema into README. The parent design already contains the complete illustrative sample; leave repository `.twilight` and gate scripts untouched.
 
-- [ ] **Step 4: Run green and production-path CLI proofs.** Bypass the production step membership guard and require the spawned `qa` command to exit 0, causing its refusal test to fail; restore and rerun. Move/remove early dispatch and require incomplete-command named-code test to fail. Bypass exact-arity validation and require malformed flags/operand test to fail. Record actual mutations, assertions and restoration in `verify.md` and adjacent `Proof:` comments. Do not treat testing a fake command as a proof.
-- [ ] **Step 5: Run the bounded final packet checks.** Run the following from repository root; package-wide/full exact-SHA gate remains the root integration workflow, especially on h2puni.
+- [x] **Step 4: Run green and production-path CLI proofs.** Bypass the production step membership guard and require the spawned `qa` command to exit 0, causing its refusal test to fail; restore and rerun. Move/remove early dispatch and require incomplete-command named-code test to fail. Bypass exact-arity validation and require malformed flags/operand test to fail. Record actual mutations, assertions and restoration in `verify.md` and adjacent `Proof:` comments. Do not treat testing a fake command as a proof.
+- [x] **Step 5: Run the bounded final packet checks.** Run the following from repository root; package-wide/full exact-SHA gate remains the root integration workflow, especially on h2puni.
 
 ```sh
 bun test ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/workflow-binding.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/contracts/canonical.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/workflow-binding.test.ts ./apps/twilight-structure/twilight-burokrat/cli/src/no-ambient-clock.test.ts --preload ./tools/test/scratch/preload.ts --timeout=60000
@@ -397,4 +397,4 @@ The installed OpenSpec validator reported eight long-requirement warnings when r
 
 `project.json` defines `twilight-burokrat:typecheck` and `lint:source` exactly; its full `test` target includes trusted-module setup, install-test exclusions and scratch preload, so do not substitute a guessed Nx test filter. Publishing is out of scope; root chooses package/build integration checks under the repository gate. Root must still perform required repository/integration gates before claiming merged completion.
 
-- [ ] **Step 6: Review checkpoint and scoped evidence.** Present observed commands, named refusal coverage and production-negative evidence to root. Parent 1.1–1.2 may be checked only after review; I1 as a whole, parent 1.3 and 6a.3 remain open. No live API, recovery, spending or governance approval claim follows from these tests.
+- [x] **Step 6: Review checkpoint and scoped evidence.** Present observed commands, named refusal coverage and production-negative evidence to root. Parent 1.1–1.2 may be checked only after review; I1 as a whole, parent 1.3 and 6a.3 remain open. No live API, recovery, spending or governance approval claim follows from these tests.
