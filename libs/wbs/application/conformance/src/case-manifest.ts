@@ -58,9 +58,10 @@ export const CASE_MANIFEST = {
     'directory.addResource:taken',
     'directory.removeResource:in-use-cascade',
   ],
-  // No case yet: the memory twin and its conformance cases are slice 3 of
-  // `wbs-organization-limits`; the SQLite gauge is proven by its own tests.
-  organizationLimits: [],
+  organizationLimits: [
+    'organizationLimits.readAgentPersonCap:organization-scope',
+    'organizationLimits.readConcurrentClaimCap:bound-triples',
+  ],
   capacity: [
     'capacity.set:project-team-key',
     'capacity.set:clear',

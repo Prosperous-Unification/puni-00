@@ -41,4 +41,11 @@ export interface OrganizationLimitGauge {
    * deployment default) and how many persons of kind `agent` it owns.
    */
   readAgentPersonCap(organizationId: string): Promise<CapReading>;
+  /**
+   * The organization's effective `maxConcurrentClaims` and how many bound
+   * claims its projects hold: distinct `(work item, person, run)` triples
+   * with at least one claim row (L5), including any the caller's open
+   * transaction has written.
+   */
+  readConcurrentClaimCap(organizationId: string): Promise<CapReading>;
 }

@@ -171,6 +171,14 @@ export class CommandContext {
             holders: outcome.holders.map((holder) => ({ ...holder })),
           },
         });
+      case 'claim_limit':
+        // Proof: with both numbers replaced by 0 here, `refuses the forty-first
+        // bound claim` and four more cases of claim-limit.controller.db.test.ts
+        // named cap 0, current 0 (7 pass, 5 fail); watched 2026-10-22.
+        return this.refuse({
+          reason: outcome.reason,
+          detail: { cap: outcome.cap, current: outcome.current },
+        });
       case 'resources_on_subtree':
       case 'person_not_bound':
       case 'credential_not_for_person':

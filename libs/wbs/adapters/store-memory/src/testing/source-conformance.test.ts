@@ -24,6 +24,7 @@ import {
   type FaultProof,
   type FaultRun,
   type HistoryBatchFixture,
+  LIMITS_FIXTURE,
   observePlanInput,
   OWNED_BINDING,
   PINNED_CREDENTIAL,
@@ -34,6 +35,7 @@ import {
   replaceMethod,
   runCases,
   savedPlanCaptureExpected,
+  seedOrganizationLimits,
   seedResourceCase,
   seedSavedPlanCapture,
   sourceConformanceRegistrations,
@@ -873,7 +875,43 @@ function memoryLateSource(
   return conformanceMemorySource(fixture);
 }
 
+/**
+ * The limits gauge over a seeded memory source: the one the scopes its unit
+ * of work admits carry, read here over the committed state (L10).
+ */
+async function openMemoryLimitsCase(
+  caseId: CaseId,
+): Promise<CaseFixture<TransactionalStores['organizationLimits']>> {
+  const fixture = openMemorySourceFixture();
+  const source = await seedMemorySource(
+    () => conformanceMemorySource(fixture),
+    (seeded) =>
+      seedOrganizationLimits(seeded.stores, {
+        organization: () => undefined,
+        ownPerson: (personId, organizationId) => {
+          fixture.ownPersonInOrganization(personId, organizationId, []);
+        },
+        ownProject: (projectId, organizationId) => {
+          fixture.ownProjectInOrganization(projectId, organizationId);
+        },
+        setCaps: (organizationId, caps) => {
+          fixture.setOrganizationLimits(organizationId, caps);
+        },
+      }),
+  );
+  return {
+    fixtureId: `memory:${caseId}`,
+    port: fixture.organizationLimitGauge(LIMITS_FIXTURE.defaults),
+    journalAppender: source.journal,
+    seed: DETERMINISTIC_SEED,
+    readers: readersOf(source),
+    scenario: { kind: 'ordinary' },
+    close: () => source.close(),
+  };
+}
+
 const openers: ExistingStoreOpeners = {
+  organizationLimits: openMemoryLimitsCase,
   projects: (caseId) => openMemoryCase('projects', caseId),
   users: (caseId) => openMemoryCase('users', caseId),
   capacity: (caseId) => openMemoryCase('capacity', caseId),
@@ -1011,11 +1049,7 @@ const declaration: SourceDeclaration = {
       kind: 'absent',
       reason: 'Memory fixtures do not install the SQLite organization rank writer.',
     },
-    organizationLimits: {
-      kind: 'absent',
-      reason:
-        'The memory twin of the organization limits gauge is slice 3 of wbs-organization-limits.',
-    },
+    organizationLimits: { kind: 'offered', gaps: [], open: openMemoryLimitsCase },
     projects: { kind: 'offered', gaps: [], open: openers.projects },
     users: { kind: 'offered', gaps: [], open: openers.users },
     capacity: {

@@ -290,4 +290,15 @@ export class OrganizationLimitGaugeRepository implements OrganizationLimitGauge 
       current: countAgentPersons(this.db, organizationId),
     };
   }
+
+  // Proof: answering `maxAgentPersons` as the cap here failed the SQLite
+  // certification's `organizationLimits.readConcurrentClaimCap:bound-triples`
+  // and both orders of claim-limit-race.db.test.ts (74 pass, 4 fail); watched 2026-10-22.
+  async readConcurrentClaimCap(organizationId: string): Promise<CapReading> {
+    await Promise.resolve();
+    return {
+      cap: readEffectiveLimits(this.db, organizationId, this.defaults).limits.maxConcurrentClaims,
+      current: countBoundClaims(this.db, organizationId),
+    };
+  }
 }

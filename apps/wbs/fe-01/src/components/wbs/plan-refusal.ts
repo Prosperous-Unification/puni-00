@@ -535,6 +535,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     // copy naming the numbers is slice 6; until then the code itself.
     case 'agent_person_limit':
       return refusal.error;
+    // The claim cap: worded in PLAN_REFUSALS; the copy naming the numbers is slice 6.
+    case 'claim_limit':
+      return refusal.error;
     default:
       return unreachable(refusal);
   }
@@ -776,6 +779,13 @@ export const PLAN_REFUSALS: RefusalWords = {
       'That change cannot be made while the affected steps have individual parallelism overrides.',
     destination_claimed:
       'That row is being worked on: its steps are claimed. Release the claims before moving work under it. Nothing was changed.',
+    // The organization's cap on concurrent claims (`wbs-organization-limits`
+    // L9); the numbers stay on the wire until slice 6 words them.
+    // Proof: with this entry struck, `words the claim cap rather than naming
+    // its code` (claim-limit-words.test.ts) read the fallback carrying
+    // `claim_limit`; watched 2026-10-22.
+    claim_limit:
+      'Organization limit: your organization already holds as many concurrent claims as it may. Release a claim first. Nothing was changed.',
     children_claimed:
       'Deleting that would hand more than one claim holder’s work back to its parent. Release the claims first. Nothing was changed.',
     node_done:

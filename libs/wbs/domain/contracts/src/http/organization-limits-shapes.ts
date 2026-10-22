@@ -11,6 +11,12 @@ import { responseSchema } from './schema-shape';
  */
 export const limitCrossed = { cap: 'number', current: 'number', added: 'number' } as const;
 
+/**
+ * What `claim_limit` carries beside its code: the cap on bound claims and how
+ * many the organization held. A claim adds at most one, so it names no `added`.
+ */
+export const claimLimitCrossed = { cap: 'number', current: 'number' } as const;
+
 /** The three caps (`wbs-organization-limits` L1), each a whole number from 0 to 1,000,000. */
 const organizationLimitValues = type({
   maxAgentPersons: 'number',

@@ -42,8 +42,8 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       and the store readers `readEffectiveLimits`, `countAgentPersons`, `countBoundClaims`,
       `readCapacityUsage`, `sumStatedCapacity` (`organization-limits.ts` in store-sqlite), each
       with its negative. Still open here: `set` and `reset` (they need the audit widening of
-      slice 5 to be written whole), and the memory twin with its conformance suite, which the
-      claim path's memory store needs first in slice 3.
+      slice 5 to be written whole). Slice 3 (2026-10-22) added the memory twin of the gauge
+      (`organization-limits-fixture.ts`) and two conformance cases both sources certify.
 - [x] 1.5 `GET /api/organization/limits` in `@wbs/contracts` and `@wbs/core`
       (`organization-limits.routes.ts` beside `session-policy.routes.ts`), limits and usage
       in one transaction, OpenAPI emit, MCP tool count moves by one — Red:
@@ -89,7 +89,7 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
 
 ## 3. The claim cap
 
-- [ ] 3.1 `decideClaim`'s caller in `claims.ts` reads `countBoundClaims` inside the batch's
+- [x] 3.1 `decideClaim`'s caller in `claims.ts` reads `countBoundClaims` inside the batch's
       transaction, decides `refuseLimit` last, after `overlaps_subtree_claim` and the
       occupancy refusals, and only when the claim adds a triple; `alreadyHeld` and release
       never consult it; two claims of one batch count each other — Red:
@@ -99,20 +99,26 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       leaf under the same run adds nothing, two claims in one batch at 39 of 40 refuse the
       second. R5 fault: move the check before `already_claimed` and the "plan's reasons
       first" case reddens; count rows and the second-step case refuses; watched.
-- [ ] 3.2 Race: `claim-race.db.test.ts` gains the 39-of-40 case, two accounts, two leaves,
+- [x] 3.2 Race: `claim-race.db.test.ts` gains the 39-of-40 case, two accounts, two leaves,
       both orders; exactly one applied, the loser `claim_limit` with `current: 40`. R5 fault:
       replace `source.uow` with a unit of work over the open gate and both land (the
       precedent proof of 2026-10-19), restored; watched.
-- [ ] 3.3 Undo and redo: a redo of a claim and an undo of a release re-check and answer
+- [x] 3.3 Undo and redo: a redo of a claim and an undo of a release re-check and answer
       `stale_undo` with detail `claim_limit: cap n, current n`; claims moving on a split or a
       promotion are not re-checked — Red: the journal replay cases in `claim-race.db.test.ts`
       and the hand-down case at the cap. R5 fault: skip the re-check on redo and a redo at the
       cap lands the forty-first; watched.
-- [ ] 3.4 Refusal shape `claim_limit` in `@wbs/contracts`, position in the batch, status 409
+- [x] 3.4 Refusal shape `claim_limit` in `@wbs/contracts`, position in the batch, status 409
       like `already_claimed`; MCP batch description — Red: the shape tests and the emit diff.
-- [ ] 3.5 Measure: time of `countBoundClaims` on a store with 1,000 claims over 200 leaves,
+- [x] 3.5 Measure: time of `countBoundClaims` on a store with 1,000 claims over 200 leaves,
       recorded in verify.md; if above 5 ms per claim, file the counter-column follow-up (the
-      meaning of L5 does not change).
+      meaning of L5 does not change). Built 2026-10-22: the claim check sits after
+      `decideClaim` in `WorkItemService.claim` (work-item.resource.ts), not in `claims.ts`;
+      the behaviour cases are `claim-limit.controller.db.test.ts` (be-01, SQLite) rather than
+      `claim-command.test.ts`, because the memory batch runner has no scoped claim path; the
+      race and a fast-check model with the cap as invariant are `claim-limit-race.db.test.ts`;
+      the gauge's memory twin is certified by the conformance suite. 3.5: 0.29 ms at 1,000
+      claims, 2.85 ms at 10,000, no scan of `claim`; no index added and no follow-up filed.
 
 ## 4. The capacity cap
 

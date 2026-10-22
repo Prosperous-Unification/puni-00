@@ -39,6 +39,7 @@ import {
   isWithin,
   isWritableRelationshipType,
   lastWorkdayOf,
+  type LimitCrossed,
   MAX_ESTIMATE_DAYS,
   MEASURE_METRICS,
   type MeasureMetric,
@@ -56,6 +57,7 @@ import {
   type PriorityBand,
   type Readiness,
   refuseDemand,
+  refuseLimit,
   refuseOccupancy,
   resolveStepResources,
   type Resource,
@@ -122,6 +124,7 @@ import {
   LEGACY_ACCESS,
   type ResourceAccess,
 } from '../../ports/organization-access';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type {
   IdentifiedSlice,
   PlanOptimization,
@@ -1094,6 +1097,13 @@ export interface WorkItemServiceOptions {
    * release, or the replay of either throws rather than answering.
    */
   claims?: ClaimStore;
+  /**
+   * The organization limits a claim consults (`wbs-organization-limits` L9),
+   * read in the batch's own transaction. Absent from the public graph and
+   * from legacy fixture graphs; a claim adding a bound claim under scoped
+   * access without it throws rather than admitting uncapped.
+   */
+  organizationLimits?: OrganizationLimitGauge;
   /**
    * What each work item needs of each resource (`wbs-resources`). Required
    * since both engines level demands (R5): every plan read reads them.
@@ -3386,6 +3396,25 @@ export class WorkItemService {
         },
       };
     }
+    // Last of the refusal order (L9): every plan reason and every occupancy
+    // refusal has cleared. Only a triple the item does not hold yet adds a
+    // bound claim, so a second step under the same person and run adds none.
+    // Proof, each watched 2026-10-22 in claim-limit.controller.db.test.ts:
+    // with this check moved above `decideClaim`, `answers the plan’s reasons
+    // before the cap` and `refuses inside another’s subtree first…` answered
+    // claim_limit (9 pass, 3 fail); with every claim counted as adding one,
+    // `claims a second step of a held leaf at the cap` was refused (11 pass,
+    // 1 fail); with the check removed, `refuses the forty-first bound claim`
+    // and four more were applied (7 pass, 5 fail).
+    const addsBoundClaim = !near.some(
+      (each) =>
+        each.workItemId === id && each.personId === input.personId && each.runId === input.runId,
+    );
+    if (addsBoundClaim) {
+      const crossed = await this.refuseBoundClaims(access, 1);
+      if (crossed !== null)
+        return { ok: false, reason: 'claim_limit', cap: crossed.cap, current: crossed.current };
+    }
     const stamp = this.clock.stampFor(actorId);
     const written: Claim[] = decided.drafts.map((draft) => ({
       ...draft,
@@ -3546,6 +3575,50 @@ export class WorkItemService {
           )
         : await directory.namesOf('people', ids);
     return new Map(people.map((person) => [person.id, person.name]));
+  }
+
+  /**
+   * Whether `added` more bound claims would cross the organization's cap
+   * (`wbs-organization-limits` L9): null when they fit, the cap and count when
+   * they do not. Legacy access has no organization to own a cap, so nothing is
+   * read and nothing is capped; that is the modeled optional case.
+   *
+   * The count is read through the gauge of the stores this graph was built
+   * over, which for a batch is its own `BEGIN IMMEDIATE` under its write turn
+   * (L10), so it includes a claim written earlier in the same batch and the
+   * claim of any batch admitted before this one.
+   *
+   * Proof, each watched 2026-10-22: with legacy access answered as a cap of 0,
+   * `claims past any cap with no organization to own one`
+   * (claim-limit.controller.db.test.ts) was refused (11 pass, 1 fail); with the gauge answering
+   * the count it read first for every later batch (a count read outside the
+   * turn), `lands exactly one of two claims racing for the last place`
+   * (claim-limit-race.db.test.ts) landed both, 41 of 40.
+   *
+   * @throws when this graph was composed without organization limits.
+   */
+  private async refuseBoundClaims(
+    access: ResourceAccess,
+    added: number,
+  ): Promise<LimitCrossed | null> {
+    if (access.kind === 'legacy') return null;
+    const gauge = this.opts.organizationLimits;
+    if (gauge === undefined)
+      throw new Error('a bound claim was added under scoped access without organization limits');
+    const reading = await gauge.readConcurrentClaimCap(access.scope.organizationId);
+    return refuseLimit({ cap: reading.cap, current: reading.current, added });
+  }
+
+  /**
+   * The bound claims putting `claims` back would add: distinct
+   * `(work item, person, run)` triples among them that the project holds no
+   * claim of now (L5).
+   */
+  private async boundClaimsAdded(projectId: string, claims: readonly Claim[]): Promise<number> {
+    const tripleOf = (each: Pick<Claim, 'workItemId' | 'personId' | 'runId'>) =>
+      JSON.stringify([each.workItemId, each.personId, each.runId]);
+    const held = new Set((await this.claiming().claims.listByProject(projectId)).map(tripleOf));
+    return new Set(claims.map(tripleOf).filter((triple) => !held.has(triple))).size;
   }
 
   /**
@@ -7335,6 +7408,22 @@ export class WorkItemService {
           throw new Error('claims are put back only by a replay, which names its access');
         const exhausted = await this.refuseReacquiring(projectId, command, access);
         if (exhausted !== null) return { ok: false, detail: exhausted };
+        // A redo of a claim, an undo of a release or of a delete puts bound
+        // claims back, so it passes the organization's cap as a fresh claim
+        // does (L9); a split's `move_claims` keeps its triples and is not here.
+        // Proof, each watched 2026-10-22 in claim-limit.controller.db.test.ts:
+        // with this re-check skipped, `refuses a redo of a claim once another
+        // took the last place` and `refuses an undo of a release once another
+        // took the freed place` put the claim back over the cap (10 pass, 2 fail).
+        const adding = await this.boundClaimsAdded(projectId, command.claims);
+        if (adding > 0) {
+          const crossed = await this.refuseBoundClaims(access, adding);
+          if (crossed !== null)
+            return {
+              ok: false,
+              detail: `claim_limit: cap ${String(crossed.cap)}, current ${String(crossed.current)}.`,
+            };
+        }
         const added = await claims.add(
           command.claims,
           command.stated,

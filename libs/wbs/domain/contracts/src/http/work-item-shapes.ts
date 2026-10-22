@@ -2,7 +2,7 @@ import { type } from 'arktype';
 
 import { commandKindsType, commandParserRefusal } from './command-parser-refusal';
 import { defineEndpointShape } from './endpoint-shape';
-import { limitCrossed } from './organization-limits-shapes';
+import { claimLimitCrossed, limitCrossed } from './organization-limits-shapes';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planCommandsBody } from './plan-command-shapes';
 import { engineUnavailableRefusal } from './scheduler-shapes';
@@ -253,6 +253,10 @@ const batchRefusals = [
         // agent-person-limit.controller.db.test.ts answered 500 "returned an
         // undeclared refusal"; watched 2026-10-22.
         type({ ...context, error: "'agent_person_limit'", ...limitCrossed }),
+        // Proof: with this arm removed, `refuses the forty-first bound claim`
+        // and four more cases of claim-limit.controller.db.test.ts answered 500
+        // "returned an undeclared refusal" (7 pass, 5 fail); watched 2026-10-22.
+        type({ ...context, error: "'claim_limit'", ...claimLimitCrossed }),
       ),
     ),
   },

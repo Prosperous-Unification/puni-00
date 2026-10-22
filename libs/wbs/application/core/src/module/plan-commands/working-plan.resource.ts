@@ -485,6 +485,15 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       assertOpen();
       return retainedDirectory;
     },
+    // A claim reads its organization's cap in this same transaction
+    // (`wbs-organization-limits` L10); the gauge keeps no rows to retain.
+    // Proof: with this getter left out, every activated claim of
+    // claim-limit.controller.db.test.ts threw "a bound claim was added under
+    // scoped access without organization limits" (1 pass, 11 fail); watched 2026-10-22.
+    get organizationLimits() {
+      assertOpen();
+      return scope.stores.organizationLimits;
+    },
     get capacity() {
       assertOpen();
       return scope.stores.capacity;

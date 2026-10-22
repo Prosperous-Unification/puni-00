@@ -172,6 +172,9 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       progress: stores.progress,
       blockages: stores.blockages,
       claims: stores.claims,
+      ...(stores.organizationLimits === undefined
+        ? {}
+        : { organizationLimits: stores.organizationLimits }),
       demands: stores.demands,
       resourceCapacity: stores.resourceCapacity,
       attempts: stores.attempts,
