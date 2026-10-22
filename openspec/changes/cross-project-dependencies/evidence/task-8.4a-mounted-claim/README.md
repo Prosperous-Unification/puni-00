@@ -14,6 +14,13 @@ writer turn before delivery. Finally it observes HTTP 200 and the target's
 durable `tree_replaced` event. A different project subscription is delivered
 normally; it cannot satisfy the held target push.
 
+After [independent combined review](../task-8.4a-combined-admission-review.md),
+the permanent witness also compares the target event sequence with its
+pre-command sequence, requires the held push envelope to match that exact
+durable event, and checks the event's target row. This stronger witness passes
+**1/1, 14 assertions** in [strengthened-green.log](strengthened-green.log),
+with backend spec TypeScript and named-file ESLint clean.
+
 `bun test apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts`
 passed **9/9, 69 assertions** on the combined source before the final witness
 lint correction. The restored targeted witness then passed **1/1, 11

@@ -455,6 +455,7 @@ test.each(['person mismatch', 'foreign capacity'] as const)(
 // committed claim, statement, journal and announcement observed together.
 test('nonassigning remote governed claim commits before durable announcement delivery', async () => {
   let waiting = false;
+  let pushedTargetEnvelope: unknown;
   const arrived = Promise.withResolvers<boolean>();
   const delivery = Promise.withResolvers<Response>();
   const fixture = await open({
@@ -468,6 +469,7 @@ test('nonassigning remote governed claim commits before durable announcement del
           'subscription' in event &&
           event.subscription === `project:${fixture.target.projectId}`
         ) {
+          pushedTargetEnvelope = event;
           arrived.resolve(true);
           return delivery.promise;
         }
@@ -493,6 +495,12 @@ test('nonassigning remote governed claim commits before durable announcement del
     .query<{ n: number }, [string]>('SELECT count(*) AS n FROM command_journal WHERE project_id=?')
     .get(target.projectId);
   if (before === null) throw new Error('missing journal count');
+  const prior = harness.sqlite
+    .query<{ seq: number }, [string]>(
+      'SELECT seq FROM event_log WHERE subscription=? ORDER BY seq DESC LIMIT 1',
+    )
+    .get(`project:${target.projectId}`);
+  if (prior === null) throw new Error('fixture has no prior target event');
   waiting = true;
   const pending = harness.call('ada', 'POST', `/api/projects/${target.projectId}/commands`, {
     commands: [
@@ -515,6 +523,23 @@ test('nonassigning remote governed claim commits before durable announcement del
         }, 1500);
       }),
     ]);
+    const durable = harness.sqlite
+      .query<{ seq: number; message: string }, [string]>(
+        'SELECT seq,message FROM event_log WHERE subscription=? ORDER BY seq DESC LIMIT 1',
+      )
+      .get(`project:${target.projectId}`);
+    if (durable === null) throw new Error('missing target event while delivery held');
+    const durableMessage: unknown = JSON.parse(durable.message);
+    expect(durable.seq).toBeGreaterThan(prior.seq);
+    expect(pushedTargetEnvelope).toMatchObject({
+      subscription: `project:${target.projectId}`,
+      seq: durable.seq,
+      message: durableMessage,
+    });
+    expect(durableMessage).toMatchObject({
+      type: 'tree_replaced',
+      workItems: [{ id: target.workItemId }],
+    });
     expect(
       harness.sqlite
         .query('SELECT person_id,step_id,run_id FROM claim WHERE work_item_id=?')

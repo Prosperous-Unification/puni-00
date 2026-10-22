@@ -934,7 +934,12 @@ predecessor in a real Gantt consumer. On the combined checkout, mounted tree,
 captured SQLite and pure projector suites passed 72/72 (205 assertions), and
 frontend/core/SQLite/backend TypeScript builds exited 0. The
 [mounted claim publication witness](evidence/task-8.4a-mounted-claim/README.md)
-passed after its previously observed post-commit 500; a fresh throw injected
+passed after its previously observed post-commit 500; an
+[independent combined review](evidence/task-8.4a-combined-admission-review.md)
+approved this bounded integration and identified a freshness assertion added to
+the permanent witness. The strengthened target event/sequence/envelope witness
+passes 1/1 (14 assertions), backend spec TypeScript and named-file ESLint pass.
+A fresh throw injected
 at connected tree publication made the witness fail 0/1, then restoration
 passed 1/1. It verifies target durable announcement, HTTP 200 and writer
 release together. Task 8.4 remains open for unavailable DTOs, retained and
