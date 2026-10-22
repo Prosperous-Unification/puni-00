@@ -6791,6 +6791,8 @@ export class WorkItemService {
         // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
         // Proof: bypassing this consumer failed `connected typed-update refuses`
         // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+        // Proof: suppressing this consumer changed both synthetic mounted compound remote-cycle
+        // undo/redo details to the final cycle fallback; A/B revisions stayed unchanged (2026-10-23).
         const cycle = await context.graph.findCycle(projectId, {
           typed: [...existing.filter((row) => row.id !== proposed.id), proposed],
         });
@@ -7401,6 +7403,9 @@ export class WorkItemService {
         // 2026-09-27.
         // Proof: bypassing it with an SS relationship present made the same mounted
         // undo test receive 200 instead of 409; watched 2026-09-28.
+        // Proof: with typedRefusal suppressed, also suppressing this consumer made both
+        // synthetic mounted compound remote-cycle walks commit HTTP 200, patch B and
+        // restore A→B; domain, revision, event and journal rows changed (2026-10-23).
         const cycle = await this.findDependencyCycle(projectId, actorId);
         if (cycle !== null) {
           await this.opts.journal.discard(entry.id);

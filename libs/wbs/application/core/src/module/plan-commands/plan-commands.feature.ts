@@ -672,6 +672,8 @@ export class PlanCommandRunner {
             if (collected.result.ok) return { commit: true, value: collected };
             const entryId = collected.result.entryId;
             return {
+              // Proof: commit:true left B notes/revision changed despite HTTP 409 in both
+              // synthetic mounted compound remote-cycle replay tests (2026-10-23).
               commit: false,
               value: { ...collected, dirty: false },
               // The discard the refusal owes, in the one window it can be made: the
@@ -687,6 +689,8 @@ export class PlanCommandRunner {
                       // memory composition throw `no journal entry id-5` instead
                       // of consuming the committed stale entry (compose.test.ts).
                       // The repair writes no project, so it is granted nothing.
+                      // Proof: skipping this repair retained exactly the selected stale row in both
+                      // synthetic mounted compound remote-cycle journal snapshots (2026-10-23).
                       await repair.discardEntry(entryId);
                     },
             };

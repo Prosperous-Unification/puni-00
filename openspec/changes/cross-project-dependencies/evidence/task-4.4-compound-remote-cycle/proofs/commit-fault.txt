@@ -1,0 +1,55 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+851 |       }
+852 |       expect({ status: response.status, body }).toEqual({
+853 |         status: 409,
+854 |         body: { error: 'stale_undo', detail: 'that relationship would now be refused: cycle.' },
+855 |       });
+856 |       expect(harness.sqlite.query('SELECT notes,revision,updated_at FROM work_item WHERE id=?').get(b.workItemId)).toEqual(beforePatch);
+                                                                                                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "notes": "Compound replay patch",
+-   "revision": 4,
+-   "updated_at": 1792703845343,
++   "notes": "",
++   "revision": 5,
++   "updated_at": 1792703845431,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-compound-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:856:116)
+(fail) synthetic mounted compound undo refuses a remote-only cycle atomically and prunes exactly its selected journal [998.63ms]
+851 |       }
+852 |       expect({ status: response.status, body }).toEqual({
+853 |         status: 409,
+854 |         body: { error: 'stale_undo', detail: 'that relationship would now be refused: cycle.' },
+855 |       });
+856 |       expect(harness.sqlite.query('SELECT notes,revision,updated_at FROM work_item WHERE id=?').get(b.workItemId)).toEqual(beforePatch);
+                                                                                                                         ^
+error: expect(received).toEqual(expected)
+
+  {
+-   "notes": "",
+-   "revision": 5,
+-   "updated_at": 1792703846059,
++   "notes": "Compound replay patch",
++   "revision": 6,
++   "updated_at": 1792703846153,
+  }
+
+- Expected  - 3
++ Received  + 3
+
+      at <anonymous> (/tmp/puni-compound-replay/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:856:116)
+(fail) synthetic mounted compound redo refuses a remote-only cycle atomically and prunes exactly its selected journal [716.79ms]
+
+ 0 pass
+ 28 filtered out
+ 2 fail
+ 48 expect() calls
+Ran 2 tests across 1 file. [5.79s]

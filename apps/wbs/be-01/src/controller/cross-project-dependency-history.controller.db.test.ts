@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type { StoredTypedDependency } from '@wbs/core';
-import { readPreconditions } from '@wbs/core/service/compensating';
+import { readCommand, readPayload, readPreconditions } from '@wbs/core/service/compensating';
 import { formatStepNodeId } from '@wbs/domain';
 import { afterEach, expect, test } from 'bun:test';
 import { decodeJwt } from 'jose';
@@ -757,3 +757,173 @@ test('synthetic mounted undo refuses a legally destroyed predecessor before rest
   expect(readTables()).toEqual(before);
   expect(pushes).toEqual(beforePushes);
 });
+
+for (const direction of ['undo', 'redo'] as const)
+  for (const closesCycle of [false, true])
+    test(`synthetic mounted compound ${direction} ${closesCycle ? 'refuses a remote-only cycle atomically and prunes exactly its selected journal' : 'restores the exact relationship and flips its selected journal'}`, async () => {
+      const pushes: string[] = [];
+      const fixture = await openFixture({ syntheticExternalCommands: true, pushes });
+      const a = fixture.predecessor;
+      const b = fixture.owner;
+      const route = `/api/projects/${b.projectId}`;
+      const remoteRoute = `/api/projects/${a.projectId}`;
+      const createPeer = async (projectId: string, name: string) => {
+        expect(
+          (
+            await fixture.request(`/api/projects/${projectId}/commands`, {
+              commands: [{ kind: 'createWorkItem', name }],
+            })
+          ).status,
+        ).toBe(200);
+        const row = harness.sqlite
+          .query<{ id: string }, [string, string]>(
+            'SELECT id FROM work_item WHERE project_id=? AND name=?',
+          )
+          .get(projectId, name);
+        if (row === null) throw new Error('fixture bridge missing');
+        return { projectId, workItemId: row.id };
+      };
+      const x = await createPeer(b.projectId, 'Cycle bridge X');
+      const y = await createPeer(a.projectId, 'Cycle bridge Y');
+      const readNode = (address: typeof a) => {
+        const step = harness.sqlite
+          .query<{ id: string }, [string]>("SELECT id FROM step WHERE project_id=? AND name='Dev'")
+          .get(address.projectId);
+        if (step === null) throw new Error('fixture Dev step missing');
+        return { ...address, scope: 'node' as const, stepId: step.id };
+      };
+      const createAddCommand = (predecessor: typeof a, successor: typeof a) => ({
+        kind: 'addTypedDependency',
+        predecessor: readNode(predecessor),
+        successor: readNode(successor),
+        type: 'FS',
+      });
+      expect(
+        (await fixture.request(`${route}/commands`, { commands: [createAddCommand(b, x)] })).status,
+      ).toBe(200);
+      expect(
+        (await fixture.request(`${remoteRoute}/commands`, { commands: [createAddCommand(y, a)] }))
+          .status,
+      ).toBe(200);
+      const patch = {
+        kind: 'patchWorkItem',
+        workItemId: b.workItemId,
+        patch: { notes: 'Compound replay patch' },
+      };
+      if (direction === 'undo')
+        expect(
+          (await fixture.request(`${route}/commands`, { commands: [createAddCommand(a, b)] }))
+            .status,
+        ).toBe(200);
+      const readRelationship = () =>
+        harness.sqlite
+          .query(
+            'SELECT id,type,predecessor_project_id,predecessor_work_item_id,predecessor_scope,predecessor_step_id,successor_project_id,successor_work_item_id,successor_scope,successor_step_id FROM external_dependency WHERE successor_project_id=?',
+          )
+          .get(b.projectId);
+      const createRemoveCommand = () => {
+        const row = harness.sqlite
+          .query<{ id: string }, [string]>(
+            'SELECT id FROM external_dependency WHERE successor_project_id=?',
+          )
+          .get(b.projectId);
+        if (row === null) throw new Error('fixture relationship missing');
+        return { kind: 'removeTypedDependency', dependencyId: row.id };
+      };
+      const original = direction === 'undo' ? readRelationship() : null;
+      expect(
+        (
+          await fixture.request(`${route}/commands`, {
+            commands:
+              direction === 'undo'
+                ? [createRemoveCommand(), patch]
+                : [patch, createAddCommand(a, b)],
+          })
+        ).status,
+      ).toBe(200);
+      const relationship = direction === 'undo' ? original : readRelationship();
+      expect(relationship).toMatchObject({
+        id: expect.any(String) as unknown,
+        type: 'FS',
+        predecessor_project_id: a.projectId,
+        predecessor_work_item_id: a.workItemId,
+        predecessor_scope: 'node',
+        predecessor_step_id: readNode(a).stepId,
+        successor_project_id: b.projectId,
+        successor_work_item_id: b.workItemId,
+        successor_scope: 'node',
+        successor_step_id: readNode(b).stepId,
+      });
+      if (direction === 'redo') expect((await fixture.request(`${route}/undo`)).status).toBe(200);
+      expect(readRelationship()).toBeNull();
+      const selected = harness.sqlite
+        .query<{ id: string; undone: number; inverse: string; payload: string }, [string]>(
+          'SELECT id,undone,inverse,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+        )
+        .get(b.projectId);
+      if (selected === null) throw new Error('fixture selected journal missing');
+      expect(selected.undone).toBe(direction === 'redo' ? 1 : 0);
+      const replay =
+        direction === 'undo'
+          ? readCommand(JSON.parse(selected.inverse) as unknown)
+          : readPayload(JSON.parse(selected.payload) as unknown).forward;
+      expect(replay.do).toBe('batch');
+      if (replay.do !== 'batch') throw new Error('fixture compound replay missing');
+      expect(replay.steps.map((command) => command.do)).toEqual(['patch', 'add_typed_dependency']);
+      const readGuardedRevisions = () =>
+        harness.sqlite
+          .query('SELECT id,revision FROM work_item WHERE id IN (?,?) ORDER BY id')
+          .all(a.workItemId, b.workItemId);
+      const revisions = readGuardedRevisions();
+      if (closesCycle)
+        expect(
+          (await fixture.request(`${remoteRoute}/commands`, { commands: [createAddCommand(x, y)] }))
+            .status,
+        ).toBe(200);
+      expect(readGuardedRevisions()).toEqual(revisions);
+      const before = readTables();
+      const beforePatch = harness.sqlite
+        .query('SELECT notes,revision,updated_at FROM work_item WHERE id=?')
+        .get(b.workItemId);
+      const beforePushes = [...pushes];
+      const response = await fixture.request(`${route}/${direction}`);
+      const body: unknown = await response.json();
+      if (!closesCycle) {
+        expect({ status: response.status, body }).toMatchObject({ status: 200 });
+        expect(readRelationship()).toEqual(relationship);
+        expect(
+          harness.sqlite.query('SELECT notes FROM work_item WHERE id=?').get(b.workItemId),
+        ).toEqual({
+          notes: direction === 'undo' ? '' : 'Compound replay patch',
+        });
+        expect(
+          harness.sqlite.query('SELECT undone FROM command_journal WHERE id=?').get(selected.id),
+        ).toEqual({ undone: direction === 'undo' ? 1 : 0 });
+        return;
+      }
+      expect({ status: response.status, body }).toEqual({
+        status: 409,
+        body: { error: 'stale_undo', detail: 'that relationship would now be refused: cycle.' },
+      });
+      expect(
+        harness.sqlite
+          .query('SELECT notes,revision,updated_at FROM work_item WHERE id=?')
+          .get(b.workItemId),
+      ).toEqual(beforePatch);
+      expect(readTables().filter(({ name }) => name !== 'command_journal')).toEqual(
+        before.filter(({ name }) => name !== 'command_journal'),
+      );
+      expect(pushes).toEqual(beforePushes);
+      expect(readTables()).toEqual(
+        before.map((table) =>
+          table.name !== 'command_journal'
+            ? table
+            : {
+                ...table,
+                rows: table.rows.filter(
+                  (row) => (JSON.parse(row) as { id: string }).id !== selected.id,
+                ),
+              },
+        ),
+      );
+    });
