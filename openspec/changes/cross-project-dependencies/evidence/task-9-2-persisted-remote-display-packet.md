@@ -134,3 +134,39 @@ The full eight-file regression and repository/host gates were not rerun for this
 correction; earlier evidence remains historical to its stated snapshot. Task 9.2,
 production activation, persisted scope editing and terminal certificate/Retry
 remain open as stated above.
+
+## Captured node step-name correction — 2026-10-22
+
+Rereview of `3997703370cb2b7f937441bcc444c6d69b0ff7e9` found that the
+non-null node-reference path still hid its captured step name. The live-plan
+snapshot contract requires the projected qualified step reference plus work-item
+and step names. Endpoint presentation now appends the captured step name after
+the selected captured address regardless of whether that address is null.
+Qualified addresses and stable project/work-item/step-node navigation remain
+unchanged. The prior descendant-selector and keyboard corrections stay intact.
+
+Two tracked desktop/phone mounted cases first failed on the prior packet, then
+passed with the correction. They independently inspect the chip/phone accessible
+label, work-item name, details text, and the exact stable node-navigation href.
+The [initial red output](persisted-remote-display/node-step-name/initial-red.log.txt)
+records both failures. The command below now passes **40/40** tests: 23 packet
+mounted cases plus the 17 existing editor cases.
+
+```sh
+# From apps/wbs/fe-01
+TZ=UTC bunx vitest run src/components/wbs/persisted-remote-dependencies.test.tsx src/components/wbs/typed-dependency-editor.test.tsx --maxWorkers=1 --no-file-parallelism --testTimeout=30000 --hookTimeout=30000
+```
+
+[Restored output](persisted-remote-display/node-step-name/restored.log.txt).
+A separate proof-clone mutation returned a non-null qualified reference before
+appending the captured name. Both new mounted cases failed on their accessible
+step-name assertion; the source was restored in `finally`.
+[Exact fault and observed output](persisted-remote-display/node-step-name/address-only-fault.log.txt).
+The adjacent `Proof:` comment names this observed negative.
+
+Frontend TypeScript, scoped ESLint of the two changed frontend files, scoped
+Prettier and correction whitespace checks pass; see the
+[check receipt](persisted-remote-display/node-step-name/checks.log.txt).
+The existing Vite native-config warning remains the only restored-suite warning.
+No full frontend/browser or repository/host gates were rerun for this bounded
+correction. Task 9.2 and the previously recorded remaining work stay open.

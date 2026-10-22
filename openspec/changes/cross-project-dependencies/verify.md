@@ -1038,3 +1038,9 @@ and restore captured-details entry focus, Escape/ArrowLeft dismissal and picker
 focus return. Eight added red cases, 38 restored packet/editor checks and four
 independent watched mutations cover desktop and phone. The packet's correction
 section records exact commands and excluded gates; task 9.2 remains unchecked.
+
+The packet's captured-node-name rereview correction also retains the projected
+step name beside a non-null qualified node address. Two mounted red cases,
+40 restored packet/editor tests and an independent watched address-only mutation
+cover desktop/phone labels, details and stable navigation. Scoped check receipts
+and unchanged task 9.2 completion boundaries remain in the same packet.

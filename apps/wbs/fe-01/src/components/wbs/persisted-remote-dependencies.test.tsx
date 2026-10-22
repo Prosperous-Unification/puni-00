@@ -297,3 +297,25 @@ for (const phone of [false, true]) {
       await waitFor(() => expect(screen.getByLabelText('Add a dependency to 010')).toHaveFocus());
     });
 }
+
+for (const phone of [false, true])
+  it(`keeps captured node step name beside non-null address on ${phone ? 'phone' : 'desktop'}`, async () => {
+    await mount(phone);
+    const edit = screen.getByRole('button', {
+      name: phone ? /^Edit REMOTE/ : /^Edit dependency: REMOTE/,
+    });
+    expect(edit).toHaveAccessibleName(/REMOTE\.080\.s2-dev.*Remote development/);
+    expect(edit).toHaveAccessibleName(/Captured remote build/);
+    if (!phone) expect(edit).toHaveTextContent(/REMOTE\.080\.s2-dev.*Remote development/);
+    fireEvent.click(edit);
+    const details = screen.getByRole('dialog', { name: 'Captured dependency' });
+    expect(details).toHaveTextContent(
+      /REMOTE\.080\.s2-dev.*Remote development.*Captured remote build/,
+    );
+    expect(
+      within(details).getByRole('link', { name: /Open REMOTE\.080\.s2-dev.*Remote development/ }),
+    ).toHaveAttribute(
+      'href',
+      '/?project=remote-stable&workItem=remote-row&stepNode=sn1.remote-row.remote-dev',
+    );
+  });

@@ -70,10 +70,8 @@ export function endpointText(
     // Proof: bypassing this branch failed `preserves non-null captured descendant selector` on desktop and phone (2026-10-22).
     if (endpoint.scope === 'descendant-step')
       return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`} · all descendant work items`;
-    return (
-      captured.qualifiedReference ??
-      `${captured.projectAbbreviation}.${captured.workItemNumber}${captured.step === null ? '' : ` · ${captured.step.name} step`}`
-    );
+    // Proof: returning only a non-null reference failed `keeps captured node step name beside non-null address` on desktop and phone (2026-10-22).
+    return `${captured.qualifiedReference ?? `${captured.projectAbbreviation}.${captured.workItemNumber}`}${captured.step === null ? '' : ` · ${captured.step.name} step`}`;
   }
   const row = rowOf(rows, endpoint.workItemId);
   if (endpoint.scope === 'whole') return row.number;
