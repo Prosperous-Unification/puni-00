@@ -294,3 +294,64 @@ test('exclusive lifecycle lock exhausts contention instead of misclassifying cor
     fixture.close();
   }
 });
+
+for (const request of ['renewal', 'manifest', 'run', 'admission'] as const) {
+  test(`queued ${request} keeps submitted objects through real writer contention`, async () => {
+    const fixture = await durableFixture();
+    const database = new Database(fixture.options.path);
+    try {
+      const ownership = { ...fixture.guard.ownership };
+      const manifest = createManifest({ credentialReferences: ['submitted'] });
+      const run = createRun({ runId: fixture.guard.runId, maxAttempts: 3 });
+      const admission = structuredClone(fixture.admission);
+      const guard = { ...fixture.guard, ownership };
+      database.run('BEGIN IMMEDIATE');
+      let blockerFinished = false;
+      const blocker = fixture.stores.runs.renewOwnership(fixture.guard.ownership).then((reply) => {
+        blockerFinished = true;
+        return reply;
+      });
+      const pending =
+        request === 'renewal'
+          ? fixture.stores.runs.renewOwnership(ownership)
+          : request === 'manifest'
+            ? fixture.stores.runs.retainManifest(ownership, manifest)
+            : request === 'run'
+              ? fixture.stores.runs.createRun(ownership, run)
+              : fixture.stores.runs.admitAttempt(guard, admission);
+      await Bun.sleep(4);
+      expect(database.inTransaction).toBe(true);
+      expect(blockerFinished).toBe(false);
+      ownership.ownerId = ownerId('mutated');
+      Object.assign(manifest, createManifest({ credentialReferences: ['mutated'] }));
+      Object.assign(run, { maxAttempts: 9 });
+      Object.assign(admission.identity, { occurrenceId: 'mutated' });
+      fixture.options.clock.advance(10);
+      database.run('COMMIT');
+      expect((await blocker).kind).toBe('applied');
+      const reply = await pending;
+      expect(reply.kind).toBe(request === 'run' ? 'duplicate' : 'applied');
+      if (request === 'renewal')
+        expect(reply).toMatchObject({
+          kind: 'applied',
+          value: { ownerId: 'owner', expiresAt: 1110 },
+        });
+      if (request === 'manifest')
+        expect(
+          (
+            await fixture.stores.runs.readManifest(
+              createManifest({ credentialReferences: ['submitted'] }).digest,
+            )
+          ).credentialReferences,
+        ).toEqual(['submitted']);
+      const snapshot = await fixture.stores.runs.readRun(fixture.guard.runId);
+      expect(snapshot.run.maxAttempts).toBe(3);
+      if (request === 'admission')
+        expect(String(snapshot.attempts[0]?.identity.occurrenceId)).toBe('occurrence');
+    } finally {
+      if (database.inTransaction) database.run('ROLLBACK');
+      database.close();
+      fixture.close();
+    }
+  });
+}

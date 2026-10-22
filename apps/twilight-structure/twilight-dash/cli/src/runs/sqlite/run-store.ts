@@ -40,7 +40,7 @@ import {
 } from './read-signals';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
-import { readMeta } from './schema';
+import { readCapacity, readMeta } from './schema';
 
 export interface TransactionOptions {
   readonly clock: WallClock;
@@ -81,7 +81,7 @@ function rollback(database: Database, cause: unknown): void {
     });
   }
 }
-/** Independent row-level SQLite adapter. Writes plan against a locked view; reads share one snapshot. Close is idempotent and fences both ports, including queued operations. */
+/** Independent row-level SQLite adapter. Object requests are cloned before queueing; authority and clock observations stay inside the lock. Writes plan against a locked view; reads share one snapshot. Close is idempotent and fences both ports, including queued operations. */
 export function createSqliteRunStore(
   database: Database,
   options: TransactionOptions,
@@ -186,15 +186,6 @@ export function createSqliteRunStore(
     validateAttempt(database, run, attempt);
     return attempt;
   }
-  function readCapacity(limit: number) {
-    const row = database
-      .query<{ count: number }, []>('SELECT count(*) AS count FROM run_reservation')
-      .get();
-    // Proof: bypassing the persisted limit check returned two reservations under limit one in reads.
-    if (row === null || !Number.isSafeInteger(row.count) || row.count < 0 || row.count > limit)
-      throw new Error('corrupt sqlite capacity reservations');
-    return { limit, reserved: row.count };
-  }
   function applyChange(run: Run, change: AttemptChange): void {
     database
       .query('UPDATE run_attempt SET record=? WHERE attempt_id=?')
@@ -229,8 +220,10 @@ export function createSqliteRunStore(
         );
       });
     },
-    renewOwnership(input) {
-      return transact(true, () => {
+    async renewOwnership(inputOwner) {
+      // Proof: removing this clone failed `submitted renewal snapshots before the first await` at its reply assertion.
+      const input = structuredClone(inputOwner);
+      return await transact(true, () => {
         const requested = decodeOwnership(input);
         const { meta, authority } = readAuthority(requested);
         const reply =
@@ -246,8 +239,12 @@ export function createSqliteRunStore(
         return publishOwnership(reply, meta.ownership, authority.observedAt);
       });
     },
-    retainManifest(input, manifest) {
-      return transact(true, () => {
+    async retainManifest(inputOwner, inputManifest) {
+      // Proof: removing this clone failed `submitted manifest owner snapshots before the first await` at its reply assertion.
+      const input = structuredClone(inputOwner);
+      // Proof: removing this clone failed `submitted manifest payload snapshots before the first await` at its reply assertion.
+      const manifest = structuredClone(inputManifest);
+      return await transact(true, () => {
         const { authority } = readAuthority(decodeOwnership(input));
         // Proof: independently removing this early fence made stale manifest/run requests decode corrupt targets instead of returning owner_stale.
         if (!permitsMutation(authority))
@@ -263,8 +260,12 @@ export function createSqliteRunStore(
     readManifest(digest) {
       return transact(false, () => requireManifest(manifestDigest(digest)));
     },
-    createRun(input, candidate) {
-      return transact(true, () => {
+    async createRun(inputOwner, inputRun) {
+      // Proof: removing this clone failed `submitted run owner snapshots before the first await` at its reply assertion.
+      const input = structuredClone(inputOwner);
+      // Proof: removing this clone failed `submitted run payload snapshots before the first await` at its reply assertion.
+      const candidate = structuredClone(inputRun);
+      return await transact(true, () => {
         const { authority } = readAuthority(decodeOwnership(input));
         const run = decodeRun(candidate);
         // Proof: independently removing this early fence made stale manifest/run requests decode corrupt targets instead of returning owner_stale.
@@ -327,7 +328,8 @@ export function createSqliteRunStore(
             )
             .all(run.runId)
             .map((row) => decodeConsumptionRow(row).decisionId),
-          capacity: readCapacity(readMeta(database).capacity),
+          // Proof: bypassing this route failed `read rejects global` for missing, orphan and settled reservations before restoration.
+          capacity: readCapacity(database, readMeta(database).capacity),
         };
       });
     },
@@ -368,6 +370,8 @@ export function createSqliteRunStore(
         // Proof: injecting sqlite consumeDecision owner bypass failed `stale consume owner refuses before corrupt target and duplicate reads` at its explicit assertion.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: bypassing this route failed `consumption rejects global` for missing, orphan and settled reservations before restoration.
+        const capacity = readCapacity(database, meta.capacity);
         const previous = findConsumption(database, identity);
         if (previous !== undefined) requireAttempt(previous.reply.attemptId);
         const replay = replayConsumption(previous, guard);
@@ -377,12 +381,7 @@ export function createSqliteRunStore(
         if (decision === undefined) throw new Error('decision does not exist');
         const { run } = requireRun(guard.runId);
         const attempt = requireAttempt(guard.attemptId);
-        const reply = planConsumption(
-          { run, attempt },
-          guard,
-          decision,
-          readCapacity(meta.capacity),
-        );
+        const reply = planConsumption({ run, attempt }, guard, decision, capacity);
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         applyChange(run, reply.value);
         database
@@ -406,10 +405,12 @@ export function createSqliteRunStore(
       // Proof: injecting sqlite receipt payload snapshot bypass failed `trusted sqlite receipt snapshots request before its transaction wait` at its explicit assertion.
       const receipt = decodeReceipt(structuredClone(inputReceipt));
       return await transact(true, () => {
-        const { authority } = readAuthority(guard.ownership);
+        const { meta, authority } = readAuthority(guard.ownership);
         // Proof: injecting sqlite reconcileReceipt owner bypass failed `stale receipt owner refuses before corrupt target and duplicate reads` at its explicit assertion.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: bypassing this route failed `receipt rejects global` for missing, orphan and settled reservations before restoration.
+        readCapacity(database, meta.capacity);
         const previous = findReceipt(database, receipt.commandId);
         if (previous !== undefined) requireAttempt(previous.reply.attemptId);
         const replay = replayReceipt(previous, guard, receipt);
@@ -444,10 +445,12 @@ export function createSqliteRunStore(
       const guard = decodeAttemptGuard(structuredClone(inputGuard));
       const completion = decodeCompletion(structuredClone(inputCompletion));
       return await transact(true, () => {
-        const { authority } = readAuthority(guard.ownership);
+        const { meta, authority } = readAuthority(guard.ownership);
         // Proof: bypassing commitOutcome owner sqlite enforcement failed 'sqlite execution edges > unresolved and recovery preserve the exact running locator and held reservation'.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: bypassing this route failed `outcome rejects global` for missing, orphan and settled reservations before restoration.
+        readCapacity(database, meta.capacity);
         const { run } = requireRun(guard.runId);
         const row = database
           .query('SELECT * FROM run_attempt WHERE attempt_id=?')
@@ -483,10 +486,12 @@ export function createSqliteRunStore(
       const guard = decodeAttemptGuard(structuredClone(inputGuard));
       const command = decodeExecutionCommand(structuredClone(inputCommand));
       return await transact(true, () => {
-        const { authority } = readAuthority(guard.ownership);
+        const { meta, authority } = readAuthority(guard.ownership);
         // Proof: bypassing recordExecution owner sqlite enforcement failed 'sqlite execution commands > execution command identities distinguish reattachment from original redelivery'.
         if (!permitsMutation(authority))
           return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        // Proof: bypassing this route failed `execution rejects global` for missing, orphan and settled reservations before restoration.
+        readCapacity(database, meta.capacity);
         const previous = findExecution(database, command.commandId);
         const replay = replayExecution(previous, guard, command);
         if (replay !== undefined) return finish(replay, authority.observedAt);
@@ -531,8 +536,12 @@ export function createSqliteRunStore(
         return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
-    admitAttempt(inputGuard, inputAdmission) {
-      return transact(true, () => {
+    async admitAttempt(requestedGuard, requestedAdmission) {
+      // Proof: removing this clone failed `submitted admission guard snapshots before the first await` at its reply assertion.
+      const inputGuard = structuredClone(requestedGuard);
+      // Proof: removing this clone failed `submitted admission payload snapshots before the first await` at its reply assertion.
+      const inputAdmission = structuredClone(requestedAdmission);
+      return await transact(true, () => {
         const guard = decodeRunGuard(inputGuard);
         const admission = decodeAdmission(inputAdmission);
         const { meta, authority } = readAuthority(guard.ownership);
@@ -557,7 +566,8 @@ export function createSqliteRunStore(
             ownership: authority.current,
             observedAt: authority.observedAt,
             lastObservedAt: authority.lastObservedAt,
-            capacity: readCapacity(meta.capacity),
+            // Proof: bypassing this route failed `admission rejects global` for missing, orphan and settled reservations before restoration.
+            capacity: readCapacity(database, meta.capacity),
             run,
             manifest: requireManifest(run.manifestDigest),
             attempts: history.map((entry) => entry.attempt),

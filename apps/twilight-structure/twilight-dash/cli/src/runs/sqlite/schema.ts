@@ -122,15 +122,31 @@ export function validateDatabase(database: Database): void {
     // Proof: bypassing open delivery route failed `public read rejects terminal outbox present and reopen rejects corruption` at its missing-rejection assertion.
     validateAttempt(database, run, attempt);
   }
+  // Proof: bypassing this route failed `open rejects valid-shaped corrupt missing reservation`.
+  readCapacity(database, meta.capacity);
+}
+
+/** Reads global capacity only when every held attempt has exactly its reservation and no settled or absent attempt has one. Call inside the caller's read snapshot or write transaction, before changing attempts. Corrupt correspondence is never repaired by a release. */
+export function readCapacity(database: Database, limit: number) {
+  // Proof: independently omitting missing-held, settled-reserved or orphan selection failed all six corresponding `rejects global` public-operation tests.
   const broken = database
     .query(
-      `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') != (r.attempt_id IS NOT NULL)`,
+      `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') IS NOT (r.attempt_id IS NOT NULL)
+       UNION ALL
+       SELECT r.attempt_id FROM run_reservation r LEFT JOIN run_attempt a ON a.attempt_id=r.attempt_id WHERE a.attempt_id IS NULL`,
     )
     .all();
   const reservations = database
     .query<{ count: number }, []>('SELECT count(*) AS count FROM run_reservation')
     .get();
-  // Proof: independently bypassing held-row matching and the capacity ceiling accepted missing reservations and two held slots under limit one on reopen.
-  if (broken.length !== 0 || reservations === null || reservations.count > meta.capacity)
+  // Proof: bypassing correspondence enforcement failed all 18 `rejects global` tests; removing the ceiling failed `reservation counts above persisted capacity throw during reads and reopen`.
+  if (
+    broken.length !== 0 ||
+    reservations === null ||
+    !Number.isSafeInteger(reservations.count) ||
+    reservations.count < 0 ||
+    reservations.count > limit
+  )
     throw new Error('corrupt sqlite capacity reservations');
+  return { limit, reserved: reservations.count };
 }

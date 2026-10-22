@@ -341,6 +341,96 @@ export function runStoreContract(name: string, create: () => Promise<StoreFixtur
       expect((await fixture.runs.readRun(fixture.run.runId)).capacity.reserved).toBe(0);
     });
 
+    for (const request of [
+      'renewal',
+      'manifest owner',
+      'manifest payload',
+      'run owner',
+      'run payload',
+      'admission guard',
+      'admission payload',
+    ] as const) {
+      test(`submitted ${request} snapshots before the first await`, async () => {
+        const fixture = await createFixture();
+        const ownership = { ...fixture.ownership };
+        const manifest = createManifest({ credentialReferences: ['submitted'] });
+        const run = createRun({ runId: runId('submitted') });
+        const admission = structuredClone(fixture.admission);
+        const guard = { ownership, runId: fixture.run.runId, expectedRevision: 0 };
+        if (request === 'renewal') {
+          fixture.clock.advance(10);
+          const pending = fixture.runs.renewOwnership(ownership);
+          ownership.ownerId = ownerId('mutated');
+          const reply = await pending;
+          expect(reply.kind).toBe('applied');
+          expect(unwrapReply(reply)).toMatchObject({ ownerId: 'owner', expiresAt: 1110 });
+        } else if (request.startsWith('manifest')) {
+          const pending = fixture.runs.retainManifest(ownership, manifest);
+          if (request === 'manifest owner') ownership.ownerId = ownerId('mutated');
+          else Object.assign(manifest, createManifest({ credentialReferences: ['mutated'] }));
+          const reply = await pending;
+          expect(reply.kind).toBe('applied');
+          const retained = unwrapReply(reply);
+          expect(retained.credentialReferences).toEqual(['submitted']);
+          expect((await fixture.runs.readManifest(retained.digest)).credentialReferences).toEqual([
+            'submitted',
+          ]);
+        } else if (request.startsWith('run')) {
+          const pending = fixture.runs.createRun(ownership, run);
+          if (request === 'run owner') ownership.ownerId = ownerId('mutated');
+          else Object.assign(run, { runId: 'mutated', maxAttempts: 9 });
+          const reply = await pending;
+          expect(reply.kind).toBe('applied');
+          expect(unwrapReply(reply)).toMatchObject({ runId: 'submitted', maxAttempts: 3 });
+          expect((await fixture.runs.readRun(runId('submitted'))).run.maxAttempts).toBe(3);
+        } else {
+          const pending = fixture.runs.admitAttempt(guard, admission);
+          if (request === 'admission guard') {
+            ownership.ownerId = ownerId('mutated');
+            guard.runId = runId('mutated');
+            guard.expectedRevision = 9;
+          } else {
+            Object.assign(admission.identity, { occurrenceId: 'mutated', operationKey: 'mutated' });
+            Object.assign(admission, { attemptId: 'mutated' });
+          }
+          const reply = await pending;
+          expect(reply.kind).toBe('applied');
+          expect(unwrapReply(reply)).toMatchObject({
+            attemptId: 'attempt',
+            identity: { occurrenceId: 'occurrence', operationKey: 'operation' },
+          });
+          expect((await fixture.runs.readRun(fixture.run.runId)).attempts).toHaveLength(1);
+        }
+      });
+    }
+
+    for (const request of ['renewal', 'manifest', 'run', 'admission'] as const) {
+      test(`submitted stale ${request} cannot gain authority while awaiting`, async () => {
+        const fixture = await createFixture();
+        const before = await fixture.runs.readRun(fixture.run.runId);
+        const ownership = { ...fixture.ownership, ownerId: ownerId('stale') };
+        const manifest = createManifest({ credentialReferences: ['unpublished'] });
+        const run = createRun({ runId: runId('unpublished') });
+        const pending =
+          request === 'renewal'
+            ? fixture.runs.renewOwnership(ownership)
+            : request === 'manifest'
+              ? fixture.runs.retainManifest(ownership, manifest)
+              : request === 'run'
+                ? fixture.runs.createRun(ownership, run)
+                : fixture.runs.admitAttempt(
+                    { ownership, runId: fixture.run.runId, expectedRevision: 0 },
+                    fixture.admission,
+                  );
+        ownership.ownerId = fixture.ownership.ownerId;
+        expect(await pending).toEqual({ kind: 'refused', reason: 'owner_stale' });
+        expect(await fixture.runs.readRun(fixture.run.runId)).toEqual(before);
+        if (request === 'manifest')
+          await rejects(fixture.runs.readManifest(manifest.digest), /manifest does not exist/);
+        if (request === 'run') await rejects(fixture.runs.readRun(run.runId), /run does not exist/);
+      });
+    }
+
     test('caller mutation cannot change retained manifests, runs, attempts or returned snapshots', async () => {
       const fixture = await createFixture();
       const manifest = createManifest({ credentialReferences: ['credential-ref'] });

@@ -656,3 +656,68 @@ files passed `git ls-files -z -- '*.sql' | xargs -0 --no-run-if-empty bun run to
 all 11,583 tracked files passed `git ls-files -z | xargs -0 --no-run-if-empty bun run tools/tool-git-hooks/src/hooks/plaintext-secrets.ts`.
 Both used `set -euo pipefail`, exited zero without diagnostics, and their nonempty input
 counts were verified. These checks precede current-main integration and the full host gate.
+
+### Whole-branch review and consolidated fix
+
+Whole-branch review of `69cbf4f7f66cbf944394202cc497ff4294a842dd` found two Important
+issues. A real reservation deletion after open allowed capacity-one cross-run admission
+while the first attempt still held capacity. Four SQLite operations also observed caller
+mutations after invocation: renewal, manifest retention, run creation and admission.
+The reviewer's isolated diagnostics and output are retained at
+`/tmp/storage-final-review-probes.ts` and `/tmp/storage-final-review-probes.log`.
+One initial probe incorrectly used the test preload outside the test runner; that setup
+failure is excluded. Subsequent real-provider probes confirmed both issues. The branch
+was not accepted despite the earlier task approvals.
+
+The consolidated fix centralizes global reservation correspondence for open and live reads,
+admission, decision consumption, execution, outcome and receipt transitions. Missing held,
+reserved settled and orphan reservation rows throw before capacity-dependent changes;
+release does not silently repair damage. Owner refusal still precedes these live checks.
+The four object-taking methods clone complete requests before queueing, while clock,
+owner and revision observations remain inside the lock.
+
+New capacity tests cover all six live routes and all three corruption classes, cross-run
+capacity-one admission and own-target releases. They assert stale-owner refusal, rejection
+without physical row changes, restoration and valid behavior. Shared request tests mutate
+owner and payload aliases immediately after invocation, including complete valid replacement
+manifests and originally stale requests. Four SQLite cases queue behind a real independent
+`BEGIN IMMEDIATE`, mutate while blocked, then assert the original request and post-lock
+clock observation after release.
+
+Authoritative capacity RED: 19 missing-rejection failures after correcting two fixture
+setup mistakes. Real queued-request RED: four explicit reply failures. Initial focused
+GREEN: 75 tests, 289 assertions. Nineteen distinct production removals were then observed
+failing, each followed by its restored passing rerun: six live validation routes, open,
+three correspondence predicates, correspondence enforcement, capacity ceiling and seven
+request snapshots. Exact edits, argv, exits and output are in
+`/tmp/storage-final-fix-proofs/`, `/tmp/storage-final-fix-snapshot-proofs/` and
+`/tmp/storage-final-fix-renewal-proof/`, each with `results.json`, `.diff` and RED/GREEN logs.
+Accounting is 27 mutation trials and 54 focused test invocations, including superseded
+snapshot trials that failed through a helper. Those owner tests were strengthened to
+explicit reply assertions and repeated; renewal required one further correction/repeat.
+The final proof set uses the strongest explicit evidence for each removal. Earlier whole
+mutation sweeps were not rerun or recertified.
+
+The initial broad test command omitted `./`, collected generated tests and exited 1 with
+16 loader errors; its 416 source passes are not a valid aggregate GREEN. Initial typecheck
+found six test-only union/brand diagnostics, corrected without production casts. Initial
+lint exited 1 with an Nx plugin-socket fallback warning but no ESLint diagnostic; its cause
+is unestablished and no success is claimed. The final commands below disabled plugin
+isolation and ran after all changes and restorations settled.
+
+- `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs --timeout=60000`: 416 pass, zero fail, 1,210 assertions, 17 files, 11.05s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`: exit 0, 1.8s.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`: exit 0, 18.2s.
+- Prettier check of the five changed source/test files and `git diff --check`: exit 0.
+
+Final logs: `/tmp/storage-final-fix-final-{tests,typecheck,lint,format,diffcheck}.log`.
+Root inspected those logs, the complete report and production diff. The shared validator
+scans global attempts/reservations; no performance benchmark or optimization claim is made.
+Scoped final re-review and the exact-SHA host gate remain pending. Parent acceptance remains
+unchecked. No migration/schema, live service, coordinator, deployment or second-provider
+behavior was added by this fix.
+
+After integrating current main at `69cbf4f7f`, root repeated the supplementary scans:
+all 194 tracked SQL paths passed migration lint and all 11,590 tracked paths passed the
+plaintext-secrets scan, both exit 0 without diagnostics. These scans precede the fix above;
+its changed files are covered by staged hooks, while full CI/host acceptance remains pending.
