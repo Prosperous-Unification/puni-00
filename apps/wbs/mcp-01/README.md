@@ -150,6 +150,8 @@ keys: `docs/auth-integration.md`, "MCP organization delegation".
 
 ## Durable sessions and key rotation
 
+mcp-01 owns this store because it is the authorization server that creates,
+rotates and revokes the families ([ADR 0030](../../../docs/adr/0030-mcp-01-owns-its-refresh-family-store.md)).
 `MCP_STORE_PATH` names the SQLite store. It holds registered OAuth clients,
 refresh families and sessions, so a restart or deploy keeps every client's
 `client_id`; authorization codes, pending logins and organization choices are
