@@ -501,6 +501,12 @@ the index. W21 measures delivery effect; smaller files alone do not prove speed.
       agents, and 8 where the admitted capacity supports that offering.
 - [ ] Retain every failed/reworked/censored attempt, gate/review queue and operator
       minute; separate task parallelism from accepted integrated changes.
+- [ ] Design the comparison so a gain claim can survive: paired runs on the same work
+      items, repeated seeds, a single-agent control, a reported run-to-run noise floor,
+      and results stated per model–harness configuration with tokens and latency per
+      accepted outcome, as the 2026 coordination and harness studies require
+      ([research note](../../../findings/puni-assessment-2026-10-21/swarm-criteria-research.md)).
+      Record reviewer load, revision requests and revert rate for every arm.
 - [ ] Where justified, fix the measured dominant bottleneck within the package's bounded
       scope and repeat. If no improvement appears, retain the finding and cap supported
       concurrency; propose further optimization separately instead of claiming a speedup.
@@ -533,6 +539,11 @@ I2.10, I3.05 and S7a.06.
 - [ ] Termination and context: cap revisions and token spend per work item against
       `token_estimate`; map `max_steps` to failure; pin a per-class context policy for
       retries in the binding.
+- [ ] Verification and authority by construction: add a held-out acceptance check per
+      work item type that the implementing agent cannot read; run an authorization-drift
+      task set with reserved actions against the delegated agents and record the
+      unauthorized-action rate; trace every agent step, tool call and WBS write with
+      identities and prove attribution with one injected fault on the coordination path.
 - [ ] Dogfood one real work item end to end under these rules and record operator minutes,
       refusals observed and the identity chain of its PR.
 
