@@ -4495,3 +4495,14 @@ private-nesting. Tool-wiki explicitly returned inactive/uncertified because its
 external activation root is not provisioned. Migration hooks and doc-caps skipped
 because no matching files were staged. Prepare-commit-msg and commit-msg hooks
 passed; no hook was bypassed.
+
+### Task 8.3 C3 bounded frontend frozen comparison context (2026-10-22)
+
+The frontend now retains C2's required side summaries through the comparison
+state and renders distinct frozen provenance regions, exact captured stage
+boundaries and exhaustive historical objective/availability states. The browser
+adapter rejects decoded wrong-side/wrong-project evidence. Commands, runtime
+coverage and independently observed post-decode guard mutations are recorded in
+[C3 frontend evidence](evidence/c3-frontend-compare.md). This is the bounded C3
+summary consumer only; connected save/current activation, the remaining immutable
+lifecycle matrix and canonical host gate keep task 8.3 open.

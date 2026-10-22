@@ -55,6 +55,10 @@ export type PlanDiffView = Extract<
   ClientReply<typeof compareSavedPlans>,
   { kind: 'success' }
 >['body']['diff'];
+export type SavedPlanSideSummary = Extract<
+  SavedPlanCompareReply,
+  { kind: 'success' }
+>['body']['left'];
 export type PlanDifferenceView = PlanDiffView['input'][number];
 export type PlanDiffCategoryView = PlanDifferenceView['category'];
 
@@ -155,11 +159,45 @@ export function httpSavedPlanApi(scope?: ResourceScope): SavedPlanApi {
     remove(savedPlanId) {
       return client['deleteApiSaved-plansById']({ params: { id: savedPlanId } });
     },
-    compare(projectId, left, right) {
-      return client['getApiProjectsByIdSaved-plansCompare']({
+    async compare(projectId, left, right) {
+      const reply = await client['getApiProjectsByIdSaved-plansCompare']({
         params: { id: projectId },
         query: { left: sideParam(left), right: sideParam(right) },
       });
+      if (reply.kind !== 'success') return reply;
+      // Proof: bypassing either binding accepted schema-valid swapped sources or
+      // foreign target IDs in saved-plan-history.test.tsx (four negative cases).
+      if (
+        !matchesSide(reply.body.left, left, projectId) ||
+        !matchesSide(reply.body.right, right, projectId)
+      ) {
+        return {
+          kind: 'failure',
+          failure: {
+            code: 'invalid_response',
+            reason: 'schema',
+            status: reply.status,
+            headers: reply.headers,
+          },
+        };
+      }
+      return reply;
     },
   };
+}
+
+/** Binds decoded historical evidence to the question; shape validation cannot establish identity. */
+function matchesSide(
+  summary: SavedPlanSideSummary,
+  side: SavedPlanSideRef,
+  projectId: string,
+): boolean {
+  const sourceMatches =
+    side === 'current'
+      ? summary.source.kind === 'current'
+      : summary.source.kind === 'saved' && summary.source.savedPlanId === side.saved;
+  return (
+    sourceMatches &&
+    (summary.provenance.kind !== 'connected' || summary.provenance.targetProjectId === projectId)
+  );
 }

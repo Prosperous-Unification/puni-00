@@ -126,3 +126,17 @@ Every successful comparison SHALL return required `left` and `right` summaries a
 - **GIVEN** both requested sides are current
 - **WHEN** comparison resolves the live plan
 - **THEN** one capture supplies both identical current summaries and the empty diff
+
+#### Scenario: Frontend comparison preserves frozen context
+
+- **GIVEN** an authorized comparison response has complete frozen side summaries and an empty diff
+- **WHEN** the saved-plan panel displays it while shelf schedule metadata disagrees
+- **THEN** each distinct side region displays its summary's schedule availability and captured provenance
+- **AND** connected disclosures preserve captured project labels, idle members, stage observations, objective outcomes, exact boundary bytes, origin ordinal and foreign interval offsets
+- **AND** pending and retrying outcomes describe the capture without live retry or external lookup
+
+#### Scenario: Comparison evidence must match the requested sides
+
+- **GIVEN** a shape-valid comparison response names a source different from its requested side or a connected target different from the requested project
+- **WHEN** the browser adapter binds the decoded response to its request
+- **THEN** it reports an invalid response instead of displaying the mismatched evidence
