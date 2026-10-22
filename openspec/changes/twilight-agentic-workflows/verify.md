@@ -817,5 +817,8 @@ explicitly disabled that constraint before testing the actual trusted-role reade
 Exact commands, failed setup attempts, per-fault patches/logs, restorations and limits are in
 `.superpowers/sdd/receiver-tasks/task-1-report.md` and `task-1-evidence/` in the receiver
 worktree. The fault logs retain their original pre-relocation test path; final-location
-regressions passed without rerunning the historical fault matrix. Task review and parent
-acceptance remain pending.
+regressions passed without rerunning the historical fault matrix. Independent Task1 review
+approved spec compliance and quality at `23ae1d8093bcc96a9f3e40fc7255283ddbc2ca82`,
+with no Critical or Important findings. The color-environment warning and historical Nx
+notice are deferred tooling minors. Review inspected F01/F16 directly without rerunning
+the matrix. Parent integration and exact-SHA receiver gate remain pending.
