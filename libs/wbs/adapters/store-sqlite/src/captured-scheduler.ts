@@ -9,7 +9,7 @@ import { connectedCapturedOptimizationReaderOf } from './connected-captured-opti
 import type { Drizzle } from './db';
 import type { ReadSnapshotLifetime } from './read-snapshot-lifetime';
 
-/** Installed private connected reader configuration; production composition does not supply it yet. */
+/** Installed connected reader configuration, supplied only when the optimizer runtime exists. */
 export interface ConnectedCaptureOptions {
   readonly solverVersion: string;
   readonly budgetMs: number;
@@ -19,8 +19,8 @@ export interface ConnectedCaptureOptions {
 /**
  * Borrow one observation for scheduling and exact connected cache questions.
  * The caller owns transaction settlement and capability expiry. Connected reads
- * require an explicit private opt-in; production callers omit it until runtime
- * admission, terminal events, Retry and restart support are integrated.
+ * require explicit runtime configuration; absence preserves the unavailable state.
+ * This reader never admits solver work.
  * @internal
  */
 export function capturedSchedulerIn(

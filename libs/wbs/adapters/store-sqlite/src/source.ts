@@ -5,6 +5,7 @@ import type { Logger } from 'drizzle-orm';
 
 import { buildStores } from './build-stores';
 import { type CaptureReadSeam, inertSqliteCaptureReadSeam } from './capture-read-seam';
+import type { ConnectedCaptureOptions } from './captured-scheduler';
 import { type ChainSnapshotOptions, createLivePlanStore } from './chain-snapshot';
 import {
   type Connection,
@@ -36,7 +37,9 @@ export interface SqliteSource extends Source<TransactionalStores> {
   readonly gate: WriteCoordinator;
   /** Installs public and command readers together over this source's two transaction owners. */
   bindLivePlans(
-    options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'>,
+    options: Pick<ChainSnapshotOptions, 'schedulerOf' | 'optimization'> & {
+      readonly connected?: ConnectedCaptureOptions;
+    },
   ): Source<TransactionalStores>;
 }
 
@@ -124,6 +127,7 @@ function openSqliteSourceWithSeams(
           {
             createScope: (lifetime) => {
               lifetime.assertOpen();
+              // Proof: overriding connected with undefined here made the borrowed mounted ready tree unavailable.
               const commandPlans = createLivePlanStore({
                 ...scheduling,
                 captureRead,

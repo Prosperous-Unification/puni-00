@@ -28,6 +28,7 @@ import {
   scheduleInputHash,
   type SqliteSource,
 } from '@wbs/store-sqlite';
+import { hashConnectedBytes } from '@wbs/store-sqlite/connected-question-identity';
 
 import { installOptimization } from './module/optimization/check';
 import type { ReservedSpawner } from './module/optimization/contract';
@@ -138,7 +139,7 @@ export function buildServices(options: ServicesOptions): BeServices {
           readCaptured: capturedOptimizationReaderOf(source.db, {
             contractVersion: contractVersionOf(options.optimizer.solverVersion),
             budgetMs: options.optimizer.budgetMs,
-            now: Date.now,
+            now: options.now ?? Date.now,
           }),
         };
   const scheduler = optimizerWiring(optimized).scheduler;
@@ -158,10 +159,16 @@ export function buildServices(options: ServicesOptions): BeServices {
     ...(options.optimizer === undefined
       ? {}
       : {
+          // Proof: omitting this config made both mounted ready trees expose connected_optimization_not_supported.
+          connected: {
+            solverVersion: options.optimizer.solverVersion,
+            budgetMs: options.optimizer.budgetMs,
+            now: options.now ?? Date.now,
+          },
           optimization: {
             contractVersion: contractVersionOf(options.optimizer.solverVersion),
             budgetMs: options.optimizer.budgetMs,
-            now: Date.now,
+            now: options.now ?? Date.now,
           },
         }),
   });
@@ -279,15 +286,18 @@ export function buildServices(options: ServicesOptions): BeServices {
       solverVersion: optimizer.solverVersion,
       budgetMs: optimizer.budgetMs,
       ownerId: crypto.randomUUID(),
-      now: Date.now,
+      now: options.now ?? Date.now,
       attemptToken: () => crypto.randomUUID(),
       inputOf: async (projectId) => await graph.workItems.scheduleInput(projectId),
       enabledOf: async (projectId) =>
         (await source.stores.projects.findById(projectId))?.optimizationEnabled === true,
       // Proof: omitting the shared capture made the mounted upstream-only edit
       // request lose `elsewhere` (undefined instead of its holder interval).
-      captureOf: async (projectId) => await graph.workItems.optimizationInput(projectId),
+      // Proof: legacy optimizationInput made mounted upstream edits log connected optimization input is unsupported.
+      captureOf: async (projectId) => await graph.workItems.optimizationCapture(projectId),
       hashInput: scheduleInputHash,
+      // Proof: omitting this digest made mounted upstream edits log connected optimizer lacks installed digest.
+      hashConnectedBytes,
       spawn: optimizer.spawn,
       deliverCommitted: (events) => graph.committedFanout.deliverCommitted(events),
       onChildError: (error) => {

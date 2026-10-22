@@ -4843,3 +4843,26 @@ uncached adapter lint, backend and store typechecks and same-native-connection
 probe. The reviewer inspected all nine watched mutation receipts without
 reinjection. Admission is a one-time check, not a fenced transaction across
 all down scripts; deployment must still exclude incompatible participants.
+
+### Bounded production connected optimizer composition (2026-10-23)
+
+The [composition report](evidence/connected-production-composition/report.md)
+records actual `buildServices` installation, both SQLite reader owners, mounted
+read and upstream-edit consumers, startup queue recapture/release, durable
+terminal suppression and seven independently watched production mutations.
+The digest is forwarded through the actual DI provider/module as well as the
+services root. Source-owned transactional optimizer owners remain installed.
+The ready candidate equals Fast; improved displacement, complete stage/capacity
+and failure matrices, installed Python/image execution, external authoring
+activation and canonical host acceptance remain unverified. Parent tasks remain
+open. Scoped check and normal hook receipts are in the linked report.
+
+### Integrated verification follow-up (2026-10-23)
+
+After integrating the rollback-preflight packet with the current feature head,
+the four-file SQLite and migration CLI suite passed **180/180 tests, 913
+assertions** (`/tmp/puni-integrated-p1-tests.log`). A separate uncached full
+backend lint diagnosis passed twice on this pre-composition head, with no rule
+diagnostics or skipped boundary warnings (`/tmp/puni-lint-{nx,static}.txt`).
+The prior unexplained exit 1 did not reproduce; these passes do not establish
+its cause or replace the exact-head host gate.

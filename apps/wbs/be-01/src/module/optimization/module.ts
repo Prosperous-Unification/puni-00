@@ -40,6 +40,7 @@ export const optimizationModule = DiBag.createBuilder()
         enabledOf,
         captureOf,
         hashInput,
+        hashConnectedBytes,
         spawn,
         runChild,
         onChildError,
@@ -60,6 +61,7 @@ export const optimizationModule = DiBag.createBuilder()
         enabledOf: CoordinatorOption<'enabledOf'>;
         captureOf: CoordinatorOption<'captureOf'>;
         hashInput: CoordinatorOption<'hashInput'>;
+        hashConnectedBytes: CoordinatorOption<'hashConnectedBytes'>;
         spawn: CoordinatorOption<'spawn'>;
         runChild: CoordinatorOption<'runChild'>;
         onChildError: CoordinatorOption<'onChildError'>;
@@ -89,6 +91,8 @@ export const optimizationModule = DiBag.createBuilder()
         // and `hashes a Retry through the cache-key port installOptimization wires` failing
         // (5 pass, 2 fail): both received `module-hash` for `port-hash`.
         hashInput,
+        // Proof: forwarding undefined made mounted upstream edits log connected optimizer lacks installed digest.
+        hashConnectedBytes,
         spawn,
         runChild,
         // Proof (2026-09-24): handing the coordinator `onChildError: () => undefined` instead of
