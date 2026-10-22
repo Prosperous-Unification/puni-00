@@ -575,3 +575,8 @@ Root inspected those logs and the eight fault metadata entries. Scoped independe
 re-review remains pending; Task 4 is not accepted yet. Task 5, full host gate/build,
 CI acceptance, standalone migration lint, secrets, live workers/WBS and coordinator
 readiness remain outside these checks.
+
+Scoped independent re-review inspected all eight new fault patches and failing logs,
+confirmed complete validation routing and the corrected proof comment, and reported no
+new breakage or out-of-scope findings. Storage Task 4 is accepted; its nine slice checkboxes
+are checked. Parent 6a.1–6a.2 remain unchecked until Task 5 and aggregate acceptance.
