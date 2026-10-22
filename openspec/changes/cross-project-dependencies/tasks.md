@@ -218,5 +218,9 @@ preserves captured scope/fixed identities and positions, distinguishes both
 terminal evidence arms, keeps terminal selection/Retry unavailable, retains a
 selected ready sibling, suppresses stale arithmetic and throws on unknown
 internal discriminators. Complete `chartReadOf` optimization equality is covered.
-The connected HTTP refusal remains explicit. Mounted B2/B3, reconciliation B4,
+The connected HTTP refusal remains explicit. B2 now renders the captured facts
+and truthful retention in the shared cue, with a distinct boundary warning and
+mounted terminal actions/read-only/stale/error-boundary coverage. Independent
+mounted faults cover scope/details, Retry/selection, retention, stale figures and
+unknown discriminators. Producer-to-HTTP/table/cards B3, reconciliation B4,
 remaining B5 proofs and activation are pending; 7.3/7.4/9.2 stay unchecked.

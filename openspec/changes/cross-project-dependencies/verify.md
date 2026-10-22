@@ -2945,3 +2945,72 @@ src/components/wbs/plan-chart-input.test.ts` passed 62 tests in 2 files (44 cue,
 `openspec validate --all --json` passed. Serialized broad investigations were
 interrupted with exit 130 after the failures above; no broad passing claim is
 made. Normal commit hooks and combined-candidate host/CI checks are separate.
+
+### B2 bounded mounted cue renderer (2026-10-22)
+
+`optimization-cue.tsx` now renders the B1 connected overview (including its
+scope and displayed-schedule retention) and each row's captured details through
+the existing fact-card string. Connected algorithm words explain fixed foreign
+positions and the retained stage baseline. Boundary infeasibility uses the
+warning token independently of whole-plan infeasibility; a pending sibling still
+wins the solving dot. Menu selection and Retry continue to consume B1's existing
+refusals/admission without a second renderer policy. The HTTP refusal is intact.
+
+Initial configured Nx test attempt could not use sandbox sockets and exited 0
+without collecting tests; this is **not** test evidence. With
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false`, the configured full test target stopped at
+its node-tier dependency without collected test output and did not reach the mounted selection
+(`/tmp/cue-red.log`). The bounded DOM command uses the same checked-in Vitest
+config directly, with explicit file selection and collected counts:
+
+```sh
+TZ=UTC bunx vitest run --config vitest.config.ts src/components/wbs/optimization-cue.test.tsx src/components/wbs/plan-cards.test.tsx --no-file-parallelism --maxWorkers=1
+```
+
+Run from `apps/wbs/fe-01`. Before implementation, the cue suite had 4 failures
+and 49 passing tests: both terminal forms lacked target/captured facts, the
+pending-sibling card lacked its question hash, and the stale card lacked its
+boundary caveat. After implementation the two selected files passed 195 tests;
+keyboard and additional stale-ready assertions were then added for final
+verification below. Existing plan-card tests are regression coverage only; this
+packet does not claim a connected producer/HTTP/cards retained-date oracle.
+
+Each fault below was injected independently into the production branch, run
+with the command below, observed exiting 1 at its named mounted assertion, and
+restored before the next fault. Type errors are not the proof:
+
+```sh
+TZ=UTC bunx vitest run --config vitest.config.ts src/components/wbs/optimization-cue.test.tsx --no-file-parallelism --maxWorkers=1 --testNamePattern 'the connected captured cue'
+```
+
+- Drop `row.details`: captured target/labels/positions and question-hash assertions fail.
+- Drop the connected overview: retained-stage and stale-boundary facts disappear.
+- Drop the terminal dot arm: both terminal warning-dot assertions fail.
+- Admit boundary-infeasible into `reading.retryable`: forbidden Retry entries appear.
+- Allow boundary-infeasible row selection: both unavailable-entry assertions fail.
+- Hardcode Fast retention for a selected ready sibling: sibling/floor negative-text assertions fail.
+- Retain stale ready figures/comparisons: the stale card contains forbidden figures.
+- Return null for unknown state: no application alert appears.
+- Return null for unknown proof: no application alert appears.
+- Return empty words for unknown evidence: no application alert appears.
+- Return null for unknown scope: no application alert appears.
+
+Fault outputs are `/tmp/cue-b2-proof-{details,scope,dot,retry,selection,retention,stale,unknown-state,unknown-proof,unknown-evidence,unknown-scope}.log`.
+Mounted tests also inspect both evidence meanings, selected-ready retention,
+selected floor, failed-sibling Retry identity, terminal open/close/reopen without
+Retry, read-only fact focus and the application's alert/Reload fallback. These
+are jsdom state/action proofs. Browser HintLayer geometry, live focus behavior,
+producer-bound dates, B3 enabling, B4 reconciliation, host gate and live runtime
+verification remain unrun for this packet.
+
+Final bounded verification:
+
+- The two-file configured DOM command above passed **196 tests in 2 files**, including 54 cue tests and 142 existing plan-card tests (`/tmp/cue-b2-final-tests.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:lint` passed uncached (`/tmp/cue-b2-lint.log`).
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:typecheck` passed both the module prerequisite and application build, uncached (`/tmp/cue-b2-typecheck.log`).
+- `./node_modules/.bin/openspec validate --all --json` passed all 268 items, with existing advisory warnings (`/tmp/cue-b2-openspec.log`).
+- Explicit ESLint on both changed frontend files and `git diff --check` passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-fe-01:test --skipNxCache --args='src/components/wbs/optimization-cue.test.tsx'` exited 130: its `test:unit` prerequisite exited nonzero without collected test names/counts. This does not establish a frontend full-suite pass or identify a specific failing assertion. The targeted command above establishes the mounted assertions only.
+
+Hooks were installed through `bunx nx run tool-git-hooks:install`; the bounded
+commit uses normal pre-commit, prepare-commit-msg and commit-msg hooks.
