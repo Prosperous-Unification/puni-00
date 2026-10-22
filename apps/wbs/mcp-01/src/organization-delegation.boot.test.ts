@@ -316,14 +316,14 @@ const projectNames = (text: string) =>
   (JSON.parse(text) as { projects: { name: string }[] }).projects.map((p) => p.name).toSorted();
 
 const sessions: Record<string, string> = {};
-const ids = { launch: '', foreign: '', leaf: '' };
+const ids = { launch: '', foreign: '', leaf: '', firstStep: '' };
 const claire = { access: '', refresh: '', clientId: '' };
 
-/** One `claimWorkItem` of the leaf for `personId` through `access`. */
+/** One eligible first-step `claimWorkItem` for `personId` through `access`. */
 function claimLeaf(access: string, personId: string) {
   return tool(access, 'postApiProjectsByIdCommands', {
     id: ids.launch,
-    commands: [{ kind: 'claimWorkItem', workItemId: ids.leaf, personId }],
+    commands: [{ kind: 'claimWorkItem', workItemId: ids.leaf, personId, steps: [ids.firstStep] }],
   });
 }
 
@@ -431,6 +431,10 @@ describe('MCP organization delegation against a booted be-01', () => {
     });
     expect(created.isError).toBe(false);
     ids.leaf = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id ?? '';
+    const tree = await tool(sessions['dany'] ?? '', 'getApiProjectsById', { id: ids.launch });
+    if (tree.isError) throw new Error(`project tree refused: ${tree.text}`);
+    ids.firstStep = (JSON.parse(tree.text) as { steps: { id: string }[] }).steps[0]?.id ?? '';
+    if (ids.firstStep.length === 0) throw new Error('project tree has no first step');
     // Another of dany's persons: the pin refuses it.
     const asCodex = await claimLeaf(claire.access, 'codex');
     expect(asCodex.isError).toBe(true);
@@ -441,7 +445,7 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(asLoose.text).toContain('person_not_bound');
     const asClaire = await claimLeaf(claire.access, 'claire');
     expect(asClaire.isError).toBe(false);
-    // One claim row per step of the leaf, every one of them claire's.
+    // The eligible first-step claim belongs to claire.
     const claimed = (await (await fetch(`${beUrl}/__fixture/claims`)).json()) as {
       personId: string;
     }[];
@@ -473,7 +477,9 @@ describe('MCP organization delegation against a booted be-01', () => {
     const human = (JSON.parse(created.text) as { results: { id: string }[] }).results[0]?.id;
     const asCodex = await tool(dany.access, 'postApiProjectsByIdCommands', {
       id: ids.launch,
-      commands: [{ kind: 'claimWorkItem', workItemId: human, personId: 'codex' }],
+      commands: [
+        { kind: 'claimWorkItem', workItemId: human, personId: 'codex', steps: [ids.firstStep] },
+      ],
     });
     expect(asCodex.isError).toBe(false);
   });
