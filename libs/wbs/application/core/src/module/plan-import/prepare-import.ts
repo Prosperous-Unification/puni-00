@@ -34,6 +34,7 @@ import type { Scheduler } from '../../ports/scheduler';
 import { MOST_CHARACTERS_IN_A_REF_NAME } from '../../service/command-normalizers';
 import { findDependencyGraphCycle } from '../../service/dependency-graph';
 import {
+  findImportDependencyDuplicate,
   type ImportPreparation,
   type ImportRefusalCode,
   type PreparedActual,
@@ -660,6 +661,15 @@ export function prepareImport(
     (left, right) =>
       left.position - right.position || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   );
+  const relationshipIds = new Set<string>();
+  for (const [at, relationship] of document.typedDependencies.entries()) {
+    const path = `typedDependencies[${String(at)}].id`;
+    // Proof: bypassing empty-ID and repeated-ID checks separately failed the named
+    // authored-ID preparation tests (2026-10-22), including the cross-arm case.
+    if (relationship.id === '' || relationshipIds.has(relationship.id))
+      return refuses('invalid_typed_dependency', path);
+    relationshipIds.add(relationship.id);
+  }
   for (const [at, relationship] of document.typedDependencies.entries()) {
     const prefix = `typedDependencies[${String(at)}]`;
     const endpointOf = (
@@ -759,6 +769,16 @@ export function prepareImport(
     relationshipKeys.add(key);
     typedDependencies.push(typed);
   }
+  const duplicatePath = findImportDependencyDuplicate(
+    externalDependencies.map(({ destination, ...relationship }) => ({
+      ...relationship,
+      predecessor: destination,
+    })),
+  );
+  // Proof: bypassing this refusal admitted the mapped-destination collision
+  // in prepare-import.test.ts (2026-10-22).
+  if (duplicatePath !== null)
+    return refuses('invalid_typed_dependency', duplicatePath, 'duplicate');
   if (typedDependencies.length > 0) {
     const cycle = findDependencyGraphCycle({
       rows: document.workItems.map(rowShape),
