@@ -458,3 +458,80 @@ with no new breakage. It inspected all five new fault proofs and final check log
 rerunning the suites. Storage Task 3 is accepted; the nine slice checkboxes are checked.
 Parent 6a.1–6a.2 and WBS foundation milestones remain in progress for decision/receipt
 semantics, provider selection and aggregate acceptance.
+
+### Storage Task 4 — decisions and exact receipts candidate
+
+Both providers now receive immutable decisions, consume one decision per exact wait and
+reconcile exact command receipts. Consumption retains its original queued reply and
+reacquires capacity atomically. A later wait requires a fresh correlation key. Receipts
+retain their original terminal replies, remove outbox entries atomically and permit the
+specified bounded retry only after confirmed failure with absent/failed effects. Verified
+decision/receipt operations snapshot inputs before checking retained evidence bytes; they
+do not authenticate actors or establish remote WBS acceptance.
+
+A preflight corruption probe changed only a current attempt's claim person while leaving
+its execution history intact. Public reopen wrongly succeeded (one explicit missing-
+rejection failure). With root's recorded scope ruling, trusted validation now reconstructs
+execution, consumption, completion and receipt transitions for the named attempt, validates
+each historical reply at its own predecessor and compares the final complete Attempt once
+with current state. Reads, open and state-dependent mutations reach this check; writes
+first fence ownership. The shared run revision is not reconstructed from one attempt.
+
+The initial new-method tests failed before implementation, then passed for memory and
+SQLite. Additional negatives exposed a wrong-command receipt throwing instead of refusing,
+and admission/completion skipping provenance checks; these were corrected. The first full
+subtree run had 325 passes and two failures: fresh execution/completion reconstruction used
+the caller's run instead of the actual attempt's run, and an old migration test still
+expected nine tables. Reconstruction now uses the actual target before the planner returns
+the typed cross-run conflict. Two separate mutations restoring the wrong target fail explicit
+`doesNotReject` assertions. The migration/down test compares the complete pre-down and
+post-migration table sets and requires no provider object after down; the schema now owns
+twelve tables. The unreleased migration/down pair changes together and old hashes refuse
+open rather than receiving an implicit upgrade.
+
+Root's handoff check also found a DecisionId-content collision returning `decision_conflict`
+where the design requires `identity_conflict`. Shared memory/SQLite expectations first failed
+with those exact reasons, then passed after the narrow branch correction. Invalid new waits
+and choices retain `decision_conflict`. Its single guard-removal proof was refreshed against
+the final assertion, and the previous log/entry remains archived.
+
+Final checks after that correction:
+
+| Command                                                                                                                   | Observed result                                   |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `bun test --preload ./tools/test/scratch/preload.ts ./apps/twilight-structure/twilight-dash/cli/src/runs --timeout=60000` | 327 pass, 0 fail, 973 assertions, 14 files, 9.94s |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:typecheck --skip-nx-cache`                            | Exit 0, 2.1s                                      |
+| `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run twilight-dash:lint --skip-nx-cache`                                 | Exit 0, 18.7s                                     |
+| `bunx prettier --check apps/twilight-structure/twilight-dash/cli/src/runs` and `git diff --check`                         | Exit 0                                            |
+
+The final logs are `/tmp/task4-fix1-final-{tests,typecheck,lint,format}.log`. The retained
+fault evidence is **62 distinct cases from 102 mutation Bun invocations**: 39 preliminary
+invocations, 58 in the corrected complete sweep, four isolated additions and the one
+refreshed collision proof. Of the preliminary 39, 34 were valid repeated observations and
+five had weak or masked oracles; none are counted as extra distinct proofs. An ESLint-
+normalized predicate stopped that sweep before invocation 40. The five weak cases covered
+cross-run receipt targeting, pending-state refusal and three asynchronous snapshots. They
+were strengthened with distinguishing inputs and explicit applied/`doesNotReject` assertions.
+Missing-module/export scaffolding failures and helper-only throws are excluded from safety
+evidence. Exact accounting is in `/tmp/task4-fault-attempts.md` and exact retained mutations,
+argv, assertions and logs are in `/tmp/task4-faults/summary.json`. All mutations were restored.
+
+Proof families cover owner fences; global inbox and receipt identity; target/revision/wait
+matching; capacity and fresh wait keys; artifact verification and pre-await snapshots;
+physical keys and complete historical/current provenance; required completion/outbox state;
+live typed-refusal routing; and receipt/consumption/reservation atomicity. Real SQLite abort
+triggers preserve both the whole physical projection and public snapshot after reopen.
+The fake lost-ack source reconciles the exact retained command without creating another
+attempt; it establishes persistence behavior only.
+
+Two old proof arrangements were superseded explicitly. The earlier readOutcomes current-
+state comparison and its comment were removed because full reconstruction now checks that
+invariant once. Ordinary missing-history tests now accept the earlier named provenance
+error; a new reset-to-admitted projection plus omitted-query-row fault independently exposes
+the retained required-command guard. Corrupt-history tests compare physical projections
+after refusal because public readRun now correctly throws on those corrupt histories.
+
+Independent Task 4 review is pending. Task 5 production selection/import enforcement,
+aggregate exact-SHA gate, full build/CI acceptance, secrets/migration lint, authenticated
+inbox delivery, real quiescence and guarded live WBS acceptance remain unverified here.
+Parent 6a.1–6a.2 remain unchecked; this is not coordinator or deployment acceptance.

@@ -234,16 +234,20 @@ test('migration down pair removes exactly the provider schema', async () => {
   (await bootstrapSqliteStores(configuration)).close();
   const database = new Database(configuration.path);
   try {
+    const tables = () =>
+      database
+        .query(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'run_%' ORDER BY name",
+        )
+        .all();
+    const before = tables();
+    expect(before.length).toBeGreaterThan(0);
     database.run(DOWN);
     expect(database.query("SELECT name FROM sqlite_master WHERE name LIKE 'run_%'").all()).toEqual(
       [],
     );
     database.run(MIGRATION);
-    expect(
-      database
-        .query("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'run_%'")
-        .all(),
-    ).toHaveLength(9);
+    expect(tables()).toEqual(before);
   } finally {
     database.close();
   }

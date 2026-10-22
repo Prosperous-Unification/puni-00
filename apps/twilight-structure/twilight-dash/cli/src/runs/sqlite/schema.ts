@@ -115,7 +115,6 @@ export function validateDatabase(database: Database): void {
     .query('SELECT * FROM run_attempt')
     .all()
     .map((row) => decodeAttemptRow(row).attempt);
-  readOutcomes(database, attempts);
   for (const row of database.query('SELECT * FROM run_completion').all()) decodeCompletionRow(row);
   for (const attempt of attempts) {
     const { run } = decodeRunRow(
@@ -123,6 +122,7 @@ export function validateDatabase(database: Database): void {
     );
     readExecutions(database, run, attempt);
   }
+  readOutcomes(database, attempts);
   const broken = database
     .query(
       `SELECT a.attempt_id FROM run_attempt a LEFT JOIN run_reservation r ON r.attempt_id=a.attempt_id WHERE json_extract(a.record,'$.holdsCapacity') != (r.attempt_id IS NOT NULL)`,

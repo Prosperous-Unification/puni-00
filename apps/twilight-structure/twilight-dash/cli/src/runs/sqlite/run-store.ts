@@ -11,6 +11,9 @@ import {
 import { type AttemptChange, planExecution, replayExecution } from '../plan-execution';
 import { planOutcome } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
+import { planReceipt, replayReceipt } from '../plan-receipt';
+import { planConsumption, planDecision, replayConsumption, replayDecision } from '../plan-signals';
+import { addInteger, decisionId, decodeDecision, decodeReceipt } from '../record-codecs';
 import {
   decodeAdmission,
   decodeAttemptGuard,
@@ -26,8 +29,16 @@ import {
 import type { Ownership, OwnershipStatus, Run } from '../records';
 import type { RunStore, StoreReply } from '../run-store';
 import { createSqliteArtifactStore } from './artifact-store';
-import { findExecution } from './read-executions';
+import { findExecution, readExecutions } from './read-executions';
 import { readOutcomes } from './read-outcomes';
+import {
+  decodeConsumptionRow,
+  decodeDecisionRow,
+  decodeReceiptRow,
+  findConsumption,
+  findDecision,
+  findReceipt,
+} from './read-signals';
 import { decodeAttemptRow, decodeManifestRow, decodeRunRow } from './row-codecs';
 import { decodeCompletionRow } from './row-codecs';
 import { readMeta } from './schema';
@@ -88,6 +99,9 @@ export function createSqliteRunStore(
         try {
           // Proof: bypassing write BEGIN/COMMIT left a durable attempt after the real reservation-abort trigger; the rollback test expected no rows.
           // Proof: bypassing write BEGIN/COMMIT before the injected outbox abort failed 'outbox abort rolls back outcome revisions and capacity before reopen then commits both together'.
+          // Proof: injecting atomic reservation bypass failed `reservation insert abort preserves whole prior state across reopen` at its explicit assertion.
+          // Proof: injecting atomic consumption bypass failed `consumption insert abort preserves whole prior state across reopen` at its explicit assertion.
+          // Proof: injecting atomic receipt bypass failed `receipt insert abort preserves whole prior state across reopen` at its explicit assertion.
           database.run(write ? 'BEGIN IMMEDIATE' : 'BEGIN');
           const value = operation();
           database.run('COMMIT');
@@ -157,6 +171,17 @@ export function createSqliteRunStore(
     // Proof: removing the absence diagnostic failed the shared missing-run assertion with an incidental TypeError.
     if (record === undefined) throw new Error('run does not exist');
     return record;
+  }
+  function requireAttempt(identity: string) {
+    const row = database.query('SELECT * FROM run_attempt WHERE attempt_id=?').get(identity);
+    // Proof: injecting sqlite missing attempt bypass failed `sqlite signal edges > missing named attempts throw before inbox or receipt mutation` at its explicit assertion.
+    if (row === null) throw new Error('attempt does not exist');
+    const { attempt } = decodeAttemptRow(row);
+    const { run } = requireRun(attempt.identity.runId);
+    // Proof: injecting replay provenance bypass failed `duplicate consumption validates current target provenance before replay` at its explicit assertion.
+    readExecutions(database, run, attempt);
+    readOutcomes(database, [attempt]);
+    return attempt;
   }
   function readCapacity(limit: number) {
     const row = database
@@ -271,16 +296,142 @@ export function createSqliteRunStore(
           .query('SELECT * FROM run_attempt WHERE run_id=? ORDER BY occurrence_id,ordinal')
           .all(run.runId)
           .map((row) => decodeAttemptRow(row).attempt);
+        // Proof: injecting read provenance bypass failed `probe current claim corruption against intact historical execution` at its explicit assertion.
+        for (const attempt of attempts) readExecutions(database, run, attempt);
         return {
           version: 1,
           run,
           attempts,
           pendingIntents: readOutcomes(database, attempts),
-          receipts: [],
-          decisions: [],
-          consumedDecisionIds: [],
+          receipts: database
+            .query(
+              'SELECT r.* FROM run_receipt r JOIN run_attempt a ON a.attempt_id=r.attempt_id WHERE a.run_id=? ORDER BY r.command_id',
+            )
+            .all(run.runId)
+            .map((row) => decodeReceiptRow(row).receipt),
+          decisions: database
+            .query(
+              'SELECT d.* FROM run_decision d JOIN run_attempt a ON a.attempt_id=d.attempt_id WHERE a.run_id=? ORDER BY d.decision_id',
+            )
+            .all(run.runId)
+            .map(decodeDecisionRow),
+          consumedDecisionIds: database
+            .query(
+              'SELECT c.* FROM run_consumption c JOIN run_attempt a ON a.attempt_id=c.attempt_id WHERE a.run_id=? ORDER BY c.decision_id',
+            )
+            .all(run.runId)
+            .map((row) => decodeConsumptionRow(row).decisionId),
           capacity: readCapacity(readMeta(database).capacity),
         };
+      });
+    },
+    async receiveDecision(inputOwner, inputDecision) {
+      // Proof: injecting sqlite decision owner snapshot bypass failed `trusted sqlite decision snapshots request before its transaction wait` at its explicit assertion.
+      const ownership = decodeOwnership(structuredClone(inputOwner));
+      // Proof: injecting sqlite decision payload snapshot bypass failed `trusted sqlite decision snapshots request before its transaction wait` at its explicit assertion.
+      const decision = decodeDecision(structuredClone(inputDecision));
+      return await transact(true, () => {
+        const { authority } = readAuthority(ownership);
+        // Proof: injecting sqlite receiveDecision owner bypass failed `stale receive owner refuses before corrupt target and duplicate reads` at its explicit assertion.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const previous = findDecision(database, decision.decisionId);
+        if (previous !== undefined) requireAttempt(previous.attemptId);
+        const replay = replayDecision(previous, decision);
+        if (replay !== undefined) return finish(replay, authority.observedAt);
+        const attempt = requireAttempt(decision.attemptId);
+        const { run } = requireRun(attempt.identity.runId);
+        const reply = planDecision(attempt, decision);
+        if (reply.kind === 'applied') {
+          const revision = addInteger(run.revision, 1);
+          database
+            .query('INSERT INTO run_decision(decision_id,attempt_id,record) VALUES (?,?,?)')
+            .run(decision.decisionId, decision.attemptId, JSON.stringify(decision));
+          database
+            .query('UPDATE run_record SET record=? WHERE run_id=?')
+            .run(JSON.stringify({ ...run, revision }), run.runId);
+        }
+        return finish(reply, authority.observedAt);
+      });
+    },
+    async consumeDecision(inputGuard, inputId) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const identity = decisionId(inputId);
+      return await transact(true, () => {
+        const { meta, authority } = readAuthority(guard.ownership);
+        // Proof: injecting sqlite consumeDecision owner bypass failed `stale consume owner refuses before corrupt target and duplicate reads` at its explicit assertion.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const previous = findConsumption(database, identity);
+        if (previous !== undefined) requireAttempt(previous.reply.attemptId);
+        const replay = replayConsumption(previous, guard);
+        if (replay !== undefined) return finish(replay, authority.observedAt);
+        const decision = findDecision(database, identity);
+        // Proof: injecting sqlite missing decision bypass failed `sqlite signal edges > new inbox identities require current wait and legal correlation choice` at its explicit assertion.
+        if (decision === undefined) throw new Error('decision does not exist');
+        const { run } = requireRun(guard.runId);
+        const attempt = requireAttempt(guard.attemptId);
+        const reply = planConsumption(
+          { run, attempt },
+          guard,
+          decision,
+          readCapacity(meta.capacity),
+        );
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        applyChange(run, reply.value);
+        database
+          .query(
+            'INSERT INTO run_consumption(decision_id,attempt_id,correlation_key,wait,reply) VALUES (?,?,?,?,?)',
+          )
+          .run(
+            identity,
+            attempt.attemptId,
+            reply.value.wait.correlationKey,
+            JSON.stringify(reply.value.wait),
+            JSON.stringify(reply.value.attempt),
+          );
+        database.query('INSERT INTO run_reservation(attempt_id) VALUES (?)').run(attempt.attemptId);
+        return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
+      });
+    },
+    async reconcileReceipt(inputGuard, inputReceipt) {
+      // Proof: injecting sqlite receipt guard snapshot bypass failed `trusted sqlite receipt snapshots request before its transaction wait` at its explicit assertion.
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      // Proof: injecting sqlite receipt payload snapshot bypass failed `trusted sqlite receipt snapshots request before its transaction wait` at its explicit assertion.
+      const receipt = decodeReceipt(structuredClone(inputReceipt));
+      return await transact(true, () => {
+        const { authority } = readAuthority(guard.ownership);
+        // Proof: injecting sqlite reconcileReceipt owner bypass failed `stale receipt owner refuses before corrupt target and duplicate reads` at its explicit assertion.
+        if (!permitsMutation(authority))
+          return finish({ kind: 'refused', reason: 'owner_stale' }, authority.observedAt);
+        const previous = findReceipt(database, receipt.commandId);
+        if (previous !== undefined) requireAttempt(previous.reply.attemptId);
+        const replay = replayReceipt(previous, guard, receipt);
+        if (replay !== undefined) return finish(replay, authority.observedAt);
+        const { run } = requireRun(guard.runId);
+        const attempt = requireAttempt(guard.attemptId);
+        const completionRow = database
+          .query('SELECT * FROM run_completion WHERE command_id=?')
+          .get(
+            attempt.state.kind === 'outcome_pending_progress'
+              ? attempt.state.commandId
+              : receipt.commandId,
+          );
+        const intent =
+          completionRow === null ? undefined : decodeCompletionRow(completionRow).completion.intent;
+        const reply = planReceipt({ run, attempt }, guard, receipt, intent);
+        if (reply.kind === 'refused') return finish(reply, authority.observedAt);
+        applyChange(run, reply.value);
+        database
+          .query('INSERT INTO run_receipt(command_id,attempt_id,record,reply) VALUES (?,?,?,?)')
+          .run(
+            receipt.commandId,
+            attempt.attemptId,
+            JSON.stringify(receipt),
+            JSON.stringify(reply.value.attempt),
+          );
+        database.query('DELETE FROM run_outbox WHERE command_id=?').run(receipt.commandId);
+        return finish({ kind: reply.kind, value: reply.value.attempt }, authority.observedAt);
       });
     },
     async commitOutcome(inputGuard, inputCompletion) {
@@ -298,6 +449,9 @@ export function createSqliteRunStore(
         // Proof: bypassing commitOutcome missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
         if (row === null) throw new Error('attempt does not exist');
         const { attempt } = decodeAttemptRow(row);
+        // Proof: injecting completion provenance bypass failed `completion rejects current claim corruption against intact historical execution` at its explicit assertion.
+        // Proof: reconstructing with the caller's run made `sqlite execution commands > execution command identities distinguish reattachment from original redelivery` fail its doesNotReject assertion for a cross-run guard.
+        readExecutions(database, requireRun(attempt.identity.runId).run, attempt);
         const previous = database
           .query(
             'SELECT * FROM run_completion WHERE command_id=? OR attempt_id=? ORDER BY command_id',
@@ -336,6 +490,19 @@ export function createSqliteRunStore(
         // Proof: bypassing recordExecution missing attempt sqlite enforcement failed 'sqlite execution edges > successful effects cannot retry and missing attempts throw without mutations'.
         if (row === null) throw new Error('attempt does not exist');
         const { attempt } = decodeAttemptRow(row);
+        // Proof: reconstructing with the caller's run made `sqlite execution commands > execution command identities distinguish reattachment from original redelivery` fail its doesNotReject assertion for a cross-run guard.
+        const history = readExecutions(database, requireRun(attempt.identity.runId).run, attempt);
+        // Proof: injecting sqlite fresh wait key bypass failed `sqlite decisions > old consumption preserves its original reply through later waits and owner takeover` at its explicit assertion.
+        if (
+          command.fact.kind === 'waiting' &&
+          history.some(
+            (entry) =>
+              entry.command.fact.kind === 'waiting' &&
+              command.fact.kind === 'waiting' &&
+              entry.command.fact.wait.correlationKey === command.fact.wait.correlationKey,
+          )
+        )
+          return finish({ kind: 'refused', reason: 'decision_conflict' }, authority.observedAt);
         const reply = planExecution({ run, attempt }, guard, command.fact);
         if (reply.kind === 'refused') return finish(reply, authority.observedAt);
         if (reply.kind === 'applied') {
@@ -367,6 +534,11 @@ export function createSqliteRunStore(
           )
           .all(admission.attemptId, run.runId, admission.identity.occurrenceId)
           .map(decodeAttemptRow);
+        for (const { attempt } of history) {
+          const { run: targetRun } = requireRun(attempt.identity.runId);
+          // Proof: injecting admission provenance bypass failed `admission rejects terminal predecessor missing its confirmed receipt provenance` at its explicit assertion.
+          readExecutions(database, targetRun, attempt);
+        }
         const reply = planAdmission(
           {
             ownership: authority.current,

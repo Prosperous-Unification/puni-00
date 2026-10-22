@@ -363,3 +363,8 @@ export const decodeExecutionCommand = (value: unknown) =>
   parseOrThrow(ExecutionCommandCodec, value);
 
 export const executionCommandId = (value: unknown) => parseOrThrow(ExecutionCommandIdCodec, value);
+
+export const decodeDecision = (value: unknown) => parseOrThrow(DecisionCodec, value);
+export const decodeReceipt = (value: unknown) => parseOrThrow(CommandReceiptCodec, value);
+
+export const decisionId = (value: unknown) => parseOrThrow(DecisionIdCodec, value);

@@ -1,3 +1,5 @@
+import { doesNotReject } from 'node:assert/strict';
+
 import { describe, expect, test } from 'bun:test';
 
 import { operationKey, ownerId, runId } from '../record-codecs';
@@ -97,18 +99,18 @@ export function executionCommandContract(name: string, create: () => Promise<Out
         expect(
           await stores.runs.recordExecution({ ...setup.guard, runId: second.runId }, claimed),
         ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
-        expect(
-          await stores.runs.recordExecution(
-            { ...(await setup.currentGuard()), runId: second.runId },
-            createExecutionCommand({ kind: 'recovery_required', reason: 'cross-run' }),
-          ),
-        ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
-        expect(
-          await stores.runs.commitOutcome(
-            { ...(await setup.currentGuard()), runId: second.runId },
-            (await import('./fixtures')).createCompletion(setup.claim, setup.quiescence),
-          ),
-        ).toEqual({ kind: 'refused', reason: 'identity_conflict' });
+        const crossExecution = stores.runs.recordExecution(
+          { ...(await setup.currentGuard()), runId: second.runId },
+          createExecutionCommand({ kind: 'recovery_required', reason: 'cross-run' }),
+        );
+        await doesNotReject(crossExecution);
+        expect(await crossExecution).toEqual({ kind: 'refused', reason: 'identity_conflict' });
+        const crossCompletion = stores.runs.commitOutcome(
+          { ...(await setup.currentGuard()), runId: second.runId },
+          (await import('./fixtures')).createCompletion(setup.claim, setup.quiescence),
+        );
+        await doesNotReject(crossCompletion);
+        expect(await crossCompletion).toEqual({ kind: 'refused', reason: 'identity_conflict' });
         stores.clock.advance(101);
         unwrapReply(
           await stores.runs.acquireOwnership(ownerId('successor'), setup.ownership.epoch),

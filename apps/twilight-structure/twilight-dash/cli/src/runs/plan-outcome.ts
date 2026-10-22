@@ -6,7 +6,7 @@ import {
   isExecuting,
 } from './plan-execution';
 import { equalRecords } from './record-codecs';
-import type { AttemptId, Completion } from './records';
+import type { AttemptId, AttemptState, Completion } from './records';
 import type { AttemptGuard, StoreReply } from './run-store';
 
 export interface RecordedCompletion {
@@ -37,6 +37,16 @@ export function planOutcome(
   }
   const conflict = checkAttempt(facts, guard);
   if (conflict !== undefined) return conflict;
+  const transition = planOutcomeTransition(facts, completion);
+  // Proof: bypassing live completion refusal routing failed `memory outcomes > completion refuses stale revisions wrong authority outcome mismatch and unsettled effects without mutations` at its explicit assertion.
+  if (transition.kind === 'refused') return transition;
+  return changeAttempt(facts, transition.value, false);
+}
+/** Validates completion consequences without live owner or revision observations, for trusted provenance reconstruction. */
+export function planOutcomeTransition(
+  facts: AttemptFacts,
+  completion: Completion,
+): StoreReply<AttemptState> {
   const state = facts.attempt.state;
   // Proof: bypassing outcome state enforcement failed 'memory outcomes > completion commits one immutable pending intent with outcome and releases capacity exactly once'.
   if (!isExecuting(state) || state.claim === null)
@@ -58,15 +68,14 @@ export function planOutcome(
     (completion.outcome.kind === 'succeeded' && completion.quiescence.effect !== 'succeeded')
   )
     return { kind: 'refused', reason: 'state_conflict' };
-  return changeAttempt(
-    facts,
-    {
+  return {
+    kind: 'applied',
+    value: {
       kind: 'outcome_pending_progress',
       claim: state.claim,
       outcome: completion.outcome,
       commandId: completion.intent.commandId,
       quiescence: completion.quiescence,
     },
-    false,
-  );
+  };
 }

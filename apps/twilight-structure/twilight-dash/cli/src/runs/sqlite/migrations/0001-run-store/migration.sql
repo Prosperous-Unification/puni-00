@@ -51,3 +51,23 @@ CREATE TABLE run_completion (
 CREATE TABLE run_outbox (
   command_id TEXT PRIMARY KEY REFERENCES run_completion(command_id)
 );
+
+CREATE TABLE run_decision (
+ decision_id TEXT PRIMARY KEY,
+ attempt_id TEXT NOT NULL REFERENCES run_attempt(attempt_id),
+ record TEXT NOT NULL
+);
+CREATE TABLE run_consumption (
+ decision_id TEXT PRIMARY KEY REFERENCES run_decision(decision_id),
+ attempt_id TEXT NOT NULL REFERENCES run_attempt(attempt_id),
+ correlation_key TEXT NOT NULL,
+ wait TEXT NOT NULL,
+ reply TEXT NOT NULL,
+ UNIQUE(attempt_id,correlation_key)
+);
+CREATE TABLE run_receipt (
+ command_id TEXT PRIMARY KEY REFERENCES run_completion(command_id),
+ attempt_id TEXT NOT NULL UNIQUE REFERENCES run_attempt(attempt_id),
+ record TEXT NOT NULL,
+ reply TEXT NOT NULL
+);

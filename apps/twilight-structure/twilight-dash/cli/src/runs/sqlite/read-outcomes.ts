@@ -1,10 +1,10 @@
 import type { Database } from 'bun:sqlite';
 
-import { equalRecords } from '../record-codecs';
 import type { Attempt, ProgressIntent } from '../records';
+import { findReceipt } from './read-signals';
 import { decodeCompletionRow } from './row-codecs';
 
-/** Reads pending commands with their complete attempt state in the caller's consistent transaction. Missing or altered trusted halves throw. */
+/** Reads pending delivery after attempt provenance reconstruction in the caller's consistent transaction. Missing completions or contradictory outbox/receipt presence throw; state equality belongs to reconstruction. */
 export function readOutcomes(
   database: Database,
   attempts: readonly Attempt[],
@@ -14,23 +14,26 @@ export function readOutcomes(
     const row = database
       .query('SELECT * FROM run_completion WHERE attempt_id=?')
       .get(attempt.attemptId);
-    if (row === null && attempt.state.kind !== 'outcome_pending_progress') continue;
+    // Proof: omitting terminal completion presence accepted a null second read; `terminal inspection refuses completion unreadable after reconstruction` failed its expected-rejection assertion.
+    if (
+      row === null &&
+      attempt.state.kind !== 'outcome_pending_progress' &&
+      attempt.state.kind !== 'terminal'
+    )
+      continue;
     const { completion } = decodeCompletionRow(row);
-    const expected = {
-      kind: 'outcome_pending_progress',
-      claim: completion.intent.authority,
-      outcome: completion.outcome,
-      commandId: completion.intent.commandId,
-      quiescence: completion.quiescence,
-    };
-    // Proof: bypassing pending state integrity enforcement failed 'open rejects state outcome mismatch after a committed outcome'.
-    if (!equalRecords(attempt.state, expected)) throw new Error('corrupt completion state');
+    const receipt = findReceipt(database, completion.intent.commandId);
     const pending = database
       .query('SELECT command_id FROM run_outbox WHERE command_id=?')
       .get(completion.intent.commandId);
-    // Proof: bypassing pending outbox integrity enforcement failed 'open rejects missing outbox after a committed outcome'.
-    if (pending === null) throw new Error('corrupt missing outbox');
-    intents.push(completion.intent);
+    if (receipt !== undefined) {
+      // Proof: injecting terminal outbox absence bypass failed `public read rejects terminal outbox present and reopen rejects corruption` at its explicit assertion.
+      if (pending !== null) throw new Error('corrupt terminal outbox');
+    } else {
+      // Proof: bypassing pending outbox integrity enforcement failed 'open rejects missing outbox after a committed outcome'.
+      if (pending === null) throw new Error('corrupt missing outbox');
+      intents.push(completion.intent);
+    }
   }
   return intents;
 }

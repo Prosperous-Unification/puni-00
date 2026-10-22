@@ -2,7 +2,10 @@ import type {
   Admission,
   Attempt,
   AttemptId,
+  CommandReceipt,
   Completion,
+  Decision,
+  DecisionId,
   Epoch,
   ExecutionCommand,
   Manifest,
@@ -58,4 +61,10 @@ export interface RunStore {
   recordExecution(guard: AttemptGuard, command: ExecutionCommand): Promise<StoreReply<Attempt>>;
   /** Trusted persistence: caller has verified every artifact in this exact completion. Atomically records outcome, pending command and settled capacity release. */
   commitOutcome(guard: AttemptGuard, completion: Completion): Promise<StoreReply<Attempt>>;
+  /** Trusted inbox: caller verified the complete authorization artifact before persistence. */
+  receiveDecision(ownership: Ownership, decision: Decision): Promise<StoreReply<Decision>>;
+  /** Atomically retains original continuation reply, consumes one wait and reacquires capacity. */
+  consumeDecision(guard: AttemptGuard, decisionId: DecisionId): Promise<StoreReply<Attempt>>;
+  /** Trusted receipt: caller verified evidence bytes; exact matching does not authenticate WBS acceptance. */
+  reconcileReceipt(guard: AttemptGuard, receipt: CommandReceipt): Promise<StoreReply<Attempt>>;
 }

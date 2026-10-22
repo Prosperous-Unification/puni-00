@@ -208,7 +208,12 @@ for (const [kind, path, replacement] of replyFaults)
       try {
         const { command } = await recordVariant(setup, kind);
         const guard = await setup.currentGuard();
-        const before = await setup.runs.readRun(guard.runId);
+        expect((await setup.runs.readRun(guard.runId)).attempts).toHaveLength(1);
+        const projection = () =>
+          ['run_record', 'run_attempt', 'run_reservation'].map((table) =>
+            setup.database.query(`SELECT * FROM ${table} ORDER BY rowid`).all(),
+          );
+        const before = projection();
         setup.database
           .query('UPDATE run_execution SET reply=json_set(reply,?,?) WHERE command_id=?')
           .run(path, replacement, command.commandId);
@@ -223,7 +228,7 @@ for (const [kind, path, replacement] of replyFaults)
             setup.runs.recordExecution(guard, command),
             /corrupt execution command reply/,
           );
-          expect(await setup.runs.readRun(guard.runId)).toEqual(before);
+          expect(projection()).toEqual(before);
         }
       } finally {
         setup.close();
@@ -337,6 +342,38 @@ test('replay rejects an indexed execution whose history read omits its required 
   try {
     await setup.record(setup.claimCommand);
     const guard = await setup.currentGuard();
+    Object.defineProperty(Database.prototype, 'query', {
+      ...descriptor,
+      value(this: Database, sql: string) {
+        if (sql.includes("ORDER BY json_extract(e.reply,'$.revision')")) return { all: () => [] };
+        return query.call(this, sql);
+      },
+    });
+    await rejects(
+      setup.runs.recordExecution(guard, setup.claimCommand),
+      /corrupt (missing execution command|current attempt provenance)/,
+    );
+  } finally {
+    Object.defineProperty(Database.prototype, 'query', descriptor);
+    setup.close();
+  }
+});
+
+test('required indexed command cannot disappear behind a reset admitted projection', async () => {
+  const setup = await createFixture();
+  const descriptor = Object.getOwnPropertyDescriptor(Database.prototype, 'query');
+  if (descriptor === undefined) throw new Error('query descriptor absent');
+  const query = descriptor.value as Database['query'];
+  try {
+    const admitted = (await setup.runs.readRun(setup.run.runId)).attempts.find(
+      (candidate) => candidate.attemptId === setup.guard.attemptId,
+    );
+    if (admitted === undefined) throw new Error('missing fixture attempt');
+    await setup.record(setup.claimCommand);
+    const guard = await setup.currentGuard();
+    setup.database
+      .query('UPDATE run_attempt SET record=? WHERE attempt_id=?')
+      .run(JSON.stringify(admitted), admitted.attemptId);
     Object.defineProperty(Database.prototype, 'query', {
       ...descriptor,
       value(this: Database, sql: string) {

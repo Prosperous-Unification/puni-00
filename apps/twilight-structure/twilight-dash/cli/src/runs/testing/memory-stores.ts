@@ -23,7 +23,17 @@ import {
 } from '../plan-execution';
 import { planOutcome, type RecordedCompletion } from '../plan-outcome';
 import { assertClock, planOwnership, planRenewal } from '../plan-ownership';
+import { planReceipt, type RecordedReceipt, replayReceipt } from '../plan-receipt';
 import {
+  planConsumption,
+  planDecision,
+  type RecordedConsumption,
+  replayConsumption,
+  replayDecision,
+} from '../plan-signals';
+import { decisionId, decodeAttempt, decodeDecision, decodeReceipt } from '../record-codecs';
+import {
+  addInteger,
   assertInteger,
   decodeAdmission,
   decodeArtifactRef,
@@ -41,6 +51,7 @@ import {
   runId,
   storeId,
 } from '../record-codecs';
+import type { Decision } from '../records';
 import type {
   Admission,
   ArtifactRef,
@@ -84,6 +95,9 @@ export function createMemoryStores(options: MemoryOptions): {
   };
   let isClosed = false;
   let reserved = 0;
+  const decisions = new Map<string, Decision>();
+  const consumptions = new Map<string, RecordedConsumption>();
+  const receipts = new Map<string, RecordedReceipt>();
   const completions = new Map<string, RecordedCompletion>();
   const executions = new Map<string, RecordedExecution>();
   const blobs = new Map<string, { reference: ArtifactRef; content: Uint8Array }>();
@@ -138,8 +152,16 @@ export function createMemoryStores(options: MemoryOptions): {
     // Proof: bypassing release only settled memory enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
     // Proof: bypassing release settled memory enforcement failed 'memory execution > unknown effects and takeover retain capacity until determinate quiescence'.
     if (previous.holdsCapacity && !change.attempt.holdsCapacity) reserved -= 1;
+    // Proof: injecting memory capacity reacquisition bypass failed `memory decisions > decisions retain complete identity and consume only the exact wait once` at its explicit assertion.
+    if (!previous.holdsCapacity && change.attempt.holdsCapacity) reserved += 1;
     attempts.set(change.attempt.attemptId, structuredClone(change.attempt));
     runs.set(run.runId, { ...run, revision: change.runRevision });
+  }
+  function requireAttempt(identity: Attempt['attemptId']): Attempt {
+    const attempt = attempts.get(identity);
+    // Proof: injecting testing missing attempt bypass failed `memory signal edges > missing named attempts throw before inbox or receipt mutation` at its explicit assertion.
+    if (attempt === undefined) throw new Error('attempt does not exist');
+    return decodeAttempt(structuredClone(attempt));
   }
   const port: RunStore = {
     async acquireOwnership(identity, expectedEpoch) {
@@ -223,13 +245,102 @@ export function createMemoryStores(options: MemoryOptions): {
             (attempt) => attempt.identity.runId === run.runId,
           ),
           pendingIntents: [...completions.values()]
-            .filter((entry) => entry.completion.intent.authority.runId === run.runId)
+            .filter(
+              (entry) =>
+                entry.completion.intent.authority.runId === run.runId &&
+                !receipts.has(entry.completion.intent.commandId),
+            )
             .map((entry) => entry.completion.intent),
-          receipts: [],
-          decisions: [],
-          consumedDecisionIds: [],
+          receipts: [...receipts.values()]
+            .filter((entry) => entry.reply.identity.runId === run.runId)
+            .map((entry) => entry.receipt),
+          decisions: [...decisions.values()].filter(
+            (decision) => requireAttempt(decision.attemptId).identity.runId === run.runId,
+          ),
+          consumedDecisionIds: [...consumptions.values()]
+            .filter((entry) => entry.reply.identity.runId === run.runId)
+            .map((entry) => entry.decisionId),
           capacity: { limit: capacity, reserved },
         }),
+      );
+    },
+    async receiveDecision(inputOwner, inputDecision) {
+      const ownership = decodeOwnership(structuredClone(inputOwner));
+      const decision = decodeDecision(structuredClone(inputDecision));
+      const observedAt = observeClock();
+      // Proof: injecting testing receiveDecision owner bypass failed `memory signal edges > new inbox identities require current wait and legal correlation choice` at its explicit assertion.
+      if (!permitsMutation(readAuthority(ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const replay = replayDecision(decisions.get(decision.decisionId), decision);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const attempt = requireAttempt(decision.attemptId);
+      const run = readRun(attempt.identity.runId);
+      const reply = planDecision(attempt, decision);
+      if (reply.kind === 'applied') {
+        const revision = addInteger(run.revision, 1);
+        decisions.set(decision.decisionId, structuredClone(decision));
+        runs.set(run.runId, { ...run, revision });
+      }
+      return await Promise.resolve(finishReply(reply, observedAt));
+    },
+    async consumeDecision(inputGuard, inputId) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const identity = decisionId(inputId);
+      const observedAt = observeClock();
+      // Proof: injecting testing consumeDecision owner bypass failed `memory decisions > old consumption preserves its original reply through later waits and owner takeover` at its explicit assertion.
+      if (!permitsMutation(readAuthority(guard.ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const replay = replayConsumption(consumptions.get(identity), guard);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const decision = decisions.get(identity);
+      // Proof: injecting testing missing decision bypass failed `memory signal edges > new inbox identities require current wait and legal correlation choice` at its explicit assertion.
+      if (decision === undefined) throw new Error('decision does not exist');
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const reply = planConsumption({ run, attempt }, guard, decision, {
+        limit: capacity,
+        reserved,
+      });
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      applyChange(run, attempt, reply.value);
+      consumptions.set(
+        identity,
+        structuredClone({
+          decisionId: identity,
+          wait: reply.value.wait,
+          reply: reply.value.attempt,
+        }),
+      );
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
+      );
+    },
+    async reconcileReceipt(inputGuard, inputReceipt) {
+      const guard = decodeAttemptGuard(structuredClone(inputGuard));
+      const receipt = decodeReceipt(structuredClone(inputReceipt));
+      const observedAt = observeClock();
+      // Proof: injecting testing reconcileReceipt owner bypass failed `memory signal edges > historical receipt retries refuse changed evidence or authority and expired owner` at its explicit assertion.
+      if (!permitsMutation(readAuthority(guard.ownership, observedAt)))
+        return finishReply({ kind: 'refused', reason: 'owner_stale' }, observedAt);
+      const replay = replayReceipt(receipts.get(receipt.commandId), guard, receipt);
+      if (replay !== undefined) return finishReply(replay, observedAt);
+      const run = readRun(guard.runId);
+      const attempt = requireAttempt(guard.attemptId);
+      const reply = planReceipt(
+        { run, attempt },
+        guard,
+        receipt,
+        completions.get(
+          attempt.state.kind === 'outcome_pending_progress'
+            ? attempt.state.commandId
+            : receipt.commandId,
+        )?.completion.intent,
+      );
+      if (reply.kind === 'refused') return finishReply(reply, observedAt);
+      applyChange(run, attempt, reply.value);
+      receipts.set(receipt.commandId, structuredClone({ receipt, reply: reply.value.attempt }));
+      return await Promise.resolve(
+        finishReply({ kind: reply.kind, value: reply.value.attempt }, observedAt),
       );
     },
     async commitOutcome(inputGuard, inputCompletion) {
@@ -282,6 +393,18 @@ export function createMemoryStores(options: MemoryOptions): {
       const attempt = attempts.get(guard.attemptId);
       // Proof: bypassing recordExecution missing attempt memory enforcement failed 'memory execution edges > successful effects cannot retry and missing attempts throw without mutations'.
       if (attempt === undefined) throw new Error('attempt does not exist');
+      // Proof: injecting testing fresh wait key bypass failed `memory decisions > old consumption preserves its original reply through later waits and owner takeover` at its explicit assertion.
+      if (
+        command.fact.kind === 'waiting' &&
+        [...executions.values()].some(
+          (entry) =>
+            entry.reply.attemptId === attempt.attemptId &&
+            entry.command.fact.kind === 'waiting' &&
+            command.fact.kind === 'waiting' &&
+            entry.command.fact.wait.correlationKey === command.fact.wait.correlationKey,
+        )
+      )
+        return finishReply({ kind: 'refused', reason: 'decision_conflict' }, observedAt);
       const reply = planExecution({ run, attempt: structuredClone(attempt) }, guard, command.fact);
       if (reply.kind === 'refused') return finishReply(reply, observedAt);
       if (reply.kind === 'applied') {
