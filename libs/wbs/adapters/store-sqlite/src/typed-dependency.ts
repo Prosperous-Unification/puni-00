@@ -1,4 +1,10 @@
-import type { StoredTypedDependency, TypedDependencyStore, WriteStamp } from '@wbs/core';
+import type {
+  IncidentDependencyStore,
+  IncidentReceipt,
+  StoredTypedDependency,
+  TypedDependencyStore,
+  WriteStamp,
+} from '@wbs/core';
 import {
   formatTypedDependencyKey,
   isDependencyEndpointScope,
@@ -323,6 +329,85 @@ export class TypedDependencyRepository implements TypedDependencyStore {
     private readonly db: Drizzle,
     private readonly gate: Gate,
   ) {}
+
+  /** Raw staging writes stay inside the admitted outer UoW; no async SQLite callback. */
+  readonly incidents: IncidentDependencyStore = {
+    capture: async (id) => {
+      await Promise.resolve();
+      return this.db.transaction((tx) => {
+        const stored = requirePhysical(tx, id);
+        return {
+          dependency: stored.dependency,
+          createdAt: stored.row.createdAt,
+          createdBy: stored.row.createdBy,
+        };
+      });
+    },
+    detach: async (receipt) => {
+      await this.gate.enter(async () => {
+        await Promise.resolve();
+        this.db.transaction((tx) => {
+          const stored = requirePhysical(tx, receipt.dependency.id);
+          const current: IncidentReceipt = {
+            dependency: stored.dependency,
+            createdAt: stored.row.createdAt,
+            createdBy: stored.row.createdBy,
+          };
+          // Proof: bypass let stale type evidence detach the edited row, 2026-10-22.
+          if (JSON.stringify(current) !== JSON.stringify(receipt))
+            throw new Error('incident receipt changed');
+          deletePhysical(tx, stored);
+        });
+      });
+    },
+    restore: async (receipt, previous, stamp) => {
+      await this.gate.enter(async () => {
+        await Promise.resolve();
+        this.db.transaction((tx) => {
+          const row = receipt.dependency;
+          // Proof: independently removing ID or owner equality restored a replacement ID or reversed foreign ownership, 2026-10-22.
+          if (row.id !== previous.id || row.projectId !== previous.projectId)
+            throw new Error('incident restoration cannot change identity or owner');
+          // Proof: omission deferred reused-ID refusal to SQLite uniqueness instead of the required staging diagnostic, 2026-10-22.
+          if (readPhysical(tx, { id: row.id }).length !== 0)
+            throw new Error(`incident dependency ${row.id} already exists`);
+          const organizationId = assertEndpointsHeld(tx, row);
+          // Proof: replacing original creation fields with the command stamp lost null audit through forward/inverse restoration, 2026-10-22.
+          const audit = {
+            ...auditOnCreate(stamp),
+            createdAt: receipt.createdAt,
+            createdBy: receipt.createdBy,
+          };
+          if (organizationId === undefined) {
+            tx.insert(typedDependency)
+              .values({ id: row.id, ...mapStoredColumns(row), ...audit })
+              .run();
+          } else {
+            tx.insert(externalDependency)
+              .values({
+                id: row.id,
+                ...mapStoredColumns(row),
+                organizationId,
+                predecessorProjectId: row.predecessor.projectId,
+                successorProjectId: row.successor.projectId,
+                ...audit,
+              })
+              .run();
+          }
+          bumpWorkItems(
+            tx,
+            [
+              previous.predecessor.workItemId,
+              previous.successor.workItemId,
+              row.predecessor.workItemId,
+              row.successor.workItemId,
+            ],
+            stamp,
+          );
+        });
+      });
+    },
+  };
 
   async listByProject(projectId: string): Promise<StoredTypedDependency[]> {
     await Promise.resolve();

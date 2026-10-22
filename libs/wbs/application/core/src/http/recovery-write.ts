@@ -129,6 +129,7 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
         scope.stores,
         { projectId, actorId, access, admission: grant?.admission ?? CREATOR_ADMISSION },
         () => undefined,
+        { kind: 'raw' },
       );
       try {
         const services = boundary.batch(

@@ -6,6 +6,7 @@ import type { Demand } from '../ports/demand-store';
 import type { StoredDependency } from '../ports/dependency-store';
 import type { Assignment } from '../ports/directory-store';
 import type { StoredEstimate } from '../ports/estimate-store';
+import type { IncidentNodeReceipt } from '../ports/incident-node-transition';
 import type { MeasureKey, StoredMeasure } from '../ports/measure-store';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredStepBlockage } from '../ports/step-blockage-store';
@@ -129,6 +130,15 @@ export type CompensatingCommand =
   | { do: 'add_typed_dependency'; dependency: StoredTypedDependency }
   | { do: 'remove_typed_dependency'; dependency: StoredTypedDependency }
   | { do: 'update_typed_dependency'; from: StoredTypedDependency; to: StoredTypedDependency }
+  /** Exact derived incident mapping compensated in its structural owner's single entry. */
+  | {
+      do: 'transition_incident_nodes';
+      projectId: string;
+      fromWorkItemId: string;
+      toWorkItemId: string;
+      structural: CompensatingCommand;
+      receipts: readonly IncidentNodeReceipt[];
+    }
   /**
    * Historical destination progress may remain in place through inverse reparenting
    * only when the complete snapshot still matches. Absence requires no progress.

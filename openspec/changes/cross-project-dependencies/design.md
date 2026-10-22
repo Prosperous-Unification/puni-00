@@ -441,7 +441,16 @@ Structural hand-down follows step facts and updates all incident external
 endpoints transactionally. Journal touched identities and compensating commands
 cover those updates; undo revalidates endpoint ownership, shape and the combined
 graph, refusing concurrent changes atomically. No structural edit silently
-broadens or narrows an authored endpoint scope.
+broadens or narrows an authored endpoint scope. Exact first-child incident mapping
+is derived structural continuity: editing the structural project and currently
+reading all required endpoints permits the mapping even when a remote successor
+is restricted against edits. Successor ownership, ID, type, scope, step and
+creation audit remain unchanged. This grants no general remote relationship
+writer. One compound compensation belongs to the structural owner's entry; no
+remote history is created or silently rebased. Replay requires the exact original
+and mapped receipts, current endpoint evidence and scoped revisions, and validates
+the staged connected graph after reattachment. Missing replay evidence is trusted
+corruption, never a fresh-capture fallback.
 
 Extend committed-event fan-out to all affected readable projects, independent
 of whether they share a person. Recompute component identity on topology,

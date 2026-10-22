@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:
+440 |     .query<{ preconditions: string }, [string]>(
+441 |       'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+442 |     )
+443 |     .get(owner);
+444 |   if (journal === null) throw new Error('fixture journal missing');
+445 |   expect(readPreconditions(JSON.parse(journal.preconditions) as unknown).estimateUnits).toEqual({
+                                                                                              ^
+error: expect(received).toEqual(expected)
+
+- {
+-   "153bc2df-6eef-4d90-ab55-1650d8683477": "workdays",
+- }
++ {}
+
+- Expected  - 3
++ Received  + 1
+
+      at <anonymous> (/tmp/puni-incident-handdown/apps/wbs/be-01/src/controller/cross-project-dependency-history.controller.db.test.ts:445:89)
+(fail) compound handdown carries local statement estimate and progress facts with exact unit bindings through neighboring history [511.44ms]
+
+ 0 pass
+ 20 filtered out
+ 1 fail
+ 15 expect() calls
+Ran 1 test across 1 file. [2.80s]

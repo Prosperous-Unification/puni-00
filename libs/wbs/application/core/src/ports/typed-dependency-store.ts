@@ -5,8 +5,29 @@ import type { WriteStamp } from './write-stamp';
 /** A typed link owned by its successor project; the owner must equal successor.projectId. */
 export type StoredTypedDependency = ScopedTypedDependency & { projectId: string };
 
+/** Exact physical creation evidence, including legitimate legacy null audit. */
+export interface IncidentReceipt {
+  readonly dependency: StoredTypedDependency;
+  readonly createdAt: number | null;
+  readonly createdBy: string | null;
+}
+
+/** Raw transaction persistence used only by the bound structural incident capability.
+ * Detachment is physical staging, not a logical relationship deletion; restore
+ * preserves creation evidence and bumps the old/new endpoint union once. */
+export interface IncidentDependencyStore {
+  capture(id: string): Promise<IncidentReceipt>;
+  detach(receipt: IncidentReceipt): Promise<void>;
+  restore(
+    receipt: IncidentReceipt,
+    previous: StoredTypedDependency,
+    stamp: WriteStamp,
+  ): Promise<void>;
+}
+
 /** Persistence boundary for typed endpoint links. Duplicate adds must refuse. */
 export interface TypedDependencyStore {
+  readonly incidents: IncidentDependencyStore;
   /** Relationships owned by this successor project, including local and external rows. */
   listByProject(projectId: string): Promise<StoredTypedDependency[]>;
   /** Each relationship touching any requested project once, ordered by relationship ID. */

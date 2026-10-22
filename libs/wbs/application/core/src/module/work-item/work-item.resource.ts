@@ -181,6 +181,7 @@ import {
   readPreconditions,
   referencesOf,
   requireExternalRevisions,
+  requiresExternalAuthoring,
   restoredTypedAddressesOf,
   type Revisions,
   scopedRevisionKey,
@@ -2348,6 +2349,89 @@ export class WorkItemService {
       // at 1 — see {@link NumberedWorkItem.revision}.
       revision: 0,
     };
+    const construct = () =>
+      this.insertWorkItem(projectId, actorId, input, rows, workItem, firstChildOf, placed, stamp);
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (context) => {
+        const handDown =
+          firstChildOf === undefined
+            ? null
+            : { fromWorkItemId: firstChildOf.id, toWorkItemId: workItem.id };
+        const transition =
+          handDown === null
+            ? {
+                ok: true as const,
+                value: await construct(),
+                evidence: { receipts: [], externalBefore: [] },
+              }
+            : await context.incidents.run(
+                projectId,
+                actorId,
+                { kind: 'fresh', ...handDown },
+                stamp,
+                construct,
+              );
+        if (!transition.ok) {
+          if (transition.reason === 'structure_refused') return transition.value;
+          return {
+            ok: false as const,
+            reason: transition.reason === 'stale_undo' ? ('not_found' as const) : transition.reason,
+          };
+        }
+        const built = transition.value;
+        if (!built.ok) return built;
+        const { receipts, externalBefore } = transition.evidence;
+        const recording: Recording =
+          receipts.length === 0 || handDown === null
+            ? built.recording
+            : {
+                ...built.recording,
+                forward: {
+                  do: 'transition_incident_nodes',
+                  projectId,
+                  fromWorkItemId: handDown.fromWorkItemId,
+                  toWorkItemId: workItem.id,
+                  structural: built.recording.forward,
+                  receipts,
+                },
+                inverse: {
+                  do: 'transition_incident_nodes',
+                  projectId,
+                  fromWorkItemId: workItem.id,
+                  toWorkItemId: handDown.fromWorkItemId,
+                  structural: built.recording.inverse,
+                  receipts: receipts.map(({ from, to }) => ({ from: to, to: from })),
+                },
+                externalBefore,
+              };
+        recording.touched = [
+          ...new Set([
+            ...built.recording.touched,
+            ...touchedBy(recording.forward),
+            ...touchedBy(recording.inverse),
+          ]),
+        ];
+        await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, recording);
+        await this.announceTree(projectId);
+        return { ok: true as const, value: workItem, stepNodeMapping: built.stepNodeMapping };
+      },
+    );
+  }
+
+  /** Prepares the complete local recording inside its caller's admitted structural transition. */
+  private async insertWorkItem(
+    projectId: string,
+    actorId: string,
+    input: CreateWorkItem,
+    rows: readonly WorkItem[],
+    workItem: WorkItem,
+    firstChildOf: WorkItem | undefined,
+    placed: ReturnType<typeof placeAfter>,
+    stamp: WriteStamp,
+  ) {
     const statementsHandedDown =
       firstChildOf !== undefined && (firstChildOf.readiness !== null || firstChildOf.hold !== null)
         ? {
@@ -2562,7 +2646,10 @@ export class WorkItemService {
         : (await this.opts.typedDependencies.listByProject(projectId))
             .filter((dependency) =>
               [dependency.predecessor, dependency.successor].some(
-                (endpoint) => endpoint.scope === 'node' && endpoint.workItemId === gainsFirstChild,
+                (endpoint) =>
+                  endpoint.scope === 'node' &&
+                  endpoint.projectId === projectId &&
+                  endpoint.workItemId === gainsFirstChild,
               ),
             )
             .map((original) => ({
@@ -2571,11 +2658,13 @@ export class WorkItemService {
                 ...original,
                 predecessor:
                   original.predecessor.scope === 'node' &&
+                  original.predecessor.projectId === projectId &&
                   original.predecessor.workItemId === gainsFirstChild
                     ? { ...original.predecessor, workItemId: workItem.id }
                     : original.predecessor,
                 successor:
                   original.successor.scope === 'node' &&
+                  original.successor.projectId === projectId &&
                   original.successor.workItemId === gainsFirstChild
                     ? { ...original.successor, workItemId: workItem.id }
                     : original.successor,
@@ -2638,7 +2727,6 @@ export class WorkItemService {
         if (!cleared.ok) throw new Error(`cannot clear parent assignment: ${cleared.reason}`);
       }
     }
-    await this.announceTree(projectId);
     const forward: CompensatingCommand = {
       do: 'restore_subtree',
       rows: [workItem],
@@ -2652,7 +2740,10 @@ export class WorkItemService {
       // Proof: left out, `skips a number removed before the first child, across
       // the create's undo and redo` in `step-node-attempt.controller.db.test.ts`
       // read the child's numbers `[1, 2]` where `[1, 3]` was owed; watched 2026-10-12.
-      issuedAttemptNumbers: issuedHandedDown.map((each) => ({ ...each, workItemId: workItem.id })),
+      issuedAttemptNumbers: issuedHandedDown.map((each) => ({
+        ...each,
+        workItemId: workItem.id,
+      })),
       assignments: assignedHandedDown.map((assignment) => ({
         ...assignment,
         workItemId: workItem.id,
@@ -2804,7 +2895,7 @@ export class WorkItemService {
       forwardSteps.length === 1 ? forward : { do: 'batch', steps: forwardSteps };
     const inverseCommand: CompensatingCommand =
       inverseSteps.length === 1 ? inverse : { do: 'batch', steps: inverseSteps };
-    await this.record(projectId, stamp, 'create', `add ${quoteName(workItem.name)}`, {
+    const recording: Recording = {
       forward: forwardCommand,
       inverse: inverseCommand,
       // Both batches name every typed endpoint whose revision replay writes.
@@ -2819,8 +2910,8 @@ export class WorkItemService {
         ]),
       ],
       before: rows,
-    });
-    return { ok: true, value: workItem, stepNodeMapping };
+    };
+    return { ok: true as const, value: workItem, stepNodeMapping, recording };
   }
 
   async patch(
@@ -6967,7 +7058,11 @@ export class WorkItemService {
                 };
             }
           }
-        if (external !== null && !this.externalDependenciesActive)
+        if (
+          external !== null &&
+          !this.externalDependenciesActive &&
+          bothDirections.some(requiresExternalAuthoring)
+        )
           return { ok: false, reason: 'external_dependencies_inactive', detail: null };
         if (external !== null) {
           const current = await dependencyContext.endpoints.readRevisions(external.expected);
@@ -7397,6 +7492,32 @@ export class WorkItemService {
     access?: ResourceAccess,
   ): Promise<ApplyOutcome> {
     switch (command.do) {
+      case 'transition_incident_nodes': {
+        if (command.projectId !== projectId)
+          throw new Error('incident replay structural owner mismatch');
+        return withDependencyContext(
+          this.opts.dependencyContext,
+          projectId,
+          stamp.by,
+          async (context) => {
+            const transition = await context.incidents.run(
+              projectId,
+              stamp.by,
+              {
+                kind: 'replay',
+                fromWorkItemId: command.fromWorkItemId,
+                toWorkItemId: command.toWorkItemId,
+                receipts: command.receipts,
+              },
+              stamp,
+              () => this.apply(projectId, command.structural, stamp),
+            );
+            return transition.ok || transition.reason === 'structure_refused'
+              ? transition.value
+              : { ok: false, detail: `incident transition refused: ${transition.reason}.` };
+          },
+        );
+      }
       case 'patch': {
         // A statement goes back only onto a row that is still a leaf: one that
         // has gained a child since is a parent, and the plan read refuses a
@@ -9622,9 +9743,11 @@ function deletionParentsOf(commands: readonly CompensatingCommand[]): string[] {
   return commands.flatMap((command) =>
     command.do === 'batch'
       ? deletionParentsOf(command.steps)
-      : (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
-          command.deletionState?.parentId != null
-        ? [command.deletionState.parentId]
-        : [],
+      : command.do === 'transition_incident_nodes'
+        ? deletionParentsOf([command.structural])
+        : (command.do === 'delete_subtree' || command.do === 'restore_subtree') &&
+            command.deletionState?.parentId != null
+          ? [command.deletionState.parentId]
+          : [],
   );
 }

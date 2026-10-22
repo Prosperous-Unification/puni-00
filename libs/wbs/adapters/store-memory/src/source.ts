@@ -132,7 +132,14 @@ function coordinatedStores(
       coordinator,
     ),
     typedDependencies: coordinatedStore(
-      stores.typedDependencies,
+      {
+        ...stores.typedDependencies,
+        incidents: coordinatedStore(
+          stores.typedDependencies.incidents,
+          ['detach', 'restore'],
+          coordinator,
+        ),
+      },
       ['add', 'update', 'remove', 'removeAllFor'],
       coordinator,
     ),
