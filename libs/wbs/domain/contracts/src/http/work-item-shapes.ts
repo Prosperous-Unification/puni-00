@@ -254,8 +254,8 @@ const batchRefusals = [
         // undeclared refusal"; watched 2026-10-22.
         type({ ...context, error: "'agent_person_limit'", ...limitCrossed }),
         // Proof: with this arm removed, `refuses the forty-first bound claim`
-        // and four more cases of claim-limit.controller.db.test.ts answered 500
-        // "returned an undeclared refusal" (7 pass, 5 fail); watched 2026-10-22.
+        // and five more cases of claim-limit.controller.db.test.ts answered 500
+        // "returned an undeclared refusal" (7 pass, 6 fail); watched 2026-10-22.
         type({ ...context, error: "'claim_limit'", ...claimLimitCrossed }),
       ),
     ),

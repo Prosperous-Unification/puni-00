@@ -177,6 +177,11 @@ describe('the concurrent-claim cap, activated', () => {
     const [leaf] = await leaves(1);
     const dev = claim(leaf, 'claire', { runId: 'r1', steps: [steps[0]] });
     expect((await batch([dev])).status).toBe(200);
+    // Another run of the same person on the same leaf is another bound claim,
+    // so the unheld second step under it is refused by the cap.
+    expect(await batch([claim(leaf, 'claire', { runId: 'r2', steps: [steps[1]] })])).toEqual(
+      limitRefusal(0, 1, 1),
+    );
 
     expect((await batch([claim(leaf, 'claire', { runId: 'r1', steps: [steps[1]] })])).status).toBe(
       200,
@@ -186,11 +191,6 @@ describe('the concurrent-claim cap, activated', () => {
     expect(await batch([dev])).toMatchObject({
       status: 200,
       body: { results: [{ alreadyHeld: true }] },
-    });
-    // Another run of the same person on the same leaf is another bound claim.
-    expect(await batch([claim(leaf, 'claire', { runId: 'r2', steps: [steps[1]] })])).toMatchObject({
-      status: 409,
-      body: { error: 'already_claimed' },
     });
   });
 
@@ -266,6 +266,24 @@ describe('the concurrent-claim cap, activated', () => {
     expect(
       h.sqlite
         .query<{ n: number }, [string]>('SELECT count(*) AS n FROM claim WHERE work_item_id = ?')
+        .get(a)?.n,
+    ).toBe(0);
+  });
+
+  it('refuses an undo of a delete once another took the freed place', async () => {
+    capClaims(1);
+    const [a, b] = await leaves(2);
+    expect((await batch([claim(a, 'codex')])).status).toBe(200);
+    expect((await batch([{ kind: 'deleteWorkItem', workItemId: a }])).status).toBe(200);
+    expect(boundClaims()).toBe(0);
+    expect((await batch([claim(b, 'claire')], 'bea')).status).toBe(200);
+
+    const undone = await h.call('ada', 'POST', `/api/projects/${projectId}/undo`);
+    expect(undone).toMatchObject({ status: 409, body: { error: 'stale_undo' } });
+    expect((undone.body as { detail: string }).detail).toBe('claim_limit: cap 1, current 1.');
+    expect(
+      h.sqlite
+        .query<{ n: number }, [string]>('SELECT count(*) AS n FROM work_item WHERE id = ?')
         .get(a)?.n,
     ).toBe(0);
   });
