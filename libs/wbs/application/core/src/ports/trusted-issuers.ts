@@ -10,14 +10,16 @@ export interface UnverifiedJwtClaims {
   readonly issuer: string;
   /** Null when the token carries no string `sub`. */
   readonly subject: string | null;
+  /** Its `aud`, a string or an array, as the strings it names; empty when absent. */
+  readonly audiences: readonly string[];
 }
 
 /** What one trusted-issuer token must verify against. */
 export interface TrustedIssuerExpectation {
   readonly issuer: string;
   readonly jwksUri: string;
-  /** Checked against `aud` when set; null checks no audience. */
-  readonly audience: string | null;
+  /** Always checked against `aud` (A25): a registration has one. */
+  readonly audience: string;
 }
 
 /**
@@ -68,7 +70,8 @@ export interface TrustedIssuerSummary {
   readonly id: string;
   readonly issuer: string;
   readonly jwksUri: string;
-  readonly defaultAudience: string | null;
+  /** The audience every token of this registration carries (A25). */
+  readonly audience: string;
   readonly ssoConnectionId: string | null;
   readonly createdAt: number;
   readonly createdBy: string | null;
@@ -81,7 +84,7 @@ export interface TrustedIssuerDraft {
   readonly id: string;
   readonly issuer: string;
   readonly jwksUri: string;
-  readonly defaultAudience: string | null;
+  readonly audience: string;
   readonly ssoConnectionId: string | null;
 }
 
@@ -89,14 +92,21 @@ export interface TrustedIssuerDraft {
  * Why registering an issuer is refused by what the organization already
  * holds: `unknown_sso_connection` for a connection of another organization or
  * none, `issuer_not_oidc` for a `samlp` one, `sso_connection_unproven` for an
- * unproven one, `issuer_taken` when the organization already trusts the URL.
+ * unproven one, `issuer_taken` when the organization already trusts the URL,
+ * `audience_taken` when any organization registered the URL with this audience
+ * (A25), `trusted_issuer_limit` at {@link MAX_TRUSTED_ISSUERS}.
  */
 export type TrustedIssuerRegistrationRefusal =
   | MachineCredentialActorRefusal
   | 'unknown_sso_connection'
   | 'issuer_not_oidc'
   | 'sso_connection_unproven'
-  | 'issuer_taken';
+  | 'issuer_taken'
+  | 'audience_taken'
+  | 'trusted_issuer_limit';
+
+/** How many trusted issuers one organization may register. */
+export const MAX_TRUSTED_ISSUERS = 8;
 
 /**
  * Trusted issuer administration (`wbs-machine-credentials` A16, A17), for
@@ -121,8 +131,11 @@ export interface TrustedIssuerAdministration {
   checkRegistration(
     organizationId: string,
     actorId: string,
-    issuer: string,
-    ssoConnectionId: string | null,
+    registration: {
+      readonly issuer: string;
+      readonly audience: string;
+      readonly ssoConnectionId: string | null;
+    },
   ): Promise<TrustedIssuerRegistrationRefusal | 'ready'>;
   register(
     organizationId: string,
@@ -159,3 +172,32 @@ export const INACTIVE_TRUSTED_ISSUER_ADMINISTRATION: TrustedIssuerAdministration
   register: () => Promise.resolve({ kind: 'inactive' }),
   remove: () => Promise.resolve('inactive'),
 };
+
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+const PRIVATE_SUFFIXES = ['.internal', '.local', '.localhost'];
+
+/**
+ * Whether `url` is an HTTPS URL whose host may be fetched on an admin's word
+ * (`wbs-machine-credentials` A16): never a literal IP address (which covers
+ * loopback, link-local, RFC 1918 and ULA ranges), never `localhost` and never
+ * a name under `.internal`, `.local` or `.localhost`. Both URL checks read it:
+ * the issuer an admin registers and the `jwks_uri` its discovery publishes.
+ *
+ * A public name that resolves to a private address (DNS rebinding) is not
+ * refused here: the fetch is HTTPS, so it is left to TLS certificate
+ * validation, which a private host cannot pass for a public name.
+ */
+export function isPublicIssuerUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    // A URL that does not parse names no host to fetch: the modeled answer.
+    return false;
+  }
+  if (parsed.protocol !== 'https:') return false;
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, '');
+  if (host.startsWith('[') || IPV4.test(host)) return false;
+  if (host === 'localhost') return false;
+  return !PRIVATE_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}

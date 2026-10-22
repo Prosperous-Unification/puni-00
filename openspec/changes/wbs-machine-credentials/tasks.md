@@ -240,6 +240,20 @@ unknown_sso_connection`, a code the spec did not name.
 
 See `verify.md`, "Slice 5 record".
 
+Slice 5 review (Fable, 2026-10-22: merge after fixes) and A25, built on the same branch:
+
+- [x] 5.5 A25: required `audience` on trusted issuers (`audience` replaces `defaultAudience`
+      on the wire), `(issuer, audience)` unique (`audience_taken`), subjects unique per
+      registration, selection by `(iss, aud)` then `(registration, sub)`; migration
+      `20261022120000_scope_trusted_issuer_audience` with `down.sql` refusing while two
+      organizations bind one subject — tests: `trusted-issuer-audience-migration.db.test.ts`,
+      the two-organizations and two-audiences cases in `oidc-credential.controller.db.test.ts`.
+- [x] 5.6 Negatives for the algorithm allow-list, the non-empty `sub`, `exp` required and
+      the one-hour lifetime, the `jwks_uri` length, a non-200 key set, both fetch timeouts,
+      both body caps (64 KB, 256 KB), the per-organization cap of eight, the 30 s failure
+      cooldown and the public-host filter at both URL checks — `trusted-issuer.test.ts` and
+      the controller tests.
+
 ## 6. The settings panel and the people page
 
 - [ ] 6.1 `machine-credentials-panel.tsx` composed by `organization-page.tsx` on

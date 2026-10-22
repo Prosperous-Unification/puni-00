@@ -98,11 +98,11 @@ async function createProject(username: string, name: string): Promise<string> {
   return (created.body as { project: { id: string } }).project.id;
 }
 
-/** Registers `issuer` for the caller's organization and answers its id. */
-async function trust(username: string, issuer: LocalIssuer, defaultAudience?: string) {
+/** Registers `issuer` for the caller's organization with `audience` and answers its id. */
+async function trust(username: string, issuer: LocalIssuer, audience = `aud-${username}`) {
   const registered = await h.call(username, 'POST', '/api/organization/trusted-issuers', {
     issuer: issuer.url,
-    ...(defaultAudience === undefined ? {} : { defaultAudience }),
+    audience,
   });
   if (registered.status !== 201) throw new Error(`trust refused: ${JSON.stringify(registered)}`);
   return (registered.body as { id: string }).id;
@@ -123,7 +123,7 @@ function createOidc(
   });
 }
 
-/** Trusts `ci` in org-a with default audience `wbs` and creates claire's credential for MAIN. */
+/** Trusts `ci` in org-a with audience `wbs` and creates claire's credential for MAIN. */
 async function claireCredential(): Promise<{ trustedIssuerId: string; id: string }> {
   const trustedIssuerId = await trust('dany', ci, 'wbs');
   const created = await createOidc('dany', { trustedIssuerId });
@@ -214,7 +214,7 @@ describe('creating an OIDC credential', () => {
     expect(credentialCount()).toBe(0);
   });
 
-  it('refuses a pair another credential holds, revoked ones and other organizations included', async () => {
+  it("refuses a subject its trusted issuer already binds, revoked ones included, and never consults another organization's", async () => {
     const { trustedIssuerId, id } = await claireCredential();
     expect(await createOidc('dany', { trustedIssuerId }, 'again')).toEqual({
       status: 409,
@@ -227,9 +227,9 @@ describe('creating an OIDC credential', () => {
     });
     const theirs = await trust('bob', ci);
     expect(
-      await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' }, 'b'),
-    ).toEqual({ status: 409, body: { error: 'subject_taken' } });
-    expect(credentialCount()).toBe(1);
+      (await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' }, 'b')).status,
+    ).toBe(201);
+    expect(credentialCount()).toBe(2);
   });
 
   it('refuses rotation at the issuer, and revokes', async () => {
@@ -300,9 +300,9 @@ describe('a trusted issuer token', () => {
     ).toEqual(INVALID);
   });
 
-  // Proof: with `findByPair` answering the trusted issuer's default audience
-  // over the credential's, this admitted the `pinned` subject's token for
-  // `aud: 'wbs'` (200 instead of invalid_token); watched 2026-10-22.
+  // Proof: with the registration's audience answered over the credential's
+  // own, this admitted the `pinned` subject's token for `aud: 'wbs'` alone
+  // (200 instead of invalid_token); watched 2026-10-22.
   it('refuses a wrong audience, the credential audience winning over the default', async () => {
     const trustedIssuerId = await trust('dany', ci, 'wbs');
     expect(
@@ -317,8 +317,29 @@ describe('a trusted issuer token', () => {
       INVALID,
     );
     expect(
-      (await as(await ci.sign({ sub: 'pinned', aud: 'deploy' }), 'GET', '/api/projects')).status,
+      await as(await ci.sign({ sub: 'pinned', aud: 'deploy' }), 'GET', '/api/projects'),
+    ).toEqual(INVALID);
+    expect(
+      (await as(await ci.sign({ sub: 'pinned', aud: ['wbs', 'deploy'] }), 'GET', '/api/projects'))
+        .status,
     ).toBe(200);
+    // A wrong `aud` selects no registration, so nothing is fetched for it.
+    expect(ci.jwksFetches).toBe(1);
+  });
+
+  // Proof: with the `length > 1` refusal removed from
+  // `authenticateTrustedIssuerToken`, this admitted the token as A's; watched
+  // 2026-10-22.
+  it("refuses a token naming two organizations' audiences", async () => {
+    await claireCredential();
+    const theirs = await trust('bob', ci, 'wbs-b');
+    expect(
+      (await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' }, 'b')).status,
+    ).toBe(201);
+    expect(
+      await as(await ci.sign({ sub: MAIN, aud: ['wbs', 'wbs-b'] }), 'GET', '/api/projects'),
+    ).toEqual(INVALID);
+    expect(ci.jwksFetches).toBe(0);
   });
 
   it('refuses an expired or not-yet-valid token', async () => {
@@ -376,10 +397,14 @@ describe('a trusted issuer token', () => {
     );
     expect(reports).toHaveLength(1);
     expect(reports[0]).toMatchObject({ jwksUri: ci.jwksUri, issuer: ci.url });
+    // Within the 30 s failure cooldown the key set is not fetched again,
+    // even once it would answer.
     ci.jwksStatus = 200;
-    expect(
-      (await as(await ci.sign({ sub: MAIN, aud: 'wbs' }), 'GET', '/api/projects')).status,
-    ).toBe(200);
+    expect(await as(await ci.sign({ sub: MAIN, aud: 'wbs' }), 'GET', '/api/projects')).toEqual(
+      INVALID,
+    );
+    expect(ci.jwksFetches).toBe(1);
+    expect(reports).toHaveLength(1);
   });
 
   it('stops authenticating once its issuer is removed', async () => {
@@ -423,21 +448,20 @@ describe('a trusted issuer token', () => {
     expect(ci.jwksFetches).toBe(1);
   });
 
-  it("never admits another organization's subject through one shared issuer URL", async () => {
+  it('binds one subject in two organizations through one shared issuer URL', async () => {
     await claireCredential();
-    const theirs = await trust('bob', ci, 'wbs');
+    const theirs = await trust('bob', ci, 'wbs-b');
     expect(
-      (await createOidc('bob', { trustedIssuerId: theirs, subject: 'b', personId: 'bobs-agent' }))
-        .status,
+      (await createOidc('bob', { trustedIssuerId: theirs, personId: 'bobs-agent' })).status,
     ).toBe(201);
     const a = await as(await ci.sign({ sub: MAIN, aud: 'wbs' }), 'GET', '/api/projects');
     expect(projectIds(a)).toEqual([projectA]);
-    const b = await as(await ci.sign({ sub: 'b', aud: 'wbs' }), 'GET', '/api/projects');
+    const b = await as(await ci.sign({ sub: MAIN, aud: 'wbs-b' }), 'GET', '/api/projects');
     expect(projectIds(b)).toEqual([projectB]);
     expect(ci.jwksFetches).toBe(1);
   });
 
-  // Proof: with the organization predicate removed from `findByPair`'s
+  // Proof: with the organization predicate removed from `findOidcCredential`'s
   // trusted issuer join, this admitted B's credential through A's issuer;
   // watched 2026-10-22.
   it("refuses a credential that names another organization's trusted issuer", async () => {
@@ -459,8 +483,8 @@ describe('a trusted issuer token', () => {
     const plantedIssuer = crypto.randomUUID();
     const planted = crypto.randomUUID();
     h.sqlite.run(
-      `INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, created_at) VALUES (?, 'org-a', ?, ?, 1)`,
-      [plantedIssuer, CONFIGURED, idp.jwksUri],
+      `INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, default_audience, created_at) VALUES (?, 'org-a', ?, ?, ?, 1)`,
+      [plantedIssuer, CONFIGURED, idp.jwksUri, UPSTREAM_AUDIENCE],
     );
     h.sqlite.run(
       `INSERT INTO machine_credential (id, organization_id, person_id, issued_by, source, name, issuer, subject, trusted_issuer_id, created_at, created_by)

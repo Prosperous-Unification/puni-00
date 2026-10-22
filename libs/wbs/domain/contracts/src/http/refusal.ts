@@ -508,7 +508,11 @@ type BareRefusalCode =
   | 'issuer_taken'
   | 'unknown_sso_connection'
   | 'unknown_trusted_issuer'
-  | 'subject_taken';
+  | 'subject_taken'
+  // A25: another organization registered the issuer with this audience; an
+  // organization at its trusted issuer cap.
+  | 'audience_taken'
+  | 'trusted_issuer_limit';
 
 type SharedCommandCode =
   | 'not_found'

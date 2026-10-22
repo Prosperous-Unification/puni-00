@@ -21,21 +21,25 @@ export interface MachineCredentials {
    */
   findById(id: string): Promise<MachineCredentialRecord | null>;
   /**
-   * The distinct JWKS URLs of every organization's trusted issuers whose
-   * issuer URL is exactly `issuer`; empty when no organization trusts it, so
-   * the verification path refuses without fetching any key set (A13 step 5).
+   * Every organization's registration of the issuer URL exactly `issuer`,
+   * each with its audience (A25: at most one per `(issuer, audience)` across
+   * the deployment); empty when no organization trusts it, so the
+   * verification path refuses without fetching any key set (A13 step 5).
    */
-  trustedKeySetsOf(issuer: string): Promise<readonly string[]>;
+  trustedRegistrationsOf(issuer: string): Promise<readonly TrustedIssuerRegistration[]>;
   /**
-   * The `oidc` credential whose pair is exactly `(issuer, subject)`, read with
-   * the trusted issuer it names **within the credential's own organization**
-   * (task 5.2a): a credential pointing at another organization's trusted
-   * issuer, or at one whose URL is not `issuer`, reads as none. Revoked
+   * The `oidc` credential of trusted issuer `trustedIssuerId` for exactly
+   * `subject` (A25: one per trusted issuer row), read only when that trusted
+   * issuer is of **the credential's own organization** and carries the
+   * credential's issuer URL (task 5.2a): any other row reads as none. Revoked
    * credentials are returned: the admission decision refuses them.
    *
    * @throws when a stored row is malformed (trusted state).
    */
-  findByPair(issuer: string, subject: string): Promise<OidcCredentialRecord | null>;
+  findOidcCredential(
+    trustedIssuerId: string,
+    subject: string,
+  ): Promise<OidcCredentialRecord | null>;
   /**
    * Records a use at `at` when the last recorded use is absent or at least
    * {@link LAST_USED_RESOLUTION_MS} older; otherwise writes nothing.
@@ -45,16 +49,21 @@ export interface MachineCredentials {
   touchLastUsed(id: string, at: number): Promise<void>;
 }
 
+/** One organization's registration of a trusted issuer, as verification selects it. */
+export interface TrustedIssuerRegistration {
+  readonly id: string;
+  readonly organizationId: string;
+  /** The audience that selects this registration among those of one issuer URL. */
+  readonly audience: string;
+  readonly jwksUri: string;
+}
+
 /**
- * An `oidc` credential with what its token is verified against: its trusted
- * issuer's JWKS URL and the audience it requires, the credential's own or
- * else its trusted issuer's default; null requires none.
+ * An `oidc` credential and the audience its tokens must carry besides its
+ * trusted issuer's: its own, or null when it adds none.
  */
 export interface OidcCredentialRecord {
   readonly credential: MachineCredentialRecord;
-  /** The trusted issuer row the credential names, read within its organization. */
-  readonly trustedIssuerId: string;
-  readonly jwksUri: string;
   readonly audience: string | null;
 }
 
@@ -64,8 +73,8 @@ export interface OidcCredentialRecord {
  */
 export const NO_MACHINE_CREDENTIALS: MachineCredentials = {
   findById: () => Promise.resolve(null),
-  trustedKeySetsOf: () => Promise.resolve([]),
-  findByPair: () => Promise.resolve(null),
+  trustedRegistrationsOf: () => Promise.resolve([]),
+  findOidcCredential: () => Promise.resolve(null),
   touchLastUsed: () => Promise.reject(new Error('no machine credential exists to record a use of')),
 };
 
@@ -178,9 +187,10 @@ export interface MachineCredentialAdministration {
    * Creates an `oidc` credential, as {@link createApiKey} with its refusals,
    * whose pair is the trusted issuer's URL and `subject`.
    * `unknown_trusted_issuer` when the trusted issuer is not this
-   * organization's; `subject_taken` when any organization's `oidc`
-   * credential, revoked ones included, already holds the pair (the
-   * deployment-wide `machine_credential_pair` index).
+   * organization's; `subject_taken` when a credential of that trusted
+   * issuer, revoked ones included, already names `subject`
+   * (`machine_credential_trusted_subject`, A25): another organization's
+   * credentials are never consulted.
    */
   createOidc(
     organizationId: string,

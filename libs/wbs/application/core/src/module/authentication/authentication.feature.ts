@@ -385,18 +385,22 @@ export class AuthService {
 
   /**
    * One JWT of a trusted issuer (`wbs-machine-credentials` A13 steps 2, 3
-   * and 5), in this order:
+   * and 5, A25), in this order:
    *
    * 1. No JWT, no string `iss`, or the configured issuer's `iss`: the
    *    configured path (`configured_path`), with no trusted-issuer read.
    * 2. No organization trusts the `iss`: `invalid_token`, with no key set
    *    fetched.
-   * 3. The credential of the pair is read with its trusted issuer within its
-   *    own organization; the token is verified against that issuer's key set
-   *    and audience (or, with no credential, against the first key set of
-   *    the URL, to tell a forged token from an unknown subject). Any failure,
-   *    an unfetchable key set included, is `invalid_token`.
-   * 4. Verified with no credential: `unknown_identity`; with one, the same
+   * 3. The registration is selected by `(iss, aud)`: exactly one of the URL's
+   *    registrations must have its audience among the token's `aud` values;
+   *    none, or more than one, is `invalid_token` with no fetch.
+   * 4. The credential is read by that registration and the `sub`, within the
+   *    registration's own organization; the token is verified against the
+   *    registration's key set with the credential's own audience, or else the
+   *    registration's (a credential's audience narrows: its token carries
+   *    both). Any failure, an unfetchable key set included, is
+   *    `invalid_token`.
+   * 5. Verified with no credential: `unknown_identity`; with one, the same
    *    {@link admitMachineCredential} decision and {@link machinePrincipalOf}
    *    principal as an API key, its last use recorded.
    *
@@ -417,22 +421,31 @@ export class AuthService {
     const machines = this.opts.machineKeys;
     if (machines === undefined)
       throw new Error('trusted issuers are wired but machine credentials are not');
-    const keySets = await machines.credentials.trustedKeySetsOf(claims.issuer);
-    const anyKeySet = keySets.at(0);
+    const registrations = await machines.credentials.trustedRegistrationsOf(claims.issuer);
     // Proof: with this refusal answering `configured_path` instead (a
     // stranger `iss` let through to the configured verifier), `refuses a
     // stranger issuer invalid_token without fetching any key set` in
     // `oidc-credential.controller.db.test.ts` answered 401 unauthenticated;
     // watched 2026-10-22.
-    if (anyKeySet === undefined) return 'invalid_token';
+    if (registrations.length === 0) return 'invalid_token';
+    const selected = registrations.filter((each) => claims.audiences.includes(each.audience));
+    const registration = selected.at(0);
+    // Proof: with the `length > 1` half removed, `refuses a token naming two
+    // organizations' audiences` in `oidc-credential.controller.db.test.ts`
+    // admitted it as the first organization's; watched 2026-10-22.
+    if (registration === undefined || selected.length > 1) return 'invalid_token';
     const pair =
       claims.subject === null
         ? null
-        : await machines.credentials.findByPair(claims.issuer, claims.subject);
+        : await machines.credentials.findOidcCredential(registration.id, claims.subject);
     const verdict = await trusted.tokens.verify(token, {
       issuer: claims.issuer,
-      jwksUri: pair?.jwksUri ?? anyKeySet,
-      audience: pair?.audience ?? null,
+      jwksUri: registration.jwksUri,
+      // Proof: answering the registration's audience alone made `refuses a
+      // wrong audience, the credential audience winning over the default`
+      // (oidc-credential.controller.db.test.ts) admit a token without the
+      // credential's own audience; watched 2026-10-22.
+      audience: pair?.audience ?? registration.audience,
     });
     // Proof: with only `key_set_unavailable` refused here (an `invalid`
     // verdict admitted), `refuses a token signed by another key` and `refuses
@@ -445,7 +458,7 @@ export class AuthService {
     if (pair === null) return 'unknown_identity';
     const now = machines.now();
     const admission = admitMachineCredential(
-      { kind: 'oidc', trustedIssuerId: pair.trustedIssuerId },
+      { kind: 'oidc', trustedIssuerId: registration.id },
       pair.credential,
       now,
     );

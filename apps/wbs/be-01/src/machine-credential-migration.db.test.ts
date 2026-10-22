@@ -12,6 +12,7 @@ const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
 const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
 const ID_SHAPE = '20261022110100_check_machine_credential_id';
+const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
 const TABLES = ['organization_trusted_issuer', 'machine_credential', 'machine_credential_secret'];
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
 const roots: string[] = [];
@@ -40,7 +41,7 @@ function migratedStore(): { root: string; dbPath: string } {
     "INSERT INTO users (id, username, password_hash, created_at) VALUES ('dany', 'dany', 'x', 1)",
     "INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)",
     "INSERT INTO person (id, name, kind, account_id) VALUES ('claire', 'Claire', 'agent', 'dany')",
-    "INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, created_at) VALUES ('ti', 'org-a', 'https://token.example', 'https://token.example/jwks', 1)",
+    "INSERT INTO organization_trusted_issuer (id, organization_id, issuer, jwks_uri, default_audience, created_at) VALUES ('ti', 'org-a', 'https://token.example', 'https://token.example/jwks', 'wbs', 1)",
   ]);
   return { root, dbPath };
 }
@@ -117,7 +118,8 @@ describe(MACHINE_CREDENTIAL, () => {
   });
 
   // Proof: the partial pair index made non-unique made this store the second
-  // credential; watched 2026-10-22.
+  // credential; watched 2026-10-22. Since `20261022120000_scope_trusted_issuer_audience`
+  // the pair is held per trusted issuer (`machine_credential_trusted_subject`).
   it('keeps one OIDC pair on one credential', () => {
     const { dbPath } = migratedStore();
     run(dbPath, [
@@ -140,7 +142,7 @@ describe(MACHINE_CREDENTIAL, () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
+      `rolled back: ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
     );
     for (const table of TABLES) expect(tablesOf(dbPath)).not.toContain(table);
     runMigrations(dbPath, join(root, 'drizzle'));

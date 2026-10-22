@@ -206,15 +206,16 @@ export const revokeMachineCredential = defineEndpointShape({
 const issuerUrl = type(/^https:\/\/[^\s?#]+$/).and('string <= 2048');
 
 /**
- * One trusted issuer as listed (`wbs-machine-credentials` A16): the
- * `jwks_uri` discovered at registration and the count of unrevoked
+ * One trusted issuer as listed (`wbs-machine-credentials` A16, A25): the
+ * `jwks_uri` discovered at registration, the `audience` its tokens carry (to
+ * paste into the IdP's token request), and the count of unrevoked
  * credentials naming it, which refuses its removal.
  */
 export const trustedIssuerSummary = type({
   id: 'string',
   issuer: 'string',
   jwksUri: 'string',
-  defaultAudience: 'string | null',
+  audience: 'string',
   ssoConnectionId: 'string | null',
   createdAt: 'number',
   createdBy: 'string | null',
@@ -253,12 +254,19 @@ export const listTrustedIssuers = defineEndpointShape({
 
 /**
  * Registers an OIDC issuer whose tokens the organization's `oidc` credentials
- * accept. Its discovery document is fetched once: it must answer
- * (`issuer_unreachable`), name the same `issuer` (`issuer_mismatch`) and
- * publish an HTTPS `jwks_uri`. The deployment's own sign-in issuer is
- * `issuer_reserved`. `ssoConnectionId`, when given, must be a proven `oidc`
- * enterprise connection of the organization; it decides who may register,
- * not what the URL is.
+ * accept, with the `audience` every such token must carry (A25): it is what
+ * tells this organization's registration of a shared public issuer from
+ * another's, so `(issuer, audience)` is unique across the deployment
+ * (`audience_taken`). Set it in the IdP's token request (GitHub Actions:
+ * `audience` on the OIDC token request); `wbs:org:<organization id>` is the
+ * recommended value, not a required one. The discovery document is fetched
+ * once: it must answer (`issuer_unreachable`), name the same `issuer`
+ * (`issuer_mismatch`) and publish a public HTTPS `jwks_uri`. The deployment's
+ * own sign-in issuer is `issuer_reserved`; an issuer on a literal IP or a
+ * private name is `invalid_body`; an organization holds at most eight
+ * (`trusted_issuer_limit`). `ssoConnectionId`, when given, must be a proven
+ * `oidc` enterprise connection of the organization; it decides who may
+ * register, not what the URL is.
  */
 export const registerTrustedIssuer = defineEndpointShape({
   method: 'POST',
@@ -268,7 +276,7 @@ export const registerTrustedIssuer = defineEndpointShape({
   body: requestSchema(
     type({
       issuer: issuerUrl,
-      'defaultAudience?': '0 < string <= 512',
+      audience: '0 < string <= 512',
       'ssoConnectionId?': 'string > 0',
     }),
   ),
@@ -282,7 +290,7 @@ export const registerTrustedIssuer = defineEndpointShape({
       schema: responseSchema(
         type({
           error:
-            "'issuer_unreachable' | 'issuer_mismatch' | 'issuer_reserved' | 'issuer_not_oidc' | 'sso_connection_unproven' | 'issuer_taken'",
+            "'issuer_unreachable' | 'issuer_mismatch' | 'issuer_reserved' | 'issuer_not_oidc' | 'sso_connection_unproven' | 'issuer_taken' | 'audience_taken' | 'trusted_issuer_limit'",
         }),
       ),
     },

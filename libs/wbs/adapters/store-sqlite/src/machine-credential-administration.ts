@@ -296,7 +296,11 @@ export class MachineCredentialAdministrationRepository implements MachineCredent
         .where(
           and(
             eq(machineCredential.source, 'oidc'),
-            eq(machineCredential.issuer, trusted.issuer),
+            // Proof: with this predicate replaced by the issuer URL, `binds one
+            // subject in two organizations through one shared issuer URL` in
+            // `oidc-credential.controller.db.test.ts` answered B 409
+            // subject_taken: a cross-tenant oracle; watched 2026-10-22.
+            eq(machineCredential.trustedIssuerId, draft.trustedIssuerId),
             eq(machineCredential.subject, draft.subject),
           ),
         )

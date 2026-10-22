@@ -26,6 +26,8 @@ async function credentialsFor(accountId: string) {
   const digest = await digestMachineSecret(secret);
   const reads: string[] = [];
   const credentials: MachineCredentials = {
+    trustedRegistrationsOf: () => Promise.resolve([]),
+    findOidcCredential: () => Promise.resolve(null),
     findById: (id) => {
       reads.push(id);
       return Promise.resolve(

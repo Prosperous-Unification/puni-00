@@ -3,10 +3,11 @@ import { listTrustedIssuers, registerTrustedIssuer, removeTrustedIssuer } from '
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
 import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
-import type {
-  TrustedIssuerAdministration,
-  TrustedIssuerDiscovery,
-  TrustedIssuerRegistrationRefusal,
+import {
+  isPublicIssuerUrl,
+  type TrustedIssuerAdministration,
+  type TrustedIssuerDiscovery,
+  type TrustedIssuerRegistrationRefusal,
 } from '../ports/trusted-issuers';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { sessionOrganizationOf } from './machine-credential.routes';
@@ -65,6 +66,13 @@ export function trustedIssuerRoutes(
         // issuer_unreachable instead of 400; watched 2026-10-22.
         if (isSecretShaped(body.issuer))
           return { ok: false, status: 400, body: { error: 'invalid_body' } };
+        // Proof: with this check removed, `refuses an issuer on a literal IP
+        // or a private name, fetching nothing` in
+        // `trusted-issuer.controller.db.test.ts` let `https://127.0.0.1`
+        // reach discovery (409 issuer_unreachable, not 400); watched
+        // 2026-10-22.
+        if (!isPublicIssuerUrl(body.issuer))
+          return { ok: false, status: 400, body: { error: 'invalid_body' } };
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
         const ssoConnectionId = body.ssoConnectionId ?? null;
@@ -73,12 +81,11 @@ export function trustedIssuerRoutes(
         // fetched its discovery and registered it; watched 2026-10-22.
         if (body.issuer === (await configuredIssuer()))
           return { ok: false, status: 409, body: { error: 'issuer_reserved' } };
-        const ready = await issuers.checkRegistration(
-          organizationId,
-          principal.id,
-          body.issuer,
+        const ready = await issuers.checkRegistration(organizationId, principal.id, {
+          issuer: body.issuer,
+          audience: body.audience,
           ssoConnectionId,
-        );
+        });
         if (ready !== 'ready') return registrationRefusal(ready);
         const discovered = await discovery.discover(body.issuer);
         if (discovered.kind === 'unreachable')
@@ -92,7 +99,7 @@ export function trustedIssuerRoutes(
             id: crypto.randomUUID(),
             issuer: body.issuer,
             jwksUri: discovered.jwksUri,
-            defaultAudience: body.defaultAudience ?? null,
+            audience: body.audience,
             ssoConnectionId,
           },
           act(principal.id),
@@ -146,6 +153,8 @@ function registrationRefusal(
     case 'issuer_not_oidc':
     case 'sso_connection_unproven':
     case 'issuer_taken':
+    case 'audience_taken':
+    case 'trusted_issuer_limit':
       return { ok: false, status: 409, body: { error: refused } };
   }
 }
