@@ -297,7 +297,8 @@ Slice 6 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on
   "Show credentials" toggle that mounts the same panel narrowed by `personId`. No count is
   drawn before the toggle opens: a count for every agent row would be a credentials request
   per row, or one page-wide list read, which the "no credentials request" scenario forbids
-  for rows the member does not reach.
+  for rows the member does not reach. The delta spec's people page requirement was amended to match
+  (slice 6 review, S2-2).
 - 6.4: a viewer's page mounts no panel and sends neither a credentials nor a trusted-issuer
   request.
 

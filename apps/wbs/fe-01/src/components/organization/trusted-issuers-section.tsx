@@ -315,7 +315,8 @@ export function TrustedIssuersSection({
             </ul>
           )}
           <form
-            className="flex flex-col gap-3"
+            aria-labelledby="trusted-issuer-register-heading"
+            className="bg-muted/30 border-border flex flex-col gap-3 rounded-md border border-dashed p-3"
             onSubmit={(event) => {
               event.preventDefault();
               void write(
@@ -335,6 +336,9 @@ export function TrustedIssuersSection({
               );
             }}
           >
+            <h4 id="trusted-issuer-register-heading" className="m-0 text-sm font-semibold">
+              Register a trusted issuer
+            </h4>
             <span className={FIELD_CLASS}>
               <label htmlFor="trusted-issuer-url" className={FIELD_LABEL_CLASS}>
                 Issuer URL

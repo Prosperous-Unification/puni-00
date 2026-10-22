@@ -536,7 +536,7 @@ all 17 rerun after the A25 merge, each exit 1):
 | clipboard is optional (panel secret)                                 | guard replaced by `false`         | `says when the clipboard is unavailable`: uncaught error, note not found          |
 | `oidc` issuer/subject non-null (panel `required`)                    | placeholder returned              | `an oidc row without its subject reaches the error boundary`: no fault boundary   |
 | rotate on `api_key` only (panel row)                                 | source condition removed          | `offers rotate on API keys only`: rotate button on the OIDC row                   |
-| create source vocabulary (panel `sourceOf`)                          | unchecked cast                    | `throws on an impossible source selection`: 0 faults, expected 1                  |
+| create source vocabulary (panel `sourceOf`)                          | unchecked cast                    | `throws loudly on an impossible source selection, draft unchanged`: 0 faults      |
 | people page reach (`person-credentials.tsx`)                         | agent kind only, account ignored  | `offers a member no list for another account’s agent`: toggle rendered            |
 | people page slot (`directory-page.tsx`)                              | `credentialsOf?.(person)` removed | `draws each person’s machine credentials under their row`: text not found         |
 
@@ -569,3 +569,39 @@ Not verified:
   and maps `audience_taken`, `trusted_issuer_limit` and the private-host `invalid_body`; the
   create dialog says a credential's audience narrows the issuer's. Counts above were rerun
   after the merge.
+
+### Slice 6 review fixes (2026-10-22)
+
+Fable review of PR #634: MERGE AFTER FIXES. Fixed on the same branch, base unchanged at
+`11accf7b3`:
+
+- S2-1: `refresh` takes `discard` or `keep`. Retry after a failed reread, and a trusted issuer
+  change (S3-5), reread with `keep`; Refresh and the revoked toggle still discard the key.
+- S2-2: the people page requirement in `specs/machine-credentials/spec.md` now says what is
+  built: a toggle, the live count visible once opened, no credentials read before it opens;
+  its scenario rereads the list instead of decrementing a count.
+- S3-1: `mutate` catches an unexpected throw into the panel fault (Error Boundary).
+- S3-2: an impossible source option throws loudly from the `onChange` handler and leaves the
+  draft unchanged; it does not reach the Error Boundary (the earlier wording was wrong).
+- S3-3: `invalid_body` on an `oidc` create names the name, subject and audience.
+- S3-4, S3-6: `MachineCredentialRefusal`, `CredentialOperation`, `idPrefix`, `content`,
+  `request`.
+- UX: the register form is a framed "Register a trusted issuer" block; "Issued by" shows the
+  member's username for an admin (from `GET /api/organization/members`), the account id
+  when the viewer is a member or the read fails.
+
+New proofs (injected, named test run alone, restored):
+
+| Guard                                  | Injected fault                 | Observed failure                                                             |
+| -------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| Retry keeps the key (`refresh` `keep`) | clear on `keep` too            | `retry after a failed reread keeps the key`: key not found                   |
+| Refresh discards the key               | clearing removed               | `create shows the key once, then refresh discards it`: key input still there |
+| `mutate` catch                         | `throw cause` instead          | `a thrown write reaches the error boundary`: no fault boundary               |
+| `oidc` `invalid_body` copy             | `create-oidc` falls to API key | `renders invalid_body on an oidc create as name, subject or audience`        |
+
+All 17 earlier proofs reran on the fixed tree and each failed under its fault.
+
+Fresh results: vitest organization, directory, runtime, app, app-router, session-features and
+the four tier suites 40 files, 579 pass; the four new or changed organization suites 93 pass
+(panel 40, trusted issuers 19, people 7, page 27); `nx run-many -t typecheck lint -p wbs-fe-01
+--skip-nx-cache` exit 0. Screenshots 02 (populated) and 05 (secret shown once) retaken.

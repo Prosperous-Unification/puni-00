@@ -65,6 +65,15 @@ function stubPanel(routes: Parameters<typeof stubServer>[0] = {}) {
   return stubServer({
     [LIST]: [() => answer(200, { credentials: [] })],
     [PEOPLE]: [() => answer(200, { people })],
+    'GET /api/organization/members': [
+      () =>
+        answer(200, {
+          members: [
+            { userId: 'u1', username: 'dany', email: null, role: 'admin', createdAt: 1 },
+            { userId: 'u2', username: 'ada', email: null, role: 'member', createdAt: 1 },
+          ],
+        }),
+    ],
     [ISSUERS]: [() => answer(200, { trustedIssuers: [issuer] })],
     'GET /api/organization/sso-connections': [() => answer(200, { connections: [] })],
     ...routes,
@@ -357,6 +366,62 @@ describe('creating a credential', () => {
     expect(screen.queryByDisplayValue(KEY)).toBeNull();
   });
 
+  it('retry after a failed reread keeps the key', async () => {
+    stubPanel({
+      [LIST]: [
+        () => answer(200, { credentials: [] }),
+        () => answer(503, {}),
+        () => answer(200, { credentials: [key] }),
+      ],
+      [CREATE]: [
+        () =>
+          answer(201, {
+            id: 'cred-a',
+            source: 'api_key',
+            name: 'n',
+            personId: 'p-claire',
+            issuedBy: 'u1',
+            createdAt: 1,
+            key: KEY,
+          }),
+      ],
+    });
+    mount(admin, { id: 'p-claire', name: 'claire' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Create credential' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'n' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create credential' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    await screen.findByText('claire laptop');
+    expect(screen.getByDisplayValue(KEY)).toBeDefined();
+  });
+
+  it('a thrown write reaches the error boundary', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    stubPanel({ [LIST]: [() => answer(200, { credentials: [key] })] });
+    let isBroken = false;
+    const breaking: ResourceScope = {
+      ...scope,
+      isCurrent: () => {
+        if (isBroken) throw new Error('fixture runtime fault');
+        return true;
+      },
+    };
+    render(
+      <AppFaultBoundary>
+        <OrganizationResourcesProvider scope={breaking}>
+          <MachineCredentialsPanel viewer={admin} onAccessLost={vi.fn()} />
+        </OrganizationResourcesProvider>
+      </AppFaultBoundary>,
+    );
+    const rotate = await screen.findByRole('button', { name: 'Rotate claire laptop' });
+    isBroken = true;
+    fireEvent.click(rotate);
+    await waitFor(() => {
+      expect(document.querySelector('[data-app-fault]')).not.toBeNull();
+    });
+  });
+
   it('copies the key when the clipboard is available', async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
@@ -454,7 +519,7 @@ describe('creating a credential', () => {
     expect(screen.queryByLabelText('Machine credential key')).toBeNull();
   });
 
-  it('throws on an impossible source selection', async () => {
+  it('throws loudly on an impossible source selection, draft unchanged', async () => {
     stubPanel();
     mount();
     const dialog = await openCreate();
@@ -471,6 +536,8 @@ describe('creating a credential', () => {
       expect(faults).toHaveLength(1);
       // jsdom answers an option the select lacks as the empty value.
       expect(faults[0]).toHaveProperty('message', 'Unexpected credential source option: ');
+      expect(within(dialog).queryByLabelText('Trusted issuer')).toBeNull();
+      expect(within(dialog).getByLabelText('Name')).toBeDefined();
     } finally {
       window.removeEventListener('error', collectFault);
     }
@@ -524,6 +591,39 @@ describe('creating a credential', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create credential' }));
     expect((await within(dialog).findByRole('alert')).textContent).toBe(text);
     expect(screen.getByRole('dialog')).toBeDefined();
+  });
+});
+
+describe('refusal wording and labels', () => {
+  it('renders invalid_body on an oidc create as name, subject or audience', async () => {
+    stubPanel({ [CREATE]: [() => answer(400, { error: 'invalid_body' })] });
+    mount();
+    const dialog = await openCreate();
+    fireEvent.change(within(dialog).getByLabelText('Agent person'), { target: { value: 'p-rex' } });
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'deploy' } });
+    fireEvent.change(within(dialog).getByLabelText('Source'), { target: { value: 'oidc' } });
+    fireEvent.change(within(dialog).getByLabelText('Trusted issuer'), {
+      target: { value: 'ti-1' },
+    });
+    fireEvent.change(within(dialog).getByLabelText(/^Subject/), { target: { value: 'eyJ.x.y' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create credential' }));
+    expect((await within(dialog).findByRole('alert')).textContent).toBe(
+      'Check the name, subject and audience: each must be plain text that does not look like a key or token.',
+    );
+  });
+
+  it('names the issuing account for an admin and falls back to its id for a member', async () => {
+    const other = { ...key, id: 'cred-z', name: 'rex key', personId: 'p-rex', issuedBy: 'u2' };
+    stubPanel({ [LIST]: [() => answer(200, { credentials: [other] })] });
+    mount();
+    const row = (await screen.findByText('rex key')).closest('li')!;
+    expect(within(row).getByText('ada')).toBeDefined();
+    cleanup();
+    const sent = stubPanel({ [LIST]: [() => answer(200, { credentials: [other] })] });
+    mount(member);
+    const memberRow = (await screen.findByText('rex key')).closest('li')!;
+    expect(within(memberRow).getByText('Account u2')).toBeDefined();
+    expect(sent.some((request) => request.route === 'GET /api/organization/members')).toBe(false);
   });
 });
 
@@ -667,13 +767,14 @@ describe('rotating and revoking', () => {
 });
 
 describe('the people page sub-panel', () => {
-  it('narrows the list to the person and reads no people or issuers', async () => {
+  it('narrows the list to the person and reads no people or issuers, only the admin’s member names', async () => {
     const sent = stubPanel({ [LIST]: [() => answer(200, { credentials: [consent] })] });
     mount(admin, { id: 'p-claire', name: 'claire' });
     const region = await screen.findByRole('region', { name: 'Credentials of claire' });
     await within(region).findByText('Claude Code');
     expect(sent.map((request) => `${request.route}${request.search ?? ''}`)).toEqual([
       `${LIST}?personId=p-claire`,
+      'GET /api/organization/members',
     ]);
     expect(within(region).queryByLabelText('Machine credential key')).toBeNull();
   });

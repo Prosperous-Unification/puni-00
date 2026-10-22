@@ -14,7 +14,7 @@ import { unreachable } from '@/lib/http';
 import { lostAccess, READ_ONLY, type RefusalOutcome, RELOAD, said } from './organization-access';
 
 /** Every refusal the four machine credential routes model. */
-export type CredentialRefusal = Extract<
+export type MachineCredentialRefusal = Extract<
   ClientReply<
     | typeof listMachineCredentials
     | typeof createMachineCredential
@@ -32,6 +32,9 @@ export type TrustedIssuerRefusal = Extract<
   { kind: 'refusal' }
 >['body'];
 
+/** The act a machine credential refusal answers; a create names its source. */
+export type CredentialOperation = 'read' | 'create-api-key' | 'create-oidc' | 'rotate' | 'revoke';
+
 /**
  * What a machine credential refusal says, or the page-level loss it is. A
  * `forbidden` read is a viewer's; a `forbidden` write is a member naming an
@@ -42,8 +45,8 @@ export type TrustedIssuerRefusal = Extract<
  * `renders name_taken` in `machine-credentials-panel.test.tsx`.
  */
 export function credentialRefusal(
-  refusal: CredentialRefusal,
-  operation: 'read' | 'create' | 'rotate' | 'revoke',
+  refusal: MachineCredentialRefusal,
+  operation: CredentialOperation,
 ): RefusalOutcome {
   switch (refusal.error) {
     case 'unauthenticated':
@@ -63,11 +66,20 @@ export function credentialRefusal(
     case 'insufficient_scope':
       return said(READ_ONLY);
     case 'invalid_body':
-      return said(
-        operation === 'create'
-          ? 'Choose a plain name of at most 80 characters that does not look like a key or token.'
-          : RELOAD,
-      );
+      // Proof: 2026-10-22, answering the name sentence for every create failed
+      // `renders invalid_body on an oidc create as name, subject or audience`.
+      switch (operation) {
+        case 'create-api-key':
+          return said(
+            'Choose a plain name of at most 80 characters that does not look like a key or token.',
+          );
+        case 'create-oidc':
+          return said(
+            'Check the name, subject and audience: each must be plain text that does not look like a key or token.',
+          );
+        default:
+          return said(RELOAD);
+      }
     case 'invalid_json':
     case 'invalid_params':
     case 'invalid_query':

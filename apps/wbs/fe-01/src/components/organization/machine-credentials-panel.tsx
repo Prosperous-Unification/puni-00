@@ -3,6 +3,7 @@ import {
   type ClientReply,
   createMachineCredential,
   listMachineCredentials,
+  listMembers,
   listPeople,
   listTrustedIssuers,
   revokeMachineCredential,
@@ -21,7 +22,11 @@ import {
 import { failureMessage, unreachable } from '@/lib/http';
 import { useResourceClient } from '@/runtime/organization-resources';
 
-import { type CredentialRefusal, credentialRefusal } from './machine-credential-refusal';
+import {
+  type CredentialOperation,
+  credentialRefusal,
+  type MachineCredentialRefusal,
+} from './machine-credential-refusal';
 import { type AccessLoss } from './organization-access';
 import { type CredentialViewer } from './organization-role';
 import {
@@ -44,6 +49,7 @@ const CREDENTIAL_SHAPES = [
   revokeMachineCredential,
   listPeople,
   listTrustedIssuers,
+  listMembers,
 ] as const;
 
 type Credential = Extract<
@@ -81,6 +87,8 @@ type View =
       agents: readonly CredentialAgent[];
       names: ReadonlyMap<string, string>;
       issuers: IssuerChoice;
+      /** Account names by id, read for an admin; null for a member or when the read failed. */
+      accountNames: ReadonlyMap<string, string> | null;
     };
 
 /** A key create or rotate answered, held only until dismissal, refresh, a refusal, another write or unmount. */
@@ -168,10 +176,11 @@ export function MachineCredentialsPanel({
   const isPending = useRef(false);
   const generation = useRef(0);
   const isAdmin = viewer.reach === 'all';
-  const ids = person === undefined ? 'machine-credentials' : `machine-credentials-${person.id}`;
+  const idPrefix =
+    person === undefined ? 'machine-credentials' : `machine-credentials-${person.id}`;
 
   const processRefusal = useCallback(
-    (refusal: CredentialRefusal, operation: Parameters<typeof credentialRefusal>[1]) => {
+    (refusal: MachineCredentialRefusal, operation: CredentialOperation) => {
       // Proof: 2026-10-22, omitting this clearing kept the key on screen in
       // `discards a created key when the reread is refused`.
       setSecret(null);
@@ -182,7 +191,8 @@ export function MachineCredentialsPanel({
         return;
       }
       if (operation === 'read') setView({ kind: 'failure', message: outcome.text });
-      else if (operation === 'create') setDraftMessage(outcome.text);
+      else if (operation === 'create-api-key' || operation === 'create-oidc')
+        setDraftMessage(outcome.text);
       else setMessage(outcome.text);
     },
     [onAccessLost],
@@ -194,10 +204,11 @@ export function MachineCredentialsPanel({
         ...(person === undefined ? {} : { personId: person.id }),
         ...(withRevoked ? { include: 'revoked' as const } : {}),
       };
-      const [listed, people, issuers] = await Promise.all([
+      const [listed, people, issuers, members] = await Promise.all([
         client['getApiOrganizationMachine-credentials']({ query }),
         person === undefined ? client.getApiPeople({}) : null,
         isAdmin && person === undefined ? client['getApiOrganizationTrusted-issuers']({}) : null,
+        isAdmin ? client.getApiOrganizationMembers({}) : null,
       ]);
       if (version !== generation.current) return;
       switch (listed.kind) {
@@ -297,23 +308,39 @@ export function MachineCredentialsPanel({
             return unreachable(issuers);
         }
       }
+      // Account names only label "Issued by"; without them the row shows the
+      // account id, so a refused or failed member read is drawn, not raised.
+      // Page-level losses withdraw through the runtime scope.
+      const accountNames =
+        members !== null && members.kind === 'success'
+          ? new Map(members.body.members.map((entry) => [entry.userId, entry.username]))
+          : null;
       setView({
         kind: 'ready',
         credentials: listed.body.credentials,
         agents,
         names,
         issuers: choice,
+        accountNames,
       });
     },
     [client, person, isAdmin, viewer.userId, processRefusal],
   );
 
+  /**
+   * Rereads the list. `discard` drops a shown key (the Refresh button, the
+   * revoked toggle); `keep` leaves it (Retry after a failed reread, and a
+   * trusted issuer change), because a key whose reread failed cannot be
+   * fetched again and Retry is the natural next click.
+   */
   const refresh = useCallback(
-    async (withRevoked: boolean) => {
+    async (withRevoked: boolean, shownKey: 'discard' | 'keep') => {
       if (isPending.current) return;
       // Proof: 2026-10-22, omitting this clearing failed `create shows the key
       // once, then refresh discards it`: the key was still displayed.
-      setSecret(null);
+      // Proof: 2026-10-22, clearing on `keep` too failed `retry after a failed
+      // reread keeps the key`: the key input was gone.
+      if (shownKey === 'discard') setSecret(null);
       setMessage('');
       setRevoking(null);
       setConfirmation('');
@@ -336,7 +363,7 @@ export function MachineCredentialsPanel({
   }, []);
 
   useEffect(() => {
-    observe(refresh(false), 'read');
+    observe(refresh(false, 'discard'), 'read');
     const version = generation;
     return () => {
       version.current++;
@@ -407,7 +434,7 @@ export function MachineCredentialsPanel({
         case 'create': {
           setDraftMessage('');
           const { draft: sent } = mutation;
-          const body =
+          const request =
             sent.source === 'api_key'
               ? { source: 'api_key' as const, name: sent.name, personId: sent.personId }
               : {
@@ -418,7 +445,7 @@ export function MachineCredentialsPanel({
                   subject: sent.subject,
                   ...(sent.audience === '' ? {} : { audience: sent.audience }),
                 };
-          const reply = await client['postApiOrganizationMachine-credentials']({ body });
+          const reply = await client['postApiOrganizationMachine-credentials']({ body: request });
           if (version !== generation.current) return;
           switch (reply.kind) {
             case 'success':
@@ -433,7 +460,10 @@ export function MachineCredentialsPanel({
                 setDraftMessage(failureMessage(reply.failure));
               return;
             case 'refusal':
-              processRefusal(reply.body, 'create');
+              processRefusal(
+                reply.body,
+                sent.source === 'api_key' ? 'create-api-key' : 'create-oidc',
+              );
               return;
             default:
               return unreachable(reply);
@@ -442,6 +472,11 @@ export function MachineCredentialsPanel({
         default:
           return unreachable(mutation);
       }
+    } catch (cause) {
+      // Proof: 2026-10-22, without this catch `a thrown write reaches the
+      // error boundary` saw no fault, only an unhandled rejection.
+      if (version === generation.current)
+        setFault(new Error('Unexpected machine credential write failure', { cause }));
     } finally {
       if (version === generation.current) {
         isPending.current = false;
@@ -454,7 +489,7 @@ export function MachineCredentialsPanel({
   const reachSentence = isAdmin
     ? 'As an admin you see every agent person’s credentials.'
     : 'You see only credentials of agent persons bound to your own account.';
-  const body = (
+  const content = (
     <>
       <p className={STATUS_CLASS}>
         Machine credentials let an agent person act in WBS without a browser. {reachSentence} Last
@@ -467,7 +502,7 @@ export function MachineCredentialsPanel({
           className={CONTROL_HEIGHT}
           disabled={isSending || view.kind === 'loading'}
           onClick={() => {
-            observe(refresh(includeRevoked), 'refresh');
+            observe(refresh(includeRevoked, 'discard'), 'refresh');
           }}
         >
           Refresh credentials
@@ -481,7 +516,7 @@ export function MachineCredentialsPanel({
             onChange={(event) => {
               const next = event.target.checked;
               setIncludeRevoked(next);
-              observe(refresh(next), 'refresh');
+              observe(refresh(next, 'discard'), 'refresh');
             }}
           />
           Include revoked
@@ -495,11 +530,11 @@ export function MachineCredentialsPanel({
           <p className="font-semibold">
             Copy the key for {secret.name} now. It will not be shown again.
           </p>
-          <label htmlFor={`${ids}-secret`} className={FIELD_LABEL_CLASS}>
+          <label htmlFor={`${idPrefix}-secret`} className={FIELD_LABEL_CLASS}>
             Machine credential key
           </label>
           <Input
-            id={`${ids}-secret`}
+            id={`${idPrefix}-secret`}
             value={secret.key}
             readOnly
             className={`${CONTROL_HEIGHT} font-mono`}
@@ -573,7 +608,7 @@ export function MachineCredentialsPanel({
             className={`self-start ${CONTROL_HEIGHT}`}
             disabled={isSending}
             onClick={() => {
-              observe(refresh(includeRevoked), 'retry');
+              observe(refresh(includeRevoked, 'keep'), 'retry');
             }}
           >
             Retry
@@ -618,6 +653,7 @@ export function MachineCredentialsPanel({
                   key={credential.id}
                   credential={credential}
                   personName={view.names.get(credential.personId)}
+                  accountNames={view.accountNames}
                   viewer={viewer}
                   isSending={isSending}
                   isRevoking={revoking === credential.id}
@@ -648,7 +684,7 @@ export function MachineCredentialsPanel({
           )}
           {draft !== null && (
             <CreateDialog
-              ids={ids}
+              idPrefix={idPrefix}
               draft={draft}
               person={person}
               agents={view.agents}
@@ -676,23 +712,23 @@ export function MachineCredentialsPanel({
   if (person !== undefined)
     return (
       <section
-        aria-labelledby={`${ids}-heading`}
+        aria-labelledby={`${idPrefix}-heading`}
         className="border-border flex min-w-0 flex-col gap-3 rounded-md border p-3"
       >
-        <h3 id={`${ids}-heading`} className="text-sm font-semibold">
+        <h3 id={`${idPrefix}-heading`} className="text-sm font-semibold">
           {title}
         </h3>
-        {body}
+        {content}
       </section>
     );
   return (
-    <OrganizationSection id={`${ids}-heading`} title={title}>
-      {body}
+    <OrganizationSection id={`${idPrefix}-heading`} title={title}>
+      {content}
       {isAdmin && (
         <TrustedIssuersSection
           onAccessLost={onAccessLost}
           onChanged={() => {
-            observe(refresh(includeRevoked), 'refresh');
+            observe(refresh(includeRevoked, 'keep'), 'issuer change');
           }}
         />
       )}
@@ -741,6 +777,7 @@ function rotationOf(credential: Credential): string | null {
 function CredentialRow({
   credential,
   personName,
+  accountNames,
   viewer,
   isSending,
   isRevoking,
@@ -753,6 +790,7 @@ function CredentialRow({
 }: {
   credential: Credential;
   personName: string | undefined;
+  accountNames: ReadonlyMap<string, string> | null;
   viewer: CredentialViewer;
   isSending: boolean;
   isRevoking: boolean;
@@ -778,7 +816,11 @@ function CredentialRow({
         <Field label="Source" value={SOURCE_NAMES[credential.source]} />
         <Field
           label="Issued by"
-          value={credential.issuedBy === viewer.userId ? 'You' : `Account ${credential.issuedBy}`}
+          value={
+            credential.issuedBy === viewer.userId
+              ? 'You'
+              : (accountNames?.get(credential.issuedBy) ?? `Account ${credential.issuedBy}`)
+          }
         />
         <Field label="Created" value={minuteOf(credential.createdAt)} />
         <Field
@@ -878,7 +920,7 @@ function CredentialRow({
 }
 
 function CreateDialog({
-  ids,
+  idPrefix,
   draft,
   person,
   agents,
@@ -889,7 +931,7 @@ function CreateDialog({
   onCancel,
   onSubmit,
 }: {
-  ids: string;
+  idPrefix: string;
   draft: Draft;
   person: CredentialAgent | undefined;
   agents: readonly CredentialAgent[];
@@ -924,11 +966,11 @@ function CreateDialog({
         >
           {person === undefined ? (
             <span className={FIELD_CLASS}>
-              <label htmlFor={`${ids}-person`} className={FIELD_LABEL_CLASS}>
+              <label htmlFor={`${idPrefix}-person`} className={FIELD_LABEL_CLASS}>
                 Agent person
               </label>
               <select
-                id={`${ids}-person`}
+                id={`${idPrefix}-person`}
                 className={SELECT_CLASS}
                 value={draft.personId}
                 disabled={isSending}
@@ -949,11 +991,11 @@ function CreateDialog({
             <p className={STATUS_CLASS}>For {person.name}</p>
           )}
           <span className={FIELD_CLASS}>
-            <label htmlFor={`${ids}-name`} className={FIELD_LABEL_CLASS}>
+            <label htmlFor={`${idPrefix}-name`} className={FIELD_LABEL_CLASS}>
               Name
             </label>
             <Input
-              id={`${ids}-name`}
+              id={`${idPrefix}-name`}
               className={CONTROL_HEIGHT}
               value={draft.name}
               disabled={isSending}
@@ -966,17 +1008,19 @@ function CreateDialog({
             />
           </span>
           <span className={FIELD_CLASS}>
-            <label htmlFor={`${ids}-source`} className={FIELD_LABEL_CLASS}>
+            <label htmlFor={`${idPrefix}-source`} className={FIELD_LABEL_CLASS}>
               Source
             </label>
             <select
-              id={`${ids}-source`}
+              id={`${idPrefix}-source`}
               className={SELECT_CLASS}
               value={draft.source}
               disabled={isSending}
               onChange={(event) => {
-                // Proof: 2026-10-22, removing this check failed `throws on an
-                // impossible source selection`.
+                // Throws loudly and leaves the draft unchanged; a throw in an
+                // event handler reaches window `error`, not the Error Boundary.
+                // Proof: 2026-10-22, removing this check failed `throws loudly
+                // on an impossible source selection, draft unchanged`.
                 onDraft({ ...draft, source: sourceOf(event.target.value) });
               }}
             >
@@ -998,11 +1042,11 @@ function CreateDialog({
           {draft.source === 'oidc' && issuers.kind === 'ready' && (
             <>
               <span className={FIELD_CLASS}>
-                <label htmlFor={`${ids}-issuer`} className={FIELD_LABEL_CLASS}>
+                <label htmlFor={`${idPrefix}-issuer`} className={FIELD_LABEL_CLASS}>
                   Trusted issuer
                 </label>
                 <select
-                  id={`${ids}-issuer`}
+                  id={`${idPrefix}-issuer`}
                   className={SELECT_CLASS}
                   value={draft.trustedIssuerId}
                   disabled={isSending}
@@ -1020,11 +1064,11 @@ function CreateDialog({
                 </select>
               </span>
               <span className={FIELD_CLASS}>
-                <label htmlFor={`${ids}-subject`} className={FIELD_LABEL_CLASS}>
+                <label htmlFor={`${idPrefix}-subject`} className={FIELD_LABEL_CLASS}>
                   Subject (exact <code>sub</code> claim)
                 </label>
                 <Input
-                  id={`${ids}-subject`}
+                  id={`${idPrefix}-subject`}
                   className={CONTROL_HEIGHT}
                   value={draft.subject}
                   disabled={isSending}
@@ -1036,21 +1080,21 @@ function CreateDialog({
                 />
               </span>
               <span className={FIELD_CLASS}>
-                <label htmlFor={`${ids}-audience`} className={FIELD_LABEL_CLASS}>
+                <label htmlFor={`${idPrefix}-audience`} className={FIELD_LABEL_CLASS}>
                   Extra audience (optional)
                 </label>
                 <Input
-                  id={`${ids}-audience`}
+                  id={`${idPrefix}-audience`}
                   className={CONTROL_HEIGHT}
                   value={draft.audience}
                   disabled={isSending}
                   maxLength={512}
-                  aria-describedby={`${ids}-audience-hint`}
+                  aria-describedby={`${idPrefix}-audience-hint`}
                   onChange={(event) => {
                     onDraft({ ...draft, audience: event.target.value });
                   }}
                 />
-                <span id={`${ids}-audience-hint`} className="text-muted-foreground text-xs">
+                <span id={`${idPrefix}-audience-hint`} className="text-muted-foreground text-xs">
                   Tokens must carry the trusted issuer’s audience; an audience here narrows the
                   credential to tokens that carry both.
                 </span>
