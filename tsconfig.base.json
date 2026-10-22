@@ -100,6 +100,9 @@
       "@wbs/contracts/solver/build-connected-request": [
         "./libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts"
       ],
+      "@wbs/contracts/solver/connected-durable": [
+        "./libs/wbs/domain/contracts/solver/src/connected-durable.ts"
+      ],
       "@wbs/contracts/solver/connected-solver-outcome": [
         "./libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts"
       ],

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import {
   buildConnectedSolverRequestPair,
   type ConnectedSolverRequestPair,
@@ -19,12 +17,13 @@ import type {
   ConnectedVariantState,
 } from '@wbs/core/ports/scheduler';
 import {
-  canonicalConnectedStageInput,
   type ConnectedOptimizationStage,
   contractVersionOf,
   SOLVER_QUANTUM,
   type SolverObjectiveName,
 } from '@wbs/domain';
+
+import { captureConnectedQuestion } from './connected-question-identity';
 
 type CapturedEntry =
   | SolverProcessOutcome
@@ -45,10 +44,6 @@ export interface ConnectedOptimizationReaderOptions {
     readonly generation: number | null;
     readonly variants: Readonly<Record<SolverObjectiveName, CapturedEntry>>;
   };
-}
-
-function hashBytes(bytes: string): string {
-  return createHash('sha256').update(bytes, 'utf8').digest('hex');
 }
 
 function projectOutcome(
@@ -109,31 +104,10 @@ export function connectedOptimizationReaderOf(
   const contractVersion = contractVersionOf(options.solverVersion);
   return {
     readConnectedCaptured: ({ stage, enabled }) => {
-      const stageBytes = canonicalConnectedStageInput(stage);
-      const inputHash = hashBytes(stageBytes);
-      const questionOf = (objective: SolverObjectiveName): ConnectedOptimizationQuestion => ({
-        projectId: stage.projectId,
-        inputHash,
-        objective,
-        contractVersion,
-        budgetMs: options.budgetMs,
-        quantum: SOLVER_QUANTUM,
-        wireVersion: SOLVER_WIRE_VERSION,
-        stageBytes,
-        // Proof: omitting objective made both hashes equal and broke the real captured adapter request path.
-        questionHash: hashBytes(
-          JSON.stringify([
-            stage.projectId,
-            inputHash,
-            objective,
-            contractVersion,
-            options.budgetMs,
-            SOLVER_QUANTUM,
-            SOLVER_WIRE_VERSION,
-          ]),
-        ),
-      });
+      const questionOf = (objective: SolverObjectiveName): ConnectedOptimizationQuestion =>
+        captureConnectedQuestion(stage, objective, options);
       const questions = { pri: questionOf('pri'), time: questionOf('time') };
+      const inputHash = questions.pri.inputHash;
       const identity = {
         inputHash,
         contractVersion,
