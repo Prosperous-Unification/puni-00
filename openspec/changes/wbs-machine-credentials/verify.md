@@ -708,3 +708,58 @@ the four tier suites 40 files, 579 pass; the four new or changed organization su
 - CI on 688f7836403 (PR #625): every check green.
 - Reviews: every slice had a Fable review before merging into the plan branch (#628 slice 1 after fixes incl. A23; #631 slice 2 after fixes incl. A24; #633 slice 5 after fixes incl. A25; #634 slice 6 after fixes; #641 slice 3 MERGE with S3 follow-ups landed).
 - Not observed live: tasks 3.5 (consent as an agent on dev), 4.x (slice 4, retirement of the operator links, waits for the fleets' self-serve onboarding), 5.4 (a real GitHub Actions token on dev), 6.3 (by-eye acceptance on dev).
+
+## Writer authority integration (2026-10-22, merged base dc5f7a40c)
+
+The retained-operation contract is `409 organization_context_changed` for current credential
+absence, revocation or identity/context mismatch. Initial authentication retains its 401
+contract. `SqliteCommandAccess` now requires a read-only credential collaborator wired to the
+same SQLite database in boot and the composed integration harness. It does not acquire the
+writer, update last use, or consume delegations.
+
+TDD: the 25 new credential mismatch and HTTP queue cases failed before implementation,
+reaching capture rather than refusing; the missing-row fixture was corrected to delete its
+secret first, then both machine/consent missing-row cases failed through production capture
+(`evidence/writer-authority/red-missing.log`). After implementation, all 25 passed. A further
+14 current-principal/queued-direct-runner/trusted-storage cases passed. Consent direct-runner
+tests install already-verified consent evidence over actual persisted credentials; they do
+not claim to reexercise the delegation verifier. Existing MCP boot regressions exercise it.
+
+R5: each production predicate was bypassed independently and its corresponding mounted
+`direct runner refuses current credential …` case failed (0 pass, 1 fail). Logs are in
+`evidence/writer-authority/proof-*.log`:
+
+| Fault                  | Injected production mutation      | Observed negative                                                                 |
+| ---------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| Missing row            | Remove null-row refusal           | `missing` throws instead of returning typed conflict                              |
+| Revoked row            | Remove revocation predicate       | `revoked` reaches forbidden capture                                               |
+| Changed person         | Remove person equality            | `person` reaches forbidden capture                                                |
+| Changed account        | Remove account equality           | `account` reaches forbidden capture                                               |
+| Unbound person         | Remove account equality           | `unbound` reaches forbidden capture                                               |
+| Missing context        | Remove absent-context refusal     | `no-context` throws instead of returning typed conflict                           |
+| Changed organization   | Remove organization equality      | `organization` reaches forbidden capture                                          |
+| Machine source         | Accept `mcp_consent` as machine   | machine `source` reaches forbidden capture                                        |
+| Consent source         | Accept non-consent source         | consent `source` reaches forbidden capture                                        |
+| Consent direct context | Accept direct branch              | `direct-consent` reaches forbidden capture                                        |
+| Consent family         | Remove family equality            | `family` reaches forbidden capture                                                |
+| Trusted read           | Bypass machine/consent read block | all four `throws on trusted credential` cases return success rather than throwing |
+
+The first direct-consent mutation removed only the direct disjunct, and the family mismatch
+still refused it. The production check was reshaped as an explicit direct-context branch;
+accepting that branch then failed the specific negative. Every fault was restored.
+
+Scoped verification:
+
+- Final `bun test apps/wbs/be-01/src/controller/command-current-authority.controller.db.test.ts libs/wbs/application/core/src/compose.test.ts`: 123 pass, 0 fail, 736 assertions.
+- Final targeted Prettier check and `git diff --check`: passed.
+
+- `NX_DAEMON=false bunx nx run-many -t typecheck -p wbs-be-01,wbs-store-sqlite`: passed all three tasks (includes module typecheck), zero cache hits.
+- `bun node_modules/eslint/bin/eslint.js` on changed TypeScript files: passed. The initial direct lint before Nx graph generation skipped module boundaries; the recorded successful run followed graph generation and did not skip them.
+- `bunx openspec validate wbs-machine-credentials --json`: valid, no errors; requirement-length warnings and existing fleet-credentials archive info remain.
+- Scoped 10-file credential, current-authority, boot, command/claim and MCP regression run with localhost networking: 320 pass, 5 fail. Failures are existing eligible-step fixture assumptions: three API claim positives and two MCP consent/human claim positives. A two-case probe with unchanged merged `SqliteCommandAccess` reproduced the same API failures and showed `409 prerequisites_unmet`, unrelated to credential context (`evidence/writer-authority/baseline-claims.log`). The coordinating change adapts those claims to the first eligible step separately.
+- The initial sandbox regression run could not listen on localhost (`EPERM listen`), producing 191 pass/36 fail; it does not establish regression behavior. The network-enabled rerun above supersedes it.
+
+Verifier expiry/rotation-window freshness and restricted-project recovery ceiling remain
+open and are explicitly outside this packet. No full remote host gate, build, full product
+lint, secrets scan or full migration lint was run by this packet; the coordinator must run
+the required host gate on the integrated commit before release/completion claims.

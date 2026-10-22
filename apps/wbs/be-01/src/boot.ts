@@ -407,7 +407,11 @@ export async function bootBe01(
           buildServices({
             source,
             clock,
-            commandAccess: new SqliteCommandAccess(source.db, browser.organizations),
+            commandAccess: new SqliteCommandAccess(
+              source.db,
+              browser.organizations,
+              new MachineCredentialRepository(source.db, source.gate),
+            ),
             logger: opts.logger,
             jwtKey: opts.jwtKey,
             gwUrl: opts.gwUrl,

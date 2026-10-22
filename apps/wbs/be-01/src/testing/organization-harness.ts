@@ -300,6 +300,13 @@ export class OrganizationHarness {
     return this.commandPrincipal(this.token(username), cookie);
   }
 
+  /** Verifies a machine key before a direct runner test queues its retained principal. */
+  authenticatedMachinePrincipal(key: string): Promise<AuthenticatedUser> {
+    if (this.commandPrincipal === undefined)
+      throw new Error('composed command principal fixture is absent');
+    return this.commandPrincipal(key, '');
+  }
+
   /** The actual core runner installed beside the mounted HTTP runner. */
   publicCommands(): PlanCommandRunner {
     if (this.composedCommands === undefined) throw new Error('composed commands are absent');
@@ -681,7 +688,11 @@ export class OrganizationHarness {
         userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
       () => clock.now(),
     );
-    const commandAccess = new SqliteCommandAccess(source.db, organizationAccess);
+    const commandAccess = new SqliteCommandAccess(
+      source.db,
+      organizationAccess,
+      new MachineCredentialRepository(source.db, source.gate),
+    );
     const services = buildServices({
       source,
       clock,
@@ -873,6 +884,7 @@ export class OrganizationHarness {
       async (token, cookie) => {
         const principal = await services.auth.authenticate(token);
         if (principal === null) throw new Error('command fixture token did not authenticate');
+        if (principal.authentication?.kind === 'machine') return principal;
         const credential = await organizationCredentialEvidence(services.auth, TEST_JWT_KEY)(
           token,
           principal,
