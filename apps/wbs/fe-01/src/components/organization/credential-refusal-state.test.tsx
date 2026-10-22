@@ -36,7 +36,7 @@ function refuseEveryPanel(refusal: object) {
 }
 
 function renderPage() {
-  render(<OrganizationPage nav={<nav />} account={<span />} />);
+  render(<OrganizationPage nav={<nav />} account={<span />} userId="u1" />);
 }
 
 describe('the organization page refused by enforced SSO', () => {

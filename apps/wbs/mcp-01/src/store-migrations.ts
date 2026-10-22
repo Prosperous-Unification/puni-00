@@ -8,6 +8,8 @@ import credentialBindingDown from '../drizzle/20260927120000_mcp_credential_bind
 import credentialBindingUp from '../drizzle/20260927120000_mcp_credential_binding/migration.sql' with { type: 'text' };
 import clientDown from '../drizzle/20261021120000_mcp_client/down.sql' with { type: 'text' };
 import clientUp from '../drizzle/20261021120000_mcp_client/migration.sql' with { type: 'text' };
+import familyPersonDown from '../drizzle/20261022130000_mcp_family_person/down.sql' with { type: 'text' };
+import familyPersonUp from '../drizzle/20261022130000_mcp_family_person/migration.sql' with { type: 'text' };
 
 /**
  * One paired migration of the durable MCP store. `preflightDown` runs inside the rollback's
@@ -81,6 +83,32 @@ function preflightCredentialBindingDown(db: Database, now: number): void {
     );
 }
 
+/**
+ * Refuses the family-person migration's reversal while it would lose something: a family that
+ * names a person and whose end be-01 has not acknowledged (a live one would act as its human
+ * once the columns are gone; an ended one would leave its credential live), or a pending consent
+ * whose credential be-01 may hold.
+ */
+function preflightFamilyPersonDown(db: Database): void {
+  const unreported = db
+    .query<{ n: number }, []>(
+      `SELECT COUNT(*) AS n FROM mcp_family
+        WHERE credential_id IS NOT NULL AND consent_ended_reported_at IS NULL`,
+    )
+    .get()?.n;
+  const pending = db
+    .query<{ n: number }, []>('SELECT COUNT(*) AS n FROM mcp_consent_pending')
+    .get()?.n;
+  // Proof: 2026-10-22, with this refusal removed `refuses to roll back while a family names a
+  // person` and `refuses to roll back while a consent is pending` (store-migrations.test.ts)
+  // rolled back.
+  if (unreported !== 0 || pending !== 0)
+    throw new McpStoreRefused(
+      `MCP store rollback refused: ${String(unreported)} families acting as a person and ` +
+        `${String(pending)} pending consents must end and be reported to be-01 first`,
+    );
+}
+
 /** The ordered, bundled manifest; history on disk must be an exact prefix of it. */
 export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
   { name: BASELINE, up: refreshFamilyUp, down: refreshFamilyDown },
@@ -91,6 +119,12 @@ export const MCP_STORE_MIGRATIONS: readonly McpStoreMigration[] = [
     preflightDown: preflightCredentialBindingDown,
   },
   { name: '20261021120000_mcp_client', up: clientUp, down: clientDown },
+  {
+    name: '20261022130000_mcp_family_person',
+    up: familyPersonUp,
+    down: familyPersonDown,
+    preflightDown: preflightFamilyPersonDown,
+  },
 ];
 
 function sha256(text: string): string {

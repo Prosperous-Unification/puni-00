@@ -285,6 +285,10 @@ describe('20260927130000_add_organization_ownership', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',
@@ -339,6 +343,10 @@ describe('20260927130000_add_organization_ownership', () => {
     expect(rollbackTo(path, FOLDER, ORGANIZATION_RECORDS)).toEqual([
       '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
       '20261019130100_add_external_identity_person',

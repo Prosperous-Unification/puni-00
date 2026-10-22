@@ -39,6 +39,8 @@ const usage = type({
   members: named.array(),
   // Optional on the wire: an outgoing be-01 mid-swap counts no pins.
   'pinnedCredentials?': 'number',
+  // Optional on the wire for the same reason (`wbs-machine-credentials`).
+  'machineCredentials?': 'number',
 });
 /**
  * The wire omits the producer kind. Known fields are reserved across variants;

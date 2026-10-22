@@ -161,6 +161,7 @@ function fixture(
     now: tick,
     random: () => random.shift() ?? 'extra-random',
     redirectUri: 'https://dev.wbs.test/api/auth/okta/callback',
+    issuer: () => Promise.resolve('https://idp.test'),
     verifier: {
       verify: (token: string) =>
         token.includes('.')

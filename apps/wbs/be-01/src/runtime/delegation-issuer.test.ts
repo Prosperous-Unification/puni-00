@@ -330,3 +330,138 @@ it('refuses forged source claims before signing', async () => {
   }
   expect(failure).toEqual(new Error('credential was not verified'));
 });
+
+/** A signed MCP delegation for ada with `claims` added; time is fixed at 1000 s. */
+async function consentToken(
+  keys: CryptoKeyPair,
+  claims: Record<string, string>,
+  scope = 'read write editor',
+): Promise<string> {
+  return new SignJWT({
+    org: 'org-a',
+    scope,
+    client: 'client-1',
+    grant: 'family-claire',
+    upstream_iss: 'https://idp.test/',
+    upstream_sub: 'auth0|ada',
+    ...claims,
+  })
+    .setProtectedHeader({ alg: 'RS256', typ: 'wbs-delegation+jwt' })
+    .setIssuer('wbs')
+    .setSubject('ada')
+    .setAudience('wbs-be-01/via-mcp-01')
+    .setJti(crypto.randomUUID())
+    .setIssuedAt(1000)
+    .setExpirationTime(1100)
+    .sign(keys.privateKey);
+}
+
+/** The live consent credential of family-claire, pinned to claire and bound to ada. */
+const CLAIRE_CONSENT = {
+  id: 'credential-claire',
+  organizationId: 'org-a',
+  personId: 'claire',
+  source: 'mcp_consent',
+  boundAccountId: 'ada',
+  revokedAt: null,
+  trustedIssuerId: null,
+  mcpFamilyId: 'family-claire',
+  secrets: [],
+} as const;
+
+it('admits a consent delegation as its agent, capped to read and write', async () => {
+  const keys = await generateKeyPair('RS256');
+  const verify = delegationVerifier(
+    keys.publicKey,
+    () => Promise.resolve({ id: 'ada', username: 'ada' }),
+    () => Promise.resolve(true),
+    () => 1_000_000,
+    undefined,
+    (id) => Promise.resolve(id === 'credential-claire' ? CLAIRE_CONSENT : null),
+  );
+  const outcome = await verify(
+    await consentToken(keys, { credential_id: 'credential-claire', person_id: 'claire' }),
+    'wbs-be-01/via-mcp-01',
+  );
+  expect(outcome).toMatchObject({
+    kind: 'verified',
+    principal: {
+      id: 'ada',
+      scopes: ['read', 'write'],
+      authentication: {
+        kind: 'consent',
+        issuer: 'https://idp.test/',
+        subject: 'auth0|ada',
+        credentialId: 'credential-claire',
+        personId: 'claire',
+      },
+    },
+  });
+  // Another person than the credential's, a revoked credential, another family's and an
+  // absent one are refused.
+  for (const [claims, record] of [
+    [{ credential_id: 'credential-claire', person_id: 'codex' }, CLAIRE_CONSENT],
+    [
+      { credential_id: 'credential-claire', person_id: 'claire' },
+      { ...CLAIRE_CONSENT, revokedAt: 5 },
+    ],
+    [
+      { credential_id: 'credential-claire', person_id: 'claire' },
+      { ...CLAIRE_CONSENT, mcpFamilyId: 'family-other' },
+    ],
+    [
+      { credential_id: 'credential-claire', person_id: 'claire' },
+      { ...CLAIRE_CONSENT, boundAccountId: 'bob' },
+    ],
+    [{ credential_id: 'credential-claire', person_id: 'claire' }, null],
+  ] as const) {
+    const refusing = delegationVerifier(
+      keys.publicKey,
+      () => Promise.resolve({ id: 'ada', username: 'ada' }),
+      () => Promise.resolve(true),
+      () => 1_000_000,
+      undefined,
+      () => Promise.resolve(record),
+    );
+    expect((await refusing(await consentToken(keys, claims), 'wbs-be-01/via-mcp-01')).kind).toBe(
+      'refused',
+    );
+  }
+  // A consent delegation reaching a composition without the reader is a wiring fault.
+  expect(
+    await rejectionOf(
+      delegationVerifier(
+        keys.publicKey,
+        () => Promise.resolve({ id: 'ada', username: 'ada' }),
+        () => Promise.resolve(true),
+        () => 1_000_000,
+      )(
+        await consentToken(keys, { credential_id: 'credential-claire', person_id: 'claire' }),
+        'wbs-be-01/via-mcp-01',
+      ),
+    ),
+  ).toHaveProperty(
+    'message',
+    'a consent delegation was presented but consent credentials are not wired',
+  );
+});
+
+it('refuses a consent delegation that names a person without its credential', async () => {
+  const keys = await generateKeyPair('RS256');
+  const verify = delegationVerifier(
+    keys.publicKey,
+    () => Promise.resolve({ id: 'ada', username: 'ada' }),
+    () => Promise.resolve(true),
+    () => 1_000_000,
+    undefined,
+    () => Promise.resolve(CLAIRE_CONSENT),
+  );
+  const halves: Record<string, string>[] = [
+    { person_id: 'claire' },
+    { credential_id: 'credential-claire' },
+  ];
+  for (const claims of halves)
+    expect((await verify(await consentToken(keys, claims), 'wbs-be-01/via-mcp-01')).kind).toBe(
+      'refused',
+    );
+});

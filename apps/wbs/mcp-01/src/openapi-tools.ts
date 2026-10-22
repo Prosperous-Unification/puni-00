@@ -102,6 +102,20 @@ export const EXCLUDED_PATHS: readonly string[] = [
   // each, watched 2026-10-12).
   '/api/organization/provisioning-tokens',
   '/api/organization/provisioning-tokens/*',
+  // A machine credential is a credential for the same reason, and be-01
+  // refuses every delegation on these routes (`wbs-machine-credentials` A12,
+  // A23), so as tools they could only ever answer `insufficient_scope`.
+  // Proof: removing either entry made `keeps machine credential
+  // administration out of the generated MCP tools` expose its tools; watched
+  // 2026-10-22.
+  '/api/organization/machine-credentials',
+  '/api/organization/machine-credentials/*',
+  // A trusted issuer admits machines for every person of its organization,
+  // and be-01 refuses every delegation on these routes as well.
+  // Proof: removing either entry made `keeps trusted issuer administration
+  // out of the generated MCP tools` expose its tools; watched 2026-10-22.
+  '/api/organization/trusted-issuers',
+  '/api/organization/trusted-issuers/*',
 ];
 
 /** What the MCP protocol accepts as a tool name; `operationId` must already fit. */

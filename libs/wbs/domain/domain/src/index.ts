@@ -176,6 +176,8 @@ export * from './occupancy';
 export * from './connected-step-node';
 export * from './execution-eligibility';
 export * from './resource';
+// Admission of a machine credential, whichever source presented it (wbs-machine-credentials A13, A22).
+export * from './machine-credential';
 export * from './step-parallel';
 export * from './stored-vocabularies';
 export * from './tree-order';
