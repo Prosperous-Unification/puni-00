@@ -658,3 +658,28 @@ After the fresh main merge, root ran uncached `wbs-mcp-01:test` on the
 combined feature and credential-epoch source: 479 pass, 0 fail, 2,122
 assertions in 20 files. Uncached MCP typecheck also passed. Mounted 3.2
 transport equivalence and the full combined CI/host gate remain open.
+
+## Task 9.1 — scoped frontend selection independently approved
+
+[Round-two review and raw proofs](evidence/task-9-autocomplete-round2.md)
+supersede the first frontend rejection. Original plus two corrections integrated
+as `67a803993`, `0031c3418`, `766325bc7`; three provisional shared contracts
+were excluded and match the separately reviewed integrated source. The Astra
+reviewer reran 401 View, 26 Node, 11 original probes, two actual HTTP field
+probes, four typechecks, lint and format, all green. Six independent round-two
+fault injections failed at the selected UI assertions and restored tests passed.
+Task 9.1 is checked for new selection; persisted remote relationship and
+settings/outcome UI under 9.2, activation and browser delivery remain open.
+
+## Task 4.3 — real graph scenario gap closed, lifecycle open
+
+[Graph scenario review and raw proofs](evidence/task-4-graph-closure.md) cover
+nine actual SQLite scenarios, including all four remote expanded pairs and an
+external batch write followed by a later cyclic command and full-table rollback.
+The reviewer repeated ten separate faults: seven invalid writes became
+accepted, two legal interleavings became refused, and forced COMMIT retained
+the earlier link and revisions. Fresh focus passed 133 tests/1,418 assertions;
+types, effective Nx-boundary lint and format passed. Source `0f2111268`
+integrated as `dbc57b2d5`, SHA-256 retained. Whole 4.3 stays unchecked until
+the hand-down incident mapping under 4.4 exists. Mounted 4.2 external success
+and post-commit fanout are not inferred from admitted transaction proofs.

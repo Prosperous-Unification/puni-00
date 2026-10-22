@@ -1,0 +1,30 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1164 |               stepId: aStep,
+1165 |             },
+1166 |             type: 'FS',
+1167 |           }),
+1168 |         ),
+1169 |       ).toMatchObject({ ok: false, reason: 'cycle' });
+               ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "cycle",
++   "ok": true,
++   "value": "d8ed01f9-4c62-4a2b-b73a-ad560874709b",
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-graph-closure-review-tree/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1169:9)
+(fail) admitted remote scopes expand all four pairs under their own trees and steps [582.99ms]
+
+ 0 pass
+ 87 filtered out
+ 1 fail
+ 22 expect() calls
+Ran 1 test across 1 file. [3.62s]

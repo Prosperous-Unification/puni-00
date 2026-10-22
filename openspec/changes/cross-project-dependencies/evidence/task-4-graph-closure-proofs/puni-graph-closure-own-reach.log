@@ -1,0 +1,10 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+(pass) admitted remote legacy anchors retain their own reach when the owner uses whole-item reach [460.81ms]
+
+ 1 pass
+ 87 filtered out
+ 0 fail
+ 26 expect() calls
+Ran 1 test across 1 file. [2.75s]

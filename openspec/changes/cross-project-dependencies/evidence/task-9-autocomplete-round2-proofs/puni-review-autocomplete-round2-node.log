@@ -1,0 +1,18 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vitest.config" without a file extension (vitest.node.config.ts:3:24). Add the file extension
+  - import "./vitest.node-suites" without a file extension (vitest.node.config.ts:4:29). Add the file extension
+  - JSON import "./vitest.node-suites.json" without import attributes (vitest.node-suites.ts:1:22). Add `with { type: 'json' }`
+  - `__dirname` (vitest.config.ts:43:20). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v5.0.0 /tmp/puni-cross-autocomplete/apps/wbs/fe-01
+
+
+ Test Files  4 passed (4)
+      Tests  26 passed (26)
+   Start at  07:49:23
+   Duration  7.49s (import 90%, transform 9%, tests 1%)
+
+     Import  138 modules were evaluated 216 times · 6.43s total, 90% of tracked time
+             ~2.32s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation

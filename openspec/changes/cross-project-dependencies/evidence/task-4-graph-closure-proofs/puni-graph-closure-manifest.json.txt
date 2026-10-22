@@ -1,0 +1,12 @@
+{
+  "root": "/tmp/puni-cross-graph-closure",
+  "base": "0894d25aec01701ab0c615bc34a40f57e3c72a4b",
+  "branch": "feat/cross-project-graph-closure",
+  "paths": [
+    {
+      "path": "apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts",
+      "sha256": "e17da34e771468293f21d34094d74a256a0fb8e1845c7c0517e1ec6a6c295ddd",
+      "bytes": 89557
+    }
+  ]
+}

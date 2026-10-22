@@ -1,0 +1,31 @@
+bun test v1.4.2 (744846f84)
+
+
+apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:
+1118 |     successor: { ...fixture.owner, scope: 'node', stepId: workflowStep(fixture.owner.projectId, 'Dev') }, type: 'FS',
+1119 |   }))).toMatchObject({ ok: true });
+1120 |   const before = effects();
+1121 |   expect(await semantic(fixture, (service) => service.move(moving, fixture.principal.id, {
+1122 |     parentId: branch.parent, afterId: null,
+1123 |   }, fixture.expectedAccess))).toMatchObject({ ok: false, reason: 'cycle' });
+                                      ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "ok": false,
+-   "reason": "cycle",
++   "ok": true,
++   "value": null,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/tmp/puni-cross-graph-closure/apps/wbs/be-01/src/controller/connected-command-admission.controller.db.test.ts:1123:32)
+(fail) admitted subtree move closes a real remote descendant cycle and rolls back [807.51ms]
+
+ 0 pass
+ 86 filtered out
+ 1 fail
+ 19 expect() calls
+Ran 1 test across 1 file. [5.74s]
