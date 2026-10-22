@@ -3888,3 +3888,29 @@ Final C2 backend evidence:
 - `git diff --check`: exit 0.
 - Backend changed-file lint initially found test-only unsafe JSON/matcher values, import ordering and an unnecessary async arrow. After explicit summary typing, ordinary string-array assertions and import sorting, `bunx eslint --fix apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts apps/wbs/be-01/src/service/saved-plan-read.db.test.ts` exited 0 (`/tmp/c2-backend-lint2.log`).
 - Post-lint focused rerun: `bun test ./apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts ./apps/wbs/be-01/src/service/saved-plan-read.db.test.ts ./libs/wbs/domain/contracts/src/http/saved-plan-shapes.test.ts --test-name-pattern 'reads complete connected history|frozen connected SQL|generated comparison document'`: 3 pass / 0 fail (`/tmp/c2-post-lint-tests.log`).
+
+### C2 review correction: shared frontend fixtures (2026-10-22)
+
+Astra High identified the required shared reply's two outdated frontend fixtures.
+A fresh `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run
+wbs-fe-01:typecheck --outputStyle=static` reproduced TS2739 at
+`project-page.test.tsx:363` and `saved-plans-panel.test.tsx:54` for absent left/right
+(`/tmp/c2-fe-red.log`). Both fixtures now provide explicit legacy provenance,
+requested source and schedule presence/reason. This corrects fixture compatibility;
+rendered historical provenance/state consumption remains the next slice.
+
+The same Nx frontend typecheck then passed (`/tmp/c2-fe-green.log`).
+`TZ=UTC bunx vitest run src/lib/saved-plan-api.test.ts
+src/components/wbs/saved-plans-panel.test.tsx
+src/components/wbs/project-page.test.tsx --no-file-parallelism --maxWorkers=1`
+from `apps/wbs/fe-01` passed 150/150 tests in all three files
+(`/tmp/c2-fe-tests.log`). Changed-file ESLint passed for those three files
+(`/tmp/c2-fe-lint.log`).
+
+The new browser-client production-path test preserves both empty-diff summaries
+and refuses either omitted side. Making the shared shape's left or right
+optional, one at a time, made this test receive success instead of invalid_response:
+0 pass / 1 fail in each fault run
+(`/tmp/c2-fe-fault-optional-{left,right}.log`). This extends the C2 top-level
+required-field proofs through the generated browser client. Both mutations were
+restored. No active writer or frontend runtime behavior changed.

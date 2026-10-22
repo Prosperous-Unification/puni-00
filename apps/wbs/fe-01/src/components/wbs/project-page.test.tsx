@@ -360,7 +360,19 @@ const savedPlanCompareReply = (): SavedPlanCompareReply => ({
   representation: 'json',
   status: 200,
   headers: new Headers(),
-  body: { diff: { input: [], schedule: [] } },
+  body: {
+    diff: { input: [], schedule: [] },
+    left: {
+      source: { kind: 'saved', savedPlanId: CHECKPOINT.id },
+      schedule: { present: true, algorithmId: 'retired' },
+      provenance: { kind: 'legacy-unknown' },
+    },
+    right: {
+      source: { kind: 'current' },
+      schedule: { present: false, absentReason: 'pending' },
+      provenance: { kind: 'legacy-unknown' },
+    },
+  },
 });
 const savedPlanRenameReply = (): SavedPlanRenameReply => ({
   kind: 'success',
