@@ -449,10 +449,13 @@ transaction.
 
 ### Requirement: The people page shows and revokes an agent's credentials
 
-An agent person's row on the people page SHALL show the count of its live credentials and
-open a list of them (source, name, issuer account, last use, client name for
+An agent person's row on the people page that the viewer reaches SHALL offer a toggle that
+opens a list of its credentials (source, name, issuer account, last use, client name for
 `mcp_consent`) with a revoke action under the same exact-id confirmation as the
-organization panel. A member SHALL see and revoke only credentials of agents bound to
+organization panel; the list's empty state and rows give the live count once opened. The
+row SHALL NOT read credentials before the toggle is opened: a count drawn on every row would
+need a credentials request per row, and the page sends none for agents the viewer does not
+reach. A member SHALL see and revoke only credentials of agents bound to
 their own account; an admin every agent's. The list SHALL render loading, empty, rows and
 failure states and SHALL never show a secret.
 
@@ -460,7 +463,8 @@ failure states and SHALL never show a secret.
 
 - **WHEN** Dany opens `claire` on the people page and revokes her consent credential with its
   exact id
-- **THEN** one revoke request is sent, the row's count drops by one, and no secret was shown
+- **THEN** one revoke request is sent, the list is reread without that credential, and no
+  secret was shown
 
 #### Scenario: A member sees only their own agents' credentials
 

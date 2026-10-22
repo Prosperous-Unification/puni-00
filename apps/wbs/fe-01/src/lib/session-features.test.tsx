@@ -58,7 +58,7 @@ describe('surfaces of a feature the session read reported off', () => {
   // never found the inactive state.
   it('renders the organization page inactive without asking any panel', async () => {
     const sent = stubServer({});
-    routed(OFF, <OrganizationPage nav={<nav />} account={<span />} />);
+    routed(OFF, <OrganizationPage nav={<nav />} account={<span />} userId="u1" />);
     expect(
       (await screen.findByText(/Organization administration is not active yet/)).textContent,
     ).toBeDefined();

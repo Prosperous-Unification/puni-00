@@ -586,3 +586,112 @@ Unverified or skipped:
 
 Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all
 --json` on this worktree is recorded in the PR.
+
+## Slice 6 record (2026-10-22)
+
+Built on `feat/wbs-machine-credentials-6` from slice 5's head `a0e71ecde`. fe-01 only: no
+`libs/**`, be-01 or contract change.
+
+What was built (`apps/wbs/fe-01/src/components/organization/`):
+
+- `organization-role.ts`: `useOrganizationRole` reads `GET /api/organization/active` once per
+  page through the runtime scope; `credentialReach` maps the role to `all`, `own` or `none`.
+- `machine-credentials-panel.tsx`: the panel (and, with `person`, the people page sub-panel):
+  loading, empty with the A7 reach sentence, rows, transport failure with retry, modeled
+  refusals, the include-revoked toggle, create dialog, secret shown once (copy, dismiss,
+  selectable read-only field), exact-id revoke, rotate on `api_key` only, serialized writes.
+- `machine-credential-refusal.ts`: one sentence per modeled refusal of the seven routes.
+- `trusted-issuers-section.tsx`: admins only; list, register (audience required, prefilled
+  `wbs:org:<organizationId>`), remove with `in_use` and its count.
+- `person-credentials.tsx`: `usePeopleCredentials` and `PersonCredentials` for the people
+  page; `directory-page.tsx` gains `credentialsOf`, `app-router.tsx` composes both pages,
+  `organization-page.tsx` takes `userId` and mounts the panel by role.
+
+Proofs, each fault injected by a script, the named test run alone, then restored (2026-10-22;
+all 17 rerun after the A25 merge, each exit 1):
+
+| Guard (file)                                                         | Injected fault                    | Observed failure                                                                  |
+| -------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| active organization equals the captured one (`organization-role.ts`) | comparison replaced by `false`    | `gives the page up when the active organization is another one`: text not found   |
+| viewer gets no panel (`organization-page.tsx`)                       | panel rendered for `none`         | `renders no credentials panel for a viewer and sends no credentials request`      |
+| `name_taken` copy (`machine-credential-refusal.ts`)                  | `not_found` copy                  | `renders name_taken in the dialog`: copy mismatch                                 |
+| `in_use` count (`machine-credential-refusal.ts`)                     | count dropped                     | `shows in_use with its count`: copy mismatch                                      |
+| refusal clears the key (panel `processRefusal`)                      | clearing removed                  | `discards a created key when the reread is refused`: key input still rendered     |
+| a new write clears the key (panel `mutate`)                          | clearing removed                  | `withdraws a shown key as soon as another write starts`: key input still rendered |
+| read failure keeps the key (panel `read`)                            | `setSecret(null)` added           | `keeps a created key when the list cannot be reread`: key not found               |
+| member offered own agents only (panel `read`)                        | filter on account removed         | `offers a member only their own agents`: three options                            |
+| refresh clears the key (panel `refresh`)                             | clearing removed                  | `create shows the key once, then refresh discards it, without browser storage`    |
+| write admission (panel `mutate`)                                     | `isPending` check removed         | `serializes forced revoke submissions`: 2 writes, expected 1                      |
+| exact-id revoke (panel row)                                          | comparison replaced by `false`    | `requires the exact id before revoking, then rereads`: no alert                   |
+| clipboard is optional (panel secret)                                 | guard replaced by `false`         | `says when the clipboard is unavailable`: uncaught error, note not found          |
+| `oidc` issuer/subject non-null (panel `required`)                    | placeholder returned              | `an oidc row without its subject reaches the error boundary`: no fault boundary   |
+| rotate on `api_key` only (panel row)                                 | source condition removed          | `offers rotate on API keys only`: rotate button on the OIDC row                   |
+| create source vocabulary (panel `sourceOf`)                          | unchecked cast                    | `throws loudly on an impossible source selection, draft unchanged`: 0 faults      |
+| people page reach (`person-credentials.tsx`)                         | agent kind only, account ignored  | `offers a member no list for another account’s agent`: toggle rendered            |
+| people page slot (`directory-page.tsx`)                              | `credentialsOf?.(person)` removed | `draws each person’s machine credentials under their row`: text not found         |
+
+Commands and fresh results, `CLAUDECODE` unset:
+
+| Command                                                                                                                           | Result                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `bunx vitest run` organization, directory, runtime, `app.test.tsx`, `app-router.test.tsx`, session-features, the four tier suites | 40 files, 575 tests pass                                 |
+| `bunx vitest run` the four new or changed organization suites                                                                     | 89 pass: panel 36, trusted issuers 19, people 7, page 27 |
+| `bunx vitest run` `test-tiers`, `vitest-budget`, `vitest.view-level`, `node-tier`                                                 | 4 files, 12 tests pass                                   |
+| `bunx nx run-many -t typecheck lint -p wbs-fe-01`                                                                                 | exit 0                                                   |
+| `bun test` tool-devsync `eslint-boundaries`, `workspace-targets`, `retired-roots`, `toolchain-pins`                               | 78 pass, 0 fail                                          |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                       | exit 0, 39 indexes (store-memory review debt pre-exists) |
+| `bunx openspec validate --all --json`                                                                                             | exit 0; 266 items, 266 passed                            |
+
+Eye review: screenshots of the admin empty, populated (1280 and 375 px), create dialog,
+secret-shown-once, query failure, member empty and revoke-confirmation states, drawn by
+Chromium against `vite` with every `/api` route stubbed; `main` scrolled sideways 0 px in each.
+They are not committed.
+
+Not run, by the laptop RAM cap: the full `wbs-fe-01:test` (UTC and Auckland view runs) and
+every workspace-wide target; CI runs them. No e2e spec or pixel baseline was added: the
+organization e2e spec runs in legacy mode, where the panel is not composed.
+
+Not verified:
+
+- Against a real be-01: every reply here is a stub of the contract shapes.
+- Aligned to A25 after merging slice 5's head `11accf7b3`: the register form sends the
+  required `audience` (prefilled and hinted as `wbs:org:<organizationId>`), lists `audience`,
+  and maps `audience_taken`, `trusted_issuer_limit` and the private-host `invalid_body`; the
+  create dialog says a credential's audience narrows the issuer's. Counts above were rerun
+  after the merge.
+
+### Slice 6 review fixes (2026-10-22)
+
+Fable review of PR #634: MERGE AFTER FIXES. Fixed on the same branch, base unchanged at
+`11accf7b3`:
+
+- S2-1: `refresh` takes `discard` or `keep`. Retry after a failed reread, and a trusted issuer
+  change (S3-5), reread with `keep`; Refresh and the revoked toggle still discard the key.
+- S2-2: the people page requirement in `specs/machine-credentials/spec.md` now says what is
+  built: a toggle, the live count visible once opened, no credentials read before it opens;
+  its scenario rereads the list instead of decrementing a count.
+- S3-1: `mutate` catches an unexpected throw into the panel fault (Error Boundary).
+- S3-2: an impossible source option throws loudly from the `onChange` handler and leaves the
+  draft unchanged; it does not reach the Error Boundary (the earlier wording was wrong).
+- S3-3: `invalid_body` on an `oidc` create names the name, subject and audience.
+- S3-4, S3-6: `MachineCredentialRefusal`, `CredentialOperation`, `idPrefix`, `content`,
+  `request`.
+- UX: the register form is a framed "Register a trusted issuer" block; "Issued by" shows the
+  member's username for an admin (from `GET /api/organization/members`), the account id
+  when the viewer is a member or the read fails.
+
+New proofs (injected, named test run alone, restored):
+
+| Guard                                  | Injected fault                 | Observed failure                                                             |
+| -------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| Retry keeps the key (`refresh` `keep`) | clear on `keep` too            | `retry after a failed reread keeps the key`: key not found                   |
+| Refresh discards the key               | clearing removed               | `create shows the key once, then refresh discards it`: key input still there |
+| `mutate` catch                         | `throw cause` instead          | `a thrown write reaches the error boundary`: no fault boundary               |
+| `oidc` `invalid_body` copy             | `create-oidc` falls to API key | `renders invalid_body on an oidc create as name, subject or audience`        |
+
+All 17 earlier proofs reran on the fixed tree and each failed under its fault.
+
+Fresh results: vitest organization, directory, runtime, app, app-router, session-features and
+the four tier suites 40 files, 579 pass; the four new or changed organization suites 93 pass
+(panel 40, trusted issuers 19, people 7, page 27); `nx run-many -t typecheck lint -p wbs-fe-01
+--skip-nx-cache` exit 0. Screenshots 02 (populated) and 05 (secret shown once) retaken.
