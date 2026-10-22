@@ -242,7 +242,7 @@ See `verify.md`, "Slice 5 record".
 
 ## 6. The settings panel and the people page
 
-- [ ] 6.1 `machine-credentials-panel.tsx` composed by `organization-page.tsx` on
+- [x] 6.1 `machine-credentials-panel.tsx` composed by `organization-page.tsx` on
       `@ui/core-01`/`@ui/saas-01`: loading, empty, rows, transport failure, modeled refusal,
       secret-shown-once with dismiss, copy warning and focusable field, exact-id revoke,
       serialized writes, no rotate control on `oidc`/`mcp_consent`, a member's
@@ -250,12 +250,40 @@ See `verify.md`, "Slice 5 record".
       test: the panel's rendering tests mirrored from `provisioning-tokens-panel`; negative:
       keep the secret in state across refresh and the "secret shown once, then gone" case
       finds it rendered; watched.
-- [ ] 6.2 Trusted issuers section inside the same panel, admins only: register, list, remove with
+- [x] 6.2 Trusted issuers section inside the same panel, admins only: register, list, remove with
       `in_use` shown — test: rendering tests; eye review per the UI acceptance rule.
-- [ ] 6.3 People page: an agent row's credential count, the list with revoke under exact-id
+- [x] 6.3 People page: an agent row's credential count, the list with revoke under exact-id
       confirmation, a member offered only their own agents' lists — test: the people page
       rendering tests with an agent holding one consent credential; negative: offer the list
       on a stranger's agent and the member case observes the request; watched.
-- [ ] 6.4 A viewer's page renders no panel and sends no credentials request — test: the
+- [x] 6.4 A viewer's page renders no panel and sends no credentials request — test: the
       organization page test with a viewer role; negative: render the panel on the list
       refusal and the case observes the request; watched.
+
+Slice 6 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on slice 5):
+
+- fe-01 learns the caller's role from `GET /api/organization/active` (`organization-role.ts`,
+  `useOrganizationRole`), read once per page through the captured runtime scope; a reply
+  naming another organization gives the page up as `no_organization`. A legacy runtime (no
+  organization) sends no role read and draws no credentials surface. The role only decides
+  what is drawn and asked; be-01 decides every read and write.
+- 6.1: the panel lists credentials as rows (no table primitive exists in `@ui/saas-01`; seven
+  columns do not fit the page's `max-w-3xl` column), creates in a `Modal`, and shows the key
+  above the list with copy (optional, said in place when the clipboard is absent) and
+  dismiss. Rotate is drawn on live `api_key` rows only, disabled with its window end while
+  one is open; `oidc` and `mcp_consent` rows state why they rotate elsewhere. "Issued by"
+  shows "You" or the account id: no account names are readable by members.
+- 6.1: a member is offered `api_key` only. The OIDC source needs a trusted issuer, whose list
+  is an admin read.
+- 6.2: the trusted issuers section reads its own list and the SSO connections (a
+  super-admin read; refused, the optional connection picker is left out with a sentence).
+  The audience field is required and prefilled with `wbs:org:<organizationId>` (A25).
+- 6.3: the people page gets `credentialsOf` beside `loadOf`; each reachable agent row has a
+  "Show credentials" toggle that mounts the same panel narrowed by `personId`. No count is
+  drawn before the toggle opens: a count for every agent row would be a credentials request
+  per row, or one page-wide list read, which the "no credentials request" scenario forbids
+  for rows the member does not reach.
+- 6.4: a viewer's page mounts no panel and sends neither a credentials nor a trusted-issuer
+  request.
+
+See `verify.md`, "Slice 6 record".
