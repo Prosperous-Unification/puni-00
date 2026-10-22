@@ -457,3 +457,10 @@ or the remaining unavailable/Retry/transfer work. See verify.md.
 - [x] Repair sticky heartbeat loss after successful binary observation and later renewal; prove fresh and interrupted-resume refusal before journal normalization or protected effects, including watched omission.
 - [x] Record final configured test/lint/typecheck/build and format/OpenSpec results in [verify-k8s-binary-preflight.md](verify-k8s-binary-preflight.md).
 - [ ] Complete independent review and isolated host gate on the integrated SHA. Parent 10.1/10.2, semantic admission, activation, participant exclusion and recovery remain open.
+
+### Bounded task 10.1 current WorkItemService authoring consumption
+
+- [x] Watch mounted SQLite current-state add/update/remove/undo/redo regressions fail against the construction cache; retain already-current copy controls.
+- [x] Read current authority at existing admission positions, preserving constructor validation and principal/owner/endpoint concealment ordering.
+- [x] Cover active/inactive transitions and throwing authority for add, both update directions, remove, copy and undo/redo; compare complete tables after refusal, earlier local batch writes and zero publication.
+- [ ] Complete independent review and integrated isolated host gate. Parent 10.1 stays open; production remains inactive and import-port refresh was not changed by this packet. Receipts and limits: [verify-current-authoring.md](verify-current-authoring.md).

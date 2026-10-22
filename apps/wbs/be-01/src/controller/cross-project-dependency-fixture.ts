@@ -4,6 +4,7 @@ import { grantAdmission } from '@wbs/core';
 import { createWorkingPlan } from '@wbs/core/module/plan-commands/working-plan.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
 import { AnnouncementCollector } from '@wbs/core/ports/announcement-collector';
+import type { ExternalDependencyAuthoring } from '@wbs/core/ports/external-dependency-authoring';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -119,6 +120,7 @@ export async function runSemantic<T extends { ok: boolean }>(
   fixture: Awaited<ReturnType<typeof openFixture>>,
   operation: (service: WorkItemService) => Promise<T>,
   configure?: (stores: PlanTransactionalStores) => PlanTransactionalStores,
+  authoring: ExternalDependencyAuthoring = { state: 'inactive' },
 ) {
   const boundary = harness.publicWrites();
   return boundary.uow.run(async (scope) => {
@@ -151,7 +153,7 @@ export async function runSemantic<T extends { ok: boolean }>(
         scheduler: fastScheduler,
         admission: granted.admission,
         dependencyContext: { kind: 'bound', context: opened.context },
-        externalDependencyAuthoring: { state: 'inactive' },
+        externalDependencyAuthoring: authoring,
         broadcast: new AnnouncementCollector(broadcast),
       });
       const collected = await service.collect(() => operation(service));

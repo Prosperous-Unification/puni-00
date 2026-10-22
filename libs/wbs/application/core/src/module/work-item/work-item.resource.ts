@@ -1443,7 +1443,6 @@ export interface Recording {
 
 export class WorkItemService {
   private readonly clock: Clock;
-  private readonly externalDependenciesActive: boolean;
 
   /** The {@link Command batch} collecting this service's recordings, or none. */
   private collector: BatchCollector | null = null;
@@ -1452,7 +1451,24 @@ export class WorkItemService {
     this.clock = opts.clock;
     // Proof: required-authoring-construction bypass failed `actual typed service rejects an unknown`'s selected assertion
     // (actual service with memory stores; watched 2026-10-22).
-    this.externalDependenciesActive = permitsExternalDependencies(opts.externalDependencyAuthoring);
+    permitsExternalDependencies(opts.externalDependencyAuthoring);
+  }
+
+  /**
+   * Reads current trusted authoring authority at each external operation's existing
+   * admission point, after principal, owner and endpoint concealment checks.
+   * Constructor validation still rejects missing or unknown initial authority;
+   * later unreadability throws inside the caller's transaction instead of retaining
+   * construction-time permission. Local commands do not require this capability.
+   */
+  private get externalDependenciesActive(): boolean {
+    // Proof: restoring the construction cache failed current-capability add,
+    // update in both directions, remove, undo and redo mounted SQLite refusals
+    // (inactive and unreadable), watched 2026-10-23.
+    // Proof: returning true here made `current capability inactive admits or
+    // refuses remove atomically` receive ok:true instead of inactive refusal,
+    // watched 2026-10-23 (other entry/replay guards were left installed).
+    return permitsExternalDependencies(this.opts.externalDependencyAuthoring);
   }
 
   /** Checks changed typed endpoint lifecycle and shape before graph expansion or persistence. */
@@ -7299,8 +7315,11 @@ export class WorkItemService {
           }
         if (
           external !== null &&
-          !this.externalDependenciesActive &&
-          bothDirections.some(requiresExternalAuthoring)
+          // Proof: reading authority before this predicate threw in mounted
+          // `derived incident history does not require general external authoring`
+          // instead of replaying the derived mapping (watched 2026-10-23).
+          bothDirections.some(requiresExternalAuthoring) &&
+          !this.externalDependenciesActive
         )
           return { ok: false, reason: 'external_dependencies_inactive', detail: null };
         if (external !== null) {

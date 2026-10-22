@@ -71,3 +71,13 @@ The command registry SHALL accept `addTypedDependency`, `updateTypedDependency` 
 - **WHEN** it attempts to author an external typed relationship
 - **THEN** the write is forbidden without inferring a grant from endpoint ownership records
 - **AND** its existing authorized local dependency behavior is unchanged
+
+#### Scenario: A service consumes current external authoring authority
+
+- **GIVEN** a WorkItemService was constructed with a valid explicit external-authoring capability
+- **WHEN** an external add, update in either direction, remove, retained incoming copy or typed-history undo/redo reaches its authoring admission point
+- **THEN** it reads the current capability after existing principal, owner and endpoint concealment checks
+- **AND** an inactive capability refuses atomically, including earlier commands in the batch, while an unreadable capability throws and rolls back
+- **AND** a capability that became active after construction permits otherwise valid semantic operations without reconstructing the service
+- **AND** constructor validation, local-command independence and exact derived incident-history replay without general authoring remain required
+- **AND** production composition remains explicitly inactive; this consumption hardening neither activates authoring nor advertises supported semantics
