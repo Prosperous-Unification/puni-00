@@ -185,7 +185,7 @@ describe('working plan global directory barrier', () => {
         () => directory.patchTeam('team', { serviceIds: [] }, STAMP),
         () => directory.addPerson({ id: 'person', name: 'Person' }, [], STAMP),
         () => directory.patchPerson('person', { teamIds: [] }, STAMP),
-        () => directory.removePerson('person', true, STAMP),
+        () => directory.removePerson('person', true, STAMP, { kind: 'every' }),
         () => directory.removeTeam('team', true, STAMP),
       ];
 
@@ -234,7 +234,7 @@ describe('working plan global directory barrier', () => {
         () => directory.patchTeam('team', { serviceIds: ['missing'] }, STAMP),
         () => directory.addPerson({ id: 'person', name: 'Person' }, ['missing'], STAMP),
         () => directory.patchPerson('person', { teamIds: ['missing'] }, STAMP),
-        () => directory.removePerson('person', false, STAMP),
+        () => directory.removePerson('person', false, STAMP, { kind: 'every' }),
         () => directory.removeTeam('team', false, STAMP),
       ];
       for (const write of writes) await write();
