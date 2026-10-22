@@ -246,6 +246,9 @@ describe('the browser gate’s port shift', () => {
       const env = {
         AUTH_MODE: 'local',
         BROWSER_SESSION_AUTHORITY: 'disabled',
+        ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS: '50',
+        ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS: '200',
+        ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE: '10000',
         NODE_ENV: 'development',
         LOG_LEVEL: 'error',
         INTERNAL_AUTH_SECRET: 's'.repeat(32),

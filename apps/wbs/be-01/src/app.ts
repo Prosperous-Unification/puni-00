@@ -16,6 +16,7 @@ import type {
   MembershipAdministration,
   Onboarding,
   OrganizationAccess,
+  OrganizationLimits,
   ProjectRankStore,
   ReplayOrchestrator,
   SavedPlanService,
@@ -33,6 +34,7 @@ import { invitationRoutes } from '@wbs/core/http/invitation.routes';
 import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
+import { organizationLimitsRoutes } from '@wbs/core/http/organization-limits.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
 import { projectRankRoutes } from '@wbs/core/http/project-rank.routes';
 import { provisioningTokenRoutes } from '@wbs/core/http/provisioning-token.routes';
@@ -118,6 +120,11 @@ const INACTIVE_SESSION_POLICIES: SessionPolicies = {
   set: () => Promise.resolve('inactive'),
 };
 
+/** The limits store of a composition that wires none: the read answers as inactive. */
+const INACTIVE_ORGANIZATION_LIMITS: OrganizationLimits = {
+  read: () => Promise.resolve('inactive'),
+};
+
 export interface AppOptions {
   clock: Pick<Clock, 'now'>;
   /** Trusted browser origin, resolved from operator configuration before boot. */
@@ -166,6 +173,12 @@ export interface AppOptions {
    * harness wire the SQLite store.
    */
   sessionPolicies?: SessionPolicies;
+  /**
+   * Organization limits with usage (`organization-limits`). Absent, the read
+   * answers as before activation; production and the organization harness
+   * wire the SQLite store with the deployment defaults.
+   */
+  organizationLimits?: OrganizationLimits;
   /**
    * Activates SCIM pending memberships at an SSO sign-in or link
    * (`organization-scim`). Absent, the composition holds no SCIM records, so
@@ -488,6 +501,10 @@ export function mountedEndpoints(
       opts.organizations,
       opts.sessionPolicies ?? INACTIVE_SESSION_POLICIES,
       opts.clock,
+    ),
+    ...organizationLimitsRoutes(
+      opts.organizations,
+      opts.organizationLimits ?? INACTIVE_ORGANIZATION_LIMITS,
     ),
     ...ssoConnectionRoutes(opts.organizations, opts.enterpriseConnections, opts.clock),
     ...provisioningTokenRoutes(

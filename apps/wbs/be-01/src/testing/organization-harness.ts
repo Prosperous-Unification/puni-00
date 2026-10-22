@@ -33,6 +33,7 @@ import {
   JoinRequestRepository,
   OnboardingRepository,
   openSqliteSource,
+  OrganizationLimitsRepository,
   OrganizationRepository,
   ProjectRankRepository,
   ProvisioningTokenRepository,
@@ -94,6 +95,7 @@ import { sqliteDependencyGraph } from './dependency-graph-fixture';
 import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
+import { TEST_ORGANIZATION_DEFAULT_LIMITS } from './organization-limits-fixture';
 import { inMemoryPriorityBands, testPriorityBandService } from './priority-band-fixture';
 import { testReplay } from './replay-fixture';
 import { testSavedPlanService } from './saved-plan-fixture';
@@ -451,6 +453,7 @@ export class OrganizationHarness {
       sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(db, OPEN),
       domains,
       sessionPolicies: new SessionPolicyRepository(db, gate),
+      organizationLimits: new OrganizationLimitsRepository(db, TEST_ORGANIZATION_DEFAULT_LIMITS),
       pendingMemberships: new ScimUserRepository(db, gate),
       enterpriseConnections: new EnterpriseConnectionRepository(db, gate),
       provisioning: {

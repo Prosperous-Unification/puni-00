@@ -108,6 +108,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'read',
   },
   {
+    operationId: 'getApiOrganizationLimits',
+    method: 'GET',
+    path: '/api/organization/limits',
+    kind: 'read',
+  },
+  {
     operationId: 'getApiOrganizationMembers',
     method: 'GET',
     path: '/api/organization/members',

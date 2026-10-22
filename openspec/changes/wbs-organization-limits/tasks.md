@@ -9,20 +9,23 @@
 
 ## 1. Schema, defaults and the read
 
-- [ ] 1.1 Migration `add_organization_limits`: table `organization_limits` with the three
+- [x] 1.1 Migration `add_organization_limits`: table `organization_limits` with the three
       `NOT NULL` integer columns, their 0 to 1,000,000 CHECKs and audit columns, and a
       `down.sql` refusing while any row exists — Red: `organization-limits-migration.db.test.ts`
       forward, back, the refusal with one row, a row with a null or out-of-bound cap refused
       by the CHECK. R5 fault: drop the `down.sql` guard and the rollback silently deletes a
       tenant's caps; drop one CHECK and the null-cap case stores a row the read cannot
       explain; watched.
-- [ ] 1.2 `BeConfig` gains the three required `ORGANIZATION_DEFAULT_*` variables within the
+- [x] 1.2 `BeConfig` gains the three required `ORGANIZATION_DEFAULT_*` variables within the
       bound; compose, Kubernetes manifests, `.env.example`, the dev host's environment and
       `docs/runbook-organization-activation.md` gain them — Red: `config.test.ts` refuses an
       absent, fractional, negative and over-bound value naming the variable, and
       `boot.db.test.ts` boots with all three. R5 fault: give one variable a default in the
-      schema and the absent case boots; watched.
-- [ ] 1.3 Red: `organization-limits.test.ts` in `@wbs/domain`: `refuseLimit({ cap, current,
+      schema and the absent case boots; watched. Built 2026-10-22: compose (`configure.sh`,
+      the swap preflight in `docker.ts`), Kubernetes overlays, both `.env.example` files and
+      the runbook carry the three; the dev host's own `.env` is a deploy step outside the
+      repository, named in the slice 1 PR.
+- [x] 1.3 Red: `organization-limits.test.ts` in `@wbs/domain`: `refuseLimit({ cap, current,
 added })` answers null under the cap, the refusal at and over it, and a property that
       `current + added <= cap` never refuses and `>` always does. R5 fault: compare with
       `>=`; the "exactly at the cap after the add" case flips; watched.
@@ -34,8 +37,13 @@ exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conforma
       organizations (the foreign rows never counted), the triple count over a four-step leaf
       and two agents on one leaf. R5 fault: drop the `person_organization` join and B's agents
       count for A; count claim rows instead of triples and the four-step leaf answers 4;
-      watched.
-- [ ] 1.5 `GET /api/organization/limits` in `@wbs/contracts` and `@wbs/core`
+      watched. Slice 1 (2026-10-22) built the read side over SQLite: `OrganizationLimits.read`
+      and the store readers `readEffectiveLimits`, `countAgentPersons`, `countBoundClaims`,
+      `readCapacityUsage`, `sumStatedCapacity` (`organization-limits.ts` in store-sqlite), each
+      with its negative. Still open here: `set` and `reset` (they need the audit widening of
+      slice 5 to be written whole), and the memory twin with its conformance suite, which the
+      claim path's memory store needs first in slice 3.
+- [x] 1.5 `GET /api/organization/limits` in `@wbs/contracts` and `@wbs/core`
       (`organization-limits.routes.ts` beside `session-policy.routes.ts`), limits and usage
       in one transaction, OpenAPI emit, MCP tool count moves by one — Red:
       `organization-limits.controller.db.test.ts`: admin and super-admin read, member and

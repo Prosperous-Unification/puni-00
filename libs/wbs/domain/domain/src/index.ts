@@ -79,6 +79,8 @@ export * from './without-held-subtrees';
 // sibling resource for it is the sideways edge K6 forbids.
 export * from './in-progress-now';
 export * from './organization-access';
+// The three per-organization caps, their bound and the one limit decision (wbs-organization-limits).
+export * from './organization-limits';
 export * from './project-ownership';
 export * from './project-roll-up';
 export * from './public-email-domain';

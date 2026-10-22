@@ -115,6 +115,15 @@ projects, with no retained stream.
 be-01 reads the marker on every request, so no restart is needed. Browsers then choose the
 organization explicitly once.
 
+## Organization limits after activation
+
+Every activated organization holds three caps (`wbs-organization-limits`): its own
+`organization_limits` row, or the deployment defaults be-01 reads at boot from
+`ORGANIZATION_DEFAULT_MAX_AGENT_PERSONS`, `ORGANIZATION_DEFAULT_MAX_CONCURRENT_CLAIMS` and
+`ORGANIZATION_DEFAULT_MAX_CAPACITY_UNITS_PER_RESOURCE`. be-01 refuses to boot without all
+three. An admin reads caps beside usage at `GET /api/organization/limits`. Nothing enforces
+the caps yet, and no tool writes a row; the operator CLI and enforcement are later slices.
+
 ## Verified and not verified
 
 Verified locally on 2026-10-20 against migrated disposable fixtures:
