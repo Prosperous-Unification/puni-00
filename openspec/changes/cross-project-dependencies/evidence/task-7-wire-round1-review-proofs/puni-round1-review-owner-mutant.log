@@ -1,0 +1,41 @@
+
+> nx run wbs-solver-py:test --cwd=/tmp/puni-wire-round1-owner-sandbox/libs/wbs/adapters/solver-py
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+...............F....................................................................................................................................................................................................................................
+======================================================================
+FAIL: test_boundary_endpoints_and_foreign_owner_are_checked_at_cli_boundary (test_connected.ConnectedStage.test_boundary_endpoints_and_foreign_owner_are_checked_at_cli_boundary) (fault='owner')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-wire-round1-owner-sandbox/libs/wbs/adapters/solver-py/tests/test_connected.py", line 206, in test_boundary_endpoints_and_foreign_owner_are_checked_at_cli_boundary
+    self.assertEqual(child.returncode, 64, child.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 64 : b''
+
+----------------------------------------------------------------------
+Ran 276 tests in 40.782s
+
+FAILED (failures=1)
+Warning: command "python3 -m unittest discover -s tests -t tests" exited with non-zero status code
+
+
+ NX   Running target test for project wbs-solver-py failed
+
+Failed tasks:
+
+- wbs-solver-py:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      41.3s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     41.2s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    41.2s

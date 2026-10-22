@@ -1,0 +1,641 @@
+
+> nx run wbs-contracts:test
+
+> bun test $(find src solver/src -name '*.test.ts' -o -name '*.test.tsx' | sort) --coverage --coverage-reporter=lcov --timeout=10000
+
+[0m[1mbun test [0m[2mv1.4.2 (744846f84)[0m
+[0m
+src/ws.test.ts:
+[0m[32m✓[0m [0mWS envelopes[2m >[0m[1m WsFrame round-trips subscription/seq/message[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mWS envelopes[2m >[0m[1m resume_ack control frame parses[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mWS envelopes[2m >[0m[1m resume_denied control frame parses[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe frames a builder writes[2m >[0m[1m are control frames the parser accepts[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m [0mthe frames a builder writes[2m >[0m[1m are data frames the parser accepts[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe frames a builder writes[2m >[0m[1m omit an absent optional field rather than sending it as null[0m [0m[2m[0.02ms[0m[2m][0m
+[0m
+src/internal.test.ts:
+[0m[32m✓[0m [0minternal contracts[2m >[0m[1m InternalPushRequest accepts a valid payload[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0minternal contracts[2m >[0m[1m InternalPushRequest rejects non-numeric seq[0m [0m[2m[0.75ms[0m[2m][0m
+[0m[32m✓[0m [0minternal contracts[2m >[0m[1m InternalResumeRequest parses resume_points map[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0minternal contracts[2m >[0m[1m InternalResumeResponse carries the replayed events[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0minternal contracts[2m >[0m[1m InternalResumeResponse rejects a replaying answer with no events list[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0minternal contracts[2m >[0m[1m InternalForwardRequest requires trace_id[0m [0m[2m[0.19ms[0m[2m][0m
+[0m
+src/auth-methods.test.ts:
+[0m[32m✓[0m [0mparseAuthMethods[2m >[0m[1m parses a list in catalogue order[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mparseAuthMethods[2m >[0m[1m none is an empty list[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseAuthMethods[2m >[0m[1m refuses an unknown, empty, duplicated or missing value[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mAUTH_METHODS[2m >[0m[1m names the tenant default connection for each method in fixed order[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mAUTH_METHODS[2m >[0m[1m recognizes only catalogue ids[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+solver/src/materialise-optimized.test.ts:
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m divides the offsets by the quantum and hands them to schedule() as pinned starts[0m [0m[2m[3.12ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m round-trips the quantised baseline back onto Fast on a fixture the quantum rounds nothing on[0m [0m[2m[1.01ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m round-trips a baseline whose dequantised pin lands a ulp off Fast’s own floor[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m refuses an offset that is not a whole unit even where the plan would accept it[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m refuses a negative offset in its own words rather than as a floor violation[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m refuses an offset key the plan has no slice for[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized[2m >[0m[1m leaves a missing key to schedule()’s own refusal rather than restating it[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises minute-step-half-workday's own quantised baseline into a legal schedule[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises chain-of-three's own quantised baseline into a legal schedule[0m [0m[2m[0.39ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises unestimated-middle's own quantised baseline into a legal schedule[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises pool-of-one's own quantised baseline into a legal schedule[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises floor-and-person's own quantised baseline into a legal schedule[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises anchor-slice-reach's own quantised baseline into a legal schedule[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises fractional-duration's own quantised baseline into a legal schedule[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises diamond-float-thirds's own quantised baseline into a legal schedule[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises inverted-numbering-tie's own quantised baseline into a legal schedule[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises unknown-beside-explicit-zero's own quantised baseline into a legal schedule[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over the Fast golden corpus[2m >[0m[1m materialises unknown-assigned-capacity's own quantised baseline into a legal schedule[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m accepts every person-abutting answer on the solver axis[0m [0m[2m[[1m342.69ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m accepts every pool-abutting answer on the solver axis[0m [0m[2m[[1m309.62ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m accepts every FS-abutting answer on the solver axis[0m [0m[2m[[1m229.71ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m settles a 17-slice same-person chain in one rerun[0m [0m[2m[0.59ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m still refuses a person-sharing answer one solver unit early[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m still refuses a pool-sharing answer one solver unit early[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mmaterialiseOptimized over tight weighted solver answers[2m >[0m[1m still refuses a FS-sharing answer one solver unit early[0m [0m[2m[0.05ms[0m[2m][0m
+[0m
+solver/src/baseline-feasibility.test.ts:
+[0m[32m✓[0m [0mthe quantised baseline as a solution the solver could publish[2m >[0m[1m uses a feasible strengthened FF baseline as the wire hint[0m [0m[2m[2.17ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline as a solution the solver could publish[2m >[0m[1m passes the same re-validation a real solver answer has to pass[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline as a solution the solver could publish[2m >[0m[1m and the check is live on this plan, not vacuous[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline as a solution the solver could publish[2m >[0m[1m measures MOVEMENT as zero against itself, which is what makes it the origin[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline on a plan whose every constraint is live[2m >[0m[1m passes the same re-validation with a pool, a person, an edge and a floor in play[0m [0m[2m[0.54ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline on a plan whose every constraint is live[2m >[0m[1m and the check is live on this plan too: a leaf pulled onto its floor is refused[0m [0m[2m[0.22ms[0m[2m][0m
+[0m
+solver/src/build-solver-edges.test.ts:
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m retains a negative FF weight and zero-duration unknown endpoints[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m carries SS and FF authored edges with their typed bounds[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m keys the chain and the join the domain derived, and nothing else[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m carries the reach through to the keys, on the predecessor side only[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m emits keys buildSolverSlices emits, for the same slices — an oracle, not an assumption[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m names both endpoints, never a positional pair[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverEdges[2m >[0m[1m refuses a position its group has no slice for rather than keying undefined[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+solver/src/solver-request-pair.test.ts:
+[0m[32m✓[0m [0mbuildSolverRequestPair[2m >[0m[1m builds both objectives over one quantised Fast baseline[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequestPair[2m >[0m[1m returns both preflight refusals without manufacturing a request[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps both movement references and hints clear of fractional bookings[0m [0m[2m[0.44ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m returns arithmetic and compatibility refusals before baseline arithmetic can throw[0m [0m[2m[0.09ms[0m[2m][0m
+[0m
+solver/src/wire-contract-version.test.ts:
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m enumerates fixtures that exist[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-ff-quantization.json's contractVersion[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-two-slices.json's contractVersion[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-quantised-baseline.json's contractVersion[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-staging-resource.json's contractVersion[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-divisible-resource.json's contractVersion[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-zero-demand-units.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-all-zero-milestone.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes valid-positive-with-zero-steps.json's contractVersion[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-zero-width.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-missing-work-item-key.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-fractional-width.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-unknown-key.json's contractVersion[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-zero-pool-size.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes invalid-positional-edge.json's contractVersion[0m
+[0m[32m✓[0m [0mSCHEDULER_CONTRACT_VERSION and the golden requests[2m >[0m[1m prefixes negative-printable-key.json's contractVersion[0m
+[0m
+solver/src/solver-units.test.ts:
+[0m[32m✓[0m [0mffStartWeightUnits[2m >[0m[1m ceilings a genuine tiny positive difference to one unit[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mffStartWeightUnits[2m >[0m[1m preserves the ceiling on both sides of a fractional unit boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mnotBeforeUnitsOf[2m >[0m[1m converts a whole workday into units[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mnotBeforeUnitsOf[2m >[0m[1m reads an absent leaf as day zero, which is what unconstrained means[0m
+[0m[32m✓[0m [0mnotBeforeUnitsOf[2m >[0m[1m does NOT add a day — a floor bounds a start, not a finish[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mdeadlineUnitsOf[2m >[0m[1m converts day D to (D + 1) × quantum, an EXCLUSIVE finish bound[0m
+[0m[32m✓[0m [0mdeadlineUnitsOf[2m >[0m[1m gives a day-zero deadline a whole day of room, not none[0m
+[0m[32m✓[0m [0mdeadlineUnitsOf[2m >[0m[1m is null for a leaf no deadline reaches, never a sentinel[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe @wbs/domain edge[2m >[0m[1m reads the folds and the quantum through the package alias[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+solver/src/build-solver-slices.test.ts:
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m projects one wire slice per canonical slice, in the order given[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m reads duration through durationUnits rather than multiplying here[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m reads a null estimate as zero units, whatever its width[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m emits poolIds as a sorted set, whatever the caller hands it[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m carries the folded floor on EVERY slice of the leaf, not just the first[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m carries the effective deadline on every slice and null on unconstrained ones[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m distinguishes a milestone work item from a zero step after real work[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m classifies milestone status in the quantised space the wire sends[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m reads an unprioritised leaf as weight 0, which is most leaves on most plans[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m copies personId and width verbatim, including the unassigned case[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m refuses a duplicated (workItemId, stepId) rather than letting it collide[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverSlices[2m >[0m[1m refuses a fractional width, which nothing upstream catches[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+solver/src/build-solver-request.test.ts:
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m carries a plan whose people are booked elsewhere on wire 3[0m [0m[2m[2.91ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m fills every member the schema requires, and no other[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m carries the two constants and both halves of contractVersion[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m projects the slices, the graph and only the pools the request names[0m [0m[2m[0.50ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m sends the baseline twice, as the same map[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m keeps a weighted FF fallback and each finish inside the request horizon[0m [0m[2m[0.42ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m changes exactly one field between the two objectives[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m defaults the stage split to the constant and refuses one that is not a split[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m returns the pre-spawn failure instead of a request, rather than throwing[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m refuses a baseline offset for a slice the request does not name[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m groups before it projects, so a slice for a parent is refused as a plan fault[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m computes durations as Fast does — null days zero, real days divided[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m draws a different graph under each reach, from identical rows[0m [0m[2m[0.70ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m resolves priority as a nearest-ancestor override, in both numeric directions[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m weighs an unprioritised leaf 0, which is absence and not a low rank[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverRequest[2m >[0m[1m refuses a canonical input with no slices at all[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m a 480-minute slice and a one-day slice send equal durationUnits[0m [0m[2m[0.19ms[0m[2m][0m
+[0m
+solver/src/optimized-result-dto.test.ts:
+[0m[32m✓[0m [0mwhat a stored result keeps[2m >[0m[1m reloads a solver row whole: publication, every term, and the plan[0m [0m[2m[0.87ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a stored result keeps[2m >[0m[1m writes the terms in schema order, whatever order the caller held them in[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mwhat a stored result keeps[2m >[0m[1m stamps its own envelope version, not the nested schedule one[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mthe real domain a quantisation-floor row lives in[2m >[0m[1m keeps a fractional makespan that is not a safe integer[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mthe real domain a quantisation-floor row lives in[2m >[0m[1m refuses that same value on a solver row, whose units are quantised[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mthe real domain a quantisation-floor row lives in[2m >[0m[1m refuses a stage incumbent on a floor row, which had no stage[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mthe real domain a quantisation-floor row lives in[2m >[0m[1m refuses a negative and a NaN under both readings[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m [0mthe two enums that live inside the JSON[2m >[0m[1m throws naming publication and the unknown value[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe two enums that live inside the JSON[2m >[0m[1m throws naming the term and the value on an unknown stage status[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe ways a stored result is refused[2m >[0m[1m refuses an envelope version it does not read[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mthe ways a stored result is refused[2m >[0m[1m refuses a bare encodeSchedule output stored where a result belongs[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe ways a stored result is refused[2m >[0m[1m refuses a row that is missing a term outright[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mthe ways a stored result is refused[2m >[0m[1m refuses a term the schema does not have and a key it does not have[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mthe ways a stored result is refused[2m >[0m[1m hands the nested schedule to 4.12, whose own defects surface unchanged[0m [0m[2m[0.28ms[0m[2m][0m
+[0m
+solver/src/wire-types.test.ts:
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_WIRE_VERSION is the schema const[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_RESPONSE_STATUSES is the response status enum[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_STAGE_STATUSES is the objective-term status enum, and a different set[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_OBJECTIVE_TERMS is the objectiveValues key set, and every term is required[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_RESPONSE_KEYS is the closed response property set[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_OBJECTIVE_TERM_KEYS is the objective-term required set[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mwire-types is pinned to solver-wire.v5.json[2m >[0m[1m only feasible carries offsets and objectiveValues[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m the connected request and scope arms require every provenance and witness member[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m a boundary requires exactly its directional signed start bound[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m the connected response admits boundary-infeasible and remains a closed scoped arm[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_OBJECTIVES is the objective enum[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m request-local is closed, fully required, and matches its key constant[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m slice is closed, fully required, and matches its key constant[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m edge type and conditional FF weight match the binding[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m SOLVER_HORIZON_UNITS_MAX is the schema bound checked before spawn[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m the stage budget split is a fixed-length tuple, not a list[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe request side is pinned to solver-wire.v5.json[2m >[0m[1m a slice width and a pool capacity both floor at 1[0m [0m[2m[0.02ms[0m[2m][0m
+[0m
+solver/src/stage-budget.test.ts:
+[0m[32m✓[0m [0mSTAGE_BUDGET_SPLIT[2m >[0m[1m is the approved split and has one share per stage[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mSTAGE_BUDGET_SPLIT[2m >[0m[1m satisfies its own invariant[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mSTAGE_BUDGET_SPLIT[2m >[0m[1m does sum to exactly 1 in doubles — the tolerance is not for THIS split[0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m accepts an authored split that sums to 1[0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m accepts a split whose sum drifts, and is not decided by share ORDER[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m refuses a split that does not add up[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m refuses the wrong number of stages[0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m refuses a zero share — a stage with no budget cannot run[0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m refuses a negative share even when the three still sum to 1[0m
+[0m[32m✓[0m [0misValidStageBudgetSplit[2m >[0m[1m refuses NaN, which no arithmetic comparison catches on its own[0m [0m[2m[0.02ms[0m[2m][0m
+[0m
+solver/src/quantised-baseline.test.ts:
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m keeps an FF successor after a sub-unit predecessor with an unknown duration[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m places the 0.030/0.021 FF successor after the strengthened unit bound[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m rounds up to whole units rather than carrying real Fast onto the wire[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m hands MOVEMENT and the hint whole units on that fixture[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m is the same key set the request projects, one offset per slice[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m takes the placement whole, so a pool the plan cannot widen still serialises it[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m takes a person queue and a dependency the same way[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m scales a manual floor onto the unit axis, and takes the fold from the tree[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m keeps a width outside 48 divisors exact rather than drifting on it[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mquantisedFastBaseline[2m >[0m[1m refuses a slice whose duration has no exact form on the unit axis[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline the golden request carries[2m >[0m[1m is what quantisedFastBaseline produces from the plan behind it[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline the golden request carries[2m >[0m[1m and the projections beside it are the same builders, on the same plan[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline the golden request carries[2m >[0m[1m is shaped like the request the schema defines, member for member[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe quantised baseline the golden request carries[2m >[0m[1m satisfies the three cross-field invariants JSON Schema cannot state[0m [0m[2m[0.04ms[0m[2m][0m
+[0m
+solver/src/solver-failure-disposition.test.ts:
+[0m[32m✓[0m [0mthe failure-reason vocabulary is the column the row is written into[2m >[0m[1m matches design.md CHECK constraint exactly, in order[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe failure-reason vocabulary is the column the row is written into[2m >[0m[1m carries no duplicate[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mevery failure this directory can produce has exactly one disposition[2m >[0m[1m covers every token across all three seams, with no seam left out[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mevery failure this directory can produce has exactly one disposition[2m >[0m[1m maps every one of them into the CHECK constraint vocabulary[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mframing is always invalid-output[2m >[0m[1m gives every one of the four the same disposition[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mre-validation is invalid-output except on our own side of the seam[2m >[0m[1m rejects every solver-authored violation as invalid-output[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mre-validation is invalid-output except on our own side of the seam[2m >[0m[1m sends an unjudgeable request to internal-error, not to the solver[0m
+[0m[32m✓[0m [0mre-validation is invalid-output except on our own side of the seam[2m >[0m[1m leaves exactly one code on our side, so the rule stays a rule[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0ma solver that ran and answered nothing is invalid-output[2m >[0m[1m records the later-stage INFEASIBLE exit as invalid-output[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0ma solver that ran and answered nothing is invalid-output[2m >[0m[1m keeps a refused request on our own side of the seam[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0ma solver that ran and answered nothing is invalid-output[2m >[0m[1m splits a refused model away from a later-stage INFEASIBLE[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0ma solver that ran and answered nothing is invalid-output[2m >[0m[1m treats a death that reached neither exit as internal-error[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0ma solver that ran and answered nothing is invalid-output[2m >[0m[1m refuses exit 0, which wrote a response and is not a failure at all[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0ma solver that ran and answered nothing is invalid-output[2m >[0m[1m reads its codes from the entrypoint that emits them[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mpre-spawn failures are the recorded reason verbatim[2m >[0m[1m passes both tokens through unchanged[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe same token means opposite things on either side of the spawn[2m >[0m[1m records objective-overflow before the spawn and invalid-output after it[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mthe same token means opposite things on either side of the spawn[2m >[0m[1m is the only token two seams share, so nothing else needs the pair[0m [0m[2m[0.07ms[0m[2m][0m
+[0m
+solver/src/golden-request.test.ts:
+[0m[32m✓[0m [0mthe golden request corpus[2m >[0m[1m is what buildSolverRequest produces, field for field[0m [0m[2m[0.31ms[0m[2m][0m
+[0m[32m✓[0m [0mthe golden request corpus[2m >[0m[1m pins the FF counterexample as a complete v2 request[0m [0m[2m[0.52ms[0m[2m][0m
+[0m[32m✓[0m [0mthe golden request corpus[2m >[0m[1m rounds the durations up, so the offsets are the model the solver receives[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe golden request corpus[2m >[0m[1m gives every valid request entry a reader, which the manifest did not have[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mthe golden request corpus[2m >[0m[1m runs every end-to-end valid request through Bun milestone re-validation[0m [0m[2m[0.36ms[0m[2m][0m
+[0m
+solver/src/connected-boundaries.test.ts:
+[0m[32m✓[0m[0m[1m the real 0.2/1/1.2 FS window becomes signed lower 10 and upper 9[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m SS and FF keep their own conservative start inequalities[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m production preparation certifies the contradictory fixed FS window without a feasible baseline[0m [0m[2m[4.59ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m objective-specific full identities refuse crossed responses and survive terminal preparation[0m [0m[2m[1.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m malformed complete requests never become prepared boundary findings[0m [0m[2m[0.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m complete connected request validation rejects cross-field corruption before a terminal[0m [0m[2m[2.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m finite unrepresentable incoming, reference and outgoing evidence yields typed horizon failure[0m [0m[2m[1.37ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m production preparation sends local decisions, fixed holders and an untrusted seed separately[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected response parser requires the exact captured question identity[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected revalidation refuses a feasible solver placement before an incoming bound[0m [0m[2m[1.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected revalidation refuses a feasible solver placement after an outgoing bound[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m boundary projection retains every resolved pair of a multi-step authored relationship[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected revalidation refuses a missing boundary or altered foreign holder even on unknown[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m fractional starts and rounded duration make each active FS SS FF rounding term observable[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected preflight includes a remote movement reference in its safe horizon[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected request names the exact foreign person holder and booking[0m [0m[2m[0.91ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m old installed solver cannot prepare a connected wire-5 question[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m connected parser accepts occupancy-proven boundary infeasibility without a dependency bound[0m [0m[2m[1.10ms[0m[2m][0m
+[0m
+solver/src/wire-vocabulary.test.ts:
+[0m[32m✓[0m [0mthe wire vocabularies come from the schema, not from prose[2m >[0m[1m parses the four wire sets out of solver-wire.v5.json[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire vocabularies come from the schema, not from prose[2m >[0m[1m reads the response as the union of every required array under it[0m [0m[2m[0.57ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire vocabularies come from the schema, not from prose[2m >[0m[1m throws when a prohibited response member is not also a required one[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire vocabularies come from the schema, not from prose[2m >[0m[1m knows the four table and DTO vocabularies that have no schema yet[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mthe watched red — 2.1 names one sentence the check SHALL reject[2m >[0m[1m rejects the superseded slice sentence, naming sliceKey[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m [0mthe watched red — 2.1 names one sentence the check SHALL reject[2m >[0m[1m reads "joined only by commas" as "the gap contains one", or the fixture is invisible[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe watched red — 2.1 names one sentence the check SHALL reject[2m >[0m[1m still stops a run at a sentence boundary, so two lists never merge[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mthe watched red — 2.1 names one sentence the check SHALL reject[2m >[0m[1m stops a run at a code span that is not an identifier[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mthe brace form is the one both design.md and spec.md actually use[2m >[0m[1m reads a single braced code span as a list of its members[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mthe brace form is the one both design.md and spec.md actually use[2m >[0m[1m fails rule (a) with the symmetric difference when a braced list drifts[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mthe brace form is the one both design.md and spec.md actually use[2m >[0m[1m does not read a braced list of fewer than three, or one holding prose[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m says nothing about an untagged run overlapping one vocabulary by one name[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m allows a partial mention — a subset is legal[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m rejects a run mixing a vocabulary with a name that is not in it[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m excludes the stored shapes by name[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m fails a tag that names no known vocabulary, so a typo cannot disable rule (a)[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m ignores a span tagged as a quoted negative fixture[0m [0m[2m[0.55ms[0m[2m][0m
+[0m[32m✓[0m [0mrules (b) and (c), and the tags themselves[2m >[0m[1m does not read a tag written inside a code span as a tag[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/tasks.md: every tagged span equals its set and every untagged run is a subset[0m [0m[2m[[1m14.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/design.md: every tagged span equals its set and every untagged run is a subset[0m [0m[2m[2.82ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md: every tagged span equals its set and every untagged run is a subset[0m [0m[2m[2.33ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m records what rule (b) costs while its mixed runs are unresolved[0m [0m[2m[[1m17.68ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/tasks.md line %s no longer diverges once its tuple is named[0m [0m[2m[8.42ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/design.md line %s no longer diverges once its tuple is named[0m [0m[2m[2.47ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/design.md line %s no longer diverges once its tuple is named[0m [0m[2m[2.28ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md line %s no longer diverges once its tuple is named[0m [0m[2m[3.01ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m openspec/changes/dual-optimized-scheduler/specs/scheduler-optimization/spec.md line %s no longer diverges once its tuple is named[0m [0m[2m[6.69ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m parses objectiveValues and both status enums out of the schema[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m measures what the union reading of rule (b) would cost[0m [0m[2m[[1m14.22ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m catches drift into another named tuple under the union reading[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m never rejects under the union a name the single-winner reading admits[0m [0m[2m[[1m24.01ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m admits the attributed vocabulary without making it clear the overlap bar[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m still rejects the superseded slice sentence under the union reading[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m gives every neighbour vocabulary a source that names an artifact[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mthe repository check — three of four descriptive artifacts[2m >[0m[1m names the uncovered artifact whether it passes or fails[0m [0m[2m[0.09ms[0m[2m][0m
+[0m
+solver/src/solver-exit-outcome.test.ts:
+[0m[32m✓[0m [0mevaluateSolverOutcome[2m >[0m[1m revalidates, materialises and keeps a feasible solver result[0m [0m[2m[0.83ms[0m[2m][0m
+[0m[32m✓[0m [0mevaluateSolverOutcome[2m >[0m[1m maps framing and revalidation defects to invalid-output[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m [0mevaluateSolverOutcome[2m >[0m[1m keeps classified process failures and distinguishes solver no-answer states[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mevaluateSolverOutcome[2m >[0m[1m refuses a deadline that names no day instead of certifying it plan-infeasible[0m [0m[2m[0.09ms[0m[2m][0m
+[0m[32m✓[0m [0mevaluateSolverOutcome[2m >[0m[1m publishes a feasible resource order even when Fast missed a deadline[0m [0m[2m[0.60ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses publication when a solver ignores the fixed booking and preserves original holders otherwise[0m [0m[2m[0.50ms[0m[2m][0m
+[0m
+solver/src/revalidate-solver-result.test.ts:
+[0m[32m✓[0m [0mrevalidateSolverResult accepts[2m >[0m[1m a schedule that meets every placement rule[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult accepts[2m >[0m[1m a non-publishing response with nothing checked[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses a wire request that omits the canonical SS edge[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses a forged FF start weight before accepting unknown[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses equal integer starts when FF real durations need one unit[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses a response that omits the SS start boundary[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses unsupported edge types at the request boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses a misplaced FF weight at the request boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m a duplicate slice key[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m an edge naming a slice that does not exist[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m a pool membership with no capacity[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m a non-zero slice claiming its whole work item is a milestone[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m an all-zero work item denying that it is a milestone[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m refuses missing and empty workItemKey values before grouping[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m a trailing zero slice sharing a positive work item and denying milestone status[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m a deadlineUnits that is not a multiple of the quantum, on EVERY response status[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult refuses the request it cannot judge[2m >[0m[1m and accepts the multiples beside it on a non-publishing response[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks the offset map[2m >[0m[1m rejects an offset map that omits a slice[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks the offset map[2m >[0m[1m rejects an offset map that carries a slice the request never sent[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks the offset map[2m >[0m[1m rejects a fractional, negative, or past-horizon offset (2.9)[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks the offset map[2m >[0m[1m accepts an offset sitting exactly on the horizon[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks floors and edges[2m >[0m[1m rejects a slice starting before its floor, and accepts one starting on it[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks floors and edges[2m >[0m[1m rejects a successor starting before its predecessor finishes[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks capacity[2m >[0m[1m rejects a pool over capacity and accepts one filled exactly[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks capacity[2m >[0m[1m counts the whole width in EVERY pool a slice names, not just the first[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks capacity[2m >[0m[1m refuses a response that runs two staging demanders at once (wire 4)[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks capacity[2m >[0m[1m counts each demander at its own units of a divisible resource[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks capacity[2m >[0m[1m refuses a request whose demand names a resource with no capacity[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult checks capacity[2m >[0m[1m rejects a double-booked assignee and accepts consecutive slices[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m accepts all three terms recomputed from the offsets[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m rejects each term that disagrees with the offsets, one at a time[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m accepts a value strictly better than its stage incumbent[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m rejects a value worse than its stage incumbent[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m checks nothing against a null stageValue or bound[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m rejects a wire value that is not a non-negative safe integer[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m refuses to round an overflow instead of reporting it[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateSolverResult recomputes the objective[2m >[0m[1m refuses a request whose arithmetic cannot be done[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe golden corpus proves the schema cannot answer this question[2m >[0m[1m rejects the corpus's own schema-valid request and response[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m accepts work that runs to the end of its own due day[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m rejects work whose last day is one past the deadline[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m counts a fractional finish as spilling into the day it touches[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m accepts the same slice finishing exactly on the day boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m accepts a trailing zero step at an exactly-met work-item boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m still rejects that work-item boundary one unit after its deadline[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m refuses a zero-duration milestone standing on the exclusive boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m refuses a deadline that is not a whole number of workdays[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m keeps an unmeetable zero deadline well-formed and simply missed[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m accepts the same milestone one unit inside its due day[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m leaves a slice with no deadline unconstrained however late it runs[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m reports a missing placement as malformed-request, not as a violation[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m refuses a deadlineUnits outside the safe non-negative integers[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mrevalidateOptimizedDeadlines[2m >[0m[1m checks every slice, not only the first[0m [0m[2m[0.03ms[0m[2m][0m
+[0m
+solver/src/plan-infeasible-dto.test.ts:
+[0m[32m✓[0m [0mplan-infeasible cache DTO[2m >[0m[1m records one effective deadline per bound leaf and preserves its owner[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m [0mplan-infeasible cache DTO[2m >[0m[1m names the ancestor that owns the binding date, not the leaf carrying a later one[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mplan-infeasible cache DTO[2m >[0m[1m agrees with the engine fold on every leaf it names[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mplan-infeasible cache DTO[2m >[0m[1m rejects malformed items and duplicate bound work items[0m [0m[2m[0.18ms[0m[2m][0m
+[0m
+solver/src/parse-solver-response.test.ts:
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m accepts exactly one JSON line with its terminator[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m accepts the same line without a terminator[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects empty stdout[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects two lines, even when both are valid[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects a warning printed before the answer[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects trailing text after a valid line[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects trailing text on the same line as malformed JSON[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects an unknown status[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects an unknown key[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects a missing key[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse framing[2m >[0m[1m rejects a JSON value that is not an object[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m enumerates the corpus rather than a hardcoded list[0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m accepts response/valid-feasible.json[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m rejects response/invalid-fourth-stage-status.json[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m rejects response/invalid-uppercase-term-key.json[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m rejects response/invalid-missing-term.json[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m accepts response/valid-infeasible.json[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m accepts response/valid-unknown-no-incumbent.json[0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m rejects response/invalid-response-optimal-status.json[0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m rejects response/invalid-infeasible-with-offsets.json[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mparseSolverResponse agrees with the golden corpus[2m >[0m[1m rejects response/invalid-feasible-without-offsets.json[0m [0m[2m[0.03ms[0m[2m][0m
+[0m
+solver/src/solver-preflight.test.ts:
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m is the SERIAL bound: the latest floor plus every duration[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m seeds the floor with zero, so a plan with no manual floors has a horizon[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m accepts a horizon exactly at the maximum[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m refuses one unit past it with horizon-overflow[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m counts a floor toward the horizon, not only the durations[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m sums in bigint, so the check cannot pass by having already lost precision[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m refuses a priority worst case above MAX_SAFE_INTEGER with objective-overflow[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m bounds the priority worst case at the FINISH, not at the horizon[0m [0m[2m[0.03ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m accepts the same plan one unit of weight lower[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m checks the horizon FIRST, so an over-horizon plan is not misreported[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest[2m >[0m[1m passes a plan whose weights are all zero, whatever the horizon[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest's MOVEMENT bound[2m >[0m[1m accepts a baseline anywhere on the axis[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest's MOVEMENT bound[2m >[0m[1m throws on a slice with no baseline, rather than reporting it to a user[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m [0mpreflightSolverRequest's MOVEMENT bound[2m >[0m[1m cannot overflow below roughly four million slices, which is why no test spends one[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0ma charged estimate past the per-point bound[2m >[0m[1m is a modeled horizon-overflow refusal, not a request[0m [0m[2m[0.09ms[0m[2m][0m
+[0m
+solver/src/build-solver-pools.test.ts:
+[0m[32m✓[0m [0mpoolIdsNamedBy[2m >[0m[1m collects every pool any slice names, once[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m [0mpoolIdsNamedBy[2m >[0m[1m is empty for a plan that names no sized team, which is most plans[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverPools[2m >[0m[1m emits only the pools the request names, not every size the project holds[0m [0m[2m[0.02ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverPools[2m >[0m[1m is an empty object when no slice names a pool[0m [0m[2m[0.01ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverPools[2m >[0m[1m refuses a named pool with no size, pre-spawn[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverPools[2m >[0m[1m refuses a zero-slot pool rather than clamping it to one[0m [0m[2m[0.04ms[0m[2m][0m
+[0m[32m✓[0m [0mbuildSolverPools[2m >[0m[1m refuses a fractional size[0m [0m[2m[0.03ms[0m[2m][0m
+[0m
+solver/src/elsewhere-wire.test.ts:
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m rounds outward, clips pre-project time, and unions rounded overlap while preserving adjacency[0m [0m[2m[0.38ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m extends the serial horizon past a booking end[0m [0m[2m[0.15ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m returns a typed compatibility refusal for the old solver[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m refuses a solver answer that ignores a booking, and accepts its touching neighbour[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m refuses malformed fixed intervals before considering a non-publishing response[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m accepts an empty person calendar at the wire boundary[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m refuses malformed tuple arity and empty person keys[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m treats prototype names as ordinary unbooked person ids[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m materialises original workday bookings with FS placement[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m materialises original workday bookings with SS placement[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m refuses a later pin inside a booking with FS placement[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m refuses a later pin inside a booking with SS placement[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mbookings on solver wire 3[2m >[0m[1m keeps the serial FF fallback clear of bookings[0m [0m[2m[0.21ms[0m[2m][0m
+[0m
+solver/src/resource-wire.test.ts:
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m is the golden corpus, byte for byte, for both resource plans[0m [0m[2m[0.71ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m carries each slice's demand vector and the capacities it names[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m carries no demand and no resource for a plan that states none[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m refuses a demanded resource with no stated capacity before spawn[0m [0m[2m[0.20ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m refuses a demanded resource whose capacity is not a whole number of units from 1[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m refuses a demand above its resource capacity before spawn[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m [0mthe wire 4 request[2m >[0m[1m refuses a solver that does not speak wire 4[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Fast baseline levels resources as Fast does[2m >[0m[1m serialises the staging pair[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mthe Fast baseline levels resources as Fast does[2m >[0m[1m admits two 16 GB leaves into 32 GB and holds the third[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m [0mthe materialiser replays a solver answer through the resource ledger[2m >[0m[1m names staging on the slice that waited for it[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m [0mthe materialiser replays a solver answer through the resource ledger[2m >[0m[1m refuses an answer that runs both at once[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+solver/src/typed-dependency-solver.test.ts:
+[0m[32m✓[0m [0mtyped dependencies on the solver wire[2m >[0m[1m keeps a tiny positive FF difference through the request and rejects equal starts[0m [0m[2m[2.25ms[0m[2m][0m
+[0m[32m✓[0m [0mtyped dependencies on the solver wire[2m >[0m[1m round-trips both sides of a fractional FF unit boundary through materialization[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m [0mtyped dependencies on the solver wire[2m >[0m[1m carries one FS edge per resolved leaf pair of a parent relationship[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mtyped dependencies on the solver wire[2m >[0m[1m starts the baseline after both predecessor leaves[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m [0mtyped dependencies on the solver wire[2m >[0m[1m refuses a response that honours one expanded pair and violates the other[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m [0mtyped dependencies when an optimized answer is materialised[2m >[0m[1m refuses offsets that violate one expanded pair, independently of the wire[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m [0mtyped dependencies when an optimized answer is materialised[2m >[0m[1m materialises offsets that honour every expanded pair[0m [0m[2m[0.22ms[0m[2m][0m
+[0m
+src/http/work-item-shapes.test.ts:
+[0m[32m✓[0m[0m[1m command replies reserve every known entity field across untagged variants[0m [0m[2m[1.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m parser vocabulary is closed and preserves recognized command context[0m [0m[2m[[1m16.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m deadline refusal requires both fields in its exact status declaration[0m [0m[2m[1.49ms[0m[2m][0m
+[0m
+src/http/client-types.test.ts:
+[0m
+src/http/auth-password-shapes.test.ts:
+[0m[32m✓[0m[0m[1m declares the three password operations, their media and ordered origin policy[0m [0m[2m[0.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires exactly string credentials at the request boundary[0m [0m[2m[0.36ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m pins route-specific refusal status and error pairings[0m [0m[2m[0.05ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares an explicit anonymous session while rejecting malformed success bodies[0m [0m[2m[0.43ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m context exchange fixes its audience and models credential and authority refusals[0m [0m[2m[0.24ms[0m[2m][0m
+[0m
+src/http/work-item-response.test.ts:
+[0m[32m✓[0m[0m[1m tree boundary refuses missing core producer fields while allowing additive metadata[0m [0m[2m[[1m49.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks deadline and slice lateness while retaining additive nested response fields[0m [0m[2m[[1m44.04ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m checks the optional optimization projection and every variant state[0m [0m[2m[[1m35.01ms[0m[2m][0m
+[0m
+src/http/import-shapes.test.ts:
+[0m[32m✓[0m[0m[1m declares the plan import shape and complete typed outcomes[0m [0m[2m[1.14ms[0m[2m][0m
+[0m
+src/http/plan-command-shapes.test.ts:
+[0m[32m✓[0m[0m[1m validates all structural wire arms without applying semantic defaults or a batch cap[0m [0m[2m[[1m29.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves optional fields, nulls and unresolved references without normalization[0m [0m[2m[2.54ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects malformed structures and nested extras including derived numbering[0m [0m[2m[3.50ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m emits inline MCP-readable command branches with real nested patch and estimate properties[0m [0m[2m[0.40ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m retains the nullable deadline wire field without taking over date semantics[0m [0m[2m[0.50ms[0m[2m][0m
+[0m
+src/http/internal-http-shapes.test.ts:
+[0m[32m✓[0m[0m[1m emits both existing internal operations with the explicit legacy cursor array alternative[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves arbitrary forward payloads and numeric cursor arrays while rejecting undeclared envelopes[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates finite replay outcomes and ack while preserving opaque historical message JSON[0m [0m[2m[0.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps numeric cursor inference at the ordered-schema boundary[0m [0m[2m[0.02ms[0m[2m][0m
+[0m
+src/http/step-blockage-activation.test.ts:
+[0m[32m✓[0m[0m[1m postApiProjectsImport declares inactive blockage writer refusal[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m postApiProjectsByIdCommands declares inactive blockage writer refusal[0m [0m[2m[7.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m postApiProjectsByIdUndo declares inactive blockage writer refusal[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m postApiProjectsByIdRedo declares inactive blockage writer refusal[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m deleteApiProjectsByIdStepsByStepId declares inactive blockage writer refusal[0m [0m[2m[0.76ms[0m[2m][0m
+[0m
+src/http/directory-shapes.test.ts:
+[0m[32m✓[0m[0m[1m publishes all six existing directory operation names and complete row fields[0m [0m[2m[0.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates required memberships and person kind while retaining additive audit fields[0m [0m[2m[0.84ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads people from a release that sends no accountId, as mid-swap[0m [0m[2m[0.07ms[0m[2m][0m
+[0m
+src/http/startable-shapes.test.ts:
+[0m[32m✓[0m[0m[1m reads a startable answer from a release that knows no fit, as mid-swap[0m [0m[2m[2.64ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads the fit fields and refuses a leaf apart that claims to fit[0m [0m[2m[0.43ms[0m[2m][0m
+[0m
+src/http/document-from-shapes.test.ts:
+[0m[32m✓[0m [0mdocumentFromShapes[2m >[0m[1m emits inline object bodies with intact nested union arms and optional fields[0m [0m[2m[0.37ms[0m[2m][0m
+[0m[32m✓[0m [0mdocumentFromShapes[2m >[0m[1m refuses absent or duplicate operation names and duplicate method paths[0m [0m[2m[0.67ms[0m[2m][0m
+[0m[32m✓[0m [0mdocumentFromShapes[2m >[0m[1m reads descriptors without accessing validator internals[0m [0m[2m[0.12ms[0m[2m][0m
+[0m[32m✓[0m [0mdocumentFromShapes[2m >[0m[1m emits text and empty representations without inventing JSON bodies[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses non-object query descriptors instead of silently losing their inputs[0m [0m[2m[2.56ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a declared parameter object that omits a route segment[0m [0m[2m[3.80ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses whitespace operation names and colliding methods at a converted path[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves response alternatives and media types without overwriting a status[0m [0m[2m[[1m20.89ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses ambiguous repeated empty statuses[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m emits a typed refusal independently of where its empty alternative is declared[0m [0m[2m[1.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses object-level query constraints that cannot become named parameters[0m [0m[2m[1.25ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m documents arbitrary singleton query keys as one exploded form object[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed arbitrary-singleton declarations before emitting them[0m [0m[2m[2.70ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses references in every descriptor location without reading validators[0m [0m[2m[0.78ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m finds references only in supported schema-valued keywords[0m [0m[2m[0.29ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares exactly the accepted body media while retaining one inline schema[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed erased body media declarations before emitting a document[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m emits an operation description only where the shape gives one[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m derives the three attempt commands and the timezone read from the shared shapes[0m [0m[2m[4.04ms[0m[2m][0m
+[0m
+src/http/auth-oidc-shapes.test.ts:
+[0m[32m✓[0m[0m[1m declares four OIDC operations, open provider queries and empty redirects[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares a JSON link start and a callback whose outcomes are all redirects[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares the public method list and the login method hint[0m [0m[2m[1.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares the enterprise login hints with the slug grammar[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m lets a link start carry a method and omit the password[0m [0m[2m[0.28ms[0m[2m][0m
+[0m
+src/http/calendar-marker-shapes.test.ts:
+[0m[32m✓[0m[0m[1m emits four marker operations with a distinct markerId body argument[0m [0m[2m[0.23ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m PATCH describes optional writable fields and rejects undeclared immutable fields[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m responses require resolved colors and retain additive marker fields[0m [0m[2m[0.40ms[0m[2m][0m
+[0m
+src/http/history-shapes.test.ts:
+[0m[32m✓[0m[0m[1m emits the history path and both optional query filters from the actual shared shape[0m [0m[2m[0.18ms[0m[2m][0m
+[0m
+src/http/refusal.test.ts:
+[0m[32m✓[0m[0m[1m the compiler enforces closed refusal codes, detail variants and command context[0m [0m[2m[[1m386.21ms[0m[2m][0m
+[0m
+src/http/project-shapes.test.ts:
+[0m[32m✓[0m[0m[1m preserves seven operation ids and declares both export representations without undo flags[0m [0m[2m[2.75ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares the Retry request and every established wire outcome[0m [0m[2m[1.41ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m allows empty names and empty patches while rejecting unknown nested fields[0m [0m[2m[1.09ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps structural and semantic settings rules distinct[0m [0m[2m[0.62ms[0m[2m][0m
+[0m
+src/http/solution-shapes.test.ts:
+[0m[32m✓[0m[0m[1m emits the existing solution operation and required slug plus complete project response[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates every required project and step field without stripping additive properties[0m [0m[2m[2.19ms[0m[2m][0m
+[0m
+src/http/infrastructure-shapes.test.ts:
+[0m[32m✓[0m[0m[1m declares public health JSON and Prometheus text without request input[0m [0m[2m[0.14ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m every GET shape declares the adapter invalid-body refusal as a 400[0m [0m[2m[2.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m health distinguishes ready, migration and dependency states while retaining commit metadata[0m [0m[2m[0.59ms[0m[2m][0m
+[0m
+src/http/client.test.ts:
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m preserves a declared bodyless refusal through the portable client[0m [0m[2m[0.98ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m validates a contextual import refusal as JSON[0m [0m[2m[1.89ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m validates an in-process response while retaining additive nested fields[0m [0m[2m[0.46ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m refuses a backend-only known field type change[0m [0m[2m[0.11ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m validates refusal at status 429 and rejects malformed details[0m [0m[2m[0.25ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m validates refusal at status 503 and rejects malformed details[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m validates refusal at status 501 and rejects malformed details[0m [0m[2m[0.35ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m refuses undeclared statuses and mismatched refusal status/body pairs[0m [0m[2m[0.17ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m awaits asynchronous validators and throws unexpected validator errors[0m [0m[2m[0.57ms[0m[2m][0m
+[0m[32m✓[0m [0mshape-derived client response boundary[2m >[0m[1m supports later response alternatives, JSON null, explicit empty and text[0m [0m[2m[0.85ms[0m[2m][0m
+[0m[32m✓[0m [0mclient request and transport boundary[2m >[0m[1m encodes path literals, slash-containing params, optional query and JSON body through fetch[0m [0m[2m[1.38ms[0m[2m][0m
+[0m[32m✓[0m [0mclient request and transport boundary[2m >[0m[1m validates request input before invoking transport and does not share calls[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m [0mclient request and transport boundary[2m >[0m[1m distinguishes transport failure and cancellation without invoking an already aborted request[0m [0m[2m[0.18ms[0m[2m][0m
+[0m[32m✓[0m [0mclient request and transport boundary[2m >[0m[1m refuses duplicate operation identifiers instead of replacing a method[0m [0m[2m[0.07ms[0m[2m][0m
+[0m[32m✓[0m [0mclient request and transport boundary[2m >[0m[1m parses Fetch replies without disguising malformed JSON or a proxy challenge[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses malformed 501 detail despite its recognized error code[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m accepts a later same-status asynchronous refusal schema[0m [0m[2m[1.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m cancels while asynchronous response validation is held[0m [0m[2m[0.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps overlapping GET requests independent while their answers are held[0m [0m[2m[0.22ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses a successful refusal envelope even with a permissive success schema[0m [0m[2m[0.57ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses missing, extra and URL dot-segment params before transport[0m [0m[2m[0.19ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m passes omitted query fields and performs no implicit body encoding for GET[0m [0m[2m[0.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates optional undefined body fields as the JSON representation sent by both transports[0m [0m[2m[1.62ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preflights synchronous request shapes without yielding and returns their wire normalization[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m forwards the Retry validator projected body to the transport[0m [0m[2m[0.95ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m validates the modeled Retry schedule-input refusal on the typed client[0m [0m[2m[0.81ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m forwards an asynchronous validator normalized value to the transport[0m [0m[2m[0.21ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m starts transport in the calling stack after synchronous request validation[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps preflight asynchronous when a request schema validates asynchronously[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reports non-JSON client bodies before transport without hiding unexpected serialization failures[0m [0m[2m[3.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m preserves transport encoding failures when a composed transport corrupts validated input[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m cancels after held request validation and after a held transport without returning a success[0m [0m[2m[0.34ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m returns boundary failure for an unreadable Fetch response body[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects blank operation identifiers consistently with shape document emission[0m [0m[2m[0.06ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m cancels an unread Fetch body before reporting an undeclared status[0m [0m[2m[0.13ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m propagates a required response-body cleanup failure[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m rejects malformed normalized text before returning a typed text success[0m [0m[2m[0.08ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws for a trusted query declaration that cannot be represented on the wire[0m [0m[2m[1.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses JSON fetch configuration for a form-only declaration before sending[0m [0m[2m[0.13ms[0m[2m][0m
+[0m
+src/http/work-item-fields.test.ts:
+[0m[32m✓[0m[0m[1m the outline and the field groups partition the whole-tree work item[0m [0m[2m[0.37ms[0m[2m][0m
+[0m
+src/http/step-shapes.test.ts:
+[0m[32m✓[0m[0m[1m emits the existing step operation names, name bodies and optional string cascade[0m [0m[2m[0.27ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m keeps names structural and cascade textual while refusing undeclared inputs[0m [0m[2m[0.51ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m declares the full step response and each usage count and assumed-assignee field[0m [0m[2m[0.26ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m still reads a step from a be-01 that predates step codes[0m [0m[2m[0.49ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m still reads a step from a be-01 that predates step allowances[0m [0m[2m[0.10ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m reads a pre-unit backend as the historical workday protocol and refuses malformed present units[0m [0m[2m[0.06ms[0m[2m][0m
+[0m
+src/http/schema-shape.test.ts:
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m refuses an undeclared nested command field without mutating the request[0m [0m[2m[3.57ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m deletes undeclared request fields only when the contract opts in[0m [0m[2m[1.00ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m emits both nested command arms and optional fields from the same declaration[0m [0m[2m[1.41ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m retains additive reply fields while refusing a changed known field type[0m [0m[2m[0.82ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m rejects an unsupported predicate instead of advertising an unconstrained schema[0m [0m[2m[0.61ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m rejects an unvalidated morph whose projected output would erase its constraint[0m [0m[2m[0.32ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m rejects defaults whose input and output contracts differ[0m [0m[2m[1.88ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m refuses recursive request and reply descriptors before their references can escape[0m [0m[2m[5.46ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m keeps literal fields named $ref valid in strict requests and tolerant replies[0m [0m[2m[2.61ms[0m[2m][0m
+[0m[32m✓[0m [0mthe HTTP schema declaration boundary[2m >[0m[1m awaits Standard Schema validation even when the declared validator is asynchronous[0m [0m[2m[0.63ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m enforces JSON object semantics for optional-only objects at every nested request boundary[0m [0m[2m[6.30ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m does not mask a wrong discriminator with another branch containing a valid array[0m [0m[2m[4.83ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m maps escaped object keys and array indexes in request descriptor issues[0m [0m[2m[3.24ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m throws on malformed trusted descriptor-validator diagnostics[0m [0m[2m[0.53ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m refuses array-valued optional-only response objects while retaining additive nested fields[0m [0m[2m[1.28ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m normalizes exact never descriptors without changing neighboring enum constraints[0m [0m[2m[1.88ms[0m[2m][0m
+[0m
+src/http/saved-plan-shapes.test.ts:
+[0m[32m✓[0m[0m[1m publishes six existing operation ids and required save/rename bodies with explicit media[0m [0m[2m[0.33ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m requires an object for save, permits its absent name, and requires rename name[0m [0m[2m[0.58ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m creation requires creator identity while reads retain additional fields and exact stored bytes[0m [0m[2m[1.87ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m comparison validates known metadata while preserving opaque historical differences[0m [0m[2m[1.51ms[0m[2m][0m
+[0m
+src/commands/definitions.test.ts:
+[0m[32m✓[0m[0m[1m pins every current structural command kind independently of its declaration[0m [0m[2m[0.16ms[0m[2m][0m
+[0m[32m✓[0m[0m[1m definition key agrees with its discriminator[0m [0m[2m[0.61ms[0m[2m][0m
+
+[0m[32m 516 pass[0m
+[0m[2m 0 fail[0m
+ 1613 expect() calls
+Ran 516 tests across 52 files. [0m[2m[[1m4.34s[0m[2m][0m
+
+
+
+ NX   Successfully ran target test for project wbs-contracts
+
+
+  Run duration:      4.4s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     4.4s (1 task)
+  Recoverable time:  <1ms

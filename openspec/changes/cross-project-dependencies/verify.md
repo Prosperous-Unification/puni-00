@@ -544,3 +544,17 @@ the new validator reads a schema relative to a bundled module, but the required
 asset is not shipped. Root reproduced the bundled local import's ENOENT/exit1.
 Final review remains pending, and this record does not approve the checkpoint
 or complete any full7.x task, backend compatibility gate, rollout or deployment.
+
+## Tasks 7.1–7.2 — independent correction review still requires changes
+
+[Completed Astra round1 review](evidence/task-7-wire-round1-review.md) confirms
+the six original repro cases pass, with fresh contracts516/Python276 and
+adapted-installed11 checks. TwoP1 findings remain: built artifact schema loading
+and long foreign-only occupancy acceptance parity. Exact failed assertions,
+retained request and installedCLI outcome are preserved with SHA256 manifests.
+The independently repeated owner mutation fails correctly; semantic-block
+mutation is not claimed as a separate proof of each predicate.
+
+Original Sol is correcting both findings in the same isolated source checkout.
+`05a5b85d5` and `388fb5410` remain unintegrated; full7.1–7.4 and backend/runtime,
+activation and delivery gates remain incomplete.

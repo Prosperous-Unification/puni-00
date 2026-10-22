@@ -1,0 +1,38 @@
+bun test v1.4.2 (744846f84)
+
+../puni-wire-round1-review-probes/complete-request.test.ts:
+terminal {
+  kind: "contradictory-bounds",
+  key: "b\u0000",
+  lower: 10,
+  upper: 9,
+  contributors: [ "floor:0", "horizon:58", "ab:incoming:10", "bc:outgoing:9" ],
+} retained occupancy [
+  {
+    personId: "foreign-only-person",
+    projectId: "C",
+    key: "c\u0000",
+    start: 1.2,
+    finish: 1000000000000001.2,
+  }
+] CLI 64 wbs-solver: occupancy[0] exceeds the safe quantization range
+
+119 |  expect(pair.pri.request.elsewhere).toEqual({});
+120 |  await Bun.write('/tmp/puni-round1-review-long-foreign-request.json',JSON.stringify(pair.pri.request));
+121 |  const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(JSON.stringify(pair.pri.request))});
+122 |  await Bun.write('/tmp/puni-round1-review-long-foreign-cli.json',JSON.stringify({exitCode:child.exitCode,stdout:child.stdout.toString(),stderr:child.stderr.toString()}));
+123 |  console.log('terminal',pair.pri.evidence,'retained occupancy',pair.pri.request.scope.occupancy,'CLI',child.exitCode,child.stderr.toString());
+124 |  expect(child.exitCode).toBe(0);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 64
+
+      at <anonymous> (/tmp/puni-wire-round1-review-probes/complete-request.test.ts:124:25)
+(fail) a prepared terminal is accepted as a complete request by the installed receiver [370.45ms]
+
+ 0 pass
+ 1 fail
+ 3 expect() calls
+Ran 1 test across 1 file. [558.00ms]
