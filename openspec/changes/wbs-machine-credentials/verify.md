@@ -702,6 +702,25 @@ the four tier suites 40 files, 579 pass; the four new or changed organization su
 (panel 40, trusted issuers 19, people 7, page 27); `nx run-many -t typecheck lint -p wbs-fe-01
 --skip-nx-cache` exit 0. Screenshots 02 (populated) and 05 (secret shown once) retaken.
 
+## Last-use write turn fix (#668, 2026-10-23)
+
+The swarm end-to-end test (PR #666, F3) saw every API-key request wait for be-01's write turn:
+`touchLastUsed` took the turn and `BEGIN IMMEDIATE` on every request although its update is
+conditional. It now reads `last_used_at` outside the turn and enters it only when the use is
+due (absent, or at least a minute old); the update keeps its own age predicate. The observable
+behaviour of task 2.6 (last use coarse to the minute, a failed write a server error) is
+unchanged; this restores design A13's intent. An absent credential at touch time now throws.
+
+| Guard (file)                                    | Injected fault                          | Observed failure                                                                                |
+| ----------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `machine-credential.ts` (store) read-first skip | early return removed (every use enters) | `answers while another write holds the turn when its last use is fresh`: `'pending'` after 2 s  |
+| store due write through the coordinator         | update run through an always-open gate  | `waits for the turn when its last use is due, then records it`: answered within 300 ms          |
+| store read-first boundary                       | `>` widened to `>=`                     | `advances once the minute has passed, by the injected clock`: stayed 5000000                    |
+| store absent credential                         | throw removed                           | `throws for a credential that does not exist` (`machine-credential-touch.db.test.ts`): resolved |
+
+No memory twin or conformance suite exists for `MachineCredentials`; the core fixtures
+(`NO_MACHINE_CREDENTIALS`, `machine-key.test.ts`) are unchanged.
+
 ## Gate of record (h4claw) — 2026-10-22
 
 - `bin/h2puni-gate.sh 688f7836403b49030bb21a279e6ec4b777ec2d3c` on h4claw (`~/gate-688f7836.log`; the plan branch head holding slices 1, 2, 3, 5 and 6 with main 1d143e932 merged): first Nx pass 49 projects + 9 dependents in 47m 11s, twilight pass 2 projects in 50m 26s, `solver-image-smoke` 3m 37s, `GATE_EXIT=0` at 09:38:24 UTC.

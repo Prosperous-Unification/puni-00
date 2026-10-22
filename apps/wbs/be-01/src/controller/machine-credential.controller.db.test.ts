@@ -71,8 +71,9 @@ afterEach(() => {
 });
 
 /** be-01's production composition over a fresh store, with an upstream JWT verifier. */
-function openHarness(): OrganizationHarness {
+function openHarness(now?: () => number): OrganizationHarness {
   return OrganizationHarness.openComposedWith({
+    ...(now === undefined ? {} : { now }),
     upstreamCredential: {
       verifier: new JwksTokenVerifier({
         audience: AUDIENCE,
@@ -330,6 +331,96 @@ describe('an API key', () => {
     h.sqlite.run('UPDATE machine_credential SET last_used_at = ? WHERE id = ?', [old, id]);
     expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
     expect(lastUsedAt(id)).toBeGreaterThan(old + 60_000);
+  });
+});
+
+/** What `answer` settles to within `ms`, or `'pending'`. */
+function within(ms: number, answer: Promise<Answer>): Promise<Answer | 'pending'> {
+  return Promise.race([
+    answer,
+    new Promise<'pending'>((resolve) => {
+      setTimeout(() => {
+        resolve('pending');
+      }, ms);
+    }),
+  ]);
+}
+
+/**
+ * Another write holding be-01's one write turn while `act` runs, released
+ * however `act` settles (#668: a long batch, an import, an optimization save).
+ */
+async function whileTurnHeld<T>(act: () => Promise<T>): Promise<T> {
+  const release = Promise.withResolvers<undefined>();
+  const entered = Promise.withResolvers<undefined>();
+  const held = h.holdWriteTurn(release.promise, () => {
+    entered.resolve(undefined);
+  });
+  await entered.promise;
+  try {
+    return await act();
+  } finally {
+    release.resolve(undefined);
+    await held;
+  }
+}
+
+describe('recording an API key’s last use', () => {
+  // Proof: with `touchLastUsed`'s read-first early return removed (every use
+  // entering the write turn, as before #668), this read 'pending' after 2 s;
+  // watched 2026-10-23.
+  it('answers while another write holds the turn when its last use is fresh', async () => {
+    const { id, key } = await claireKey();
+    expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
+    const first = lastUsedAt(id);
+    const answer = await whileTurnHeld(() => within(2_000, as(key, 'GET', '/api/projects')));
+    expect(answer).not.toBe('pending');
+    expect(answer === 'pending' ? 0 : answer.status).toBe(200);
+    expect(lastUsedAt(id)).toBe(first);
+  });
+
+  // The due write still takes the turn: never fire-and-forget, never a write
+  // outside the coordinator.
+  // Proof: with `touchLastUsed`'s update run through an always-open gate
+  // instead of the coordinator, this answered within 300 ms (expected
+  // 'pending'); watched 2026-10-23.
+  it('waits for the turn when its last use is due, then records it', async () => {
+    const { id, key } = await claireKey();
+    const old = Date.now() - 61_000;
+    h.sqlite.run('UPDATE machine_credential SET last_used_at = ? WHERE id = ?', [old, id]);
+    let answer: Promise<Answer> | undefined;
+    await whileTurnHeld(async () => {
+      answer = as(key, 'GET', '/api/projects');
+      expect(await within(300, answer)).toBe('pending');
+      expect(lastUsedAt(id)).toBe(old);
+    });
+    if (answer === undefined) throw new Error('the request was never sent');
+    expect((await answer).status).toBe(200);
+    expect(lastUsedAt(id)).toBeGreaterThan(old + 60_000);
+  });
+
+  // Proof: with the read-first predicate widened to `>=` (a use exactly a
+  // minute old read as fresh), the third read stayed 5000000; watched
+  // 2026-10-23.
+  it('advances once the minute has passed, by the injected clock', async () => {
+    let at = 5_000_000;
+    h.close();
+    h = openHarness(() => at);
+    await h.register('dany');
+    h.organization('org-a');
+    h.member('org-a', 'dany', 'super_admin');
+    h.bind('dany', 'org-a');
+    h.activate();
+    addAgentPerson(h.sqlite, 'claire', 'org-a', h.userId('dany'));
+    const { id, key } = await claireKey();
+    expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
+    expect(lastUsedAt(id)).toBe(5_000_000);
+    at = 5_059_999;
+    expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
+    expect(lastUsedAt(id)).toBe(5_000_000);
+    at = 5_060_000;
+    expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
+    expect(lastUsedAt(id)).toBe(5_060_000);
   });
 });
 

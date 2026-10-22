@@ -42,9 +42,12 @@ export interface MachineCredentials {
   ): Promise<OidcCredentialRecord | null>;
   /**
    * Records a use at `at` when the last recorded use is absent or at least
-   * {@link LAST_USED_RESOLUTION_MS} older; otherwise writes nothing.
+   * {@link LAST_USED_RESOLUTION_MS} older; otherwise writes nothing and takes
+   * no write turn, so a request whose use is fresh never waits behind another
+   * write (#668).
    *
-   * @throws on every store failure: a failed write is a server fault.
+   * @throws on every store failure: a failed write is a server fault, and so
+   * is a credential that no longer exists.
    */
   touchLastUsed(id: string, at: number): Promise<void>;
 }

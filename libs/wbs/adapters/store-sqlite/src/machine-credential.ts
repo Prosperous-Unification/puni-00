@@ -156,15 +156,35 @@ export class MachineCredentialRepository implements MachineCredentials {
   }
 
   /**
-   * One conditional update, stamping `updated_at` like every update.
+   * One read of `last_used_at` outside the write turn; only a use that is due
+   * (absent, or at least {@link LAST_USED_RESOLUTION_MS} older) enters the
+   * turn for one conditional update, stamping `updated_at` like every update.
+   * The update keeps its own age predicate, so two due requests racing into
+   * the turn still write once. A fresh use takes no turn, so a long write
+   * elsewhere never stalls an API-key read (#668).
+   *
+   * @throws when the credential is absent: it was just admitted (trusted state).
    *
    * Proof: with the age predicate reduced to `last_used_at <= at`, `records
    * its last use at most once a minute` in
    * `machine-credential.controller.db.test.ts` saw a use 20 s after the last
    * move `last_used_at`; watched 2026-10-22.
+   *
+   * Proof: with the read-first early return removed (every use entering the
+   * turn), `answers while another write holds the turn when its last use is
+   * fresh` in `machine-credential.controller.db.test.ts` saw the request
+   * still pending after 2 s; watched 2026-10-23.
    */
-  touchLastUsed(id: string, at: number): Promise<void> {
-    return writeImmediately(this.db, this.gate, (tx) => {
+  async touchLastUsed(id: string, at: number): Promise<void> {
+    await Promise.resolve();
+    const recorded = this.db
+      .select({ lastUsedAt: machineCredential.lastUsedAt })
+      .from(machineCredential)
+      .where(eq(machineCredential.id, id))
+      .get();
+    if (recorded === undefined) throw new Error(`no machine credential ${id} to record a use of`);
+    if (recorded.lastUsedAt !== null && recorded.lastUsedAt > at - LAST_USED_RESOLUTION_MS) return;
+    await writeImmediately(this.db, this.gate, (tx) => {
       tx.update(machineCredential)
         .set({ lastUsedAt: at, ...auditOnUpdate({ at }) })
         .where(
