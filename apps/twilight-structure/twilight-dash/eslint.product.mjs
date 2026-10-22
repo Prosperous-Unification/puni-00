@@ -107,10 +107,13 @@ export default ({
       files: [
         'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.ts',
         'apps/twilight-structure/twilight-dash/cli/src/progress/record-progress.test.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/ledger/account-outcomes.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/ledger/rate-card.ts',
       ],
       // Proof: removing this allowance rejected the legitimate progress import. Widening its
       // alias, relative specifier or file scope independently broke the sibling, relative or
-      // peer refusals in the effective-policy production test (2026-10-15).
+      // peer refusals in the effective-policy production test (2026-10-15). The two ledger
+      // paths reach the same alias for canonical JSON and digests (2026-10-22).
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
   ];

@@ -11,6 +11,7 @@ import {
 import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import type { Monotonic, WallClock } from './clock';
+import { accountOutcomes } from './ledger/account-outcomes';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
 
 const enrollmentFlags = [
@@ -50,7 +51,9 @@ export async function runFleetPlan(argv: readonly string[]): Promise<void> {
  * (`bootstrap-observation`, `migrate-observation`) through the activation controller's store;
  * `render-observation-units` through the observation unit renderer; and `run-activation-checks`
  * through the stateless check runner, which spawns each check with {@link spawnCheck}.
- * `record-progress` and `record-progress-v2` record explicit operator assertions. Every other command refuses before any effect.
+ * `record-progress` and `record-progress-v2` record explicit operator assertions;
+ * `account-outcomes` writes the period's efficiency breakdown. Every other command refuses before
+ * any effect.
  */
 export async function runDash(argv: readonly string[], deps: DashDependencies): Promise<void> {
   // A JavaScript caller can omit what the type requires; refuse rather than reach for a default.
@@ -69,6 +72,11 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   };
   // Proof: injecting a fleet call here failed `dispatcher uses no clocks or fleet planner`
   // on its real dispatcher dependency canary (2026-10-15).
+  // The ledger command parses its whole grammar before it reads a log, a card or the repository.
+  if (command === 'account-outcomes') {
+    accountOutcomes(argumentsAfterCommand, (text) => deps.stdout.write(text));
+    return;
+  }
   if (command === 'record-progress-v2') {
     recordBoundProgress(argumentsAfterCommand, (text) => deps.stdout.write(text));
     return;
