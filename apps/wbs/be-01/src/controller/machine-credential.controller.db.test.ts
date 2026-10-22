@@ -239,6 +239,7 @@ describe('an API key', () => {
   // Proof: with `touchLastUsed`'s rejection caught and dropped in
   // `authenticateMachineKey`, this failed its expected 500; watched 2026-10-22.
   it('fails as a server error when its last use cannot be recorded', async () => {
+    // `claireKey()` leaves `last_used_at` NULL, so this use is due and writes.
     const { key } = await claireKey();
     h.sqlite.run(`CREATE TRIGGER machine_credential_frozen BEFORE UPDATE ON machine_credential
       BEGIN SELECT RAISE(ABORT, 'machine_credential is frozen'); END`);
@@ -366,16 +367,16 @@ async function whileTurnHeld<T>(act: () => Promise<T>): Promise<T> {
 }
 
 describe('recording an API key’s last use', () => {
+  // Answering at all while the turn is held is the proof.
   // Proof: with `touchLastUsed`'s read-first early return removed (every use
-  // entering the write turn, as before #668), this read 'pending' after 2 s;
-  // watched 2026-10-23.
+  // entering the write turn, as before #668), this timed out at the 5 s
+  // per-test limit; watched 2026-10-23.
   it('answers while another write holds the turn when its last use is fresh', async () => {
     const { id, key } = await claireKey();
     expect((await as(key, 'GET', '/api/projects')).status).toBe(200);
     const first = lastUsedAt(id);
-    const answer = await whileTurnHeld(() => within(2_000, as(key, 'GET', '/api/projects')));
-    expect(answer).not.toBe('pending');
-    expect(answer === 'pending' ? 0 : answer.status).toBe(200);
+    const answer = await whileTurnHeld(() => as(key, 'GET', '/api/projects'));
+    expect(answer.status).toBe(200);
     expect(lastUsedAt(id)).toBe(first);
   });
 

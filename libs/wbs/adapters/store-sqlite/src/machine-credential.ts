@@ -1,11 +1,12 @@
 import {
   LAST_USED_RESOLUTION_MS,
+  type LastUseOutcome,
   type MachineCredentials,
   type OidcCredentialRecord,
   type TrustedIssuerRegistration,
 } from '@wbs/core';
 import type { MachineCredentialRecord, MachineCredentialSource } from '@wbs/domain';
-import { and, eq, isNull, lte, or } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnUpdate } from './audit';
@@ -158,47 +159,62 @@ export class MachineCredentialRepository implements MachineCredentials {
   /**
    * One read of `last_used_at` outside the write turn; only a use that is due
    * (absent, or at least {@link LAST_USED_RESOLUTION_MS} older) enters the
-   * turn for one conditional update, stamping `updated_at` like every update.
-   * The update keeps its own age predicate, so two due requests racing into
-   * the turn still write once. A fresh use takes no turn, so a long write
-   * elsewhere never stalls an API-key read (#668).
-   *
-   * @throws when the credential is absent: it was just admitted (trusted state).
-   *
-   * Proof: with the age predicate reduced to `last_used_at <= at`, `records
-   * its last use at most once a minute` in
-   * `machine-credential.controller.db.test.ts` saw a use 20 s after the last
-   * move `last_used_at`; watched 2026-10-22.
+   * turn, reads again there (a racing due request may have recorded it, or a
+   * removal deleted the credential) and updates, stamping `updated_at` like
+   * every update. A fresh use takes no turn, so a long write elsewhere never
+   * stalls an API-key read (#668).
    *
    * Proof: with the read-first early return removed (every use entering the
    * turn), `answers while another write holds the turn when its last use is
-   * fresh` in `machine-credential.controller.db.test.ts` saw the request
-   * still pending after 2 s; watched 2026-10-23.
+   * fresh` in `machine-credential.controller.db.test.ts` timed out;
+   * watched 2026-10-23.
    */
-  async touchLastUsed(id: string, at: number): Promise<void> {
+  async touchLastUsed(id: string, at: number): Promise<LastUseOutcome> {
     await Promise.resolve();
-    const recorded = this.db
-      .select({ lastUsedAt: machineCredential.lastUsedAt })
-      .from(machineCredential)
-      .where(eq(machineCredential.id, id))
-      .get();
-    if (recorded === undefined) throw new Error(`no machine credential ${id} to record a use of`);
-    if (recorded.lastUsedAt !== null && recorded.lastUsedAt > at - LAST_USED_RESOLUTION_MS) return;
-    await writeImmediately(this.db, this.gate, (tx) => {
+    const seen = lastUseOf(
+      this.db
+        .select({ lastUsedAt: machineCredential.lastUsedAt })
+        .from(machineCredential)
+        .where(eq(machineCredential.id, id))
+        .get(),
+      at,
+    );
+    if (seen !== 'due') return seen;
+    return writeImmediately(this.db, this.gate, (tx): LastUseOutcome => {
+      const current = lastUseOf(
+        tx
+          .select({ lastUsedAt: machineCredential.lastUsedAt })
+          .from(machineCredential)
+          .where(eq(machineCredential.id, id))
+          .get(),
+        at,
+      );
+      if (current !== 'due') return current;
       tx.update(machineCredential)
         .set({ lastUsedAt: at, ...auditOnUpdate({ at }) })
-        .where(
-          and(
-            eq(machineCredential.id, id),
-            or(
-              isNull(machineCredential.lastUsedAt),
-              lte(machineCredential.lastUsedAt, at - LAST_USED_RESOLUTION_MS),
-            ),
-          ),
-        )
+        .where(eq(machineCredential.id, id))
         .run();
+      return 'recorded';
     });
   }
+}
+
+/**
+ * Whether a use at `at` is due given the stored row: `'absent'` with no row,
+ * `'fresh'` within {@link LAST_USED_RESOLUTION_MS} of the last recorded use.
+ *
+ * Proof: with the age comparison reduced to `lastUsedAt > at` (a use read as
+ * due once any time passed), `records its last use at most once a minute` in
+ * `machine-credential.controller.db.test.ts` saw a use 20 s after the last
+ * move `last_used_at`; watched 2026-10-23.
+ */
+function lastUseOf(
+  row: { readonly lastUsedAt: number | null } | undefined,
+  at: number,
+): 'absent' | 'fresh' | 'due' {
+  if (row === undefined) return 'absent';
+  if (row.lastUsedAt !== null && row.lastUsedAt > at - LAST_USED_RESOLUTION_MS) return 'fresh';
+  return 'due';
 }
 
 /** @throws on a source outside {@link MACHINE_CREDENTIAL_SOURCES}. */

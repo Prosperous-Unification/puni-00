@@ -26,12 +26,12 @@ describe('recording a machine credential’s last use', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  // Proof: with the absent-credential throw removed, the read-first path fell
-  // through to an update matching no row and this resolved; watched 2026-10-23.
-  it('throws for a credential that does not exist', () => {
+  // Proof: with `lastUseOf` answering `'due'` for no row, the update matched
+  // nothing and this answered `'recorded'`; watched 2026-10-23.
+  it('answers absent for a credential that does not exist', async () => {
     const credentials = new MachineCredentialRepository(openDrizzle(path), OPEN);
-    expect(credentials.touchLastUsed('00000000-0000-4000-8000-000000000000', 1)).rejects.toThrow(
-      'no machine credential 00000000-0000-4000-8000-000000000000 to record a use of',
+    expect(await credentials.touchLastUsed('00000000-0000-4000-8000-000000000000', 1)).toBe(
+      'absent',
     );
   });
 });
