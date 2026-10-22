@@ -959,3 +959,17 @@ regression set. The bridge is not installed in production: real snapshot-bound
 SQLite capture, durable certificate/result persistence, publication fencing,
 Retry/restart and post-close admission remain open. Tasks 7.3 and 7.4 stay
 unchecked; CI and exact-SHA host gate are pending.
+
+## Workspace CI — optional outside-edge undo restoration
+
+The prior pushed head's workspace gate failed an archived conditional-undo
+case: a historical outside legacy edge whose far endpoint had disappeared
+reached the strict connected graph preflight before the existing optional
+`canDepend` filter. The [Astra-reviewed correction](evidence/task-ci-undo-graph-review.md)
+selects restorable optional edges in journal order before preflight and reuses
+that exact set for writes; required live/internal graph guards remain strict.
+The isolated packet passed 343 focused tests and a watched bypass of the
+filter failed three intended cases. After integration, undo and connected
+command admission suites passed 206/206 (1,858 assertions). The prior CI run
+also has frontend fixture/typecheck and devsync inventory failures, handled in
+separate packets; its twilight gate and a refreshed full CI run remain pending.
