@@ -89,3 +89,108 @@ export type RuntimeReceipt = Readonly<{
         }>[];
       }>;
 }>;
+
+/** Explicit ordinary inventory; immutable runtime bindings never silently adopt ordinary claims. */
+export type RuntimeClaimInventory = Readonly<{
+  kind: 'ordinary' | 'runtime';
+  claim: Readonly<{
+    id: string;
+    workItemId: string;
+    stepId: string | null;
+    personId: string;
+    runId: string | null;
+    parentClaimId: string | null;
+    accountId: string;
+  }>;
+}> &
+  (Readonly<{ kind: 'ordinary' }> | Readonly<{ kind: 'runtime'; binding: RuntimeClaim }>);
+
+/** One coherent pinned observation, current grant and requested person's live claim inventory. */
+export type RuntimeState = Readonly<{
+  schemaVersion: 1;
+  ledgerId: string;
+  scope: RuntimeScope;
+  basis: RuntimeBasis;
+  facts: Omit<RuntimeObservation, 'scope'>;
+  authority: Readonly<{ kind: 'uninitialized' }> | (Readonly<{ kind: 'held' }> & RuntimeAuthority);
+  claims: readonly RuntimeClaimInventory[];
+}>;
+
+/** Expected runtime reconciliation refusals; trusted corruption always throws. */
+export type RuntimeReply<T> =
+  | Readonly<{ ok: true; value: T }>
+  | RuntimeReadRefusal
+  | Readonly<{ ok: false; error: 'insufficient_scope' }>
+  | Readonly<{
+      ok: false;
+      reason:
+        | 'runtime_generation_conflict'
+        | 'runtime_command_conflict'
+        | 'runtime_ledger_mismatch'
+        | 'runtime_receipt_not_found';
+    }>;
+
+export type AuthorityReceipt = RuntimeReceipt &
+  Readonly<{
+    acceptance: Readonly<{ kind: 'authority'; authority: RuntimeAuthority }>;
+  }>;
+
+export type RuntimeAuthorityRequest = Readonly<{
+  schemaVersion: 1;
+  commandId: string;
+  expectedLedgerId: string;
+  ownerId: string;
+  expectedGeneration: number | null;
+}>;
+
+/** Restricted existing wire commands; the receiver additionally checks exact live claim targets. */
+export type RuntimePlanCommand =
+  | Readonly<{
+      kind: 'setProgress';
+      workItemId: string;
+      stepId: string;
+      state: 'in_progress' | 'done';
+    }>
+  | Readonly<{
+      kind: 'setMeasure';
+      workItemId: string;
+      stepId: string;
+      metric: 'token_actual';
+      value: number;
+    }>
+  | Readonly<{
+      kind: 'patchWorkItem';
+      workItemId: string;
+      patch: Readonly<{
+        externalRefs: readonly Readonly<{ systemId: string; url: string; name?: string }>[];
+      }>;
+    }>
+  | Readonly<{
+      kind: 'releaseWorkItem';
+      workItemId: string;
+      personId: string;
+      steps: readonly string[];
+    }>;
+
+export type RuntimeAction =
+  | Readonly<{
+      kind: 'claim';
+      workItemId: string;
+      stepId: string;
+      parentClaimId: string | null;
+      execution: ExecutionIdentity;
+    }>
+  | Readonly<{ kind: 'write'; claim: RuntimeClaim; commands: readonly RuntimePlanCommand[] }>;
+
+export type RuntimeCommandRequest = Readonly<{
+  schemaVersion: 1;
+  commandId: string;
+  expectedLedgerId: string;
+  authority: RuntimeAuthority;
+  expectedBasis: RuntimeBasis;
+  action: RuntimeAction;
+}>;
+
+/** Authority has no action; claim/write retain the complete final conditional request. */
+export type RuntimeOperation =
+  (RuntimeAuthorityRequest & Readonly<{ kind: 'authority' }>) | RuntimeCommandRequest;

@@ -915,3 +915,54 @@ Critical/Important findings. Task2 is accepted at
 Canonical-request semantic/digest correspondence, current-authorized application
 replay and accepted-operation lifecycle fixtures remain Task3 work. Parent
 receiver/bridge completion and final integration gates remain open.
+
+### Receiver Task3 — authority and authorized reconciliation candidate
+
+Added real admitted authority acquisition, pinned state and receipt lookup, plus
+strict canonical authority/claim/write envelopes. Current project/person/credential
+authorization precedes reconciliation; acquisition additionally preserves the
+existing `insufficient_scope` refusal for a credential without write scope.
+Authority CAS and accepted receipt commit together. Exact historical replay does
+not reacquire a current grant. State reports actual live claims beside immutable
+bindings, including legitimate ordinary claim movement.
+
+Fresh covering command (all paths prefixed `./`):
+
+```sh
+env -u NO_COLOR bun test ./apps/wbs/be-01/src/controller/runtime-authority.db.test.ts ./libs/wbs/application/core/src/module/plan-commands/runtime-request.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-command.db.test.ts ./libs/wbs/adapters/store-sqlite/src/runtime-ledger.db.test.ts ./apps/wbs/be-01/src/controller/runtime-state.db.test.ts ./libs/wbs/domain/domain/src/runtime-basis.test.ts ./libs/wbs/application/core/src/ports/runtime-command-records.test.ts ./libs/wbs/adapters/store-memory/src/runtime-command.test.ts ./libs/wbs/adapters/store-sqlite/src/claim-race.db.test.ts ./apps/wbs/be-01/src/controller/claim-identity.controller.db.test.ts --timeout=30000
+env -u NO_COLOR NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-core,wbs-contracts,wbs-store-sqlite,wbs-store-memory,wbs-be-01 --skip-nx-cache
+```
+
+Results: 230 tests/1122 assertions across10 files passed in33.85s; all12 scoped
+lint/typecheck tasks passed uncached in1m40s. Source formatting and diff checks
+passed. Root OpenSpec validation passed one change with zero errors and10 existing
+warnings. The initial bootstrap RED was missing-module/export loader failure,
+not behavioral RED for every test. The write-scope case separately failed before
+its guard. Intermediate type/lint/fixture failures remain in the report.
+
+R5:21 distinct production guard faults produced47 failed test outcomes, each
+followed by byte-for-byte source restoration and a targeted GREEN. This is not47
+unique tests or exhaustive mutation coverage. Faults cover current authorization,
+all three ledger pins, exact payload replay, actual SQLite CAS, digest/canonical
+bytes/receipt correspondence, person inventory, synchronous request detachment,
+strict input fields, safe generation, batch/session bounds, finite measurement
+and semantic parsing. Wrong-pin acquisition and noncanonical replay proofs expose
+incorrect refusal classification rather than unauthorized mutation. Initial digest
+mutants survived because the fixture had dropped an immutable trigger: schema
+audit masked the intended check. Those runs are excluded. Corrected fixtures
+restore exact trigger SQL before public reads; counted digest/receipt mutants let
+corrupted operations resolve. Named diagnostics additionally identify each layer.
+
+A real late receipt INSERT trigger observes staged CAS/counts, then aborts;
+authority, acceptance and counters roll back. Actual accepted authority prevents
+migration down even after all ordinary claims are removed. Unused down/up changes
+the ledger and rejects old pins. These do not prove future guarded runtime release.
+Literal claim/write receipts test retained correspondence only; actual accepted
+claim/write paths remain Tasks4/5. Existing Task1 proofs are historical, with their
+regression tests rerun; no whole old fault-matrix recertification is claimed.
+
+Full commands, failed/masked trials and21-pair manifest remain in
+`.superpowers/sdd/receiver-tasks/task-3-report.md` and `task-3-evidence/`.
+Independent Task3 review is pending. No runtime HTTP route, full receiver build,
+exact-SHA receiver host gate or live deployment is claimed. No new migration or
+secret was added; separate migration/secrets scans were not run for this slice.

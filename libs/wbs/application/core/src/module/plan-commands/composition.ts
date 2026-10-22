@@ -4,6 +4,7 @@ import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { CapturedFanout } from '../../ports/fanout-capture-store';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from '../../ports/fanout-capture-store';
 import type { Broadcaster } from '../../ports/project-event';
+import type { Digest } from '../../ports/runtime';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import {
   type CommittedFanoutDelivery,
@@ -25,7 +26,19 @@ import {
 } from './admitted-write';
 import type { PlanCommandServices } from './plan-command-graph';
 import { PlanCommandRunner } from './plan-commands.feature';
-import { type RuntimeObservation, type RuntimeReadRefusal, RuntimeState } from './runtime-state';
+import {
+  type RuntimeAdmission,
+  type RuntimeAdmissionIdentity,
+  type RuntimeDecision,
+  RuntimeReceiver,
+  type RuntimeTransaction,
+} from './runtime-authority';
+import {
+  type RuntimeContext,
+  type RuntimeObservation,
+  type RuntimeReadRefusal,
+  RuntimeState,
+} from './runtime-state';
 import { createWorkingPlan } from './working-plan.resource';
 
 /** Source capabilities retained by composition, outside the runner's options. */
@@ -249,36 +262,82 @@ export function createPlanCommandRunner(source: PlanCommandsSource): PlanCommand
 
 /** Exposes only coherent runtime reads; no public store or write graph escapes composition. */
 export function createRuntimeState(uow: UnitOfWork): RuntimeState {
-  return new RuntimeState(async (context) => {
-    // Proof: F17 bypassed this refusal; the legacy read threw instead of returning runtime_scope_unavailable.
-    if (context.access.kind === 'legacy') return { ok: false, reason: 'runtime_scope_unavailable' };
-    // Proof: F21 delayed this copy until admission; queued organization mutation redirected the read.
-    const organizationId = context.access.scope.organizationId;
-    // Proof: F20 delayed these copies; queued project/person/actor/credential tests returned refusals.
-    const { projectId, personId } = context;
-    const actorId = context.actor.id;
-    const credential = credentialPairOf(context.actor.authentication);
-    // Proof: F16 injected real UoW reentrancy; the blocked-writer test returned early with staged row `staged`.
-    return uow.run<RuntimeObservation | RuntimeReadRefusal>(async (scope) => {
-      const resolveScope = scope.fanoutCapture?.resolveProjectWriteScope;
-      // Proof: F10 removed this diagnostic; the absent-capability negative received an unclassified TypeError.
-      if (resolveScope === undefined) throw new Error('runtime project scope resolver is missing');
-      const admission = await resolveScope(projectId, organizationId, actorId);
-      // Proof: F18 skipped refusal forwarding; the viewer negative threw instead of returning forbidden.
-      if (!admission.ok) return { commit: false, value: admission };
-      // Proof: F05 substituted incoming scope; queued admin-to-member demotion incorrectly read an unbound person.
-      const access = { kind: 'scoped', scope: admission.scope } as const;
-      const people = await scope.stores.directory.listInOrganization('people', organizationId);
-      // Proof: F06 bypassed person ownership; a bound foreign person received local facts.
-      if (!people.some(({ id }) => id === personId))
-        return { commit: false, value: { ok: false, reason: 'unknown_person' } };
-      // Proof: F07 bypassed binding; an otherwise authorized unbound-person read succeeded.
-      if (!isClaimAdmin(access) && (await scope.stores.claims.boundAccountOf(personId)) !== actorId)
-        return { commit: false, value: { ok: false, reason: 'person_not_bound' } };
-      const pinnedPersonId = await scope.stores.claims.pinnedPersonOf(credential);
-      // Proof: F08 bypassed pin comparison; the real pinned admin credential read as another person.
-      if (pinnedPersonId !== null && pinnedPersonId !== personId)
-        return { commit: false, value: { ok: false, reason: 'credential_not_for_person' } };
+  const transaction = runtimeTransaction(uow);
+  return new RuntimeState((context) =>
+    transaction.run(context, async (admitted) => ({
+      commit: true,
+      value: await admitted.observe(),
+    })),
+  );
+}
+
+/** Receiver reconciliation shares the same borrowed admission as raw observation. */
+export function createRuntimeReceiver(uow: UnitOfWork, digest: Digest): RuntimeReceiver {
+  return new RuntimeReceiver(runtimeTransaction(uow), digest);
+}
+
+function runtimeTransaction(uow: UnitOfWork): RuntimeTransaction {
+  return {
+    run<T>(
+      context: RuntimeContext,
+      act: (admitted: RuntimeAdmission) => Promise<RuntimeDecision<T>>,
+    ): Promise<T | RuntimeReadRefusal> {
+      // Proof: F17 bypassed this refusal; the legacy read threw instead of returning runtime_scope_unavailable.
+      if (context.access.kind === 'legacy')
+        return Promise.resolve({ ok: false, reason: 'runtime_scope_unavailable' });
+      // Proof: F21 delayed this copy until admission; queued organization mutation redirected the read.
+      const organizationId = context.access.scope.organizationId;
+      // Proof: F20 delayed these copies; queued project/person/actor/credential tests returned refusals.
+      const { projectId, personId } = context;
+      const actorId = context.actor.id;
+      const credential = credentialPairOf(context.actor.authentication);
+      // Proof: F16 injected real UoW reentrancy; the blocked-writer test returned early with staged row `staged`.
+      return uow.run<T | RuntimeReadRefusal>(async (scope) => {
+        const admitted = await authorizeRuntimeScope(scope, {
+          organizationId,
+          projectId,
+          personId,
+          actorId,
+          credential,
+        });
+        if ('ok' in admitted) return { commit: false, value: admitted };
+        return act(admitted);
+      });
+    },
+  };
+}
+
+async function authorizeRuntimeScope(
+  scope: Scope,
+  identity: RuntimeAdmissionIdentity,
+): Promise<RuntimeAdmission | RuntimeReadRefusal> {
+  const { organizationId, projectId, personId, actorId, credential } = identity;
+  const resolveScope = scope.fanoutCapture?.resolveProjectWriteScope;
+  // Proof: F10 removed this diagnostic; the absent-capability negative received an unclassified TypeError.
+  if (resolveScope === undefined) throw new Error('runtime project scope resolver is missing');
+  // Proof: P3-01 bypassed fresh resolution; a viewer replay received the old accepted authority.
+  const admission = await resolveScope(projectId, organizationId, actorId);
+  // Proof: F18 skipped refusal forwarding; the viewer negative threw instead of returning forbidden.
+  if (!admission.ok) return admission;
+  // Proof: F05 substituted incoming scope; queued admin-to-member demotion incorrectly read an unbound person.
+  const access = { kind: 'scoped', scope: admission.scope } as const;
+  const people = await scope.stores.directory.listInOrganization('people', organizationId);
+  // Proof: F06 bypassed person ownership; a bound foreign person received local facts.
+  if (!people.some(({ id }) => id === personId)) return { ok: false, reason: 'unknown_person' };
+  // Proof: F07 bypassed binding; an otherwise authorized unbound-person read succeeded.
+  if (!isClaimAdmin(access) && (await scope.stores.claims.boundAccountOf(personId)) !== actorId)
+    return { ok: false, reason: 'person_not_bound' };
+  const pinnedPersonId = await scope.stores.claims.pinnedPersonOf(credential);
+  // Proof: F08 bypassed pin comparison; the real pinned admin credential read as another person.
+  if (pinnedPersonId !== null && pinnedPersonId !== personId)
+    return { ok: false, reason: 'credential_not_for_person' };
+
+  return {
+    scope: { organizationId, projectId, personId },
+    actorId,
+    commands: scope.stores.runtimeCommands,
+    listClaims: () => scope.stores.claims.listByProject(projectId),
+    observe: async () => {
       const project = await scope.stores.projects.findInOrganization(projectId, organizationId);
       // Proof: F09 removed this diagnostic; the broken borrowed-read test received null dereference instead.
       if (project === null) throw new Error('admitted runtime project disappeared');
@@ -300,7 +359,8 @@ export function createRuntimeState(uow: UnitOfWork): RuntimeState {
         })),
         steps: steps.map(({ id, code, position }) => ({ id, code, position })),
       };
-      return { commit: true, value: observation };
-    });
-  });
+
+      return observation;
+    },
+  };
 }
