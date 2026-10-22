@@ -105,6 +105,10 @@ Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementin
 - [ ] 6a.4 Red/green: unified CTT hints adapter over legacy step chains, completed-work seeds,
       DEFER_READY, generation-checked settlement and callback-free summary. Require complete
       discovery/validation and filter durable waits/running/retry state before admission.
+      The [execution-history tasks](execution-history-tasks.md) implement the bounded persistence
+      foundation for6a.5. External dispatch ordering and exact outcome/write/release remain later
+      phases and the parent checkbox stays open.
+
 - [ ] 6a.5 Red/green: persist admission/launch intent, exact claim receipts and operation-key
       locators; commit outcomes and outbox atomically, reconcile WBS acceptance before successors.
 - [ ] 6a.6 Red: coordinator-only crash with worker surviving, effect-before-result-save,

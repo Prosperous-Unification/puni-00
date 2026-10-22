@@ -272,6 +272,41 @@ The identified request to create an executor session for one runtime attempt bef
 activity turn is dispatched.
 _Avoid_: Turn, admission, launch command
 
+**Preparation intent**:
+The retained activity preparation, selected manifest identity, executor version, exact WBS
+target observation and local owner provenance for one admitted attempt.
+_Avoid_: Open acknowledgement, execution permission
+
+**Target observation**:
+The exact work item and step identity projected from one retained WBS runtime-state
+observation, including its scope, receiver ledger and basis.
+_Avoid_: Workflow graph, eligibility approval
+
+**Executor locator**:
+The portable identity of a prepared executor session, its preparation, selected activity
+and executor version.
+_Avoid_: Live attachment, worker address
+
+**Session attachment**:
+The attributed opening or reattachment of an exact executor locator to one local owner
+and epoch.
+_Avoid_: Receiver grant, durable session capability
+
+**Claim binding**:
+The retained association of an attempt with its exact runtime claim request, acceptance
+and receiver-generated claim identity.
+_Avoid_: Thin claim authority, current grant
+
+**Execution checkpoint**:
+The last meaningful preparation, claim or turn position within one attempt, retained when
+recovery or settlement changes that attempt's state.
+_Avoid_: Second attempt, independent session state
+
+**Execution history**:
+An attempt's ordered execution submissions and original acknowledgements together with
+its decision consumptions and settlement records.
+_Avoid_: Current state, event subscription
+
 **Creation key**:
 The adapter-instance-scoped identity of one session preparation payload, reused for exact
 retries of that preparation.
@@ -303,8 +338,8 @@ without performing the activity.
 _Avoid_: Business outcome, launch instruction
 
 **Execution command**:
-A request to record one execution fact for a named attempt, with a stable identity reused
-for retries of that request. A later observation of the same session is a distinct command.
+A request to retain an execution fact, claim transition or turn intent for a named attempt,
+with a stable identity reused for exact retries. A later observation is a distinct command.
 _Avoid_: Fact digest, revision, WBS progress command
 
 **Human wait**:

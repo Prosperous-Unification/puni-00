@@ -31,8 +31,9 @@ SHALL pass current revision and state checks even when their facts match an olde
 
 #### Scenario: Reattachment repeats an earlier locator
 
-- **WHEN** a running attempt enters recovery and a fresh command records reattachment to its same claim and known locator with current revisions
-- **THEN** the observation applies and the attempt returns to running without RunStore launching any work
+- **WHEN** an attempt enters recovery and a fresh command records supported reattachment to its same complete locator with current revisions
+- **THEN** attachment provenance updates within its exact checkpoint without RunStore launching work
+- **AND** pending or unresolved turn state remains pending or unresolved
 
 #### Scenario: An earlier observation is redelivered
 
@@ -188,11 +189,11 @@ RunStore SHALL retain an immutable receiver pin and exact canonical authority in
 
 ### Requirement: RunStore opens complete named physical formats
 
-SQLite RunStore SHALL preserve the original migration identities and bootstrap the complete ordered schema2 bundle atomically. Opening SHALL validate complete bundle identity, required markers and the entire physical schema, including empty tables. Opening SHALL NOT create, repair or upgrade an older format.
+SQLite RunStore SHALL preserve the original migration identities and bootstrap the complete ordered schema3 bundle atomically. Opening SHALL validate complete bundle identity, required markers and the entire physical schema, including empty tables. Opening SHALL NOT create, repair or upgrade an older format.
 
-#### Scenario: A format1 store is opened by the schema2 adapter
+#### Scenario: An older store is opened by the schema3 adapter
 
-- **WHEN** a genuine format1 store reaches the schema2 opener
+- **WHEN** a genuine format1 or format2 store reaches the schema3 opener
 - **THEN** compatibility inspection rejects it before mode-changing configuration
 - **AND** its bytes, declarations and retained records remain unchanged
 
@@ -202,11 +203,11 @@ SQLite RunStore SHALL preserve the original migration identities and bootstrap t
 - **THEN** bootstrap stops, throws and leaves neither a published store nor staging
 - **AND** physical reference construction follows the same fail-fast statement contract
 
-#### Scenario: Runtime history reaches the new down script
+#### Scenario: Runtime history reaches the original authority migration down script
 
 - **GIVEN** the complete installed format was validated and the caller executes trimmed complete statements in order within an explicit transaction, rolling back and throwing on the first error
 - **WHEN** a pin, intent, acceptance, invalid required schema2 metadata or inconsistent retained count exists
-- **THEN** the new down script refuses before deleting runtime history
+- **THEN** the0002 authority down script refuses before deleting runtime history
 - **AND** only an unused consistent reverse restores the original schema and records
 
 ### Requirement: Verified sender history reads complete retained receipt artifacts
@@ -228,3 +229,153 @@ Application acceptance and history reads SHALL read actual artifact bytes, valid
 
 - **WHEN** caller-owned guard, intent or reference values change after submission and before verification returns
 - **THEN** the verified operation retains and submits only its original detached snapshot
+
+### Requirement: Portable executor replies preserve complete immutable observations
+
+Dash SHALL validate and detach every TurnReply variant, complete identity, text, finish and
+measured or named unknown usage. Its portable codecs SHALL share the original scalar codec
+instances without runtime imports from aggregate attempt codecs or live executor controls.
+
+#### Scenario: A reply is serialized and the caller changes its source
+
+- **WHEN** completed, not_started or unresolved reply content is validated and serialized
+- **THEN** complete correlation and usage round-trip without caller aliasing or freezing caller input
+- **AND** unknown nested fields, unsupported variants and unsafe counts throw
+
+### Requirement: Preparation pins an observed target before the complete locator
+
+An Attempt2 SHALL begin queued and retain one immutable PreparationIntent before a complete
+ExecutorLocator. Verified preparation SHALL recover accepted manifest bytes, select through
+Burokrat and match its executor-kind version pin and actual retained WBS target artifact.
+
+#### Scenario: A locator or preparation lacks its prerequisite
+
+- **WHEN** a locator precedes preparation or any manifest, selection, executor version, preparation, operation or target identity differs
+- **THEN** recording refuses or trusted malformed state throws without history or reservation changes
+- **AND** selection, target mapping and version pin confer no eligibility or execution permission
+
+### Requirement: Exact claims couple scope and attempt history atomically
+
+Dedicated claim stage and acceptance SHALL commit the runtime scope event, its count, the
+attempt transition and original paired acknowledgement in one provider transaction. Claims
+SHALL preserve exact step, parent, execution and receiver-generated IDs without local-ID
+truncation. Claim acceptance SHALL reuse the staged grant rather than advance authority.
+
+#### Scenario: Either half of a claim transaction fails
+
+- **WHEN** an actual write fault aborts stage or acceptance before COMMIT
+- **THEN** neither scope nor attempt half, counter, revision or reservation change is visible after reopen
+
+#### Scenario: A fresh observation updates a claim basis
+
+- **WHEN** verified fresh evidence supplies a newer basis before claim staging
+- **THEN** only basis and observation evidence may differ from the immutable preparation target
+- **AND** changed scope, ledger, work item, step ID, step code or parent claim refuses
+
+### Requirement: One pending scope command has no incidental clearance
+
+Authority and claim commands SHALL share the existing single pending slot. Absence, refusal,
+timeout, cancellation and changed basis or generation SHALL NOT clear, replace or expire it.
+
+#### Scenario: Pending acceptance cannot be established
+
+- **WHEN** the exact pending command has no accepted receipt
+- **THEN** later commands remain refused and uncertainty may remain indefinitely
+
+### Requirement: Coupled command replay returns its original paired acknowledgement
+
+All version2 execution families SHALL share the existing store-wide local command namespace.
+Current owner validation and complete history audit SHALL precede identity lookup. Exact
+replay SHALL return the retained original reply before stale revision checks without
+restamping its provenance. A wire claim command SHALL have exactly one local stage and
+one local acceptance association.
+
+#### Scenario: A replacement owner replays old exact commands
+
+- **WHEN** a current owner submits the original local identity and immutable payload with stale revisions
+- **THEN** the original scope and Attempt acknowledgement is returned unchanged
+- **AND** changed family, payload, run, attempt, scope or second local association refuses
+
+### Requirement: Turn intent requires current attachment and exact claim history
+
+Turn staging SHALL derive the full locator, ClaimRef and current grant from one consistent
+transaction after readiness, exact cause, current ownership, current session attachment and
+no-pending checks. Observations SHALL retain the entire reply and match a retained turn.
+
+#### Scenario: An old opened locator is recorded after takeover
+
+- **WHEN** the current owner retains the old preparation owner's late opened locator
+- **THEN** its attachment retains the old provenance and cannot admit a new current-owner turn
+- **AND** current grant acquisition alone does not change the attachment
+
+#### Scenario: A session is reattached with an unresolved turn
+
+- **WHEN** supported backend evidence reattaches the identical complete locator
+- **THEN** the pending request and unresolved wrapper remain unchanged except attachment provenance
+- **AND** neither reattachment, cancellation nor a stored locator establishes nondispatch or quiescence
+
+### Requirement: Continuations preserve execution context and key identity
+
+Decision consumption SHALL resume the identical session and claim with the exact decision
+cause and atomically reacquire capacity. A not_started observation SHALL retain the original
+key and payload in history even when it returns ready. Claimed retries SHALL remain refused
+until the separate exact release protocol exists.
+
+#### Scenario: A not_started key is submitted again
+
+- **WHEN** a new local command stages a previously not_started turn key
+- **THEN** identical full intent may be staged from its exact ready cause
+- **AND** any changed payload under that key refuses; uncertain or completed history never resets to initial
+
+### Requirement: One combined audit reconstructs complete execution history
+
+Reads, replay, mutation and reopen SHALL share consistent runtime folds, complete attempt
+folds and a bidirectional claim-link audit without recursive readers. Every execution,
+consumption, completion and receipt transition SHALL have its true predecessor, consecutive
+revision and original reply checked. Required indexed history SHALL NOT disappear behind
+a reset current projection.
+
+#### Scenario: A retained event or paired reply is changed
+
+- **WHEN** rows, keys, counts, ordering, cross-links or original acknowledgements disagree
+- **THEN** inspection, replay, current-owner mutation and reopen throw before reporting absence
+- **AND** coherent deletion or rewriting of every independent retained fact remains outside this local integrity guarantee
+
+### Requirement: Verified execution history consumes actual retained evidence
+
+Verified helpers SHALL snapshot before awaits, read actual artifacts, use the existing WBS
+state and receipt schemas and complete matcher, and compare generated claim projections
+against freshly verified receipt bytes. Raw persistence SHALL document its verification
+precondition. No async artifact work SHALL occur inside SQLite transactions.
+
+#### Scenario: Local projection coherently changes a generated claim ID
+
+- **WHEN** raw local shape and request-known fields still validate but actual retained receipt bytes name a different claim ID
+- **THEN** verified history throws rather than accepting the forged projection
+- **AND** compatible added wire fields remain accepted by the existing public schema
+
+### Requirement: Changed execution records have explicit portable and adapter versions
+
+Attempt, RunSnapshot, execution commands and generic local completion delivery records
+SHALL use version2. SQLite SHALL use the complete named format3 bundle and preserve all
+0001 and0002 migration bytes. Generic local completion SHALL NOT imply exact WBS write,
+release, successor readiness or retry permission.
+
+#### Scenario: Genuine older stores or populated reverse reach format3
+
+- **WHEN** a genuine format1 or2 store is opened
+- **THEN** read-only inspection rejects it before WAL or byte changes
+- **WHEN** complete prevalidated format3 is reversed in one fail-fast explicit transaction
+- **THEN** any attempt, execution, consumption, completion, receipt or non-authority runtime history refuses before mutation
+- **AND** compatible generic runs and authority-only history may reverse to exact version2 and its known bundle hash
+
+### Requirement: History foundation does not certify external action ordering
+
+This phase SHALL NOT call executor open/turn or WBS transport. Parent dispatch acceptance
+SHALL require the later production host to prove preparation COMMIT, open, complete locator
+COMMIT, exact claim stage/send/acceptance and turn-intent COMMIT before turn.
+
+#### Scenario: History tests pass without a production host
+
+- **WHEN** both stores and verified application operations pass their bounded conformance
+- **THEN** source history acceptance may proceed while parent6a.5, crash ordering, other adapters and full gates remain open

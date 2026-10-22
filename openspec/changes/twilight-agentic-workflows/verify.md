@@ -2188,3 +2188,21 @@ ordering, final branch review, exact-SHA canonical host gate and applicable CI
 remain open. Deferred warning noise and limits stay visible. No source changed
 after the approved58bde16e8; this acceptance commit is metadata only. No main
 integration, deployment, cleanup or independent helper release occurred.
+
+### Durable execution history planning
+
+The bounded history intent, explicit version/API design, delta requirements and two ordered
+TDD tasks are adopted. Shared portable values/codecs precede one coherent Attempt2, atomic
+claim association and format3 provider change. Existing authority/binding acceptance stays
+accepted; no external dispatch, exact write/release or host ordering is implemented by this
+planning adoption. New code, semantic RED/GREEN, R5 faults and reviews are pending.
+
+The locked OpenSpec status/apply commands were read before adoption: sdd-lean, ready,
+parent39tasks with5complete/34open. Artifact existence is not implementation acceptance.
+Parent6a.5, parent5.6 and all cohesive review/gate/CI milestones remain open.
+
+Planning checks: locked Bun OpenSpec validation exited0,1change passed/0failed with
+the same11 long-requirement warnings. Exact seven-file Prettier check and git diff
+--check exited0. No implementation tests were run for this documentation adoption.
+Fresh WBS project read still requires MCP authentication; remote claims/status were
+not read or updated. Reconnect is already pending; local work continues.
