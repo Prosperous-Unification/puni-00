@@ -346,6 +346,7 @@ describe('the optimizer migration', () => {
       // Newest first, so the settings columns come off before the tables they
       // steer — this migration is no longer the only thing above LOOKUP_INDEXES.
       expect(rollbackTo(db.path, FOLDER, LOOKUP_INDEXES)).toEqual([
+        '20261022211000_add_external_dependencies',
         '20261022210000_add_project_abbreviations',
         '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',
@@ -399,12 +400,12 @@ describe('the optimizer migration', () => {
       expect(indexes(db.path)).not.toContain(ADDED_INDEX);
       expect(projectColumns(db.path)).not.toContain(ADDED_PROJECT_COLUMN);
 
-      // Everything else is untouched: the rollback took exactly the four tables
-      // this migration adds, plus the three the migrations above the target
-      // add, and nothing that was there before any of them.
+      // Everything else is untouched: the rollback took the tables this
+      // migration and later migrations add, and none of the earlier tables.
       expect(rolledBack).toEqual(
         migrated.filter(
           (name) =>
+            name !== 'external_dependency' &&
             name !== 'project_abbreviation' &&
             name !== 'project_abbreviation_counter' &&
             name !== 'browser_auth_association' &&

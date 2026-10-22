@@ -12,6 +12,7 @@ import { rollbackTo } from './migrate-down';
 
 const FOLDER = new URL('../../../../../apps/wbs/be-01/drizzle', import.meta.url).pathname;
 const MIGRATION = '20261022210000_add_project_abbreviations';
+const EXTERNAL = '20261022211000_add_external_dependencies';
 const BASE = '20261020130000_add_claim_occupancy';
 let directory: string;
 let path: string;
@@ -86,11 +87,17 @@ it('backfills every project and rollback preserves old project rows and complete
         .update(readFileSync(join(FOLDER, MIGRATION, 'migration.sql')))
         .digest('hex'),
     },
+    {
+      name: EXTERNAL,
+      hash: createHash('sha256')
+        .update(readFileSync(join(FOLDER, EXTERNAL, 'migration.sql')))
+        .digest('hex'),
+    },
   ]);
   expect(raw((sqlite) => codes(sqlite).find((row) => row.project_id === 'q')?.namespace)).toBe(
     'org:a',
   );
-  expect(rollbackTo(path, FOLDER, BASE)).toEqual([MIGRATION]);
+  expect(rollbackTo(path, FOLDER, BASE)).toEqual([EXTERNAL, MIGRATION]);
   expect(
     raw((sqlite) => ({
       projects: sqlite.query('SELECT * FROM project ORDER BY id').all(),

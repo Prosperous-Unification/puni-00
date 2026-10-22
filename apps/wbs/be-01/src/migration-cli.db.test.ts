@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261022210000_add_project_abbreviations');
+    expect(baselineLedger.at(-1)?.name).toBe('20261022211000_add_external_dependencies');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1137,9 +1137,8 @@ describe('migration deploy entrypoints', () => {
     );
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('claims exist');
-    // The empty binding, resource and occupancy migrations newer than add_claim
-    // reverse first, each in its own transaction, so add_claim's refusal leaves
-    // them reversed.
+    // The newer empty migrations reverse first, each in its own transaction,
+    // so add_claim's refusal leaves them reversed.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
@@ -1147,7 +1146,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261019130100_add_external_identity_person' &&
           name !== '20261020120000_add_resources' &&
           name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022210000_add_project_abbreviations',
+          name !== '20261022210000_add_project_abbreviations' &&
+          name !== '20261022211000_add_external_dependencies',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1199,12 +1199,13 @@ describe('migration deploy entrypoints', () => {
     const down = await runCli('migrate-down-cli.ts', dbPath, '--to=20261019120000_add_claim');
     expect(down.exitCode).not.toBe(0);
     expect(down.stderr).toContain('resources exist');
-    // The newer, empty claim occupancy migration reverses first.
+    // The newer empty migrations reverse first.
     expect(migrationLedgerAt(dbPath)).toEqual(
       ledger.filter(
         ({ name }) =>
           name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022210000_add_project_abbreviations',
+          name !== '20261022210000_add_project_abbreviations' &&
+          name !== '20261022211000_add_external_dependencies',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1240,7 +1241,7 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022210000_add_project_abbreviations');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022211000_add_external_dependencies');
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

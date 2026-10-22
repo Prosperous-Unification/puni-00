@@ -103,6 +103,7 @@ describe(MIGRATION, () => {
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
       MIGRATION,
     ]);

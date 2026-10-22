@@ -942,7 +942,7 @@ it('publishes a tight solver answer for an SS/FF plan written through the comman
   const input = await workItemService.scheduleInput(at.projectId);
   if (input === null) throw new Error('the written project has no schedule input');
   expect(input.typed.map((dependency) => dependency.type).sort()).toEqual(['FS', 'FS', 'SS']);
-  const pair = buildSolverRequestPair(input, '0.3.0', 60_000);
+  const pair = buildSolverRequestPair(input, '0.4.0', 60_000);
   if (!pair.time.ok) throw new Error('the written plan was refused a solver request');
   const request = pair.time.request;
   const offsets = request.baselineOffsets;
@@ -960,6 +960,9 @@ it('publishes a tight solver answer for an SS/FF plan written through the comman
   const term = (value: number) => ({ value, stageValue: value, bound: value, status: 'optimal' });
   const stdout = `${JSON.stringify({
     wireVersion: request.wireVersion,
+    // Proof: omitting the scope made the real outcome parser return invalid-output;
+    // watched in the full backend target on 2026-10-22.
+    scope: request.scope,
     status: 'feasible',
     offsets,
     objectiveValues: { makespan: term(makespan), priority: term(priority), movement: term(0) },

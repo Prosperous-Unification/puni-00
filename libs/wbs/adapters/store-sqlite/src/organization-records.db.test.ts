@@ -749,6 +749,7 @@ describe('20260927120000_add_organization_records', () => {
     connection.close();
 
     expect(rollbackTo(path, FOLDER, WORK_ITEM_FACTS)).toEqual([
+      '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
@@ -791,6 +792,7 @@ describe('20260927120000_add_organization_records', () => {
     expect(tableNames()).toEqual(
       withTables.filter(
         (name) =>
+          name !== 'external_dependency' &&
           name !== 'project_abbreviation' &&
           name !== 'project_abbreviation_counter' &&
           name !== 'browser_auth_association' &&

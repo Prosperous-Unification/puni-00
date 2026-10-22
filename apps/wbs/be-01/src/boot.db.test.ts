@@ -442,7 +442,7 @@ describe('bootBe01', () => {
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
       optimizer: {
-        solverVersion: '0.3.0',
+        solverVersion: '0.4.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('startup reconciliation must not spawn');
@@ -481,7 +481,7 @@ describe('bootBe01', () => {
       migrateOnStartup: true,
       migrationsFolder: FOLDER,
       optimizer: {
-        solverVersion: '0.3.0',
+        solverVersion: '0.4.0',
         budgetMs: 60_000,
         spawn: () => {
           throw new Error('the settings write must not spawn');
@@ -751,7 +751,7 @@ describe('bootBe01', () => {
         internalAuthSecret: 's'.repeat(32),
         browserSessionAuthority: 'disabled' as const,
         optimizer: {
-          solverVersion: '0.3.0',
+          solverVersion: '0.4.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('shutdown ordering must not spawn');
@@ -891,7 +891,7 @@ describe('bootBe01', () => {
       {
         ...bootOptions(dbPath, 0),
         optimizer: {
-          solverVersion: '0.3.0',
+          solverVersion: '0.4.0',
           budgetMs: 60_000,
           spawn: () => {
             throw new Error('this case must not spawn');

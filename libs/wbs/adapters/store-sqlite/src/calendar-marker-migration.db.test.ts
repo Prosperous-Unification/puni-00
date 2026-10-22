@@ -244,6 +244,7 @@ describe('20260905090000_add_calendar_marker', () => {
     const reversed = rollbackTo(path, FOLDER, PREVIOUS);
 
     expect(reversed).toEqual([
+      '20261022211000_add_external_dependencies',
       '20261022210000_add_project_abbreviations',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',
@@ -295,6 +296,7 @@ describe('20260905090000_add_calendar_marker', () => {
       withTable.filter(
         (n) =>
           n !== 'calendar_marker' &&
+          n !== 'external_dependency' &&
           n !== 'project_abbreviation' &&
           n !== 'project_abbreviation_counter' &&
           n !== 'browser_auth_association' &&
