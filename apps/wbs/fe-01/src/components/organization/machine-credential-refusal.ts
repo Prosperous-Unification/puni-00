@@ -86,7 +86,7 @@ export function credentialRefusal(
     case 'name_taken':
       return said('A live credential already has this name. Choose another name.');
     case 'subject_taken':
-      return said('Another credential already admits this issuer and subject.');
+      return said('Another credential of this trusted issuer already admits this subject.');
     case 'not_found':
       return said('This credential is not available for this action. Refresh the list.');
     case 'rotation_in_progress':
@@ -119,7 +119,9 @@ export function trustedIssuerRefusal(refusal: TrustedIssuerRefusal): RefusalOutc
     case 'insufficient_scope':
       return said(READ_ONLY);
     case 'invalid_body':
-      return said('Enter an HTTPS issuer URL with no query or fragment.');
+      return said(
+        'Enter a public HTTPS issuer URL (no IP address or private name, no query or fragment) and an audience.',
+      );
     case 'invalid_json':
     case 'invalid_params':
     case 'invalid_query':
@@ -139,6 +141,12 @@ export function trustedIssuerRefusal(refusal: TrustedIssuerRefusal): RefusalOutc
       return said('Prove the company sign-in connection before choosing it.');
     case 'issuer_taken':
       return said('This issuer is already trusted.');
+    case 'audience_taken':
+      return said(
+        'Another organization already trusts this issuer with this audience. Choose another audience.',
+      );
+    case 'trusted_issuer_limit':
+      return said('This organization already trusts eight issuers. Remove one first.');
     case 'not_found':
       return said('This trusted issuer is no longer registered. Refresh the list.');
     case 'in_use':

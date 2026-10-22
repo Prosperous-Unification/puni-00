@@ -14,7 +14,7 @@ const issuer = {
   id: 'ti-1',
   issuer: GITHUB,
   jwksUri: `${GITHUB}/.well-known/jwks`,
-  defaultAudience: 'wbs:org:org-a',
+  audience: 'wbs:org:org-a',
   ssoConnectionId: null,
   createdAt: 1,
   createdBy: 'u1',
@@ -119,7 +119,7 @@ describe('trusted issuers', () => {
     await screen.findByText(GITHUB);
     expect(sent.find((request) => request.route === REGISTER)?.body).toEqual({
       issuer: GITHUB,
-      defaultAudience: 'wbs:org:org-a',
+      audience: 'wbs:org:org-a',
       ssoConnectionId: 'conn-1',
     });
     await waitFor(() => {
@@ -138,8 +138,22 @@ describe('trusted issuers', () => {
     ['issuer_not_oidc', 409, 'The discovery document has no HTTPS key set (jwks_uri).'],
     ['sso_connection_unproven', 409, 'Prove the company sign-in connection before choosing it.'],
     ['issuer_taken', 409, 'This issuer is already trusted.'],
+    [
+      'audience_taken',
+      409,
+      'Another organization already trusts this issuer with this audience. Choose another audience.',
+    ],
+    [
+      'trusted_issuer_limit',
+      409,
+      'This organization already trusts eight issuers. Remove one first.',
+    ],
     ['unknown_sso_connection', 404, 'That company sign-in connection is not in this organization.'],
-    ['invalid_body', 400, 'Enter an HTTPS issuer URL with no query or fragment.'],
+    [
+      'invalid_body',
+      400,
+      'Enter a public HTTPS issuer URL (no IP address or private name, no query or fragment) and an audience.',
+    ],
     ['forbidden', 403, 'Only an admin can manage trusted issuers.'],
   ])('renders %s on register', async (error, status, text) => {
     stubSection({ [REGISTER]: [() => answer(status, { error })] });

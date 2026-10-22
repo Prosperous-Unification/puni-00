@@ -291,7 +291,8 @@ Slice 6 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on
   is an admin read.
 - 6.2: the trusted issuers section reads its own list and the SSO connections (a
   super-admin read; refused, the optional connection picker is left out with a sentence).
-  The audience field is required and prefilled with `wbs:org:<organizationId>` (A25).
+  The audience field is required and prefilled with `wbs:org:<organizationId>` (A25);
+  `audience_taken` and `trusted_issuer_limit` have their own sentences.
 - 6.3: the people page gets `credentialsOf` beside `loadOf`; each reachable agent row has a
   "Show credentials" toggle that mounts the same panel narrowed by `personId`. No count is
   drawn before the toggle opens: a count for every agent row would be a credentials request

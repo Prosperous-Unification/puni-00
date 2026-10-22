@@ -50,7 +50,7 @@ const issuer = {
   id: 'ti-1',
   issuer: 'https://token.actions.githubusercontent.com',
   jwksUri: 'https://token.actions.githubusercontent.com/.well-known/jwks',
-  defaultAudience: 'wbs',
+  audience: 'wbs',
   ssoConnectionId: null,
   createdAt: 1,
   createdBy: 'u1',
@@ -502,6 +502,12 @@ describe('creating a credential', () => {
       403,
       {},
       'This sign-in is read-only here. Sign in to WBS again to make changes.',
+    ],
+    [
+      'subject_taken',
+      409,
+      {},
+      'Another credential of this trusted issuer already admits this subject.',
     ],
     [
       'unknown_person',

@@ -517,7 +517,8 @@ What was built (`apps/wbs/fe-01/src/components/organization/`):
   page; `directory-page.tsx` gains `credentialsOf`, `app-router.tsx` composes both pages,
   `organization-page.tsx` takes `userId` and mounts the panel by role.
 
-Proofs, each fault injected by a script, the named test run alone, then restored (2026-10-22):
+Proofs, each fault injected by a script, the named test run alone, then restored (2026-10-22;
+all 17 rerun after the A25 merge, each exit 1):
 
 | Guard (file)                                                         | Injected fault                    | Observed failure                                                                  |
 | -------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------- |
@@ -541,15 +542,15 @@ Proofs, each fault injected by a script, the named test run alone, then restored
 
 Commands and fresh results, `CLAUDECODE` unset:
 
-| Command                                                                                                     | Result                                                   |
-| ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `bunx vitest run` organization, directory, runtime, `app.test.tsx`, `app-router.test.tsx`, session-features | 36 files, 560 tests pass                                 |
-| `bunx vitest run` the four new or changed organization suites                                               | 86 pass: panel 35, trusted issuers 17, people 7, page 27 |
-| `bunx vitest run` `test-tiers`, `vitest-budget`, `vitest.view-level`, `node-tier`                           | 4 files, 12 tests pass                                   |
-| `bunx nx run-many -t typecheck lint -p wbs-fe-01`                                                           | exit 0                                                   |
-| `bun test` tool-devsync `eslint-boundaries`, `workspace-targets`, `retired-roots`, `toolchain-pins`         | 78 pass, 0 fail                                          |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                 | exit 0, 39 indexes (store-memory review debt pre-exists) |
-| `bunx openspec validate --all --json`                                                                       | exit 0; 266 items, 266 passed                            |
+| Command                                                                                                                           | Result                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `bunx vitest run` organization, directory, runtime, `app.test.tsx`, `app-router.test.tsx`, session-features, the four tier suites | 40 files, 575 tests pass                                 |
+| `bunx vitest run` the four new or changed organization suites                                                                     | 89 pass: panel 36, trusted issuers 19, people 7, page 27 |
+| `bunx vitest run` `test-tiers`, `vitest-budget`, `vitest.view-level`, `node-tier`                                                 | 4 files, 12 tests pass                                   |
+| `bunx nx run-many -t typecheck lint -p wbs-fe-01`                                                                                 | exit 0                                                   |
+| `bun test` tool-devsync `eslint-boundaries`, `workspace-targets`, `retired-roots`, `toolchain-pins`                               | 78 pass, 0 fail                                          |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                                       | exit 0, 39 indexes (store-memory review debt pre-exists) |
+| `bunx openspec validate --all --json`                                                                                             | exit 0; 266 items, 266 passed                            |
 
 Eye review: screenshots of the admin empty, populated (1280 and 375 px), create dialog,
 secret-shown-once, query failure, member empty and revoke-confirmation states, drawn by
@@ -563,5 +564,8 @@ organization e2e spec runs in legacy mode, where the panel is not composed.
 Not verified:
 
 - Against a real be-01: every reply here is a stub of the contract shapes.
-- A25's contract (required `audience`, `audience_taken`, `trusted_issuer_limit`) had not
-  landed on slice 5's branch when this record was written; see the PR for its state.
+- Aligned to A25 after merging slice 5's head `11accf7b3`: the register form sends the
+  required `audience` (prefilled and hinted as `wbs:org:<organizationId>`), lists `audience`,
+  and maps `audience_taken`, `trusted_issuer_limit` and the private-host `invalid_body`; the
+  create dialog says a credential's audience narrows the issuer's. Counts above were rerun
+  after the merge.

@@ -1037,7 +1037,7 @@ function CreateDialog({
               </span>
               <span className={FIELD_CLASS}>
                 <label htmlFor={`${ids}-audience`} className={FIELD_LABEL_CLASS}>
-                  Audience (optional; the issuer’s default otherwise)
+                  Extra audience (optional)
                 </label>
                 <Input
                   id={`${ids}-audience`}
@@ -1045,10 +1045,15 @@ function CreateDialog({
                   value={draft.audience}
                   disabled={isSending}
                   maxLength={512}
+                  aria-describedby={`${ids}-audience-hint`}
                   onChange={(event) => {
                     onDraft({ ...draft, audience: event.target.value });
                   }}
                 />
+                <span id={`${ids}-audience-hint`} className="text-muted-foreground text-xs">
+                  Tokens must carry the trusted issuer’s audience; an audience here narrows the
+                  credential to tokens that carry both.
+                </span>
               </span>
             </>
           )}

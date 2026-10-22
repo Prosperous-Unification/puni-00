@@ -259,8 +259,7 @@ export function TrustedIssuersSection({
                 >
                   <span className="font-semibold [overflow-wrap:anywhere]">{issuer.issuer}</span>
                   <span className={`${STATUS_CLASS} [overflow-wrap:anywhere]`}>
-                    Audience: {issuer.defaultAudience ?? 'none'} · Live credentials:{' '}
-                    {issuer.machineCredentials}
+                    Audience: {issuer.audience} · Live credentials: {issuer.machineCredentials}
                   </span>
                   {removing === issuer.id ? (
                     <div className={ROW_ACTIONS_CLASS}>
@@ -324,7 +323,7 @@ export function TrustedIssuersSection({
                   client['postApiOrganizationTrusted-issuers']({
                     body: {
                       issuer: issuerUrl,
-                      defaultAudience: audience,
+                      audience,
                       ...(connectionId === '' ? {} : { ssoConnectionId: connectionId }),
                     },
                   }),
