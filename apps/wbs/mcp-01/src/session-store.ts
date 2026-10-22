@@ -11,6 +11,12 @@ import {
 } from './store-migrations';
 
 const VERSION = 1;
+/**
+ * The durable epoch as a scalar subquery. Comparing a family's epoch with it at every session
+ * read and refresh retires older credentials in a running process, not only at startup; a
+ * missing row reads NULL and matches nothing.
+ */
+const DURABLE_EPOCH = '(SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1)';
 const NONCE_BYTES = 12;
 type Row = Record<string, string | number | Uint8Array | null>;
 
@@ -93,11 +99,11 @@ export class McpSessionStore {
       db.run('PRAGMA synchronous = FULL');
       migrateMcpStore(db, created);
       const epoch = readCredentialEpoch(db);
-      // Proof: 2026-09-27, with this check removed `refuses startup on a unsupported epoch without
-      // reseeding` opened a store at epoch 1.
-      if (epoch !== SUPPORTED_CREDENTIAL_EPOCH)
+      // Proof: 2026-10-21, with this check removed `refuses startup on a unsupported epoch without
+      // reseeding` (store-migrations.test.ts) opened a store at epoch 2.
+      if (epoch > SUPPORTED_CREDENTIAL_EPOCH)
         throw new McpStoreRefused(
-          `MCP credential epoch ${String(epoch)} needs organization-aware mcp-01`,
+          `MCP credential epoch ${String(epoch)} is newer than this mcp-01 understands`,
         );
     } catch (cause) {
       db?.close();
@@ -111,6 +117,16 @@ export class McpSessionStore {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * The durable credential epoch, read now rather than remembered from startup, so a running
+   * process sees an advance at its next code issue or exchange.
+   *
+   * @throws {McpStoreRefused} when the epoch is missing, unreadable or malformed.
+   */
+  credentialEpoch(): number {
+    return readCredentialEpoch(this.db);
   }
 
   createFamily(
@@ -150,12 +166,19 @@ export class McpSessionStore {
     })();
   }
 
+  /**
+   * The live family behind session `jti`: unexpired, unrevoked and at the durable epoch, so a
+   * session issued before an epoch advance reads as absent.
+   */
+  // Proof: 2026-10-21, without the epoch comparison `refuses an older-epoch session at every
+  // use` (credential-epoch.test.ts) resolved the stale session's upstream token.
   familyForSession(jti: string, now: number): FamilyRecord | null {
     const row = this.db
       .query(
         `SELECT f.* FROM mcp_session s JOIN mcp_family f USING (family_id)
       WHERE s.jti = ? AND s.expires_at > ? AND f.revoked_at IS NULL
-        AND f.idle_expires_at > ? AND f.absolute_expires_at > ?`,
+        AND f.idle_expires_at > ? AND f.absolute_expires_at > ?
+        AND f.credential_epoch = ${DURABLE_EPOCH}`,
       )
       .get(jti, now, now, now) as Row | null;
     return row === null ? null : this.familyOf(row);
@@ -174,7 +197,7 @@ export class McpSessionStore {
       const digest = digestOf(token);
       const row = this.db
         .query(
-          `SELECT r.family_id, r.consumed_at, r.expires_at, f.*
+          `SELECT r.family_id, r.consumed_at, r.expires_at, f.*, ${DURABLE_EPOCH} AS durable_epoch
         FROM mcp_refresh r JOIN mcp_family f USING (family_id) WHERE r.token_digest = ?`,
         )
         .get(digest) as Row | null;
@@ -185,11 +208,15 @@ export class McpSessionStore {
         this.revokeFamily(familyId, now);
         return { outcome: 'reuse' as const };
       }
+      // Proof: 2026-10-21, without the epoch comparison `refuses a refresh whose epoch advanced
+      // during the provider refresh` (credential-epoch.test.ts) threw the session trigger's
+      // SQLiteError instead of answering 400 invalid_grant.
       if (
         Number(row['expires_at']) <= now ||
         row['revoked_at'] !== null ||
         Number(row['idle_expires_at']) <= now ||
-        Number(row['absolute_expires_at']) <= now
+        Number(row['absolute_expires_at']) <= now ||
+        row['credential_epoch'] !== row['durable_epoch']
       )
         return { outcome: 'invalid' as const };
       this.db
@@ -219,7 +246,7 @@ export class McpSessionStore {
   prepareRefresh(token: string, clientId: string, now: number): RefreshOutcome {
     const row = this.db
       .query(
-        `SELECT r.family_id, r.consumed_at, r.expires_at, f.*
+        `SELECT r.family_id, r.consumed_at, r.expires_at, f.*, ${DURABLE_EPOCH} AS durable_epoch
         FROM mcp_refresh r JOIN mcp_family f USING (family_id) WHERE r.token_digest = ?`,
       )
       .get(digestOf(token)) as Row | null;
@@ -229,11 +256,14 @@ export class McpSessionStore {
       this.revokeFamily(familyId, now);
       return { outcome: 'reuse' };
     }
+    // Proof: 2026-10-21, without the epoch comparison `refuses an older-epoch refresh before any
+    // provider work` (credential-epoch.test.ts) called the provider refresh.
     if (
       Number(row['expires_at']) <= now ||
       row['revoked_at'] !== null ||
       Number(row['idle_expires_at']) <= now ||
-      Number(row['absolute_expires_at']) <= now
+      Number(row['absolute_expires_at']) <= now ||
+      row['credential_epoch'] !== row['durable_epoch']
     )
       return { outcome: 'invalid' };
     return { outcome: 'ok', family: this.familyOf(row) };
