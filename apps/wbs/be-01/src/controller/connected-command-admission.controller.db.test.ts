@@ -14,6 +14,7 @@ import type { CompensatingCommand } from '@wbs/core/service/compensating';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -25,6 +26,8 @@ afterEach(async () => {
 
 async function open() {
   harness = OrganizationHarness.openComposedWith({ sessionBinding: true });
+  // Synthetic stored authority supports this suite's admitted semantic fixture; mounted production admission stays dormant.
+  seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'super_admin');

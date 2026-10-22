@@ -1215,3 +1215,15 @@ combined activation/fanout suite passed **97/97 tests, 222 assertions**. This is
 fixture compatibility evidence, not production authoring activation. Startup,
 participant fencing, retained-client downgrade protection, activation receipt
 transport, deploy recovery and task 10.1/10.2 completion remain open.
+
+A wider 18-file integrated run first passed 327 tests and failed 154 controller
+cases, all traced to three newer fixture setup paths that inserted synthetic
+external relationships without the new test-only persisted authority. Root
+added explicit seeding in `cross-project-dependency-fixture.ts`,
+`connected-command-admission.controller.db.test.ts`, and
+`cross-project-events.controller.db.test.ts`; the five affected controller
+suites then passed **177/177 tests, 2,594 assertions**. The synthetic marker
+permits fixture edge setup only. Current mounted production commands still use
+inactive authoring; when task 10.1 later binds the live authority to commands,
+these mixed fixtures must split synthetic-active and dormant modes so a 409
+assertion does not accidentally become an activated-production claim.

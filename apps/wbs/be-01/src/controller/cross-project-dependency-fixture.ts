@@ -7,6 +7,7 @@ import { AnnouncementCollector } from '@wbs/core/ports/announcement-collector';
 import { createDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { expect } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -22,6 +23,8 @@ export async function openFixture() {
     sessionBinding: true,
     afterResolve: () => afterRequestResolve?.(),
   });
+  // Synthetic stored authority permits historical external edges in this fixture; production authoring stays inactive.
+  seedDependencyAuthority(harness.databasePath());
   await harness.register('ada');
   harness.organization('org-a');
   harness.member('org-a', 'ada', 'super_admin');

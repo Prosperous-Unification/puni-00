@@ -1,3 +1,4 @@
+import { seedDependencyAuthority } from '@wbs/store-sqlite/testing/dependency-activation';
 import { afterEach, expect, it } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -16,6 +17,8 @@ async function fixture(push?: () => Promise<Response>) {
     undefined,
     push,
   );
+  // Synthetic stored authority supports fixture edges; the mounted writer still has dormant admission.
+  seedDependencyAuthority(harness.databasePath());
   opened.push(harness);
   await harness.register('ada');
   harness.organization('org-a');
