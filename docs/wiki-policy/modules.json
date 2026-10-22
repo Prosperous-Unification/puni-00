@@ -1317,6 +1317,64 @@
           }
         ]
       }
+    },
+    {
+      "moduleId": "module.frontend.dependency-lookup",
+      "name": "Dependency lookup frontend module",
+      "memberships": [
+        {
+          "kind": "directory-prefix",
+          "prefix": "apps/wbs/fe-01/src/modules/dependency-lookup",
+          "exclusions": []
+        }
+      ],
+      "predecessorModuleIds": [],
+      "indexPath": "apps/wbs/fe-01/src/modules/dependency-lookup/README.md",
+      "externalConsumers": {
+        "kind": "declared",
+        "memberships": [
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/dependency-draft.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/dependency-selection.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/plan-cards.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/plan-live.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/remote-dependency-editor.tsx"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-dependency-search.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/components/wbs/use-plan-dependencies.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/composition.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/modules/project/contract.ts"
+          },
+          {
+            "kind": "path",
+            "path": "apps/wbs/fe-01/src/runtime/project-runtime.ts"
+          }
+        ]
+      }
     }
   ]
 }
