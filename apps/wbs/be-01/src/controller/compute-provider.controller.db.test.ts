@@ -204,10 +204,21 @@ describe('provider instance administration', () => {
     });
   });
 
-  it('registers every kind, the pool slot included, and refuses any other', async () => {
+  it('registers and lists every kind, the pool slot included, and refuses any other', async () => {
     for (const kind of ['docker', 'kubernetes', 'puni_pool'])
       expect((await register('dany', `${kind}-1`, kind)).status).toBe(201);
     expect((await register('dany', 'lambda-1', 'lambda')).status).toBe(400);
+    const listed = await h.call('dany', 'GET', PATH);
+    expect(listed.status).toBe(200);
+    expect(
+      (listed.body as { computeProviders: { name: string; kind: string }[] }).computeProviders
+        .map(({ name, kind }) => ({ name, kind }))
+        .sort((left, right) => left.name.localeCompare(right.name)),
+    ).toEqual([
+      { name: 'docker-1', kind: 'docker' },
+      { name: 'kubernetes-1', kind: 'kubernetes' },
+      { name: 'puni_pool-1', kind: 'puni_pool' },
+    ]);
   });
 
   // Proof: with members admitted in `administering`, the member's list

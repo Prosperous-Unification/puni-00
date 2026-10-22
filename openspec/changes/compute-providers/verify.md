@@ -403,3 +403,122 @@ The re-review passed. Three items closed on the same PR:
 
 Recorded, not changed: S3-C, pre-existing. The 1 MiB output cap is checked on stdout only, and
 only after reading all of it; stderr is not capped.
+
+### Slices 3 and 4: `docker` adapter, `kubernetes` stub, `puni_pool` slot (2026-10-22)
+
+Branch `feat/compute-providers-3` from `feat/compute-providers-2` at `551f6d786`. Implemented
+tasks 3.1, 4.1 and 4.2.
+
+What landed:
+
+- `compute/execution.ts`: what `ssh-host.ts` held and `docker.ts` now shares, moved unchanged:
+  `execute` (deadline, kill, `pastDeadline`, the stdout-only 1 MiB cap), `MAX_REASON_LENGTH`
+  and `boundReason`, `firstLine`, `classifyTransportFault`, the run-environment allow-list and
+  its refusal, and `RunTracker` (runs in use, run-change listeners). The moved `Proof:` comments
+  name the slice 2 tests that still guard the code.
+- `compute/docker.ts` and `docker.test.ts`, with `compute/testing/docker-fixture.ts`, a fixture
+  `docker` CLI that answers per context from transcripts shaped as the laptop's 29.7.2 CLI
+  prints them.
+- `compute/kubernetes.ts`: the stub. `ProviderAdapter.isStub` lets the loader refuse it
+  `provider_not_implemented` before `open`. `Measurement` gains `not_implemented`, and `run`
+  answers `AgentRunHandle | NotImplemented`, with `AgentRunHandle` now carrying
+  `kind: 'started'`.
+- `cli.ts` registers `docker` and the `kubernetes` stub beside `ssh_host`.
+  `no-ambient-clock.test.ts` scans `docker.ts`, `execution.ts` and `kubernetes.ts`, and excludes
+  the docker fixture.
+- `compute-provider.controller.db.test.ts` (be-01) now asserts that the `docker`, `kubernetes`
+  and `puni_pool` instances it registers are listed.
+- The Dash CLI README covers the `docker` kind; design.md P9 says where docker disk capacity
+  comes from. `CONTEXT.md` is unchanged because no new term appears.
+
+Assumed in these slices (each overrulable):
+
+- `docker stats` has no `--filter` (checked against the 29.7.2 CLI). The adapter therefore runs
+  `docker ps --filter label=puni.compute-provider=<id> --format '{{.ID}}'`, then `docker stats
+--no-stream`, and sums only the rows whose ids `ps` named. A container that starts or ends
+  between the two commands is summed in neither, rather than making `stats` fail on a missing id.
+- `disk_gib` on `docker` reports usage as every `docker system df` row summed (the daemon's
+  whole disk, not only labelled containers). Capacity is a new binding field, `ceilingGib`,
+  because the daemon states no disk size. A docker disk binding takes `ceilingGib` and no
+  `path`; an `ssh_host` disk binding takes `path` and no `ceilingGib`.
+- `docker` measures `memory_gib`, `cpu_cores` and `disk_gib`. `agent_slots` is refused
+  `unsupported_measure`.
+- `cpu_cores` usage is the labelled containers' `CPUPerc` summed (100 % per core), floored and
+  capped at `NCPU`. Memory usage is the left side of `MemUsage` summed, floored to GiB.
+- `run` needs the instance's new `runImage`. Without it `capabilities.runs` is false and `run`
+  rejects. The environment goes through `--env K=V`, so the allow-listed values are visible in
+  the local process list, as with ssh's remote command line.
+- The CLI receives only `PATH`, `HOME`, `DOCKER_CONFIG` and `SSH_AUTH_SOCK`, never
+  `DOCKER_HOST`. `docker` is looked up on `PATH` when the command starts, but its absence is
+  refused only when a docker instance opens. `ssh` is still required up front, as in slice 2.
+- The CLI exits 1 for every error, so the exit code says nothing about the cause. A non-zero
+  exit whose stderr names a transport fault answers `unreachable`. There are eight faults:
+  `socket_permission_denied`, `daemon_unreachable`, `host_key_mismatch`,
+  `authentication_failed`, `connection_refused`, `timeout`, `name_unresolved` and `no_route`.
+  Any other non-zero exit throws, an unknown context included. stdout is read only after exit 0,
+  because a failing `docker info` still prints a JSON object with `MemTotal: 0`.
+- The context name follows Docker's own rule, bounded to 64 characters and never starting with
+  `-`. `runImage` is an image reference, bounded to 255 characters, never starting with `-`.
+  Both are checked by the loader's schema (`config_malformed`, naming the field and never the
+  value).
+- The `kubernetes` stub reads no kube context or namespace, and the loader refuses it before
+  `open`. If the stub were accepted, its `not_implemented` would be sent as the report's outcome
+  and WBS would refuse it `400 invalid_body`, which ends the loop as a refusal.
+
+R5 proofs. Each fault was injected into production source and the named test watched failing,
+then the source was restored:
+
+| Check                                       | Injected fault                                               | Observed failing test                                                                                                                                                                                                |
+| ------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| usage sums only labelled containers (3.1)   | `sumLabelled` keeps every `docker stats` row                 | `sums only the containers labelled with this instance` (instance-a `usageUnits` 5, not 1: all four running containers) and the memory evidence case (`4 labelled containers`)                                        |
+| a stub is refused at startup (4.1)          | `adapter.isStub` check skipped                               | `refuses a kubernetes instance at startup, never reaching the stub` (received `refused: instance cluster-1 resource cluster-ram: HTTP 400 invalid_body`) and the loader case                                         |
+| daemon refusing the socket is `unreachable` | `daemon_unreachable` removed from `TRANSPORT_FAULTS`         | `answers unreachable when the daemon refuses the socket, without throwing` (threw `exited 1 without a transport fault`) and the 200-character case                                                                   |
+| forbidden socket is `unreachable`           | `socket_permission_denied` removed                           | `answers unreachable for every typed docker transport fault`                                                                                                                                                         |
+| unmodelled CLI failure throws               | unmatched non-zero exit answered `unreachable`               | `throws for a docker failure that names no transport fault, and for an unknown context` (resolved)                                                                                                                   |
+| missing `MemTotal` / non-JSON throws        | `parseInfo` error caught and answered `unreachable`          | `throws for docker info without MemTotal and for an answer that is not JSON` (resolved)                                                                                                                              |
+| docker disk takes `ceilingGib`              | the `ceilingGib` comparison in `checkBinding` dropped        | `refuses a docker disk binding without ceilingGib or with a path config_malformed` and an existing `refuses malformed JSON and a malformed shape` case                                                               |
+| no wall clock in the new modules            | `Date.now()` appended to `docker.ts`, then to `execution.ts` | `only clock.ts reads the wall clock` (`+ "compute/execution.ts"`), each                                                                                                                                              |
+| the moved deadline still answers early      | `execute` awaits `answered` alone                            | `bounds an unreachable reason…` in `ssh-host.test.ts` (5002 ms, not under 2000 ms). The docker stalled case passed under this fault, because its fixture `exec`s `sleep` and leaves no descendant holding the pipes. |
+
+Rehearsal against the laptop's Docker 29.7.2 daemon (2026-10-22, scratch script outside the
+repository, production `dockerAdapter`, context `default`). Throwaway `alpine:3` containers:
+one labelled `rehearsal-a` spinning one core, two labelled `rehearsal-b` (one spinning, one
+sleeping) and one unlabelled spinner. Two throwaway contexts pointed at sockets under
+`$XDG_RUNTIME_DIR`, one with no listener and one with mode 000. Every container and both
+contexts were removed afterwards; `docker ps -a --filter name=puni-reh` was empty.
+
+| Case                          | Result                                                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `memory_gib`, instance a      | `measured` 30/0, evidence `1 labelled containers; MemTotal 33227800576 B; in use 2129658 B`                                                                 |
+| `cpu_cores`, a and b          | a: 24/1 (`CPUPerc 100.44%`, one container); b: 24/1 (`100.52%`, two containers). The unlabelled spinner was counted in neither                              |
+| `disk_gib`, `ceilingGib: 400` | `measured` 400/50, evidence `Images 14.83GB, Containers 2.925GB, Local Volumes 20.42GB, Build Cache 15.62GB`                                                |
+| `run` with `LANG`             | `{"exitCode":0,"stdout":"C.UTF-8 3.24.2\n"}` (the container's Alpine release)                                                                               |
+| socket with no listener       | `unreachable`, `docker daemon_unreachable: Cannot connect to the Docker daemon at unix:///run/user/1000/puni-reh/dead.sock. …`                              |
+| socket with mode 000          | `unreachable`, `docker socket_permission_denied: permission denied while trying to connect to the docker API at unix:///…/perm.sock`                        |
+| unknown context               | threw `… exited 1 without a transport fault: Failed to initialize: unable to resolve docker endpoint: context "puni-rehearsal-absent": context not found …` |
+
+The first rehearsal tried to put the throwaway sockets in the scratchpad, and Docker refused the
+path as too long for a unix socket. The second rehearsal used `$XDG_RUNTIME_DIR`.
+
+Not run or not verified:
+
+- Fixture and laptop only. No `tcp://` or `ssh://` context was dialled except the laptop's
+  `ssh://nobody@127.0.0.1:1` probe that shaped the `connection_refused` transcript. The
+  `timeout`, `name_unresolved`, `no_route`, `host_key_mismatch` and `authentication_failed`
+  transcripts are written from the CLI's message shapes, not observed.
+- What `docker stats` prints for a container that is starting or stopping (`--` instead of a
+  size) was not observed. The adapter throws on any size it cannot read, so such a row would end
+  the reporter.
+- No memory-heavy labelled container: the rehearsal's labelled memory floored to 0 GiB.
+- Task 2.4 (dev registration) is still open, and no docker instance is registered on dev.
+- `tool-fleet` was not touched and its tests were not rerun.
+
+Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-3` with `env -u CLAUDECODE`:
+
+- `bunx nx run-many -t lint typecheck -p twilight-dash --skip-nx-cache --parallel=1`:
+  succeeded. The first run failed on one `simple-import-sort` error in `cli.ts`, which was fixed.
+- `bunx nx run twilight-dash:test --skip-nx-cache`: exit 0, 2177 pass, 0 fail.
+- `bunx nx run twilight-dash:build --skip-nx-cache`: succeeded.
+- `bun test src/controller/compute-provider.controller.db.test.ts` (be-01): 27 pass, 0 fail.
+- `bun test src/eslint-boundaries.test.ts` (tool-devsync): 28 pass, 0 fail.
+- `bunx openspec validate --all --json`: 269 of 269 passed.

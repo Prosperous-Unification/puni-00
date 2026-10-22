@@ -6,6 +6,16 @@ import {
 
 import { ConfigurationRefusal, type InstanceSettings, type ProviderAdapter } from './configuration';
 import {
+  boundReason,
+  classifyTransportFault,
+  execute,
+  firstLine,
+  refuseRunRequest,
+  RunTracker,
+  spawnClient,
+  type TransportFault,
+} from './execution';
+import {
   type AgentRunHandle,
   type AgentRunRequest,
   type ComputeProvider,
@@ -16,18 +26,6 @@ import {
 } from './provider';
 
 const KIB_PER_GIB = 1024 * 1024;
-const MAX_REASON_LENGTH = 200;
-const MAX_OUTPUT_BYTES = 1024 * 1024;
-
-/** The keys a run's environment may carry; everything else is refused before ssh starts. */
-export const RUN_ENVIRONMENT_ALLOWLIST: ReadonlySet<string> = new Set([
-  'HOME',
-  'LANG',
-  'LC_ALL',
-  'PATH',
-  'TERM',
-  'TZ',
-]);
 
 /**
  * ssh's own diagnostics for the transport faults an `ssh_host` provider answers `unreachable`
@@ -37,7 +35,7 @@ export const RUN_ENVIRONMENT_ALLOWLIST: ReadonlySet<string> = new Set([
 // Proof: removing each entry in turn failed its case: `connection_refused` and
 // `host_key_mismatch` in `answers unreachable with the ssh cause when the port is closed, without
 // throwing`, the other four in `answers unreachable for every typed transport fault` (2026-10-22).
-const TRANSPORT_FAULTS: readonly (readonly [string, RegExp])[] = [
+const TRANSPORT_FAULTS: readonly TransportFault[] = [
   ['connection_refused', /Connection refused/],
   ['timeout', /timed out/i],
   ['host_key_mismatch', /Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/],
@@ -57,25 +55,8 @@ export interface SshHostOptions {
   readonly commandDeadlineMs?: number;
 }
 
-interface Execution {
-  readonly exitCode: number;
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly timedOut: boolean;
-}
-
 function quote(word: string): string {
   return `'${word.replaceAll("'", `'\\''`)}'`;
-}
-
-/** The first non-blank line, trimmed: ssh ends its diagnostics with `\r\n` on a terminal-less run. */
-function firstLine(text: string): string {
-  return (
-    text
-      .split('\n')
-      .map((line) => line.trim())
-      .find((line) => line.length > 0) ?? ''
-  );
 }
 
 /** The remote command that answers one measure. */
@@ -190,8 +171,7 @@ function readHostSettings(settings: InstanceSettings): { host: string; transport
 class SshHostProvider implements ComputeProvider {
   public readonly kind = 'ssh_host';
   public readonly capabilities = { measures: new Set<Measure>(MEASURES), runs: true };
-  readonly #listeners = new Set<() => void>();
-  #activeRuns = 0;
+  readonly #runs = new RunTracker();
 
   public constructor(
     public readonly instanceId: string,
@@ -209,96 +189,42 @@ class SshHostProvider implements ComputeProvider {
     );
     const { PATH, HOME } = this.options.environment;
     // Only what ssh needs reaches it: never the reporter's credential or other environment.
-    return Bun.spawn([this.options.sshExecutable, ...args], {
-      env: {
-        ...(PATH === undefined ? {} : { PATH }),
-        ...(HOME === undefined ? {} : { HOME }),
-        SSH_AUTH_SOCK: this.transport.agentSocket,
-      },
-      stdin: 'ignore',
-      stdout: 'pipe',
-      stderr: 'pipe',
+    return spawnClient([this.options.sshExecutable, ...args], {
+      ...(PATH === undefined ? {} : { PATH }),
+      ...(HOME === undefined ? {} : { HOME }),
+      SSH_AUTH_SOCK: this.transport.agentSocket,
     });
-  }
-
-  /**
-   * Runs one measuring ssh. Past the command deadline ssh is killed and the answer is `timedOut`
-   * as soon as it has exited, without waiting for its pipes: a `ProxyCommand` or other descendant
-   * may still hold them open. The pipe readers then outlive the answer until that descendant
-   * closes the pipes; this is bounded by the descendant's life, and the losing branch of the race
-   * cannot become an unhandled rejection because the race's own `then` handles it. Any exit after
-   * the deadline fired is `timedOut`, whichever branch of the race settles first.
-   */
-  private async execute(remoteCommand: string): Promise<Execution> {
-    const child = this.spawnSsh(remoteCommand);
-    let deadline: ReturnType<typeof setTimeout> | undefined;
-    let pastDeadline = false;
-    const killed = new Promise<Execution>((resolve) => {
-      deadline = setTimeout(() => {
-        pastDeadline = true;
-        child.kill('SIGKILL');
-        void child.exited.then((exitCode) => {
-          resolve({ exitCode, stdout: '', stderr: '', timedOut: true });
-        });
-      }, this.options.commandDeadlineMs ?? 30_000);
-    });
-    const answered = Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]).then(([stdout, stderr, exitCode]): Execution => {
-      // Proof: dropping this cap made `refuses an answer over 1 MiB` parse the oversized meminfo
-      // (2026-10-22).
-      if (stdout.length > MAX_OUTPUT_BYTES) {
-        throw new Error(`${remoteCommand} on ${this.host} answered more than 1 MiB`);
-      }
-      // In the fixture `killed` always won (3 of 3 runs with `timedOut: false` still passed), so
-      // the proof forces this branch first by never resolving `killed`.
-      // Proof: so forced, the flag passed `answers timeout when a killed ssh has no descendant`
-      // and `timedOut: false` failed it with `true on stalled.fixture exited 137` (2026-10-22).
-      return { exitCode, stdout, stderr, timedOut: pastDeadline };
-    });
-    // Proof: awaiting only `answered` made `bounds an unreachable reason…` fail its elapsed-time
-    // assertion, the timed-out observation answering only after the fixture dial's descendant
-    // `sleep` ended (about 5 s, not under 2 s) (2026-10-22).
-    try {
-      return await Promise.race([answered, killed]);
-    } finally {
-      clearTimeout(deadline);
-    }
   }
 
   public async observe(binding: ResourceBinding, now: number): Promise<Measurement> {
     // Runs in use as of `now`, the instant the measurement is stamped with: a run that ends while
     // the reachability dial is in flight still counted at `now`.
-    // Proof: reading `#activeRuns` after the dial made `counts the runs in use at the stamp, not
+    // Proof: reading the active runs after the dial made `counts the runs in use at the stamp, not
     // after the dial` fail with `usageUnits` 0 instead of 1 (2026-10-22).
-    const runsInUse = this.#activeRuns;
+    const runsInUse = this.#runs.active;
     const command = measuringCommand(binding);
-    const execution = await this.execute(command);
+    const execution = await execute(
+      this.spawnSsh(command),
+      `${command} on ${this.host}`,
+      this.options.commandDeadlineMs,
+    );
     if (execution.timedOut) {
       return {
         kind: 'unreachable',
-        reason: `ssh timeout: no answer from ${this.host} within the command deadline`.slice(
-          0,
-          MAX_REASON_LENGTH,
-        ),
+        reason: boundReason(`ssh timeout: no answer from ${this.host} within the command deadline`),
         observedAt: now,
       };
     }
     if (execution.exitCode === 255) {
-      const diagnostic = firstLine(execution.stderr);
-      const fault = TRANSPORT_FAULTS.find(([, pattern]) => pattern.test(execution.stderr));
+      const reason = classifyTransportFault('ssh', TRANSPORT_FAULTS, execution.stderr);
       // Proof: answering an unmatched 255 `unreachable` made `throws for an ssh failure that
       // names no transport fault` resolve instead of rejecting (2026-10-22).
-      if (fault === undefined) {
-        throw new Error(`ssh to ${this.host} exited 255 without a transport fault: ${diagnostic}`);
+      if (reason === undefined) {
+        throw new Error(
+          `ssh to ${this.host} exited 255 without a transport fault: ${firstLine(execution.stderr)}`,
+        );
       }
-      return {
-        kind: 'unreachable',
-        reason: `ssh ${fault[0]}: ${diagnostic}`.slice(0, MAX_REASON_LENGTH),
-        observedAt: now,
-      };
+      return { kind: 'unreachable', reason, observedAt: now };
     }
     // Proof: dropping this branch made `throws when the remote command fails on a reachable host`
     // receive the parser's `has no MemTotal line` instead of the remote exit (2026-10-22).
@@ -338,15 +264,10 @@ class SshHostProvider implements ComputeProvider {
   }
 
   public run(request: AgentRunRequest, now: number): Promise<AgentRunHandle> {
-    const refused = Object.keys(request.environment).find(
-      (key) => !RUN_ENVIRONMENT_ALLOWLIST.has(key),
-    );
-    // Proof: skipping this refusal made `refuses a run environment key outside the allow-list
-    // before ssh starts` spawn ssh and record an invocation (2026-10-22).
-    if (refused !== undefined) {
-      return Promise.reject(new Error(`run environment key ${refused} is not allow-listed`));
-    }
-    if (request.command[0].includes('=') || request.command[0].length === 0) {
+    const refusal = refuseRunRequest(request);
+    if (refusal !== undefined) return Promise.reject(refusal);
+    // `env` would read a leading `NAME=value` word as an assignment, not the program.
+    if (request.command[0].includes('=')) {
       return Promise.reject(new Error('run command must start with a program name'));
     }
     const assignments = Object.entries(request.environment).map(
@@ -354,28 +275,11 @@ class SshHostProvider implements ComputeProvider {
     );
     // `env -i` starts the remote program with exactly the allow-listed environment.
     const remoteCommand = ['env', '-i', ...assignments, ...request.command.map(quote)].join(' ');
-    const child = this.spawnSsh(remoteCommand);
-    this.changeRuns(1);
-    // stderr is drained so a chatty run cannot block on a full pipe; it is not kept.
-    const exited = Promise.all([
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-      child.exited,
-    ]).then(([stdout, , exitCode]) => ({ exitCode, stdout }));
-    const settled = exited.finally(() => {
-      this.changeRuns(-1);
-    });
-    return Promise.resolve({ startedAt: now, exited: settled });
-  }
-
-  private changeRuns(delta: number): void {
-    this.#activeRuns += delta;
-    for (const listener of this.#listeners) listener();
+    return Promise.resolve(this.#runs.track(this.spawnSsh(remoteCommand), now));
   }
 
   public onRunChange(listener: () => void): () => void {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
+    return this.#runs.onRunChange(listener);
   }
 }
 
@@ -386,6 +290,7 @@ class SshHostProvider implements ComputeProvider {
  */
 export function sshHostAdapter(options: SshHostOptions): ProviderAdapter {
   return {
+    isStub: false,
     measures: new Set<Measure>(MEASURES),
     async open(settings) {
       const { host, transportFile } = readHostSettings(settings);

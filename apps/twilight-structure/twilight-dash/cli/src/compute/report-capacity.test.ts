@@ -4,9 +4,16 @@ import { join } from 'node:path';
 
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import { type ReporterConfiguration, WbsCredential } from './configuration';
+import {
+  ConfigurationRefusal,
+  type ProviderAdapter,
+  type ReporterConfiguration,
+  WbsCredential,
+} from './configuration';
+import { kubernetesStubAdapter } from './kubernetes';
 import type { ComputeProvider, Measurement, ResourceBinding } from './provider';
 import {
+  reportCapacityCommand,
   type ReporterDependencies,
   ReporterExit,
   runReporter,
@@ -560,5 +567,89 @@ describe('sleepUnlessInterrupted', () => {
   test('resolves at once for an interrupt already aborted, and on its timer otherwise', async () => {
     await sleepUnlessInterrupted(3_600_000, AbortSignal.abort());
     await sleepUnlessInterrupted(5, new AbortController().signal);
+  });
+});
+
+describe('a stub provider', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'dash-report-stub-'));
+  afterAll(() => {
+    rmSync(scratch, { force: true, recursive: true });
+  });
+
+  /** The kubernetes stub, counting every call the reporter makes on the provider it opens. */
+  function spyingStub(): { adapter: ProviderAdapter; calls: string[] } {
+    const stub = kubernetesStubAdapter();
+    const calls: string[] = [];
+    return {
+      calls,
+      adapter: {
+        ...stub,
+        open: async (settings) => {
+          const provider = await stub.open(settings);
+          return {
+            ...provider,
+            kind: provider.kind,
+            instanceId: provider.instanceId,
+            capabilities: provider.capabilities,
+            observe: (binding, now) => {
+              calls.push('observe');
+              return provider.observe(binding, now);
+            },
+            run: (request, now) => {
+              calls.push('run');
+              return provider.run(request, now);
+            },
+            onRunChange: (listener) => {
+              calls.push('onRunChange');
+              return provider.onRunChange(listener);
+            },
+          };
+        },
+      },
+    };
+  }
+
+  test('refuses a kubernetes instance at startup, never reaching the stub', async () => {
+    // A WBS that refuses any outcome but `measured` and `unreachable`, as the contract does.
+    const puts: unknown[] = [];
+    const send = async (request: Request): Promise<Response> => {
+      const body = (await request.json()) as { outcome?: { kind?: unknown } };
+      puts.push(body);
+      const kind = body.outcome?.kind;
+      return kind === 'measured' || kind === 'unreachable'
+        ? Response.json(stored.body)
+        : Response.json({ error: 'invalid_body' }, { status: 400 });
+    };
+    const configPath = join(scratch, 'cluster.json');
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        wbsOrigin: 'https://wbs-dev.example',
+        credential: CREDENTIAL,
+        instances: [
+          {
+            instanceId: 'cluster-1',
+            kind: 'kubernetes',
+            bindings: [{ resourceId: 'cluster-ram', measure: 'memory_gib' }],
+          },
+        ],
+      }),
+    );
+    chmodSync(configPath, 0o600);
+    const spy = spyingStub();
+    const exit = await exitOf(
+      reportCapacityCommand(
+        ['--config', configPath],
+        { kubernetes: spy.adapter },
+        dependencies(send, 0).deps,
+      ),
+    );
+    expect(exit.message).toBe(
+      'provider_not_implemented: instance cluster-1 is a kubernetes, whose adapter is a stub this Dash cannot report from',
+    );
+    expect(exit).toBeInstanceOf(ConfigurationRefusal);
+    expect(spy.calls).toEqual([]);
+    expect(puts).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { afterAll, describe, expect, test } from 'bun:test';
 
-import type { ComputeProvider, ResourceBinding } from './provider';
+import type { AgentRunHandle, ComputeProvider, NotImplemented, ResourceBinding } from './provider';
 import { sshHostAdapter } from './ssh-host';
 import { createSshFixture, DF_100_40, MEMINFO_15_7 } from './testing/ssh-fixture';
 
@@ -72,6 +72,11 @@ async function rejectionOf(attempt: Promise<unknown>): Promise<string> {
     throw new Error('rejected with a non-Error', { cause });
   }
   throw new Error('resolved instead of rejecting');
+}
+
+function started(handle: AgentRunHandle | NotImplemented): AgentRunHandle {
+  if (handle.kind !== 'started') throw new Error('the ssh_host adapter answered not_implemented');
+  return handle;
 }
 
 const memory: ResourceBinding = { resourceId: 'ram', measure: 'memory_gib' };
@@ -221,7 +226,7 @@ describe('the ssh_host adapter against the fixture client', () => {
   test('counts the runs in use at the stamp, not after the dial', async () => {
     // The dial takes 0.5 s; the run ends within it.
     const host = await provider('slow.fixture');
-    const handle = await host.run({ command: ['true'], environment: {} }, NOW);
+    const handle = started(await host.run({ command: ['true'], environment: {} }, NOW));
     const observing = host.observe({ resourceId: 'slots', measure: 'agent_slots', slots: 4 }, NOW);
     expect(await handle.exited).toEqual({ exitCode: 0, stdout: '' });
     expect(await observing).toMatchObject({ kind: 'measured', capacityUnits: 4, usageUnits: 1 });
@@ -234,12 +239,14 @@ describe('the ssh_host adapter against the fixture client', () => {
     const host = await provider('measured.fixture');
     const changes: number[] = [];
     host.onRunChange(() => changes.push(changes.length));
-    const handle = await host.run(
-      {
-        command: ['sh', '-c', `printf '%s|%s|%s' "$LANG" "\${SSH_AUTH_SOCK:-none}" "it's"`],
-        environment: { LANG: 'C.UTF-8' },
-      },
-      NOW,
+    const handle = started(
+      await host.run(
+        {
+          command: ['sh', '-c', `printf '%s|%s|%s' "$LANG" "\${SSH_AUTH_SOCK:-none}" "it's"`],
+          environment: { LANG: 'C.UTF-8' },
+        },
+        NOW,
+      ),
     );
     expect(handle.startedAt).toBe(NOW);
     expect(

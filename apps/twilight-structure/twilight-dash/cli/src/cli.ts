@@ -11,6 +11,8 @@ import {
 import { submitAdmission } from './authority/submit-admission';
 import { runActivationChecksCommand, spawnCheck } from './check-runs/run-activation-checks';
 import type { Monotonic, WallClock } from './clock';
+import { dockerAdapter } from './compute/docker';
+import { kubernetesStubAdapter } from './compute/kubernetes';
 import { reportCapacityCommand, sleepUnlessInterrupted } from './compute/report-capacity';
 import { sshHostAdapter } from './compute/ssh-host';
 import { recordBoundProgress, recordProgress } from './progress/record-progress';
@@ -118,11 +120,20 @@ export async function runDash(argv: readonly string[], deps: DashDependencies): 
   }
   // The reporter loads its whole configuration before any connection or request.
   if (command === 'report-capacity') {
-    const sshExecutable = Bun.which('ssh', { PATH: process.env['PATH'] ?? '' });
+    const PATH = process.env['PATH'] ?? '';
+    const sshExecutable = Bun.which('ssh', { PATH });
     if (sshExecutable === null) throw new Error('report-capacity needs ssh on PATH');
     await reportCapacityCommand(
       argumentsAfterCommand,
-      { ssh_host: sshHostAdapter({ sshExecutable, environment: process.env }) },
+      {
+        ssh_host: sshHostAdapter({ sshExecutable, environment: process.env }),
+        // `docker` is required only once a docker instance opens.
+        docker: dockerAdapter({
+          dockerExecutable: Bun.which('docker', { PATH }),
+          environment: process.env,
+        }),
+        kubernetes: kubernetesStubAdapter(),
+      },
       {
         clock: deps.clock,
         send: (request) => fetch(request),

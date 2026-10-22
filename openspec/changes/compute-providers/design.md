@@ -195,8 +195,10 @@ port. The clock is injected (`src/clock.ts`); no adapter reads `Date.now`.
   the binding's measure by the adapter (KiB to GiB, floored) and nowhere else.
 - `docker` (slice 3): a Docker context; `memory_gib` and `cpu_cores` from `docker info`
   (`MemTotal`, `NCPU`), usage from `docker stats --no-stream` summed over containers labelled
-  with the instance id; `disk_gib` from `docker system df`; `run` is `docker run --rm` with the
-  instance label.
+  with the instance id (`docker stats` has no label filter, so `docker ps --filter label=…`
+  names them); `disk_gib` usage from `docker system df`, capacity from the binding's
+  `ceilingGib` (the daemon states no disk size); `run` is `docker run --rm` with the instance
+  label, of the instance's `runImage`.
 - `kubernetes` (slice 4, stub): a kube context and namespace; `capabilities.measures` is the
   full set and `runs` is true, every method answers a typed `not_implemented` outcome through
   the same `Measurement` union extended by `{ kind: 'not_implemented' }`, which WBS does **not**
