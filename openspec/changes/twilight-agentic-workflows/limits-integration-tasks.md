@@ -94,13 +94,13 @@ Use `OrganizationHarness.openComposed()` and real SQLite. Existing cap fixture w
 a complete `organization_limits` row with `max_concurrent_claims`; use current schema
 and actual main fixture conventions. No new helper framework or fake receiver.
 
-- [ ] 1.1 Read both parent sides and actual callers/tests; resolve forty conflicts
+- [x] 1.1 Read both parent sides and actual callers/tests; resolve forty conflicts
       without whole-file ours/theirs. Keep main's defaults/gauge wiring and every refusal
       variant, current credential pins, runtime bytes and shared comparators. Retain both
       navigation entries. Complete all literal forward/reverse migration sets, latest
       identities and old-branch provenance; preserve all original SQL/down bytes. Record
       setup/merge failures separately from semantic RED.
-- [ ] 1.2 Add actual mounted HTTP/SQLite cases before any required runtime adaptation:
+- [x] 1.2 Add actual mounted HTTP/SQLite cases before any required runtime adaptation:
       at cap, a fresh otherwise eligible runtime claim gets the closed typed `claim_limit`
       reply including `cap`, `current`, `at: 0`, `kind: 'claimWorkItem'`; compare complete
       claim/binding/receipt/journal/ledger observations before/after so refusal writes no
@@ -110,7 +110,7 @@ and actual main fixture conventions. No new helper framework or fake receiver.
       ledger. Preserve current authorization before replay. Tests must use real receiver,
       application transaction and main gauge; direct SQL may arrange cap fixtures, not
       substitute outcomes. The existing shared HTTP client must parse the typed refusal.
-- [ ] 1.3 Make the smallest consumer/fixture restoration needed for those cases and
+- [x] 1.3 Make the smallest consumer/fixture restoration needed for those cases and
       existing runtime suites. Every genuinely new/changed check gets watched green→fault
       failure→exact-restored-green proof. For a changed dependency proof, temporarily
       remove the main gauge at its actual graph getter and observe the real mounted cap
@@ -118,7 +118,7 @@ and actual main fixture conventions. No new helper framework or fake receiver.
       failure strength and final bytes. Do not call this an unauthorized-success proof or
       duplicate main's existing policy proofs. Preserve original and restored hashes and
       both logs; retain any unsuccessful fault-driver trial honestly.
-- [ ] 1.4 Prepare a real Nx graph, then run module/effective-policy checks and relevant
+- [x] 1.4 Prepare a real Nx graph, then run module/effective-policy checks and relevant
       uncached contracts/domain/core/memory/SQLite/backend/MCP typecheck/lint. Run focused
       new runtime-cap + existing state/authority/claim/write/mounted/pin/boot and main
       ordinary-claim-cap coverage, public codec/receipt and HTTP/MCP shape coverage, and

@@ -1881,3 +1881,20 @@ host/CI and latest-main drift check remain open. WBS authentication is unavailab
 status is retained locally without remote writes. No merge/deployment/activation,
 I1/S0/S7a completion, authenticated transport, durable sender or host-ordering claim
 is made. The parent change is not ready to archive.
+
+Independent Task 1 review at source merge
+`d2e1e830a9e3dfe82827b41c242cd91fc5315852` approved both spec compliance
+and task quality, with no Critical or Important finding. The reviewer independently
+matched all50source hashes, all174SQL/down identities, ninety retained parent blobs,
+the exact getter-only fault/restoration and the complete11760file immutable freeze.
+Local task1.1–1.4 are checked only for that amended source/evidence scope;1.5 and
+parent5.5 remain open for final combined whole-branch review, published exact-SHA
+canonical host gate/applicable CI and root acceptance. The final local complete
+SQLite run remains the disclosed failure; the subsequent oracle correction has
+focused8test/28assertion evidence, not a newly claimed full-suite pass.
+
+Deferred review Minors are the evidence-driver metadata/payload filename collisions
+(recovered graph/source-state artifacts and independent audit close the present gap),
+inherited color warning noise, and existing agentic/main OpenSpec warnings and main
+archive prerequisites. Carry all three into final review. Review report retained at
+`/tmp/puni-agentic-limits-task1-review.md`; no source fix or extra suite was needed.
