@@ -1,0 +1,51 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+58 |   });
+59 | for (const path of [undefined, '', ' '])
+60 |   it(`requires explicit nonempty DB_PATH ${String(path)}`, () => {
+61 |     const execution = inspect(path);
+62 |     expect(execution.exitCode).not.toBe(0);
+63 |     expect(execution.stderr.toString()).toContain('requires explicit DB_PATH');
+                                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "requires explicit DB_PATH"
+Received: "324 | /** Open an existing SQLite file without creating it or changing its journal mode. */\n325 | export function openReadOnlyDatabase(dbPath: string): Database {\n326 |   // Proof: opening without `readonly` made `refuses every write through the\n327 |   // read-only connection` in `organization-selection-preview.db.test.ts`\n328 |   // delete the memberships; watched 2026-09-28.\n329 |   const client = new Database(dbPath, { readonly: true, create: false });\n                       ^\nerror: Cannot open an anonymous database in read-only mode.\n      at new Database (bun:sqlite:259:18)\n      at openReadOnlyDatabase (/tmp/puni-dependency-cli/libs/wbs/adapters/store-sqlite/src/db.ts:329:18)\n      at openReadOnlyConnection (/tmp/puni-dependency-cli/libs/wbs/adapters/store-sqlite/src/db.ts:315:18)\n      at /tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.ts:10:20\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:63:41)
+(fail) requires explicit nonempty DB_PATH undefined [2567.70ms]
+58 |   });
+59 | for (const path of [undefined, '', ' '])
+60 |   it(`requires explicit nonempty DB_PATH ${String(path)}`, () => {
+61 |     const execution = inspect(path);
+62 |     expect(execution.exitCode).not.toBe(0);
+63 |     expect(execution.stderr.toString()).toContain('requires explicit DB_PATH');
+                                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "requires explicit DB_PATH"
+Received: "324 | /** Open an existing SQLite file without creating it or changing its journal mode. */\n325 | export function openReadOnlyDatabase(dbPath: string): Database {\n326 |   // Proof: opening without `readonly` made `refuses every write through the\n327 |   // read-only connection` in `organization-selection-preview.db.test.ts`\n328 |   // delete the memberships; watched 2026-09-28.\n329 |   const client = new Database(dbPath, { readonly: true, create: false });\n                       ^\nerror: Cannot open an anonymous database in read-only mode.\n      at new Database (bun:sqlite:259:18)\n      at openReadOnlyDatabase (/tmp/puni-dependency-cli/libs/wbs/adapters/store-sqlite/src/db.ts:329:18)\n      at openReadOnlyConnection (/tmp/puni-dependency-cli/libs/wbs/adapters/store-sqlite/src/db.ts:315:18)\n      at /tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.ts:10:20\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:63:41)
+(fail) requires explicit nonempty DB_PATH  [2330.77ms]
+58 |   });
+59 | for (const path of [undefined, '', ' '])
+60 |   it(`requires explicit nonempty DB_PATH ${String(path)}`, () => {
+61 |     const execution = inspect(path);
+62 |     expect(execution.exitCode).not.toBe(0);
+63 |     expect(execution.stderr.toString()).toContain('requires explicit DB_PATH');
+                                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "requires explicit DB_PATH"
+Received: "324 | /** Open an existing SQLite file without creating it or changing its journal mode. */\n325 | export function openReadOnlyDatabase(dbPath: string): Database {\n326 |   // Proof: opening without `readonly` made `refuses every write through the\n327 |   // read-only connection` in `organization-selection-preview.db.test.ts`\n328 |   // delete the memberships; watched 2026-09-28.\n329 |   const client = new Database(dbPath, { readonly: true, create: false });\n                       ^\nerror: Cannot open an anonymous database in read-only mode.\n      at new Database (bun:sqlite:259:18)\n      at openReadOnlyDatabase (/tmp/puni-dependency-cli/libs/wbs/adapters/store-sqlite/src/db.ts:329:18)\n      at openReadOnlyConnection (/tmp/puni-dependency-cli/libs/wbs/adapters/store-sqlite/src/db.ts:315:18)\n      at /tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.ts:10:20\n\nBun v1.4.2 (Linux x64)\n"
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:63:41)
+(fail) requires explicit nonempty DB_PATH   [2179.30ms]
+
+ 0 pass
+ 16 filtered out
+ 3 fail
+ 6 expect() calls
+Ran 3 tests across 1 file. [10.64s]

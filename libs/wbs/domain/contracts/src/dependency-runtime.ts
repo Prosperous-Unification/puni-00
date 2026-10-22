@@ -86,3 +86,34 @@ export function parseDependencyReceipt(receipt: unknown): DependencyActivationRe
     activatedAt: receipt.activatedAt,
   };
 }
+
+/** Validates an exact decoded binary observation; explicit empty support is valid. */
+export function parseDependencyRuntimeCapability(capability: unknown): DependencyRuntimeCapability {
+  // Proof: removing protocol, version, role, exact-key, semantic or duplicate validation
+  // separately failed its runtime observation negative (2026-10-22).
+  if (
+    typeof capability !== 'object' ||
+    capability === null ||
+    Array.isArray(capability) ||
+    Object.keys(capability).sort().join(',') !== 'protocol,role,semantics,version' ||
+    !('protocol' in capability) ||
+    capability.protocol !== 'wbs-dependency-runtime' ||
+    !('version' in capability) ||
+    capability.version !== 1 ||
+    !('role' in capability) ||
+    (capability.role !== 'backend' && capability.role !== 'gateway' && capability.role !== 'mcp') ||
+    !('semantics' in capability) ||
+    !Array.isArray(capability.semantics) ||
+    capability.semantics.some(
+      (semantic: unknown) => semantic !== 'cross-project-dependencies-v1',
+    ) ||
+    new Set(capability.semantics).size !== capability.semantics.length
+  )
+    throw new Error('invalid dependency runtime capability');
+  return {
+    protocol: capability.protocol,
+    version: capability.version,
+    role: capability.role,
+    semantics: capability.semantics.map(() => 'cross-project-dependencies-v1'),
+  };
+}

@@ -1,0 +1,139 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: DELETE FROM cross_project_dependency_activation [134.28ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation_receipt [141.89ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: DROP TABLE cross_project_dependency_activation [109.50ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: PRAGMA ignore_check_constraints=ON; UPDATE cross_project_dependency_activation SET state='UNKNOWN' [111.24ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED'; INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [110.59ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: DROP TABLE __drizzle_migrations [112.21ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: DELETE FROM __drizzle_migrations WHERE name='20261022212000_add_cross_project_dependency_activation' [106.38ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: UPDATE cross_project_dependency_activation SET state='ENABLED' [112.40ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: INSERT INTO cross_project_dependency_activation_receipt VALUES (1,'{}') [110.82ms]
+ 98 |     } finally {
+ 99 |       connection.close();
+100 |     }
+101 |     const before = snapshot(path);
+102 |     const execution = inspect(path);
+103 |     expect(execution.exitCode).not.toBe(0);
+                                         ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-activation-cli.db.test.ts:103:36)
+(fail) refuses corrupt authority without mutation: DROP TRIGGER external_dependency_admit_update [119.61ms]
+
+ 0 pass
+ 12 filtered out
+ 10 fail
+ 10 expect() calls
+Ran 10 tests across 1 file. [3.94s]

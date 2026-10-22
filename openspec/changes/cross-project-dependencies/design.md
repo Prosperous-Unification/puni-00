@@ -586,3 +586,15 @@ undated scheduling unavailability and bounded per-project optimization are
 stated implementation defaults, not additional user quotations. Any later
 change to those defaults must preserve the approved behavior and update the
 corresponding specs before implementation.
+
+### Bounded read-only runtime observations
+
+The first transport slice shares the frozen backend advertisement in the DB-free
+`runtime/dependency-support.ts` module between startup admission and
+`dependency-capabilities-cli.ts`. The advertised semantics remain empty.
+`dependency-activation-cli.ts inspect` uses the existing read-only connection and
+strict `inspectDependencyActivation`; it does not reinterpret missing older
+schema as dormant authority. SQLite may create WAL coordination sidecars while
+opening a read-only database; inspection grants no database write authority.
+These observations do not prove participant exclusion and do not activate
+production authoring. Deploy consumption and activation remain later slices.

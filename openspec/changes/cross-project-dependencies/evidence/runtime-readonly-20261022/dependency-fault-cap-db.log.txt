@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/dependency-capabilities-cli.test.ts:
+17 |         PATH: process.env.PATH,
+18 |         CROSS_PROJECT_DEPENDENCIES: 'enabled',
+19 |         DEPENDENCY_ACTIVATION: 'ENABLED',
+20 |       },
+21 |     });
+22 |     expect(execution.exitCode).toBe(0);
+                                    ^
+error: expect(received).toBe(expected)
+
+Expected: 0
+Received: 1
+
+      at <anonymous> (/tmp/puni-dependency-cli/apps/wbs/be-01/src/dependency-capabilities-cli.test.ts:22:32)
+(fail) advertises frozen empty support without database configuration or migrations [14.71ms]
+(pass) refuses capability arguments [8.13ms]
+
+ 1 pass
+ 1 fail
+ 3 expect() calls
+Ran 2 tests across 1 file. [2.43s]

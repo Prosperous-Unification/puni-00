@@ -325,3 +325,23 @@ When activation may have committed or later writes cannot be excluded, recovery 
 - **THEN** the system retains current store bytes and activation and exposure evidence
 - **AND** ordinary retry, automatic schema reversal and incompatible downgrade refuse pending an explicitly reviewed compatible recovery
 - **AND** a pre-migration capture or snapshot alone does not authorize discarding later writes
+
+### Requirement: Read-only dependency observations are explicit
+
+The backend SHALL advertise immutable binary dependency support through a DB-free, argument-free executable. Empty semantics SHALL explicitly mean incapable; configuration SHALL NOT grant support. A runtime-capability boundary parser SHALL reject unknown protocols, versions, roles, semantics, duplicates and extra or missing fields. A separate inspection executable SHALL accept exactly `inspect`, require explicit nonempty `DB_PATH`, open only an existing database read-only and return its validated durable activation state and exact receipt. Missing, unreadable or malformed authority SHALL refuse rather than imply DISABLED. Inspection SHALL NOT migrate, create a database, activate authoring or start services.
+
+#### Scenario: Dormant binary observation without database configuration
+
+- **WHEN** the backend capability executable runs without database configuration or migrations
+- **THEN** it reports backend protocol version 1 with empty semantics independent of activation environment values
+
+#### Scenario: Enabled empty authority inspection
+
+- **GIVEN** an existing database has ENABLED authority and an exact activation receipt with no live external relationships
+- **WHEN** the inspection executable runs
+- **THEN** it reports ENABLED with that receipt without writing database content
+
+#### Scenario: Inspection cannot invent or repair authority
+
+- **WHEN** the inspection executable encounters an absent database, read denial, missing authority ledger or corrupt authority
+- **THEN** it refuses without creating or repairing database content

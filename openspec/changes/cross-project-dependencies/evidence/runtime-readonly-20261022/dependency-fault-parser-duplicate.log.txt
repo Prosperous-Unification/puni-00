@@ -1,0 +1,77 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/domain/contracts/src/dependency-runtime.test.ts:
+(pass) accepts exact attributed receipt [0.20ms]
+(pass) refuses receipt protocol=wrong [0.06ms]
+(pass) refuses receipt version=2
+(pass) refuses receipt version=true [0.07ms]
+(pass) refuses receipt activationId= 
+(pass) refuses receipt databaseIdentity=
+(pass) refuses receipt candidateImage=wbs:latest
+(pass) refuses receipt rollbackImage=wbs:latest
+(pass) refuses receipt participantProofSha256=xyz
+(pass) refuses receipt migrationCaptureSha256=xyz
+(pass) refuses receipt activatedAt=-1
+(pass) refuses receipt activatedAt=1.5
+(pass) refuses receipt activatedAt=9007199254740992
+(pass) refuses receipt extra=1
+(pass) refuses absent protocol [0.05ms]
+(pass) refuses absent version
+(pass) refuses absent activationId
+(pass) refuses absent databaseIdentity [0.05ms]
+(pass) refuses absent candidateImage [0.01ms]
+(pass) refuses absent rollbackImage
+(pass) refuses absent participantProofSha256
+(pass) refuses absent migrationCaptureSha256
+(pass) refuses absent activatedAt [0.06ms]
+(pass) refuses malformed receipt null [0.02ms]
+(pass) refuses malformed receipt []
+(pass) refuses malformed receipt true
+(pass) refuses malformed receipt 1
+(pass) refuses malformed receipt "receipt"
+(pass) refuses malformed receipt {}
+(pass) accepts explicit incapable and supported immutable runtime observations [0.11ms]
+(pass) refuses runtime observation null [0.01ms]
+(pass) refuses runtime observation []
+(pass) refuses runtime observation true
+(pass) refuses runtime observation "invalid JSON"
+(pass) refuses runtime observation {}
+(pass) refuses runtime observation {"version":1,"role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend"}
+(pass) refuses runtime observation {"protocol":"unknown","version":1,"role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":2,"role":"backend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"frontend","semantics":[]}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["unknown"]}
+85 |   { ...capability, semantics: ['cross-project-dependencies-v1', 'cross-project-dependencies-v1'] },
+86 |   { ...capability, semantics: null },
+87 |   { ...capability, extra: true },
+88 | ])
+89 |   it(`refuses runtime observation ${JSON.stringify(malformed)}`, () => {
+90 |     expect(() => parseDependencyRuntimeCapability(malformed)).toThrow(
+                                                                   ^
+error: expect(received).toThrow(expected)
+
+Expected substring: "invalid dependency runtime capability"
+
+Received function did not throw
+Received value: {
+  protocol: "wbs-dependency-runtime",
+  version: 1,
+  role: "backend",
+  semantics: [ "cross-project-dependencies-v1", "cross-project-dependencies-v1" ],
+}
+
+      at <anonymous> (/tmp/puni-dependency-cli/libs/wbs/domain/contracts/src/dependency-runtime.test.ts:90:63)
+(fail) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["cross-project-dependencies-v1","cross-project-dependencies-v1"]} [0.15ms]
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":null}
+(pass) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":[],"extra":true}
+
+1 tests failed:
+(fail) refuses runtime observation {"protocol":"wbs-dependency-runtime","version":1,"role":"backend","semantics":["cross-project-dependencies-v1","cross-project-dependencies-v1"]} [0.15ms]
+
+ 45 pass
+ 1 fail
+ 49 expect() calls
+Ran 46 tests across 1 file. [23.00ms]
