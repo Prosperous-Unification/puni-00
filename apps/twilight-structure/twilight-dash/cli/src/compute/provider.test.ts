@@ -448,6 +448,7 @@ describe('loading a reporter configuration', () => {
       { dockerContext: '-H=tcp://evil' },
       { dockerContext: 'h4claw', runImage: '--privileged' },
       { dockerContext: 'x'.repeat(65) },
+      { dockerContext: 'a' },
     ]) {
       const refusal = await refusalOf(
         writeConfiguration(

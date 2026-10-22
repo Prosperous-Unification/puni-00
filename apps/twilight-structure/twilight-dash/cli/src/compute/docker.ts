@@ -92,13 +92,6 @@ type Answer =
   | { readonly kind: 'answered'; readonly stdout: string }
   | { readonly kind: 'unreachable'; readonly reason: string };
 
-/** One container's sampled usage, by its short id. */
-interface ContainerUsage {
-  readonly id: string;
-  readonly memoryBytes: number;
-  readonly cpuPercent: number;
-}
-
 /**
  * A size as `docker` prints it (`12.64MiB`, `14.83GB`, `0B`), in bytes.
  * @throws Error naming `subject` for any other text.
@@ -165,36 +158,45 @@ function parseContainerIds(subject: string, stdout: string): ReadonlySet<string>
 }
 
 /**
- * `docker stats --no-stream`: per running container, the memory in use (left of `MemUsage`'s
- * ` / `) and `CPUPerc`, where 100 % is one core.
- * @throws Error for a row it cannot read.
+ * The usage of the containers carrying this instance's label, from one `docker stats --no-stream`
+ * sample of every running container (`docker stats` cannot filter by label, so `labelled` holds
+ * the ids `docker ps --filter label=…` named). Rows of other containers are skipped before their
+ * values are read, so another tenant's or another instance's container never ends this one's
+ * report. A labelled row whose sample failed (`CPUPerc` `--`, `MemUsage` `-- / --`: the container
+ * was removed mid-sample, as a finished `docker run --rm` is, or its sample timed out) is counted
+ * `inTransit` and adds nothing. A labelled container `ps` named and `stats` did not sample started
+ * or ended between the two commands and is left out; `sampled` counts the labelled rows read.
+ * @throws Error for a line that is not JSON, a row without the three fields, or a labelled row
+ * whose values it cannot read.
  */
-function parseStats(subject: string, stdout: string): ContainerUsage[] {
-  return parseJsonLines(subject, stdout).map((line) => {
+function sumLabelled(subject: string, stdout: string, labelled: ReadonlySet<string>) {
+  let sampled = 0;
+  let inTransit = 0;
+  let memoryBytes = 0;
+  let cpuPercent = 0;
+  for (const line of parseJsonLines(subject, stdout)) {
     const row = StatsRow(line);
     if (row instanceof type.errors) throw new Error(`${subject} answered a row it cannot read`);
+    // Proof: summing every row made `sums only the containers labelled with this instance` fail,
+    // instance-a reporting 5 GiB of memory in use instead of 1: all four running containers of
+    // the two-instance fixture (2026-10-22). Reading every row's values before this skip made
+    // `skips unlabelled rows unread and counts a labelled sample in transit` throw `answered a
+    // CPUPerc it cannot read` on the unlabelled `--` row (2026-10-23).
+    if (!labelled.has(row.ID)) continue;
+    sampled += 1;
+    // Proof: without this branch the same test threw `answered a CPUPerc it cannot read` on the
+    // labelled `--` row (2026-10-23).
+    if (row.CPUPerc === '--' && row.MemUsage.startsWith('--')) {
+      inTransit += 1;
+      continue;
+    }
     const used = row.MemUsage.split(' / ').at(0) ?? '';
     const cpu = /^(\d+(?:\.\d+)?)%$/.exec(row.CPUPerc);
     if (cpu === null) throw new Error(`${subject} answered a CPUPerc it cannot read`);
-    return { id: row.ID, memoryBytes: parseBytes(subject, used), cpuPercent: Number(cpu[1]) };
-  });
-}
-
-/**
- * The usage of the containers carrying this instance's label. `docker stats` cannot filter by
- * label, so it samples every running container and the ids `docker ps --filter label=…` named are
- * kept; a container that started or ended between the two commands is in only one and not summed.
- */
-function sumLabelled(usages: readonly ContainerUsage[], labelled: ReadonlySet<string>) {
-  // Proof: summing `usages` unfiltered made `sums only the containers labelled with this
-  // instance` fail, instance-a reporting 5 GiB of memory in use instead of 1: all four running
-  // containers of the two-instance fixture (2026-10-22).
-  const mine = usages.filter((usage) => labelled.has(usage.id));
-  return {
-    containers: mine.length,
-    memoryBytes: mine.reduce((sum, usage) => sum + usage.memoryBytes, 0),
-    cpuPercent: mine.reduce((sum, usage) => sum + usage.cpuPercent, 0),
-  };
+    memoryBytes += parseBytes(subject, used);
+    cpuPercent += Number(cpu[1]);
+  }
+  return { labelled: labelled.size, sampled, inTransit, memoryBytes, cpuPercent };
 }
 
 /** The settings a `docker` instance needs beyond its bindings. */
@@ -294,11 +296,8 @@ class DockerProvider implements ComputeProvider {
     const labelled = parseContainerIds(`docker ps on context ${this.context}`, listed.stdout);
     const sampled = await this.command(STATS);
     if (sampled.kind === 'unreachable') return { ...sampled, observedAt: now };
-    const usage = sumLabelled(
-      parseStats(`docker stats on context ${this.context}`, sampled.stdout),
-      labelled,
-    );
-    const source = `docker context ${this.context}: ${String(usage.containers)} labelled containers`;
+    const usage = sumLabelled(`docker stats on context ${this.context}`, sampled.stdout, labelled);
+    const source = `docker context ${this.context}: ${String(usage.labelled)} labelled; ${String(usage.sampled)} sampled; ${String(usage.inTransit)} in transit`;
     if (binding.measure === 'memory_gib') {
       return {
         kind: 'measured',

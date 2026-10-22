@@ -437,6 +437,9 @@ Assumed in these slices (each overrulable):
   `docker ps --filter label=puni.compute-provider=<id> --format '{{.ID}}'`, then `docker stats
 --no-stream`, and sums only the rows whose ids `ps` named. A container that starts or ends
   between the two commands is summed in neither, rather than making `stats` fail on a missing id.
+  Rows of containers `ps` did not name are skipped before their values are read. A labelled row
+  whose sample failed (`CPUPerc` `--`, `MemUsage` `-- / --`) adds nothing and is counted
+  `in transit` in the evidence (review S1-1, below).
 - `disk_gib` on `docker` reports usage as every `docker system df` row summed (the daemon's
   whole disk, not only labelled containers). Capacity is a new binding field, `ceilingGib`,
   because the daemon states no disk size. A docker disk binding takes `ceilingGib` and no
@@ -506,9 +509,8 @@ Not run or not verified:
   `ssh://nobody@127.0.0.1:1` probe that shaped the `connection_refused` transcript. The
   `timeout`, `name_unresolved`, `no_route`, `host_key_mismatch` and `authentication_failed`
   transcripts are written from the CLI's message shapes, not observed.
-- What `docker stats` prints for a container that is starting or stopping (`--` instead of a
-  size) was not observed. The adapter throws on any size it cannot read, so such a row would end
-  the reporter.
+- The `--` row of a container removed mid-sample is the reviewer's report of the CLI, encoded in
+  the fixture; it was not observed on the laptop daemon.
 - No memory-heavy labelled container: the rehearsal's labelled memory floored to 0 GiB.
 - Task 2.4 (dev registration) is still open, and no docker instance is registered on dev.
 - `tool-fleet` was not touched and its tests were not rerun.
@@ -524,3 +526,42 @@ Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-3` with `env 
 - `bunx openspec validate --all --json`: 269 of 269 passed.
 - Burokrat `check-indexes working . HEAD` after the commit: exit 0, 39 indexes, none covering a
   changed file; the only review debt is the existing `store-memory` one (48 entries, limit 40).
+
+### Slices 3 and 4 review (Fable, 2026-10-23, PR #662)
+
+Fixed on the same PR:
+
+- S1-1: a `--` row in `docker stats` ended the reporter. The CLI prints such a row for a
+  container removed mid-sample, a finished `docker run --rm` agent among them, or whose sample
+  timed out. The adapter parsed every row before narrowing to the labelled ids, so another
+  tenant's or another instance's container, not only a labelled one, could throw. `sumLabelled`
+  now skips unlabelled rows before reading their values. A labelled `--` row adds nothing and is
+  counted `in transit`. Any other malformed labelled row still throws.
+- S3-a: the evidence reads `<n> labelled; <n> sampled; <n> in transit`. A labelled container that
+  `ps` named but `stats` did not sample is visible as the gap between the first two numbers.
+- S3-b: the `runReporter` JSDoc now states the real stop bound: one request timeout plus one
+  observation, where a docker memory or cores observation is up to three 30 s commands, so up to
+  30 s + 90 s.
+- S3-c: the README says to use a named context, not `default` (`DOCKER_HOST` is not passed, and
+  rootless Docker's `default` depends on it). It also says the reporter user's credential helpers
+  pull a private `runImage`.
+- S3-d: a context name needs two characters at least, as Docker's own rule does. `a` is now
+  `config_malformed` at load instead of `context not found` at the first observation.
+- S3-e: design.md P9 says WBS stores usage above `ceilingGib` as reported.
+
+| Fault injected (watched 2026-10-23)                               | Observed failing test                                                                                            |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| every row's values read before the label skip (the pre-fix order) | `skips unlabelled rows unread and counts a labelled sample in transit` threw `answered a CPUPerc it cannot read` |
+| the label skip removed                                            | the same test, `sums only the containers labelled with this instance` and the memory evidence case               |
+| the labelled `--` branch removed                                  | `skips unlabelled rows unread…` threw `answered a CPUPerc it cannot read`                                        |
+| context pattern back to `{0,63}`                                  | `refuses a docker context or image that could read as a flag config_malformed` (loaded the context `a`)          |
+
+A later refinement, not done: take one `info`/`ps`/`stats` sample per instance per tick and
+share it between the memory and cores bindings. Today each of those bindings samples again.
+
+Commands after the review fixes (2026-10-23, `env -u CLAUDECODE`):
+
+- `docker.test.ts`: 13 pass. `provider.test.ts`: 16 pass.
+- `bunx nx run-many -t lint typecheck -p twilight-dash --skip-nx-cache --parallel=1`: succeeded.
+- `bunx nx run twilight-dash:test --skip-nx-cache`: exit 0, 2178 pass, 0 fail.
+- `bunx openspec validate --all --json`: 269 of 269 passed.

@@ -273,7 +273,9 @@ async function reportInstance(
 /**
  * Runs one reporting loop per configured instance until the first ends; the others stop at their
  * next step and the first end is thrown. A loop notices the stop at its next step, so it may end
- * up to one request timeout plus one command deadline late (two hard-coded 30 s constants). It
+ * up to one request timeout plus one observation late. An observation runs up to three commands
+ * one after another, each under its own command deadline (a `docker` memory or cores observation:
+ * `info`, `ps`, `stats`), so with the hard-coded 30 s constants that is up to 30 s + 90 s. It
  * never returns normally and never prints the credential.
  * @throws ReporterExit for `another_reporter`, a WBS refusal, or WBS unavailable after one retry;
  * a provider's error for a measurement it could not parse.

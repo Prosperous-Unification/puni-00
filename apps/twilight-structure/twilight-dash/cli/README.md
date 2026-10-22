@@ -216,11 +216,13 @@ credential:
   started; it reports 0 until a caller runs agents through the port). All are floored to whole
   units.
 - `docker` runs every command as `docker --context <dockerContext>` (a context name: letters,
-  digits, `_ . + -`, at most 64, never a leading `-`), with only `PATH`, `HOME`,
+  digits, `_ . + -`, 2 to 64, never a leading `-`), with only `PATH`, `HOME`,
   `DOCKER_CONFIG` and `SSH_AUTH_SOCK` passed to the CLI; `docker` must be on `PATH` once a
   docker instance is configured. Measures: `memory_gib` (`docker info` `MemTotal`; in use = the
   `docker stats --no-stream` memory of the running containers labelled
-  `puni.compute-provider=<instanceId>`, which `docker ps --filter label=…` names), `cpu_cores`
+  `puni.compute-provider=<instanceId>`, which `docker ps --filter label=…` names; other
+  containers' rows are skipped unread, and a labelled row whose sample failed (`--`, a container
+  removed mid-sample) adds nothing and is counted `in transit` in the evidence), `cpu_cores`
   (`NCPU`; in use = the same containers' `CPUPerc` summed, 100 % per core, floored and capped),
   `disk_gib` (in use = every `docker system df` row summed, the daemon's whole disk; capacity =
   the binding's `ceilingGib`, because the daemon states no disk size; no `path`). No
@@ -228,6 +230,12 @@ credential:
   `runImage` with the allow-listed `--env`; without `runImage` the instance measures only.
   The daemon refusing or forbidding its socket, and a `tcp://` or `ssh://` context's transport
   fault, report `unreachable`; an unknown context or any other failure ends the command.
+  Configure a named context (`docker context create h4claw --docker host=ssh://puni1@h4claw`),
+  not `default`: `DOCKER_HOST` is not passed, and rootless Docker's `default` resolves its
+  socket from it. Because `HOME` and `DOCKER_CONFIG` are passed, `docker run` pulls a private
+  `runImage` with the reporter user's own registry credentials and credential helpers. A memory
+  or cores observation is three commands (`info`, `ps`, `stats`) and each such binding samples
+  again, so one tick takes two `stats` samples when both are bound.
 - Loading refuses before any connection: `config_absent`, `config_unreadable`,
   `credential_not_owner_only`, `config_malformed` (naming field paths, never values),
   `provider_kind_not_available` (`puni_pool`, a slot with no adapter),

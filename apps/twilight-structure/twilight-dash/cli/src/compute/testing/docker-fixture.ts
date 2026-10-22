@@ -152,6 +152,24 @@ export function statsRow(id: string, memUsage: string, cpuPercent: string): stri
   });
 }
 
+/**
+ * A `docker stats` row whose one-shot sample failed, as the CLI prints it for a container removed
+ * mid-sample or whose sample timed out.
+ */
+export function transitRow(id: string): string {
+  return JSON.stringify({
+    BlockIO: '--',
+    CPUPerc: '--',
+    Container: id,
+    ID: id,
+    MemPerc: '--',
+    MemUsage: '-- / --',
+    Name: '--',
+    NetIO: '--',
+    PIDs: '--',
+  });
+}
+
 /** `docker system df --format '{{json .}}'` as the 29.x CLI prints it: 53.794 GB in all, 50 GiB floored. */
 export const SYSTEM_DF_50 = `${[
   { Active: '2', Reclaimable: '10.47GB (70%)', Size: '14.83GB', TotalCount: '46', Type: 'Images' },

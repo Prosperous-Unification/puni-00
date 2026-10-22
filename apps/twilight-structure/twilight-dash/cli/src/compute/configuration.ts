@@ -111,8 +111,11 @@ const DEFAULT_CADENCE_SECONDS = 300;
 const MAX_CONFIGURATION_BYTES = 64 * 1024;
 const Identifier = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
 const AbsolutePath = /^\/[A-Za-z0-9._/-]*$/;
-// Docker's own context-name rule, bounded; the first character keeps it from reading as a flag.
-const DockerContext = /^[A-Za-z0-9][A-Za-z0-9_.+-]{0,63}$/;
+// Docker's own context-name rule (`^[a-zA-Z0-9][a-zA-Z0-9_.+-]+$`, two characters at least),
+// bounded; the first character keeps it from reading as a flag.
+// Proof: `{0,63}` made `refuses a docker context or image that could read as a flag
+// config_malformed` load the one-character context `a` (2026-10-23).
+const DockerContext = /^[A-Za-z0-9][A-Za-z0-9_.+-]{1,63}$/;
 // An image reference (`registry/repository:tag@digest`), bounded, never starting with `-`.
 const ImageReference = /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,254}$/;
 // The key shape `libs/wbs/application/core/src/service/machine-key.ts` mints.

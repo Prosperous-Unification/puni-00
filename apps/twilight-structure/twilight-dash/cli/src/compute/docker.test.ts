@@ -5,7 +5,13 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { ConfigurationRefusal } from './configuration';
 import { dockerAdapter } from './docker';
 import type { AgentRunHandle, ComputeProvider, NotImplemented, ResourceBinding } from './provider';
-import { createDockerFixture, INFO_30_24, statsRow, SYSTEM_DF_50 } from './testing/docker-fixture';
+import {
+  createDockerFixture,
+  INFO_30_24,
+  statsRow,
+  SYSTEM_DF_50,
+  transitRow,
+} from './testing/docker-fixture';
 
 const NOW = 1_760_000_000_000;
 
@@ -69,6 +75,15 @@ const fixture = createDockerFixture({
   },
   badps: { info: INFO_30_24, ps: { 'instance-a': 'not-an-id\n' }, stats: STATS_ABCD },
   nodf: { df: '' },
+  transit: {
+    info: INFO_30_24,
+    ps: { 'instance-a': 'aaaaaaaaaaaa\neeeeeeeeeeee\n9999999999ab\n' },
+    stats: `${[
+      statsRow('aaaaaaaaaaaa', '1.5GiB', '150.00%'),
+      transitRow('eeeeeeeeeeee'),
+      transitRow('ffffffffffff'),
+    ].join('\n')}\n`,
+  },
   stalled: { stall: '5' },
 });
 
@@ -127,7 +142,7 @@ describe('the docker adapter against the fixture CLI', () => {
       usageUnits: 1,
       observedAt: NOW,
       evidence:
-        'docker context shared: 1 labelled containers; MemTotal 33227800576 B; in use 1610612736 B',
+        'docker context shared: 1 labelled; 1 sampled; 0 in transit; MemTotal 33227800576 B; in use 1610612736 B',
     });
     const invocations = readFileSync(fixture.invocationsFile, 'utf8').trim().split('\n').slice(-3);
     expect(invocations).toEqual([
@@ -149,6 +164,21 @@ describe('the docker adapter against the fixture CLI', () => {
     const idle = await provider('shared', { instanceId: 'instance-idle' });
     expect(await idle.observe(memory, NOW)).toMatchObject({ usageUnits: 0 });
     expect(await idle.observe(cores, NOW)).toMatchObject({ usageUnits: 0 });
+  });
+
+  test('skips unlabelled rows unread and counts a labelled sample in transit', async () => {
+    // a is healthy, e is labelled and was removed mid-sample, f is another container's failed
+    // sample, and 9999999999ab was named by ps but not sampled.
+    const host = await provider('transit');
+    expect(await host.observe(memory, NOW)).toEqual({
+      kind: 'measured',
+      capacityUnits: 30,
+      usageUnits: 1,
+      observedAt: NOW,
+      evidence:
+        'docker context transit: 3 labelled; 2 sampled; 1 in transit; MemTotal 33227800576 B; in use 1610612736 B',
+    });
+    expect(await host.observe(cores, NOW)).toMatchObject({ capacityUnits: 24, usageUnits: 1 });
   });
 
   test('measures disk as docker system df against the binding ceiling', async () => {
