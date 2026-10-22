@@ -271,6 +271,10 @@ function stepWriteCode(
       // fe-01 sends no code yet, so the last three cannot arrive from the step
       // header; named so a caller that does send one reads the refusal.
       return refusal.error;
+    // Proof: omitting this arm made the typed step-write cycle refusal throw
+    // at the default instead of returning dependency_cycle in plan-writer.test.ts.
+    case 'dependency_cycle':
+      return refusal.error;
     case 'calendar_range':
       // An allowance edit that would place the plan past the supported calendar.
       return refusal.error;

@@ -332,6 +332,17 @@ it('classifies project abbreviation refusals without throwing', () => {
   }
 });
 
+it('classifies a step-write cycle and code collision from the shared typed refusal', () => {
+  for (const error of ['dependency_cycle', 'code_taken'] as const) {
+    const problem = {
+      kind: 'refusal',
+      operation: 'postApiProjectsByIdSteps',
+      refusal: { error },
+    } as const;
+    expect(failureText(new WbsRequestError(problem), 'unknown')).toBe(error);
+  }
+});
+
 it.each(['postApiProjectsByIdCommands', 'postApiProjectsByIdUndo'] as const)(
   'reports dormant external dependency admission from %s without retrying',
   async (operation) => {

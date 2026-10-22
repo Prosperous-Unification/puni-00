@@ -499,6 +499,7 @@ describe('adding and renaming a step', () => {
       estimateUnit: 'workdays' as const,
       id: 'r3',
       name: 'Design',
+      code: 'design',
       allowancePercent: 0,
     });
     expect(fetched.mock.calls[0]?.[0]).toBe('/api/projects/p1/steps');
