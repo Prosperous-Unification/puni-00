@@ -505,6 +505,11 @@ The versioned digest of one coherent local project's ledger identity, project re
 complete work-item revision set, used as a conditional write precondition.
 _Avoid_: Global snapshot, authorization snapshot
 
+**Canonical runtime request**:
+The complete, ordered identity of one runtime operation, including its installation, scope,
+caller command and preconditions. Payload identity is separate from current permission and acceptance.
+_Avoid_: Artifact digest, binding digest, receipt
+
 **Runtime receipt**:
 The permanent, payload-bound acceptance of one runtime command, separate from undo history.
 _Avoid_: Journal entry, current grant

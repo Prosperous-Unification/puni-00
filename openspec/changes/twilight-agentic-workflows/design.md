@@ -287,3 +287,7 @@ The runbook (`docs/runbook-agentic-workflows.md`) names the commands and the ref
 generations, exact claim bindings and permanent accepted-command receipts.
 [Receiver tasks](receiver-tasks.md) sequence implementation and R5 proofs. Dash durable
 pins/grant mappings and executor/coordinator integration remain separate prerequisites.
+
+## Portable runtime request identity
+
+The bounded [runtime request design](runtime-request-design.md) publishes the existing receiver codec for a durable bridge while preserving bytes, limits and admission. Sender retention, acceptance authentication and host orchestration remain later work.

@@ -231,3 +231,38 @@ or return receipt absence. Only explicit installation migrations SHALL create th
 - **WHEN** the system describes its continuity guarantee
 - **THEN** it covers supported migration/recreation and missing or inconsistent trusted tables
 - **AND** it does not claim detection of coherent older whole-database restoration preserving identity and counters, or hostile DBA forgery
+
+### Requirement: Runtime payload identity is available through shared contracts
+
+WBS contracts SHALL expose the receiver's existing canonical runtime request encoder, decoder and strict request parsers. The receiver SHALL consume that same implementation. Version 1 bytes and validation SHALL remain compatible, including ordered content, explicit null and input detachment before queued admission. Payload identity SHALL NOT establish permission or authenticated acceptance.
+
+#### Scenario: A contracts caller retains a runtime request
+
+- **WHEN** the caller canonicalizes a valid authority, claim or ordered write operation with its complete scope
+- **THEN** it obtains the existing fixed version 1 UTF-8 JSON bytes and can strictly decode them
+- **AND** a real receiver acceptance identifies those same bytes by its request digest
+
+#### Scenario: Stored bytes are not canonical
+
+- **WHEN** trusted request bytes contain undeclared fields, a malformed operation or a different byte representation
+- **THEN** the shared decoder throws rather than treating those bytes as an accepted equivalent request
+
+#### Scenario: Caller mutation overlaps queued admission
+
+- **WHEN** a caller changes the original request after submission while a real transaction delays admission
+- **THEN** the receiver preserves the originally detached operation and canonical identity
+
+### Requirement: Runtime and ordinary batches retain the shared command bound
+
+The published command limit SHALL remain 200. Canonical runtime requests, HTTP command and applied arrays, and the existing ordinary application service SHALL consume that same bound without changing their current rejection ordering.
+
+#### Scenario: A batch reaches the bound
+
+- **WHEN** a valid runtime command or applied array contains 200 entries
+- **THEN** its boundary accepts the array
+- **AND** 201 entries are refused; an empty runtime command list remains invalid
+
+#### Scenario: The ordinary application receives 201 commands
+
+- **WHEN** a semantically valid ordinary batch contains 201 commands
+- **THEN** its existing too_many_commands refusal identifies index 200 before any command applies

@@ -72,6 +72,10 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
       credentials; negative: drop the `person_not_bound` mapping and the write is retried
       forever — watched, bounded, `Proof:`.
 
+- [ ] 5.3 Publish the exact portable request codec and one unchanged batch bound through
+      [runtime request tasks](runtime-request-tasks.md); packet acceptance does not complete
+      the sender/outbox, receipt authentication or durable coordinator.
+
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
