@@ -1,0 +1,147 @@
+## 0. Dany reads L1 to L16
+
+- [ ] 0.1 Dany confirms or amends design.md L1 to L16, in particular L5 (a bound claim is a
+      distinct work item, person, run triple), L7 (defaults from three required environment
+      variables), L12 (CLI is the only writer) and L2 (the capacity cap applies per resource
+      to the sum over projects). Slice 1 may proceed on L6, L7 and L8; slice 2 waits for L9;
+      slice 3 waits for L5 and L10; slice 4 waits for L2; slice 5 waits for L12 and L13;
+      slice 6 waits for L14.
+
+## 1. Schema, defaults and the read
+
+- [ ] 1.1 Migration `add_organization_limits`: table `organization_limits` with the three
+      `NOT NULL` integer columns, their 0 to 1,000,000 CHECKs and audit columns, and a
+      `down.sql` refusing while any row exists — Red: `organization-limits-migration.db.test.ts`
+      forward, back, the refusal with one row, a row with a null or out-of-bound cap refused
+      by the CHECK. R5 fault: drop the `down.sql` guard and the rollback silently deletes a
+      tenant's caps; drop one CHECK and the null-cap case stores a row the read cannot
+      explain; watched.
+- [ ] 1.2 `BeConfig` gains the three required `ORGANIZATION_DEFAULT_*` variables within the
+      bound; compose, Kubernetes manifests, `.env.example`, the dev host's environment and
+      `docs/runbook-organization-activation.md` gain them — Red: `config.test.ts` refuses an
+      absent, fractional, negative and over-bound value naming the variable, and
+      `boot.db.test.ts` boots with all three. R5 fault: give one variable a default in the
+      schema and the absent case boots; watched.
+- [ ] 1.3 Red: `organization-limits.test.ts` in `@wbs/domain`: `refuseLimit({ cap, current,
+added })` answers null under the cap, the refusal at and over it, and a property that
+      `current + added <= cap` never refuses and `>` always does. R5 fault: compare with
+      `>=`; the "exactly at the cap after the add" case flips; watched.
+- [ ] 1.4 Green: port `OrganizationLimits` in `@wbs/core` (`effectiveLimitsOf`, `usageOf`,
+      `countAgentPersons`, `countBoundClaims`, `sumStatedCapacity(resourceId,
+exceptProjectId)`, `set`, `reset`) over SQLite with a memory twin and a conformance
+      suite; `effectiveLimitsOf` answers the row or the injected defaults with `source` —
+      Red: the conformance cases for a row, no row, the three usage counts over two
+      organizations (the foreign rows never counted), the triple count over a four-step leaf
+      and two agents on one leaf. R5 fault: drop the `person_organization` join and B's agents
+      count for A; count claim rows instead of triples and the four-step leaf answers 4;
+      watched.
+- [ ] 1.5 `GET /api/organization/limits` in `@wbs/contracts` and `@wbs/core`
+      (`organization-limits.routes.ts` beside `session-policy.routes.ts`), limits and usage
+      in one transaction, OpenAPI emit, MCP tool count moves by one — Red:
+      `organization-limits.controller.db.test.ts`: admin and super-admin read, member and
+      viewer `403 forbidden`, delegation `403 insufficient_scope`, pre-activation
+      `403 no_active_organization`, usage of A only, `source` for both cases. R5 fault: skip
+      the role check and the member case answers 200; watched.
+
+## 2. The agent-person cap
+
+- [ ] 2.1 `patchPerson { kind: 'agent' }` and the directory add with kind `agent` refuse
+      `agent_person_limit { cap, current, added: 1 }` from inside the directory store's
+      transaction under the gate, under scoped access only; `agent → person` never consults
+      it — Red: `directory-command-organization.controller.db.test.ts`: the ninth agent
+      refused, demote then promote applied, legacy access applied without a read. R5 fault:
+      read the count before the transaction and two concurrent promotions at 7 of 8 both
+      land (observed with the gate bypassed, then restored); drop the `kind === 'agent'`
+      predicate and renaming an agent at the cap is refused; watched.
+- [ ] 2.2 Plan import counts the agents it would create and refuses the whole import with
+      `added` — Red: `plan-import-organization.controller.db.test.ts`: three agents over the
+      cap write nothing, three under it import. R5 fault: check per person instead of the
+      total and an import of three at 6 of 8 writes two; watched.
+- [ ] 2.3 Refusal shape in `@wbs/contracts` (`agent_person_limit` on the command refusal
+      union with its detail), described for the MCP batch tool — Red: the refusal fixture
+      type test and the OpenAPI emit diff.
+
+## 3. The claim cap
+
+- [ ] 3.1 `decideClaim`'s caller in `claims.ts` reads `countBoundClaims` inside the batch's
+      transaction, decides `refuseLimit` last, after `overlaps_subtree_claim` and the
+      occupancy refusals, and only when the claim adds a triple; `alreadyHeld` and release
+      never consult it; two claims of one batch count each other — Red:
+      `claim-command.test.ts` (memory and SQLite through the conformance suite): the
+      forty-first refused, the plan's reasons first (`already_claimed`, then
+      `inside_subtree_claim`, then `claim_limit` once each clears), the second step of a held
+      leaf under the same run adds nothing, two claims in one batch at 39 of 40 refuse the
+      second. R5 fault: move the check before `already_claimed` and the "plan's reasons
+      first" case reddens; count rows and the second-step case refuses; watched.
+- [ ] 3.2 Race: `claim-race.db.test.ts` gains the 39-of-40 case, two accounts, two leaves,
+      both orders; exactly one applied, the loser `claim_limit` with `current: 40`. R5 fault:
+      replace `source.uow` with a unit of work over the open gate and both land (the
+      precedent proof of 2026-10-19), restored; watched.
+- [ ] 3.3 Undo and redo: a redo of a claim and an undo of a release re-check and answer
+      `stale_undo` with detail `claim_limit: cap n, current n`; claims moving on a split or a
+      promotion are not re-checked — Red: the journal replay cases in `claim-race.db.test.ts`
+      and the hand-down case at the cap. R5 fault: skip the re-check on redo and a redo at the
+      cap lands the forty-first; watched.
+- [ ] 3.4 Refusal shape `claim_limit` in `@wbs/contracts`, position in the batch, status 409
+      like `already_claimed`; MCP batch description — Red: the shape tests and the emit diff.
+- [ ] 3.5 Measure: time of `countBoundClaims` on a store with 1,000 claims over 200 leaves,
+      recorded in verify.md; if above 5 ms per claim, file the counter-column follow-up (the
+      meaning of L5 does not change).
+
+## 4. The capacity cap
+
+- [ ] 4.1 `setForResource` passes `sumStatedCapacity(resourceId, exceptProjectId)` through
+      `refuseLimit` inside the capacity store's transaction for non-null `units`; null and
+      lowering never consult it; team `setCapacity` untouched — Red: `resource-command.test.ts`
+      and the organization controller test: two projects sharing 64, lowering under a lowered
+      cap, another resource another sum, legacy access applied. R5 fault: include the project's
+      own stated units in `declared` and re-stating 48 of 64 with nothing else refuses; drop
+      the per-resource predicate and `worktrees` are refused for `h2puni ram`'s units; watched.
+- [ ] 4.2 Plan import checks every capacity it writes against the sum excluding its own
+      project and refuses whole — Red: `plan-import-organization.controller.db.test.ts`: 70 GB
+      under 64 writes nothing, a re-import of the same project at 64 of 64 is applied. R5
+      fault: count the project being replaced and the re-import refuses; watched.
+- [ ] 4.3 Refusal shape `capacity_limit { resourceId, cap, declared, asked }` in
+      `@wbs/contracts`; MCP batch description — Red: the shape tests and the emit diff.
+
+## 5. The operator CLI and the audit
+
+- [ ] 5.1 Audit vocabulary widening for `organization_limits_changed` /
+      `organization_limits` by the mechanism `main` holds when this slice is built (rebuild as
+      `20261012090200`, or the trigger pair if #632 landed), `down.sql` refusing while a row of
+      the action exists; `ORGANIZATION_AUDIT_ACTIONS` and the subject kinds — Red:
+      `organization-limits-audit-migration.db.test.ts` forward, the outgoing release's
+      `session_policy_changed` write, an unknown action refused, rollback refused over one
+      row. R5 fault: replace the guard with `CHECK (1)` (or drop the trigger) and
+      `migration-lint.test.ts` names the destructive statement; watched. Rebase on whatever
+      rebuild `wbs-machine-credentials` has merged first (L13).
+- [ ] 5.2 `OrganizationLimits.set` and `reset` write the row and the audit row in one
+      immediate transaction, actor `operator:<os login>`, flat before and after detail,
+      unchanged `set` writes nothing — Red: the conformance cases and the "audit cannot be
+      written" case through a failing audit store. R5 fault: write the audit outside the
+      transaction and the failing-audit case leaves a row; watched.
+- [ ] 5.3 `organization-limits-cli.ts`: `show`, `set` (defaults for caps not given, row values
+      when one exists), `reset`; refusals for an unknown organization, an out-of-bound value,
+      no cap named, `reset` without a row; usage printed beside each cap; the below-usage
+      warning without refusal — Red: `organization-limits-cli.db.test.ts` for each, the
+      warning case at 12 agents over 8 exiting 0. R5 fault: let `set` start from zeros instead
+      of the defaults and the one-cap `set` writes 0, 40, 0; watched.
+- [ ] 5.4 Operator section in `docs/runbook-organization-activation.md` (how to show, set and
+      reset; where the defaults live), and `LLM_README.md` routes to it in one line.
+
+## 6. The organization page and the refusal copy
+
+- [ ] 6.1 `LimitsPanel` after the session policy panel: loading, failure with reload, ready
+      with one row per cap and one line per listed resource, exceeded marking, "deployment
+      default" when `source` is `default`; `forbidden` renders the panel absent — Red:
+      `limits-panel.test.tsx`: the three states, 7 of 8, 40 over 10 marked exceeded, the
+      member's page sends the read once and renders no panel, no edit control exists. R5
+      fault: render usage from the previous organization after a switch (the session-policy
+      panel's late-reply fence removed) and the scoped test observes B's numbers under A;
+      watched.
+- [ ] 6.2 Refusal copy: the table and startable surfaces for `claim_limit`, the people page
+      for `agent_person_limit`, project settings for `capacity_limit`, each naming the numbers
+      from the refusal body — Red: the rendering tests with each refusal body; the copy never
+      invents a number the body lacks.
+- [ ] 6.3 UI acceptance by eye on dev (`ui-work-acceptance`): the panel at 7 of 8 and at 40
+      over 10; a refused claim's message in the table; recorded in verify.md with screenshots.
