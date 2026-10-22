@@ -1,7 +1,8 @@
-import { buttonVariants } from '@ui/saas-01';
+import { Button, buttonVariants } from '@ui/saas-01';
 import { type ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/chrome/app-header';
+import { unreachable } from '@/lib/http';
 import { useFeatureReachable } from '@/lib/session-features';
 import { cn } from '@/lib/utils';
 
@@ -10,8 +11,10 @@ import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
+import { MachineCredentialsPanel } from './machine-credentials-panel';
 import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
+import { credentialReach, type RoleView, useOrganizationRole } from './organization-role';
 import { ProvisioningTokensPanel } from './provisioning-tokens-panel';
 import { SessionPolicyPanel } from './session-policy-panel';
 import { SharingPanel } from './sharing-panel';
@@ -25,13 +28,18 @@ import { SsoConnectionsPanel } from './sso-connections-panel';
  * signed out, not active, or a sign-in the organization's rules refuse), the
  * whole page is replaced by that state, and the panels unmount with every row
  * they read, so a stale tab keeps nothing of the organization it lost.
+ *
+ * `userId` is the signed-in account, which the machine credentials panel
+ * compares with each agent person's bound account (A7).
  */
 export function OrganizationPage({
   nav,
   account,
+  userId,
 }: {
   nav: ReactNode;
   account: ReactNode;
+  userId: string;
 }): React.JSX.Element {
   // A deployment the session read reported without organizations starts in
   // the state the panels' refusals would reach, and mounts no panel to ask.
@@ -66,6 +74,7 @@ export function OrganizationPage({
               <SessionPolicyPanel onAccessLost={setLoss} />
               {/* Proof: omitted composition failed the mounted provisioning-token composition test (2026-10-15). */}
               <ProvisioningTokensPanel onAccessLost={setLoss} />
+              <MachineCredentialsSlot userId={userId} onAccessLost={setLoss} />
               {/*
                * Proof: 2026-10-11, leaving this panel out failed `shows whether
                * the organization shares its people`.
@@ -93,4 +102,47 @@ export function OrganizationPage({
       </main>
     </>
   );
+}
+
+/**
+ * The machine credentials panel once the caller's role is known: none in a
+ * deployment without organizations or for a viewer, who sends no credentials
+ * request at all (task 6.4), and a rendered failure with retry when the role
+ * cannot be read.
+ */
+function MachineCredentialsSlot({
+  userId,
+  onAccessLost,
+}: {
+  userId: string;
+  onAccessLost: (loss: AccessLoss) => void;
+}): React.JSX.Element | null {
+  const role: RoleView = useOrganizationRole(onAccessLost);
+  switch (role.kind) {
+    case 'legacy':
+    case 'withdrawn':
+      return null;
+    case 'loading':
+      return <p className="text-sm">Loading machine credentials…</p>;
+    case 'failure':
+      return (
+        <div className="flex flex-col gap-2">
+          <p role="alert" className="text-destructive text-sm">
+            {role.message}
+          </p>
+          <Button type="button" variant="outline" className="self-start" onClick={role.retry}>
+            Retry machine credentials
+          </Button>
+        </div>
+      );
+    case 'ready': {
+      const reach = credentialReach(role.role);
+      // Proof: 2026-10-22, rendering the panel for every role failed `renders no
+      // credentials panel for a viewer and sends no credentials request`.
+      if (reach === 'none') return null;
+      return <MachineCredentialsPanel viewer={{ userId, reach }} onAccessLost={onAccessLost} />;
+    }
+    default:
+      return unreachable(role);
+  }
 }
