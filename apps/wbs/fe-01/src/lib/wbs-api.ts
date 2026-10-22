@@ -2829,14 +2829,10 @@ export function httpProjectApi(token: string, scope?: ResourceScope): ProjectApi
         }),
       );
       const { optimization, ...read } = tree;
-      // Proof: bypassing URL binding changed the foreign-project API test from
-      // project_mismatch to presentation_unavailable (2026-10-22).
+      // Proof: bypassing URL binding resolves foreign-project connected packets;
+      // the producer-to-HTTP project mismatch cases fail (2026-10-22).
       if (optimization?.scope !== undefined && optimization.scope.projectId !== projectId)
         throw new Error('connected_optimization_project_mismatch');
-      // Proof: without this guard the public connected pending fixture became a
-      // local PlanRead; the API test resolved instead of rejecting (2026-10-22).
-      if (optimization?.scope !== undefined)
-        throw new Error('connected_optimization_presentation_unavailable');
       const plan: PlanRead = {
         ...read,
         ...(optimization === undefined ? {} : { optimization }),

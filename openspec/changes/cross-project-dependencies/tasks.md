@@ -274,3 +274,18 @@ absence. Two dormant cache producer corrections and watched faults are recorded
 in verify.md. Team/resource placement-binding breadth and the mounted D/E
 save/current/lifecycle proofs remain pending; v8/v1 writers and compose refusal
 remain active, and task 8.3 stays unchecked.
+
+Task 9.2 B3 bounded connected presentation (2026-10-22): the HTTP adapter now
+passes the generated-client-validated connected packet through the existing
+local/connected view union into the real project services and mounted table.
+The prior presentation refusal is removed after producer/HTTP equality and
+mounted evidence: fractional B=0.2→1.2 bars, corresponding table/card dates,
+A's captured fixed C=8 versus separately mounted final C=6 (C-local day 4),
+and selected-ready/quantisation-floor retention. URL binding and malformed
+packet refusals remain in place. This enables reading supplied connected
+packets; it installs no connected production source or admission authority.
+Terminal action suppression across reopen/refetch/remount, zero terminal Retry
+HTTP calls, failed-sibling current-hash Retry, mounted pending announcement,
+B4 reconciliation and production activation remain open. Parent 7.3/7.4/9.2
+and full B3 completion stay unchecked. Commands, watched faults and limits:
+`verify.md`.

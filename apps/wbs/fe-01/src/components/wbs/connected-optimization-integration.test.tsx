@@ -23,7 +23,7 @@ afterEach(() => {
 
 function serveTree(tree: unknown) {
   const fetchTree = vi.fn((url: string) => {
-    if (url !== '/api/projects/B/work-items' && url !== '/api/projects/A/work-items')
+    if (!['A', 'B', 'C'].some((projectId) => url === `/api/projects/${projectId}/work-items`))
       throw new Error(`unexpected connected fixture request ${url}`);
     return Promise.resolve(
       new Response(JSON.stringify(tree), {
@@ -57,9 +57,7 @@ it.each(['idle', 'pending', 'failed'] as const)(
     expect(tree.optimization?.finishDays).toEqual({ fast: 1.2 });
     expect(tree.optimization?.sameOrderAsFast).toEqual({});
     serveTree(tree);
-    await expect(httpProjectApi('token').tree('B')).rejects.toThrow(
-      'connected_optimization_presentation_unavailable',
-    );
+    expect((await httpProjectApi('token').tree('B')).optimization).toEqual(tree.optimization);
   },
 );
 
@@ -87,9 +85,7 @@ it.each(['ready', 'boundary-infeasible', 'pending', 'floor'] as const)(
       expect((final.workItems[0]?.schedule?.earliestStart ?? NaN) + 2).toBe(6);
     }
     serveTree(tree);
-    await expect(httpProjectApi('token').tree('A')).rejects.toThrow(
-      'connected_optimization_presentation_unavailable',
-    );
+    expect((await httpProjectApi('token').tree('A')).optimization).toEqual(tree.optimization);
     await expect(httpProjectApi('token').tree('B')).rejects.toThrow(
       'connected_optimization_project_mismatch',
     );
@@ -172,5 +168,77 @@ it.each(['unknown-state', 'unknown-evidence', 'sibling-objective', 'sibling-byte
       Reflect.set(terminal.certificate.question, 'stageBytes', 'foreign');
     serveTree(tree);
     await expect(httpProjectApi('token').tree('B')).rejects.toThrow('invalid_response');
+  },
+);
+
+it('mounts fractional Fast dates, bars and card spans beside captured terminal evidence', async () => {
+  const tree = createFractionalConnectedOptimizationTree();
+  serveTree(tree);
+  const http = httpProjectApi('token');
+  const api = fakeProjectApi();
+  api.tree = (projectId) => http.tree(projectId);
+  render(<WbsTableOverClient projectId="B" projectServices={projectServicesOf(api)} />);
+  expect(await screen.findByDisplayValue('b')).toBeEnabled();
+  expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Fast');
+  expect(document.querySelector('[data-start]')?.textContent).toBe('5 Oct');
+  expect(document.querySelector('[data-finish]')?.textContent).toBe('6 Oct');
+  const cue = screen.getByRole('button', { name: /Fast is the active schedule/ });
+  expect(cue.getAttribute('data-fact')).toContain('captured fixed positions');
+  expect(cue.getAttribute('data-fact')).toContain('rounded bounds');
+  fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+  await waitFor(() => {
+    expect(document.querySelector('[data-gantt-bar]')).toHaveAttribute('data-start', '0.2');
+    expect(document.querySelector('[data-gantt-bar]')).toHaveAttribute('data-finish', '1.2');
+  });
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  fireEvent.resize(window);
+  await waitFor(() => {
+    expect(document.querySelector('[data-card-span]')).not.toBeNull();
+  });
+  expect(document.querySelector('[data-card-span]')).toHaveTextContent('5 Oct → 6 Oct');
+  expect(document.querySelector('[data-card-span]')?.getAttribute('data-fact')).toBe(
+    '2026-10-05 → 2026-10-06',
+  );
+});
+
+it.each(['ready', 'floor'] as const)(
+  'mounts retained %s scope independently from final C placement',
+  async (state) => {
+    const tree = createConnectedOptimizationTree(state);
+    serveTree(tree);
+    const http = httpProjectApi('token');
+    const api = fakeProjectApi();
+    api.tree = (projectId) => http.tree(projectId);
+    const mounted = render(
+      <WbsTableOverClient projectId="A" projectServices={projectServicesOf(api)} />,
+    );
+    await screen.findAllByDisplayValue('a');
+    expect(document.querySelector('[data-cue-active]')).toHaveTextContent('Time');
+    const cue = screen.getByRole('button', { name: /Finish-first is the active schedule/ });
+    expect(cue.getAttribute('data-fact')).toContain(
+      'start 8, finish 9 workdays from the captured component origin',
+    );
+    expect(cue.getAttribute('data-fact')).toContain(
+      state === 'floor'
+        ? 'Published placement retains the captured baseline'
+        : 'Earlier project deadline by 6 days',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'The selected Finish-first schedule remains displayed',
+    );
+    mounted.unmount();
+    serveTree(createConnectedOptimizationTree(state, 'C'));
+    render(<WbsTableOverClient projectId="C" projectServices={projectServicesOf(api)} />);
+    await screen.findByDisplayValue('c');
+    expect(document.querySelector('[data-start]')?.textContent).toBe(
+      state === 'ready' ? '13 Oct' : '15 Oct',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Gantt' }));
+    await waitFor(() =>
+      expect(document.querySelector('[data-gantt-bar]')).toHaveAttribute(
+        'data-start',
+        state === 'ready' ? '4' : '6',
+      ),
+    );
   },
 );

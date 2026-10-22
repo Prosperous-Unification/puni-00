@@ -2002,7 +2002,7 @@ it.each([
   ['other', 'pending'],
   ['p1', 'terminal'],
   ['other', 'terminal'],
-])('checks URL project before refusing connected presentation: %s %s', async (projectId, state) => {
+])('preserves connected packets only for the URL project: %s %s', async (projectId, state) => {
   const tree = JSON.parse(TREE('p1', [])) as { optimization?: unknown };
   tree.optimization = {
     enabled: true,
@@ -2054,9 +2054,11 @@ it.each([
     'fetch',
     vi.fn(() => Promise.resolve(response(200, JSON.stringify(tree)))),
   );
-  await expect(httpProjectApi('t').tree(projectId)).rejects.toThrow(
-    projectId === 'p1'
-      ? 'connected_optimization_presentation_unavailable'
-      : 'connected_optimization_project_mismatch',
-  );
+  if (projectId === 'p1') {
+    expect((await httpProjectApi('t').tree(projectId)).optimization).toEqual(tree.optimization);
+  } else {
+    await expect(httpProjectApi('t').tree(projectId)).rejects.toThrow(
+      'connected_optimization_project_mismatch',
+    );
+  }
 });

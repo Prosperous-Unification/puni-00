@@ -3914,3 +3914,89 @@ optional, one at a time, made this test receive success instead of invalid_respo
 (`/tmp/c2-fe-fault-optional-{left,right}.log`). This extends the C2 top-level
 required-field proofs through the generated browser client. Both mutations were
 restored. No active writer or frontend runtime behavior changed.
+
+## B3 bounded connected presentation (2026-10-22)
+
+Isolated clone `/tmp/puni-b3-presentation-20261022`, based on prerequisite
+`49d90415e`. Production changes only remove the temporary
+`connected_optimization_presentation_unavailable` refusal; the existing precise
+local/connected union already carries the complete scope, states, certificate,
+finish figures and order relations. URL project binding and generated decoder
+validation remain required. No scheduling, question reconstruction or fallback
+packet is introduced in the frontend.
+
+The producer integration suite now compares the complete optimization packet
+from actual mixed and fractional captures with `httpProjectApi.tree`, then
+crosses `projectServicesOf` and the installed project runtime into
+`WbsTableOverClient`. It asserts real B bar attributes `0.2` and `1.2`, table
+5/6 October dates and phone span/calendar facts. A's cue exposes captured fixed
+C start 8/finish 9 while separately mounted C's final bar starts at local day 4,
+which is common day 6 under its Wednesday anchor. Both selected-ready and
+quantisation-floor observations remain displayed, with the latter explicitly
+retaining its baseline. Floor C starts at local day 6; this is not the ready
+placement.
+
+Watched red/negative observations:
+
+- Before removing the presentation refusal, the expanded integration suite
+  failed **10** cases, with **6** passing. The real HTTP equality reads rejected
+  with `connected_optimization_presentation_unavailable` and the mounted
+  scheduled rows could not appear. Log: `/tmp/b3-presentation-red.log`.
+- Bypassing only the URL project binding made all four mixed-producer
+  foreign-project assertions fail because the promise resolved instead of
+  refusing. Restored the predicate and retained adjacent `Proof:` evidence.
+  Log: `/tmp/b3-presentation-mismatch-negative.log`.
+- Initial green attempts exposed two incorrect test expectations: the calendar
+  card fact intentionally prints ISO dates rather than fractional offsets, and
+  the Time schedule's accessible label is Finish-first. Corrected those test
+  oracles; those failed attempts are not claimed as regression proofs.
+
+Bounded checks (all Nx commands set `NX_DAEMON=false NX_ISOLATE_PLUGINS=false`):
+
+```sh
+# apps/wbs/fe-01:
+TZ=UTC bunx vitest run src/components/wbs/connected-optimization-integration.test.tsx src/components/wbs/optimization-cue-reading.test.ts src/components/wbs/optimization-cue.test.tsx src/components/wbs/optimization-integration.test.tsx src/lib/wbs-api.test.ts --no-file-parallelism --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
+TZ=UTC bunx vitest run --config vitest.node.config.ts src/components/wbs/optimization-cue-reading.test.ts src/modules/project/composition.test.ts src/modules/plan-feed/plan-feed.feature.test.ts src/modules/plan-feed/plan-feed.resource.test.ts --testTimeout=30000 --hookTimeout=30000
+# repo root:
+bunx nx run wbs-fe-01:typecheck --outputStyle=stream
+bunx nx run wbs-fe-01:lint --outputStyle=stream
+./node_modules/.bin/openspec validate --all --json
+```
+
+Selected UTC frontend: **205/205** in five files, including **16** producer
+integration cases (**3** newly mounted scheduled cases). Node adapter/cue:
+**74/74** in four files. Logs: `/tmp/b3-presentation-selected.log` and
+`/tmp/b3-presentation-node.log`. An exploratory node-config invocation selecting
+`wbs-api.test.ts` found no files (exit 1); that file belongs to the UTC jsdom
+configuration and passed in the selected run above. Vite prints its existing
+native config-loader migration warning. Dependencies use a clone-local symlink
+to the workspace's existing installation; no frozen install is claimed.
+
+Full frontend aggregate, Auckland tier, build, browser HintLayer/focus/phone
+geometry, canonical clean host gate, required CI, installed solver runtime,
+live admission/Retry authority and activation are unrun for this bounded slice.
+Terminal selection/zero-Retry across reopen/refetch/remount, failed-sibling
+current-hash Retry, mounted pending announcements and enabling R5 mutations
+remain separate B3 work. B4 remains open. Reading connected packets does not
+activate external authoring, connected production reads or deployment. Parent
+7.3/7.4/9.2 and full B3 remain unchecked.
+
+The initial configured lint failed without forwarding source diagnostics; direct
+changed-file ESLint identified one `no-confusing-void-expression` test callback.
+Added braces around its assertion. A concurrent attempt to repeat the same Nx
+lint target was rejected as recursive task invocation; it is not counted as a
+completed lint check. Typecheck passed uncached (both module/app tasks), and
+OpenSpec validation passed **268/268** before and after the evidence updates.
+
+After the test callback fix, selected UTC frontend remains **205/205**
+(`/tmp/b3-presentation-selected-final.log`), and changed TypeScript ESLint passes
+(`/tmp/b3-presentation-changed-lint-final.log`). Changed-path Prettier and
+`git diff --check` also pass. The clone installed normal hooks via
+`bunx nx run tool-git-hooks:install`; no hook bypass is used.
+
+Final configured frontend lint passes uncached in 1m30s
+(`/tmp/b3-presentation-lint-final.log`); executing the exact configured ESLint
+command directly also exits 0 (`/tmp/b3-presentation-lint-direct.log`). The
+earlier failed configured runs read the pre-fix callback and remain failed
+observations. Final OpenSpec validation passes **268/268**. These bounded
+checks do not stand in for the unrun canonical host gate or full frontend suite.
