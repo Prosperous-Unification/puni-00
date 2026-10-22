@@ -1,38 +1,12 @@
+import {
+  buildDependencyCapabilityCommand,
+  decodeDependencyCapabilities,
+  type DependencyCapabilityObservation,
+} from './dependency-capability';
 import { assertDigestPinnedRef } from './docker';
 import { type RunDocker, runDockerBefore } from './docker-deadline';
 
-/** Binary support attributed to the image actually invoked; it grants no store or activation admission. */
-export interface DependencyCapabilityObservation {
-  readonly image: string;
-  readonly semantics: readonly 'cross-project-dependencies-v1'[];
-}
-
-/** Infrastructure-owned closed wire boundary; tools cannot import the product capability parser. */
-function decodeCapability(output: string): readonly 'cross-project-dependencies-v1'[] {
-  const capability: unknown = JSON.parse(output);
-  // Proof: removing protocol/version/backend-role/key/semantic/duplicate guards separately
-  // admitted the corresponding malformed subprocess payload (2026-10-22).
-  if (
-    typeof capability !== 'object' ||
-    capability === null ||
-    Array.isArray(capability) ||
-    Object.keys(capability).sort().join(',') !== 'protocol,role,semantics,version' ||
-    !('protocol' in capability) ||
-    capability.protocol !== 'wbs-dependency-runtime' ||
-    !('version' in capability) ||
-    capability.version !== 1 ||
-    !('role' in capability) ||
-    capability.role !== 'backend' ||
-    !('semantics' in capability) ||
-    !Array.isArray(capability.semantics) ||
-    capability.semantics.some(
-      (semantic: unknown) => semantic !== 'cross-project-dependencies-v1',
-    ) ||
-    new Set(capability.semantics).size !== capability.semantics.length
-  )
-    throw new Error('invalid backend dependency capability');
-  return capability.semantics.map(() => 'cross-project-dependencies-v1');
-}
+export type { DependencyCapabilityObservation } from './dependency-capability';
 
 /**
  * Independently invokes candidate and optional rollback CLI without a mount, DB_PATH or application boot.
@@ -66,15 +40,14 @@ export async function probeDependencyCapabilities(
           '--network',
           'none',
           '--entrypoint',
-          'bun',
+          buildDependencyCapabilityCommand()[0],
           image,
-          'run',
-          'src/dependency-capabilities-cli.ts',
+          ...buildDependencyCapabilityCommand().slice(1),
         ],
         runDocker,
         deadline,
       );
-      observations.push({ image, semantics: decodeCapability(output) });
+      observations.push({ image, semantics: decodeDependencyCapabilities(output) });
     } catch (cause) {
       // Proof: replacing refusal with empty support failed actual missing/unreadable/nonzero CLI
       // and malformed transport negatives (2026-10-22).

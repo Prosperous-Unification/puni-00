@@ -3,6 +3,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
+import {
+  type DependencyObservationEffects,
+  observeDependencyBinaries,
+  observeDependencyStore,
+} from './dependency-observation';
 import { isTerminal, type JournalRecord, type ReleaseJournal } from './journal';
 import {
   assertMigrationCapture,
@@ -1186,7 +1191,9 @@ export function parseLease(json: string): ObservedLease & { version: string } {
 }
 
 /** Real effects over kubectl. Every wait has an explicit ceiling from `settings`. */
-export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & ClusterReader {
+export function kubectlEffects(
+  settings: KubectlSettings,
+): ReleaseEffects & ClusterReader & DependencyObservationEffects {
   const { app, backend } = settings.namespaces;
   const base = [
     settings.kubectl,
@@ -1208,6 +1215,34 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
       );
     }
     return invocation.stdout;
+  }
+
+  async function observeCall(
+    args: readonly string[],
+    stdin: string | null,
+    ms: number,
+  ): Promise<string> {
+    if (args[0] === 'create') {
+      if (stdin === null) throw new Error('dependency observation manifest is missing');
+      const manifest: unknown = JSON.parse(stdin);
+      if (
+        typeof manifest !== 'object' ||
+        manifest === null ||
+        !('metadata' in manifest) ||
+        typeof manifest.metadata !== 'object' ||
+        manifest.metadata === null ||
+        !('name' in manifest.metadata) ||
+        typeof manifest.metadata.name !== 'string' ||
+        !/^wbs-dep-(candidate|previous|store)-[a-f0-9]{32}$/.test(manifest.metadata.name)
+      )
+        throw new Error('invalid dependency observation manifest name');
+      // Proof: omitting persistence admitted a Job after the evidence directory was lost (ENOENT).
+      writeFileSync(join(settings.stateDir, `${manifest.metadata.name}.json`), `${stdin}\n`, {
+        flag: 'wx',
+      });
+    }
+    // Proof: replacing ms with callMs let both stalled roles exceed 2500ms despite valid late stdout.
+    return kubectl(args, stdin, ms);
   }
 
   async function jsonOf(args: readonly string[]): Promise<unknown> {
@@ -1489,6 +1524,20 @@ export function kubectlEffects(settings: KubectlSettings): ReleaseEffects & Clus
   const fencedSelector = { matchLabels: { 'puni.dev/writes': 'fenced' } };
 
   return {
+    observeDependencyBinaries(attempt, candidate, previous) {
+      return observeDependencyBinaries(
+        { namespace: backend, attempt, timeoutSeconds: settings.jobTimeoutSeconds },
+        candidate,
+        previous,
+        observeCall,
+      );
+    },
+    observeDependencyStore(attempt, image) {
+      return observeDependencyStore(
+        { namespace: backend, attempt, image, timeoutSeconds: settings.jobTimeoutSeconds },
+        observeCall,
+      );
+    },
     currentRelease,
     async clusterUid() {
       return (

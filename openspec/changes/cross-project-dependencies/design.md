@@ -688,3 +688,11 @@ missing calendars and empty target stages are modeled outcomes. Legacy
 Slice 2 replaces those callers with the capture union and removes the temporary
 dual API. Connected inputs are never reconstructed from final dates or passed
 through the legacy local coordinator. This slice does not complete tasks 7.3/7.4.
+
+### Kubernetes dependency observation transport (task 10.2, B1)
+
+`dependency-capability.ts` owns the shared pure command and closed capability wire decoder; Compose retains its independent invocation/deadline policy. Kubernetes `dependency-observation.ts` owns fresh observation names, DB-free capability manifests, coordinator-generated scratch store manifests and Job/Pod attribution. `kubectlEffects` exposes these through a separate observation interface and preserves rendered manifests; the release state machine does not invoke them as permission.
+
+The effective Pod spec is compared as a closed security boundary, allowing only a `serviceAccount` alias equal to the pinned `serviceAccountName` and a nonempty scheduler-assigned `nodeName` beyond the pinned manifest. Kubernetes generated controller/job labels and selector must agree with the created Job UID. Store observations require `recursiveReadOnly: Enabled` in runtime container mount status as well as the requested mount; unsupported runtimes refuse. Actual cluster API defaulting and mount enforcement remain to be rehearsed during the B2/B3 integration. Local API fixtures establish refusal behavior and emitted-command tests establish scanner source invariance, not live runtime admission.
+
+B2 must independently establish and retain the stopped-storage/PVC-identity interval. B3 must integrate durable admissions, exposure intent and conservative recovery classification together. B1 does not change migration, rollout, rollback, journal, activation or participant-fencing behavior; tasks 10.1 and 10.2 remain open.

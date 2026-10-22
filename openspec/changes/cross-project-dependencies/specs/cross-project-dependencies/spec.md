@@ -388,3 +388,26 @@ After proving all known writers stopped, Compose shared backend recovery admissi
 - **WHEN** maintenance replaces the idle identity
 - **THEN** fresh post-maintenance admission expects only its exact stopped maintenance identity and does not apply the pre-maintenance no-container invariant again
 - **AND** neither observation authorizes semantic activation, participant exclusion, writer restart or marker clearance
+
+### Requirement: Kubernetes dependency observations retain execution attribution
+
+Kubernetes dependency capability and store observation transport SHALL create a fresh nonce-named Job for every invocation, refuse an existing name, pin the backend image digest and coordinator command, and return Job UID, Pod UID, namespace, image and command hash with the observation. It SHALL validate the Job and exactly one owned Pod before and after reading that Pod's task-container logs, reject injected security-relevant workload fields and require successful task termination. Candidate and previous capability executables SHALL run independently even when their image references are equal. Capability Jobs SHALL have no volumes, mounts, injected database configuration or application startup command.
+
+Store observation transport SHALL execute the coordinator-generated inventory against a private scratch copy of the source main/WAL/journal family, excluding source SHM. Its only source PVC access SHALL be read-only with recursive-readonly required in both the requested manifest and runtime-reported container mount status. Unsupported or missing effective mount evidence SHALL refuse. It SHALL omit mount ownership mutation requests and preserve source bytes and directory entries. A stopped-storage interval remains a caller prerequisite; transport observations alone SHALL NOT authorize migration, application exposure, rollback or activation.
+
+#### Scenario: Equal backend images are observed independently
+
+- **WHEN** the candidate and previous backend digests are equal
+- **THEN** each capability executable runs in a distinct fresh Job and returns independently attributed support, including explicit empty support
+- **AND** missing, unreadable, failed, stalled or malformed output from either invocation refuses
+
+#### Scenario: Completed evidence belongs to another execution
+
+- **WHEN** an observation name already exists, a Job or Pod UID changes, a foreign owner or image is observed, or the effective workload differs from the coordinator manifest
+- **THEN** the observation refuses without reusing aggregate Job logs or returning support
+
+#### Scenario: Source readonly enforcement is unavailable
+
+- **WHEN** store inspection lacks runtime confirmation of recursive-readonly source access
+- **THEN** the observation refuses before reading task logs
+- **AND** a valid dormant stdout alone cannot substitute for the missing mount evidence

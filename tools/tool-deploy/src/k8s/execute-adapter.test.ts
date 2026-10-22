@@ -847,3 +847,178 @@ describe('replay Jobs through kubectl', () => {
     }
   }
 });
+
+/** API fixture executes the emitted command locally; it never pretends to enforce a Kubernetes mount. */
+function observationKubectl(root: string, fault = '') {
+  const path = join(root, 'kubectl-observation');
+  const log = join(root, 'observation-calls.jsonl');
+  writeFileSync(log, '');
+  const backend = BACKEND;
+  writeFileSync(
+    path,
+    `#!${process.execPath}
+import {appendFileSync,existsSync,readFileSync,writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+const root=${JSON.stringify(root)};
+const fault=${JSON.stringify(fault)};
+const args=process.argv.slice(2);
+appendFileSync(${JSON.stringify(log)},JSON.stringify(args)+'\\n');
+const emit=(value)=>console.log(JSON.stringify(value));
+if(args.includes('create')) {
+ const job=JSON.parse(await Bun.stdin.text());
+ job.metadata.uid='uid-'+job.metadata.name;
+ job.spec.template.spec.serviceAccount=job.spec.template.spec.serviceAccountName;
+ job.status={succeeded:1,failed:0,conditions:[{type:'Complete',status:'True'}]};
+ writeFileSync(join(root,job.metadata.name+'.api.json'),JSON.stringify(job));
+ writeFileSync(join(root,'last-job'),job.metadata.name);
+ emit(job);
+} else if(args.includes('get')&&args.includes('job')) {
+ const name=args[args.indexOf('job')+1];
+ const stored=join(root,name+'.api.json');
+ if(!existsSync(stored)) {if(fault==='stale') emit({kind:'Job'});process.exit(0);}
+ emit(JSON.parse(readFileSync(stored,'utf8')));
+} else if(args.includes('get')&&args.includes('pods')) {
+ const name=readFileSync(join(root,'last-job'),'utf8');
+ const job=JSON.parse(readFileSync(join(root,name+'.api.json'),'utf8'));
+ const spec=job.spec.template.spec;
+ if(fault==='pod-image') spec.containers[0].image='foreign';
+ const pod={metadata:{name:'pod-'+name,namespace:job.metadata.namespace,uid:'pod-uid-'+name,labels:job.spec.template.metadata.labels,ownerReferences:[{apiVersion:'batch/v1',kind:'Job',name,uid:job.metadata.uid,controller:true}]},spec,status:{phase:'Succeeded',containerStatuses:[{name:'task',image:spec.containers[0].image,imageID:'containerd://'+spec.containers[0].image,restartCount:0,state:{terminated:{exitCode:0,reason:'Completed'}},volumeMounts:[{name:'source',mountPath:'/data',readOnly:true,recursiveReadOnly:fault==='recursive-status'?'Disabled':'Enabled'}]}]}};
+ emit({items:[pod]});
+} else if(args.includes('logs')) {
+ const name=readFileSync(join(root,'last-job'),'utf8');
+ const job=JSON.parse(readFileSync(join(root,name+'.api.json'),'utf8'));
+ const purpose=name.split('-')[2];
+ if(fault==='malformed-'+purpose) {console.log('{}');process.exit(0);}
+ if(fault==='stalled-'+purpose) {await Bun.sleep(5000);console.log(JSON.stringify({protocol:'wbs-dependency-runtime',version:1,role:'backend',semantics:[]}));process.exit(0);}
+ if(fault==='failed-'+purpose) process.exit(7);
+ if(fault==='missing-'+purpose) {console.error('Module not found');process.exit(1);}
+ if(fault==='unreadable-'+purpose) {console.error('EACCES reading CLI');process.exit(1);}
+ const child=Bun.spawnSync(job.spec.template.spec.containers[0].command,{cwd:${JSON.stringify(backend)},env:{...process.env,DB_PATH:join(root,'nonexistent.sqlite')},stdout:'pipe',stderr:'pipe'});
+ if(child.exitCode!==0) {process.stderr.write(child.stderr);process.exit(child.exitCode);}
+ process.stdout.write(child.stdout);
+} else {throw new Error('unmodeled observation kubectl call '+JSON.stringify(args));}
+`,
+  );
+  chmodSync(path, 0o755);
+  return { path, log };
+}
+function observationEffects(root: string, fault = '', stateDir = root) {
+  const kubectl = observationKubectl(root, fault);
+  return {
+    kubectl,
+    effects: kubectlEffects({
+      kubectl: kubectl.path,
+      kubeconfig: null,
+      context: 'lab',
+      namespaces: { app: 'wbs', backend: 'wbs-solver' },
+      stateDir,
+      overlay: root,
+      anonymousProjectsStatus: 200,
+      rolloutTimeoutSeconds: 5,
+      jobTimeoutSeconds: 1,
+      drainTimeoutMs: 1000,
+      leaseDurationSeconds: 20,
+      log: () => undefined,
+    }),
+  };
+}
+const dependencyImage = `registry/wbs-be-01@sha256:${'a'.repeat(64)}`;
+describe('dependency observations through kubectlEffects', () => {
+  it('independently invokes equal images with fresh roles while backend remains live', async () => {
+    const root = scratchSync('k8s-dependency-adapter-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root);
+    const observations = await effects.observeDependencyBinaries(
+      'tx',
+      dependencyImage,
+      dependencyImage,
+    );
+    expect(observations.map((observation) => observation.capability)).toEqual([
+      { image: dependencyImage, semantics: [] },
+      { image: dependencyImage, semantics: [] },
+    ]);
+    expect(new Set(observations.map((observation) => observation.evidence.jobName)).size).toBe(2);
+    expect(
+      new Set(observations.map((observation) => observation.evidence.observationId)).size,
+    ).toBe(2);
+    const calls = readFileSync(kubectl.log, 'utf8')
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as string[]);
+    expect(calls.filter((call) => call.includes('create'))).toHaveLength(2);
+    expect(
+      calls
+        .filter((call) => call.includes('logs'))
+        .every(
+          (call) =>
+            call.includes('-c') &&
+            !call.includes('--all-containers') &&
+            call.some((argument) => argument.startsWith('pod-')),
+        ),
+    ).toBe(true);
+    expect(
+      calls.every(
+        (call) => !call.some((argument) => /writer=true|scale|patch|delete|cronjob/.test(argument)),
+      ),
+    ).toBe(true);
+    expect(existsSync(join(root, 'nonexistent.sqlite'))).toBe(false);
+  });
+  it('pins distinct candidate and previous images and preserves each manifest', async () => {
+    const root = scratchSync('k8s-dependency-images-');
+    roots.push(root);
+    const { effects } = observationEffects(root);
+    const previous = `registry/wbs-be-01@sha256:${'b'.repeat(64)}`;
+    const observations = await effects.observeDependencyBinaries('tx', dependencyImage, previous);
+    expect(observations.map((observation) => observation.evidence.image)).toEqual([
+      dependencyImage,
+      previous,
+    ]);
+    for (const observation of observations) {
+      const manifest = JSON.parse(
+        readFileSync(join(root, observation.evidence.jobName + '.json'), 'utf8'),
+      ) as { spec: { template: { spec: { containers: { image: string }[] } } } };
+      expect(manifest.spec.template.spec.containers[0]?.image).toBe(observation.evidence.image);
+    }
+  });
+  it('refuses a lost evidence directory before creating the observation Job', async () => {
+    const root = scratchSync('k8s-dependency-persist-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root, '', join(root, 'absent'));
+    expect(
+      await rejection(effects.observeDependencyBinaries('tx', dependencyImage, dependencyImage)),
+    ).toContain('ENOENT');
+    expect(readFileSync(kubectl.log, 'utf8')).not.toContain('"create"');
+  });
+  for (const role of ['candidate', 'previous'])
+    for (const fault of ['malformed', 'missing', 'unreadable', 'failed', 'stalled'])
+      it(`refuses independent ${fault} ${role}`, async () => {
+        const root = scratchSync('k8s-dependency-adapter-fault-');
+        roots.push(root);
+        const { effects } = observationEffects(root, `${fault}-${role}`);
+        const started = Date.now();
+        expect(
+          await rejection(
+            effects.observeDependencyBinaries('tx', dependencyImage, dependencyImage),
+          ),
+        ).not.toBe('resolved');
+        if (fault === 'stalled') expect(Date.now() - started).toBeLessThan(2500);
+      });
+  for (const fault of ['stale', 'pod-image'])
+    it(`refuses ${fault} at adapter boundary`, async () => {
+      const root = scratchSync('k8s-dependency-adapter-fault-');
+      roots.push(root);
+      const { effects } = observationEffects(root, fault);
+      expect(
+        await rejection(effects.observeDependencyBinaries('tx', dependencyImage, dependencyImage)),
+      ).not.toBe('resolved');
+    });
+  it('requires effective recursive readonly evidence before reading source logs', async () => {
+    const root = scratchSync('k8s-dependency-mount-');
+    roots.push(root);
+    const { effects, kubectl } = observationEffects(root, 'recursive-status');
+    expect(await rejection(effects.observeDependencyStore('tx', dependencyImage))).toContain(
+      'recursive readonly',
+    );
+    expect(readFileSync(kubectl.log, 'utf8')).not.toContain('"logs"');
+  });
+});

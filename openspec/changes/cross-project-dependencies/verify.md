@@ -2115,3 +2115,5 @@ passes **64/64 tests, 501 assertions** after the revocation-read fault restorati
 private-nesting, inactive Tool Wiki validation and agent trailers. Migration/doc-cap
 commands skipped by their configured file globs. No host gate or release-readiness
 claim is made by this packet.
+
+Kubernetes B1 transport evidence is recorded separately in [verify-k8s-dependency-observation.md](verify-k8s-dependency-observation.md); it does not complete task 10.2 or establish live runtime admission.
