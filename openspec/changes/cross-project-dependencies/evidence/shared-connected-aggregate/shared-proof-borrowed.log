@@ -1,0 +1,23 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+523 |       lifetime,
+524 |       schedulerOf: () => fastScheduler,
+525 |     });
+526 |     const observed = await store.readAggregate('ada', access);
+527 |     if (observed.kind !== 'shared') throw new Error('expected shared');
+528 |     expect(observed.entries[0]?.plan.kind).toBe('connected');
+                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "connected"
+Received: "shared"
+
+      at <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:528:44)
+(fail) borrowed shared aggregate sees staged relationships and expires without owning the transaction [1700.53ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [17.19s]

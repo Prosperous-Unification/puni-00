@@ -1,0 +1,863 @@
+bun test v1.4.2 (744846f84)
+
+libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:
+125 |   expect(projectConnectedTree(second.plan, 'a2').metadata.project.id).toBe('a2');
+126 |   expect(first.plan.projection.placement.kind).toBe('dependency_calendar_missing');
+127 |   expect(captured.filter((id) => id === 'a1')).toHaveLength(1);
+128 |   expect(captured.filter((id) => id === 'a2')).toHaveLength(1);
+129 |   expect(captured.filter((id) => id === 'a3')).toHaveLength(1);
+130 |   expect(observed.entries[2]?.plan).toBe(first.plan);
+                                          ^
+error: expect(received).toBe(expected)
+
+Expected: {
+  kind: "connected",
+  projection: {
+    kind: "connected",
+    capture: {
+      kind: "connected",
+      organizationId: "org-a",
+      mode: "shared",
+      projects: [
+        {
+          projectId: "a1",
+          abbreviation: "PA1",
+          rank: 1,
+          reads: {
+            project: {
+              id: "a1",
+              name: "a1",
+              ownerId: "ada",
+              restricted: false,
+              startDate: null,
+              revision: 0,
+              optimizationEnabled: false,
+              createdAt: 1,
+              abbreviation: "PA1",
+              estimateMethod: "pert",
+              depReach: "whole-item",
+              estimateRounding: "ceil",
+              pertWeights: {
+                optimistic: 1,
+                realistic: 4,
+                pessimistic: 1,
+              },
+              solutionRef: null,
+              scheduleEngine: "fast",
+              scheduleObjective: "pri",
+              timezone: "UTC",
+            },
+            steps: [
+              {
+                id: "a1-s",
+                projectId: "a1",
+                name: "Build",
+                position: 10,
+                code: null,
+                allowancePercent: 0,
+                estimateUnit: "workdays",
+              }
+            ],
+            workItems: [
+              {
+                id: "a1",
+                projectId: "a1",
+                parentId: null,
+                position: 10,
+                name: "a1",
+                notes: "",
+                frozenNumber: null,
+                startNoEarlierThan: null,
+                startNoEarlierThanReason: null,
+                deadline: null,
+                factStart: null,
+                factEnd: null,
+                readiness: "ready",
+                hold: null,
+                priority: null,
+                serviceTeamId: null,
+                serviceId: null,
+                maxParallel: 1,
+                revision: 0,
+                teamIds: [],
+                tagIds: [],
+                serviceIds: [],
+                typeIds: [],
+                externalRefs: [],
+              }
+            ],
+            estimates: [],
+            actuals: [],
+            progress: [],
+            stepBlockages: [],
+            stepParallels: [],
+            measures: [],
+            dependencies: [],
+            typedDependencies: [],
+            assignments: [
+              {
+                workItemId: "a1",
+                stepId: "a1-s",
+                personId: "p",
+              }
+            ],
+            capacity: Map {},
+            demands: [],
+            resourceCapacities: [],
+            resources: [],
+            priorityBands: [
+              {
+                startsAt: 1,
+                label: "Critical",
+                defaultValue: 10,
+              }, {
+                startsAt: 21,
+                label: "High",
+                defaultValue: 30,
+              }, {
+                startsAt: 41,
+                label: "Medium",
+                defaultValue: 50,
+              }, {
+                startsAt: 61,
+                label: "Low",
+                defaultValue: 70,
+              }, {
+                startsAt: 81,
+                label: "Lowest",
+                defaultValue: 90,
+              }
+            ],
+            people: [
+              {
+                id: "p",
+                name: "P",
+                kind: "person",
+                accountId: null,
+                teamIds: [],
+              }
+            ],
+            teams: [],
+            services: [],
+            tags: [],
+            workItemTypes: [],
+            externalSystems: [],
+          },
+        }, {
+          projectId: "a2",
+          abbreviation: "PA2",
+          rank: 2,
+          reads: {
+            project: {
+              id: "a2",
+              name: "a2",
+              ownerId: "ada",
+              restricted: false,
+              startDate: null,
+              revision: 0,
+              optimizationEnabled: false,
+              createdAt: 1,
+              abbreviation: "PA2",
+              estimateMethod: "pert",
+              depReach: "whole-item",
+              estimateRounding: "ceil",
+              pertWeights: {
+                optimistic: 1,
+                realistic: 4,
+                pessimistic: 1,
+              },
+              solutionRef: null,
+              scheduleEngine: "fast",
+              scheduleObjective: "pri",
+              timezone: "UTC",
+            },
+            steps: [
+              {
+                id: "a2-s",
+                projectId: "a2",
+                name: "Build",
+                position: 10,
+                code: null,
+                allowancePercent: 0,
+                estimateUnit: "workdays",
+              }
+            ],
+            workItems: [
+              {
+                id: "a2",
+                projectId: "a2",
+                parentId: null,
+                position: 10,
+                name: "a2",
+                notes: "",
+                frozenNumber: null,
+                startNoEarlierThan: null,
+                startNoEarlierThanReason: null,
+                deadline: null,
+                factStart: null,
+                factEnd: null,
+                readiness: "ready",
+                hold: null,
+                priority: null,
+                serviceTeamId: null,
+                serviceId: null,
+                maxParallel: 1,
+                revision: 0,
+                teamIds: [],
+                tagIds: [],
+                serviceIds: [],
+                typeIds: [],
+                externalRefs: [],
+              }
+            ],
+            estimates: [],
+            actuals: [],
+            progress: [],
+            stepBlockages: [],
+            stepParallels: [],
+            measures: [],
+            dependencies: [],
+            typedDependencies: [],
+            assignments: [],
+            capacity: Map {},
+            demands: [],
+            resourceCapacities: [],
+            resources: [],
+            priorityBands: [
+              {
+                startsAt: 1,
+                label: "Critical",
+                defaultValue: 10,
+              }, {
+                startsAt: 21,
+                label: "High",
+                defaultValue: 30,
+              }, {
+                startsAt: 41,
+                label: "Medium",
+                defaultValue: 50,
+              }, {
+                startsAt: 61,
+                label: "Low",
+                defaultValue: 70,
+              }, {
+                startsAt: 81,
+                label: "Lowest",
+                defaultValue: 90,
+              }
+            ],
+            people: [
+              {
+                id: "p",
+                name: "P",
+                kind: "person",
+                accountId: null,
+                teamIds: [],
+              }
+            ],
+            teams: [],
+            services: [],
+            tags: [],
+            workItemTypes: [],
+            externalSystems: [],
+          },
+        }
+      ],
+      relationships: [
+        {
+          id: "edge",
+          projectId: "a1",
+          predecessor: {
+            scope: "whole",
+            workItemId: "a2",
+            projectId: "a2",
+          },
+          successor: {
+            scope: "whole",
+            workItemId: "a1",
+            projectId: "a1",
+          },
+          type: "FS",
+        }
+      ],
+    },
+    authored: {
+      graph: {
+        nodes: [
+          {
+            kind: "step",
+            ref: {
+              workItemId: "a1",
+              stepId: "a1-s",
+            },
+            at: 0,
+          }, {
+            kind: "step",
+            ref: {
+              workItemId: "a2",
+              stepId: "a2-s",
+            },
+            at: 0,
+          }
+        ],
+        edges: [
+          {
+            predecessor: {
+              leafId: "a2",
+              at: 0,
+            },
+            successor: {
+              leafId: "a1",
+              at: 0,
+            },
+            type: "FS",
+            provenance: "authored",
+            relationshipId: "edge",
+          }
+        ],
+      },
+      projectIdByWorkItem: Map(2) {
+        "a1": "a1",
+        "a2": "a2",
+      },
+      relationships: Map(1) {
+        "edge": {
+          id: "edge",
+          projectId: "a1",
+          predecessor: {
+            scope: "whole",
+            workItemId: "a2",
+            projectId: "a2",
+          },
+          successor: {
+            scope: "whole",
+            workItemId: "a1",
+            projectId: "a1",
+          },
+          type: "FS",
+        },
+      },
+    },
+    placement: {
+      kind: "dependency_calendar_missing",
+      projects: [
+        {
+          projectId: "a1",
+          abbreviation: "PA1",
+          name: "a1",
+        }, {
+          projectId: "a2",
+          abbreviation: "PA2",
+          name: "a2",
+        }
+      ],
+    },
+  },
+  readiness: {
+    statuses: Map(2) {
+      "a1": "ready",
+      "a2": "ready",
+    },
+    nodes: {
+      readings: Map(2) {
+        "a1": {
+          "a1-s": "unknown",
+        },
+        "a2": {
+          "a2-s": "unknown",
+        },
+      },
+      causes: Map(2) {
+        "a1": {
+          "a1-s": [],
+        },
+        "a2": {
+          "a2-s": [],
+        },
+      },
+    },
+    evidenceByNode: Map(2) {
+      "a1\u0000a1-s": {
+        done: false,
+        started: false,
+      },
+      "a2\u0000a2-s": {
+        done: false,
+        started: false,
+      },
+    },
+    eligibilityByNode: Map(2) {
+      "a1\u0000a1-s": {
+        canStart: false,
+        canFinish: true,
+        startBlockers: [
+          {
+            predecessor: {
+              kind: "step",
+              ref: {
+                workItemId: "a2",
+                stepId: "a2-s",
+              },
+              at: 0,
+            },
+            edge: {
+              predecessor: {
+                leafId: "a2",
+                at: 0,
+              },
+              successor: {
+                leafId: "a1",
+                at: 0,
+              },
+              type: "FS",
+              provenance: "authored",
+              relationshipId: "edge",
+            },
+          }
+        ],
+        finishBlockers: [],
+      },
+      "a2\u0000a2-s": {
+        canStart: true,
+        canFinish: true,
+        startBlockers: [],
+        finishBlockers: [],
+      },
+    },
+    predecessorIdsByLeaf: Map(1) {
+      "a1": [ "a2" ],
+    },
+    orderByWorkItem: Map(2) {
+      "a1": 0,
+      "a2": 1,
+    },
+  },
+  metadataByProject: Map(2) {
+    "a1": {
+      project: {
+        id: "a1",
+        name: "a1",
+        ownerId: "ada",
+        restricted: false,
+        startDate: null,
+        revision: 0,
+        optimizationEnabled: false,
+        createdAt: 1,
+        abbreviation: "PA1",
+        estimateMethod: "pert",
+        depReach: "whole-item",
+        estimateRounding: "ceil",
+        pertWeights: {
+          optimistic: 1,
+          realistic: 4,
+          pessimistic: 1,
+        },
+        solutionRef: null,
+        scheduleEngine: "fast",
+        scheduleObjective: "pri",
+      },
+      steps: [
+        {
+          id: "a1-s",
+          projectId: "a1",
+          name: "Build",
+          position: 10,
+          code: null,
+          allowancePercent: 0,
+          estimateUnit: "workdays",
+        }
+      ],
+      workItems: [
+        {
+          id: "a1",
+          projectId: "a1",
+          parentId: null,
+          position: 10,
+          name: "a1",
+          notes: "",
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          startNoEarlierThanReason: null,
+          deadline: null,
+          factStart: null,
+          factEnd: null,
+          readiness: "ready",
+          hold: null,
+          priority: null,
+          serviceTeamId: null,
+          serviceId: null,
+          maxParallel: 1,
+          revision: 0,
+          teamIds: [],
+          tagIds: [],
+          serviceIds: [],
+          typeIds: [],
+          externalRefs: [],
+        }
+      ],
+      attempts: [],
+      blockages: [],
+      seq: -1,
+    },
+    "a2": {
+      project: {
+        id: "a2",
+        name: "a2",
+        ownerId: "ada",
+        restricted: false,
+        startDate: null,
+        revision: 0,
+        optimizationEnabled: false,
+        createdAt: 1,
+        abbreviation: "PA2",
+        estimateMethod: "pert",
+        depReach: "whole-item",
+        estimateRounding: "ceil",
+        pertWeights: {
+          optimistic: 1,
+          realistic: 4,
+          pessimistic: 1,
+        },
+        solutionRef: null,
+        scheduleEngine: "fast",
+        scheduleObjective: "pri",
+      },
+      steps: [
+        {
+          id: "a2-s",
+          projectId: "a2",
+          name: "Build",
+          position: 10,
+          code: null,
+          allowancePercent: 0,
+          estimateUnit: "workdays",
+        }
+      ],
+      workItems: [
+        {
+          id: "a2",
+          projectId: "a2",
+          parentId: null,
+          position: 10,
+          name: "a2",
+          notes: "",
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          startNoEarlierThanReason: null,
+          deadline: null,
+          factStart: null,
+          factEnd: null,
+          readiness: "ready",
+          hold: null,
+          priority: null,
+          serviceTeamId: null,
+          serviceId: null,
+          maxParallel: 1,
+          revision: 0,
+          teamIds: [],
+          tagIds: [],
+          serviceIds: [],
+          typeIds: [],
+          externalRefs: [],
+        }
+      ],
+      attempts: [],
+      blockages: [],
+      seq: -1,
+    },
+  },
+}
+Received: {
+  kind: "shared",
+  organizationId: "org-a",
+  chain: {
+    kind: "scheduled",
+    reads: {
+      project: {
+        id: "a3",
+        name: "a3",
+        ownerId: "ada",
+        restricted: false,
+        startDate: null,
+        revision: 0,
+        optimizationEnabled: false,
+        createdAt: 1,
+        abbreviation: "PA3",
+        estimateMethod: "pert",
+        depReach: "whole-item",
+        estimateRounding: "ceil",
+        pertWeights: {
+          optimistic: 1,
+          realistic: 4,
+          pessimistic: 1,
+        },
+        solutionRef: null,
+        scheduleEngine: "fast",
+        scheduleObjective: "pri",
+        timezone: "UTC",
+      },
+      steps: [
+        {
+          id: "a3-s",
+          projectId: "a3",
+          name: "Build",
+          position: 10,
+          code: null,
+          allowancePercent: 0,
+          estimateUnit: "workdays",
+        }
+      ],
+      workItems: [
+        {
+          id: "a3",
+          projectId: "a3",
+          parentId: null,
+          position: 10,
+          name: "a3",
+          notes: "",
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          startNoEarlierThanReason: null,
+          deadline: null,
+          factStart: null,
+          factEnd: null,
+          readiness: null,
+          hold: null,
+          priority: null,
+          serviceTeamId: null,
+          serviceId: null,
+          maxParallel: 1,
+          revision: 0,
+          teamIds: [],
+          tagIds: [],
+          serviceIds: [],
+          typeIds: [],
+          externalRefs: [],
+        }
+      ],
+      estimates: [],
+      actuals: [],
+      progress: [],
+      stepBlockages: [],
+      stepParallels: [],
+      measures: [],
+      dependencies: [],
+      typedDependencies: [],
+      assignments: [
+        {
+          workItemId: "a3",
+          stepId: "a3-s",
+          personId: "p",
+        }
+      ],
+      capacity: Map {},
+      demands: [],
+      resourceCapacities: [],
+      resources: [],
+      priorityBands: [
+        {
+          startsAt: 1,
+          label: "Critical",
+          defaultValue: 10,
+        }, {
+          startsAt: 21,
+          label: "High",
+          defaultValue: 30,
+        }, {
+          startsAt: 41,
+          label: "Medium",
+          defaultValue: 50,
+        }, {
+          startsAt: 61,
+          label: "Low",
+          defaultValue: 70,
+        }, {
+          startsAt: 81,
+          label: "Lowest",
+          defaultValue: 90,
+        }
+      ],
+      people: [
+        {
+          id: "p",
+          name: "P",
+          kind: "person",
+          accountId: null,
+          teamIds: [],
+        }
+      ],
+      teams: [],
+      services: [],
+      tags: [],
+      workItemTypes: [],
+      externalSystems: [],
+    },
+    input: {
+      rows: [
+        {
+          id: "a3",
+          projectId: "a3",
+          parentId: null,
+          position: 10,
+          name: "a3",
+          notes: "",
+          frozenNumber: null,
+          startNoEarlierThan: null,
+          startNoEarlierThanReason: null,
+          deadline: null,
+          factStart: null,
+          factEnd: null,
+          readiness: null,
+          hold: null,
+          priority: null,
+          serviceTeamId: null,
+          serviceId: null,
+          maxParallel: 1,
+          revision: 0,
+          teamIds: [],
+          tagIds: [],
+          serviceIds: [],
+          typeIds: [],
+          externalRefs: [],
+        }
+      ],
+      edges: [],
+      slices: [
+        {
+          workItemId: "a3",
+          stepId: "a3-s",
+          days: null,
+          personId: "p",
+          width: 1,
+          poolIds: [],
+        }
+      ],
+      notBefore: Map {},
+      poolSizes: Map {},
+      reach: "whole-item",
+      deadlines: Map {},
+      typed: [],
+    },
+    scheduled: {
+      kind: "scheduled",
+      fast: {
+        slices: Map(1) {
+          "a3\u0000a3-s": {
+            workItemId: "a3",
+            stepId: "a3-s",
+            duration: 0,
+            effort: 0,
+            width: 1,
+            estimated: false,
+            earliestStart: 0,
+            earliestFinish: 0,
+            latestStart: 0,
+            latestFinish: 0,
+            float: 0,
+            critical: true,
+            personId: "p",
+            boundBy: "projectStart",
+            resourcePredecessorId: null,
+            capacityPredecessorIds: [],
+            capacityTeamId: null,
+            lateBy: null,
+          },
+        },
+        workItems: Map(1) {
+          "a3": {
+            duration: 0,
+            estimated: false,
+            earliestStart: 0,
+            earliestFinish: 0,
+            latestStart: 0,
+            latestFinish: 0,
+            float: 0,
+            critical: true,
+          },
+        },
+        waitingForPerson: 0,
+        waitingForCapacity: 0,
+        eventsVisited: 0,
+      },
+      optimization: null,
+    },
+    influencers: [],
+    holders: [],
+  },
+  project: {
+    id: "a3",
+    abbreviation: "PA3",
+    name: "a3",
+    ownerId: "ada",
+    restricted: false,
+    startDate: null,
+    optimizationEnabled: false,
+    revision: 0,
+    createdAt: 1,
+    lastOpenedAt: null,
+    ownerName: "ada",
+    estimateMethod: "pert",
+    depReach: "whole-item",
+    estimateRounding: "ceil",
+    pertWeights: {
+      optimistic: 1,
+      realistic: 4,
+      pessimistic: 1,
+    },
+    solutionRef: null,
+    scheduleEngine: "fast",
+    scheduleObjective: "pri",
+    updatedAt: 1,
+  },
+  steps: [
+    {
+      id: "a3-s",
+      projectId: "a3",
+      name: "Build",
+      position: 10,
+      code: null,
+      allowancePercent: 0,
+      estimateUnit: "workdays",
+    }
+  ],
+  workItems: [
+    {
+      id: "a3",
+      projectId: "a3",
+      parentId: null,
+      position: 10,
+      name: "a3",
+      notes: "",
+      frozenNumber: null,
+      startNoEarlierThan: null,
+      startNoEarlierThanReason: null,
+      deadline: null,
+      factStart: null,
+      factEnd: null,
+      readiness: null,
+      hold: null,
+      priority: null,
+      serviceTeamId: null,
+      serviceId: null,
+      maxParallel: 1,
+      revision: 0,
+      teamIds: [],
+      tagIds: [],
+      serviceIds: [],
+      typeIds: [],
+      externalRefs: [],
+    }
+  ],
+  attempts: [],
+  blockages: [],
+  seq: -1,
+}
+
+      at <anonymous> (/tmp/puni-shared-connected-impl/libs/wbs/adapters/store-sqlite/src/connected-live-plan.db.test.ts:130:37)
+(fail) shared aggregate reuses one detached connected read with explicit member identity [247.28ms]
+
+ 0 pass
+ 15 filtered out
+ 1 fail
+ 13 expect() calls
+Ran 1 test across 1 file. [3.49s]

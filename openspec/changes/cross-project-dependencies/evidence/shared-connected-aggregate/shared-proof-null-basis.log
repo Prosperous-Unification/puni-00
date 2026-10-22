@@ -1,0 +1,87 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:
+989 |     expect(identity()).toEqual(fixed);
+990 |     if (startsOn === null) {
+991 |       expect(load.body).toMatchObject({ projects: [], unavailable: expect.arrayContaining([{projectId:target.projectId,name:'Target',reason:'dependency_calendar_missing'}]) as unknown });
+992 |       expect(rolled.body).toMatchObject({rollUps:{[target.projectId]:{dates:null,displayed:null}}});
+993 |     } else {
+994 |       expect(load.body).toMatchObject({ projects: expect.arrayContaining([{projectId:target.projectId,name:'Target',engine:'fast',rank:1,bookings:[{workItemId:target.workItemId,number:'010',name:'Target row',width:1,stepId:target.stepId,startsOn,endsOn}]}]) as unknown, unavailable:[] });
+                              ^
+error: expect(received).toMatchObject(expected)
+
+  {
+-   "projects": ExpectArrayContaining {},
++   "overlaps": [
++     {
++       "bookings": [
++         {
++           "projectId": "25edb967-3bc3-4c74-8e85-e2f9020e6402",
++           "stepId": "613192ef-6d8d-4d0a-9c6c-12a52b2ce276",
++           "workItemId": "91825b20-aa4c-4e05-983b-0fbf3fcac684",
++         },
++         {
++           "projectId": "9cc91441-870e-4564-ab9d-58ed582176d6",
++           "stepId": "b9491215-9dd2-4bc6-b40e-0391870d1458",
++           "workItemId": "9943f38a-db4c-4aae-a103-19eaa76149dd",
++         },
++       ],
++       "endsOn": "2026-10-21",
++       "startsOn": "2026-10-20",
++     },
++   ],
++   "person": {
++     "id": "ana",
++     "name": "Local Ana",
++   },
++   "projects": [
++     {
++       "bookings": [
++         {
++           "endsOn": "2026-10-22",
++           "name": "Target row",
++           "number": "010",
++           "startsOn": "2026-10-20",
++           "stepId": "b9491215-9dd2-4bc6-b40e-0391870d1458",
++           "width": 1,
++           "workItemId": "9943f38a-db4c-4aae-a103-19eaa76149dd",
++         },
++       ],
++       "engine": "fast",
++       "name": "Target",
++       "projectId": "9cc91441-870e-4564-ab9d-58ed582176d6",
++       "rank": 1,
++     },
++     {
++       "bookings": [
++         {
++           "endsOn": "2026-10-21",
++           "name": "Remote row",
++           "number": "010",
++           "startsOn": "2026-10-19",
++           "stepId": "613192ef-6d8d-4d0a-9c6c-12a52b2ce276",
++           "width": 1,
++           "workItemId": "91825b20-aa4c-4e05-983b-0fbf3fcac684",
++         },
++       ],
++       "engine": "fast",
++       "name": "Remote",
++       "projectId": "25edb967-3bc3-4c74-8e85-e2f9020e6402",
++       "rank": 2,
++     },
++   ],
+    "unavailable": [],
++   "undated": [],
+  }
+
+- Expected  - 1
++ Received  + 59
+
+      at <anonymous> (/tmp/puni-shared-connected-impl/apps/wbs/be-01/src/controller/cross-project-live.controller.db.test.ts:994:25)
+(fail) shared aggregate load and selected Space refresh foreign-only facts with target caches warm [924.89ms]
+
+ 0 pass
+ 22 filtered out
+ 1 fail
+ 12 expect() calls
+Ran 1 test across 1 file. [4.20s]

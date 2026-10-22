@@ -359,7 +359,8 @@ export class SpaceResource {
    * directory (no event, no project revision). Both last at most the 5 min TTL;
    * the next miss reads the tree afresh and fails closed.
    * Connected trees are not stored under this target-only cache identity; their
-   * foreign calendars and required engines can change independently.
+   * foreign calendars and required engines can change independently. Shared
+   * connected aggregate entries carry a null basis to bypass cache lookup too.
    */
   private async rolledOf(
     projectId: string,
