@@ -97,11 +97,28 @@ describe(MIGRATION, () => {
     const before = db.query('SELECT * FROM __drizzle_migrations').all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
-    expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(before);
+    // The newer, empty machine credential migrations reverse first.
+    expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(
+      before.filter(
+        (row) =>
+          ![
+            '20261022100000_add_machine_credential',
+            '20261022110000_widen_organization_audit_machine_credentials',
+            '20261022110100_check_machine_credential_id',
+            '20261022120000_scope_trusted_issuer_audience',
+          ].includes((row as { name: string }).name),
+      ),
+    );
   });
 
   it('rolls back when empty and comes forward again', () => {
-    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([MIGRATION]);
+    expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261022120000_scope_trusted_issuer_audience',
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
+      '20261022100000_add_machine_credential',
+      MIGRATION,
+    ]);
     expect(db.query("SELECT name FROM sqlite_master WHERE name = 'claim_occupancy'").all()).toEqual(
       [],
     );

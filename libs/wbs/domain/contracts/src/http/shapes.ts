@@ -52,8 +52,19 @@ import {
 } from './invitation-shapes';
 import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
 import {
+  createMachineCredential,
+  listMachineCredentials,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
+  revokeMachineCredential,
+  rotateMachineCredential,
+} from './machine-credential-shapes';
+import {
+  endMcpConsentCredential,
   issueMcpDelegation,
   listMcpOrganizations,
+  mintMcpConsentCredential,
   readMcpAuthority,
 } from './mcp-delegation-shapes';
 import {
@@ -167,6 +178,13 @@ export const httpShapes = [
   issueProvisioningToken,
   rotateProvisioningToken,
   revokeProvisioningToken,
+  listMachineCredentials,
+  createMachineCredential,
+  rotateMachineCredential,
+  revokeMachineCredential,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,
@@ -246,6 +264,8 @@ export const httpShapes = [
   gatewayProjectAccess,
   gatewayBrowserProjectAccess,
   listMcpOrganizations,
+  mintMcpConsentCredential,
+  endMcpConsentCredential,
   issueMcpDelegation,
   readMcpAuthority,
 ] as const;

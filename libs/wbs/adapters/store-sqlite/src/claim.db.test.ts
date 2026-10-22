@@ -184,6 +184,7 @@ describe('ClaimRepository', () => {
       'claire',
       true,
       { at: 5, by: 'u' },
+      { kind: 'every' },
     );
     expect(removed).toMatchObject({ ok: true });
     expect(ids()).toEqual([]);

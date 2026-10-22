@@ -1,8 +1,14 @@
-import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
+import {
+  buildOidcVerifier,
+  oidcCredentialEvidence,
+  trustedIssuerDiscovery,
+  TrustedIssuerKeySets,
+} from '@wbs/auth';
 import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
+  ConsentCredentialRepository,
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
@@ -10,6 +16,8 @@ import {
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialAdministrationRepository,
+  MachineCredentialRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -25,6 +33,7 @@ import {
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
+  TrustedIssuerAdministrationRepository,
 } from '@wbs/store-sqlite';
 import { canonicalOidcEmail } from '@wbs/store-sqlite/canonical-oidc-email';
 import { DrizzleEventLogStore } from '@wbs/store-sqlite/event-log';
@@ -218,6 +227,8 @@ function mcpDelegationComposition(
     return userId === null ? null : users.findById(userId);
   };
   const access = new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, now);
+  const machineCredentials = new MachineCredentialRepository(db, services.gate);
+  const consentCredentialOf = (credentialId: string) => machineCredentials.findById(credentialId);
   return {
     // Proof: wiring REFUSE_DELEGATIONS here with keys configured made
     // `lists, issues and verifies an MCP delegation only after activation`
@@ -232,9 +243,19 @@ function mcpDelegationComposition(
               new SqliteDelegationUse(db, services.gate).consume(issuer, jti, expiresAt, at),
             now,
             (userId) => users.findById(userId),
+            // Proof: with this reader left out, `offers dany's agents at
+            // consent, and a consent as claire mints her credential` and the
+            // two consent tests after it in mcp-01's
+            // `organization-delegation.boot.test.ts` failed; watched 2026-10-22.
+            consentCredentialOf,
           ),
     mcpDelegation: mcpDelegationAuthority({
-      authenticate: (token) => services.auth.authenticateOrRefuse(token),
+      // mcp-01 forwards a human's configured-issuer token; one the trusted-issuer
+      // path refuses `invalid_token` is no upstream sign-in at all.
+      authenticate: async (token) => {
+        const outcome = await services.auth.authenticateOrRefuse(token);
+        return outcome === 'invalid_token' ? null : outcome;
+      },
       choices: new SqliteOrganizationSelection(db),
       organizations: access,
       credentialFactsOf: (principal, organizationId) =>
@@ -244,6 +265,8 @@ function mcpDelegationComposition(
         Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
       activationState: () => readOrganizationActivation(db),
       signingKey: keys?.signingKey ?? null,
+      consents: new ConsentCredentialRepository(db, services.gate),
+      consentCredentialOf,
       now,
     }),
   };
@@ -351,6 +374,18 @@ export async function bootBe01(
                 : buildOidcVerifier(opts.oidc.verifier, opts.oidc),
             passwordSessions: opts.oidc !== undefined && opts.oidc.passwordLoginEnabled !== false,
             localIdentity: opts.localIdentity,
+            // Proof: omitting this binding made `refuses a stranger issuer's
+            // JWT invalid_token once booted` (boot.db.test.ts) authenticate
+            // the token as null (unauthenticated); watched 2026-10-22.
+            trustedIssuers: {
+              tokens: new TrustedIssuerKeySets({
+                fetch: globalThis.fetch,
+                report: (fields, message) => {
+                  opts.logger.warn(fields, message);
+                },
+              }),
+              configuredIssuer: configuredIssuerOf(opts.oidc),
+            },
             optimizer: opts.optimizer,
           }),
         { factoryReturnKind: 'sync-value' },
@@ -440,6 +475,22 @@ export async function bootBe01(
                 users: new ScimUserRepository(db, services.gate),
                 clock: services.clock,
                 canonicalUserName: canonicalOidcEmail,
+              },
+              // Proof: omitting this binding made `serves machine credential
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire machine
+              // credentials`: the fallback answers every route
+              // no_active_organization; watched 2026-10-22.
+              machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
+              // Proof: omitting this binding made `serves trusted issuer
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire trusted issuers`:
+              // the fallback answers every route no_active_organization;
+              // watched 2026-10-22.
+              trustedIssuers: {
+                administration: new TrustedIssuerAdministrationRepository(db, services.gate),
+                discovery: trustedIssuerDiscovery({ fetch: globalThis.fetch }),
+                configuredIssuer: configuredIssuerOf(opts.oidc),
               },
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
@@ -637,4 +688,14 @@ export async function bootBe01(
       return bag.close();
     },
   };
+}
+
+/**
+ * The configured sign-in issuer's Issuer Identifier as discovery publishes
+ * it, or null for a deployment without OIDC (`wbs-machine-credentials` A13,
+ * A16).
+ */
+function configuredIssuerOf(oidc: OidcRouteOptions | undefined): () => Promise<string | null> {
+  if (oidc === undefined) return () => Promise.resolve(null);
+  return () => oidc.issuer();
 }

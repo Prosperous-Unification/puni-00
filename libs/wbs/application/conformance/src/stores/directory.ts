@@ -316,13 +316,15 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
     }),
     storeCase('directory', 'directory.removePerson:claims-in-use', open, async ({ port, seed }) => {
       const [personId] = seed.personIds;
-      const removal = await port.removePerson(personId, false, seed.stamps[1]);
+      const removal = await port.removePerson(personId, false, seed.stamps[1], { kind: 'every' });
       expect(removal).toMatchObject({
         ok: false,
         reason: 'in_use',
         usage: { claims: [{ workItemId: CLAIM_IN_USE.workItemId, stepId: null, personId }] },
       });
-      expect(await port.removePerson(personId, true, seed.stamps[1])).toMatchObject({
+      expect(
+        await port.removePerson(personId, true, seed.stamps[1], { kind: 'every' }),
+      ).toMatchObject({
         ok: true,
       });
       expect((await port.listPeople()).map(({ id }) => id)).not.toContain(personId);
@@ -335,7 +337,9 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       open,
       async ({ port, seed }) => {
         const [superagent, worker] = DELEGATED_CLAIMS;
-        const removal = await port.removePerson(superagent.personId, false, seed.stamps[1]);
+        const removal = await port.removePerson(superagent.personId, false, seed.stamps[1], {
+          kind: 'every',
+        });
         expect(removal).toMatchObject({ ok: false, reason: 'in_use' });
         if (removal.ok || removal.reason !== 'in_use')
           throw new Error('the removal was not refused');
@@ -349,7 +353,9 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
         expect(await port.usageOfPerson(superagent.personId)).toMatchObject({
           claims: removal.usage.claims,
         });
-        const removed = await port.removePerson(superagent.personId, true, seed.stamps[1]);
+        const removed = await port.removePerson(superagent.personId, true, seed.stamps[1], {
+          kind: 'every',
+        });
         if (!removed.ok) throw new Error('the confirmed removal was refused');
         expect([...removed.removal.workItemIds].sort()).toEqual(
           [superagent.workItemId, worker.workItemId].sort(),
@@ -368,13 +374,17 @@ export function directoryRegistrations(open: OpenCase<'directory'>): readonly Ca
       async ({ port, seed }) => {
         const { personId, issuer, subject } = PINNED_CREDENTIAL;
         expect(await port.usageOfPerson(personId)).toMatchObject({ pinnedCredentials: 1 });
-        expect(await port.removePerson(personId, false, seed.stamps[1])).toMatchObject({
+        expect(
+          await port.removePerson(personId, false, seed.stamps[1], { kind: 'every' }),
+        ).toMatchObject({
           ok: false,
           reason: 'in_use',
           usage: { pinnedCredentials: 1, claims: [], assignments: [] },
         });
         expect(await port.credentialPinOf(issuer, subject)).toBe(personId);
-        expect(await port.removePerson(personId, true, seed.stamps[1])).toMatchObject({
+        expect(
+          await port.removePerson(personId, true, seed.stamps[1], { kind: 'every' }),
+        ).toMatchObject({
           ok: true,
         });
         expect((await port.listPeople()).map(({ id }) => id)).not.toContain(personId);
