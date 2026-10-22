@@ -24,13 +24,14 @@ import type {
   SharedPeopleRestoreApprovals,
   SpaceStore,
 } from '@wbs/core';
-import type { Scope, UnitOfWork } from '@wbs/core';
-import { clockOf } from '@wbs/core';
+import type { MachineCredentialAdministration, Scope, UnitOfWork } from '@wbs/core';
+import { clockOf, INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION } from '@wbs/core';
 import { capacityModeRoutes } from '@wbs/core/http/capacity-mode.routes';
 import { domainRoutes } from '@wbs/core/http/domain.routes';
 import { emailVerificationRoutes } from '@wbs/core/http/email-verification.routes';
 import { invitationRoutes } from '@wbs/core/http/invitation.routes';
 import { joinRequestRoutes } from '@wbs/core/http/join-request.routes';
+import { machineCredentialRoutes } from '@wbs/core/http/machine-credential.routes';
 import { onboardingRoutes } from '@wbs/core/http/onboarding.routes';
 import { organizationRoutes } from '@wbs/core/http/organization.routes';
 import { personLoadRoutes } from '@wbs/core/http/person-load.routes';
@@ -183,6 +184,12 @@ export interface AppOptions {
    * Production wires the SQLite stores (`boot.db.test.ts`).
    */
   provisioning?: Provisioning;
+  /**
+   * Machine credential administration (`wbs-machine-credentials`). Absent,
+   * every route answers as before activation; production and the
+   * organization harnesses wire the SQLite store (`boot.db.test.ts`).
+   */
+  machineCredentials?: MachineCredentialAdministration;
   /** Signed-in onboarding boundary; absence cannot masquerade as an HTTP 404. */
   onboarding: Onboarding;
   /** Required durable challenge boundary; absence is a boot configuration error. */
@@ -494,6 +501,11 @@ export function mountedEndpoints(
       opts.organizations,
       (opts.provisioning ?? REFUSE_PROVISIONING).tokens,
       (opts.provisioning ?? REFUSE_PROVISIONING).clock,
+    ),
+    ...machineCredentialRoutes(
+      opts.organizations,
+      opts.machineCredentials ?? INACTIVE_MACHINE_CREDENTIAL_ADMINISTRATION,
+      opts.clock,
     ),
     ...onboardingRoutes(opts.onboarding, opts.clock),
     ...emailVerificationRoutes(opts.emailVerification, opts.emailDelivery, opts.clock, nodeDigest),

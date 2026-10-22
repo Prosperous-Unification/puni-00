@@ -97,16 +97,23 @@ describe(MIGRATION, () => {
     const before = db.query('SELECT * FROM __drizzle_migrations').all();
     expect(() => rollbackTo(path, FOLDER, BASELINE)).toThrow(/claim occupancy exists/);
     expect(count()).toBe(1);
-    // The newer, empty machine credential migration reverses first.
+    // The newer, empty machine credential migrations reverse first.
     expect(db.query('SELECT * FROM __drizzle_migrations').all()).toEqual(
       before.filter(
-        (row) => (row as { name: string }).name !== '20261022100000_add_machine_credential',
+        (row) =>
+          ![
+            '20261022100000_add_machine_credential',
+            '20261022110000_widen_organization_audit_machine_credentials',
+            '20261022110100_check_machine_credential_id',
+          ].includes((row as { name: string }).name),
       ),
     );
   });
 
   it('rolls back when empty and comes forward again', () => {
     expect(rollbackTo(path, FOLDER, BASELINE)).toEqual([
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
       '20261022100000_add_machine_credential',
       MIGRATION,
     ]);

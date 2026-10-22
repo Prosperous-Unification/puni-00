@@ -159,6 +159,89 @@ Fresh results after the fixes (`CLAUDECODE` unset):
 - Touched library tests: core authentication, credential-rules and claim-command 52 pass; domain machine-credential 15 pass; store-sqlite organization-credential-rules 3 pass.
 - Migration lint: exit 0. `openspec validate --all --json`: 266 of 266 passed.
 
+## Slice 2 record (2026-10-22)
+
+Built on `feat/wbs-machine-credentials-2` from slice 1's head `e24675350`. Sources: the
+create route mints `api_key` only; rotation refuses `oidc` and `mcp_consent`
+`409 rotation_at_issuer`.
+
+What was built:
+
+- `GET`, `POST /api/organization/machine-credentials`, `POST …/:id/rotate`, `DELETE …/:id`
+  (`machine-credential-shapes.ts`, `machine-credential.routes.ts`), over
+  `MachineCredentialAdministration` and its SQLite store
+  (`machine-credential-administration.ts`). Every act rechecks activation, the role and a
+  member's own account inside its one immediate transaction with its audit row. A viewer is
+  `403 forbidden`; every delegation, a machine key included, `403 insufficient_scope`.
+- `20261022110000_widen_organization_audit_machine_credentials`: the five A17 actions and two
+  subject kinds, by compatible rebuild, `down.sql` refusing while a new-vocabulary row exists.
+- `20261022110100_check_machine_credential_id`: two triggers holding `machine_credential.id`
+  to the lowercase UUID shape (additive; a tightened CHECK needs a rebuild).
+- `appendOrganizationAudit` refuses a `wbs_mk_` value in a detail.
+- Person usage: `machineCredentials` beside `pinnedCredentials`; `deletePerson` refused
+  `in_use` while a live credential exists, the cascade revoking (one audit row each) and
+  deleting every credential row of the person; `patchPerson` unbind or rebind refused `in_use`.
+- mcp-01 excludes the four routes from its tools; be-01 composes the store in `boot.ts` and
+  both organization harnesses; `buildServices` takes an optional `now` so a mounted test pins
+  the rotation window from the route to the verification.
+
+Commands and fresh results, each run in the worktree with `CLAUDECODE` unset:
+
+| Command                                                                                                  | Result                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `migration-lint.ts` on both new `migration.sql` files                                                    | exit 0 each                                                                                                                                  |
+| `bunx nx run wbs-be-01:typecheck --skip-nx-cache`                                                        | exit 0                                                                                                                                       |
+| `bunx nx run wbs-be-01:lint --skip-nx-cache`; `eslint` and `prettier` on every changed file              | exit 0                                                                                                                                       |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                             | 3138 pass, 3 skip, 0 fail across 215 files (979 s)                                                                                           |
+| `bun test` `machine-credential-admin.controller.db.test.ts`                                              | 25 pass                                                                                                                                      |
+| `bun test` `libs/wbs/domain/contracts` (whole library)                                                   | 495 pass, 0 fail across 51 files                                                                                                             |
+| `bun test` `libs/wbs/adapters/store-memory` (whole library)                                              | 193 pass, 0 fail across 13 files                                                                                                             |
+| `bun test` core `src/module/directory`, `plan-commands`, `authentication`, `src/http`, `directory-usage` | 208 pass, 0 fail across 32 files                                                                                                             |
+| `bun test` core boundary, compose and readme tests                                                       | 43 pass, 0 fail across 7 files                                                                                                               |
+| `bun test` the 35 touched or directory and audit `store-sqlite` tests                                    | 651 pass, 0 fail                                                                                                                             |
+| `bun test` mcp-01 `openapi-tools`, `generated-document`, `shape-document`, `calendar-marker-shapes`      | 49 pass, 0 fail                                                                                                                              |
+| `bun test tools/tool-git-hooks/src/hooks/migration-lint.test.ts`                                         | 21 pass, 0 fail                                                                                                                              |
+| `bunx openspec validate --all --json`                                                                    | exit 0; 266 items, 266 passed                                                                                                                |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`              | exit 0, 39 indexes; the first run named slice 1's unindexed `module/authentication/machine-key.test.ts`, now indexed in that module's README |
+| `… check-root-migration working . HEAD docs/findings/root-migration.v1.json`                             | exit 0                                                                                                                                       |
+
+Not run, by the laptop RAM cap: the full `store-sqlite`, `core`, `mcp-01` and `fe-01` suites
+and every workspace-wide target; CI runs them. fe-01 is untouched: it reads only
+`pinnedCredentials`, and `machineCredentials` is optional on the wire.
+
+Not verified: that no secret reaches a log line. Nothing in the routes or the store logs, and
+the tests assert the secret and its digest are absent from list responses and audit rows, but
+no test captures be-01's logger. The OpenAPI document is generated from the shapes at run
+time (`documentFromShapes`); no emitted golden file exists to diff, so `app.routes.test.ts`
+and `generated-document.test.ts` pin the operation ids instead.
+
+### Slice 2 failure proofs
+
+Each fault was injected into the production path, the named test watched failing, the fault
+removed, and the test watched passing again (2026-10-22).
+
+| Check (file)                                                   | Fault injected                                | Test that observed the failure                                                                           | Result                                      |
+| -------------------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| audit widening `migration.sql` FK guard                        | `CHECK (violations = 0)` → `CHECK (1)`        | `migration-lint.test.ts` `accepts the machine credential audit rebuild`                                  | reports `destructive statement: DROP TABLE` |
+| audit widening `down.sql` guard                                | new-vocabulary filter → `WHERE 0`             | `refuses rollback over one machine credential audit row, keeping it`                                     | fails on the narrow CHECK, guard unnamed    |
+| id-shape insert trigger                                        | `WHEN 0`                                      | `refuses a credential id that is not a lowercase UUID`                                                   | misplaced-hyphen id stored                  |
+| `organization-audit-log.ts` `isSecretShaped` `wbs_mk_`         | prefix dropped                                | `refuses a detail carrying a token, digest or full subject`                                              | API-key-shaped detail stored                |
+| `machine-credential.routes.ts` delegation guard                | removed                                       | `refuses a machine key and a delegation every credential route`                                          | machine key's list 200                      |
+| store `administeringRole` viewer                               | viewer admitted                               | `refuses a viewer every credential route`                                                                | viewer's list 200                           |
+| store `reachable` own-account predicate                        | always the whole organization                 | `refuses a member the credentials of another account's agent`; `narrows a member to their own agents' …` | strangers' credentials listed               |
+| store `createApiKey` member own account                        | removed                                       | `refuses a member another account's agent, writing nothing`                                              | 201 for Dany's agent                        |
+| store `createApiKey` organization predicate                    | removed                                       | `refuses a person of another organization or of kind person`                                             | 409 `account_not_member`, not 404           |
+| store `createApiKey` `account_not_member`                      | removed                                       | `refuses an agent bound to an account that is no member`                                                 | 201                                         |
+| store `createApiKey` audit in the act's transaction            | audit appended in a second, later transaction | `stores nothing when the audit row cannot be written`                                                    | 201, not 500                                |
+| store `rotateApiKey` `rotation_at_issuer`                      | removed                                       | `refuses rotation of a consent credential at the issuer, changing nothing`                               | 201                                         |
+| store `rotateApiKey` `rotation_in_progress`                    | removed                                       | `refuses a second rotation inside the window, and allows one after it`                                   | 201                                         |
+| `directory.ts` `removePerson` live machine credentials         | left out of the in-use test                   | `refuses removing a person with a live machine credential unless cascaded`                               | 200, person removed                         |
+| `directory.ts` `removeMachineCredentialsOf` on removal         | call removed                                  | that case and `removes a person whose credentials are all revoked …`                                     | 500 on the `person_id` foreign key          |
+| `directory.ts` `patchPerson` in-use refusal                    | removed                                       | `refuses unbinding or rebinding a person a live machine credential acts through`                         | 200, person unbound                         |
+| mcp-01 `EXCLUDED_PATHS` (each of the two entries)              | removed in turn                               | `keeps machine credential administration out of the generated MCP tools`                                 | tools exposed, 2 fail each                  |
+| `boot.ts` administration binding                               | removed                                       | `boot.db.test.ts` `serves machine credential administration from the shared database once activated`     | throws: not wired                           |
+| domain `machine-credential.ts` secret expiry (slice 1's check) | predicate → `true`                            | `keeps the id, admits both secrets for 24 hours, then only the new one`                                  | rotated key 200 at T0 + 25 h                |
+
 ## Gate output
 
 Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all

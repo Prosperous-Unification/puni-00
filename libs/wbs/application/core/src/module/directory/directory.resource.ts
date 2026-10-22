@@ -119,6 +119,14 @@ export type RemoveDirectoryOutcome =
   | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
 
 /**
+ * How a scoped person patch answered: `in_use` when it would unbind or rebind
+ * a person unrevoked machine credentials act through, with their count
+ * (`wbs-machine-credentials` A12).
+ */
+export type PersonPatchOutcome =
+  DirectoryOutcome<PersonWithTeams> | { ok: false; reason: 'in_use'; usage: DirectoryUsage };
+
+/**
  * How a resource removal answered: `in_use` names the rows that lose a demand
  * and counts the demands, capacities and occupancies (`wbs-resources` R8).
  */
@@ -822,6 +830,9 @@ export class DirectoryService {
       this.clock.stampFor(actorId),
     );
     if (!written.ok) {
+      // Only a binding change is refused in use, and legacy access sends none.
+      if (written.reason === 'in_use')
+        throw new Error(`person "${personId}" legacy patch was refused in use`);
       // `clean` is defined on this branch — `taken` is the name index refusing,
       // and a patch that named no name cannot have reached it.
       if (written.reason === 'taken' && clean !== undefined) {
@@ -1259,6 +1270,8 @@ export class DirectoryService {
         if (!written.ok) {
           if (written.reason === 'taken')
             throw new Error(`person "${existing.id}" link patch reported a taken name`);
+          if (written.reason === 'in_use')
+            throw new Error(`person "${existing.id}" link patch was refused in use`);
           // Proof: throwing here made the queued existing-person add test lose unknown_team.
           return { ok: false, reason: written.reason };
         }
@@ -1290,6 +1303,8 @@ export class DirectoryService {
       if (!joined.ok) {
         if (joined.reason === 'taken')
           throw new Error(`person "${id}" link patch reported a taken name`);
+        if (joined.reason === 'in_use')
+          throw new Error(`person "${id}" link patch was refused in use`);
         // Proof: throwing here made the queued new-person link test lose unknown_team.
         return { ok: false, reason: joined.reason };
       }
@@ -1313,7 +1328,7 @@ export class DirectoryService {
     actorId: string,
     patch: PersonPatchInput,
     access: ResourceAccess,
-  ): Promise<DirectoryOutcome<PersonWithTeams>> {
+  ): Promise<PersonPatchOutcome> {
     if (this.opts.standaloneWrite !== undefined)
       return this.opts.standaloneWrite(
         { kind: 'patch-person', personId, teamIds: patch.teamIds, access },
@@ -1368,6 +1383,17 @@ export class DirectoryService {
       if (!written.ok) {
         if (written.reason === 'taken')
           throw new Error(`person "${personId}" patch unexpectedly reported a taken name`);
+        if (written.reason === 'in_use')
+          return {
+            ok: false,
+            reason: 'in_use',
+            usage: {
+              projects: [],
+              members: [],
+              pinnedCredentials: 0,
+              machineCredentials: written.machineCredentials,
+            },
+          };
         // Proof: throwing here made the queued person patch test lose unknown_team.
         return { ok: false, reason: written.reason };
       }

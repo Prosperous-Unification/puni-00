@@ -441,6 +441,7 @@ export function bindStores(
       members: [],
       claims: [],
       pinnedCredentials: 0,
+      machineCredentials: 0,
       capacityOf: new Map<string, number>(),
       workItems: rows.flat(),
       projects: projectIds.map((id) => {

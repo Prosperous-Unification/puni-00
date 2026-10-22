@@ -8,9 +8,10 @@ current member of the active organization. The body SHALL name a `source` of `ap
 SHALL be refused `400 invalid_body`), a `name` (1 to 80 characters, unique among the organization's
 unrevoked credentials), and a `personId` of a person of kind `agent` owned by the active
 organization and bound to an account that is a current member of it. A caller whose role is
-`member` or `viewer` SHALL be accepted only for a person bound to the caller's own account
-and refused `403 forbidden` for any other; an `admin` or `super_admin` SHALL be accepted for
-every agent person of the organization. The credential SHALL record the caller as its
+`member` SHALL be accepted only for a person bound to the caller's own account and refused
+`403 forbidden` for any other; a `viewer` SHALL be refused `403 forbidden`; an `admin` or
+`super_admin` SHALL be accepted for every agent person of the organization. A delegation or
+a machine credential SHALL be refused `403 insufficient_scope` on every credential route. The credential SHALL record the caller as its
 issuer and SHALL be written in one transaction with its audit row. The response SHALL carry
 the credential's id, source, name, person, issuer account, creation time and, for
 `api_key`, the secret, which SHALL never be readable again. A person of another

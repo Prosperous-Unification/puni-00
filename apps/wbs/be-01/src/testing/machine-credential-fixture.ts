@@ -11,7 +11,7 @@ export interface ApiKeyFixture {
 
 /**
  * Stores an API-key credential and its first secret's digest straight into
- * SQLite, as slice 2's create route will, and answers its id and the whole
+ * SQLite, as the create route does, and answers its id and the whole
  * key. The key is minted at run time, never written into a source file: the
  * plaintext-secrets hook refuses a `wbs_mk_` key literal.
  */
@@ -42,7 +42,7 @@ export async function issueApiKey(
   return { id, key, secretId };
 }
 
-/** Revokes credential `id` at `at`, as slice 2's revoke route will. */
+/** Revokes credential `id` at `at`, as the revoke route does (its secrets left as they are). */
 export function revokeMachineCredential(sqlite: Database, id: string, at: number): void {
   sqlite.run('UPDATE machine_credential SET revoked_at = ? WHERE id = ?', [at, id]);
 }

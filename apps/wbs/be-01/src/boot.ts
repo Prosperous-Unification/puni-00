@@ -10,6 +10,7 @@ import {
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialAdministrationRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -441,6 +442,12 @@ export async function bootBe01(
                 clock: services.clock,
                 canonicalUserName: canonicalOidcEmail,
               },
+              // Proof: omitting this binding made `serves machine credential
+              // administration from the shared database once activated`
+              // (boot.db.test.ts) throw `boot did not wire machine
+              // credentials`: the fallback answers every route
+              // no_active_organization; watched 2026-10-22.
+              machineCredentials: new MachineCredentialAdministrationRepository(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),

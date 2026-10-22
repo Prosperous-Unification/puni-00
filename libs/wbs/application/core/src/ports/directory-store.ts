@@ -125,9 +125,14 @@ export interface PersonPatch {
   accountId?: string | null;
 }
 
+/**
+ * `in_use`: the patch would unbind or rebind a person that unrevoked machine
+ * credentials act through (`wbs-machine-credentials` A12), counted.
+ */
 export type PersonWritten =
   | { ok: true; person: PersonWithTeams; projectIds: TouchedProjects }
-  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' };
+  | { ok: false; reason: DirectoryWriteRefusal | 'unknown_team' | 'unknown_account' }
+  | { ok: false; reason: 'in_use'; machineCredentials: number };
 
 /**
  * What a create answered.
@@ -193,6 +198,13 @@ export interface DirectoryUsageRows {
    * unpinned fleet credential could claim as any person of its account.
    */
   pinnedCredentials: number;
+  /**
+   * How many unrevoked machine credentials are pinned to the person being
+   * removed (`machine_credential.person_id`, `wbs-machine-credentials`); 0 for
+   * a team. Like a pin it refuses an unconfirmed removal `in_use`; a confirmed
+   * removal revokes them, auditing each, and removes them with the person.
+   */
+  machineCredentials: number;
   /**
    * What each project in this usage has stated about the team being removed, as
    * `projectId -> slots`. Empty when the usage is a person's.

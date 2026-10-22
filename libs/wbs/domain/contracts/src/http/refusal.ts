@@ -274,6 +274,12 @@ export interface DirectoryUsage {
    * Optional on the wire: an outgoing be-01 mid-swap counts no pins.
    */
   pinnedCredentials?: number;
+  /**
+   * Unrevoked machine credentials of the person, revoked by a confirmed
+   * removal and refusing an unbind or rebind. Optional on the wire: an
+   * outgoing be-01 mid-swap counts none.
+   */
+  machineCredentials?: number;
 }
 
 /**
@@ -485,7 +491,13 @@ type BareRefusalCode =
   | 'sso_connection_not_found'
   // Provisioning tokens (`organization-scim`): two tokens already live
   // (`sso_connection_unproven` above also refuses a token).
-  | 'token_limit';
+  | 'token_limit'
+  // Machine credentials (`wbs-machine-credentials`): an agent person bound to
+  // an account that is no member; a second rotation inside the window; a
+  // rotation of a credential whose secret its issuer rotates.
+  | 'account_not_member'
+  | 'rotation_in_progress'
+  | 'rotation_at_issuer';
 
 type SharedCommandCode =
   | 'not_found'
@@ -497,7 +509,8 @@ type SharedCommandCode =
   | 'referenced_by_step_parallel'
   | 'already_claimed'
   | 'unknown_team'
-  | 'unknown_person';
+  | 'unknown_person'
+  | 'person_not_bound';
 
 /**
  * Details by finite code. Undefined means no detail, never an open object bag.
@@ -528,6 +541,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     /** Bare from the by-person read; with its command context from a batch. */
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
+    /** Naming the person from a machine credential create; with its command context from a batch. */
+    person_not_bound: { personId: string } | CommandRefusalDetail['person_not_bound'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };

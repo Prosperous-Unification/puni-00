@@ -220,7 +220,7 @@ describe('a linked fleet credential', () => {
         error: 'in_use',
         at: 0,
         kind: 'deletePerson',
-        usage: { projects: [], members: [], pinnedCredentials: 1 },
+        usage: { projects: [], members: [], pinnedCredentials: 1, machineCredentials: 0 },
       },
     });
     expect((await remove(true)).status).toBe(200);

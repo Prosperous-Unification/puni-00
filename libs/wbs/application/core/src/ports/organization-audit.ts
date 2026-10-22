@@ -19,13 +19,24 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'scim_user_deprovisioned',
   'pending_membership_activated',
   'session_policy_changed',
+  'machine_credential_created',
+  'machine_credential_rotated',
+  'machine_credential_revoked',
+  'trusted_issuer_registered',
+  'trusted_issuer_removed',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
 
 /** What an audit row is about. */
 export type OrganizationAuditSubjectKind =
-  'project' | 'sso_connection' | 'provisioning_token' | 'scim_user' | 'session_policy';
+  | 'project'
+  | 'sso_connection'
+  | 'provisioning_token'
+  | 'scim_user'
+  | 'session_policy'
+  | 'machine_credential'
+  | 'trusted_issuer';
 
 /**
  * The detail one audit row keeps: flat values only, so it is reviewable at a

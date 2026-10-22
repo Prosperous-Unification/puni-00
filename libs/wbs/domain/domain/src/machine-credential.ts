@@ -143,7 +143,11 @@ function matchesProof(
       for (const secret of credential.secrets) {
         // Proof: with `secret.expiresAt > now` replaced by `true`, `refuses a
         // secret at and after its expiry` (machine-credential.test.ts)
-        // admitted the expired secret; watched 2026-10-22.
+        // admitted the expired secret; watched 2026-10-22. With the whole
+        // predicate replaced by `true`, mounted `keeps the id, admits both
+        // secrets for 24 hours, then only the new one`
+        // (machine-credential-admin.controller.db.test.ts) admitted the rotated
+        // key at T0 + 25 h; watched 2026-10-22.
         const unexpired = secret.expiresAt === null || secret.expiresAt > now;
         if (digestsEqual(secret.digest, presented.digest) && unexpired) live = true;
       }

@@ -31,6 +31,7 @@ import {
   ExternalIdentityRepository,
   InvitationRepository,
   JoinRequestRepository,
+  MachineCredentialAdministrationRepository,
   MachineCredentialRepository,
   OnboardingRepository,
   openSqliteSource,
@@ -461,6 +462,7 @@ export class OrganizationHarness {
         clock: { now },
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
+      machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -570,6 +572,7 @@ export class OrganizationHarness {
     sessionBinding,
     provider,
     upstreamCredential,
+    now,
     migrate = (path) => {
       runMigrations(path, FOLDER);
     },
@@ -594,6 +597,7 @@ export class OrganizationHarness {
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       pushFetch,
+      ...(now === undefined ? {} : { now }),
       ...(provider === undefined
         ? {}
         : {
@@ -670,6 +674,7 @@ export class OrganizationHarness {
       ),
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
+      machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
       onboarding: new OnboardingRepository(source.db, services.gate),
       emailVerification: new EmailVerificationRepository(source.db, services.gate),
       invitations: new InvitationRepository(source.db, services.gate),
@@ -923,6 +928,8 @@ export class OrganizationHarness {
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
   readonly sessionBinding?: boolean;
+  /** The services clock's time source; real time unless a test fixes it. */
+  readonly now?: () => number;
   withOptimizer?: boolean;
   /** Runs after organization access resolves, before the route acts. */
   afterResolve?: () => void;

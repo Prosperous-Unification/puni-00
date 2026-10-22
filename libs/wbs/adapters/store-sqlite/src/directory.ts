@@ -32,12 +32,13 @@ import type {
   WorkItemTypeWritten,
   WriteStamp,
 } from '@wbs/core';
-import { and, asc, eq, inArray, type SQL, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, type SQL, sql } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
 
 import { auditOnCreate, auditOnUpdate } from './audit';
 import { isUniqueViolation, UNIQUE_INDEXES } from './constraint';
 import type { Gate } from './gate';
+import { appendOrganizationAudit } from './organization-audit-log';
 import { bumpWorkItems } from './revision';
 import {
   assignment,
@@ -46,6 +47,8 @@ import {
   externalIdentity,
   externalSystem,
   externalSystemOrganization,
+  machineCredential,
+  machineCredentialSecret,
   organizationMembership,
   person,
   personOrganization,
@@ -87,6 +90,7 @@ const NOTHING_POINTS_AT_IT: DirectoryUsageRows = {
   members: [],
   claims: [],
   pinnedCredentials: 0,
+  machineCredentials: 0,
   capacityOf: new Map(),
 };
 
@@ -289,6 +293,7 @@ function usageRowsIn(
     members,
     claims: [],
     pinnedCredentials: 0,
+    machineCredentials: 0,
     capacityOf: new Map(stated.map((row) => [row.projectId, row.size])),
   };
 }
@@ -304,6 +309,26 @@ function credentialsPinnedTo(reader: Reader, personId: string): string[] {
 }
 
 /**
+ * The unrevoked machine credentials pinned to one person
+ * (`machine_credential.person_id`, `wbs-machine-credentials`), with what their
+ * revocation's audit row names.
+ */
+function liveMachineCredentialsOf(reader: Reader, personId: string) {
+  return reader
+    .select({
+      id: machineCredential.id,
+      organizationId: machineCredential.organizationId,
+      source: machineCredential.source,
+      name: machineCredential.name,
+      issuedBy: machineCredential.issuedBy,
+      issuer: machineCredential.issuer,
+    })
+    .from(machineCredential)
+    .where(and(eq(machineCredential.personId, personId), isNull(machineCredential.revokedAt)))
+    .all();
+}
+
+/**
  * A person's usage: what reaches their projects, every claim their removal
  * takes, and the credentials pinned to them.
  */
@@ -316,6 +341,7 @@ function personUsageIn(
     ...usageRowsIn(reader, projectIds, []),
     claims: claimsTakenWith(reader, personId),
     pinnedCredentials: credentialsPinnedTo(reader, personId).length,
+    machineCredentials: liveMachineCredentialsOf(reader, personId).length,
   };
 }
 
@@ -1383,6 +1409,20 @@ export class DirectoryRepository implements DirectoryStore {
           }
           if (typeof patch.accountId === 'string' && !accountMayBind(tx, personId, patch.accountId))
             return { ok: false, reason: 'unknown_account' };
+          if (patch.accountId !== undefined) {
+            const bound = tx
+              .select({ accountId: person.accountId })
+              .from(person)
+              .where(eq(person.id, personId))
+              .get();
+            const machines = liveMachineCredentialsOf(tx, personId).length;
+            // Proof: with this refusal removed, `refuses unbinding or rebinding
+            // a person a live machine credential acts through` in
+            // `machine-credential-admin.controller.db.test.ts` unbound the
+            // person; watched 2026-10-22.
+            if (bound?.accountId !== patch.accountId && machines > 0)
+              return { ok: false, reason: 'in_use', machineCredentials: machines };
+          }
           // One `set`, not one per field: two updates would be two revisions of
           // the same row for a patch the caller sent as one thing, and the second
           // would have to be skipped when only the first field was named anyway.
@@ -1857,6 +1897,7 @@ export class DirectoryRepository implements DirectoryStore {
         // work items' revisions move with the rest.
         const claimed = claimsTakenWith(tx, personId);
         const pinned = credentialsPinnedTo(tx, personId);
+        const machines = liveMachineCredentialsOf(tx, personId);
         // Proof: with `claimed` left out of this test, the SQLite certification's
         // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
         // Proof: with `pinned` left out of this test, the SQLite certification's
@@ -1864,7 +1905,14 @@ export class DirectoryRepository implements DirectoryStore {
         // unconfirmed; with the revoking delete below removed, the confirmed
         // removal failed on the `external_identity.person_id` foreign key
         // (both watched 2026-10-20).
-        if (!cascade && (held.length > 0 || claimed.length > 0 || pinned.length > 0)) {
+        // Proof: with `machines` left out of this test, `refuses removing a
+        // person with a live machine credential unless cascaded` in
+        // `machine-credential-admin.controller.db.test.ts` removed the person
+        // unconfirmed; watched 2026-10-22.
+        if (
+          !cascade &&
+          (held.length > 0 || claimed.length > 0 || pinned.length > 0 || machines.length > 0)
+        ) {
           return {
             ok: false,
             reason: 'in_use',
@@ -1880,6 +1928,11 @@ export class DirectoryRepository implements DirectoryStore {
         // `ON DELETE` action, so without this the person delete fails on it.
         if (pinned.length > 0)
           tx.delete(externalIdentity).where(inArray(externalIdentity.id, pinned)).run();
+        // Proof: without this, the confirmed removals in `refuses removing a
+        // person with a live machine credential unless cascaded` and `removes a
+        // person whose credentials are all revoked …` failed on the
+        // `machine_credential.person_id` foreign key (500); watched 2026-10-22.
+        removeMachineCredentialsOf(tx, personId, machines, stamp);
         tx.delete(personTeam).where(eq(personTeam.personId, personId)).run();
         const removed = tx.delete(person).where(eq(person.id, personId)).returning().all();
         // Nothing was deleted, so there was nothing here to delete: somebody
@@ -2274,4 +2327,48 @@ function accountMayBind(tx: Transaction, personId: string, accountId: string): b
       )
       .get() !== undefined
   );
+}
+
+/**
+ * Revokes `machines` with one `machine_credential_revoked` audit row each, then
+ * deletes every machine credential of `personId`, revoked ones included, and
+ * their secrets, so the person's row can go (`machine_credential.person_id`
+ * has no `ON DELETE` action). The audit rows outlive them: `subject_id`
+ * references nothing.
+ */
+function removeMachineCredentialsOf(
+  tx: Transaction,
+  personId: string,
+  machines: ReturnType<typeof liveMachineCredentialsOf>,
+  stamp: WriteStamp,
+): void {
+  for (const machine of machines)
+    appendOrganizationAudit(tx, {
+      id: crypto.randomUUID(),
+      organizationId: machine.organizationId,
+      actorId: stamp.by,
+      action: 'machine_credential_revoked',
+      subjectKind: 'machine_credential',
+      subjectId: machine.id,
+      detail: {
+        source: machine.source,
+        personId,
+        name: machine.name,
+        issuedBy: machine.issuedBy,
+        issuer: machine.issuer,
+        cascade: true,
+      },
+      at: stamp.at,
+    });
+  const credentialIds = tx
+    .select({ id: machineCredential.id })
+    .from(machineCredential)
+    .where(eq(machineCredential.personId, personId))
+    .all()
+    .map(({ id }) => id);
+  if (credentialIds.length === 0) return;
+  tx.delete(machineCredentialSecret)
+    .where(inArray(machineCredentialSecret.credentialId, credentialIds))
+    .run();
+  tx.delete(machineCredential).where(inArray(machineCredential.id, credentialIds)).run();
 }

@@ -576,6 +576,7 @@ describe('deletePerson and deleteTeam', () => {
         ],
         members: [],
         pinnedCredentials: 0,
+        machineCredentials: 0,
       },
     });
 
@@ -603,7 +604,12 @@ describe('deletePerson and deleteTeam', () => {
         error: 'in_use',
         at: 0,
         kind: 'deleteTeam',
-        usage: { projects: [], members: [{ id: kat, name: 'Kat' }], pinnedCredentials: 0 },
+        usage: {
+          projects: [],
+          members: [{ id: kat, name: 'Kat' }],
+          pinnedCredentials: 0,
+          machineCredentials: 0,
+        },
       },
     });
   });
@@ -840,6 +846,7 @@ describe('the service commands', () => {
           ],
           members: [],
           pinnedCredentials: 0,
+          machineCredentials: 0,
         },
       },
     });

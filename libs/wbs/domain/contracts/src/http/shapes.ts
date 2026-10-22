@@ -52,6 +52,12 @@ import {
 } from './invitation-shapes';
 import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
 import {
+  createMachineCredential,
+  listMachineCredentials,
+  revokeMachineCredential,
+  rotateMachineCredential,
+} from './machine-credential-shapes';
+import {
   issueMcpDelegation,
   listMcpOrganizations,
   readMcpAuthority,
@@ -167,6 +173,10 @@ export const httpShapes = [
   issueProvisioningToken,
   rotateProvisioningToken,
   revokeProvisioningToken,
+  listMachineCredentials,
+  createMachineCredential,
+  rotateMachineCredential,
+  revokeMachineCredential,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,

@@ -19,16 +19,24 @@ const SUBJECT_KINDS: readonly OrganizationAuditSubjectKind[] = [
   'provisioning_token',
   'scim_user',
   'session_policy',
+  'machine_credential',
+  'trusted_issuer',
 ];
 
 /**
  * A detail value that would leak what an audit row must never hold: a raw
- * provisioning token, a 64-hex digest, or a full upstream subject (two `|`).
+ * provisioning token or API key, a 64-hex digest, or a full upstream subject
+ * (two `|`).
  * A prefix such as `samlp|acme-saml|` is allowed; it is what the row names.
+ *
+ * Proof: with the `wbs_mk_` prefix dropped, `refuses a detail carrying a
+ * token, digest or full subject` stored an API-key-shaped detail; watched
+ * 2026-10-22.
  */
 function isSecretShaped(value: string): boolean {
   return (
     value.startsWith('wbs_scim_') ||
+    value.startsWith('wbs_mk_') ||
     /^[0-9a-f]{64}$/i.test(value) ||
     /^[^|]+\|[^|]+\|.+$/.test(value) ||
     /^[^|]+\|[^|]+$/.test(value)
