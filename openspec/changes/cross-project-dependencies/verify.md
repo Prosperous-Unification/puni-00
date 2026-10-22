@@ -5013,3 +5013,12 @@ assertions; independent Astra review freshly passed a selected **12/12**, 145
 assertions. This synthetic active fixture does not enable production authoring;
 tasks 3.2/4.2 remain open. The canonical host gate and exact-head CI remain
 pending.
+
+The reviewed producer HTTP 409 packet was integrated at `97dfe80f7`; its
+combined mounted frontend suite passed **29/29**
+(`/tmp/puni-integrated-http409-tests.log`). The reviewed MCP SS/FF packet was
+integrated at `4c59a8dc2`; its combined split-node cases passed **6/6**, 111
+assertions (`/tmp/puni-integrated-mcp-ssff-tests.log`). OpenSpec validated all
+**271/271** items after both integrations and the evidence link
+(`/tmp/puni-openspec-after-mcp-ssff.json`). These are bounded regression
+receipts, not complete frontend/backend delivery or host-gate evidence.
