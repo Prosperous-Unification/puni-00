@@ -49,7 +49,9 @@ export interface RuledCredential {
  * evaluating service's injected `now` (ADR 0012). Null admits.
  *
  * - A machine credential (`wbs-machine-credentials` A10) is admitted by
- *   neither rule: it has no human sign-in to judge.
+ *   neither rule: it has no human sign-in to judge. A consent delegation
+ *   (A20) is judged by the human sign-in's pair that opened its family,
+ *   exactly as an upstream delegation is.
  * - Enforced SSO admits only an upstream pair that authenticated THIS
  *   credential and carries an enforced connection's whole prefix; a password
  *   session, a direct context and any other pair are refused.
@@ -89,8 +91,12 @@ export function credentialRuleRefusal(
   if (authentication?.kind === 'machine') return null;
   const enforced = facts.enforced.at(0);
   if (enforced !== undefined) {
+    // Proof: with `consent` left out here, `refuses a consent delegation
+    // whose human signed in outside the enforced connection, and admits one
+    // inside it` (credential-rules.test.ts) refused the inside case
+    // `sso_required`; watched 2026-10-22.
     const carried =
-      authentication?.kind === 'upstream' &&
+      (authentication?.kind === 'upstream' || authentication?.kind === 'consent') &&
       facts.enforced.some(({ prefix }) => authentication.subject.startsWith(prefix));
     if (!carried)
       return {

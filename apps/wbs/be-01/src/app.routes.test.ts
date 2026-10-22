@@ -281,6 +281,8 @@ const WRITE_SCOPE_OPERATIONS = [
 const INTERNAL_OPERATIONS = [
   'postInternalForward',
   'postInternalMcpAuthority',
+  'postInternalMcpCredentials',
+  'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
   'postInternalMcpOrganizations',
 ] as const;
@@ -288,6 +290,7 @@ const INTERNAL_OPERATIONS = [
 const UPSTREAM_BEARER_OPERATIONS: ReadonlySet<string> = new Set([
   'postInternalGatewayProjectAccess',
   'postInternalMcpOrganizations',
+  'postInternalMcpCredentials',
   'postInternalMcpDelegation',
 ]);
 const GATEWAY_OPERATIONS = ['postInternalGatewayProjectAccess'] as const;
@@ -414,6 +417,8 @@ const NO_ORIGIN_OPERATIONS = [
   'getPlansBy-solutionBySlug',
   'postInternalForward',
   'postInternalMcpAuthority',
+  'postInternalMcpCredentials',
+  'postInternalMcpCredentialsEnded',
   'postInternalMcpDelegation',
   'postInternalMcpOrganizations',
   'postInternalGatewayProjectAccess',

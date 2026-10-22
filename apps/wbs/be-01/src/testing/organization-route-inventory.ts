@@ -567,6 +567,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'control',
   },
   {
+    operationId: 'postInternalMcpCredentials',
+    method: 'POST',
+    path: '/internal/mcp/credentials',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpCredentialsEnded',
+    method: 'POST',
+    path: '/internal/mcp/credentials/ended',
+    kind: 'control',
+  },
+  {
     operationId: 'postInternalMcpDelegation',
     method: 'POST',
     path: '/internal/mcp/delegation',

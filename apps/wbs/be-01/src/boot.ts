@@ -8,6 +8,7 @@ import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
+  ConsentCredentialRepository,
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
@@ -16,6 +17,7 @@ import {
   InvitationRepository,
   JoinRequestRepository,
   MachineCredentialAdministrationRepository,
+  MachineCredentialRepository,
   NO_BOUND_ORGANIZATION,
   OnboardingRepository,
   openSqliteSource,
@@ -225,6 +227,8 @@ function mcpDelegationComposition(
     return userId === null ? null : users.findById(userId);
   };
   const access = new SqliteOrganizationAccess(db, NO_BOUND_ORGANIZATION, now);
+  const machineCredentials = new MachineCredentialRepository(db, services.gate);
+  const consentCredentialOf = (credentialId: string) => machineCredentials.findById(credentialId);
   return {
     // Proof: wiring REFUSE_DELEGATIONS here with keys configured made
     // `lists, issues and verifies an MCP delegation only after activation`
@@ -239,6 +243,11 @@ function mcpDelegationComposition(
               new SqliteDelegationUse(db, services.gate).consume(issuer, jti, expiresAt, at),
             now,
             (userId) => users.findById(userId),
+            // Proof: with this reader left out, `offers dany's agents at
+            // consent, and a consent as claire mints her credential` and the
+            // two consent tests after it in mcp-01's
+            // `organization-delegation.boot.test.ts` failed; watched 2026-10-22.
+            consentCredentialOf,
           ),
     mcpDelegation: mcpDelegationAuthority({
       // mcp-01 forwards a human's configured-issuer token; one the trusted-issuer
@@ -256,6 +265,8 @@ function mcpDelegationComposition(
         Promise.resolve(currentMembershipAccess(db, organizationId, userId).ok),
       activationState: () => readOrganizationActivation(db),
       signingKey: keys?.signingKey ?? null,
+      consents: new ConsentCredentialRepository(db, services.gate),
+      consentCredentialOf,
       now,
     }),
   };

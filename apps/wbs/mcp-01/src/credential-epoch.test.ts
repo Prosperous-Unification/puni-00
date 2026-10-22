@@ -33,7 +33,7 @@ const CLI = join(import.meta.dir, 'credential-epoch-cli.ts');
 const ACTIVATED_ONE: ConsentOrganizations = {
   kind: 'activated',
   userId: 'u-ada',
-  memberships: [{ organizationId: 'org-a', name: 'Acme', role: 'member' }],
+  memberships: [{ organizationId: 'org-a', name: 'Acme', role: 'member', agents: [] }],
 };
 
 const roots: string[] = [];
@@ -83,6 +83,7 @@ function server(
   store: McpSessionStore,
   consent?: ConsentOrganizations,
   upstream: Upstream = {},
+  ends: { credentialId: string; familyId: string }[] = [],
 ): McpOAuthServer {
   let counter = 0;
   const organizations: OrganizationAuthority | undefined =
@@ -90,6 +91,11 @@ function server(
       ? undefined
       : {
           organizationsFor: () => Promise.resolve(consent),
+          mintConsentCredential: () => Promise.resolve({ kind: 'minted' }),
+          reportConsentEnded: (ended) => {
+            ends.push(ended);
+            return Promise.resolve('acknowledged');
+          },
           delegationFor: () => Promise.resolve({ kind: 'issued', token: 'signed-delegation' }),
           readRefreshAuthority: (authority) =>
             Promise.resolve({
@@ -249,7 +255,13 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 async function runCli(path: string | undefined, args: readonly string[] = []) {
   const env: Record<string, string> = { PATH: process.env['PATH'] ?? '' };
   if (path !== undefined) env['MCP_STORE_PATH'] = path;
-  const child = Bun.spawn(['bun', CLI, ...args], { env, stdout: 'pipe', stderr: 'pipe' });
+  // A scratch cwd: Bun loads `.env` from the working directory, and a developer's
+  // `apps/wbs/mcp-01/.env` (written by `tools/dev/setup.ts`) would set MCP_STORE_PATH.
+  // Proof: 2026-10-22, with the worktree's cwd and that file present, `refuses without
+  // MCP_STORE_PATH or with unknown arguments` failed (SQLITE_CANTOPEN instead of the usage error).
+  const cwd = mkdtempSync(join(tmpdir(), 'mcp-credential-epoch-cli-'));
+  roots.push(cwd);
+  const child = Bun.spawn(['bun', CLI, ...args], { cwd, env, stdout: 'pipe', stderr: 'pipe' });
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
@@ -319,6 +331,44 @@ describe('credential epoch advance', () => {
     });
   });
 
+  it('reports a consent family retired by the epoch advance, or by another writer', async () => {
+    for (const retire of ['cli', 'raised'] as const) {
+      const path = storePath();
+      const store = new McpSessionStore(path, [KEY]);
+      const now = Date.now();
+      store.recordPendingConsent('family-claire', 'credential-claire', now + 300_000);
+      store.createFamily(
+        {
+          familyId: 'family-claire',
+          clientId: 'client-1',
+          subject: 'auth0|ada',
+          scope: 'wbs:read',
+          upstreamAccessToken: 'upstream-token',
+          upstreamExpiresAt: now + 600_000,
+          idleExpiresAt: now + 600_000,
+          absoluteExpiresAt: now + 600_000,
+          binding: { organizationId: 'org-a', userId: 'u-ada', issuer: 'https://idp.example/' },
+          consent: { personId: 'p-claire', credentialId: 'credential-claire' },
+        },
+        'session-claire',
+        now + 600_000,
+        'refresh-claire',
+        now,
+      );
+      store.close();
+      if (retire === 'cli') advanceCredentialEpoch(path, now, true);
+      else raiseEpoch(path);
+      const reopened = new McpSessionStore(path, [KEY]);
+      const ends: { credentialId: string; familyId: string }[] = [];
+      expect(await server(reopened, ACTIVATED_ONE, {}, ends).reportEndedConsents()).toBe(1);
+      expect({ retire, ends }).toEqual({
+        retire,
+        ends: [{ credentialId: 'credential-claire', familyId: 'family-claire' }],
+      });
+      reopened.close();
+    }
+  });
+
   it('refuses while this process has the store open, and changes nothing', async () => {
     const { path } = await preActivationStore();
     const before = storeState(path);
@@ -344,7 +394,7 @@ describe('credential epoch advance', () => {
       db.run('PRAGMA journal_mode = WAL');
       migrateMcpStore(db, true, MCP_STORE_MIGRATIONS.slice(0, 2));
     });
-    expect(() => advanceCredentialEpoch(path, 1_234, true)).toThrow(/applied 2 of 3 migrations/);
+    expect(() => advanceCredentialEpoch(path, 1_234, true)).toThrow(/applied 2 of 4 migrations/);
     expect(storeState(path).epoch).toBe(0);
   });
 

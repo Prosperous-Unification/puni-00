@@ -61,8 +61,10 @@ import {
   rotateMachineCredential,
 } from './machine-credential-shapes';
 import {
+  endMcpConsentCredential,
   issueMcpDelegation,
   listMcpOrganizations,
+  mintMcpConsentCredential,
   readMcpAuthority,
 } from './mcp-delegation-shapes';
 import {
@@ -262,6 +264,8 @@ export const httpShapes = [
   gatewayProjectAccess,
   gatewayBrowserProjectAccess,
   listMcpOrganizations,
+  mintMcpConsentCredential,
+  endMcpConsentCredential,
   issueMcpDelegation,
   readMcpAuthority,
 ] as const;
