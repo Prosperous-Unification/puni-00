@@ -89,6 +89,38 @@ command creates one. One call drafts a plan:
 A refused command refuses the whole batch with `{ "error", "at", "kind" }` and
 nothing is applied; fix that command and resend.
 
+Typed dependencies use the same command tool. An omitted endpoint `projectId`
+keeps owner-local IDs and exact batch aliases, including `PUNI.080.39`. An explicit
+`projectId` requires stable IDs without surrounding whitespace (or the existing
+`sn1` node ID), and forbids `workItemRef` even for the owner project. The route's
+project owns the successor:
+
+```json
+{
+  "id": "<successor-project-id>",
+  "commands": [
+    {
+      "kind": "addTypedDependency",
+      "predecessor": {
+        "projectId": "<predecessor-project-id>",
+        "scope": "whole",
+        "workItemId": "<predecessor-id>"
+      },
+      "successor": { "scope": "whole", "workItemId": "<successor-id>" },
+      "type": "FS"
+    }
+  ]
+}
+```
+
+External authoring currently remains dormant: a readable scoped external request
+receives HTTP 409 `external_dependencies_inactive`, carried in MCP's tool error
+with its indexed body. This example requires the future semantic activation
+barrier before it can commit. Existing local `addDependency`/`removeDependency`
+and typed add/update/remove commands continue through the same admission path.
+`updateTypedDependency` and `removeTypedDependency` address the stable
+`dependencyId`; changing endpoints keeps that identity.
+
 Connecting an AI client and importing a project through it: [docs/import-with-ai.md](../../../docs/import-with-ai.md).
 
 ## Endpoint and probes

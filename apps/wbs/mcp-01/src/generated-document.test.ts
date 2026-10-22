@@ -47,6 +47,59 @@ test('generated project command tool exposes addTypedDependency with endpoints',
   }
 });
 
+test('generated dependency tools publish local aliases, scoped identity rules and stable removal', () => {
+  const tool = toolsFromDocument(readDocument()).find(
+    (candidate) => candidate.name === 'postApiProjectsByIdCommands',
+  );
+  if (tool === undefined) throw new Error('Project command tool missing');
+  const commands = tool.inputSchema.properties['commands'] as {
+    items: {
+      anyOf: {
+        description: string;
+        properties: Record<
+          string,
+          | {
+              const?: string;
+              type?: string;
+              enum?: string[];
+              properties?: Record<string, unknown>;
+              required?: string[];
+            }
+          | undefined
+        >;
+        required: string[];
+      }[];
+    };
+  };
+  for (const kind of ['addTypedDependency', 'updateTypedDependency']) {
+    const arm = commands.items.anyOf.find(
+      (candidate) => candidate.properties['kind']?.const === kind,
+    );
+    if (arm === undefined) throw new Error(`Missing ${kind}`);
+    expect(arm.description).toContain('projectId');
+    expect(arm.description).toContain('workItemRef');
+    for (const side of ['predecessor', 'successor']) {
+      const endpoint = arm.properties[side];
+      expect(endpoint?.properties?.['scope']).toEqual({
+        enum: ['descendant-step', 'node', 'whole'],
+      });
+      expect(endpoint?.properties?.['workItemRef']).toEqual({ type: 'string' });
+      expect(endpoint?.required).toEqual(['scope']);
+    }
+  }
+  const remove = commands.items.anyOf.find(
+    (candidate) => candidate.properties['kind']?.const === 'removeTypedDependency',
+  );
+  expect(remove?.required).toEqual(['dependencyId', 'kind']);
+  expect(remove?.properties['dependencyId']).toEqual({ type: 'string' });
+  for (const kind of ['addDependency', 'removeDependency']) {
+    const legacy = commands.items.anyOf.find(
+      (candidate) => candidate.properties['kind']?.const === kind,
+    );
+    expect(legacy?.properties['predecessorRef']).toEqual({ type: 'string' });
+  }
+});
+
 test('required exclusion drift remains a failure when operational routes are absent', () => {
   const document = documentFromShapes(httpShapes);
   for (const path of Object.keys(document.paths))

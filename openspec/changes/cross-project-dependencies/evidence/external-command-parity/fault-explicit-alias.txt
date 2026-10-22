@@ -1,0 +1,50 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:
+(pass) MCP organization delegation against a booted be-01 > before activation an MCP session works exactly as before [75.20ms]
+(pass) MCP organization delegation against a booted be-01 > the operator activates organizations [3215.66ms]
+(pass) MCP organization delegation against a booted be-01 > a session bound at consent lists projects and runs a command batch [201.18ms]
+(pass) MCP organization delegation against a booted be-01 > the same session is refused on another organization's project [54.90ms]
+(pass) MCP organization delegation against a booted be-01 > a raw upstream Bearer with no delegation is refused [7.78ms]
+(pass) MCP organization delegation against a booted be-01 > keeps the signed delegation through an upstream refresh retry [3034.16ms]
+(pass) MCP organization delegation against a booted be-01 > offers dany's agents at consent, and a consent as claire mints her credential [40.06ms]
+(pass) MCP organization delegation against a booted be-01 > a consent session's tool call claims as its agent, never with the human's reach [151.96ms]
+(pass) MCP organization delegation against a booted be-01 > a consent cannot borrow its super-admin account’s restricted-project recovery [169.67ms]
+(pass) MCP organization delegation against a booted be-01 > refresh keeps the agent alive as the agent [21.68ms]
+(pass) MCP organization delegation against a booted be-01 > authorizing as yourself beside agents stays the human session [63.19ms]
+(pass) MCP organization delegation against a booted be-01 > a second consent for the same agent mints a second credential [8.99ms]
+(pass) MCP organization delegation against a booted be-01 > revoking the consent in WBS ends the session: 401, and refresh is refused [9.57ms]
+(pass) MCP organization delegation against a booted be-01 > a family mcp-01 ends marks its credential revoked in WBS [14.73ms]
+(pass) MCP organization delegation against a booted be-01 > MCP and direct HTTP carry the same scoped external command to the dormant backend [134.62ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP and MCP refuse dormant external add and local-to-external update for all scopes and types [1323.47ms]
+(pass) MCP organization delegation against a booted be-01 > HTTP preserves legacy aliases and typed local stable relationship history [1691.48ms]
+(pass) MCP organization delegation against a booted be-01 > MCP preserves legacy aliases and typed local stable relationship history [1939.52ms]
+359 |   const access = sessions['dany'];
+360 |   const before = await fixture('write-state', {});
+361 |   const viaMcp = await tool(access, 'postApiProjectsByIdCommands', { id: ids.launch, commands });
+362 |   expect(viaMcp.isError).toBe(true);
+363 |   expect(viaMcp.text).toContain(`HTTP ${String(status)}`);
+364 |   expect(JSON.parse(viaMcp.text.slice(viaMcp.text.indexOf('\n') + 1))).toEqual(refusal);
+                                                                             ^
+error: expect(received).toEqual(expected)
+
+  {
+    "at": 1,
+-   "error": "invalid_typed_endpoint",
++   "error": "unknown_ref",
+    "kind": "addTypedDependency",
+  }
+
+- Expected  - 1
++ Received  + 1
+
+      at refuseCommands (/tmp/puni-external-command-contracts/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:364:72)
+      at async <anonymous> (/tmp/puni-external-command-contracts/apps/wbs/mcp-01/src/organization-delegation.boot.test.ts:910:15)
+(fail) MCP organization delegation against a booted be-01 > HTTP and MCP preserve indexed malformed endpoint and closed request refusals atomically [511.31ms]
+(pass) MCP organization delegation against a booted be-01 > explicit endpoint IDs reject empty and surrounding whitespace through HTTP and MCP [3489.48ms]
+(pass) MCP organization delegation against a booted be-01 > a removed member's session is refused on its next call and cannot refresh [6.10ms]
+
+ 20 pass
+ 1 fail
+ 596 expect() calls
+Ran 21 tests across 1 file. [22.03s]
