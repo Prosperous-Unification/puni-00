@@ -102,6 +102,25 @@ test('the production documents CLI validates the supplied checkout instead of it
 }, 60_000);
 
 test.each([
+  ['quoted HTML attribute', '## <span title="a > b">Visible</span> heading', 'visible-heading'],
+  ['inline code angle brackets', '## `<script>` title', 'script-title'],
+])(
+  'the production documents CLI resolves rendered heading text with %s',
+  async (_name, heading, anchor) => {
+    const repository = await createRepository();
+    await writeDocument(
+      repository,
+      'docs/guide.md',
+      `# Guide\n\n## Details\n\n${heading}\n\n[Heading](#${anchor})\n`,
+    );
+    const invocation = await invokeDocuments([repository]);
+    expect(invocation.code, invocation.output).toBe(0);
+    expect(invocation.output).toContain('Verified current documents and indexes');
+  },
+  60_000,
+);
+
+test.each([
   ['missing link', '[Fault](missing.md)', 'absent docs/missing.md'],
   ['missing anchor', '[Fault](#missing)', 'absent #missing'],
   ['missing selector', '`bunx nx test absent-project`', 'absent-project'],

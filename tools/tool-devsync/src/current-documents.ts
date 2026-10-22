@@ -3,6 +3,8 @@ import { join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseOrThrow, type } from '@shared/validation';
+import { fromMarkdown } from 'mdast-util-from-markdown';
+import { toString as readMarkdownText } from 'mdast-util-to-string';
 
 import { readProjects } from '../workspace-projects.mjs';
 
@@ -248,9 +250,9 @@ export function createDocumentChecks(repository: string) {
       anchors.add(match[1]);
     }
     for (const match of source.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)) {
-      const visible = match[1]
-        .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/<[^>]+>/g, '')
+      // Proof: the inherited tag regex rejected quoted-attribute and inline-code heading
+      // links through the production CLI (2 regressions failed before parsing Markdown).
+      const visible = readMarkdownText(fromMarkdown(`## ${match[1]}`), { includeHtml: false })
         .replace(/[`*_~]/g, '')
         .toLocaleLowerCase('en-US');
       const base = visible
