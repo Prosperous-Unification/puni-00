@@ -85,8 +85,9 @@ slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secr
       secret under the unchanged credential id, previous `expires_at = now + 24 h`,
       `rotation_in_progress`, `rotation_at_issuer`, revoke ends both, `404 not_found` on a
       stranger's or revoked credential — test: the two-secrets-then-one scenario with an
-      injected clock, revoke mid-window; negative: drop the `expires_at` predicate from
-      the live-secrets read and the T0 + 25 h case admits the old secret; watched.
+      injected clock, revoke mid-window; negative: replace the secret-expiry predicate of
+      `matchesProof` (`@wbs/domain` `machine-credential.ts`) with `true` and the T0 + 25 h case
+      admits the old secret; watched.
 - [x] 2.5 Person usage: `pinnedCredentials` becomes `machineCredentials`; `deletePerson`
       `in_use` and cascade; `patchPerson` unbind/rebind refused `in_use` — test: the
       directory conformance cases updated and the rebind case added; negative: skip the
@@ -121,6 +122,10 @@ Slice 2 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on
   cascade writes one `machine_credential_revoked` row per live credential and deletes every
   credential row of the person, revoked ones included, because `person_id` has no `ON DELETE`.
 - 2.6 was built and its negatives observed in slice 1; slice 2 lists `lastUsedAt`.
+- Review fixes (A24, assumed): a cascade removing machine credentials needs the revoke route's
+  reach (admin, a member for their own agent, never a delegation or a machine credential), else
+  `forbidden`. A kind change of a person with a live credential is refused `in_use`. A
+  secret-shaped name is refused `400 invalid_body`, and no audit detail carries the name.
 
 See `verify.md`, "Slice 2 record".
 

@@ -245,6 +245,24 @@ export type DirectoryRemoved =
   | { ok: false; reason: 'in_use'; usage: DirectoryUsageRows };
 
 /**
+ * A person removal: {@link DirectoryRemoved}, or `forbidden` when a cascade
+ * would remove machine credentials the caller's {@link MachineCredentialReach}
+ * does not reach (`wbs-machine-credentials` A24).
+ */
+export type PersonRemoved = DirectoryRemoved | { ok: false; reason: 'forbidden' };
+
+/**
+ * Whose machine credentials a person removal may revoke (`wbs-machine-credentials`
+ * A24), the reach `DELETE /api/organization/machine-credentials/:id` has: an
+ * admin every person's, a member only a person bound to their own account,
+ * a delegation or machine credential none.
+ */
+export type MachineCredentialReach =
+  | { readonly kind: 'every' }
+  | { readonly kind: 'own'; readonly accountId: string }
+  | { readonly kind: 'none' };
+
+/**
  * What a resource create answered. **Not idempotent by name**, unlike a team:
  * a second `h2puni ram` would answer the first one's id with whatever kind and
  * unit it was created with, so the name is refused `taken` instead.
@@ -521,7 +539,12 @@ export interface DirectoryStore {
    * written after that caller's own count must refuse the removal rather than
    * be deleted by it.
    */
-  removePerson(personId: string, cascade: boolean, stamp: WriteStamp): Promise<DirectoryRemoved>;
+  removePerson(
+    personId: string,
+    cascade: boolean,
+    stamp: WriteStamp,
+    reach: MachineCredentialReach,
+  ): Promise<PersonRemoved>;
   /**
    * The same for a team, and it **nulls the labels itself**:
    * `work_item.service_team_id` carries a foreign key with no `ON DELETE`

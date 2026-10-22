@@ -304,13 +304,24 @@ and write a `machine_credential_revoked` row in one transaction. The next reques
 of its secrets or tokens SHALL be `401 unknown_identity`. A second revoke, and for a member a credential whose person is not bound to the caller's
 account, SHALL be `404 not_found`. Deleting a person with live credentials SHALL be refused `in_use` with the
 `machineCredentials` count unless cascaded; the cascade SHALL revoke and remove them in the
-same transaction. Unbinding or rebinding such a person through `patchPerson` SHALL be
-refused `in_use` likewise.
+same transaction, and SHALL be refused `forbidden`, removing and revoking nothing, unless the
+caller could revoke each of them by `DELETE`: an admin, or a member for a person bound to their
+own account, and never a delegation or a machine credential. Unbinding, rebinding or changing
+the kind of such a person through `patchPerson` SHALL be refused `in_use` likewise. A
+credential's `name` shaped like a secret, a digest or a full upstream subject (a `wbs_mk_` or
+`wbs_scim_` prefix, 64 hex characters, or a value with a `|` between two non-empty parts)
+SHALL be refused `400 invalid_body`, and the audit detail SHALL NOT carry the name.
 
 #### Scenario: Revoke ends a token mid-window
 
 - **WHEN** an admin revokes C while C is inside a rotation window
 - **THEN** both of C's secrets are refused `401 unknown_identity` on the next request
+
+#### Scenario: A member cascades another account's agent
+
+- **WHEN** a member sends `deletePerson` with `cascade: true` for an agent bound to another
+  account that holds a live credential
+- **THEN** the batch is refused `forbidden`, and the person and the credential are unchanged
 
 #### Scenario: Removing a pinned person
 

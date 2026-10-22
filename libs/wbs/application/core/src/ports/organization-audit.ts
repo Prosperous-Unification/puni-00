@@ -77,3 +77,25 @@ export interface OrganizationAuditRecord {
   readonly detail: OrganizationAuditDetail;
   readonly createdAt: number;
 }
+
+/**
+ * A detail value that would leak what an audit row must never hold: a raw
+ * provisioning token or API key, a 64-hex digest, or a full upstream subject
+ * (two `|`).
+ * A prefix such as `samlp|acme-saml|` is allowed; it is what the row names.
+ * `appendOrganizationAudit` refuses such a detail as a programming fault, and
+ * a route admitting free text that could reach a detail refuses it first.
+ *
+ * Proof: with the `wbs_mk_` prefix dropped, `refuses a detail carrying a
+ * token, digest or full subject` stored an API-key-shaped detail; watched
+ * 2026-10-22.
+ */
+export function isSecretShaped(value: string): boolean {
+  return (
+    value.startsWith('wbs_scim_') ||
+    value.startsWith('wbs_mk_') ||
+    /^[0-9a-f]{64}$/i.test(value) ||
+    /^[^|]+\|[^|]+\|.+$/.test(value) ||
+    /^[^|]+\|[^|]+$/.test(value)
+  );
+}

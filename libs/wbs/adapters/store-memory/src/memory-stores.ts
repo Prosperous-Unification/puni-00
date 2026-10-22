@@ -303,7 +303,7 @@ export function bindStores(
     async usageOfPerson(personId) {
       return { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimsOf(personId) };
     },
-    async removePerson(personId, cascade, stamp) {
+    async removePerson(personId, cascade, stamp, reach) {
       const claimed = claimsOf(personId);
       // Proof: with this refusal removed, the memory certification's
       // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
@@ -314,7 +314,7 @@ export function bindStores(
           usage: { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimed },
         };
       }
-      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp);
+      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp, reach);
       if (!removed.ok) return removed;
       cascadeClaims(state.tables.claims, (each) => each.personId === personId);
       // Proof: without the claims' work items here, the memory

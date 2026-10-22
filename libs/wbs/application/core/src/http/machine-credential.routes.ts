@@ -8,7 +8,7 @@ import {
 import type { Clock } from '../ports/clock';
 import type { MachineCredentialAdministration } from '../ports/machine-credentials';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { AuditedAct } from '../ports/organization-audit';
+import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
 import { digestMachineSecret, newMachineKey } from '../service/machine-key';
 import { bind, EMPTY, type HttpReply } from './endpoint';
 import { organizationRefusal } from './organization-refusal';
@@ -79,6 +79,14 @@ export function machineCredentialRoutes(
     bind(
       createMachineCredential,
       async ({ principal, body }): Promise<HttpReply<typeof createMachineCredential>> => {
+        // A name shaped like a secret or a full subject is refused here, so
+        // free text never reaches the audit writer's secret guard as a 500.
+        // Proof: with this check removed, `refuses a name shaped like a secret
+        // or a subject, storing nothing` in
+        // `machine-credential-admin.controller.db.test.ts` stored each
+        // credential (201); watched 2026-10-22.
+        if (isSecretShaped(body.name))
+          return { ok: false, status: 400, body: { error: 'invalid_body' } };
         const organizationId = await sessionOrganization(principal);
         if (typeof organizationId !== 'string') return organizationId;
         // `parseMachineKey` accepts only this UUID shape, and the table's

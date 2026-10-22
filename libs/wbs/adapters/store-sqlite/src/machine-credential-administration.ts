@@ -68,7 +68,11 @@ function reachable(organizationId: string, actorId: string, role: OrganizationRo
   // own agents' credentials …` in `machine-credential-admin.controller.db.test.ts`
   // listed the strangers' credentials to the member; watched 2026-10-22.
   if (!isOwnAgentsOnly(role)) return inOrganization;
-  return and(inOrganization, eq(person.accountId, actorId)) ?? inOrganization;
+  const own = and(inOrganization, eq(person.accountId, actorId));
+  // `and` of two conditions always answers one; an absent one would silently
+  // widen the member's reach to the whole organization.
+  if (own === undefined) throw new Error('the own-account predicate could not be built');
+  return own;
 }
 
 /** @throws on a malformed stored source or time. */
@@ -139,12 +143,15 @@ function summaryOf(
   };
 }
 
-/** The audit detail of a credential act: never a secret, a digest or a subject (A17). */
+/**
+ * The audit detail of a credential act: never a secret, a digest or a subject
+ * (A17), and never the free-text name, which the subject id already
+ * identifies.
+ */
 function auditDetail(row: MachineCredentialRow, secretId: string | null) {
   return {
     source: row.source,
     personId: row.personId,
-    name: row.name,
     issuedBy: row.issuedBy,
     issuer: row.issuer,
     ...(secretId === null ? {} : { secretId }),
