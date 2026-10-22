@@ -125,12 +125,15 @@ function registrationRefusal(
   return taken === undefined ? null : 'issuer_taken';
 }
 
-/** The audit detail of a trusted issuer act: its URLs, never a subject (A17). */
+/**
+ * The audit detail of a trusted issuer act: its URLs and gate, never a
+ * subject (A17) and no free text: the default audience an admin typed stays
+ * out, as a credential's name does.
+ */
 function auditDetail(row: TrustedIssuerRow) {
   return {
     issuer: row.issuer,
     jwksUri: row.jwksUri,
-    defaultAudience: row.defaultAudience,
     ssoConnectionId: row.ssoConnectionId,
   };
 }

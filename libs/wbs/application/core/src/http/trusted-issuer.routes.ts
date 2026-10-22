@@ -2,7 +2,7 @@ import { listTrustedIssuers, registerTrustedIssuer, removeTrustedIssuer } from '
 
 import type { Clock } from '../ports/clock';
 import type { OrganizationAccess } from '../ports/organization-access';
-import type { AuditedAct } from '../ports/organization-audit';
+import { type AuditedAct, isSecretShaped } from '../ports/organization-audit';
 import type {
   TrustedIssuerAdministration,
   TrustedIssuerDiscovery,
@@ -56,6 +56,15 @@ export function trustedIssuerRoutes(
     bind(
       registerTrustedIssuer,
       async ({ principal, body }): Promise<HttpReply<typeof registerTrustedIssuer>> => {
+        // The issuer URL is written to the audit detail, so one shaped like a
+        // secret or a full subject is refused here rather than as the audit
+        // writer's 500, as a credential's name is.
+        // Proof: with this check removed, `refuses a body whose issuer is no
+        // HTTPS issuer URL` in `trusted-issuer.controller.db.test.ts` let the
+        // `|`-shaped issuer reach discovery and answered 409
+        // issuer_unreachable instead of 400; watched 2026-10-22.
+        if (isSecretShaped(body.issuer))
+          return { ok: false, status: 400, body: { error: 'invalid_body' } };
         const organizationId = await sessionOrganizationOf(organizations, principal);
         if (typeof organizationId !== 'string') return organizationId;
         const ssoConnectionId = body.ssoConnectionId ?? null;

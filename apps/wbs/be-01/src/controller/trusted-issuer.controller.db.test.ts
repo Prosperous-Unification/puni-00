@@ -146,10 +146,9 @@ describe('registering a trusted issuer', () => {
       actor_id: h.userId('dany'),
       subject_id: id,
     });
-    expect(JSON.parse(audit[0]?.detail ?? '{}')).toMatchObject({
-      issuer: ci.url,
-      jwksUri: ci.jwksUri,
-    });
+    const detail = JSON.parse(audit[0]?.detail ?? '{}') as Record<string, unknown>;
+    expect(detail).toMatchObject({ issuer: ci.url, jwksUri: ci.jwksUri });
+    expect(detail).not.toHaveProperty('defaultAudience');
   });
 
   // Proof: with `trustedIssuerDiscovery`'s catch rethrowing, the unroutable
@@ -210,7 +209,13 @@ describe('registering a trusted issuer', () => {
   });
 
   it('refuses a body whose issuer is no HTTPS issuer URL', async () => {
-    for (const issuer of ['http://ci.test', 'ci.test', 'https://ci.test/?x=1', 'https://ci.test#f'])
+    for (const issuer of [
+      'http://ci.test',
+      'ci.test',
+      'https://ci.test/?x=1',
+      'https://ci.test#f',
+      `${ci.url}/tenant|subject`,
+    ])
       expect(await register('dany', { issuer })).toEqual({
         status: 400,
         body: { error: 'invalid_body' },

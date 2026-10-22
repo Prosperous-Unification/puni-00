@@ -293,6 +293,97 @@ Fresh results after the fixes (`CLAUDECODE` unset):
 - Burokrat `check-indexes working . HEAD` and `check-root-migration`: exit 0. The fixes add no new file.
 - `bunx openspec validate --all --json`: 266 of 266 passed.
 
+## Slice 5 record (2026-10-22)
+
+Built on `feat/wbs-machine-credentials-5` from slice 2's head `75533f167`, then merged with
+slice 2's review fix `5f63bdd77` (clean merge; trusted-issuer audit details then lost the
+free-text `defaultAudience`, and a secret-shaped issuer URL is refused `400 invalid_body`).
+No migration: `20261022100000_add_machine_credential` already holds
+`organization_trusted_issuer`, and slice 2's audit rebuild admits both trusted-issuer acts.
+
+What was built:
+
+- `GET`, `POST /api/organization/trusted-issuers`, `DELETE …/:id`
+  (`machine-credential-shapes.ts`, `trusted-issuer.routes.ts`) over
+  `TrustedIssuerAdministration` (`ports/trusted-issuers.ts`) and its SQLite store
+  (`trusted-issuer-administration.ts`). Admin and super-admin only; registration checks
+  `issuer_reserved` with no read, then the read-only gate check, then one discovery fetch
+  (`trustedIssuerDiscovery`, `@wbs/auth`), then the write with its audit row.
+- `POST /api/organization/machine-credentials` with `source: 'oidc'` (`createOidc`):
+  `unknown_trusted_issuer`, `subject_taken`; rotation `rotation_at_issuer` as before.
+- Verification: `TrustedIssuerKeySets` (`@wbs/auth` `trusted-issuer.ts`), one `jose`
+  remote key set per JWKS URL, at most 64 cached (LRU), 30 s unknown-`kid` cooldown,
+  asymmetric algorithms only; `authenticateTrustedIssuerToken` in
+  `authentication.feature.ts`; `findByPair` / `trustedKeySetsOf` on `MachineCredentials`.
+  `invalid_token` is a new whole 401 in `mount.ts`, like `unknown_identity`.
+- The configured issuer is `OidcRouteOptions.issuer`, the Issuer Identifier the configured
+  verifier's discovery publishes (`ConfiguredTokenVerifier.issuer()`).
+- mcp-01 excludes the three routes from its tools.
+
+Commands and fresh results after the merge, `CLAUDECODE` unset:
+
+| Command                                                                                                    | Result                                             |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `bunx nx run wbs-be-01:typecheck --skip-nx-cache`                                                          | exit 0                                             |
+| `bunx nx run wbs-be-01:lint --skip-nx-cache`; `eslint` and `prettier` on every changed file (lefthook)     | exit 0                                             |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                               | 3183 pass, 3 skip, 0 fail across 217 files (913 s) |
+| `bun test` the four machine-credential and trusted-issuer controller files                                 | 92 pass, 0 fail                                    |
+| `bun test` `libs/wbs/adapters/auth` (whole library)                                                        | 115 pass, 0 fail across 9 files                    |
+| `bun test` `libs/wbs/domain/contracts` (whole library)                                                     | 495 pass, 0 fail across 51 files                   |
+| `bun test` core `module/authentication`, `src/http`, `src/ports`, `compose.test.ts`                        | 95 pass, 0 fail across 25 files                    |
+| `bun test` store-sqlite `machine-credential*`, `organization-audit*`, `organization-access*`, `directory*` | 29 pass, 0 fail across 3 files                     |
+| `bun test` mcp-01 `openapi-tools`, `generated-document`, `shape-document`, `calendar-marker-shapes`        | 50 pass, 0 fail                                    |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                | exit 0, 40 indexes                                 |
+| `bunx openspec validate --all --json`                                                                      | exit 0; 266 items, 266 passed                      |
+
+Not run, by the laptop RAM cap: the full `store-sqlite`, `core` and `mcp-01` suites and every
+workspace-wide target; CI runs them. No migration changed, so migration lint was not rerun.
+
+Not verified:
+
+- 5.4: no real GitHub Actions token was presented on dev; every token here came from a local
+  issuer on 127.0.0.1 behind an injected fetch.
+- The two-organizations property of 5.2 is example-based here (`never admits another
+organization's subject through one shared issuer URL`); the property test is slice 1's
+  pure decision.
+- That a secret-shaped issuer URL ever reaches the audit writer as a 500: the `|` case was
+  refused by discovery (409) when the new 400 check was removed.
+- Server-side fetch safety: discovery and key-set fetches go to any HTTPS URL an admin
+  names (no private-address filter), with redirects not followed and a 5 s timeout.
+- A key set that fails to fetch is refetched on the next token (jose keeps no failure
+  cooldown); bounded only by request rate.
+
+### Slice 5 failure proofs
+
+Each fault was injected into the production path, the named test watched failing, the fault
+removed, and the test watched passing again (2026-10-22).
+
+| Check (file)                                               | Fault injected                   | Test that observed the failure                                                 | Result                            |
+| ---------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------ | --------------------------------- |
+| `authentication.feature.ts` configured issuer never routed | comparison removed               | `never consults trusted issuers for a configured-issuer token without groups`  | planted credential admitted, 200  |
+| `authentication.feature.ts` stranger issuer                | answered `configured_path`       | `refuses a stranger issuer invalid_token without fetching any key set`         | 401 `unauthenticated`             |
+| `authentication.feature.ts` verdict                        | `invalid` verdict admitted       | `refuses a token signed by another key`; `refuses a wrong audience, …`         | 200, 2 fail                       |
+| store `findByPair` organization predicate (5.2a)           | removed                          | `refuses a credential that names another organization's trusted issuer`        | B's credential admitted, 200      |
+| store `findByPair` audience                                | default audience only            | `refuses a wrong audience, the credential audience winning over the default`   | 200 for `aud: 'wbs'`              |
+| store `createOidc` trusted issuer organization predicate   | removed                          | `refuses another organization's trusted issuer, writing nothing`               | 201 on B's issuer                 |
+| store `createOidc` audit in the act's transaction          | audit failure caught and dropped | `stores no OIDC credential when the audit row cannot be written`               | 201, not 500                      |
+| `TrustedIssuerKeySets.verify` unavailable key set          | rethrown                         | `refuses invalid_token when the key set answers 503, and reports it`           | 500                               |
+| `TrustedIssuerKeySets` LRU eviction                        | removed                          | `keeps at most maxKeySets key sets, least recently used dropped first`         | 3 of 4 fetches                    |
+| `trustedIssuerDiscovery` failure catch                     | rethrown                         | `refuses an unreachable issuer, storing nothing`                               | 500                               |
+| `trustedIssuerDiscovery` issuer equality                   | removed                          | `refuses a document naming another issuer, storing nothing`                    | registered, 201                   |
+| `trusted-issuer.routes.ts` `issuer_reserved`               | neutralized                      | `refuses the configured sign-in issuer, fetching nothing`                      | registered, 201                   |
+| `trusted-issuer.routes.ts` secret-shaped issuer            | removed                          | `refuses a body whose issuer is no HTTPS issuer URL`                           | 409 `issuer_unreachable`, not 400 |
+| store `registrationRefusal` connection organization        | removed                          | `refuses another organization's connection`                                    | registered, 201                   |
+| store `registrationRefusal` strategy                       | removed                          | `refuses a SAML connection as the gate`                                        | registered, 201                   |
+| store `registrationRefusal` proof                          | removed                          | `refuses an unproven connection as the gate`                                   | registered, 201                   |
+| store `administering` admin only                           | members admitted                 | `refuses a member and a viewer every trusted issuer route`                     | member's list 200                 |
+| store `remove` `in_use`                                    | removed                          | `refuses removing an issuer two live credentials name, …`                      | 500 on the foreign key            |
+| store `register` audit in the act's transaction            | audit failure caught and dropped | `stores no trusted issuer when the audit row cannot be written`                | 201, not 500                      |
+| `mount.ts` whole `invalid_token`                           | dropped from the condition       | `refuses a stranger issuer invalid_token without fetching any key set`         | 500                               |
+| mcp-01 `EXCLUDED_PATHS` (each of the two entries)          | removed in turn                  | `keeps trusted issuer administration out of the generated MCP tools`           | tools exposed                     |
+| `boot.ts` verification binding                             | renamed away                     | `refuses a stranger issuer's JWT invalid_token once booted`                    | authenticated as null             |
+| `boot.ts` administration binding                           | renamed away                     | `serves trusted issuer administration from the shared database once activated` | throws: not wired                 |
+
 ## Gate output
 
 Not run: the h2puni gate is the coordinator's, after review. `bunx openspec validate --all
