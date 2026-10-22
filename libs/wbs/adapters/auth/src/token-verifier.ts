@@ -50,28 +50,49 @@ export class JwksTokenVerifier implements TokenVerifier {
   }
 }
 
+/**
+ * A {@link TokenVerifier} of the deployment's configured issuer that also
+ * answers that issuer's Issuer Identifier, as discovery published it (never
+ * `AUTH_ISSUER_DISCOVERY_URL` as written: the two may differ by a trailing
+ * slash). A trusted issuer may never be this one (`wbs-machine-credentials`
+ * A16), and a token of it never reaches one (A13).
+ */
+export interface ConfiguredTokenVerifier extends TokenVerifier {
+  /** @throws when discovery fails, as {@link TokenVerifier.verify} does. */
+  issuer(): Promise<string>;
+}
+
 /** Builds a lazy verifier from the same discovery contract as the browser flow. */
 export function oidcTokenVerifierFromEnv(
   env: Readonly<Record<string, string | undefined>>,
-): TokenVerifier {
+): ConfiguredTokenVerifier {
   const issuerUrl = required(env, 'AUTH_ISSUER_DISCOVERY_URL');
   const audience = required(env, 'AUTH_AUDIENCE');
   const clientId = required(env, 'AUTH_CLIENT_ID');
   const clientSecret = required(env, 'AUTH_CLIENT_SECRET');
-  let verifier: Promise<JwksTokenVerifier> | undefined;
-
-  return {
-    async verify(token) {
-      verifier ??= discovery(new URL(issuerUrl), clientId, clientSecret).then((configuration) => {
-        const metadata = configuration.serverMetadata();
-        if (metadata.jwks_uri === undefined) throw new Error('OIDC discovery has no jwks_uri');
-        return new JwksTokenVerifier({
+  let verifier: Promise<{ issuer: string; verifier: JwksTokenVerifier }> | undefined;
+  const discovered = () => {
+    verifier ??= discovery(new URL(issuerUrl), clientId, clientSecret).then((configuration) => {
+      const metadata = configuration.serverMetadata();
+      if (metadata.jwks_uri === undefined) throw new Error('OIDC discovery has no jwks_uri');
+      return {
+        issuer: metadata.issuer,
+        verifier: new JwksTokenVerifier({
           audience,
           issuer: metadata.issuer,
           jwksUri: new URL(metadata.jwks_uri),
-        });
-      });
-      return (await verifier).verify(token);
+        }),
+      };
+    });
+    return verifier;
+  };
+
+  return {
+    async verify(token) {
+      return (await discovered()).verifier.verify(token);
+    },
+    async issuer() {
+      return (await discovered()).issuer;
     },
   };
 }

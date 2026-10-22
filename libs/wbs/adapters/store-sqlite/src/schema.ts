@@ -2,6 +2,8 @@ import {
   allowanceHundredthsOf,
   type AllowancePercent,
   ATTEMPT_OUTCOMES,
+  CAPACITY_REPORT_OUTCOMES,
+  COMPUTE_PROVIDER_KINDS,
   DOMAIN_CLAIM_STATUSES,
   type EstimateUnit,
   HOLDS,
@@ -1852,10 +1854,17 @@ export const resource = sqliteTable(
     name: text('name').notNull(),
     kind: text('kind', { enum: RESOURCE_KINDS }).notNull(),
     unitLabel: text('unit_label').notNull(),
+    /**
+     * The provider instance that fulfils this resource, or null
+     * (`compute-providers` P3, `20261022140000_add_resource_provider`). Never
+     * read by a schedule, a claim or an export (P4).
+     */
+    providerId: text('provider_id').references((): AnySQLiteColumn => computeProvider.id),
     ...auditColumns(),
   },
   (t) => [
     uniqueIndex('resource_name').on(t.name),
+    index('resource_provider').on(t.providerId),
     check('resource_kind', sql`${t.kind} IN ('exclusive', 'divisible')`),
   ],
 );
@@ -3356,7 +3365,11 @@ export const savedPlanOrganization = sqliteTable(
  * `20260927220000_add_organization_audit`. `subject_id` references nothing
  * so the record outlives its subject. `20261012090200_widen_organization_audit`
  * widened the vocabulary for enterprise SSO and made the table append-only
- * through triggers, which this declaration cannot express.
+ * through triggers, which this declaration cannot express;
+ * `20261022110000_widen_organization_audit_machine_credentials` added the
+ * machine-credential and trusted-issuer acts;
+ * `20261022140100_widen_organization_audit_compute_providers` the compute
+ * provider acts.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3375,11 +3388,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed', 'compute_provider_registered', 'compute_provider_updated', 'compute_provider_removed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer', 'compute_provider')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
@@ -3453,6 +3466,117 @@ export const organizationScimToken = sqliteTable(
 );
 
 export type OrganizationScimTokenRow = typeof organizationScimToken.$inferSelect;
+
+/** Where a machine credential's proof comes from (`wbs-machine-credentials` A3, A8, A21). */
+export const MACHINE_CREDENTIAL_SOURCES = ['api_key', 'oidc', 'mcp_consent'] as const;
+
+/**
+ * An OIDC issuer one organization trusts for its headless machines
+ * (`wbs-machine-credentials` A16): `jwks_uri` is the one discovered at
+ * registration. Added by `20261022100000_add_machine_credential`.
+ */
+export const organizationTrustedIssuer = sqliteTable(
+  'organization_trusted_issuer',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    issuer: text('issuer').notNull(),
+    jwksUri: text('jwks_uri').notNull(),
+    /**
+     * The audience every token of this registration must carry (A25), named
+     * `default_audience` since slice 1; required by triggers.
+     */
+    defaultAudience: text('default_audience'),
+    ssoConnectionId: text('sso_connection_id').references(() => organizationSsoConnection.id),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    uniqueIndex('organization_trusted_issuer_issuer').on(t.organizationId, t.issuer),
+    index('organization_trusted_issuer_by_issuer').on(t.issuer),
+    // A25: one `(issuer, audience)` across the deployment; the audience is
+    // required by `20261022120000_scope_trusted_issuer_audience`'s triggers.
+    uniqueIndex('organization_trusted_issuer_audience').on(t.issuer, t.defaultAudience),
+  ],
+);
+
+/**
+ * One **Machine credential** (`wbs-machine-credentials` A9): an organization's
+ * record pinned to one person, recording the account that issued it. Which of
+ * the pair, trusted issuer and family columns are set is fixed by `source`
+ * (the migration's `machine_credential_source_columns` CHECK). The id is a
+ * lowercase UUID because an API key carries it in the clear (A22), held to
+ * that shape by `20261022110100_check_machine_credential_id`'s triggers. Added
+ * by `20261022100000_add_machine_credential`, whose `down.sql` refuses while
+ * any row exists.
+ */
+export const machineCredential = sqliteTable(
+  'machine_credential',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    personId: text('person_id')
+      .notNull()
+      .references(() => person.id),
+    issuedBy: text('issued_by')
+      .notNull()
+      .references(() => users.id),
+    source: text('source', { enum: MACHINE_CREDENTIAL_SOURCES }).notNull(),
+    name: text('name').notNull(),
+    issuer: text('issuer'),
+    subject: text('subject'),
+    audience: text('audience'),
+    trustedIssuerId: text('trusted_issuer_id').references(() => organizationTrustedIssuer.id),
+    mcpFamilyId: text('mcp_family_id'),
+    /** Written at most once a minute per credential (A13); never audited. */
+    lastUsedAt: integer('last_used_at'),
+    revokedAt: integer('revoked_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [
+    // One subject per trusted issuer row (A25,
+    // `20261022120000_scope_trusted_issuer_audience`), replacing the
+    // deployment-wide `(issuer, subject)` pair.
+    uniqueIndex('machine_credential_trusted_subject')
+      .on(t.trustedIssuerId, t.subject)
+      .where(sql`${t.source} = 'oidc'`),
+    uniqueIndex('machine_credential_family')
+      .on(t.mcpFamilyId)
+      .where(sql`${t.mcpFamilyId} IS NOT NULL`),
+    uniqueIndex('machine_credential_live_name')
+      .on(t.organizationId, t.name)
+      .where(sql`${t.revokedAt} IS NULL`),
+    index('machine_credential_organization').on(t.organizationId),
+    index('machine_credential_person').on(t.personId),
+  ],
+);
+
+export type MachineCredentialRow = typeof machineCredential.$inferSelect;
+
+/**
+ * Only the SHA-256 digest of one API-key secret of a machine credential; a
+ * rotation holds two, the older with its `expires_at` (A11, A15). Read only
+ * through `credential_id` (A22): nothing looks a digest up.
+ */
+export const machineCredentialSecret = sqliteTable(
+  'machine_credential_secret',
+  {
+    id: text('id').primaryKey(),
+    credentialId: text('credential_id')
+      .notNull()
+      .references(() => machineCredential.id),
+    digest: text('digest').notNull(),
+    expiresAt: integer('expires_at'),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [index('machine_credential_secret_credential').on(t.credentialId)],
+);
 
 /**
  * One SCIM `User` of one organization. Active and unbound is a pending
@@ -3774,3 +3898,61 @@ export const stepParallel = sqliteTable(
     ),
   ],
 );
+
+/**
+ * One **Provider instance** (`compute-providers` P2): what one organization
+ * registered as fulfilling its resources' units, with a display-only locator
+ * WBS never dials. Added by `20261022140000_add_resource_provider`, whose
+ * `down.sql` refuses while any instance, reference or report exists.
+ */
+export const computeProvider = sqliteTable(
+  'compute_provider',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id),
+    kind: text('kind', { enum: COMPUTE_PROVIDER_KINDS }).notNull(),
+    name: text('name').notNull(),
+    locator: text('locator').notNull(),
+    createdAt: integer('created_at').notNull(),
+    ...auditColumnsBesidesCreatedAt(),
+  },
+  (t) => [uniqueIndex('compute_provider_name').on(t.organizationId, t.name)],
+);
+
+export type ComputeProviderRow = typeof computeProvider.$inferSelect;
+
+/**
+ * The latest **Capacity report** of one resource (`compute-providers` P5):
+ * one row per resource, replaced by a newer `observed_at`, never a history.
+ * Which unit columns are set is fixed by `outcome` (the migration's
+ * `resource_capacity_report_outcome_columns` CHECK).
+ */
+export const resourceCapacityReport = sqliteTable(
+  'resource_capacity_report',
+  {
+    resourceId: text('resource_id')
+      .primaryKey()
+      .references(() => resource.id, { onDelete: 'cascade' }),
+    providerId: text('provider_id')
+      .notNull()
+      .references(() => computeProvider.id),
+    observedAt: integer('observed_at').notNull(),
+    cadenceSeconds: integer('cadence_seconds').notNull(),
+    outcome: text('outcome', { enum: CAPACITY_REPORT_OUTCOMES }).notNull(),
+    capacityUnits: integer('capacity_units'),
+    usageUnits: integer('usage_units'),
+    reason: text('reason'),
+    reportedByPersonId: text('reported_by_person_id')
+      .notNull()
+      .references(() => person.id, { onDelete: 'cascade' }),
+    reportedAt: integer('reported_at').notNull(),
+  },
+  (t) => [
+    index('resource_capacity_report_provider').on(t.providerId),
+    index('resource_capacity_report_person').on(t.reportedByPersonId),
+  ],
+);
+
+export type ResourceCapacityReportRow = typeof resourceCapacityReport.$inferSelect;

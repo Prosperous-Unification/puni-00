@@ -8,37 +8,50 @@
 
 ## 1. WBS: provider instance, reference and report
 
-- [ ] 1.1 Migration `add_resource_provider`: `compute_provider` (kind CHECK, name per
+- [x] 1.1 Migration `add_resource_provider`: `compute_provider` (kind CHECK, name per
       organization), `resource.provider_id` nullable with its index, `resource_capacity_report`
       (outcome CHECK: `measured` has both unit columns and no reason, `unreachable` the
       reverse), `down.sql` refusing while any instance, reference or report exists.
       Red: `resource-provider-migration.db.test.ts` forward, back, and the refusal with one
       referencing resource. R5 fault line: drop the guard and the rollback deletes the
       instance and clears the reference silently; watched, restored, `Proof:` adjacent.
-- [ ] 1.2 Red: `compute-provider.test.ts` in `@wbs/domain` for the pure decisions: register
-      (kind, name, locator bounds, `name_taken`), reference (`unknown_provider`,
-      `provider_not_in_organization`), report admission (`not_an_agent_principal` for session,
+- [x] 1.2 Red: `compute-provider.test.ts` in `@wbs/domain` for the pure report decisions.
+      As shipped, register bounds live in the contract (arktype) and `name_taken` and the
+      reference refusals (`unknown_provider`, `provider_not_in_organization`) in the SQLite
+      store, each tested through `compute-provider.controller.db.test.ts`; the domain holds
+      report admission (`not_an_agent_principal` for session,
       delegation and a `person`-pinned machine; `unknown_provider` across organizations;
       `provider_mismatch`; `report_superseded`; `observedAt_in_future`; same-body idempotence).
       Property: for any sequence of reports on one resource, the stored `observedAt` never
       decreases and equals the newest accepted one. Green: the decisions.
-- [ ] 1.3 Store port `ComputeProviders` (SQLite, memory twin, conformance suite): instances
+- [x] 1.3 Store port `ComputeProviders` (SQLite only as shipped: no memory twin and no
+      conformance case for the instance store; the reference write
+      `DirectoryStore.setResourceProvider` has both): instances
       by organization, reference count per instance, `putReport` compare-and-replace on
       `observedAt` inside one transaction, cascade removal. R5 fault line: perform the
       `observedAt` comparison outside the write transaction and two racing reporters store the
       older one; watched through the write coordinator race test, restored, `Proof:`.
-- [ ] 1.4 Routes `/api/organization/compute-providers` (admin, audit rows, `in_use` with
+      **Not done:** this race fault line is unverified (see the slice 1 notes).
+- [x] 1.4 Routes `/api/organization/compute-providers` (admin, audit rows, `in_use` with
       cascade) and `PUT /api/compute-providers/:providerId/resources/:resourceId/capacity-report`
-      with the `machine-agent` policy; `patchResource.patch.providerId`; `GET
+      with a handler check of the machine principal (not a policy kind);
+      `patchResource.patch.providerId`; `GET
 /api/projects/:id/resources` carries `providerId` and `report`; MCP tool count moves by
       the new route family only. Red: `compute-provider.controller.db.test.ts`, one case per
       scenario of the spec; the schedule-hash and claim no-op cases against a stored report.
-      R5 fault line: remove the `authentication.kind === 'machine'` predicate from the policy
+      R5 fault line: remove the `authentication.kind === 'machine'` predicate from the handler
       and the browser-session case stores a report; remove the organization join from the
       instance lookup and B's key reports to A's instance; each watched, restored, `Proof:`.
-- [ ] 1.5 Plan export and plan document: assert byte-identical output with and without
+- [x] 1.5 Plan export and plan document: assert byte-identical output with and without
       references and reports (golden corpus). Negative: carry `providerId` in the export and
       the import test of a foreign organization names a stranger's instance; watched.
+
+Slice 1 notes (2026-10-22, `verify.md` Slice 1): the instance store has no memory twin; the
+memory composition holds no instance (`NO_COMPUTE_PROVIDERS`), and only the reference write
+(`DirectoryStore.setResourceProvider`) is in the conformance suite. The 1.3 race fault line is
+unverified: one process's gate serializes both reporters, so no in-process test interleaves
+them. The audit vocabulary is widened by one compatible rebuild
+(`20261022140100_widen_organization_audit_compute_providers`), not the #632 trigger allow-list.
 
 ## 2. Dash: provider port, SSH-host adapter, reporter; h2puni and h4claw into dev
 

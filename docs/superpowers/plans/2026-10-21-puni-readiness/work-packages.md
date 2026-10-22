@@ -501,6 +501,12 @@ the index. W21 measures delivery effect; smaller files alone do not prove speed.
       agents, and 8 where the admitted capacity supports that offering.
 - [ ] Retain every failed/reworked/censored attempt, gate/review queue and operator
       minute; separate task parallelism from accepted integrated changes.
+- [ ] Design the comparison so a gain claim can survive: paired runs on the same work
+      items, repeated seeds, a single-agent control, a reported run-to-run noise floor,
+      and results stated per model–harness configuration with tokens and latency per
+      accepted outcome, as the 2026 coordination and harness studies require
+      ([research note](../../../findings/puni-assessment-2026-10-21/swarm-criteria-research.md)).
+      Record reviewer load, revision requests and revert rate for every arm.
 - [ ] Where justified, fix the measured dominant bottleneck within the package's bounded
       scope and repeat. If no improvement appears, retain the finding and cap supported
       concurrency; propose further optimization separately instead of claiming a speedup.
@@ -511,6 +517,41 @@ an explicitly promised speedup still needs evidence of that improvement. Omittin
 failed outcomes or shared-contract regressions fails acceptance. This present-day
 delivery benchmark does not certify Twilight Task8.4: its actual worker/runtime/
 multi-host prerequisites and full 1/2/4/8 matrix remain owned by that future change.
+
+### W28 — Make agent coordination executable: identity, admission, termination
+
+**Work:** bounded implementation and enforcement, then measured dogfood. **Start from:**
+[swarm organization findings](../../../findings/puni-assessment-2026-10-21/swarm-organization.md),
+[agent trailer hook](../../../../ops/agent-trailer/prepare-commit-msg),
+[claims contract tasks](../../../../openspec/changes/wbs-team-claims/tasks.md),
+[Dash authority](../../../../apps/twilight-structure/twilight-dash/cli/src/authority/claims.ts),
+the `twilight-agentic-workflows` draft (PR #601) and WBS project `eeb8e50a` items I1.05,
+I2.10, I3.05 and S7a.06.
+
+- [ ] Identity: when an agent environment is detected, a commit without an attribution
+      trailer fails instead of being stamped; write or remove the missing attribution
+      note; fleet pushes and PR opens use a scoped machine identity, never the owner's
+      credentials; an agent process cannot read the WBS fleet credential.
+- [ ] Job state: land the fleet rollout tasks of `wbs-team-claims` so claims, not the
+      private prose file, say who holds what; every WBS write names the agent person.
+- [ ] Admission: count admitted processes including nested subagents against a host cap
+      and refuse beyond it; record the refusal where the Board shows it.
+- [ ] Termination and context: cap revisions and token spend per work item against
+      `token_estimate`; map `max_steps` to failure; pin a per-class context policy for
+      retries in the binding.
+- [ ] Verification and authority by construction: add a held-out acceptance check per
+      work item type that the implementing agent cannot read; run an authorization-drift
+      task set with reserved actions against the delegated agents and record the
+      unauthorized-action rate; trace every agent step, tool call and WBS write with
+      identities and prove attribution with one injected fault on the coordination path.
+- [ ] Dogfood one real work item end to end under these rules and record operator minutes,
+      refusals observed and the identity chain of its PR.
+
+**Output/pass:** each guard has an observed production-path negative; a PR opened by an
+agent carries an agent identity and a WBS claim; an over-cap admission and an over-budget
+attempt are refused with typed reasons; the operator can read who holds what from WBS
+alone. A stamped-but-never-failing hook, an unbounded subagent tree or a cap documented
+without a refusal test does not pass. Throughput measurement stays W21.
 
 ## Qualify client outcomes
 

@@ -18,6 +18,26 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     loginSlug: 'route-probe',
   },
   'patchApiOrganizationSso-connectionsById': { loginSlug: 'route-probe' },
+  'postApiOrganizationTrusted-issuers': {
+    issuer: 'https://route-probe.test',
+    audience: 'route-probe',
+  },
+  'postApiOrganizationCompute-providers': {
+    kind: 'ssh_host',
+    name: 'route-probe',
+    locator: 'route-probe',
+  },
+  'patchApiOrganizationCompute-providersById': { name: 'route-probe' },
+  'putApiCompute-providersByProviderIdResourcesByResourceIdCapacity-report': {
+    observedAt: 1,
+    cadenceSeconds: 300,
+    outcome: { kind: 'unreachable', reason: 'route-probe' },
+  },
+  'postApiOrganizationMachine-credentials': {
+    source: 'api_key',
+    name: 'route-probe',
+    personId: 'route-probe',
+  },
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
   postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
   postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },
@@ -84,6 +104,18 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     subject: 'route-probe',
     userId: ROUTE_ID,
     organizationId: ROUTE_ID,
+  },
+  postInternalMcpCredentials: {
+    organizationId: ROUTE_ID,
+    userId: ROUTE_ID,
+    personId: ROUTE_ID,
+    credentialId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+    family: 'route-probe',
+    client: 'route-probe',
+  },
+  postInternalMcpCredentialsEnded: {
+    credentialId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+    family: 'route-probe',
   },
 };
 export const REQUEST_QUERIES: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> =

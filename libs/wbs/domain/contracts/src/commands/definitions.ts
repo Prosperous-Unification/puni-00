@@ -463,11 +463,16 @@ export const commandDefinitions = {
     schema: type({
       kind: "'patchResource'",
       ...resource,
-      patch: { 'name?': 'string', 'unitLabel?': 'string', 'resourceKind?': 'unknown' },
+      patch: {
+        'name?': 'string',
+        'unitLabel?': 'string',
+        'resourceKind?': 'unknown',
+        'providerId?': 'string | null',
+      },
     }),
     scope: 'directory',
     description:
-      'Rename a resource or change its unit label. Its kind is immutable: a patch naming resourceKind is refused kind_is_immutable.',
+      'Rename a resource, change its unit label, or name the compute provider instance that fulfils it (providerId; null clears it). Its kind is immutable: a patch naming resourceKind is refused kind_is_immutable. A providerId naming no instance is refused unknown_provider, one of another organization provider_not_in_organization. The reference is shown beside capacity and never changes a schedule or a claim.',
   }),
   deleteResource: defineCommand('deleteResource', {
     schema: type({ kind: "'deleteResource'", ...resource, 'cascade?': 'boolean' }),

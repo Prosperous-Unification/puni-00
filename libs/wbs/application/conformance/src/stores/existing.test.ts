@@ -144,6 +144,7 @@ describe('the migrated existing store kits', () => {
       'directory.removePerson:delegated-claims',
       'directory.removePerson:pinned-credential',
       'directory.addResource:taken',
+      'directory.setResourceProvider:unknown-and-clear',
       'directory.removeResource:in-use-cascade',
       'eventLog.recordEvent',
       'eventLog.rangeSince',

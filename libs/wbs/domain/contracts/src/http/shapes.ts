@@ -21,6 +21,13 @@ import {
 } from './calendar-marker-shapes';
 import { readCapacityMode, switchCapacityMode } from './capacity-mode-shapes';
 import {
+  listComputeProviders,
+  putCapacityReport,
+  registerComputeProvider,
+  removeComputeProvider,
+  updateComputeProvider,
+} from './compute-provider-shapes';
+import {
   listExternalSystems,
   listPeople,
   listServices,
@@ -52,8 +59,19 @@ import {
 } from './invitation-shapes';
 import { approveJoinRequest, denyJoinRequest, listJoinRequests } from './join-request-shapes';
 import {
+  createMachineCredential,
+  listMachineCredentials,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
+  revokeMachineCredential,
+  rotateMachineCredential,
+} from './machine-credential-shapes';
+import {
+  endMcpConsentCredential,
   issueMcpDelegation,
   listMcpOrganizations,
+  mintMcpConsentCredential,
   readMcpAuthority,
 } from './mcp-delegation-shapes';
 import {
@@ -167,6 +185,18 @@ export const httpShapes = [
   issueProvisioningToken,
   rotateProvisioningToken,
   revokeProvisioningToken,
+  listMachineCredentials,
+  createMachineCredential,
+  rotateMachineCredential,
+  revokeMachineCredential,
+  listTrustedIssuers,
+  registerTrustedIssuer,
+  removeTrustedIssuer,
+  listComputeProviders,
+  registerComputeProvider,
+  updateComputeProvider,
+  removeComputeProvider,
+  putCapacityReport,
   rotateDomainProof,
   readSessionPolicy,
   setSessionPolicy,
@@ -246,6 +276,8 @@ export const httpShapes = [
   gatewayProjectAccess,
   gatewayBrowserProjectAccess,
   listMcpOrganizations,
+  mintMcpConsentCredential,
+  endMcpConsentCredential,
   issueMcpDelegation,
   readMcpAuthority,
 ] as const;

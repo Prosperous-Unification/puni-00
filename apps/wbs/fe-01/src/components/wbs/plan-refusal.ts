@@ -517,7 +517,8 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'resources_exhausted':
       return refusal.error;
     // Resources (`wbs-resources`): the table sends none of these until 1.5, so
-    // they arrive only from a batch another client wrote.
+    // they arrive only from a batch another client wrote; nor a provider
+    // reference (`compute-providers` P3) until that change's slice 5.
     case 'kind_is_immutable':
     case 'resourceKind_must_be_exclusive_or_divisible':
     case 'units_required':
@@ -530,6 +531,9 @@ function commandCode(refusal: RefusalOf<'postApiProjectsByIdCommands'>): string 
     case 'resourceRef_must_be_an_id':
     case 'unknown_resource':
     case 'exclusive_demand_is_one':
+    case 'providerId_must_be_id_or_null':
+    case 'unknown_provider':
+    case 'provider_not_in_organization':
       return refusal.error;
     default:
       return unreachable(refusal);

@@ -303,7 +303,7 @@ export function bindStores(
     async usageOfPerson(personId) {
       return { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimsOf(personId) };
     },
-    async removePerson(personId, cascade, stamp) {
+    async removePerson(personId, cascade, stamp, reach) {
       const claimed = claimsOf(personId);
       // Proof: with this refusal removed, the memory certification's
       // `directory.removePerson:claims-in-use` case failed; watched 2026-10-19.
@@ -314,7 +314,7 @@ export function bindStores(
           usage: { ...(await fixtureDirectory.usageOfPerson(personId)), claims: claimed },
         };
       }
-      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp);
+      const removed = await fixtureDirectory.removePerson(personId, cascade, stamp, reach);
       if (!removed.ok) return removed;
       cascadeClaims(state.tables.claims, (each) => each.personId === personId);
       // Proof: without the claims' work items here, the memory
@@ -329,6 +329,19 @@ export function bindStores(
     // off the source's own work items, which the fixture cannot see.
     async patchResource(resourceId, patch, stamp) {
       const written = await fixtureDirectory.patchResource(resourceId, patch, stamp);
+      if (!written.ok) return written;
+      return {
+        ...written,
+        projectIds: [...new Set([...written.projectIds, ...demandProjectsOf(resourceId)])].sort(),
+      };
+    },
+    async setResourceProvider(resourceId, providerId, organizationId, stamp) {
+      const written = await fixtureDirectory.setResourceProvider(
+        resourceId,
+        providerId,
+        organizationId,
+        stamp,
+      );
       if (!written.ok) return written;
       return {
         ...written,
@@ -441,6 +454,7 @@ export function bindStores(
       members: [],
       claims: [],
       pinnedCredentials: 0,
+      machineCredentials: 0,
       capacityOf: new Map<string, number>(),
       workItems: rows.flat(),
       projects: projectIds.map((id) => {

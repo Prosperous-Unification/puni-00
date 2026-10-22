@@ -39,6 +39,8 @@ const usage = type({
   members: named.array(),
   // Optional on the wire: an outgoing be-01 mid-swap counts no pins.
   'pinnedCredentials?': 'number',
+  // Optional on the wire for the same reason (`wbs-machine-credentials`).
+  'machineCredentials?': 'number',
 });
 /**
  * The wire omits the producer kind. Known fields are reserved across variants;
@@ -169,6 +171,8 @@ const batchRefusals = [
         type({ ...context, error: "'unknown_type'" }),
         type({ ...context, error: "'unknown_system'" }),
         type({ ...context, error: "'unknown_resource'" }),
+        // `patchResource.providerId` naming no provider instance.
+        type({ ...context, error: "'unknown_provider'" }),
         type({ ...context, error: "'unknown_attempt'" }),
         // `patchPerson.accountId` naming no member of the person's organization.
         type({ ...context, error: "'unknown_account'" }),
@@ -180,6 +184,8 @@ const batchRefusals = [
     schema: responseSchema(
       type.or(
         type({ ...context, error: "'cycle'" }),
+        // `patchResource.providerId` naming another organization's instance.
+        type({ ...context, error: "'provider_not_in_organization'" }),
         // Retired at ADR 0023 and deliberately kept: no release since refuses a
         // move for a frozen number, but an outgoing be-01 can answer a browser
         // holding the incoming fe-01 for the length of a swap, and an arm this
@@ -259,7 +265,13 @@ const batchRefusals = [
         error: "'in_use'",
         usage,
         // Present on a resource removal (`wbs-resources` R8), absent on every other.
-        'counts?': { demands: 'number', capacities: 'number', occupancies: 'number' },
+        'counts?': {
+          demands: 'number',
+          capacities: 'number',
+          occupancies: 'number',
+          // `compute-providers` P3; absent from an outgoing be-01 mid-swap.
+          'providerId?': 'string | null',
+        },
       }),
     ),
   },

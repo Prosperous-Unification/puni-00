@@ -19,13 +19,28 @@ export const ORGANIZATION_AUDIT_ACTIONS = [
   'scim_user_deprovisioned',
   'pending_membership_activated',
   'session_policy_changed',
+  'machine_credential_created',
+  'machine_credential_rotated',
+  'machine_credential_revoked',
+  'trusted_issuer_registered',
+  'trusted_issuer_removed',
+  'compute_provider_registered',
+  'compute_provider_updated',
+  'compute_provider_removed',
 ] as const;
 
 export type OrganizationAuditAction = (typeof ORGANIZATION_AUDIT_ACTIONS)[number];
 
 /** What an audit row is about. */
 export type OrganizationAuditSubjectKind =
-  'project' | 'sso_connection' | 'provisioning_token' | 'scim_user' | 'session_policy';
+  | 'project'
+  | 'sso_connection'
+  | 'provisioning_token'
+  | 'scim_user'
+  | 'session_policy'
+  | 'machine_credential'
+  | 'trusted_issuer'
+  | 'compute_provider';
 
 /**
  * The detail one audit row keeps: flat values only, so it is reviewable at a
@@ -65,4 +80,26 @@ export interface OrganizationAuditRecord {
   readonly subjectId: string;
   readonly detail: OrganizationAuditDetail;
   readonly createdAt: number;
+}
+
+/**
+ * A detail value that would leak what an audit row must never hold: a raw
+ * provisioning token or API key, a 64-hex digest, or a full upstream subject
+ * (two `|`).
+ * A prefix such as `samlp|acme-saml|` is allowed; it is what the row names.
+ * `appendOrganizationAudit` refuses such a detail as a programming fault, and
+ * a route admitting free text that could reach a detail refuses it first.
+ *
+ * Proof: with the `wbs_mk_` prefix dropped, `refuses a detail carrying a
+ * token, digest or full subject` stored an API-key-shaped detail; watched
+ * 2026-10-22.
+ */
+export function isSecretShaped(value: string): boolean {
+  return (
+    value.startsWith('wbs_scim_') ||
+    value.startsWith('wbs_mk_') ||
+    /^[0-9a-f]{64}$/i.test(value) ||
+    /^[^|]+\|[^|]+\|.+$/.test(value) ||
+    /^[^|]+\|[^|]+$/.test(value)
+  );
 }

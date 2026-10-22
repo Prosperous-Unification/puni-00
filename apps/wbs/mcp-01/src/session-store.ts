@@ -39,7 +39,30 @@ export interface FamilyInput {
   readonly absoluteExpiresAt: number;
   /** Omitted for legacy epoch-0 issuance; the store stamps the durable epoch either way. */
   readonly binding?: CredentialBinding;
+  /**
+   * The agent person a bound consent acts as and the be-01 `mcp_consent` credential it rides on
+   * (`wbs-machine-credentials` A20); omitted when the human authorized as themself.
+   */
+  readonly consent?: ConsentBinding;
 }
+
+/** The agent person and consent credential of a family that acts as an agent person. */
+export interface ConsentBinding {
+  readonly personId: string;
+  readonly credentialId: string;
+}
+
+/**
+ * A consent credential whose family ended, or whose code expired unexchanged, and whose end
+ * be-01 has not yet acknowledged.
+ */
+export interface EndedConsent {
+  readonly familyId: string;
+  readonly credentialId: string;
+}
+
+/** The pending consent of `familyId` was gone or expired when its code was exchanged. */
+export class McpConsentPendingGone extends Error {}
 export interface FamilyRecord extends FamilyInput {
   readonly credentialEpoch: number;
   readonly upstreamRefreshedAt: number | null;
@@ -129,21 +152,43 @@ export class McpSessionStore {
     return readCredentialEpoch(this.db);
   }
 
+  /**
+   * Creates the family with its first session and refresh token. A consent family also takes
+   * over its pending consent ({@link recordPendingConsent}) in the same transaction.
+   *
+   * @throws {McpConsentPendingGone} when a consent family's pending row is gone or expired at
+   *   `now`: its end may already be reported to be-01, so the family must not begin.
+   */
   createFamily(
     input: FamilyInput,
     jti: string,
     sessionExpiresAt: number,
     refreshToken: string,
+    now: number = Date.now(),
   ): void {
     this.db.transaction(() => {
+      if (input.consent !== undefined) {
+        const taken = this.db
+          .query(
+            `DELETE FROM mcp_consent_pending
+            WHERE family_id = ? AND credential_id = ? AND expires_at > ?`,
+          )
+          .run(input.familyId, input.consent.credentialId, now);
+        // Proof: 2026-10-22, with this refusal removed `refuses to exchange a consent code whose
+        // pending consent was already reported ended` (store-migrations.test.ts) created the family.
+        if (taken.changes !== 1)
+          throw new McpConsentPendingGone(
+            `MCP consent for family ${input.familyId} is no longer pending`,
+          );
+      }
       this.db
         .query(
           `INSERT INTO mcp_family (
         family_id, client_id, subject, scope, upstream_access_ct, upstream_refresh_ct,
         upstream_expires_at, idle_expires_at, absolute_expires_at, version,
-        organization_id, user_id, issuer, credential_epoch
+        organization_id, user_id, issuer, credential_epoch, act_as_person_id, credential_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?,
-        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1))`,
+        (SELECT epoch FROM mcp_credential_epoch WHERE singleton = 1), ?, ?)`,
         )
         .run(
           input.familyId,
@@ -160,9 +205,72 @@ export class McpSessionStore {
           input.binding?.organizationId ?? null,
           input.binding?.userId ?? null,
           input.binding?.issuer ?? null,
+          input.consent?.personId ?? null,
+          input.consent?.credentialId ?? null,
         );
       this.insertSession(jti, input.familyId, sessionExpiresAt);
       this.insertRefresh(refreshToken, input.familyId, input.absoluteExpiresAt);
+    })();
+  }
+
+  /**
+   * Records, before be-01 is asked to mint it, a consent credential whose family does not exist
+   * yet, so that a code never exchanged is still reported ended once it expires at `expiresAt`.
+   */
+  recordPendingConsent(familyId: string, credentialId: string, expiresAt: number): void {
+    this.db
+      .query(
+        'INSERT INTO mcp_consent_pending (family_id, credential_id, expires_at) VALUES (?, ?, ?)',
+      )
+      .run(familyId, credentialId, expiresAt);
+  }
+
+  /** Forgets a pending consent be-01 refused to mint: nothing exists there to report ended. */
+  forgetPendingConsent(familyId: string): void {
+    this.db.query('DELETE FROM mcp_consent_pending WHERE family_id = ?').run(familyId);
+  }
+
+  /**
+   * Consent credentials whose family has ended at `now` (revoked, idle or absolutely expired, or
+   * of an older epoch than the durable one) or whose pending code expired unexchanged, and whose
+   * end be-01 has not acknowledged; at most `limit`, earliest end first: a family by its
+   * revocation time, else its earlier expiry; a pending consent by its code's expiry.
+   */
+  // Proof: 2026-10-22, dropping the epoch comparison made `reports a consent family retired by
+  // the epoch advance, or by another writer` (credential-epoch.test.ts) report nothing for the
+  // other writer; dropping the pending half made `reports a consent whose code was never
+  // exchanged, once it expires` (organization-delegation.test.ts) report nothing.
+  endedConsents(now: number, limit: number): EndedConsent[] {
+    return this.db
+      .query<{ family_id: string; credential_id: string }, [number, number, number, number]>(
+        `SELECT family_id, credential_id,
+            COALESCE(revoked_at, MIN(idle_expires_at, absolute_expires_at)) AS ended_at
+          FROM mcp_family
+          WHERE credential_id IS NOT NULL AND consent_ended_reported_at IS NULL
+            AND (revoked_at IS NOT NULL OR idle_expires_at <= ? OR absolute_expires_at <= ?
+              OR credential_epoch IS NOT ${DURABLE_EPOCH})
+        UNION ALL
+        SELECT family_id, credential_id, expires_at AS ended_at
+          FROM mcp_consent_pending WHERE expires_at <= ?
+        ORDER BY ended_at, family_id
+        LIMIT ?`,
+      )
+      .all(now, now, now, limit)
+      .map((row) => ({ familyId: row.family_id, credentialId: row.credential_id }));
+  }
+
+  /** Records that be-01 acknowledged the end of `ended`: it is never reported again. */
+  acknowledgeConsentEnd(ended: EndedConsent, now: number): void {
+    this.db.transaction(() => {
+      this.db
+        .query(
+          `UPDATE mcp_family SET consent_ended_reported_at = ?
+          WHERE family_id = ? AND credential_id = ? AND consent_ended_reported_at IS NULL`,
+        )
+        .run(now, ended.familyId, ended.credentialId);
+      this.db
+        .query('DELETE FROM mcp_consent_pending WHERE family_id = ? AND credential_id = ?')
+        .run(ended.familyId, ended.credentialId);
     })();
   }
 
@@ -505,13 +613,15 @@ export class McpSessionStore {
     this.db.query('DELETE FROM mcp_client WHERE expires_at <= ?').run(now);
   }
 
-  /** Copies the family's binding and epoch; the insert trigger rejects a stale epoch. */
+  /** Copies the family's binding, person and epoch; the insert trigger rejects a stale epoch. */
   private insertSession(jti: string, familyId: string, expiresAt: number): void {
     const inserted = this.db
       .query(
         `INSERT INTO mcp_session (
-        jti, family_id, expires_at, organization_id, user_id, issuer, credential_epoch
-      ) SELECT ?, family_id, ?, organization_id, user_id, issuer, credential_epoch
+        jti, family_id, expires_at, organization_id, user_id, issuer, credential_epoch,
+        act_as_person_id, credential_id
+      ) SELECT ?, family_id, ?, organization_id, user_id, issuer, credential_epoch,
+        act_as_person_id, credential_id
         FROM mcp_family WHERE family_id = ?`,
       )
       .run(jti, expiresAt, familyId);
@@ -589,6 +699,7 @@ export class McpSessionStore {
         version: Number(row['version']),
         credentialEpoch: Number(row['credential_epoch']),
         ...bindingOf(row),
+        ...consentOf(row),
       };
     } catch (cause) {
       this.revokeFamily(familyId, Date.now());
@@ -679,6 +790,16 @@ function bindingOf(row: Row): { binding?: CredentialBinding } {
   )
     throw new Error('MCP family binding is malformed');
   return { binding: { organizationId, userId, issuer } };
+}
+
+/** Reads a row's consent person; the family CHECK makes the two columns both null or both set. */
+function consentOf(row: Row): { consent?: ConsentBinding } {
+  const personId = row['act_as_person_id'];
+  const credentialId = row['credential_id'];
+  if (personId === null && credentialId === null) return {};
+  if (typeof personId !== 'string' || typeof credentialId !== 'string')
+    throw new Error('MCP family consent person is malformed');
+  return { consent: { personId, credentialId } };
 }
 
 /**

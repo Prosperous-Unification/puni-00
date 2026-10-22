@@ -432,6 +432,20 @@ describe('the directory page', () => {
     expect(screen.getByText('load of p1')).toBeDefined();
   });
 
+  itDom("draws each person's machine credentials under their row", async () => {
+    render(
+      <DirectoryPageOverClient
+        api={fakeDirectory([KAT], [PLATFORM])}
+        nav={null}
+        account={null}
+        credentialsOf={(person) => <span>{`credentials of ${person.id} (${person.kind})`}</span>}
+      />,
+    );
+    await drawn('Kat');
+    // Proof: 2026-10-22, dropping `credentialsOf?.(person)` from the row failed this case.
+    expect(screen.getByText('credentials of p1 (person)')).toBeDefined();
+  });
+
   itDom('carries the navigation and the account, and no project controls', async () => {
     pageWith(fakeDirectory([], []));
     await waitFor(() => {

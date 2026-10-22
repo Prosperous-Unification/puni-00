@@ -14,6 +14,13 @@ const IDENTITY_PERSON = '20261019130100_add_external_identity_person';
 /** Newer than both, empty here, so they reverse first on every rollback below them. */
 const RESOURCES = '20261020120000_add_resources';
 const OCCUPANCY = '20261020130000_add_claim_occupancy';
+const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
+const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
+const ID_SHAPE = '20261022110100_check_machine_credential_id';
+const AUDIENCE_SCOPE = '20261022120000_scope_trusted_issuer_audience';
+/** The two compute-provider migrations newer than the audience scope, newest first. */
+const COMPUTE_PROVIDERS =
+  '20261022140100_widen_organization_audit_compute_providers, 20261022140000_add_resource_provider';
 const roots: string[] = [];
 
 afterEach(() => {
@@ -120,7 +127,7 @@ describe('person account and credential pin migrations', () => {
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
     expect(down.stdout).toContain(
-      `rolled back: ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
+      `rolled back: ${COMPUTE_PROVIDERS}, ${AUDIENCE_SCOPE}, ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}, ${OCCUPANCY}, ${RESOURCES}, ${IDENTITY_PERSON}, ${PERSON_ACCOUNT}`,
     );
     expect(columnsOf(dbPath, 'person')).not.toContain('account_id');
     expect(columnsOf(dbPath, 'external_identity')).not.toContain('person_id');

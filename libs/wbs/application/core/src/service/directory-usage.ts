@@ -110,6 +110,11 @@ export interface DirectoryUsage {
    * 0 for every other entry.
    */
   pinnedCredentials: number;
+  /**
+   * The unrevoked machine credentials of the person being removed or rebound
+   * ({@link DirectoryUsageRows.machineCredentials}); 0 for every other entry.
+   */
+  machineCredentials: number;
 }
 
 /** Who a work item's assignments name, keyed by step. */
@@ -179,6 +184,7 @@ function usageFrom(
     projects,
     members: rows.members.map((each) => ({ id: each.id, name: each.name })),
     pinnedCredentials: rows.pinnedCredentials,
+    machineCredentials: rows.machineCredentials,
   };
 }
 
@@ -456,6 +462,8 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  /** The provider instance the resource names, or null (`compute-providers` P3). */
+  providerId: string | null;
 }
 
 /**
@@ -482,6 +490,7 @@ export function directoryUsageOfResource(rows: ResourceUsageRows): {
       demands: rows.demands.length,
       capacities: rows.capacities.length,
       occupancies: rows.occupancies,
+      providerId: rows.providerId,
     },
   };
 }
