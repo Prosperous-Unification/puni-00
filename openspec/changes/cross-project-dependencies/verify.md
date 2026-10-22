@@ -4998,3 +4998,18 @@ its existing writer-boundary negative, restoration and verification commands.
 It leaves parent 7.3/7.4/9.2 and full Slice B unchecked. Backend authority,
 production hashing, activation, browser/session delivery, CI and host gate are
 outside this bounded packet.
+
+### Bounded generated MCP node SS/FF parity — 2026-10-23
+
+The [SS/FF parity verification packet](verify-mcp-node-ss-ff.md) records real
+generated MCP and HTTP transport for split/encoded node dependencies, with
+independent SS 1→2, FF 3→4, FS 4→5 and absent-edge 0→1 placements after an
+authenticated predecessor estimate change. It includes atomic later-command
+rollback, ordinary dormant refusal, and watched production faults. The nominal
+zero-weight FF fault survived independent materialized-boundary reconciliation;
+the packet records that limit rather than claiming it was killed. The isolated
+focused suite passed **48/48** and configured MCP suite **572/572**, 3,421
+assertions; independent Astra review freshly passed a selected **12/12**, 145
+assertions. This synthetic active fixture does not enable production authoring;
+tasks 3.2/4.2 remain open. The canonical host gate and exact-head CI remain
+pending.
