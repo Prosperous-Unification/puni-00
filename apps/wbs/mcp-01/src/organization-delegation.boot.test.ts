@@ -338,6 +338,71 @@ describe('MCP organization delegation against a booted be-01', () => {
     expect(projectNames(listed.text)).toEqual(['Launch']);
   });
 
+  test('MCP and direct HTTP carry the same scoped external command to the dormant backend', async () => {
+    if (!Object.hasOwn(sessions, 'dany'))
+      throw new Error('the organization-bound session is missing');
+    const access = sessions['dany'];
+    const created = await tool(access, 'postApiProjects', { name: 'External prerequisite' });
+    expect(created.isError).toBe(false);
+    const predecessorProjectId = (JSON.parse(created.text) as { project: { id: string } }).project
+      .id;
+    const predecessor = await tool(access, 'postApiProjectsByIdCommands', {
+      id: predecessorProjectId,
+      commands: [{ kind: 'createWorkItem', name: 'Remote design' }],
+    });
+    expect(predecessor.isError).toBe(false);
+    const predecessorId = (
+      JSON.parse(predecessor.text) as { results: { id: string }[] }
+    ).results.at(0)?.id;
+    const successor = await tool(access, 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [{ kind: 'createWorkItem', name: 'Local build' }],
+    });
+    expect(successor.isError).toBe(false);
+    const successorId = (JSON.parse(successor.text) as { results: { id: string }[] }).results.at(
+      0,
+    )?.id;
+    if (predecessorId === undefined || successorId === undefined)
+      throw new Error('command fixture did not mint both endpoint IDs');
+
+    const command = {
+      kind: 'addTypedDependency',
+      predecessor: {
+        projectId: predecessorProjectId,
+        scope: 'whole',
+        workItemId: predecessorId,
+      },
+      successor: { projectId: ids.launch, scope: 'whole', workItemId: successorId },
+      type: 'FS',
+    };
+    // Proof: stripping nested projectId during MCP serialization made this real
+    // booted call answer 404 not_found instead of the direct HTTP 409 dormant refusal.
+    const viaMcp = await tool(access, 'postApiProjectsByIdCommands', {
+      id: ids.launch,
+      commands: [command],
+    });
+    const caller = await oauth.callerSessionFor(access);
+    const delegated = await oauth.bearerFor(caller.mcpSessionId, caller.upstreamToken, [
+      'read',
+      'write',
+    ]);
+    const direct = await fetch(`${beUrl}/api/projects/${ids.launch}/commands`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${delegated}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ commands: [command] }),
+    });
+    expect(direct.status).toBe(409);
+    const refusal: unknown = await direct.json();
+    expect(refusal).toEqual({
+      error: 'external_dependencies_inactive',
+      at: 0,
+      kind: 'addTypedDependency',
+    });
+    expect(viaMcp.isError).toBe(true);
+    expect(viaMcp.text).toContain('HTTP 409 external_dependencies_inactive');
+    expect(viaMcp.text).toContain(JSON.stringify(refusal));
+  });
+
   test("a removed member's session is refused on its next call and cannot refresh", async () => {
     const removed = await fetch(`${beUrl}/__fixture/remove-member`, {
       method: 'POST',

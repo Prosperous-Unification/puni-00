@@ -37,6 +37,13 @@ test('generated project command tool exposes addTypedDependency with endpoints',
       'FS',
       'SS',
     ]);
+    for (const field of ['predecessor', 'successor']) {
+      const endpoint = (typed?.properties as Record<string, unknown> | undefined)?.[field] as
+        { properties?: { projectId?: unknown } } | undefined;
+      // Proof: removing projectId from the shared endpoint declaration made
+      // this generated MCP contract assertion receive undefined for both scopes.
+      expect(endpoint?.properties?.projectId).toEqual({ type: 'string' });
+    }
   }
 });
 
