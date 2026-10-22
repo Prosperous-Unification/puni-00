@@ -1262,10 +1262,10 @@ export class DirectoryService {
     scope: OrganizationScope,
     added: number,
   ): Promise<LimitCrossed | null> {
-    const limits = this.opts.organizationLimits;
-    if (limits === undefined)
+    const gauge = this.opts.organizationLimits;
+    if (gauge === undefined)
       throw new Error('an agent person was added under scoped access without organization limits');
-    const reading = await limits.readAgentPersonCap(scope.organizationId);
+    const reading = await gauge.readAgentPersonCap(scope.organizationId);
     return refuseLimit({ cap: reading.cap, current: reading.current, added });
   }
 

@@ -78,9 +78,22 @@ Every write that would make the organization hold more persons of kind `agent` t
 `maxAgentPersons` SHALL be refused `agent_person_limit` carrying `cap`, `current` and
 `added`, in the write's own transaction, with nothing written: `patchPerson` changing a
 kind to `agent`, the directory add with kind `agent`, and the plan import for the agents it
-would create (the whole import refused). Changing `agent` to `person`, renaming,
-re-teaming, binding or deleting SHALL never be refused by this cap. The count SHALL be read
-inside the transaction that writes.
+would create (the whole import refused). `createPerson` carries no kind, so the directory
+add with kind `agent` is reachable only through the plan import until it gains one.
+Changing `agent` to `person`, renaming, re-teaming, binding or deleting SHALL never be
+refused by this cap; deleting an agent frees a place for a later command of the same batch.
+The count SHALL be read inside the transaction that writes.
+
+#### Scenario: A cap of 0
+
+- **WHEN** A's cap is 0 and an admin applies `patchPerson { kind: 'agent' }`
+- **THEN** the batch is refused `agent_person_limit` with `cap: 0, current: 0, added: 1`
+
+#### Scenario: Deleting first frees a place in the same batch
+
+- **WHEN** A holds 8 agents of a cap of 8 and one batch deletes an agent and then promotes a
+  person
+- **THEN** the batch is applied and A holds 8 agents
 
 #### Scenario: The ninth agent
 

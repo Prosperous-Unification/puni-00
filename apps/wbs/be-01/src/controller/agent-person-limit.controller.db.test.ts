@@ -121,6 +121,23 @@ describe('the agent person cap, activated', () => {
     expect(kindOf('kat')).toBe('person');
   });
 
+  // Proof: with a cap of 0 read as no cap in `refuseAgentPersons`, this case
+  // answered 200 and made the agent (12 pass, 1 fail); watched 2026-10-22.
+  it('refuses the first agent under a cap of 0', async () => {
+    capAgents('org-a', 0);
+    personIn('org-a', 'kat', 'person');
+
+    expect((await directory('ada', [promote('kat')])).body).toEqual({
+      at: 0,
+      kind: 'patchPerson',
+      error: 'agent_person_limit',
+      cap: 0,
+      current: 0,
+      added: 1,
+    });
+    expect(kindOf('kat')).toBe('person');
+  });
+
   it('admits the agent that reaches the cap exactly', async () => {
     capAgents('org-a', 8);
     agentsIn('org-a', 'bot', 7);

@@ -114,7 +114,10 @@ deployment defaults (`organizationDefaultLimits`); boot and the organization har
 them. Legacy access reads nothing and refuses nothing. The memory source carries no gauge
 (its twin is slice 3); the conformance manifest lists `organizationLimits` with no case and
 both source declarations mark it absent. fe-01 words the import refusal with its numbers; the
-batch refusal shows its code until slice 6.
+batch refusal shows its code until slice 6. Deleting an agent frees a place in the same
+batch when the delete comes first (commands apply in order). `createPerson` carries no kind,
+so the directory-add arm of L9 is reachable only through the import until `createPerson`
+gains `kind`. A cap of 0 refuses the first agent.
 
 Fresh local results, all with `env -u CLAUDECODE`, on the laptop:
 
@@ -163,6 +166,7 @@ overshoot was observed through a stale count instead (table below).
 | admitted catalog carries the gauge                       | bound source's admitted catalog built without the gauge                                       | every activated case of `agent-person-limit.controller.db.test.ts` threw the composition error, 3 pass 9 fail                                                                            | watched |
 | boot gives the source its defaults                       | `organizationDefaultLimits` not passed to `openSource`                                        | `enforces the agent person cap with the configured defaults once activated` (`boot.db.test.ts`) threw, 0 pass 1 fail                                                                     | watched |
 | the promotion check                                      | check removed from `patchPersonWithin`                                                        | `refuses the ninth agent…`, `refuses a batch adding two agents where one is free…`, `keeps every agent above a lowered cap…`, 9 pass 3 fail                                              | watched |
+| cap of 0 refuses the first agent                         | a cap of 0 read as no cap in `refuseAgentPersons`                                             | `refuses the first agent under a cap of 0` answered 200, 12 pass 1 fail                                                                                                                  | watched |
 | agent cap only on `agent`                                | `held.kind !== 'agent'` dropped                                                               | `renames an agent and re-teams it at the cap, restating its kind`, 11 pass 1 fail                                                                                                        | watched |
 | the add's own check                                      | check removed from `addPersonWithin`                                                          | `refuses adding an agent at the cap, creating and mapping nothing` (`directory.resource.test.ts`), 6 pass 3 fail                                                                         | watched |
 | legacy access uncapped                                   | legacy answered as a cap of 0                                                                 | `admits a promotion and an import with no organization to own a cap`, 11 pass 1 fail                                                                                                     | watched |
