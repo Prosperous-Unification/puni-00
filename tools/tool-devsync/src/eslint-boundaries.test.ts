@@ -274,7 +274,11 @@ describe('the effective production and test boundaries', () => {
     // Proof: widening the compute override to `['^@tools/fleet']`, and scoping it to a directory
     // that does not exist, each failed this test at the exact allow-list assertion (2026-10-22).
     expect(computeOptions['allow']).toEqual(['^@tools/fleet-ssh-transport$']);
-    expect({ ...computeOptions, allow: [] }).toEqual(peerOptions);
+    const computeOptionsWithoutAllowance: Readonly<Record<string, unknown>> = {
+      ...computeOptions,
+      allow: [],
+    };
+    expect(computeOptionsWithoutAllowance).toEqual(peerOptions);
     expect(
       await ruleIds(computePath, "import { readSshTransport } from '@tools/fleet-ssh-transport';"),
     ).not.toContain('@nx/enforce-module-boundaries');
