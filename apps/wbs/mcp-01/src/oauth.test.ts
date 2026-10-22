@@ -1817,8 +1817,12 @@ describe('McpOAuthServer', () => {
     }
   });
 
-  for (const bound of [false, true]) {
-    it(`refuses a corrupt nonzero-epoch ${bound ? 'bound' : 'unbound'} family read before returning a fresh token`, async () => {
+  for (const [epoch, bound] of [
+    [2, true],
+    [2, false],
+    [1, false],
+  ] as const) {
+    it(`refuses a corrupt epoch-${String(epoch)} ${bound ? 'bound' : 'unbound'} family read before returning a fresh token`, async () => {
       class UnsupportedStore extends McpSessionStore {
         override family(...args: Parameters<McpSessionStore['family']>) {
           const family = super.family(...args);
@@ -1826,7 +1830,7 @@ describe('McpOAuthServer', () => {
             ? null
             : {
                 ...family,
-                credentialEpoch: 1,
+                credentialEpoch: epoch,
                 binding: bound
                   ? { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' }
                   : undefined,
@@ -1838,7 +1842,7 @@ describe('McpOAuthServer', () => {
             ? null
             : {
                 ...family,
-                credentialEpoch: 1,
+                credentialEpoch: epoch,
                 binding: bound
                   ? { organizationId: 'org-a', userId: 'user-a', issuer: 'https://idp.example' }
                   : undefined,

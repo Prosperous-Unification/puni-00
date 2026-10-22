@@ -1,4 +1,4 @@
--- Reverses `20261022120000_add_organization_limits`, refusing while any
+-- Reverses `20261022130000_add_organization_limits`, refusing while any
 -- organization holds its own caps: dropping the rows would silently move each
 -- such tenant back to the deployment default an operator had overridden.
 -- Proof: guard statements removed; `refuses rollback while an organization

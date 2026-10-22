@@ -1201,7 +1201,7 @@ describe('a replay never resurrects a directory row that has gone', () => {
     const alice = await person('Alice');
     await workItems.assign(strip, ownerId, dev(), alice);
     expect(expectDone(await undone())).toBe('assign “Strip”');
-    await directoryStore.removePerson(alice, true, wrote());
+    await directoryStore.removePerson(alice, true, wrote(), { kind: 'every' });
 
     const outcome = await workItems.redo(projectId, ownerId);
 

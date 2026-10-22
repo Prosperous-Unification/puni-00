@@ -34,12 +34,15 @@ import {
 import { type AuthorizationContext, PendingAuthorizations } from './pending-authorizations';
 import { matchesRefreshAuthority, type McpRefreshAuthorityReader } from './refresh-authority';
 import {
+  type ConsentBinding,
   type CredentialBinding,
   type FamilyRecord,
+  McpConsentPendingGone,
   McpRefreshFamilyCorrupt,
   McpSessionStore,
   type RegisteredClient,
 } from './session-store';
+import { ACTIVATED_CREDENTIAL_EPOCH, SUPPORTED_CREDENTIAL_EPOCH } from './store-migrations';
 import {
   DelegationRefused,
   EdgeGate,
@@ -101,6 +104,13 @@ export interface McpAuthorizationGrant {
   upstreamExpiresAt: number;
   /** The organization, local user and upstream issuer a consent after activation selected. */
   binding?: CredentialBinding;
+  /**
+   * The agent person a consent chose to act as (A20), its minted be-01 credential and the
+   * family id that credential names, which the exchange must create.
+   */
+  consent?: ConsentBinding & { readonly familyId: string };
+  /** The durable epoch at issue; exchange refuses the code once the store's has moved on. */
+  credentialEpoch: number;
 }
 
 /** What a completed upstream login contributes to a grant, before any organization is chosen. */
@@ -113,17 +123,26 @@ type GrantFields = Pick<
   | 'upstreamRefreshToken'
   | 'upstreamExpiresAt'
   | 'binding'
+  | 'consent'
 >;
 
-/** A consent waiting for its user to choose one of several organizations. */
+/**
+ * A consent waiting for its user to choose one of several organizations, or whether to act as
+ * themself or as one of their agent persons (A20).
+ */
 interface PendingSelection {
   readonly authorization: AuthorizationContext;
   readonly fields: GrantFields;
   readonly userId: string;
   readonly issuer: string;
   readonly memberships: readonly OrganizationChoice[];
+  /** Every offered agent, in page order; the page posts an index into this list. */
+  readonly agents: readonly { readonly organizationId: string; readonly personId: string }[];
   readonly expiresAt: number;
 }
+
+/** At most this many consent ends are reported to be-01 per sweep. */
+const CONSENT_END_REPORT_BATCH = 100;
 
 interface Options {
   groupsClaim?: string;
@@ -190,6 +209,8 @@ export class McpOAuthServer implements McpOAuthHandler {
    * so the proven cap can be exceeded by the exchanges in flight in the other process.
    */
   private readonly promotionReservations = new Set<string>();
+  // Proof: 2026-10-21, one module-level map shared by every instance made `forgets a code
+  // issued before a store reopen at the same epoch` (credential-epoch.test.ts) exchange it (200).
   private readonly grants = new Map<string, McpAuthorizationGrant>();
   private readonly selections = new Map<string, PendingSelection>();
   private readonly organizations: OrganizationAuthority | undefined;
@@ -261,6 +282,15 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.sessionLimit = Math.max(1, options.sessionLimit ?? 1_000);
     this.routeEvidence = options.routeEvidence;
     this.organizations = options.organizations;
+    // Proof: 2026-10-21, without this refusal `refuses to start at the activated epoch without
+    // organization authority` (credential-epoch.test.ts) constructed the server.
+    if (
+      this.organizations === undefined &&
+      this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH
+    )
+      throw new Error(
+        'MCP credential epoch is activated; mcp-01 needs INTERNAL_AUTH_SECRET to bind consents',
+      );
     this.readRefreshAuthority =
       options.readRefreshAuthority ?? options.organizations?.readRefreshAuthority;
     this.pendingAuthorizations = new PendingAuthorizations({
@@ -419,6 +449,10 @@ export class McpOAuthServer implements McpOAuthHandler {
         (scope): scope is 'read' | 'write' | 'editor' =>
           scope === 'read' || scope === 'write' || scope === 'editor',
       ),
+      // Proof: 2026-10-22, dropping the credential here made `a consent session's tool call
+      // claims as its agent, never with the human's reach` (organization-delegation.boot.test.ts)
+      // accept the claim as `codex`: the delegation was the human's own, unpinned.
+      ...(family.consent === undefined ? {} : { credentialId: family.consent.credentialId }),
     });
     switch (outcome.kind) {
       case 'issued':
@@ -694,8 +728,20 @@ export class McpOAuthServer implements McpOAuthHandler {
       upstreamRefreshToken: tokens.refreshToken,
       upstreamExpiresAt,
     };
-    if (this.organizations === undefined)
+    if (this.organizations === undefined) {
+      // A process started at epoch 0 without organization authority whose store another writer
+      // has since advanced: an unbound credential can no longer be stored, so refuse here
+      // instead of failing the exchange on the store's CHECK.
+      // Proof: 2026-10-22, without this refusal `refuses consent without organization authority
+      // once another writer advanced the epoch` (credential-epoch.test.ts) redirected with a code.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        return await this.failLogin(
+          pending.authorization,
+          'temporarily_unavailable',
+          tokens.refreshToken,
+        );
       return await this.issueCode(pending.authorization, fields);
+    }
     let consent: ConsentOrganizations;
     try {
       consent = await this.organizations.organizationsFor(tokens.accessToken);
@@ -704,16 +750,31 @@ export class McpOAuthServer implements McpOAuthHandler {
       await this.revokeRefreshToken(tokens.refreshToken);
       throw cause;
     }
-    // Before activation a consent binds nothing and behaves exactly as it always has.
-    if (consent.kind === 'pre_activation')
+    // Before activation a consent binds nothing and behaves exactly as it always has. Once the
+    // epoch has advanced but be-01's marker has not (the cutover window), an unbound credential
+    // cannot be stored, so the consent waits for activation.
+    if (consent.kind === 'pre_activation') {
+      // Proof: 2026-10-21, without this refusal `refuses an unbound consent between the epoch
+      // advance and activation` (credential-epoch.test.ts) redirected with a code.
+      if (this.store.credentialEpoch() >= ACTIVATED_CREDENTIAL_EPOCH)
+        return await this.failLogin(
+          pending.authorization,
+          'temporarily_unavailable',
+          tokens.refreshToken,
+        );
       return await this.issueCode(pending.authorization, fields);
+    }
     // Proof: issuing an unbound code here made `refuses consent for a user with no
     // current membership` in `organization-delegation.test.ts` redirect with a code
     // instead of access_denied; watched 2026-10-21.
     if (consent.kind === 'refused' || consent.memberships.length === 0)
       return await this.failLogin(pending.authorization, 'access_denied', tokens.refreshToken);
     const only = consent.memberships.length === 1 ? consent.memberships[0] : undefined;
-    if (only !== undefined)
+    // One organization and no agent to offer: bound without a page, as before A20.
+    // Proof: 2026-10-22, binding a single membership here whatever its agents made `offers the
+    // agents of a single organization` (organization-delegation.test.ts) redirect with a code
+    // instead of showing the page.
+    if (only?.agents.length === 0)
       return await this.issueCode(pending.authorization, {
         ...fields,
         binding: {
@@ -734,6 +795,12 @@ export class McpOAuthServer implements McpOAuthHandler {
       userId: consent.userId,
       issuer: identity.issuer,
       memberships: consent.memberships,
+      agents: consent.memberships.flatMap((membership) =>
+        membership.agents.map((agent) => ({
+          organizationId: membership.organizationId,
+          personId: agent.personId,
+        })),
+      ),
       expiresAt: this.now() + GRANT_TTL_MS,
     });
     return selectionPage(`${this.issuer}/organization`, selectionId, consent.memberships);
@@ -742,14 +809,19 @@ export class McpOAuthServer implements McpOAuthHandler {
   /**
    * Completes a consent paused on {@link selectionPage}: the browser that
    * received the page posts back its own selection id, carried in a SameSite
-   * cookie as well as the form, and one organization from the list be-01
-   * gave. The selection is consumed whatever the outcome; a forged or stale
-   * organization fails the login rather than binding anything.
+   * cookie as well as the form, and either one organization from the list be-01
+   * gave (`organizationId`: authorize as yourself) or the index of one offered
+   * agent person (`agent`, A20). The selection is consumed whatever the
+   * outcome; a forged or stale choice fails the login rather than binding
+   * anything. Choosing an agent mints its consent credential at be-01 before
+   * the code is issued; a refusal fails the login `access_denied` and no family
+   * can ever be created for it.
    */
   private async selectOrganization(request: Request): Promise<Response> {
     const form = await request.formData();
     const selectionId = stringField(form, 'selection');
     const organizationId = stringField(form, 'organizationId');
+    const agentIndex = stringField(form, 'agent');
     const presented = cookieOf(request, SELECT_COOKIE);
     this.cleanup();
     const selection = selectionId === undefined ? undefined : this.selections.get(selectionId);
@@ -764,6 +836,11 @@ export class McpOAuthServer implements McpOAuthHandler {
     )
       return protocolError('invalid_request', clearSelectCookie());
     this.selections.delete(selectionId);
+    if (agentIndex !== undefined || organizationId === undefined)
+      return await this.selectAgent(
+        selection,
+        organizationId === undefined ? agentIndex : undefined,
+      );
     const chosen = selection.memberships.find(
       (membership) => membership.organizationId === organizationId,
     );
@@ -790,10 +867,82 @@ export class McpOAuthServer implements McpOAuthHandler {
     );
   }
 
+  /**
+   * The agent half of {@link selectOrganization}: `posted` must be the decimal index of an
+   * offered agent; anything else, or an `organizationId` beside it, fails `access_denied`.
+   * The consent is recorded pending before be-01 is asked, so a credential minted for a code
+   * that is never exchanged is still reported ended once the code expires.
+   */
+  private async selectAgent(
+    selection: PendingSelection,
+    posted: string | undefined,
+  ): Promise<Response> {
+    const organizations = this.organizations;
+    if (organizations === undefined)
+      throw new Error('an agent was offered without organization authority');
+    // `at` reads a negative index from the end, so only a plain decimal may reach it.
+    // Proof: 2026-10-22, reading any posted number here made `refuses a forged agent choice`
+    // (organization-delegation.test.ts) mint for a forged index (`-1`, `00`).
+    const chosen =
+      posted !== undefined && /^(0|[1-9][0-9]{0,3})$/.test(posted)
+        ? selection.agents.at(Number(posted))
+        : undefined;
+    if (chosen === undefined)
+      return await this.failLogin(
+        selection.authorization,
+        'access_denied',
+        selection.fields.upstreamRefreshToken,
+      );
+    const familyId = this.random();
+    const credentialId = crypto.randomUUID();
+    const expiresAt = this.now() + GRANT_TTL_MS;
+    this.store.recordPendingConsent(familyId, credentialId, expiresAt);
+    let minted: Awaited<ReturnType<OrganizationAuthority['mintConsentCredential']>>;
+    try {
+      minted = await organizations.mintConsentCredential(selection.fields.upstreamAccessToken, {
+        organizationId: chosen.organizationId,
+        userId: selection.userId,
+        personId: chosen.personId,
+        credentialId,
+        family: familyId,
+        client: new URL(selection.authorization.redirectUri).host,
+      });
+    } catch (cause) {
+      // The pending row stays: be-01 may have minted before failing, and the sweep reports it.
+      await this.revokeRefreshToken(selection.fields.upstreamRefreshToken);
+      throw cause;
+    }
+    // Proof: 2026-10-22, with this refusal skipped `refuses consent as another account's agent
+    // and creates no family` (organization-delegation.test.ts) redirected without access_denied.
+    if (minted.kind === 'refused') {
+      this.store.forgetPendingConsent(familyId);
+      return await this.failLogin(
+        selection.authorization,
+        'access_denied',
+        selection.fields.upstreamRefreshToken,
+      );
+    }
+    return await this.issueCode(
+      selection.authorization,
+      {
+        ...selection.fields,
+        binding: {
+          organizationId: chosen.organizationId,
+          userId: selection.userId,
+          issuer: selection.issuer,
+        },
+        consent: { personId: chosen.personId, credentialId, familyId },
+      },
+      clearSelectCookie(),
+      expiresAt,
+    );
+  }
+
   private async issueCode(
     authorization: AuthorizationContext,
     fields: GrantFields,
     clearing: string = clearCookie(),
+    expiresAt: number = this.now() + GRANT_TTL_MS,
   ): Promise<Response> {
     this.cleanup();
     if (this.grants.size >= this.grantLimit) {
@@ -804,9 +953,10 @@ export class McpOAuthServer implements McpOAuthHandler {
     this.grants.set(code, {
       clientId: authorization.clientId,
       codeChallenge: authorization.codeChallenge,
-      expiresAt: this.now() + GRANT_TTL_MS,
+      expiresAt,
       redirectUri: authorization.redirectUri,
       ...fields,
+      credentialEpoch: this.store.credentialEpoch(),
     });
     const target = new URL(authorization.redirectUri);
     target.searchParams.set('code', code);
@@ -895,7 +1045,10 @@ export class McpOAuthServer implements McpOAuthHandler {
       stringField(form, 'redirect_uri') !== grant.redirectUri ||
       verifier === undefined ||
       !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier) ||
-      challengeOf(verifier) !== grant.codeChallenge
+      challengeOf(verifier) !== grant.codeChallenge ||
+      // Proof: 2026-10-21, without this comparison `refuses a code issued before the epoch
+      // advanced` (credential-epoch.test.ts) exchanged it for a token (200).
+      grant.credentialEpoch !== this.store.credentialEpoch()
     ) {
       if (code !== undefined) this.grants.delete(code);
       return protocolError('invalid_grant');
@@ -921,7 +1074,7 @@ export class McpOAuthServer implements McpOAuthHandler {
       reservedPromotion = true;
     }
 
-    const familyId = this.random();
+    const familyId = grant.consent?.familyId ?? this.random();
     const jti = this.random();
     const refreshToken = this.random();
     const absoluteExpiresAt =
@@ -946,10 +1099,19 @@ export class McpOAuthServer implements McpOAuthHandler {
           // through code, family and session` in `organization-delegation.test.ts`
           // record no delegation (the family looked pre-activation); watched 2026-10-21.
           ...(grant.binding === undefined ? {} : { binding: grant.binding }),
+          ...(grant.consent === undefined
+            ? {}
+            : {
+                consent: {
+                  personId: grant.consent.personId,
+                  credentialId: grant.consent.credentialId,
+                },
+              }),
         },
         jti,
         expiresAt,
         refreshToken,
+        now,
       );
       const token = await this.issueAccessToken(
         grant.subject,
@@ -964,9 +1126,13 @@ export class McpOAuthServer implements McpOAuthHandler {
       this.promotionReservations.delete(client.clientId);
       return tokenResponse(token, refreshToken, grant.scope, expiresAt - now);
     } catch (error) {
+      if (reservedPromotion) this.promotionReservations.delete(client.clientId);
+      // The consent's end may already be reported to be-01: the code is dead, not retryable.
+      // Proof: 2026-10-22, without this mapping `refuses a consent code whose pending consent was
+      // already reported ended` (organization-delegation.test.ts) rejected with the store error.
+      if (error instanceof McpConsentPendingGone) return protocolError('invalid_grant');
       this.store.revokeFamily(familyId, now);
       this.grants.set(code, grant);
-      if (reservedPromotion) this.promotionReservations.delete(client.clientId);
       throw error;
     }
   }
@@ -1091,11 +1257,23 @@ export class McpOAuthServer implements McpOAuthHandler {
       scope: family.scope,
       credentialEpoch: family.credentialEpoch,
       binding: family.binding,
+      // Proof: 2026-10-22, leaving the consent out here made `matchesRefreshAuthority` refuse
+      // every consent family, failing `offers dany's agents at consent, and a consent as claire
+      // mints her credential` (organization-delegation.boot.test.ts) on its first tool call.
+      ...(family.consent === undefined ? {} : { consent: family.consent }),
     });
     if (admission.outcome === 'unavailable')
       throw new UpstreamRefreshUnavailable('MCP organization refresh authority is unavailable');
-    if (admission.outcome === 'denied')
+    if (admission.outcome === 'denied') {
+      // A consent family's credential is revoked, unbound or its human left: that never comes
+      // back, so the family ends now and the sweep reports it, instead of lingering unrevoked.
+      // A human's own family is kept, as before.
+      // Proof: 2026-10-22, without this revocation `revoking the consent in WBS ends the
+      // session: 401, and refresh is refused` (organization-delegation.boot.test.ts) reported 0
+      // ended families instead of 2.
+      if (family.consent !== undefined) this.store.revokeFamily(family.familyId, this.now());
       throw new UpstreamRefreshRefused('MCP organization refresh authority refused');
+    }
     if (!matchesRefreshAuthority(admission.authority, family))
       throw new UpstreamRefreshRefused('MCP organization refresh authority changed');
     const refusal = credentialRuleRefusal(
@@ -1351,6 +1529,32 @@ export class McpOAuthServer implements McpOAuthHandler {
         use: 'sig' as const,
       },
     ];
+  }
+
+  /**
+   * Reports to be-01 every consent credential whose family mcp-01 ended (revoked by any path,
+   * idle or absolutely expired, retired by an epoch advance) or whose code expired unexchanged,
+   * so be-01 revokes it (`wbs-machine-credentials` A20, _End_). This is the durable direction
+   * mcp-01 → be-01 of the two-way revocation: the store keeps each end until be-01 acknowledges
+   * it, so a report lost to a crash or an unreachable be-01 is sent again by the next sweep.
+   * `mcp-01`'s main runs it once a minute; the end is therefore visible in WBS within about a
+   * minute, not at once.
+   *
+   * @returns how many ends be-01 acknowledged; it stops at the first unavailable answer.
+   * @throws {OrganizationAuthorityDefect} on an answer this release does not model.
+   */
+  async reportEndedConsents(): Promise<number> {
+    const organizations = this.organizations;
+    if (organizations === undefined) return 0;
+    let acknowledged = 0;
+    for (const ended of this.store.endedConsents(this.now(), CONSENT_END_REPORT_BATCH)) {
+      // Proof: 2026-10-22, acknowledging without asking be-01 made `a family mcp-01 ends marks
+      // its credential revoked in WBS` (organization-delegation.boot.test.ts) keep it live.
+      if ((await organizations.reportConsentEnded(ended)) === 'unavailable') break;
+      this.store.acknowledgeConsentEnd(ended, this.now());
+      acknowledged += 1;
+    }
+    return acknowledged;
   }
 
   /** Proven, or reserved to become proven by an exchange in flight in this process. */
@@ -1660,22 +1864,38 @@ function cookieOf(request: Request, name: string): string | undefined {
 }
 
 /**
- * The organization choice a consent after activation pauses on when its user
- * belongs to several. One form, one button per organization; the page may not
- * be framed, cached or load anything.
+ * The choice a consent after activation pauses on when its user belongs to several
+ * organizations or has agent persons to offer (A20): per organization, one button to authorize
+ * as yourself (`organizationId`) and one per agent person bound to the account (`agent`, an index
+ * into the selection's offered agents, in page order). One form; the page may not be framed,
+ * cached or load anything.
  */
 function selectionPage(
   action: string,
   selectionId: string,
   memberships: readonly OrganizationChoice[],
 ): Response {
-  const buttons = memberships
-    .map(
-      (membership) =>
-        `<button name="organizationId" value="${escapeHtml(membership.organizationId)}">${escapeHtml(membership.name)} <small>${escapeHtml(membership.role.replace('_', ' '))}</small></button>`,
-    )
+  let agentIndex = 0;
+  const sections = memberships
+    .map((membership) => {
+      const role = escapeHtml(membership.role.replace('_', ' '));
+      const self = `<button name="organizationId" value="${escapeHtml(membership.organizationId)}">${escapeHtml(membership.name)} <small>${membership.agents.length === 0 ? role : `as yourself, ${role}`}</small></button>`;
+      const agents = membership.agents
+        .map((agent) => {
+          const button = `<button name="agent" value="${String(agentIndex)}">${escapeHtml(membership.name)} <small>as agent ${escapeHtml(agent.name)}</small></button>`;
+          agentIndex += 1;
+          return button;
+        })
+        .join('');
+      return self + agents;
+    })
     .join('');
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Choose an organization</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#111}main{max-width:28rem;margin:10vh auto}button{display:block;width:100%;margin:8px 0;padding:12px;text-align:left;font:inherit;border:1px solid #888;border-radius:6px;background:#f6f6f6;cursor:pointer}small{color:#555}@media (prefers-color-scheme:dark){body{background:#111;color:#eee}button{background:#222;color:#eee;border-color:#555}small{color:#aaa}}</style></head><body><main><h1>Choose an organization</h1><p>This connection will act in one organization. To use another, connect again.</p><form method="post" action="${escapeHtml(action)}"><input type="hidden" name="selection" value="${escapeHtml(selectionId)}">${buttons}</form></main></body></html>`;
+  const offersAgents = agentIndex > 0;
+  const title = offersAgents ? 'Choose who this connection acts as' : 'Choose an organization';
+  const lead = offersAgents
+    ? 'This connection will act in one organization, as you or as one of your agents. An agent acts with member rights only, and you can revoke it from the people page. To use another, connect again.'
+    : 'This connection will act in one organization. To use another, connect again.';
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#fff;color:#111}main{max-width:28rem;margin:10vh auto}button{display:block;width:100%;margin:8px 0;padding:12px;text-align:left;font:inherit;border:1px solid #888;border-radius:6px;background:#f6f6f6;cursor:pointer}small{color:#555}@media (prefers-color-scheme:dark){body{background:#111;color:#eee}button{background:#222;color:#eee;border-color:#555}small{color:#aaa}}</style></head><body><main><h1>${title}</h1><p>${lead}</p><form method="post" action="${escapeHtml(action)}"><input type="hidden" name="selection" value="${escapeHtml(selectionId)}">${sections}</form></main></body></html>`;
   const headers = new Headers({
     'content-type': 'text/html; charset=utf-8',
     'cache-control': 'no-store',
@@ -1771,12 +1991,18 @@ function protocolError(
  * unbound epoch-0 family belongs to the legacy path. Bound families need an
  * authoritative membership and credential-rule reader before use; production installs
  * be-01's (`organization-authority.ts`) when `INTERNAL_AUTH_SECRET` is set, and without
- * it a bound family is refused. A future epoch is refused even with an injected reader.
+ * it a bound family is refused. An epoch newer than {@link SUPPORTED_CREDENTIAL_EPOCH},
+ * and an unbound family above epoch 0 (which the store CHECK forbids), are refused even with
+ * an injected reader. A family older than the durable epoch never gets here: the store's
+ * session and refresh reads already treat it as absent.
  */
 function readFamilyAuthority(family: FamilyRecord): 'legacy' | 'organization' | 'unsupported' {
-  // Proof: 2026-10-13, removing this test let a bound epoch-1 read disclose a fresh
-  // token with an injected admitting reader (`corrupt nonzero-epoch bound family`).
-  if (family.credentialEpoch !== 0) return 'unsupported';
+  // Proof: 2026-10-21, removing this test let a bound epoch-2 read disclose a fresh
+  // token with an injected admitting reader (`corrupt epoch-2 bound family`).
+  if (family.credentialEpoch > SUPPORTED_CREDENTIAL_EPOCH) return 'unsupported';
   if (family.binding !== undefined) return 'organization';
-  return 'legacy';
+  // Proof: 2026-10-21, answering 'legacy' here regardless of epoch let `corrupt epoch-1
+  // unbound family` return the fresh upstream token.
+  if (family.credentialEpoch === 0) return 'legacy';
+  return 'unsupported';
 }

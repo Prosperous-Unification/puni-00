@@ -1,6 +1,9 @@
 import type { AuthenticatedUser, Logger } from '@wbs/contracts';
 
-import type { AuthService } from './module/authentication/authentication.feature';
+import type {
+  AuthService,
+  TrustedIssuerVerification,
+} from './module/authentication/authentication.feature';
 import { installAuthentication } from './module/authentication/check';
 import type { LoginThrottle } from './module/authentication/login-throttle';
 import { installBoundedReplaySweep } from './module/bounded-replay-sweep/check';
@@ -31,6 +34,7 @@ import type { Clock } from './ports/clock';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
+import type { MachineCredentials } from './ports/machine-credentials';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ResourceAccess } from './ports/organization-access';
 import type { Broadcaster } from './ports/project-event';
@@ -66,6 +70,13 @@ export interface AccountRuntime {
   readonly tokens: TokenCodec;
   /** Which enterprise connections are proven, for enterprise email trust (D4). */
   readonly enterprise: Pick<EnterpriseConnections, 'provenFor'>;
+  /** What `wbs_mk_` API keys are verified against (`wbs-machine-credentials` A13). */
+  readonly machineCredentials: MachineCredentials;
+  /**
+   * How trusted issuers' JWTs are verified (`wbs-machine-credentials` A13
+   * step 3); absent, the OIDC machine source is off.
+   */
+  readonly trustedIssuers?: TrustedIssuerVerification;
   readonly oidc?: OidcVerifier;
   readonly passwordSessions?: boolean;
   readonly localIdentity?: AuthenticatedUser;
@@ -451,6 +462,8 @@ export function composeServices(
       tokens: runtime.tokens,
       clock: runtime.clock,
       enterprise: runtime.enterprise,
+      machineCredentials: runtime.machineCredentials,
+      ...(runtime.trustedIssuers === undefined ? {} : { trustedIssuers: runtime.trustedIssuers }),
       ...(runtime.oidc === undefined ? {} : { oidc: runtime.oidc }),
       ...(runtime.passwordSessions === undefined
         ? {}

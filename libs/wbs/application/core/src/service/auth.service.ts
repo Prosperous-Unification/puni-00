@@ -12,7 +12,10 @@ export type {
   RegisterOutcome,
   SignedIn,
 } from '../module/authentication/authentication.feature';
-export { TOKEN_TTL_SECONDS } from '../module/authentication/authentication.feature';
+export {
+  organizationRoleOf,
+  TOKEN_TTL_SECONDS,
+} from '../module/authentication/authentication.feature';
 export type { AuthenticatedUser } from '@wbs/contracts';
 
 /** Legacy direct-construction options retained for adapters and tests. */
@@ -39,6 +42,8 @@ export class AuthService extends AuthenticationFeature {
         ? {}
         : { passwordSessions: options.passwordSessions }),
       ...(options.localIdentity === undefined ? {} : { localIdentity: options.localIdentity }),
+      ...(options.machineKeys === undefined ? {} : { machineKeys: options.machineKeys }),
+      ...(options.trustedIssuers === undefined ? {} : { trustedIssuers: options.trustedIssuers }),
       account: new AccountResource({
         users: options.users,
         ...(options.identities === undefined ? {} : { identities: options.identities }),

@@ -85,6 +85,7 @@ export * from './ports/email-verification';
 export * from './ports/enterprise-connections';
 export * from './ports/invitation';
 export * from './ports/join-request';
+export * from './ports/machine-credentials';
 export * from './ports/membership-administration';
 export * from './ports/onboarding';
 export * from './ports/organization-access';
@@ -125,6 +126,7 @@ export * from './ports/step-store';
 export * from './ports/stores';
 export * from './ports/subtree-store';
 export type { Intervals, Timers } from './ports/timers';
+export * from './ports/trusted-issuers';
 export type { Decision, Scope, UnitOfWork } from './ports/unit-of-work';
 export * from './ports/user-store';
 export * from './ports/work-item-store';
@@ -133,6 +135,7 @@ export { DeadlineExceeded, delay, untilAborted, withinDeadline } from './runtime
 export * from './service/auth.service';
 export * from './service/compensating';
 export * from './service/directory-usage';
+export * from './service/machine-key';
 // Compatibility export: these domain rules moved to `@wbs/domain` (task 6.1) and keep their
 // barrel names until importers name the domain library; task 7.1 retires it.
 export {

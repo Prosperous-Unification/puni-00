@@ -25,6 +25,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationTrusted-issuersById',
+    method: 'DELETE',
+    path: '/api/organization/trusted-issuers/:id',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'deleteApiOrganizationMachine-credentialsById',
+    method: 'DELETE',
+    path: '/api/organization/machine-credentials/:id',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationProvisioningTokensById',
     method: 'DELETE',
     path: '/api/organization/provisioning-tokens/:id',
@@ -129,6 +141,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationProject-rank',
     method: 'GET',
     path: '/api/organization/project-rank',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationTrusted-issuers',
+    method: 'GET',
+    path: '/api/organization/trusted-issuers',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationMachine-credentials',
+    method: 'GET',
+    path: '/api/organization/machine-credentials',
     kind: 'read',
   },
   {
@@ -413,6 +437,24 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'postApiOrganizationTrusted-issuers',
+    method: 'POST',
+    path: '/api/organization/trusted-issuers',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationMachine-credentials',
+    method: 'POST',
+    path: '/api/organization/machine-credentials',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationMachine-credentialsByIdRotate',
+    method: 'POST',
+    path: '/api/organization/machine-credentials/:id/rotate',
+    kind: 'mutation',
+  },
+  {
     operationId: 'postApiOrganizationProvisioningTokens',
     method: 'POST',
     path: '/api/organization/provisioning-tokens',
@@ -528,6 +570,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postInternalMcpAuthority',
     method: 'POST',
     path: '/internal/mcp/authority',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpCredentials',
+    method: 'POST',
+    path: '/internal/mcp/credentials',
+    kind: 'control',
+  },
+  {
+    operationId: 'postInternalMcpCredentialsEnded',
+    method: 'POST',
+    path: '/internal/mcp/credentials/ended',
     kind: 'control',
   },
   {

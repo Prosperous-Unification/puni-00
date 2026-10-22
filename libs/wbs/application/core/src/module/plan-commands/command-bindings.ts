@@ -1,4 +1,4 @@
-import type { CredentialPair } from '@wbs/contracts';
+import type { CredentialPin } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
 import { commandDefinitions } from '@wbs/contracts';
 import type { DependencyEndpoint } from '@wbs/domain';
@@ -62,7 +62,7 @@ export class CommandContext {
      * The request credential's upstream pair, or null for a first-party
      * session: what `claimWorkItem` reads the credential pin of (D6).
      */
-    readonly credential: CredentialPair | null,
+    readonly credential: CredentialPin | null,
   ) {
     // Proof: removing registry-scope admission let a directory batch unfreeze a real plan row
     // and commit its preceding tag instead of refusing `project_required` at index 1.

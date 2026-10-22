@@ -17,6 +17,7 @@ import { answerJson as answer, stubServer } from '@/testing/stub-server';
 
 import { LimitsPanel, LimitsReady, LimitsSlot, type OrganizationLimitsRead } from './limits-panel';
 import { type AccessLoss } from './organization-access';
+import { useOrganizationRole } from './organization-role';
 
 afterEach(() => {
   cleanup();
@@ -43,10 +44,15 @@ const limitsOf = (fields: Partial<OrganizationLimitsRead> = {}): OrganizationLim
 const role = (value: string) => () =>
   answer(200, { organizationId: 'org-a', name: 'Acme', role: value });
 
+/** The slot under its own role read, as the organization page gives it one. */
+function RoleReadSlot({ onAccessLost }: { onAccessLost: (loss: AccessLoss) => void }) {
+  return <LimitsSlot role={useOrganizationRole(onAccessLost)} onAccessLost={onAccessLost} />;
+}
+
 function mountSlot(onAccessLost: (loss: AccessLoss) => void = () => undefined) {
   render(
     <OrganizationResourcesProvider scope={scopeOf('org-a')}>
-      <LimitsSlot onAccessLost={onAccessLost} />
+      <RoleReadSlot onAccessLost={onAccessLost} />
     </OrganizationResourcesProvider>,
   );
 }
@@ -207,7 +213,7 @@ describe('organization limits panel', () => {
 
   it('sends nothing in a deployment without organizations', async () => {
     const sent = stubServer({});
-    render(<LimitsSlot onAccessLost={() => undefined} />);
+    render(<RoleReadSlot onAccessLost={() => undefined} />);
     await act(async () => {
       await Promise.resolve();
     });

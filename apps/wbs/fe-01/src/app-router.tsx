@@ -10,6 +10,7 @@ import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react';
 
 import { PageNav } from '@/components/chrome/page-nav';
 import { OrganizationPage } from '@/components/organization/organization-page';
+import { usePeopleCredentials } from '@/components/organization/person-credentials';
 import { loadWindowFrom, localToday } from '@/components/people/load-window';
 import { PersonLoadSummary, usePeopleLoad } from '@/components/people/people-load-summary';
 import type { Roster } from '@/components/presence/presence-panel';
@@ -101,6 +102,7 @@ const directoryRoute = createRoute({
     const { session, account, nav } = directoryRoute.useRouteContext();
     const [window] = useState(() => loadWindowFrom(localToday(new Date())));
     const load = usePeopleLoad(window, session.directory);
+    const credentialsOf = usePeopleCredentials(session.userId);
     return (
       // Nothing rather than a spinner: the chunk is fetched from the same
       // origin that just served the document, and a flash of "loading…"
@@ -115,6 +117,7 @@ const directoryRoute = createRoute({
           loadOf={(person) => (
             <PersonLoadSummary view={load} personId={person.id} personName={person.name} />
           )}
+          {...(credentialsOf === null ? {} : { credentialsOf })}
         />
       </Suspense>
     );
@@ -130,8 +133,8 @@ const organizationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/organization',
   component: function OrganizationRoute() {
-    const { account, nav } = organizationRoute.useRouteContext();
-    return <OrganizationPage nav={nav} account={account} />;
+    const { account, nav, session } = organizationRoute.useRouteContext();
+    return <OrganizationPage nav={nav} account={account} userId={session.userId} />;
   },
 });
 

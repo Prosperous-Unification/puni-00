@@ -1,6 +1,6 @@
-import type { CredentialPair } from '@wbs/contracts';
+import type { CredentialPin } from '@wbs/contracts';
 
-export type { CredentialPair } from '@wbs/contracts';
+export type { CredentialPair, CredentialPin } from '@wbs/contracts';
 import type { Claim, OccupancyRow } from '@wbs/domain';
 
 import type { DirectoryStore } from './directory-store';
@@ -128,11 +128,12 @@ export interface ClaimIdentity {
    */
   boundAccountOf(personId: string): Promise<string | null>;
   /**
-   * The person the request's credential is pinned to
-   * (`external_identity.person_id`), or null for an unpinned one. A request
-   * with no upstream pair (a password or native session) is unpinned: pass null.
+   * The person the request's credential is pinned to: a machine credential's
+   * own person, or for an upstream pair `external_identity.person_id`; null
+   * for an unpinned one. A request with neither (a password or native
+   * session) is unpinned: pass null.
    */
-  pinnedPersonOf(credential: CredentialPair | null): Promise<string | null>;
+  pinnedPersonOf(credential: CredentialPin | null): Promise<string | null>;
 }
 
 /**
@@ -150,9 +151,10 @@ export function claimIdentityOf(
 ): ClaimIdentity {
   return {
     boundAccountOf: (personId) => directory.boundAccountOf(personId),
-    pinnedPersonOf: (credential) =>
-      credential === null
-        ? Promise.resolve(null)
-        : directory.credentialPinOf(credential.issuer, credential.subject),
+    pinnedPersonOf: (credential) => {
+      if (credential === null) return Promise.resolve(null);
+      if ('personId' in credential) return Promise.resolve(credential.personId);
+      return directory.credentialPinOf(credential.issuer, credential.subject);
+    },
   };
 }

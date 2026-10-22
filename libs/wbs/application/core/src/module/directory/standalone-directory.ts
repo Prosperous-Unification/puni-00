@@ -138,11 +138,11 @@ export function standaloneDirectoryService(options: {
           (borrowed) => borrowed.addPerson(person, teamIds, stamp),
           (written) => written.ok,
         ),
-      removePerson: (personId, cascade, stamp) =>
+      removePerson: (personId, cascade, stamp, reach) =>
         recordMutation(
           { kind: 'remove', catalog: 'people', resourceId: personId, access },
           refuseAbsent,
-          (borrowed) => borrowed.removePerson(personId, cascade, stamp),
+          (borrowed) => borrowed.removePerson(personId, cascade, stamp, reach),
           (written) => written.ok,
         ),
       removeTeam: (teamId, cascade, stamp) =>

@@ -42,6 +42,12 @@ export interface OidcRouteOptions {
   tokens: TokenStore;
   transactions: OidcTransactionStore;
   verifier: TokenVerifier;
+  /**
+   * The configured issuer's Issuer Identifier: what `verifier` accepts as
+   * `iss`. A token of it never reaches a trusted issuer, and it can never be
+   * registered as one (`wbs-machine-credentials` A13, A16).
+   */
+  issuer: () => Promise<string>;
 }
 
 /**
@@ -68,6 +74,7 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
   if (passwordRegisterEnabled && !passwordLoginEnabled) {
     throw new Error('AUTH_PASSWORD_REGISTER=true requires AUTH_PASSWORD_LOGIN=true');
   }
+  const verifier = oidcTokenVerifierFromEnv(env);
   return {
     appOrigin: redirectUri.origin,
     client: browserOidcClientFromEnv(env),
@@ -81,6 +88,7 @@ export function oidcRouteOptionsFromEnv(env: Record<string, string | undefined>)
     redirectUri: redirectUri.href,
     tokens: new InMemoryTokenStore(),
     transactions: new InMemoryOidcTransactionStore({ ttlMs: 300_000 }),
-    verifier: oidcTokenVerifierFromEnv(env),
+    verifier,
+    issuer: () => verifier.issuer(),
   };
 }

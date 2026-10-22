@@ -51,7 +51,7 @@ and the counted unit is a **Bound claim**.
 
 ## Slice 1 record (2026-10-22, branch `feat/wbs-organization-limits-1`)
 
-Built: migration `20261022120000_add_organization_limits` with its guarded `down.sql`;
+Built: migration `20261022130000_add_organization_limits` with its guarded `down.sql`;
 the three required `ORGANIZATION_DEFAULT_*` variables in `BeConfig`, `BootOptions` and every
 environment file in the repository; `@wbs/domain` `organization-limits.ts` (bounds, shapes,
 `isOrganizationLimit`, `refuseLimit`); `GET /api/organization/limits` (contracts shape, core
