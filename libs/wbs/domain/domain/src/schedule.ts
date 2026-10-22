@@ -301,7 +301,10 @@ export type ScheduleFloor =
    * booking is not named for it. Only ever produced when `schedule()` is given
    * a non-empty `elsewhere`; the slice then names the holder in
    * {@link ScheduledSlice.elsewhereHolder}. It points at no slice of this plan,
-   * so {@link resourcePredecessorOf} answers {@link NOBODY} for it.
+   * so {@link resourcePredecessorOf} answers {@link NOBODY} for it. Tree
+   * presentation may transfer a checked foreign connected person predecessor
+   * into this display representation without changing the numerical schedule
+   * or adding a ranked booking to the scheduler's input.
    */
   | 'elsewhere'
   | 'capacity'

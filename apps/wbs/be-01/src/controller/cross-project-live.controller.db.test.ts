@@ -1,5 +1,6 @@
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
-import { formatStepNodeId } from '@wbs/domain';
+import * as connectedTree from '@wbs/core/service/connected-tree';
+import { formatStepNodeId, sliceKey } from '@wbs/domain';
 import { afterEach, expect, spyOn, test } from 'bun:test';
 
 import { OrganizationHarness } from '../testing/organization-harness';
@@ -192,3 +193,260 @@ test('mounted tree uses the component row status when a remote predecessor is he
     ],
   });
 });
+
+function shareAna(remote: { workItemId: string; stepId: string }, target: typeof remote): void {
+  harness.sqlite.run("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+  harness.sqlite.run("UPDATE external_dependency SET type='SS' WHERE id='remote-fs'");
+  harness.sqlite.run("INSERT INTO person(id,name) VALUES ('ana','Root Ana')");
+  harness.sqlite.run(
+    "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('ana','org-a','Local Ana')",
+  );
+  for (const endpoint of [remote, target])
+    harness.sqlite
+      .query("INSERT INTO assignment(work_item_id,step_id,person_id) VALUES (?,?,'ana')")
+      .run(endpoint.workItemId, endpoint.stepId);
+}
+
+test('shared connected person wait reaches the real Gantt consumer with a qualified foreign holder', async () => {
+  const { remote, target } = await open();
+  shareAna(remote, target);
+  const answer = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-items?full=true`,
+  );
+  expect(answer.status).toBe(200);
+  const tree = answer.body as {
+    slices: {
+      id: string;
+      workItemId: string;
+      boundBy: string;
+      resourcePredecessorId: string | null;
+    }[];
+    steps: unknown[];
+    assignedPeople: { id: string; name: string }[];
+    elsewhereHolders?: {
+      projectId: string;
+      projectName: string;
+      workItemId: string;
+      number: string;
+      name: string;
+    }[];
+  };
+  // Bundle the actual browser consumer using its configured aliases, without
+  // importing frontend-only path aliases into the backend's TypeScript graph.
+  const built = await Bun.build({
+    entrypoints: ['apps/wbs/fe-01/src/components/wbs/gantt-geometry.ts'],
+    target: 'bun',
+    tsconfig: 'apps/wbs/fe-01/tsconfig.app.json',
+  });
+  if (!built.success) throw new AggregateError(built.logs, 'Gantt consumer build failed');
+  const output = built.outputs.at(0);
+  if (output === undefined) throw new Error('Gantt consumer bundle missing');
+  const code = await output.text();
+  const geometry = (await import(
+    `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`
+  )) as { layOutGantt: (plan: unknown) => { bars: { floorWords: string }[] } };
+  const chart = geometry.layOutGantt({
+    rows: [
+      {
+        id: target.workItemId,
+        number: '010',
+        name: 'Target row',
+        depth: 0,
+        leaf: true,
+        schedule: { earliestStart: 1.5, earliestFinish: 4 },
+        notBeforeOffset: null,
+        status: 'unknown',
+        factStartOffset: null,
+        factEndStop: null,
+        priority: null,
+        maxParallel: 1,
+        team: { state: 'none' },
+        tags: { own: [], inherited: [] },
+        trioByStep: new Map(),
+        waitsFor: [],
+        stoppedBy: [],
+        held: false,
+      },
+    ],
+    tree: [{ id: target.workItemId, parentId: null }],
+    slices: tree.slices,
+    steps: tree.steps,
+    dependencies: [],
+    heldLeafIds: new Set(),
+    narrowedByFilter: false,
+    personNames: new Map(tree.assignedPeople.map((person) => [person.id, person.name])),
+    elsewhereHolders: new Map(
+      (tree.elsewhereHolders ?? []).map((holder) => [
+        `${holder.projectId}\u0000${holder.workItemId}`,
+        holder,
+      ]),
+    ),
+    teamNames: new Map(),
+    resourceLabels: new Map(),
+    priorityBands: [],
+    depReach: 'whole-item',
+  });
+  expect(chart.bars.map((bar) => bar.floorWords)).toContain(
+    'Waits for Local Ana to finish 010 Remote row in Remote',
+  );
+  expect(tree.slices.every((slice) => slice.workItemId === target.workItemId)).toBe(true);
+  expect(answer.body).toMatchObject({
+    waitingForPerson: 0,
+    waitingElsewhere: 1,
+    assignedPeople: [{ id: 'ana', name: 'Local Ana' }],
+    elsewhereHolders: [
+      {
+        projectId: remote.projectId,
+        projectName: 'Remote',
+        workItemId: remote.workItemId,
+        number: '010',
+        name: 'Remote row',
+      },
+    ],
+    slices: [
+      {
+        workItemId: target.workItemId,
+        earliestStart: 1.5,
+        earliestFinish: 4,
+        boundBy: 'elsewhere',
+        resourcePredecessorId: null,
+        elsewhereHolder: { projectId: remote.projectId, workItemId: remote.workItemId },
+      },
+      { workItemId: target.workItemId },
+    ],
+  });
+});
+
+test('shared connected display preserves local person arrows and counts mixed local and foreign waits', async () => {
+  const { remote, target } = await open();
+  shareAna(remote, target);
+  const qa = harness.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id=? ORDER BY position DESC LIMIT 1',
+    )
+    .get(target.projectId);
+  if (qa === null) throw new Error('fixture QA step missing');
+  harness.sqlite.run("INSERT INTO person(id,name) VALUES ('ben','Root Ben')");
+  harness.sqlite.run(
+    "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('ben','org-a','Local Ben')",
+  );
+  harness.sqlite
+    .query(
+      'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,2.5,2.5,2.5)',
+    )
+    .run(target.workItemId, qa.id);
+  harness.sqlite
+    .query("INSERT INTO assignment(work_item_id,step_id,person_id) VALUES (?,?,'ben')")
+    .run(target.workItemId, qa.id);
+  harness.sqlite
+    .query(
+      "INSERT INTO work_item(id,project_id,position,name,priority) VALUES ('second-target',?,20,'Second target',1)",
+    )
+    .run(target.projectId);
+  harness.sqlite
+    .query(
+      'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,10,10,10)',
+    )
+    .run('second-target', target.stepId);
+  harness.sqlite
+    .query(
+      "INSERT INTO assignment(work_item_id,step_id,person_id) VALUES ('second-target',?,'ben')",
+    )
+    .run(target.stepId);
+  const answer = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-items?full=true`,
+  );
+  expect(answer.status).toBe(200);
+  expect(answer.body).toMatchObject({ waitingForPerson: 1, waitingElsewhere: 1 });
+  const tree = answer.body as {
+    slices: {
+      workItemId: string;
+      stepId: string | null;
+      boundBy: string;
+      resourcePredecessorId: string | null;
+    }[];
+  };
+  expect(
+    tree.slices.find((slice) => slice.workItemId === target.workItemId && slice.stepId === qa.id),
+  ).toMatchObject({
+    boundBy: 'person',
+    resourcePredecessorId: sliceKey('second-target', target.stepId),
+  });
+  const page = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-item-rows?fields=schedule&limit=1`,
+  );
+  expect(page.status).toBe(200);
+  expect(page.body).toMatchObject({
+    rows: [{ id: target.workItemId, schedule: { earliestStart: 1.5, earliestFinish: 12.5 } }],
+  });
+  const detail = await harness.call(
+    'ada',
+    'GET',
+    `/api/projects/${target.projectId}/work-items/${target.workItemId}`,
+  );
+  expect(detail.status).toBe(200);
+  expect(detail.body).toMatchObject({
+    workItem: {
+      schedule: { earliestStart: 1.5, earliestFinish: 12.5 },
+      slices: [
+        {
+          boundBy: 'elsewhere',
+          resourcePredecessorId: null,
+          elsewhereHolder: { projectId: remote.projectId, workItemId: remote.workItemId },
+        },
+        { workItemId: target.workItemId },
+      ],
+    },
+  });
+});
+
+test.each(['person mismatch', 'foreign capacity'] as const)(
+  'mounted tree refuses corrupt detached blocker evidence: %s',
+  async (fault) => {
+    const { remote, target } = await open();
+    shareAna(remote, target);
+    const original = connectedTree.projectConnectedTree;
+    const corrupted = spyOn(connectedTree, 'projectConnectedTree').mockImplementation(
+      (captured, projectId) => {
+        const detached = structuredClone(captured);
+        const placement = detached.projection.placement;
+        if (placement.kind !== 'scheduled') throw new Error('fixture schedule missing');
+        const selected = placement.byProject.get(projectId);
+        if (selected === undefined) throw new Error('fixture target missing');
+        const entry = [...selected.slices].find(([, slice]) => slice.boundBy === 'person');
+        if (entry === undefined) throw new Error('fixture person blocker missing');
+        const [key, waiter] = entry;
+        const predecessorId = waiter.resourcePredecessorId;
+        if (predecessorId === null) throw new Error('fixture person predecessor missing');
+        if (fault === 'person mismatch') {
+          const predecessor = placement.combined.slices.get(predecessorId);
+          if (predecessor === undefined) throw new Error('fixture direct predecessor missing');
+          Object.defineProperty(predecessor, 'personId', { value: 'another-person' });
+        } else {
+          Object.defineProperty(waiter, 'capacityPredecessorIds', {
+            value: [waiter.resourcePredecessorId],
+          });
+          Object.defineProperty(waiter, 'boundBy', { value: 'capacity' });
+          Object.defineProperty(waiter, 'resourcePredecessorId', { value: key });
+        }
+        return original(detached, projectId);
+      },
+    );
+    try {
+      const answer = await harness.call(
+        'ada',
+        'GET',
+        `/api/projects/${target.projectId}/work-items?full=true`,
+      );
+      expect(answer.status).toBe(500);
+    } finally {
+      corrupted.mockRestore();
+    }
+  },
+);

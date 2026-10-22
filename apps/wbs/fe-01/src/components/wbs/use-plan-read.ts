@@ -124,7 +124,7 @@ export interface ChartRead {
   /**
    * The work items in other projects this plan's slices wait for, named, in
    * the same payload as the slices that point at them. Empty for a plan
-   * nothing outranks, where be-01 sends none.
+   * no foreign person floor is displayed, where be-01 sends none.
    */
   elsewhereHolders: ElsewhereHolderView[];
   /**

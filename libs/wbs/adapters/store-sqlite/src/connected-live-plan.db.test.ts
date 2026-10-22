@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { projectConnectedTree } from '@wbs/core/service/connected-tree';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { sliceKey } from '@wbs/domain';
 import { afterEach, beforeEach, expect, test } from 'bun:test';
@@ -311,4 +312,47 @@ test('borrowed service claim sees staged remote completion and collects its norm
   } finally {
     await source.close();
   }
+});
+
+test('foreign holder labels remain captured after closure and subsequent live renames', async () => {
+  write("UPDATE organization SET shared_people=1 WHERE id='org-a'");
+  write("UPDATE project SET start_date='2026-10-05' WHERE id IN ('a1','a2')");
+  write("UPDATE external_dependency SET type='SS' WHERE id='edge'");
+  write("INSERT INTO person(id,name) VALUES ('holder-person','Root holder')");
+  write(
+    "INSERT INTO person_organization(resource_id,organization_id,name) VALUES ('holder-person','org-a','Local holder')",
+  );
+  for (const id of ['a1', 'a2']) {
+    write(
+      `INSERT INTO assignment(work_item_id,step_id,person_id) VALUES ('${id}','${id}-s','holder-person')`,
+    );
+    write(
+      `INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES ('${id}','${id}-s',1,1,1)`,
+    );
+  }
+  let sealed = false;
+  let opened = 0;
+  const source = createLivePlanStore({
+    kind: 'owned',
+    openConnection: () => {
+      if (sealed) throw new Error('captured holder display attempted another live read');
+      opened++;
+      return openReadOnlyConnection(path);
+    },
+    schedulerOf: () => fastScheduler,
+  });
+  const captured = await source.read('a1', access);
+  if (captured.kind !== 'connected') throw new Error('expected captured component');
+  const first = projectConnectedTree(captured, 'a1');
+  expect(first.elsewhereHolders).toHaveLength(1);
+  sealed = true;
+  write("UPDATE project SET name='New live project' WHERE id='a2'");
+  write("UPDATE work_item SET name='New live row',frozen_number='999' WHERE id='a2'");
+  write("UPDATE person_organization SET name='New live person' WHERE resource_id='holder-person'");
+  const retained = projectConnectedTree(captured, 'a1');
+  expect(retained.elsewhereHolders).toEqual(first.elsewhereHolders);
+  expect(retained.reads.people.find((person) => person.id === 'holder-person')?.name).toBe(
+    'Local holder',
+  );
+  expect(opened).toBe(1);
 });

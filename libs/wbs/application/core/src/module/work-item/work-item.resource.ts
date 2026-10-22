@@ -9021,7 +9021,40 @@ function presentConnectedTree(projection: ConnectedTreeProjection): PlanTree {
     },
     projection,
   );
-  const connected = { ...tree, connectedDependencies: [...projection.dependencies] };
+  // Proof: disabling this transfer reproduced the mounted visible-row Gantt
+  // dangling-predecessor failure; removing only the catalog below reproduced
+  // Gantt's missing-holder-label failure (2026-10-22).
+  const slices = tree.slices.map((slice) => {
+    const holder = projection.foreignPersonHolders.get(slice.id);
+    return holder === undefined
+      ? slice
+      : {
+          ...slice,
+          boundBy: 'elsewhere' as const,
+          resourcePredecessorId: null,
+          elsewhereHolder: holder,
+        };
+  });
+  const connected = {
+    ...tree,
+    slices,
+    connectedDependencies: [...projection.dependencies],
+    ...(projection.foreignPersonHolders.size === 0
+      ? {}
+      : {
+          // Proof: keeping the numeric schedule's original person count
+          // failed the mounted shared-person tree's 0/1 counts (2026-10-22).
+          waitingForPerson: new Set(
+            slices.filter((slice) => slice.boundBy === 'person').map((slice) => slice.workItemId),
+          ).size,
+          waitingElsewhere: new Set(
+            slices
+              .filter((slice) => slice.boundBy === 'elsewhere')
+              .map((slice) => slice.workItemId),
+          ).size,
+          elsewhereHolders: [...projection.elsewhereHolders],
+        }),
+  };
   return namesAResource(connected) ? withResourceLabels(connected, reads.resources) : connected;
 }
 

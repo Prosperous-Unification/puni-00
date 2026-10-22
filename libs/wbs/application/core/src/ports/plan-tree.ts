@@ -107,9 +107,9 @@ export interface PlanTree {
    */
   waitingForCapacity: number;
   /**
-   * How many work items hold a slice a booking in another project is the
-   * reason for. Present exactly when the displayed schedule was placed
-   * around bookings elsewhere (ADR 0034), with {@link elsewhereHolders}.
+   * How many work items hold a slice whose person is held by another project.
+   * Present for ranked bookings (ADR 0034) or checked foreign person
+   * predecessors in a connected tree, with {@link elsewhereHolders}.
    */
   waitingElsewhere?: number;
   /**

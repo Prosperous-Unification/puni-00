@@ -1560,8 +1560,8 @@ An undated project stops traversal because it neither consumes nor supplies book
 _Avoid_: recursive project dependencies
 
 **Elsewhere**:
-The bookings a project's scheduler works around: those of the people it names, made by the
-projects that outrank it. Named as the `elsewhere` floor on a slice that waited for one.
+A person's work in another project that holds up this project's work. It can be an
+outranking project's booking or a direct person constraint in the connected plan.
 _Avoid_: foreign load
 
 **Shared people**:

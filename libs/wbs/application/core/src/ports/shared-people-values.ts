@@ -29,7 +29,7 @@ export interface InfluencerRead {
 }
 
 /**
- * A work item in another project that holds a booking a target slice waited for, named as that
+ * A work item in another project that holds the person a target slice waited for, named as that
  * project's own plan names it (CONTEXT "Elsewhere"), so a reader is told whom a bar waits for
  * without reading the holding project.
  */
