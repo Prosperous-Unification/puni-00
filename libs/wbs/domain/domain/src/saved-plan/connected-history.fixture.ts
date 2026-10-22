@@ -1,3 +1,7 @@
+import type { PlanInputRows } from './canonical-plan-input';
+import type { SavedConnectedDependencyHistory } from './dependency-history';
+import { planFixtureRows } from './plan-fixture';
+
 export function connectedHistoryFixture() {
   const steps = [
     { id: 'design', code: null, name: 'Design', position: 0 },
@@ -324,4 +328,49 @@ export function connectedHistoryFixture() {
     idleProjects: [],
   };
   return { history, evidence };
+}
+
+/** Builds target rows whose identities and parents agree with the captured component. */
+export function connectedPlanFixtureRows(history: SavedConnectedDependencyHistory): PlanInputRows {
+  const target = history.projects.find((project) => project.projectId === history.targetProjectId);
+  if (target === undefined) throw new Error('fixture target must exist');
+  return {
+    ...planFixtureRows,
+    project: {
+      ...planFixtureRows.project,
+      id: target.projectId,
+      name: target.name,
+      startDate: target.startDate,
+      timezone: target.timezone,
+    },
+    workItems: target.workItems.map((row, position) => ({
+      ...planFixtureRows.workItems[0],
+      id: row.id,
+      name: row.name,
+      parentId: row.parentId,
+      position,
+      hold: row.hold,
+      readiness: null,
+      frozenNumber: row.number,
+      typeIds: [],
+      tagIds: [],
+      externalRefs: [],
+      serviceTeamId: null,
+      serviceId: null,
+    })),
+    steps: target.steps.map((step) => ({
+      ...planFixtureRows.steps[0],
+      ...step,
+      code: step.code === null ? null : String(step.code),
+    })),
+    stepValues: [],
+    stepBlockages: [],
+    stepParallels: [],
+    measures: [],
+    dependencies: [],
+    typedDependencies: [],
+    assignments: [],
+    workItemTeams: [],
+    workItemServices: [],
+  };
 }

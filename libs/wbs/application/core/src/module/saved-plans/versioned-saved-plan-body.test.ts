@@ -7,6 +7,7 @@ import {
   readSavedDependencyHistory,
   readSavedPlanInput,
 } from '@wbs/domain';
+import { connectedPlanFixtureRows } from '@wbs/domain/connected-history-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { verifySavedPlanBodies } from './saved-plan-integrity';
@@ -39,10 +40,7 @@ const evidence = readSavedConnectedScheduleEvidence(captured.evidence);
 const designKey = 'a\u0000design';
 const testKey = 'a\u0000test';
 const buildKey = 'b\u0000build';
-const input = canonicalisePlanInputV9(
-  { ...planFixtureRows, project: { ...planFixtureRows.project, id: 'A', startDate: '2026-10-01' } },
-  readSavedDependencyHistory(captured.history),
-);
+const input = canonicalisePlanInputV9(connectedPlanFixtureRows(history), history);
 const schedule = {
   version: 2,
   algorithmId: 'connected-selection-v1:retired',
@@ -178,13 +176,7 @@ describe('new saved body integrity', () => {
   });
   it('validates the captured target anchor rather than using another project calendar', () => {
     const betaHistory = { ...history, targetProjectId: 'B' };
-    const betaInput = canonicalisePlanInputV9(
-      {
-        ...planFixtureRows,
-        project: { ...planFixtureRows.project, id: 'B', startDate: '2026-10-02' },
-      },
-      betaHistory,
-    );
+    const betaInput = canonicalisePlanInputV9(connectedPlanFixtureRows(betaHistory), betaHistory);
     const projected = {
       ...evidence.composite.slices[buildKey],
       earliestStart: 0,
@@ -275,8 +267,9 @@ describe('new saved body integrity', () => {
       readiness: [],
       graph: { nodes: [], edges: [] },
     });
+    if (emptyHistory.kind !== 'connected') throw new Error('fixture must be connected');
     const emptyInput = canonicalisePlanInputV9(
-      { ...planFixtureRows, project: { ...planFixtureRows.project, id: 'A', startDate: null } },
+      connectedPlanFixtureRows(emptyHistory),
       emptyHistory,
     );
     const empty = { workItems: {}, slices: {}, waitingForPerson: 0, waitingForCapacity: 0 };

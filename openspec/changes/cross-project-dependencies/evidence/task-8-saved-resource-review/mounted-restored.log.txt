@@ -1,0 +1,28 @@
+bun test v1.4.2 (744846f84)
+
+apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts:
+(pass) the saved-plan routes > reads complete connected history as exact stored bytes and compares it without live foreign projects [549.11ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input unrelated local namespace on read and either comparison side [433.40ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input work identity on read and either comparison side [468.70ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input step identity on read and either comparison side [493.97ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input parent on read and either comparison side [435.10ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input missing work member on read and either comparison side [436.57ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input extra work member on read and either comparison side [452.60ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input missing step member on read and either comparison side [444.78ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input extra step member on read and either comparison side [436.99ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input duplicate work member on read and either comparison side [436.34ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input duplicate step member on read and either comparison side [434.65ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input fact step owner on read and either comparison side [444.92ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input fact work owner on read and either comparison side [433.05ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input relationship owner on read and either comparison side [449.08ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input team owner on read and either comparison side [440.50ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input legacy relationship owner on read and either comparison side [398.26ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input service owner on read and either comparison side [418.60ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input assignment owner on read and either comparison side [427.15ms]
+(pass) the saved-plan routes > refuses correctly hashed malformed target input measure owner on read and either comparison side [451.33ms]
+
+ 19 pass
+ 57 filtered out
+ 0 fail
+ 153 expect() calls
+Ran 19 tests across 1 file. [11.22s]

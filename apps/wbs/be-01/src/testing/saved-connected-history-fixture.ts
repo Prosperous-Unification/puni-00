@@ -4,8 +4,8 @@ import {
   canonicalisePlanInputV9,
   readSavedConnectedScheduleEvidence,
   readSavedDependencyHistory,
-  readSavedPlanInput,
 } from '@wbs/domain';
+import { connectedPlanFixtureRows } from '@wbs/domain/connected-history-fixture';
 
 /** Complete historical evidence with target dates matching the captured 2026-10-01 anchor. */
 export function savedConnectedHistoryFixture(projectId: string) {
@@ -33,18 +33,6 @@ export function savedConnectedHistoryFixture(projectId: string) {
         .replaceAll('20728', '14809'),
     ),
   ) as { history: unknown; evidence: unknown };
-  const planFixtureRows = readSavedPlanInput(
-    JSON.parse(
-      readFileSync(
-        new URL(
-          '../../../../../libs/wbs/domain/domain/src/saved-plan/fixtures/input-v8.txt',
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    ),
-    8,
-  );
   // The Slice 1 fixture is structural-only: original abstract ordinals do not match its dates.
   // This fixture explicitly uses 2026-10-01/02 ordinals throughout every stage/question byte.
   const history = readSavedDependencyHistory(captured.history);
@@ -52,13 +40,7 @@ export function savedConnectedHistoryFixture(projectId: string) {
   const evidence = readSavedConnectedScheduleEvidence(captured.evidence);
   const designKey = 'a\u0000design';
   const testKey = 'a\u0000test';
-  const input = canonicalisePlanInputV9(
-    {
-      ...planFixtureRows,
-      project: { ...planFixtureRows.project, id: projectId, startDate: '2026-10-01' },
-    },
-    readSavedDependencyHistory(captured.history),
-  );
+  const input = canonicalisePlanInputV9(connectedPlanFixtureRows(history), history);
   const schedule = {
     version: 2,
     algorithmId: 'connected-selection-v1:retired',

@@ -9,6 +9,7 @@ import {
 } from './canonical-plan-input';
 import {
   readSavedDependencyHistory,
+  type SavedConnectedDependencyHistory,
   type SavedDependencyHistory,
   serializeSavedDependencyHistory,
 } from './dependency-history';
@@ -183,7 +184,90 @@ export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<s
   return { ...body, schemaVersion: 9, dependencyHistory: { kind: 'local' } };
 }
 
-/** Validate known body versions in memory; neither stored bytes nor their hash are rewritten. */
+/**
+ * Links target input identities and owned facts to the same captured component.
+ * Exact membership preserves branches and unused steps as well as scheduled leaves.
+ * The history decoder has already verified component ownership and target presence.
+ */
+function assertConnectedTargetInput(
+  input: Omit<CanonicalPlanInputV9, 'dependencyHistory'>,
+  history: SavedConnectedDependencyHistory,
+): void {
+  const projects = history.projects.filter(
+    (project) => project.projectId === history.targetProjectId,
+  );
+  const targetWorkItems = projects.flatMap((project) => project.workItems);
+  const targetSteps = projects.flatMap((project) => project.steps);
+  const workItems = new Map(input.workItems.map((row) => [row.id, row]));
+  const steps = new Set(input.steps.map((step) => step.id));
+  // Proof: omitting this guard returned 200 for mounted identity, parent, missing,
+  // extra and duplicate target rows (omit-work-membership.log.txt).
+  requireHistory(
+    input.workItems.length === targetWorkItems.length &&
+      targetWorkItems.every((row) => workItems.get(row.id)?.parentId === row.parentId),
+    'target_work_items',
+    '$.workItems',
+  );
+  // Proof: omission returned 200 for mounted foreign, missing, extra and duplicate
+  // target steps (omit-step-membership.log.txt).
+  requireHistory(
+    input.steps.length === targetSteps.length && targetSteps.every((step) => steps.has(step.id)),
+    'target_steps',
+    '$.steps',
+  );
+  // Proof: omission accepted foreign row/step owners in mounted value, measure
+  // and assignment reads (omit-step-fact-owners.log.txt).
+  for (const [name, facts] of [
+    ['stepValues', input.stepValues],
+    ['measures', input.measures],
+    ['assignments', input.assignments],
+  ] as const)
+    requireHistory(
+      facts.every((fact) => workItems.has(fact.workItemId) && steps.has(fact.stepId)),
+      'target_facts',
+      `$.${name}`,
+    );
+  // Proof: omission accepted mounted foreign team/service row owners
+  // (omit-row-fact-owners.log.txt).
+  for (const [name, facts] of [
+    ['workItemTeams', input.workItemTeams],
+    ['workItemServices', input.workItemServices],
+  ] as const)
+    requireHistory(
+      facts.every((fact) => workItems.has(fact.workItemId)),
+      'target_facts',
+      `$.${name}`,
+    );
+  // Proof: omission accepted mounted foreign legacy/typed relationship owners
+  // (omit-dependency-owners.log.txt).
+  requireHistory(
+    input.dependencies.every(
+      (dependency) =>
+        workItems.has(dependency.predecessorId) && workItems.has(dependency.successorId),
+    ),
+    'target_dependencies',
+    '$.dependencies',
+  );
+  // Proof: omission accepted the mounted foreign typed endpoint step
+  // (omit-dependency-owners.log.txt).
+  requireHistory(
+    input.typedDependencies.every((dependency) =>
+      [dependency.predecessor, dependency.successor].every(
+        (endpoint) =>
+          workItems.has(endpoint.workItemId) &&
+          (endpoint.scope === 'whole' || steps.has(endpoint.stepId)),
+      ),
+    ),
+    'target_dependencies',
+    '$.typedDependencies',
+  );
+}
+
+/**
+ * Decodes supported bodies without rewriting stored bytes or their hash.
+ * Connected inputs require exact target row/step membership, matching parents and
+ * target-owned facts; captured context cannot stand in for unrelated local rows.
+ */
 export function readSavedPlanInput(body: unknown, version: number): CanonicalPlanInputV9 {
   if (!Number.isInteger(version) || version < 1)
     throw new PlanInputVersionError('not-a-version', version, 9);
@@ -218,12 +302,14 @@ export function readSavedPlanInput(body: unknown, version: number): CanonicalPla
     throw new SavedHistoryError('local_facts', '$', { cause });
   }
   const dependencyHistory = readSavedDependencyHistory(parsed.dependencyHistory);
-  if (dependencyHistory.kind === 'connected')
+  if (dependencyHistory.kind === 'connected') {
     requireHistory(
       dependencyHistory.targetProjectId === parsed.project.id,
       'target',
       '$.dependencyHistory.targetProjectId',
     );
+    assertConnectedTargetInput(parsed, dependencyHistory);
+  }
   // Boundary: the complete input9 schema checks every legacy field; dependency history has its own frozen decoder.
   return detachHistory({ ...parsed, dependencyHistory });
 }

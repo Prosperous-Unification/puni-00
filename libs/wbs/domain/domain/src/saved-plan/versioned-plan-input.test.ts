@@ -6,7 +6,7 @@ import { describe, expect, it } from 'bun:test';
 import { buildScheduleBody, serialiseScheduleBody } from '../saved-plan-schedule-body';
 import { schedule } from '../schedule';
 import { canonicalisePlanInput, serialiseCanonicalPlanInput } from './canonical-plan-input';
-import { connectedHistoryFixture } from './connected-history.fixture';
+import { connectedHistoryFixture, connectedPlanFixtureRows } from './connected-history.fixture';
 import { readSavedDependencyHistory, serializeSavedDependencyHistory } from './dependency-history';
 import manifest from './fixtures/manifest.json';
 import { normalisePlanInputForward } from './normalise-plan-input';
@@ -119,7 +119,7 @@ describe('versioned saved input readers', () => {
     const captured = connectedHistoryFixture();
     const history = readSavedDependencyHistory(captured.history);
     if (history.kind !== 'connected') throw new Error('fixture must be connected');
-    const rows = { ...planFixtureRows, project: { ...planFixtureRows.project, id: 'A' } };
+    const rows = connectedPlanFixtureRows(history);
     const left = canonicalisePlanInputV9(rows, history);
     const right = canonicalisePlanInputV9(rows, {
       ...history,
@@ -147,16 +147,43 @@ describe('versioned saved input readers', () => {
       expect(() => readSavedPlanInput(invalid, 9)).toThrow();
   });
 
+  it('retains connected target-owned values, measures, assignments and row facts', () => {
+    const history = readSavedDependencyHistory(connectedHistoryFixture().history);
+    if (history.kind !== 'connected') throw new Error('fixture must be connected');
+    const rows = {
+      ...connectedPlanFixtureRows(history),
+      stepValues: [
+        {
+          workItemId: 'a',
+          stepId: 'design',
+          optimistic: 1,
+          realistic: 1,
+          pessimistic: 1,
+          derived: null,
+          actual: null,
+          progress: null,
+        },
+      ],
+      measures: [{ workItemId: 'a', stepId: 'design', metric: 'cost', value: 1 }],
+      assignments: [{ workItemId: 'a', stepId: 'design', personId: 'p-1' }],
+      workItemTeams: [{ workItemId: 'a', teamId: 'team-1' }],
+      workItemServices: [{ workItemId: 'a', serviceId: 'svc-1' }],
+    };
+    const input = canonicalisePlanInputV9(rows, history);
+    expect(readSavedPlanInput(input, 9)).toMatchObject({
+      stepValues: rows.stepValues,
+      measures: rows.measures,
+      assignments: rows.assignments,
+      workItemTeams: rows.workItemTeams,
+      workItemServices: rows.workItemServices,
+    });
+  });
+
   it('folds converted connected context without live capabilities', () => {
     const captured = connectedHistoryFixture();
     const history = readSavedDependencyHistory(captured.history);
-    const input = canonicalisePlanInputV9(
-      {
-        ...planFixtureRows,
-        project: { ...planFixtureRows.project, id: captured.history.targetProjectId },
-      },
-      history,
-    );
+    if (history.kind !== 'connected') throw new Error('fixture must be connected');
+    const input = canonicalisePlanInputV9(connectedPlanFixtureRows(history), history);
     expect(input.dependencyHistory).toEqual(
       readSavedDependencyHistory(JSON.parse(serializeSavedDependencyHistory(history))),
     );

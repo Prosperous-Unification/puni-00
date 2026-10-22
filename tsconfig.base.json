@@ -39,6 +39,9 @@
       "@wbs/conformance": ["./libs/wbs/application/conformance/src/index.ts"],
       "@wbs/conformance/*": ["./libs/wbs/application/conformance/src/*"],
       "@wbs/domain": ["./libs/wbs/domain/domain/src/index.ts"],
+      "@wbs/domain/connected-history-fixture": [
+        "./libs/wbs/domain/domain/src/saved-plan/connected-history.fixture.ts"
+      ],
       "@wbs/domain/connected-benchmark-fixture": [
         "./libs/wbs/domain/domain/src/connected-benchmark-fixture.ts"
       ],

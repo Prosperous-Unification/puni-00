@@ -2787,3 +2787,67 @@ semantic mixed-format comparison equivalence, full build/secrets/migration CI
 and canonical h2puni/h4claw host gate. No optimizer
 or Kubernetes files are changed. Dependencies come from the existing installed
 workspace through a node_modules symlink; no fresh frozen install is claimed.
+
+### Saved history resource review correction (2026-10-22)
+
+Astra's mounted review rejected `1e94094b6`: its supposed complete fixture held
+input rows `w1/w2` and steps `s1/s2`, while captured history and schedule held
+`root/a` and `design/test`. The resource returned 200 because only project identity
+was linked across those inputs. The existing positive fixture therefore did not
+establish coherent target identity.
+
+`readSavedPlanInput` now checks the connected target at the versioned historical
+input boundary used by both the explicit v9 builder and saved resource reads.
+Target work-item and step membership is exact in both directions, including
+unscheduled branches and unused steps. Missing, extra or duplicate members and
+contradictory parentage refuse. Target value/measure/assignment references,
+team/service row references, and legacy/typed dependency endpoints must belong
+to those same target rows and steps. No collection is filtered or repaired.
+Legacy input readers and the active input8/schedule1 writers remain unchanged.
+
+The domain, core and mounted positive fixtures now construct canonical target
+rows from the captured target project, retaining its work/step identities and
+parents. A narrow fixture alias follows the existing connected-benchmark fixture
+convention; it shares test construction without adding a production barrel
+export. The mounted complete control explicitly asserts `a/root` and
+`design/test`, returns exact bytes and compares captured labels. A separate
+negative recreates unrelated `w1/w2,s1/s2` input identities against the captured
+component, then verifies direct read and both saved comparison positions refuse.
+
+The first mounted identity tests failed **0 passed / 3 failed** before the new
+check; the expanded coherent-fixture negatives failed **0 passed / 12 failed**.
+Two added team/legacy relationship negatives also failed before their guards.
+A precise legacy-dependency path test first failed on `$.typedDependencies`,
+then passed after reporting `$.dependencies` for that input collection.
+
+Five watched guard omissions each failed the mounted production path:
+
+| Injected fault                      | Observed failure                                                         |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| Remove work membership/parent guard | Foreign/missing/extra/duplicate rows and contradictory parent return 200 |
+| Remove step membership guard        | Foreign/missing/extra/duplicate target steps return 200                  |
+| Remove step-owned fact guard        | Foreign value/measure/assignment row or step owner returns200            |
+| Remove row-owned fact guard         | Foreign team/service row owner returns200                                |
+| Remove dependency-owner guards      | Foreign legacy endpoint or typed endpoint step returns200                |
+
+Each guard was restored, with adjacent `Proof:` comments. Exact red, mutation
+and restored output is under `evidence/task-8-saved-resource-review/`.
+
+Final verification repeated the prior resource's focused regression command
+with `apps/wbs/be-01/src/service/saved-plan-current.db.test.ts` included:
+**327 passed / 0 failed / 1,258 assertions across 16 files**. The targeted mounted
+identity run passed **19/19**. A valid owned-facts decoder case retains values,
+measures, assignments and row facts unchanged.
+
+```sh
+NODE_OPTIONS=--max-old-space-size=8192 NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run-many -t typecheck -p wbs-domain wbs-core wbs-be-01 --parallel=1 --skip-nx-cache --output-style=static
+NODE_OPTIONS=--max-old-space-size=8192 NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-domain:lint --skip-nx-cache --output-style=static
+./node_modules/.bin/openspec validate --all --json
+```
+
+All three commands passed, including both module typecheck prerequisites and
+OpenSpec **268/268**. Changed-file lint is also rerun by the normal commit hooks.
+This remains a bounded reader correction: connected capture/writer/current, broader cross-format semantic
+comparison, rendered provenance, activation and canonical host gate remain open.
+The prior full backend lint resource failures are not reclassified as passing;
+this correction uses focused changed-file lint plus the domain lint target.

@@ -574,6 +574,8 @@ describe('the saved-plan routes', () => {
   it('reads complete connected history as exact stored bytes and compares it without live foreign projects', async () => {
     const id = await savedIdOf(await save('ada'));
     const captured = savedConnectedHistoryFixture(projectId);
+    expect(captured.input.workItems.map((row) => row.id)).toEqual(['a', 'root']);
+    expect(captured.input.steps.map((step) => step.id)).toEqual(['design', 'test']);
     const inputBytes = JSON.stringify(captured.input);
     const scheduleBytes = JSON.stringify(captured.schedule);
     await replaceSavedBodies(id, inputBytes, scheduleBytes);
@@ -609,6 +611,190 @@ describe('the saved-plan routes', () => {
   });
 
   it.each([
+    [
+      'target input unrelated local namespace',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(
+          captured.input,
+          'workItems',
+          captured.input.workItems.map((row, index) => ({
+            ...row,
+            id: `w${String(index + 1)}`,
+            parentId: row.parentId === null ? null : 'w2',
+          })),
+        );
+        Reflect.set(
+          captured.input,
+          'steps',
+          captured.input.steps.map((step, index) => ({
+            ...step,
+            id: `s${String(index + 1)}`,
+          })),
+        );
+      },
+    ],
+    [
+      'target input work identity',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input.workItems[0], 'id', 'unrelated-row');
+      },
+    ],
+    [
+      'target input step identity',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input.steps[0], 'id', 'foreign-step');
+      },
+    ],
+    [
+      'target input parent',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input.workItems[0], 'parentId', 'foreign-parent');
+      },
+    ],
+    [
+      'target input missing work member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItems', captured.input.workItems.slice(1));
+      },
+    ],
+    [
+      'target input extra work member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItems', [
+          ...captured.input.workItems,
+          { ...captured.input.workItems[0], id: 'foreign-row' },
+        ]);
+      },
+    ],
+    [
+      'target input missing step member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'steps', captured.input.steps.slice(1));
+      },
+    ],
+    [
+      'target input extra step member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'steps', [
+          ...captured.input.steps,
+          { ...captured.input.steps[0], id: 'foreign-step' },
+        ]);
+      },
+    ],
+    [
+      'target input duplicate work member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItems', [
+          ...captured.input.workItems,
+          captured.input.workItems[0],
+        ]);
+      },
+    ],
+    [
+      'target input duplicate step member',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'steps', [...captured.input.steps, captured.input.steps[0]]);
+      },
+    ],
+    [
+      'target input fact step owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'stepValues', [
+          {
+            workItemId: 'a',
+            stepId: 'build',
+            optimistic: null,
+            realistic: null,
+            pessimistic: null,
+            derived: null,
+            actual: null,
+            progress: null,
+          },
+        ]);
+      },
+    ],
+    [
+      'target input fact work owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'stepValues', [
+          {
+            workItemId: 'b',
+            stepId: 'design',
+            optimistic: null,
+            realistic: null,
+            pessimistic: null,
+            derived: null,
+            actual: null,
+            progress: null,
+          },
+        ]);
+      },
+    ],
+    [
+      'target input relationship owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'typedDependencies', [
+          {
+            id: 'wrong-owner',
+            type: 'FS',
+            predecessor: { scope: 'node', workItemId: 'a', stepId: 'build' },
+            successor: { scope: 'whole', workItemId: 'a' },
+          },
+        ]);
+      },
+    ],
+    [
+      'target input team owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItemTeams', [{ workItemId: 'b', teamId: 'team-1' }]);
+      },
+    ],
+    [
+      'target input legacy relationship owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'dependencies', [{ predecessorId: 'b', successorId: 'a' }]);
+      },
+    ],
+    [
+      'target input service owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'workItemServices', [{ workItemId: 'b', serviceId: 'svc-1' }]);
+      },
+    ],
+    [
+      'target input assignment owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'assignments', [
+          { workItemId: 'b', stepId: 'design', personId: 'p-1' },
+        ]);
+      },
+    ],
+    [
+      'target input measure owner',
+      'input',
+      (captured: ReturnType<typeof savedConnectedHistoryFixture>) => {
+        Reflect.set(captured.input, 'measures', [
+          { workItemId: 'a', stepId: 'build', metric: 'cost', value: null },
+        ]);
+      },
+    ],
     [
       'input context',
       'input',
@@ -681,7 +867,7 @@ describe('the saved-plan routes', () => {
     ],
   ] as const)(
     'refuses correctly hashed malformed %s on read and either comparison side',
-    async (_fault, body, inject) => {
+    async (fault, body, inject) => {
       const id = await savedIdOf(await save('ada'));
       const healthyId = await savedIdOf(await save('ada'));
       const captured = savedConnectedHistoryFixture(projectId);
@@ -706,6 +892,8 @@ describe('the saved-plan routes', () => {
       });
       expect(refused.refusal.code.length).toBeGreaterThan(0);
       expect(refused.refusal.path.startsWith('$')).toBe(true);
+      if (fault === 'target input legacy relationship owner')
+        expect(refused.refusal.path).toBe('$.dependencies');
       for (const [left, right] of [
         [id, healthyId],
         [healthyId, id],
