@@ -59,7 +59,7 @@ name the fault and its witness. Logs are retained beside this file.
 | Fault                                                  | Observed witness                                                                                             |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | Remove captured shared-person connections              | Mounted shared-person PATCH loses downstream/tail event; `shared-person-bridge.log`                          |
-| Force isolated topology discovery in shared mode       | Alternating component loses its person member and historical capture rejects; `shared-discovery.log`         |
+| Force isolated topology discovery in shared mode       | Alternating capture retains ordinary projects `[a1, a4]` instead of `[]`; `shared-discovery.log`             |
 | Replace shared dependency projection with null         | Mounted shared completion loses successor/tail events, while isolated case passes; `external-projection.log` |
 | Bypass observation-local full-input memo               | Ordinary disconnected projects captured twice; `capture-memo.log`                                            |
 | Remove step-code fingerprint                           | Real staged code edit loses connected successor label invalidation; `step-code-fact.log`                     |

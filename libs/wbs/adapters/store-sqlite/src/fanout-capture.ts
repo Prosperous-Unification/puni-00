@@ -455,7 +455,7 @@ async function readDependencyFanoutIn(
   for (const edge of connections)
     for (const endpoint of [edge.predecessorProjectId, edge.successorProjectId]) {
       if (members.has(endpoint)) continue;
-      // Proof: forcing isolated discovery makes alternating shared capture reject the omitted person endpoint through historical capture.
+      // Proof: forcing isolated discovery makes the alternating shared capture witness retain ordinary projects [a1, a4] instead of [].
       const topology = discoverConnectedTopologyIn(db, endpoint, mode, lifetime);
       for (const projectId of topology.projects) members.add(projectId);
     }
