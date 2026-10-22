@@ -1,6 +1,14 @@
+import { createHash } from 'node:crypto';
+
 import { expect, test } from 'bun:test';
 
-import { checkWorkflowBinding, selectActivityClass } from './validate-workflow-binding';
+import { digestOf } from './canonical';
+import {
+  acceptWorkflowBinding,
+  checkWorkflowBinding,
+  selectActivityClass,
+  selectWorkflowActivity,
+} from './validate-workflow-binding';
 import { decodeWorkflowBinding, WorkflowBindingError } from './workflow-binding';
 
 const steps = ['api', 'harness', 'acp', 'tool', 'human'];
@@ -646,3 +654,197 @@ for (const [kind, prompt] of [
     expect(refusal.path).toBe('classes.tool.prompt');
   });
 }
+
+function decision() {
+  return {
+    version: 1,
+    types: { default: { approve: { class: 'decision' } } },
+    classes: { decision: { executor: 'human', prompt: '.twilight/approve.md' } },
+  };
+}
+function checkedDecision() {
+  return checkWorkflowBinding(decodeWorkflowBinding(decision()), ['approve']);
+}
+
+test('acceptance survives caller mutation and binds changed prompt bytes', () => {
+  const candidate = decision();
+  const codes = ['approve'];
+  const bytes = new TextEncoder().encode('Approve this revision.\n');
+  const expectedBytes = Buffer.from(bytes);
+  const checked = checkWorkflowBinding(decodeWorkflowBinding(candidate), codes);
+  const accepted = acceptWorkflowBinding(checked, [{ path: '.twilight/approve.md', bytes }]);
+  const digest = accepted.bindingDigest;
+  const expectedSha256 = createHash('sha256').update(expectedBytes).digest('hex');
+  expect(Buffer.from(accepted.prompts[0].bytesBase64, 'base64')).toEqual(expectedBytes);
+  expect(accepted.prompts[0].sha256).toBe(expectedSha256);
+  expect(accepted.snapshot.prompts).toEqual([
+    { path: '.twilight/approve.md', sha256: expectedSha256 },
+  ]);
+  bytes[0] = 88;
+  candidate.classes.decision.prompt = 'changed.md';
+  codes.push('later');
+  expect(accepted.bindingDigest).toBe(digestOf(accepted.snapshot));
+  expect(accepted.prompts[0].text).toBe('Approve this revision.\n');
+  const frozenTargets: readonly [object, string, unknown][] = [
+    [accepted, 'bindingDigest', 'changed'],
+    [accepted.snapshot, 'schemaVersion', 2],
+    [accepted.snapshot.binding.classes['decision'], 'prompt', 'changed.md'],
+    [accepted.snapshot.projectSteps, '0', 'later'],
+    [accepted.snapshot.prompts, '0', {}],
+    [accepted.snapshot.prompts[0], 'sha256', 'changed'],
+    [accepted.prompts, '0', {}],
+    [accepted.prompts[0], 'text', 'changed'],
+  ];
+  for (const [target, key, value] of frozenTargets)
+    expect(Reflect.set(target, key, value)).toBe(false);
+  expect(accepted.bindingDigest).toBe(digest);
+  expect(
+    acceptWorkflowBinding(checked, [{ path: '.twilight/approve.md', bytes }]).bindingDigest,
+  ).not.toBe(digest);
+  const selected = selectWorkflowActivity(accepted, 'change', 'approve');
+  expect(selected.prompt?.text).toBe('Approve this revision.\n');
+  expect(selected.bindingDigest).toBe(digest);
+  expect(selected).toMatchObject({
+    requestedType: 'change',
+    matchedType: 'default',
+    stepCode: 'approve',
+    className: 'decision',
+  });
+  expect(Reflect.set(selected, 'className', 'changed')).toBe(false);
+  expect(Reflect.set(selected.prompt!, 'text', 'changed')).toBe(false);
+});
+
+test('binds original BOM bytes while decoding prompt text', () => {
+  const bytes = Uint8Array.from([0xef, 0xbb, 0xbf, 0x41, 0x0a]);
+  const accepted = acceptWorkflowBinding(checkedDecision(), [
+    { path: '.twilight/approve.md', bytes },
+  ]);
+  const expectedSha256 = createHash('sha256').update(bytes).digest('hex');
+  expect(accepted.prompts[0].text).toBe('A\n');
+  expect(Buffer.from(accepted.prompts[0].bytesBase64, 'base64')).toEqual(Buffer.from(bytes));
+  expect(accepted.prompts[0].sha256).toBe(expectedSha256);
+  expect(accepted.snapshot.prompts[0].sha256).toBe(expectedSha256);
+  expect(accepted.bindingDigest).toBe(digestOf(accepted.snapshot));
+  expect(
+    acceptWorkflowBinding(checkedDecision(), [
+      { path: '.twilight/approve.md', bytes: new TextEncoder().encode('A\n') },
+    ]).bindingDigest,
+  ).not.toBe(accepted.bindingDigest);
+});
+
+test.each([
+  ['missing', []],
+  ['wrong path', [{ path: 'foreign.md', bytes: new Uint8Array() }]],
+  [
+    'duplicate',
+    [
+      { path: '.twilight/approve.md', bytes: new Uint8Array() },
+      { path: '.twilight/approve.md', bytes: new Uint8Array() },
+    ],
+  ],
+  [
+    'extra',
+    [
+      { path: '.twilight/approve.md', bytes: new Uint8Array() },
+      { path: 'extra.md', bytes: new Uint8Array() },
+    ],
+  ],
+])('refuses %s prompt sources', (_name, sources) => {
+  expect(() => acceptWorkflowBinding(checkedDecision(), sources)).toThrow('invalid_prompt_sources');
+});
+
+test('refuses malformed prompt UTF-8', () => {
+  expect(() =>
+    acceptWorkflowBinding(checkedDecision(), [
+      { path: '.twilight/approve.md', bytes: Uint8Array.from([0xc3, 0x28]) },
+    ]),
+  ).toThrow('invalid_prompt_encoding');
+});
+
+test('accepts empty prompt text', () => {
+  const accepted = acceptWorkflowBinding(checkedDecision(), [
+    { path: '.twilight/approve.md', bytes: new Uint8Array() },
+  ]);
+  expect(accepted.prompts[0].text).toBe('');
+  expect(accepted.prompts[0].bytesBase64).toBe('');
+});
+
+test('accepts no prompt for a tool and selects null', () => {
+  const checked = checkWorkflowBinding(
+    decodeWorkflowBinding({
+      version: 1,
+      types: { default: { gate: { class: 'gate' } } },
+      classes: { gate: { executor: 'tool', command: 'gate' } },
+    }),
+    ['gate'],
+  );
+  const accepted = acceptWorkflowBinding(checked, []);
+  expect(accepted.prompts).toEqual([]);
+  const selected = selectWorkflowActivity(accepted, 'change', 'gate');
+  expect(selected.prompt).toBeNull();
+  expect(Reflect.set(selected, 'className', 'changed')).toBe(false);
+});
+
+test('requires unused class prompts and deduplicates shared references', () => {
+  const candidate = decision();
+  Object.assign(candidate.classes, {
+    unused: { executor: 'human', prompt: 'unused.md' },
+    shared: { executor: 'human', prompt: '.twilight/approve.md' },
+  });
+  const checked = checkWorkflowBinding(decodeWorkflowBinding(candidate), ['approve']);
+  expect(() =>
+    acceptWorkflowBinding(checked, [{ path: '.twilight/approve.md', bytes: new Uint8Array() }]),
+  ).toThrow('invalid_prompt_sources');
+  expect(() =>
+    acceptWorkflowBinding(checked, [
+      { path: '.twilight/approve.md', bytes: new Uint8Array() },
+      { path: '.twilight/approve.md', bytes: new Uint8Array() },
+    ]),
+  ).toThrow('invalid_prompt_sources');
+  const accepted = acceptWorkflowBinding(checked, [
+    { path: 'unused.md', bytes: new Uint8Array() },
+    { path: '.twilight/approve.md', bytes: new Uint8Array() },
+  ]);
+  expect(accepted.prompts.map((prompt) => prompt.path)).toEqual([
+    '.twilight/approve.md',
+    'unused.md',
+  ]);
+});
+
+test('canonical acceptance ignores source, step and object order but preserves tool order', () => {
+  const candidate = fixture();
+  candidate.classes.api.tools = ['read', 'write'];
+  const sources = ['api', 'harness', 'acp', 'human'].map((name) => ({
+    path: `.twilight/${name}.md`,
+    bytes: new TextEncoder().encode(`${name}\r\n`),
+  }));
+  const accepted = acceptWorkflowBinding(
+    checkWorkflowBinding(decodeWorkflowBinding(candidate), steps),
+    sources,
+  );
+  const reordered = {
+    classes: Object.fromEntries(Object.entries(candidate.classes).reverse()),
+    types: candidate.types,
+    version: 1,
+  };
+  expect(
+    acceptWorkflowBinding(
+      checkWorkflowBinding(decodeWorkflowBinding(reordered), [...steps].reverse()),
+      [...sources].reverse(),
+    ).bindingDigest,
+  ).toBe(accepted.bindingDigest);
+  candidate.classes.api.tools.reverse();
+  expect(
+    acceptWorkflowBinding(checkWorkflowBinding(decodeWorkflowBinding(candidate), steps), sources)
+      .bindingDigest,
+  ).not.toBe(accepted.bindingDigest);
+});
+
+test('refuses a supposedly accepted binding that loses its prompt', () => {
+  const accepted = acceptWorkflowBinding(checkedDecision(), [
+    { path: '.twilight/approve.md', bytes: new Uint8Array() },
+  ]);
+  expect(() => selectWorkflowActivity({ ...accepted, prompts: [] }, 'change', 'approve')).toThrow(
+    'invalid_prompt_sources',
+  );
+});

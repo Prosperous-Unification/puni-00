@@ -55,7 +55,7 @@ export interface ClassSelection {
   readonly className: string;
   readonly settings: ActivityClass;
 }
-/** Static document and checked-selection refusals; later boundaries add their own codes. */
+/** Static document, acceptance and filesystem refusals; none grant execution authority. */
 export type WorkflowBindingErrorCode =
   | 'unsupported_version'
   | 'unknown_executor'
@@ -67,7 +67,16 @@ export type WorkflowBindingErrorCode =
   | 'unknown_class'
   | 'unknown_step'
   | 'missing_step'
-  | 'unmapped_type';
+  | 'unmapped_type'
+  | 'invalid_prompt_sources'
+  | 'invalid_prompt_encoding'
+  | 'binding_missing'
+  | 'binding_unreadable'
+  | 'invalid_yaml'
+  | 'prompt_missing'
+  | 'prompt_unreadable'
+  | 'prompt_not_file'
+  | 'prompt_outside_root';
 /** A named configuration refusal retaining its logical path and optional underlying cause. */
 export class WorkflowBindingError extends Error {
   override readonly name = 'WorkflowBindingError';
@@ -348,3 +357,39 @@ export function decodeWorkflowBinding(input: unknown): Binding {
   }
   return freezeValue({ version: 1, types, classes });
 }
+
+/** Original caller-owned prompt bytes accepted synchronously by {@link acceptWorkflowBinding}. */
+export interface PromptSource {
+  readonly path: string;
+  readonly bytes: Uint8Array;
+}
+/** Immutable text and base64 originals tied to the same exact byte hash. */
+export interface PromptSnapshot {
+  readonly path: string;
+  readonly sha256: string;
+  readonly text: string;
+  readonly bytesBase64: string;
+}
+/** Canonical static acceptance content; its digest is distinct from a retained RunStore manifest. */
+export interface AcceptanceSnapshot {
+  readonly schemaVersion: 1;
+  readonly binding: Binding;
+  readonly projectSteps: readonly string[];
+  readonly prompts: readonly { readonly path: string; readonly sha256: string }[];
+}
+/** Frozen static consistency and referenced-byte acceptance, without execution authority. */
+export interface ValidatedBinding {
+  readonly snapshot: AcceptanceSnapshot;
+  readonly bindingDigest: string;
+  readonly prompts: readonly PromptSnapshot[];
+}
+/** Selected accepted settings; tool activities have no prompt. */
+export type SelectedActivity = Omit<ClassSelection, 'settings'> & {
+  readonly bindingDigest: string;
+} & (
+    | { readonly settings: ToolClass; readonly prompt: null }
+    | {
+        readonly settings: Exclude<ActivityClass, ToolClass>;
+        readonly prompt: Pick<PromptSnapshot, 'path' | 'sha256' | 'text'>;
+      }
+  );

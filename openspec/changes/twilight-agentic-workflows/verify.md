@@ -852,3 +852,52 @@ artifacts without rerunning the suite. Binding Task 1's six slice boxes are acce
 Parent tasks 1.1–1.2 and broader I1 remain open until their remaining acceptance work;
 Task 2 now supplies real prompt bytes, immutable acceptance and the filesystem/YAML loader.
 The minor ambient color warning remains disclosed as an invocation-environment issue.
+
+### 2026-10-22 — binding Task 2 candidate: byte acceptance and real loader
+
+Task 2 adds exact-byte SHA-256, immutable acceptance/selection, strict YAML 1.2
+and a real filesystem loader in the eight planned source/test/fixture files.
+Root read the full implementation report, production diff, final check logs and
+an actual loader-returned BOM acceptance snapshot. Independent task review remains
+pending; no Task 2 or parent completion is claimed.
+
+Fresh focused tests pass 129/129 with 251 assertions in402ms; canonical tests pass
+7/7 with12 assertions. Both use ./-anchored source files and the scratch preload.
+Uncached Burokrat typecheck (1.4s), source lint (19.2s), eight-file Prettier check
+and git diff --check pass. The inherited NO_COLOR/FORCE_COLOR warning remains
+visible. Commands and complete evidence are retained in the binding task ledger's
+task-2-report.md and task-2-evidence directory.
+
+TDD first observed missing APIs (not behavioral proof), then81 passing/44 failing
+tests with throwing stubs. An initial standard-tag/environment-path test failed
+because its braces violated existing RelativePath syntax; a literal dollar-named
+file corrected the fixture without widening production paths. Initial test typing,
+import order and arrow-style diagnostics were corrected; the intermediate eslint
+typing diagnostic has transcript evidence only, as disclosed in the report.
+
+R5 accounting is39 distinct production mutations/39 invocations:38 failed and one
+expected non-proof passed. Removing only the local synchronous byte copy remained
+green because only immutable strings escape. There were three aggregate restored
+green runs, not38 separate fault/restoration pairs. Later batches added wrong-source
+membership and strict-comment-spacing coverage. Production was restored between
+mutations and final checks ran on restored source. Real binding/prompt deletion and
+chmod(0) tests ran as uid1000 with actual read failures and no permission skips.
+
+Observed faults cover exact prompt-source sets, fatal UTF-8, original BOM-byte
+hash/base64 correspondence, digest descriptors/order, immutable output layers,
+root anchoring/physical containment, pre-read regular-file checks, YAML syntax,
+version/keys/aliases/tags/merges, and missing-versus-unreadable classification.
+Some faults change a required refusal while another guard still rejects; they are
+not claimed as unsafe admission. Directory tests prove the nonregular boundary;
+no actual FIFO/device was opened. Original Task 1 fault proofs were not repeated.
+
+The retained observed-acceptance.json has original bytes77u/QQo=, decoded text
+A plus newline, SHA34458efc6b3e8689be7b17dffa5c40d9c1b72807c93cd35c96f8a6e1b4484a7c
+and acceptance digeste497237ece2c34c931eb80f100b5a9a5335b5578e17870ac0b5abce4edeb1f9b.
+Output mutation attempts returnedfalse; later file edits left the accepted value
+stable while a new acceptance changed its digest.
+
+No CLI, full package test/build, full host gate, live service, runtime authority,
+spending or retention integration was exercised by this slice. Host gate evidence
+for storage42681 applies only to that separate candidate. Hostile filesystem races,
+atomic checkout and concurrent SharedArrayBuffer writers are not claimed.
