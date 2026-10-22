@@ -322,3 +322,20 @@ it('does not invent a dependency path by mixing old and new topology edges', asy
     ['C', 'B'],
   ]);
 });
+
+it('refuses an explicit cause missing from the complete partitioned inventory', () => {
+  const capture: CapturedFanout = {
+    observation: { mode: 'shared', organizationId: 'org-a', projects: [] },
+    dependency: {
+      organizationId: 'org-a',
+      projects: new Map([['A', 'connected']]),
+      connections: [],
+    },
+    localFacts: new Map(),
+  };
+  expect(
+    recordCommittedFanout(openMemorySource().stores.eventLog, capture, capture, () => 1, [
+      'absent',
+    ]),
+  ).rejects.toThrow('direct cause absent from both captures');
+});

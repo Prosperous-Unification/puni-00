@@ -196,13 +196,13 @@ function reachableFrom(
   return [...reachable];
 }
 
-/** Detached incident topology and semantic/label facts, captured on the owning writer. */
+/** Detached external/person topology and semantic/label facts, captured on the owning writer. */
 export interface DependencyFanout {
   readonly organizationId: string;
-  /** Every owned project survives topology detachment; `not_incident` explicitly means no external endpoint facts apply. */
+  /** Every owned project survives topology detachment; `not_incident` explicitly means no connected component facts apply. */
   readonly projects: ReadonlyMap<string, string>;
   readonly connections: readonly {
-    /** Stable relationship identity plus authored endpoints/scopes/type, excluding audit stamps. */
+    /** Stable authored relationship identity or person/endpoint bridge identity, excluding audit stamps. */
     readonly key: string;
     readonly predecessorProjectId: string;
     readonly successorProjectId: string;

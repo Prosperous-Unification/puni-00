@@ -349,54 +349,59 @@ it('records remote completion without shared people and rolls dependency events 
   }
 });
 
-it('refuses missing and unreadable dependency endpoint evidence', async () => {
-  const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-corrupt-'));
-  directories.push(directory);
-  const path = await openSpaceDatabase(directory);
-  const connection = openConnection(path);
-  try {
-    connection.db.run(
-      sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
-    );
-    connection.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
-    connection.db.run(
-      sql.raw(
-        "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'absent', 'a2', 'absent-row', 'whole', 'a2-row', 'whole', 'FS')",
-      ),
-    );
-    const schedulerOf = () => {
-      throw new Error('dependency invalidation cannot schedule');
-    };
-    expect(
-      readFanoutObservationIn(
-        connection.db,
-        'org-a',
-        { schedulerOf },
-        createReadSnapshotLifetime(),
-      ),
-    ).rejects.toThrow('dependency fan-out endpoint is unreadable');
-    connection.db.run(
-      sql.raw("UPDATE external_dependency SET predecessor_project_id = 'a1' WHERE id = 'edge'"),
-    );
-    expect(
-      readFanoutObservationIn(
-        connection.db,
-        'org-a',
-        {
-          schedulerOf,
-          captureRead: {
-            afterFirstRead: () => {
-              throw new Error('injected endpoint read failure');
+it.each(['isolated', 'shared'])(
+  'refuses missing and unreadable %s dependency endpoint evidence',
+  async (mode) => {
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-corrupt-'));
+    directories.push(directory);
+    const path = await openSpaceDatabase(directory);
+    const connection = openConnection(path);
+    try {
+      connection.db.run(
+        sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+      );
+      if (mode === 'shared')
+        connection.db.run(sql.raw("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'"));
+      connection.db.run(sql.raw('PRAGMA foreign_keys = OFF'));
+      connection.db.run(
+        sql.raw(
+          "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'absent', 'a2', 'absent-row', 'whole', 'a2-row', 'whole', 'FS')",
+        ),
+      );
+      const schedulerOf = () => {
+        throw new Error('dependency invalidation cannot schedule');
+      };
+      expect(
+        readFanoutObservationIn(
+          connection.db,
+          'org-a',
+          { schedulerOf },
+          createReadSnapshotLifetime(),
+        ),
+      ).rejects.toThrow('dependency fan-out endpoint is unreadable');
+      connection.db.run(
+        sql.raw("UPDATE external_dependency SET predecessor_project_id = 'a1' WHERE id = 'edge'"),
+      );
+      expect(
+        readFanoutObservationIn(
+          connection.db,
+          'org-a',
+          {
+            schedulerOf,
+            captureRead: {
+              afterFirstRead: () => {
+                throw new Error('injected endpoint read failure');
+              },
             },
           },
-        },
-        createReadSnapshotLifetime(),
-      ),
-    ).rejects.toThrow('injected endpoint read failure');
-  } finally {
-    connection.close();
-  }
-});
+          createReadSnapshotLifetime(),
+        ),
+      ).rejects.toThrow('injected endpoint read failure');
+    } finally {
+      connection.close();
+    }
+  },
+);
 
 it('invalidates surviving projects disconnected by relationship removal', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'wbs-dependency-fanout-topology-'));
@@ -486,6 +491,170 @@ it.each(['restricted-project', 'viewer-project', 'viewer-step', 'viewer-import']
               ? await authorizeStepFanoutIn(connection.db, lifetime)('a2', 'sam', viewer)
               : await authorizeImportIn(connection.db)('sam', viewer);
       expect(refusal).toEqual({ ok: false, reason: 'forbidden' });
+    } finally {
+      connection.close();
+    }
+  },
+);
+
+it.each(['external', 'alternating', 'disconnected'])(
+  'captures staged %s shared connected facts once without scheduling the component',
+  async (topology) => {
+    const directory = mkdtempSync(join(tmpdir(), 'wbs-shared-connected-fanout-'));
+    directories.push(directory);
+    const path = await openSpaceDatabase(directory);
+    const connection = openConnection(path);
+    try {
+      connection.db.run(
+        sql.raw("UPDATE organization_activation SET state = 'activated', activated_at = 1"),
+      );
+      connection.db.run(sql.raw("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'"));
+      for (const projectId of ['a1', 'a2', 'a3', 'a4']) {
+        connection.db.run(
+          sql`INSERT INTO work_item (id, project_id, position, name) VALUES (${projectId}, ${projectId}, 10, ${projectId})`,
+        );
+        connection.db.run(
+          sql`INSERT INTO step (id, project_id, name, position) VALUES (${`${projectId}-step`}, ${projectId}, 'Build', 10)`,
+        );
+      }
+      connection.db.run(
+        sql.raw(
+          "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('edge', 'org-a', 'a2', 'a3', 'a2', 'whole', 'a3', 'whole', 'FS')",
+        ),
+      );
+      if (topology === 'disconnected')
+        connection.db.run(
+          sql.raw(
+            "INSERT INTO external_dependency (id, organization_id, predecessor_project_id, successor_project_id, predecessor_work_item_id, predecessor_scope, successor_work_item_id, successor_scope, type) VALUES ('separate', 'org-a', 'a1', 'a4', 'a1', 'whole', 'a4', 'whole', 'FS')",
+          ),
+        );
+      if (topology === 'alternating') {
+        for (const personId of ['p', 'q']) {
+          connection.db.run(sql`INSERT INTO person (id, name) VALUES (${personId}, ${personId})`);
+          connection.db.run(
+            sql`INSERT INTO person_organization (resource_id, organization_id, name) VALUES (${personId}, 'org-a', ${personId})`,
+          );
+        }
+        for (const [projectId, personId] of [
+          ['a1', 'p'],
+          ['a2', 'p'],
+          ['a3', 'q'],
+          ['a4', 'q'],
+        ])
+          connection.db.run(
+            sql`INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (${projectId}, ${`${projectId}-step`}, ${personId})`,
+          );
+      }
+      const capturedIds: string[] = [];
+      const options = {
+        schedulerOf: () =>
+          createScheduler(
+            (rows, edges, slices, floors, pools, reach, deadlines, typed, elsewhere) =>
+              schedule(
+                rows,
+                edges,
+                slices,
+                floors,
+                pools,
+                reach,
+                deadlines,
+                typed,
+                undefined,
+                elsewhere,
+              ),
+            scheduleResolved,
+          ),
+        captureRead: {
+          afterFirstRead: ({ projectId }: { projectId: string }) => {
+            capturedIds.push(projectId);
+            return Promise.resolve();
+          },
+        },
+      };
+      connection.db.run(sql.raw('BEGIN IMMEDIATE'));
+      const before = await readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        options,
+        createReadSnapshotLifetime(),
+      );
+      expect(capturedIds.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+      capturedIds.length = 0;
+      const causeProjectId = topology === 'alternating' ? 'a1' : 'a2';
+      connection.db.run(
+        sql`INSERT INTO step_progress (work_item_id, step_id, state, stated_at) VALUES (${causeProjectId}, ${`${causeProjectId}-step`}, 'done', 1)`,
+      );
+      const after = await readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        options,
+        createReadSnapshotLifetime(),
+      );
+      expect(capturedIds.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+      expect(after.observation.projects.map(({ projectId }) => projectId)).toEqual(
+        topology === 'external' ? ['a1', 'a4'] : [],
+      );
+      const committed = await recordCommittedFanout(
+        new DrizzleEventLogStore(connection.db, OPEN),
+        before,
+        after,
+        () => 1,
+        [causeProjectId],
+      );
+      expect(committed.map(({ event }) => event)).toEqual(
+        (topology === 'alternating' ? ['a2', 'a3', 'a4'] : ['a3']).map((projectId) => ({
+          type: 'elsewhere_changed',
+          projectId,
+          causeProjectId,
+        })),
+      );
+      connection.db.run(
+        sql`UPDATE step SET code = 'delivery' WHERE id = ${`${causeProjectId}-step`}`,
+      );
+      const relabeled = await readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        options,
+        createReadSnapshotLifetime(),
+      );
+      const labelEvents = await recordCommittedFanout(
+        new DrizzleEventLogStore(connection.db, OPEN),
+        after,
+        relabeled,
+        () => 2,
+      );
+      expect(labelEvents.map(({ projectId }) => projectId)).toEqual(
+        topology === 'alternating' ? ['a2', 'a3', 'a4'] : ['a3'],
+      );
+      connection.db.run(sql.raw("DELETE FROM external_dependency WHERE id = 'edge'"));
+      capturedIds.length = 0;
+      const detached = await readFanoutObservationIn(
+        connection.db,
+        'org-a',
+        options,
+        createReadSnapshotLifetime(),
+      );
+      expect(capturedIds.sort()).toEqual(['a1', 'a2', 'a3', 'a4']);
+      expect(detached.observation.projects.map(({ projectId }) => projectId)).toEqual(
+        topology === 'disconnected' ? ['a2', 'a3'] : ['a1', 'a2', 'a3', 'a4'],
+      );
+      const split = await recordCommittedFanout(
+        new DrizzleEventLogStore(connection.db, OPEN),
+        relabeled,
+        detached,
+        () => 3,
+      );
+      expect(split).toHaveLength(topology === 'alternating' ? 12 : 2);
+      expect(
+        split.some(
+          ({ event }) =>
+            event.type === 'elsewhere_changed' &&
+            event.projectId === 'a3' &&
+            event.causeProjectId === causeProjectId,
+        ),
+      ).toBe(true);
+      connection.db.run(sql.raw('ROLLBACK'));
+      expect(connection.db.all(sql`SELECT * FROM event_log`)).toHaveLength(0);
     } finally {
       connection.close();
     }

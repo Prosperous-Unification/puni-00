@@ -152,3 +152,82 @@ it('a rejected dependency command batch publishes nothing and rolls earlier muta
   expect(events(downstream.id)).toEqual([]);
   expect(events(tail.id)).toEqual([]);
 });
+
+it.each([false, true])(
+  'mounted completion refreshes successor-only readiness with shared mode %s',
+  async (shared) => {
+    const { harness, upstream, downstream, tail, foreign, events } = await fixture();
+    if (shared) harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+    harness.sqlite.run("UPDATE work_item SET readiness = 'ready'");
+    for (const project of [upstream, downstream, tail])
+      harness.sqlite.run('DELETE FROM step WHERE project_id = ? AND id <> ?', [
+        project.id,
+        project.stepId,
+      ]);
+    harness.sqlite.run(
+      "UPDATE external_dependency SET predecessor_scope = 'node', predecessor_step_id = ?, successor_scope = 'node', successor_step_id = ? WHERE id = 'up-down'",
+      [upstream.stepId, downstream.stepId],
+    );
+    harness.sqlite.run(
+      "UPDATE external_dependency SET predecessor_scope = 'node', predecessor_step_id = ?, successor_scope = 'node', successor_step_id = ? WHERE id = 'down-tail'",
+      [downstream.stepId, tail.stepId],
+    );
+    const before = await harness.call(
+      'ada',
+      'GET',
+      `/api/projects/${downstream.id}/work-items?full=true`,
+    );
+    expect(before.status).toBe(200);
+    expect(before.body).toMatchObject({
+      workItems: [{ id: downstream.rowId, nodeReadings: { [downstream.stepId]: 'unknown' } }],
+    });
+    const answer = await harness.call('ada', 'POST', `/api/projects/${upstream.id}/commands`, {
+      commands: [
+        { kind: 'setProgress', workItemId: upstream.rowId, stepId: upstream.stepId, state: 'done' },
+      ],
+    });
+    expect(answer.status).toBe(200);
+    expect(
+      harness.sqlite
+        .query('SELECT state FROM step_progress WHERE work_item_id = ? AND step_id = ?')
+        .get(upstream.rowId, upstream.stepId),
+    ).toEqual({ state: 'done' });
+    for (const project of [downstream, tail])
+      expect(events(project.id)).toEqual([
+        { type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id },
+      ]);
+    expect(events(foreign.id)).toEqual([]);
+    const refreshed = await harness.call(
+      'ada',
+      'GET',
+      `/api/projects/${downstream.id}/work-items?full=true`,
+    );
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body).toMatchObject({
+      workItems: [{ id: downstream.rowId, nodeReadings: { [downstream.stepId]: 'waiting' } }],
+    });
+  },
+);
+
+it('mounted shared-person bridge carries a label change across an external edge', async () => {
+  const { harness, upstream, downstream, tail, events } = await fixture();
+  harness.sqlite.run("UPDATE organization SET shared_people = 1 WHERE id = 'org-a'");
+  harness.sqlite.run("DELETE FROM external_dependency WHERE id = 'up-down'");
+  harness.sqlite.run("INSERT INTO person (id, name) VALUES ('ana', 'Ana')");
+  harness.sqlite.run(
+    "INSERT INTO person_organization (resource_id, organization_id, name) VALUES ('ana', 'org-a', 'Ana')",
+  );
+  for (const project of [upstream, downstream])
+    harness.sqlite.run(
+      'INSERT INTO assignment (work_item_id, step_id, person_id) VALUES (?, ?, ?)',
+      [project.rowId, project.stepId, 'ana'],
+    );
+  const answer = await harness.call('ada', 'PATCH', `/api/projects/${upstream.id}`, {
+    name: 'Changed over person bridge',
+  });
+  expect(answer.status).toBe(200);
+  for (const project of [downstream, tail])
+    expect(events(project.id)).toEqual([
+      { type: 'elsewhere_changed', projectId: project.id, causeProjectId: upstream.id },
+    ]);
+});

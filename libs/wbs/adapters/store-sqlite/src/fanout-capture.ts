@@ -1,4 +1,4 @@
-import { type DirectoryStore, readChain } from '@wbs/core';
+import { type DirectoryStore, type PlanInputReads, readChain } from '@wbs/core';
 import type {
   BeforeImport,
   BeforeModeSwitch,
@@ -21,6 +21,7 @@ import {
 import { and, eq, sql } from 'drizzle-orm';
 
 import { type ChainSnapshotOptions, readChainSnapshotIn } from './chain-snapshot';
+import { discoverConnectedTopologyIn } from './connected-plan-capture';
 import type { Drizzle } from './db';
 import { OPEN } from './gate';
 import { capStoredRole, validateStoredRole } from './organization-access';
@@ -309,10 +310,15 @@ export async function readFanoutObservationIn(
   if (mode === 'isolated')
     return {
       observation: { mode, organizationId, projects: [] },
-      dependency: await readDependencyFanoutIn(db, organizationId, options, lifetime),
+      dependency: await readDependencyFanoutIn(db, organizationId, options, lifetime, mode),
       localFacts: new Map(),
     };
+  const dependency = await readDependencyFanoutIn(db, organizationId, options, lifetime, mode);
   const ranks = await new ProjectRankRepository(db, OPEN).orderIn(organizationId);
+  // Proof: removing this partition restores the historical external-capture refusal in the external shared DB writer witness.
+  const ordinary = ranks.filter(
+    ({ projectId }) => dependency.projects.get(projectId) === 'not_incident',
+  );
   lifetime.assertOpen();
   const projects = new ProjectRepository(db, OPEN);
   const readable = await Promise.all(
@@ -324,7 +330,7 @@ export async function readFanoutObservationIn(
       return project;
     }),
   );
-  const snapshot = await readChainSnapshotIn(
+  const fullSnapshot = await readChainSnapshotIn(
     db,
     { kind: 'scoped', scope: { organizationId } },
     readable,
@@ -336,9 +342,24 @@ export async function readFanoutObservationIn(
     options.captureRead,
   );
   lifetime.assertOpen();
+  const captures = new Map<string, Promise<PlanInputReads>>();
+  const snapshot = {
+    ...fullSnapshot,
+    projects: fullSnapshot.projects.filter(
+      ({ project }) => dependency.projects.get(project.id) === 'not_incident',
+    ),
+    capturePlan: (projectId: string) => {
+      const held = captures.get(projectId);
+      // Proof: bypassing this memo reads ordinary a1/a4 twice in the staged external shared capture witness.
+      if (held !== undefined) return held;
+      const fresh = fullSnapshot.capturePlan(projectId);
+      captures.set(projectId, fresh);
+      return fresh;
+    },
+  };
   const localFacts = new Map<string, string>();
   const captured = await Promise.all(
-    ranks.map(async ({ projectId, rank }) => {
+    ordinary.map(async ({ projectId, rank }) => {
       const reads = await snapshot.capturePlan(projectId);
       lifetime.assertOpen();
       const personIds = [...new Set(reads.assignments.map(({ personId }) => personId))].sort();
@@ -386,17 +407,19 @@ export async function readFanoutObservationIn(
   lifetime.assertOpen();
   return {
     observation: { mode, organizationId, projects: captured },
-    dependency: null,
+    // Proof: replacing this projection with null loses successor/tail events in mounted shared predecessor completion.
+    dependency,
     localFacts,
   };
 }
 
-/** Captures isolated-mode dependency invalidation without scheduling or opening another connection. */
+/** Captures external components and shared-person bridges without scheduling or opening another connection. */
 async function readDependencyFanoutIn(
   db: Drizzle,
   organizationId: string,
   options: Pick<ChainSnapshotOptions, 'captureRead'>,
   lifetime: ReadSnapshotLifetime,
+  mode: 'isolated' | 'shared',
 ): Promise<DependencyFanout> {
   lifetime.assertOpen();
   const edges = db
@@ -405,7 +428,7 @@ async function readDependencyFanoutIn(
     // Proof: removing this scope filter made the mounted foreign-edge fixture return 500 at the scoped endpoint refusal, instead of 200; no disclosure was observed.
     .where(eq(externalDependency.organizationId, organizationId))
     .all();
-  const connections = edges.map((edge) => ({
+  const connections: DependencyFanout['connections'][number][] = edges.map((edge) => ({
     key: JSON.stringify([
       edge.id,
       edge.predecessorProjectId,
@@ -428,9 +451,16 @@ async function readDependencyFanoutIn(
     .all();
   // Proof: retaining only incident IDs lost both event rows in `invalidates surviving projects disconnected by relationship removal`.
   const projects = new Map(ownership.map(({ projectId }) => [projectId, 'not_incident']));
-  for (const projectId of new Set(
-    connections.flatMap((edge) => [edge.predecessorProjectId, edge.successorProjectId]),
-  )) {
+  const members = new Set<string>();
+  for (const edge of connections)
+    for (const endpoint of [edge.predecessorProjectId, edge.successorProjectId]) {
+      if (members.has(endpoint)) continue;
+      // Proof: forcing isolated discovery makes alternating shared capture reject the omitted person endpoint through historical capture.
+      const topology = discoverConnectedTopologyIn(db, endpoint, mode, lifetime);
+      for (const projectId of topology.projects) members.add(projectId);
+    }
+  const people = new Map<string, readonly string[]>();
+  for (const projectId of members) {
     const header = await new ProjectRepository(db, OPEN).findInOrganization(
       projectId,
       organizationId,
@@ -447,6 +477,7 @@ async function readDependencyFanoutIn(
     // Proof: removing this refusal changed the missing-endpoint negative from the named invariant to a property-access TypeError; the unreadable seam separately throws unchanged.
     if (captured === null || header === null)
       throw new Error('dependency fan-out endpoint is unreadable');
+    people.set(projectId, [...new Set(captured.assignments.map(({ personId }) => personId))]);
     projects.set(
       projectId,
       JSON.stringify([
@@ -465,9 +496,22 @@ async function readDependencyFanoutIn(
         captured.stepParallels,
         captured.measures,
         captured.workItems.map((row) => [row.id, row.name, row.position, row.frozenNumber]),
-        captured.steps.map((step) => [step.id, step.name]),
+        // Proof: removing code loses successor label events in both staged shared component witnesses.
+        captured.steps.map((step) => [step.id, step.name, step.code, step.position]),
       ]),
     );
   }
+  // Proof: omitting person bridges loses downstream/tail events in the mounted shared-person label writer.
+  if (mode === 'shared')
+    for (const [projectId, personIds] of people)
+      for (const [neighborId, neighborPeople] of people)
+        if (projectId < neighborId)
+          for (const personId of personIds)
+            if (neighborPeople.includes(personId))
+              connections.push({
+                key: JSON.stringify(['person', personId, projectId, neighborId]),
+                predecessorProjectId: projectId,
+                successorProjectId: neighborId,
+              });
   return { organizationId, projects, connections };
 }

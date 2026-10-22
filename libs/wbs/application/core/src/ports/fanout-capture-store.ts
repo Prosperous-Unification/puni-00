@@ -87,7 +87,7 @@ export type LifecycleOwnership =
 /** Detached before/after values read on the owning command transaction. */
 export interface CapturedFanout {
   readonly observation: FanoutObservation;
-  /** Isolated component capture; legacy/shared currently use their existing observation arm. */
+  /** External components, including shared-person bridges; ordinary shared components remain in observation. */
   readonly dependency: DependencyFanout | null;
   readonly localFacts: ReadonlyMap<string, string>;
 }
