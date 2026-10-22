@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/adapters/store-memory/src/typed-dependency-fixture.test.ts:
 135 | });
-136 | 
+136 |
 137 | it('incident restoration refuses a reused identity without duplicating its row',async()=>{
 138 |  const store=inMemoryTypedDependencies();const original=link('incident','parent','peer');
 139 |  await store.add(original,stamp);const receipt=await store.incidents.capture(original.id);

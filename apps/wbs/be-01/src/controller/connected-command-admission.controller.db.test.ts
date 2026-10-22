@@ -732,6 +732,46 @@ test('structural first-child creation hands a remote-owned pinned node to its fi
   ).toEqual({ predecessor_work_item_id: child.id });
 });
 
+test('mounted first-child creation publishes a remote-owned pinned node on the new child', async () => {
+  const fixture = await open();
+  const step = harness.sqlite
+    .query<{ id: string }, [string]>(
+      'SELECT id FROM step WHERE project_id=? ORDER BY position LIMIT 1',
+    )
+    .get(fixture.predecessor.projectId);
+  if (step === null) throw new Error('fixture step missing');
+  expect(
+    await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+        ...fixture.input,
+        predecessor: { ...fixture.input.predecessor, scope: 'node', stepId: step.id },
+      }),
+    ),
+  ).toMatchObject({ ok: true });
+
+  const response = await fixture.request(
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    {
+      commands: [
+        {
+          kind: 'createWorkItem',
+          parentId: fixture.predecessor.workItemId,
+          afterId: null,
+          name: 'Mounted incident child',
+        },
+      ],
+    },
+  );
+  expect(response.status).toBe(200);
+  const child = harness.sqlite
+    .query<{ id: string }, [string]>('SELECT id FROM work_item WHERE parent_id=?')
+    .get(fixture.predecessor.workItemId);
+  if (child === null) throw new Error('mounted child missing');
+  expect(
+    harness.sqlite.query('SELECT predecessor_work_item_id FROM external_dependency').get(),
+  ).toEqual({ predecessor_work_item_id: child.id });
+});
+
 test('external predecessor deletion returns a modeled conflict without changing any table', async () => {
   const fixture = await open();
   const added = await semantic(fixture, (service) =>

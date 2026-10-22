@@ -1031,3 +1031,16 @@ On the combined branch, the mounted `person-load-page.test.tsx` case for
 be read: .`; after adding its reason words, all 8 page tests passed. Frontend
 TypeScript now reports only the separate structured schedule-error mismatches
 in `wbs-table.tsx`; task 9.2 remains open.
+
+### Task 4.4 bounded incident hand-down integration — 2026-10-22
+
+The [incident hand-down packet](evidence/task-4-incident-handdown.md) was
+combined with the current connected tree presenter in a disposable branch. A
+new mounted command case, `mounted first-child creation publishes a remote-owned
+pinned node on the new child`, passed 1/1 (10 assertions): HTTP returned 200
+after publication, and the durable external predecessor endpoint named the
+created child. The packet's old-base HTTP 500 reproduction is retained in its
+evidence; it does not reproduce on this combined branch. Independent review,
+full task 4.4, full CI and the exact-SHA host gate remain pending. Six trailing
+spaces in two retained fault logs were stripped without altering their printed
+fault text; commit-range `git diff --check` is required before integration.

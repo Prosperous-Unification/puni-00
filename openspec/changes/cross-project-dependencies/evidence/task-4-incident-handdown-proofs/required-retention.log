@@ -2,7 +2,7 @@ bun test v1.4.2 (744846f84)
 
 libs/wbs/application/core/src/service/dependency-context.test.ts:
 268 | });
-269 | 
+269 |
 270 | for (const retention of [undefined, null, {kind:'unknown'}, {kind:'owner'}, {kind:'owner',refresh:42}])
 271 |   test(`required incident retention refuses malformed construction ${JSON.stringify(retention)}`, async () => {
 272 |     const source = await seeded();
@@ -291,7 +291,7 @@ Received value: {
       at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/service/dependency-context.test.ts:273:177)
 (fail) required incident retention refuses malformed construction undefined [7.62ms]
 268 | });
-269 | 
+269 |
 270 | for (const retention of [undefined, null, {kind:'unknown'}, {kind:'owner'}, {kind:'owner',refresh:42}])
 271 |   test(`required incident retention refuses malformed construction ${JSON.stringify(retention)}`, async () => {
 272 |     const source = await seeded();
@@ -580,7 +580,7 @@ Received value: {
       at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/service/dependency-context.test.ts:273:177)
 (fail) required incident retention refuses malformed construction null [0.46ms]
 268 | });
-269 | 
+269 |
 270 | for (const retention of [undefined, null, {kind:'unknown'}, {kind:'owner'}, {kind:'owner',refresh:42}])
 271 |   test(`required incident retention refuses malformed construction ${JSON.stringify(retention)}`, async () => {
 272 |     const source = await seeded();
@@ -869,7 +869,7 @@ Received value: {
       at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/service/dependency-context.test.ts:273:177)
 (fail) required incident retention refuses malformed construction {"kind":"unknown"} [0.39ms]
 268 | });
-269 | 
+269 |
 270 | for (const retention of [undefined, null, {kind:'unknown'}, {kind:'owner'}, {kind:'owner',refresh:42}])
 271 |   test(`required incident retention refuses malformed construction ${JSON.stringify(retention)}`, async () => {
 272 |     const source = await seeded();
@@ -1158,7 +1158,7 @@ Received value: {
       at <anonymous> (/tmp/puni-incident-handdown/libs/wbs/application/core/src/service/dependency-context.test.ts:273:177)
 (fail) required incident retention refuses malformed construction {"kind":"owner"} [0.30ms]
 268 | });
-269 | 
+269 |
 270 | for (const retention of [undefined, null, {kind:'unknown'}, {kind:'owner'}, {kind:'owner',refresh:42}])
 271 |   test(`required incident retention refuses malformed construction ${JSON.stringify(retention)}`, async () => {
 272 |     const source = await seeded();
