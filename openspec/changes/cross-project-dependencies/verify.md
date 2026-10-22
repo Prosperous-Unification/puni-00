@@ -3096,7 +3096,10 @@ retired algorithm read, local save/current and unknown-version regressions.
 `./node_modules/.bin/openspec validate --all --json` exited 0, failures 0.
 
 R5 watched faults were applied independently and restored before the next run.
-Each mounted run exited 1 because its expected 422 became **HTTP 200**:
+Each mounted mutation run exited 1 at its first direct-read assertion because
+the expected 422 became **HTTP 200**. It stopped before the comparison
+assertions; the restored healthy suite separately verifies refusal in both
+comparison positions:
 
 | Removed/broken guard                             | Named mounted codec-fit case(s)                                       |
 | ------------------------------------------------ | --------------------------------------------------------------------- |
@@ -3113,9 +3116,11 @@ Each mounted run exited 1 because its expected 422 became **HTTP 200**:
 Commands used `bun test apps/wbs/be-01/src/controller/saved-plan.controller.db.test.ts
 --test-name-pattern '<named codec fit fault>'`. Session evidence is
 `/tmp/puni-codec-proof-{numeric-code,missing-code,project-metadata,row-metadata,step-metadata,observation-presence,observation-identity,algorithm,absence}.log`.
-Adjacent production `Proof:` comments identify these observed omissions. These
-mounted SQL-injected historical records prove read/compare rejection; they do
-not prove production connected save/current lifecycle, which remains dormant.
+Adjacent production `Proof:` comments identify these observed omissions. The
+healthy mounted SQL-injected historical records prove direct-read and both-side
+comparison rejection; the watched mutations prove direct-read guard
+breakability. They do not prove production connected save/current lifecycle,
+which remains dormant.
 
 Full host gate, CI secrets/migration checks, connected writer/current activation,
 immutable lifecycle and rendered provenance are unrun for this prerequisite.
