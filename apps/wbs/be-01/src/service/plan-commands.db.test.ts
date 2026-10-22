@@ -14,8 +14,8 @@ import {
 import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import {
   type AppliedCommand,
-  type BatchOutcome,
   type BatchRefusal,
+  type ScopedBatchOutcome,
 } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { PriorityBandService } from '@wbs/core/module/priority-band/priority-band.resource';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
@@ -25,6 +25,7 @@ import {
   type WorkItemServiceOptions,
 } from '@wbs/core/module/work-item/work-item.resource';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import {
   DEFAULT_PRIORITY_BANDS,
   ORDINARY_BAND_RANK,
@@ -210,6 +211,7 @@ beforeEach(async () => {
     }),
   });
   runnerOptions = {
+    commandAccess: localCommandAccess,
     // The batch's graph, built over whichever collector the runner hands in —
     // which is what makes these services' announcements the batch's own.
     batchServices: (_scope, collector) => servicesWith(relayTo(collector), collector),
@@ -238,11 +240,11 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const run = (commands: PlanCommand[]): Promise<BatchOutcome> =>
+const run = (commands: PlanCommand[]): Promise<ScopedBatchOutcome> =>
   runner.run(projectId, ownerId, commands);
 
-function applied(outcome: BatchOutcome): Map<string, string> {
-  if (!outcome.ok) throw new Error(`refused at ${String(outcome.at)}: ${outcome.reason}`);
+function applied(outcome: ScopedBatchOutcome): Map<string, string> {
+  if (!outcome.ok) throw new Error(`refused: ${JSON.stringify(outcome)}`);
   return new Map(
     outcome.results.flatMap((each) =>
       each.ref !== undefined && each.id !== undefined ? [[each.ref, each.id]] : [],
@@ -332,7 +334,7 @@ describe('a command batch', () => {
         days,
       },
     ]);
-    if (!outcome.ok) throw new Error(`batch refused: ${outcome.reason}`);
+    if (!outcome.ok) throw new Error(`batch refused: ${JSON.stringify(outcome)}`);
     const named = (await workItemStore.listByProject(projectId)).find(
       (row) => row.name === 'Named by the store',
     );
@@ -429,13 +431,13 @@ describe('a command batch', () => {
     expect(await planEvents.listFor(projectId, {})).toHaveLength(1);
 
     const undone = await runner.undo(projectId, ownerId);
-    if (!undone.ok) throw new Error(`undo refused: ${undone.reason} ${undone.detail ?? ''}`);
+    if (!undone.ok) throw new Error(`undo refused: ${JSON.stringify(undone)}`);
     expect(await names()).toEqual([]);
     expect(await estimateStore.listByProject(projectId)).toHaveLength(0);
     expect(await dependencyStore.listByProject(projectId)).toHaveLength(0);
 
     const redone = await runner.redo(projectId, ownerId);
-    if (!redone.ok) throw new Error(`redo refused: ${redone.reason} ${redone.detail ?? ''}`);
+    if (!redone.ok) throw new Error(`redo refused: ${JSON.stringify(redone)}`);
     expect(await names()).toEqual(['Paint', 'Sand', 'Strip']);
   });
 
@@ -495,6 +497,7 @@ describe('a command batch', () => {
 
     const undone = await runner.undo(projectId, ownerId);
     expect(undone.ok).toBe(false);
+    if ('refusal' in undone || 'error' in undone) throw new Error(JSON.stringify(undone));
     if (undone.ok) throw new Error('an undo naming a missing step was accepted');
     expect(undone.reason).toBe('stale_undo');
     expect(undone.detail).toBe('that step is no longer in this project.');
@@ -565,7 +568,7 @@ describe('a command batch', () => {
     );
     expect(refs.has('checkout')).toBe(true);
     const undone = await runner.undo(projectId, ownerId);
-    if (!undone.ok) throw new Error(`undo refused: ${undone.reason}`);
+    if (!undone.ok) throw new Error(`undo refused: ${JSON.stringify(undone)}`);
     expect(await names()).toEqual([]);
     expect((await directoryStore.listServices()).map((each) => each.name)).toEqual(['Checkout']);
   });
@@ -575,7 +578,7 @@ describe('a command batch', () => {
     // `taken` by the surviving name; both ride on the batch result rather than
     // costing a second read.
     const outcome = await run([{ kind: 'createTag', ref: 't', name: 'regulatory' }]);
-    if (!outcome.ok) throw new Error(outcome.reason);
+    if (!outcome.ok) throw new Error(JSON.stringify(outcome));
     expect(outcome.results[0]?.entity).toMatchObject({ name: 'regulatory' });
     const tagId = outcome.results[0]?.id;
     if (tagId === undefined) throw new Error('no tag id');
@@ -597,7 +600,7 @@ describe('a command batch', () => {
       { kind: 'createTeam', ref: 'platform', name: 'Platform' },
       { kind: 'createPerson', ref: 'kat', name: 'Kat', teamRefs: ['platform'] },
     ]);
-    if (!outcome.ok) throw new Error(outcome.reason);
+    if (!outcome.ok) throw new Error(JSON.stringify(outcome));
     expect(outcome.results.map((each) => each.ref)).toEqual(['platform', 'kat']);
     expect((await directoryStore.listTeams()).map((each) => each.name)).toEqual(['Platform']);
     expect(await journal()).toHaveLength(0);
@@ -654,7 +657,7 @@ describe('a command batch', () => {
       { kind: 'createWorkItemType', name: 'spike' },
       { kind: 'createPerson', ref: 'kat', name: 'Kat', teamRefs: ['platform'] },
     ]);
-    if (!outcome.ok) throw new Error(outcome.reason);
+    if (!outcome.ok) throw new Error(JSON.stringify(outcome));
 
     const authorOf = async (
       rows: Promise<{ createdBy: string | null }[]>,
@@ -935,7 +938,7 @@ it('retains producer kinds and create-versus-patch entity requirements internall
     { kind: 'createPerson', ref: 'person', name: 'Ada' },
     { kind: 'patchPerson', personRef: 'person', patch: { teamIds: [] } },
   ]);
-  if (!outcome.ok) throw new Error(outcome.reason);
+  if (!outcome.ok) throw new Error(JSON.stringify(outcome));
   expect(outcome.results.map((entry) => entry.kind)).toEqual([
     'createTeam',
     'patchTeam',

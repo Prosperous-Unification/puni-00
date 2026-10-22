@@ -10,6 +10,7 @@ import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
 import type { PlanCommand } from '../../service/plan-command';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -43,6 +44,7 @@ function runnerOver(
   ) => compose(scope.stores, broadcast),
 ): PlanCommandRunner {
   return createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow,
     announcements: silentBroadcaster(),
     publicServices: publicGraph,
@@ -276,6 +278,7 @@ describe('working plan batch ownership', () => {
       await announceTreeNow(announcedProjectId);
     };
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -353,6 +356,7 @@ describe('working plan command before-images', () => {
 
       const observedTagSets: string[][] = [];
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -840,6 +844,7 @@ describe('working plan subtree mutations through runner commands', () => {
         });
       const publicGraph = composeBatch(source.stores, direct);
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -1248,6 +1253,7 @@ describe('working plan value mutations through runner commands', () => {
         });
       const admitted = captureAdmittedStores(source.uow);
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: admitted.uow,
         announcements: direct,
         publicServices: publicGraph,

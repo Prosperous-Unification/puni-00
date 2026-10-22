@@ -12,6 +12,7 @@ import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 
 import type { CalendarMarkerService } from '../module/calendar-marker/calendar-marker.resource';
 import type { DirectoryService } from '../module/directory/directory.resource';
+import type { admittedWrites } from '../module/plan-commands/admitted-write';
 import { installPlanDocument } from '../module/plan-document/check';
 import type { ProjectService } from '../module/project/project.resource';
 import type { WorkItemService } from '../module/work-item/work-item.resource';
@@ -139,8 +140,8 @@ function projectPageQueryOf(query: PageQueryInput, url: URL) {
 export function projectRoutes(
   projects: Pick<
     ProjectService,
-    'authorizeRetry' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin' | 'updateWithin'
-  >,
+    'authorizeRetry' | 'createWithin' | 'listWithin' | 'openWithin' | 'readWithin'
+  > & { updateWithin: ReturnType<typeof admittedWrites>['updateProjectWithin'] },
   organizations: OrganizationAccess,
   workItems: WorkItemService,
   directory: DirectoryService,
@@ -326,7 +327,9 @@ export function projectRoutes(
       async ({ params, body, principal }): Promise<HttpReply<typeof patchProject>> => {
         const resolved = await organizations.resolve(principal);
         if (!resolved.ok) return organizationRefusal(resolved);
-        const outcome = await projects.updateWithin(params.id, principal.id, body, resolved.access);
+        const outcome = await projects.updateWithin(params.id, principal, body, resolved.access);
+        if ('refusal' in outcome) return organizationRefusal(outcome);
+        if ('error' in outcome) return { ok: false, status: 403, body: { error: outcome.error } };
         if (outcome.ok) return { ok: true, status: 200, body: { project: outcome.value } };
         switch (outcome.reason) {
           case 'not_found':

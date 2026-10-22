@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { buildOidcVerifier, oidcCredentialEvidence, type TokenVerifier } from '@wbs/auth';
+import type { AuthenticatedUser } from '@wbs/contracts';
 import {
   type CapacityModeSwitch,
+  clockOf,
   CREATOR_ADMISSION,
   type DomainResolver,
   type EmailMessage,
@@ -14,6 +16,7 @@ import {
 import { CalendarMarkerService } from '@wbs/core/module/calendar-marker/calendar-marker.resource';
 import { DirectoryService } from '@wbs/core/module/directory/directory.resource';
 import { createAdmittedWrites } from '@wbs/core/module/plan-commands/composition';
+import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
@@ -44,6 +47,7 @@ import {
   SharedPeopleRestoreApprovalRepository,
   SpaceRepository,
   SqliteBrowserCredentialRevocations,
+  SqliteCommandAccess,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
@@ -197,6 +201,11 @@ export class OrganizationHarness {
     private readonly optimizerCoordinator?: OptimizationCoordinator,
     private readonly savedPlanCapture?: SavedPlanCaptureStore,
     private readonly composedSource?: SqliteSource,
+    private readonly composedCommands?: PlanCommandRunner,
+    private readonly commandPrincipal?: (
+      token: string,
+      cookie: string,
+    ) => Promise<AuthenticatedUser>,
   ) {}
 
   /** Drains async optimizer work and closes both SQLite connections in order. */
@@ -267,6 +276,19 @@ export class OrganizationHarness {
   removeBareStep(...args: Parameters<ReturnType<typeof createAdmittedWrites>['removeStepWithin']>) {
     if (this.bareRemoveStep === undefined) throw new Error('composed bare step removal is absent');
     return this.bareRemoveStep(...args);
+  }
+
+  /** Original authenticated request evidence for direct runner boundary tests. */
+  authenticatedCommandPrincipal(username: string, cookie: string): Promise<AuthenticatedUser> {
+    if (this.commandPrincipal === undefined)
+      throw new Error('composed command principal fixture is absent');
+    return this.commandPrincipal(this.token(username), cookie);
+  }
+
+  /** The actual core runner installed beside the mounted HTTP runner. */
+  publicCommands(): PlanCommandRunner {
+    if (this.composedCommands === undefined) throw new Error('composed commands are absent');
+    return this.composedCommands;
   }
 
   /** Runs the composed background edit admission in integration tests. */
@@ -580,6 +602,7 @@ export class OrganizationHarness {
    * extending the positional list.
    */
   static openComposedWith({
+    now,
     withOptimizer = false,
     afterResolve,
     spawn = () => new Promise<never>(() => undefined),
@@ -610,8 +633,27 @@ export class OrganizationHarness {
       onBorrowedUnitOfWork,
     });
     const bound = new Map<string, string>();
+    const clock = clockOf({ now: now ?? (() => Date.now()), newId: () => crypto.randomUUID() });
+    const selection =
+      sessionBinding === true
+        ? organizationSelection(
+            new SqliteOrganizationSelection(source.db),
+            organizationCookieBinding(TEST_JWT_KEY, () => clock.now()),
+            new SqliteBrowserCredentialRevocations(source.db, source.gate),
+            (principal, organizationId) => organizationAccess.admitTo(principal, organizationId),
+          )
+        : undefined;
+    const organizationAccess: SqliteOrganizationAccess = new SqliteOrganizationAccess(
+      source.db,
+      selection?.activeOrganizationOf ??
+        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
+      () => clock.now(),
+    );
+    const commandAccess = new SqliteCommandAccess(source.db, organizationAccess);
     const services = buildServices({
       source,
+      clock,
+      commandAccess,
       logger: createLogger({ service: 'be-01' }),
       jwtKey: TEST_JWT_KEY,
       gwUrl: 'http://gw.invalid',
@@ -642,21 +684,6 @@ export class OrganizationHarness {
           }
         : {}),
     });
-    const selection =
-      sessionBinding === true
-        ? organizationSelection(
-            new SqliteOrganizationSelection(source.db),
-            organizationCookieBinding(TEST_JWT_KEY),
-            new SqliteBrowserCredentialRevocations(source.db, services.gate),
-            (principal, organizationId) => organizationAccess.admitTo(principal, organizationId),
-          )
-        : undefined;
-    const organizationAccess: SqliteOrganizationAccess = new SqliteOrganizationAccess(
-      source.db,
-      selection?.activeOrganizationOf ??
-        userBoundOrganizationOf((userId) => Promise.resolve(bound.get(userId) ?? null)),
-      () => services.clock.now(),
-    );
     const app = buildApp({
       projectAddressSearch: new ProjectAddressSearch(
         new ProjectAddressSearchRepository({
@@ -735,6 +762,7 @@ export class OrganizationHarness {
       replay: services.replay,
       probeDatabase: () => 'ok',
       writes: {
+        commandAccess,
         imports: services.imports,
         uow: services.uow,
         batch: services.batch,
@@ -772,6 +800,7 @@ export class OrganizationHarness {
       services.optimizer?.inputChanged.bind(services.optimizer),
       services.optimizer?.start.bind(services.optimizer),
       createAdmittedWrites({
+        commandAccess,
         uow: services.uow,
         batch: services.batch,
         announcements: services.announcements,
@@ -783,6 +812,25 @@ export class OrganizationHarness {
       services.optimizer,
       source.history.savedPlanCapture,
       source,
+      services.commands,
+      async (token, cookie) => {
+        const principal = await services.auth.authenticate(token);
+        if (principal === null) throw new Error('command fixture token did not authenticate');
+        const credential = await organizationCredentialEvidence(services.auth, TEST_JWT_KEY)(
+          token,
+          principal,
+        );
+        if (credential === null)
+          throw new Error('command fixture token has no verified browser evidence');
+        return {
+          ...principal,
+          organizationBinding: { credential, cookie },
+          organizationOperation: {
+            kind: 'mutation',
+            expected: { kind: 'present', organizationId: 'org-a' },
+          },
+        };
+      },
     );
     harness.federated = provider !== undefined;
     return harness;
@@ -964,6 +1012,7 @@ export class OrganizationHarness {
 
 /** Named options for {@link OrganizationHarness.openComposedWith}. */
 export interface ComposedHarnessOptions {
+  readonly now?: () => number;
   readonly sessionBinding?: boolean;
   withOptimizer?: boolean;
   /** Runs after organization access resolves, before the route acts. */

@@ -1,5 +1,6 @@
 import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
+import type { CommandAccess } from '../../ports/command-access';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
@@ -104,6 +105,7 @@ export interface OpenCommandGraph {
 
 /** Repository-free operations available to a command act. */
 export interface CommandAdmission {
+  resolveAccess: CommandAccess['resolve'];
   refuseOutsideScope: AdmittedScope['refuseOutsideScope'];
   listCrossReferenceKinds: AdmittedScope['listCrossReferenceKinds'];
   openCommandGraph(
@@ -115,7 +117,7 @@ export interface CommandAdmission {
 
 /** The sole repair operation a failed replay needs over surviving state. */
 export interface CommandRepair {
-  discardEntry(entryId: string, broadcast: Broadcaster): Promise<void>;
+  discardEntry(entryId: string): Promise<void>;
 }
 
 export type CommandDecision<T> =

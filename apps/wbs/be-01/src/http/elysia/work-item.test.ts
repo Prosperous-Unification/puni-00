@@ -1,4 +1,5 @@
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { expect, spyOn, test } from 'bun:test';
 
 import { workItemRoutes } from '../../controller/work-item.routes';
@@ -13,6 +14,7 @@ function fixture(readOnly = false) {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,

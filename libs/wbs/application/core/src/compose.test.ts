@@ -25,6 +25,7 @@ import type { Scope } from './ports/unit-of-work';
 import type { Decision } from './ports/unit-of-work';
 import { recordingBroadcaster } from './testing/broadcast-fixture';
 import { expectCreated } from './testing/expect-created';
+import { localCommandAccess } from './testing/organization-access-fixture';
 import { fastScheduler } from './testing/scheduler-fixture';
 
 function signal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
@@ -86,6 +87,7 @@ function fixture() {
   const clock = clockOf({ now: () => instant, newId: () => `id-${String(++nextId)}` });
   const pushed: unknown[] = [];
   const runtime: RuntimePorts = {
+    commandAccess: localCommandAccess,
     clock,
     digest: { sha256: (bytes) => Promise.resolve(`digest:${bytes}`) },
     timers: { nowMs: () => instant, schedule: () => () => undefined },
@@ -452,6 +454,7 @@ describe('composeServices', () => {
       return services;
     };
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       batchServices: observedGraph.batch,
       publicServices: graph,
       uow: graph.uow,

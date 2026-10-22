@@ -189,6 +189,7 @@ export * from './module/step/step.resource';
 export * from './module/work-item/work-item.resource';
 export * from './ports/chain-snapshot-store';
 export * from './ports/claim-store';
+export * from './ports/command-access';
 export * from './ports/demand-store';
 export * from './ports/project-address-search';
 export * from './ports/resource-capacity-store';

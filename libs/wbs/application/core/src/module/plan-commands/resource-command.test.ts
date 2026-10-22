@@ -14,6 +14,7 @@ import {
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -71,6 +72,7 @@ async function seeded() {
     pinnedPersonOf: () => Promise.resolve(null),
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
@@ -101,7 +103,7 @@ async function seeded() {
         unitLabel: 'env',
       },
     ]);
-    if (!answer.ok) throw new Error(`resources were refused: ${answer.reason}`);
+    if (!answer.ok) throw new Error(`resources were refused: ${JSON.stringify(answer)}`);
     const [ram, stage] = answer.results.map(({ id }) => id);
     if (ram === undefined || stage === undefined) throw new Error('resources minted no ids');
     return { ram, stage };

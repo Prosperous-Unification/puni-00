@@ -9,6 +9,7 @@ import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composit
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { canonicalScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
@@ -117,6 +118,7 @@ async function seeded(store: (typeof STORES)[number]) {
     if (!added.ok) throw new Error(`resource ${resource.id} was refused`);
   }
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,
@@ -458,7 +460,7 @@ for (const store of STORES) {
         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
         const redone = await runner.redo(projectId, F);
         expect(redone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(redone.ok ? null : redone.detail).toBe(
+        expect(redone.ok || !('detail' in redone) ? null : redone.detail).toBe(
           'resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.',
         );
         expect(await occupied(RAM)).toBe(4);
@@ -533,7 +535,9 @@ for (const store of STORES) {
         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toStartWith('resources_exhausted:');
+        expect(undone.ok || !('detail' in undone) ? null : undone.detail).toStartWith(
+          'resources_exhausted:',
+        );
         expect(await occupied(RAM)).toBe(4);
       } finally {
         await close();
@@ -902,7 +906,7 @@ for (const store of STORES) {
         ).toMatchObject({ ok: true });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'a resource it demanded is no longer in the directory.',
         );
         const rows = await source.stores.workItems.listByProject(projectId);
@@ -1001,7 +1005,7 @@ for (const store of STORES) {
         expect(await run([claim(1, 'g0')], G)).toMatchObject({ ok: true });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'resources_exhausted: that needs 4 GB of “h2puni ram” and 0 are free now.',
         );
         const rows = await source.stores.workItems.listByProject(projectId);
@@ -1128,7 +1132,7 @@ for (const store of STORES) {
           kind: 'deleteWorkItem',
           reason: 'children_claimed',
         });
-        if (refused.ok || refused.reason !== 'children_claimed')
+        if (refused.ok || !('reason' in refused) || refused.reason !== 'children_claimed')
           throw new Error(
             `the delete was not refused children_claimed: ${JSON.stringify(refused)}`,
           );
@@ -1170,7 +1174,7 @@ for (const store of STORES) {
         const held = await source.stores.claims.listByProject(projectId);
         const refused = await run([{ kind: 'deleteWorkItem', workItemId: x }]);
         expect(refused).toMatchObject({ ok: false, reason: 'children_claimed' });
-        if (refused.ok || refused.reason !== 'children_claimed')
+        if (refused.ok || !('reason' in refused) || refused.reason !== 'children_claimed')
           throw new Error(
             `the delete was not refused children_claimed: ${JSON.stringify(refused)}`,
           );
@@ -1215,7 +1219,7 @@ for (const store of STORES) {
         await source.stores.claims.remove(held, [], { at: 9, by: G });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'the claim it was delegated under has been released since.',
         );
         const rows = await source.stores.workItems.listByProject(projectId);
@@ -1234,7 +1238,7 @@ for (const store of STORES) {
         expect(await graph.steps.remove(projectId, review, F, true)).toMatchObject({ ok: true });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           `step ${review} has been removed from this project since.`,
         );
         const rows = await source.stores.workItems.listByProject(projectId);
@@ -1254,7 +1258,7 @@ for (const store of STORES) {
         expect(removed).toMatchObject({ ok: true });
         const undone = await runner.undo(projectId, F);
         expect(undone).toMatchObject({ ok: false, reason: 'stale_undo' });
-        expect(undone.ok ? null : undone.detail).toBe(
+        expect(undone.ok || !('detail' in undone) ? null : undone.detail).toBe(
           'a person who held it is no longer in the directory.',
         );
         const rows = await source.stores.workItems.listByProject(projectId);

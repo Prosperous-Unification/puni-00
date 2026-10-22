@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { clockOf, type OptimizationVariantState, type ProjectEvent } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { type CapacityMode, contractVersionOf, schedule } from '@wbs/domain';
 import type { ScheduleInput } from '@wbs/domain/canonical-schedule-input';
 import { createLogger } from '@wbs/observability';
@@ -1523,6 +1524,8 @@ async function createSharedWorld(): Promise<SharedWorld> {
   };
   let pid = 9000;
   const services = buildServices({
+    commandAccess: localCommandAccess,
+    clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
     source: installed,
     logger: createLogger({ service: 'be-01', destination: { write: () => undefined } }),
     jwtKey: 'k'.repeat(32),

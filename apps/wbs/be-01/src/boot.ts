@@ -1,5 +1,5 @@
 import { buildOidcVerifier, oidcCredentialEvidence } from '@wbs/auth';
-import type { DelegationIssuer } from '@wbs/core';
+import { clockOf, type DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { Logger } from '@wbs/observability';
@@ -23,6 +23,7 @@ import {
   SpaceRepository,
   SqliteBrowserAuthLifecycle,
   SqliteBrowserCredentialRevocations,
+  SqliteCommandAccess,
   SqliteDelegationUse,
   SqliteOrganizationAccess,
   SqliteOrganizationSelection,
@@ -133,12 +134,11 @@ export interface BootOptions {
  */
 function browserComposition(
   opts: BootOptions,
-  services: BeServices,
+  services: Pick<BeServices, 'clock' | 'gate'>,
   db: ReturnType<typeof openSqliteSource>['db'],
-): Pick<
-  AppOptions,
-  'oidc' | 'browserSession' | 'organizationSelection' | 'organizations' | 'projectAddressSearch'
-> {
+): Pick<AppOptions, 'oidc' | 'organizationSelection' | 'organizations' | 'projectAddressSearch'> & {
+  browserSession?: Omit<NonNullable<AppOptions['browserSession']>, 'verifyNativeBrowserCredential'>;
+} {
   // Proof: composing the authority whatever the setting failed `keeps the
   // legacy browser composition when disabled` and the native-logout 404 case
   // in boot-browser-session.db.test.ts (3 pass, 2 fail, 2026-10-11).
@@ -177,7 +177,7 @@ function browserComposition(
     new SqliteOrganizationSelection(db),
     // The native session key, under its own token type and audience, so a
     // selection cannot be presented as an access token or the reverse.
-    organizationCookieBinding(opts.jwtKey),
+    organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
     // Proof: a lookup that never answers revoked let the old access and
     // organization cookie pair list projects after its logout committed
     // (`refuses the whole old token…`, 4 pass, 1 fail, 2026-10-11).
@@ -197,7 +197,6 @@ function browserComposition(
       tokens: oidc?.tokens,
       revokeProvider: oidc?.client.revoke,
       revocations,
-      verifyNativeBrowserCredential: nativeBrowserCredentialEvidence(services.auth, opts.jwtKey),
     },
     organizationSelection: selection.endpoints,
     // Proof: keeping NO_BOUND_ORGANIZATION here refused the freshly selected
@@ -210,7 +209,7 @@ function browserComposition(
         activeOrganizationOf: (snapshot) =>
           organizationSelection(
             new SqliteOrganizationSelection(snapshot),
-            organizationCookieBinding(opts.jwtKey),
+            organizationCookieBinding(opts.jwtKey, () => services.clock.now()),
             new SqliteBrowserCredentialRevocations(snapshot, OPEN),
             (principal, organizationId) =>
               new SqliteOrganizationAccess(snapshot, NO_BOUND_ORGANIZATION, () =>
@@ -350,6 +349,7 @@ export async function bootBe01(
           opts.organizationDnsResolvers,
           dependencies.dnsTransport ?? new SocketDnsTransport(),
         );
+  const clock = clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() });
   const state = { migrationsApplied: false, stopping: false };
   // Proof: replacing this with disabled delivery failed the combined boot submission after a real proof sweep.
   const emailDelivery = createEmailDelivery(opts.emailDelivery ?? { kind: 'disabled' });
@@ -368,10 +368,23 @@ export async function bootBe01(
         // error: expected `DiBagCleanupError`, received `undefined`.
         disposeService: (source) => source.close(),
       }),
+      browser: DiBag.createProvider(
+        ({ source }: { source: OwnedSource }) =>
+          browserComposition(opts, { clock, gate: source.gate }, source.db),
+        { factoryReturnKind: 'sync-value' },
+      ),
       services: DiBag.createProvider(
-        ({ source }: { source: OwnedSource }): BeServices =>
+        ({
+          source,
+          browser,
+        }: {
+          source: OwnedSource;
+          browser: ReturnType<typeof browserComposition>;
+        }): BeServices =>
           buildServices({
             source,
+            clock,
+            commandAccess: new SqliteCommandAccess(source.db, browser.organizations),
             logger: opts.logger,
             jwtKey: opts.jwtKey,
             gwUrl: opts.gwUrl,
@@ -415,10 +428,12 @@ export async function bootBe01(
             {
               source,
               services,
+              browser,
               retention: _retention,
             }: {
               source: OwnedSource;
               services: BeServices;
+              browser: ReturnType<typeof browserComposition>;
               // Read for its edge, not its value: it is what puts the timer's
               // disposer after the listener's. Drop it and the timer is never
               // started at all.
@@ -432,7 +447,7 @@ export async function bootBe01(
             // Proof: removing this resolver binding made the activated
             // `immediate configured sweep` fail instead of recording DNS absence.
             const domains = new DomainClaimRepository(db, services.gate, undefined, domainResolver);
-            const browser = browserComposition(opts, services, db);
+
             const app = (dependencies.makeApp ?? buildApp)({
               appOrigin: opts.appOrigin,
               clock: services.clock,
@@ -452,6 +467,16 @@ export async function bootBe01(
               // 13 filtered).
               loginThrottle: services.loginThrottle,
               ...browser,
+              browserSession:
+                browser.browserSession === undefined
+                  ? undefined
+                  : {
+                      ...browser.browserSession,
+                      verifyNativeBrowserCredential: nativeBrowserCredentialEvidence(
+                        services.auth,
+                        opts.jwtKey,
+                      ),
+                    },
               projects: services.projects,
               memberships: new OrganizationRepository(db, services.gate),
               sharedPeopleRestoreApprovals: new SharedPeopleRestoreApprovalRepository(
@@ -497,6 +522,7 @@ export async function bootBe01(
               replay: services.replay,
               probeDatabase: () => probeSchema(db),
               writes: {
+                commandAccess: services.commandAccess,
                 imports: services.imports,
                 uow: services.uow,
                 // The batch's own services, over stores that hold no turn: the

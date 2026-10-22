@@ -7,10 +7,12 @@ import { revalidateSolverResult } from '@wbs/contracts/solver/revalidate-solver-
 import { evaluateSolverOutcome } from '@wbs/contracts/solver/solver-exit-outcome';
 import { buildSolverRequestPair } from '@wbs/contracts/solver/solver-request-pair';
 import type { EditAdmission } from '@wbs/core';
+import { clockOf } from '@wbs/core';
 import { subscriptionFor } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import { SavedPlanService } from '@wbs/core/service/saved-plan.service';
 import { compareSharedPeopleFanout } from '@wbs/core/service/shared-people-fanout';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { contractVersionOf, schedule, sliceKey } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import { openSqliteSource, type SqliteSource } from '@wbs/store-sqlite';
@@ -146,6 +148,8 @@ function bootstrap(
       }
     : source;
   const services = buildServices({
+    commandAccess: localCommandAccess,
+    clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
     source: installedSource,
     logger: createLogger({
       service: 'be-01',
@@ -6830,6 +6834,7 @@ describe('buildServices', () => {
         entered = resolve;
       });
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: services.uow,
         publicServices: services,
         announcements: services.announcements,
@@ -6863,17 +6868,47 @@ describe('buildServices', () => {
         days: { optimistic: 3, realistic: 3, pessimistic: 3 },
       };
       if (direction !== 'execute') {
-        expect((await runner.runWithin(upstream, ownerId, [command], access, null)).ok).toBe(true);
+        expect(
+          (
+            await runner.runWithin(
+              upstream,
+              { id: ownerId, username: ownerId, scopes: ['write'] },
+              [command],
+              access,
+            )
+          ).ok,
+        ).toBe(true);
         if (direction === 'redo')
-          expect((await runner.undoWithin(upstream, ownerId, access)).ok).toBe(true);
+          expect(
+            (
+              await runner.undoWithin(
+                upstream,
+                { id: ownerId, username: ownerId, scopes: ['write'] },
+                access,
+              )
+            ).ok,
+          ).toBe(true);
       }
       hold = true;
       const pending =
         direction === 'execute'
-          ? runner.runWithin(upstream, ownerId, [command], access, null)
+          ? runner.runWithin(
+              upstream,
+              { id: ownerId, username: ownerId, scopes: ['write'] },
+              [command],
+              access,
+            )
           : direction === 'undo'
-            ? runner.undoWithin(upstream, ownerId, access)
-            : runner.redoWithin(upstream, ownerId, access);
+            ? runner.undoWithin(
+                upstream,
+                { id: ownerId, username: ownerId, scopes: ['write'] },
+                access,
+              )
+            : runner.redoWithin(
+                upstream,
+                { id: ownerId, username: ownerId, scopes: ['write'] },
+                access,
+              );
       await deliveryEntered;
       try {
         // Proof: awaiting post-commit delivery before runner.finally expired the
@@ -7223,6 +7258,7 @@ describe('buildServices', () => {
       { at: 1, by: ownerId },
     );
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       batchServices: services.batch,
       publicServices: services,
       uow: services.uow,
@@ -7474,6 +7510,8 @@ describe('shared-person replay closure (6l)', () => {
     const source = openSqliteSource({ dbPath: path });
     sources.push(source);
     return buildServices({
+      commandAccess: localCommandAccess,
+      clock: clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() }),
       source,
       logger: createLogger({ service: 'be-01' }),
       jwtKey: 'k'.repeat(32),

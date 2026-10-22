@@ -9,6 +9,7 @@ import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composit
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { openMemorySourceFixture } from '@wbs/store-memory/source';
 import { describe, expect, it } from 'bun:test';
@@ -98,6 +99,7 @@ async function seeded(store: (typeof STORES)[number]) {
   if (!bound.ok) throw new Error(`binding claire was refused: ${bound.reason}`);
   await source.stores.directory.addTeam({ id: 'platform', name: 'Platform' }, { at: 1, by: F });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,

@@ -1,4 +1,4 @@
-import { type AuthenticatedUser, credentialPairOf } from '@wbs/contracts';
+import { type AuthenticatedUser } from '@wbs/contracts';
 
 import type { ResourceAccess } from '../../ports/organization-access';
 import type { PlanCommand } from '../../service/plan-command';
@@ -31,14 +31,8 @@ export function runCommandBatch(
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }
   return input.projectId === null
-    ? graph.runDirectoryWithin(input.actor.id, input.commands, input.access)
-    : graph.runWithin(
-        input.projectId,
-        input.actor.id,
-        input.commands,
-        input.access,
-        credentialPairOf(input.actor.authentication),
-      );
+    ? graph.runDirectoryWithin(input.actor, input.commands, input.access)
+    : graph.runWithin(input.projectId, input.actor, input.commands, input.access);
 }
 
 /**
@@ -56,12 +50,5 @@ export function runCommandBatchAfter<R>(
   if (!input.actor.scopes.includes('write')) {
     return Promise.resolve({ ok: false, error: 'insufficient_scope' });
   }
-  return graph.runAfterWithin(
-    input.projectId,
-    input.actor.id,
-    prelude,
-    input.commands,
-    input.access,
-    credentialPairOf(input.actor.authentication),
-  );
+  return graph.runAfterWithin(input.projectId, input.actor, prelude, input.commands, input.access);
 }

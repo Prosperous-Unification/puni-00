@@ -2,6 +2,7 @@ import { expect, spyOn, test } from 'bun:test';
 
 import { createPlanCommandRunner } from '../module/plan-commands/composition';
 import { inMemoryServices } from '../testing/harness';
+import { localCommandAccess } from '../testing/organization-access-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
 import { batchServices, testWrites } from '../testing/writes-fixture';
 import { workItemRoutes } from './work-item.routes';
@@ -10,6 +11,7 @@ function fixture() {
   const plan = inMemoryServices();
   const writes = testWrites(undefined, batchServices(plan));
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: writes.batch,
     publicServices: batchServices(plan),
     uow: writes.uow,
@@ -48,6 +50,6 @@ test('typed undo and redo preserve actor and details without exposing journal en
         request: { method: 'POST', url: new URL('http://localhost'), headers: new Headers() },
       }),
     ).toEqual({ ok: true, status: 200, body: { done: 'Undo change', detail: 'Work' } });
-    expect(call).toHaveBeenCalledWith('p', 'owner', { kind: 'legacy' });
+    expect(call).toHaveBeenCalledWith('p', expect.objectContaining(actor), { kind: 'legacy' });
   }
 });

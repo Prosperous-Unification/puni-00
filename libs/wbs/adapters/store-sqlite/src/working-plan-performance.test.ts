@@ -19,6 +19,7 @@ import {
   createPlanCommandRunner,
   type PlanCommandsSource,
 } from '@wbs/core/module/plan-commands/composition';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -273,6 +274,7 @@ async function performanceFixture(name: string): Promise<PerformanceFixture> {
     runner(mode) {
       const admitted = countedUnitOfWork(source.uow, counts);
       const options: PlanCommandsSource = {
+        commandAccess: localCommandAccess,
         uow: admitted.uow,
         announcements: silentBroadcaster,
         publicServices: compose(source.stores, silentBroadcaster),

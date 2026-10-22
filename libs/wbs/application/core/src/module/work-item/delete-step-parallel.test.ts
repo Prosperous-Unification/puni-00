@@ -10,6 +10,7 @@ import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from '../plan-commands/composition';
@@ -303,6 +304,7 @@ it('reads admitted sparse deletion evidence and rolls a preceding patch and jour
   const graph = servicesOver(fixture.stores, fixture.requirements);
   const before = await fixture.snapshot();
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: {
       run: (act) =>
         fixture.source.uow.run(async (scope) => {

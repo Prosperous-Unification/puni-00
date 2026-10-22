@@ -1,6 +1,8 @@
+import type { CommandAccess, CommandCaller } from '../../ports/command-access';
 import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { CapturedFanout } from '../../ports/fanout-capture-store';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from '../../ports/fanout-capture-store';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope, UnitOfWork } from '../../ports/unit-of-work';
 import {
@@ -15,17 +17,21 @@ import {
   type CommandRepair,
   type CommandTransaction,
 } from './admitted-scope.resource';
+import type { AdmittedWriteDecision } from './admitted-write';
 import {
   type AdmittedServices,
   admittedWrites,
   type AdmittedWriteTransaction,
 } from './admitted-write';
 import type { PlanCommandServices } from './plan-command-graph';
+import type { AuthorityRefusal } from './plan-commands.feature';
 import { PlanCommandRunner } from './plan-commands.feature';
 import { createWorkingPlan } from './working-plan.resource';
 
 /** Source capabilities retained by composition, outside the runner's options. */
 export interface PlanCommandsSource {
+  /** Revalidates the original request evidence inside the admitted writer turn. */
+  commandAccess: CommandAccess;
   batchServices: AdmittedGraphFactory<PlanCommandServices>;
   publicServices: PlanCommandServices;
   uow: UnitOfWork;
@@ -36,6 +42,8 @@ export interface PlanCommandsSource {
 
 /** Raw route-write requirements accepted only at composition. */
 export interface AdmittedWriteSource {
+  /** Revalidates the original request evidence inside the admitted writer turn. */
+  commandAccess: CommandAccess;
   uow: UnitOfWork;
   batch: (
     scope: Scope,
@@ -51,6 +59,7 @@ export interface AdmittedWriteSource {
 export function commandTransaction(
   uow: UnitOfWork,
   factory: AdmittedGraphFactory<PlanCommandServices>,
+  commandAccess: CommandAccess,
   committedFanout?: CommittedFanoutDelivery,
 ): CommandTransaction {
   return {
@@ -63,6 +72,7 @@ export function commandTransaction(
           organizationId: null,
         };
         const resources: CommandAdmission = {
+          resolveAccess: (caller) => commandAccess.resolve(caller),
           refuseOutsideScope: async (...args) => {
             const refusal = await scope.refuseOutsideScope(...args);
             if (refusal !== null) return refusal;
@@ -126,8 +136,9 @@ export function commandTransaction(
           value: decision.value,
           afterRollback: async (repairScope: Scope) => {
             const repair: CommandRepair = {
-              discardEntry: async (entryId, broadcast) => {
-                await factory(repairScope, broadcast, NO_ADMISSION).workItems.discardEntry(entryId);
+              discardEntry: async (entryId) => {
+                // Proof: omitting this discard made the next undo remain stale instead of nothing_to_undo (compose.test.ts).
+                await repairScope.stores.journal.discard(entryId);
               },
             };
             await decision.afterRollback?.(repair);
@@ -149,9 +160,19 @@ export function commandTransaction(
 /** Composition fixes NO_ADMISSION before a route-write feature sees its graph. */
 export function createAdmittedWrites(source: AdmittedWriteSource) {
   const transaction: AdmittedWriteTransaction = {
-    run: async (broadcast, act) => {
+    run: async <T>(
+      caller: CommandCaller,
+      broadcast: Broadcaster,
+      act: (
+        services: AdmittedServices,
+        access: ResourceAccess,
+      ) => Promise<AdmittedWriteDecision<T>>,
+    ) => {
       let committed: readonly CommittedProjectEvent[] = [];
-      const value = await source.uow.run(async (scope) => {
+      const value = await source.uow.run<T | AuthorityRefusal>(async (scope) => {
+        // Proof: using request access instead returned 200 for queued project revocation in the mounted current-authority matrix.
+        const resolved = await source.commandAccess.resolve(caller);
+        if (!resolved.ok) return { commit: false, value: resolved };
         const captureState: { before: CapturedFanout | null; organizationId: string | null } = {
           before: null,
           organizationId: null,
@@ -202,6 +223,7 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
         // fan-out receive 3/4 or 2/3 recipient rows; both faults were watched.
         const decision = await act(
           source.batch(scope, broadcast, NO_ADMISSION, beforeProjectUpdate, beforeStepRemoval),
+          resolved.access,
         );
         if (
           decision.commit &&
@@ -237,7 +259,12 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
 
 export function createPlanCommandRunner(source: PlanCommandsSource): PlanCommandRunner {
   return new PlanCommandRunner({
-    transaction: commandTransaction(source.uow, source.batchServices, source.committedFanout),
+    transaction: commandTransaction(
+      source.uow,
+      source.batchServices,
+      source.commandAccess,
+      source.committedFanout,
+    ),
     publicServices: source.publicServices,
     announcements: source.announcements,
   });

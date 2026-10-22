@@ -1,7 +1,12 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
+
 import { AnnouncementCollector } from '../../ports/announcement-collector';
+import type { CommandCaller } from '../../ports/command-access';
+import type { ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectService } from '../project/project.resource';
 import type { StepService } from '../step/step.resource';
+import type { AuthorityRefusal } from './plan-commands.feature';
 
 /** The two route writes that validate the combined dependency graph before they write. */
 export interface AdmittedServices {
@@ -14,9 +19,10 @@ export type AdmittedWriteDecision<T> = { commit: true; value: T } | { commit: fa
 /** One admitted route write over a mapped graph, with no source capability. */
 export interface AdmittedWriteTransaction {
   run<T>(
+    caller: CommandCaller,
     broadcast: Broadcaster,
-    act: (services: AdmittedServices) => Promise<AdmittedWriteDecision<T>>,
-  ): Promise<T>;
+    act: (services: AdmittedServices, access: ResourceAccess) => Promise<AdmittedWriteDecision<T>>,
+  ): Promise<T | AuthorityRefusal>;
 }
 
 /** The mapped transaction and broadcaster supplied to the route-write feature. */
@@ -37,20 +43,41 @@ export interface AdmittedWriteOptions {
  */
 export function admittedWrites(options: AdmittedWriteOptions) {
   const admit = async <T extends { ok: boolean }>(
-    act: (graph: AdmittedServices) => Promise<T>,
-  ): Promise<T> => {
+    actor: AuthenticatedUser,
+    expectedAccess: ResourceAccess,
+    act: (graph: AdmittedServices, access: ResourceAccess) => Promise<T>,
+  ): Promise<T | AuthorityRefusal> => {
     const collector = new AnnouncementCollector(options.announcements);
-    const outcome = await options.transaction.run<T>(collector, async (graph) => {
-      const value = await act(graph);
-      return value.ok ? { commit: true, value } : { commit: false, value };
-    });
+    const outcome = await options.transaction.run<T>(
+      { kind: 'human', principal: actor, expectedAccess },
+      collector,
+      async (graph, access) => {
+        const value = await act(graph, access);
+        return value.ok ? { commit: true, value } : { commit: false, value };
+      },
+    );
     if (outcome.ok) await collector.send();
     return outcome;
   };
   return {
-    updateProjectWithin: (...args: Parameters<ProjectService['updateWithin']>) =>
-      admit((graph) => graph.projects.updateWithin(...args)),
-    removeStepWithin: (...args: Parameters<StepService['removeWithin']>) =>
-      admit((graph) => graph.steps.removeWithin(...args)),
+    updateProjectWithin: (
+      projectId: string,
+      actor: AuthenticatedUser,
+      patch: Parameters<ProjectService['updateWithin']>[2],
+      expectedAccess: ResourceAccess,
+    ) =>
+      admit(actor, expectedAccess, (graph, access) =>
+        graph.projects.updateWithin(projectId, actor.id, patch, access),
+      ),
+    removeStepWithin: (
+      projectId: string,
+      stepId: string,
+      actor: AuthenticatedUser,
+      cascade: boolean,
+      expectedAccess: ResourceAccess,
+    ) =>
+      admit(actor, expectedAccess, (graph, access) =>
+        graph.steps.removeWithin(projectId, stepId, actor.id, cascade, access),
+      ),
   };
 }

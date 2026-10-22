@@ -1,4 +1,5 @@
 import type { SessionFeatures } from '@wbs/contracts';
+import type { CommandAccess } from '@wbs/core';
 import type { StepParallelStore } from '@wbs/core';
 import type {
   Broadcaster,
@@ -309,6 +310,7 @@ export interface AppOptions {
    * ADR 0007 and ADR 0015.
    */
   writes: {
+    commandAccess: CommandAccess;
     /** The process's atomic archival plan importer over this same source admission boundary. */
     imports: Pick<ImportService, 'import'>;
     /**
@@ -414,6 +416,7 @@ export function mountedEndpoints(
     throw new Error('browser lifecycle composition disagrees with OIDC routes');
   const passwordThrottle = opts.loginThrottle;
   const commands = createPlanCommandRunner({
+    commandAccess: opts.writes.commandAccess,
     batchServices: opts.writes.batch,
     publicServices: {
       workItems: opts.workItems,
@@ -520,7 +523,7 @@ export function mountedEndpoints(
         findWithin: (...args) => opts.steps.findWithin(...args),
         renameWithin: (...args) => opts.steps.renameWithin(...args),
         patchUnitWithin: (...args) => opts.steps.patchUnitWithin(...args),
-        removeWithin: admitted.removeStepWithin,
+        removeWithin: (...args) => opts.steps.removeWithin(...args),
       },
       commands,
       opts.organizations,

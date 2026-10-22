@@ -7,6 +7,7 @@ import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { createPlanCommandRunner } from './composition';
 
@@ -55,6 +56,7 @@ async function seeded() {
   );
   if (!bound.ok) throw new Error('binding kat was refused');
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: options.broadcast,
     publicServices: graph,

@@ -7,7 +7,7 @@ import type { PlanCommand } from '@wbs/core';
 import { CalendarMarkerService } from '@wbs/core';
 import { CapacityService } from '@wbs/core';
 import { DirectoryService } from '@wbs/core';
-import { type BatchOutcome } from '@wbs/core';
+import { type ScopedBatchOutcome } from '@wbs/core';
 import { PriorityBandService } from '@wbs/core';
 import { ProjectService } from '@wbs/core';
 import { StepService } from '@wbs/core';
@@ -17,6 +17,7 @@ import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composit
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
@@ -217,6 +218,7 @@ beforeEach(async () => {
     }),
   });
   runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: (_scope, collector) => servicesWith(collector),
     publicServices: servicesWith(broadcast),
     uow: sqliteUnitOfWork(db, coordinator, {
@@ -270,7 +272,7 @@ const REFUSED_BATCH: PlanCommand[] = [
 
 describe('the write coordinator', () => {
   it('does not roll a route write back with a batch it never belonged to', async () => {
-    const batch: Promise<BatchOutcome> = runner.run(projectId, ownerId, REFUSED_BATCH);
+    const batch: Promise<ScopedBatchOutcome> = runner.run(projectId, ownerId, REFUSED_BATCH);
     await hold.reached;
 
     // Started while the batch holds the transaction open, and deliberately not

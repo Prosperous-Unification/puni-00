@@ -17,6 +17,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
 import { projectRow } from '@wbs/store-memory/project-fixture';
@@ -97,6 +98,7 @@ async function sqliteEstimateRunner(name: string) {
     scheduler: fastScheduler,
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: silentBroadcaster,
     publicServices: publicGraph,
@@ -402,6 +404,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
     let storedAfterRemoval: { revision: number; teamIds: readonly string[] } | undefined;
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -604,6 +607,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: failingUow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -864,6 +868,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
     const publicGraph = compose(source.stores, silentBroadcaster);
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -1007,6 +1012,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
     let observeDependencyRemoval = true;
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,
@@ -1129,6 +1135,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
     let observations = 0;
     const admitted = captureAdmittedStores(source.uow);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: admitted.uow,
       announcements: silentBroadcaster,
       publicServices: publicGraph,

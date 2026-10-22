@@ -9,6 +9,7 @@ import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-comm
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
+import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { openDrizzle } from '../repository/db';
@@ -147,6 +148,7 @@ beforeEach(async () => {
 
   const batchStores = { ...admitted, workItems: suspendingWorkItems };
   runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     // The graph the runner builds per batch, over the collector it hands in.
     batchServices: (_scope, collector) =>
       servicesOver(batchStores, { ...shared, broadcast: collector }),

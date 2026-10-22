@@ -9,6 +9,7 @@ import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -101,6 +102,7 @@ async function seeded(identities: Identities = BOUND) {
   if (identities.pinned !== null)
     fixture.pinCredential(FLEET.issuer, FLEET.subject, identities.pinned);
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
@@ -120,7 +122,7 @@ async function seeded(identities: Identities = BOUND) {
 function mintedIdOf(
   answer: Awaited<ReturnType<ReturnType<typeof createPlanCommandRunner>['run']>>,
 ) {
-  if (!answer.ok) throw new Error(`the batch was refused: ${answer.reason}`);
+  if (!answer.ok) throw new Error(`the batch was refused: ${JSON.stringify(answer)}`);
   const minted = answer.results[0]?.id;
   if (minted === undefined) throw new Error('the batch minted no id');
   return minted;
@@ -474,10 +476,16 @@ describe('claimWorkItem in a batch', () => {
       const claimAs = (personId: string, credential: CredentialPair | null) =>
         runner.runWithin(
           projectId,
-          F,
+          {
+            id: F,
+            username: F,
+            scopes: ['write'],
+            ...(credential === null
+              ? {}
+              : { authentication: { kind: 'upstream', ...credential } as const }),
+          },
           [{ kind: 'claimWorkItem', workItemId: '090', personId }],
           LEGACY_ACCESS,
-          credential,
         );
       expect(await claimAs('codex-fleet', FLEET)).toMatchObject({
         ok: false,

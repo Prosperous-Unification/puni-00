@@ -10,6 +10,7 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { installPlanCommands } from './check';
 import { PLAN_COMMANDS_LABEL } from './contract';
@@ -45,6 +46,7 @@ async function seeded() {
     announcements,
     handed,
     requirements: {
+      commandAccess: localCommandAccess,
       batchServices: (scope: Scope, broadcast: Broadcaster) => {
         handed.push(broadcast);
         return graphOver(scope.stores, broadcast);
@@ -68,6 +70,9 @@ const hostRequirements = () => {
       scheduler: fastScheduler,
     });
   return {
+    commandAccess: DiBag.createProvider(() => localCommandAccess, {
+      factoryReturnKind: 'sync-value',
+    }),
     batchServices: DiBag.createProvider(
       () => (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
       { factoryReturnKind: 'sync-value' },
@@ -137,16 +142,10 @@ describe('the Plan commands module', () => {
     const { commands } = installPlanCommands({ ...requirements, uow });
     expect(
       (
-        await commands.runWithin(
-          PROJECT,
-          OWNER,
-          [],
-          {
-            kind: 'scoped',
-            scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
-          },
-          null,
-        )
+        await commands.runWithin(PROJECT, { id: OWNER, username: OWNER, scopes: ['write'] }, [], {
+          kind: 'scoped',
+          scope: { organizationId: 'org-a', userId: OWNER, role: 'member' },
+        })
       ).ok,
     ).toBe(true);
   });
@@ -266,6 +265,7 @@ describe('a step allowance edit over the memory source', () => {
         scheduler: fastScheduler,
       });
     const { commands } = installPlanCommands({
+      commandAccess: localCommandAccess,
       batchServices: (scope: Scope, broadcast: Broadcaster) => graphOver(scope.stores, broadcast),
       publicServices: graphOver(source.stores, recordingBroadcaster()),
       uow: source.uow,

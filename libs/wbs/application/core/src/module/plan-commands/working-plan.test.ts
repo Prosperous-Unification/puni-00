@@ -7,6 +7,7 @@ import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -222,6 +223,7 @@ describe('the admitted working batch baseline', () => {
       });
     const publicGraph = compose(source.stores, direct);
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: direct,
       publicServices: publicGraph,
@@ -394,6 +396,7 @@ describe('the admitted working batch baseline', () => {
       let retainedRead:
         (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
       const runner = createPlanCommandRunner({
+        commandAccess: localCommandAccess,
         uow: source.uow,
         announcements: direct,
         publicServices: publicGraph,
@@ -435,6 +438,7 @@ describe('the admitted working batch baseline', () => {
     let retainedRead:
       (() => ReturnType<PlanTransactionalStores['workItems']['listByProject']>) | undefined;
     const runner = createPlanCommandRunner({
+      commandAccess: localCommandAccess,
       uow: source.uow,
       announcements: direct,
       publicServices: graph,

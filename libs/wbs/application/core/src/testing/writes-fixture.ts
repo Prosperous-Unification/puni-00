@@ -13,11 +13,13 @@ import type { PlanCommandServices } from '../module/plan-commands/plan-commands.
 import type { ImportService } from '../module/plan-import/plan-import.feature';
 import type { ProjectService } from '../module/project/project.resource';
 import type { StepService } from '../module/step/step.resource';
+import type { CommandAccess } from '../ports/command-access';
 import type { Broadcaster } from '../ports/project-event';
 import type { TransactionalStores } from '../ports/stores';
 import type { Scope, UnitOfWork } from '../ports/unit-of-work';
 import type { CommittedFanoutDelivery } from '../service/committed-fanout';
 import type { InMemoryPlan } from './harness';
+import { localCommandAccess } from './organization-access-fixture';
 
 export interface WritingServices extends PlanCommandServices {
   projects: ProjectService;
@@ -92,6 +94,7 @@ export function testWrites(
    */
   given: Partial<WritingServices> = {},
 ): {
+  commandAccess: CommandAccess;
   imports: Pick<ImportService, 'import'>;
   uow: ReturnType<typeof countingUnitOfWork>;
   batch: (scope: Scope, broadcast: Broadcaster) => WritingServices;
@@ -108,6 +111,7 @@ export function testWrites(
     calendarMarkers: given.calendarMarkers ?? testCalendarMarkerService(),
   };
   return {
+    commandAccess: localCommandAccess,
     imports: {
       import: () =>
         Promise.resolve({

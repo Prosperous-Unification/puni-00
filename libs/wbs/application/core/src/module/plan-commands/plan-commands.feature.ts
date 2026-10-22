@@ -1,8 +1,9 @@
-import type { CredentialPair } from '@wbs/contracts';
 import type { PlanCommandKind } from '@wbs/contracts';
+import { type AuthenticatedUser, type CredentialPair, credentialPairOf } from '@wbs/contracts';
 import type { ResourceUnits, WorkItemStatus } from '@wbs/domain';
 
 import { AnnouncementCollector } from '../../ports/announcement-collector';
+import type { CommandCaller } from '../../ports/command-access';
 import type {
   Person,
   PersonWithTeams,
@@ -17,7 +18,10 @@ import {
   type GrantedAdmission,
   NO_ADMISSION,
 } from '../../ports/edit-admission';
-import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
+import {
+  type RefusedOrganizationAccess,
+  type ResourceAccess,
+} from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Service, Tag, WorkItemType } from '../../ports/work-item-values';
 import type { DirectoryUsage, ResourceUsageCounts } from '../../service/directory-usage';
@@ -181,13 +185,17 @@ export type BatchOutcome =
  * organization does not own the project (answered exactly as for an absent
  * one), or the caller's role or the restricted-creator rule forbids writing.
  */
-export interface WholeBatchRefusal {
-  ok: false;
-  refusal: 'not_found' | 'forbidden';
-}
+export type WholeBatchRefusal =
+  | { readonly ok: false; readonly refusal: 'not_found' }
+  | { readonly ok: false; readonly refusal: 'forbidden' };
 
-/** What a batch run through the caller's access answers. */
-export type ScopedBatchOutcome = BatchOutcome | WholeBatchRefusal;
+/** A whole-request refusal, retaining any credential-rule body from current admission. */
+export type AuthorityRefusal =
+  RefusedOrganizationAccess | { readonly ok: false; readonly error: 'insufficient_scope' };
+/** A replay refusal from current authority or the conditional journal operation. */
+export type ScopedUndoOutcome = UndoOutcome | AuthorityRefusal;
+/** A command batch outcome or its whole-request authority refusal. */
+export type ScopedBatchOutcome = BatchOutcome | WholeBatchRefusal | AuthorityRefusal;
 
 /**
  * A write that is not a command but must settle with a batch: a step rename
@@ -195,8 +203,12 @@ export type ScopedBatchOutcome = BatchOutcome | WholeBatchRefusal;
  * of work and through the batch's own graph, so what it announces leaves only
  * if the batch commits. It answers null to let the batch run, or a refusal,
  * which rolls it back and answers instead of the batch. It is not journalled.
+ * Its access is freshly resolved in this transaction, before the prelude runs.
  */
-export type BatchPrelude<R> = (graph: PlanCommandServices) => Promise<R | null>;
+export type BatchPrelude<R> = (
+  graph: PlanCommandServices,
+  access: ResourceAccess,
+) => Promise<R | null>;
 
 /** A batch whose {@link BatchPrelude} refused: nothing it or the batch wrote remains. */
 export interface PreludeRefusal<R> {
@@ -279,8 +291,12 @@ export class PlanCommandRunner {
    * Under legacy access, with no credential pair: before activation no
    * credential is linked, so none is pinned (`link-credential-cli.ts` refuses).
    */
-  run(projectId: string, actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(projectId, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
+  run(
+    projectId: string,
+    actorId: string,
+    commands: readonly PlanCommand[],
+  ): Promise<ScopedBatchOutcome> {
+    return this.execute(projectId, { kind: 'legacy', actorId }, commands);
   }
 
   /**
@@ -290,12 +306,11 @@ export class PlanCommandRunner {
    */
   runWithin(
     projectId: string,
-    actorId: string,
+    actor: AuthenticatedUser,
     commands: readonly PlanCommand[],
-    access: ResourceAccess,
-    credential: CredentialPair | null,
+    expectedAccess: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
-    return this.execute(projectId, actorId, commands, access, credential);
+    return this.execute(projectId, { kind: 'human', principal: actor, expectedAccess }, commands);
   }
 
   /**
@@ -304,13 +319,17 @@ export class PlanCommandRunner {
    */
   runAfterWithin<R>(
     projectId: string,
-    actorId: string,
+    actor: AuthenticatedUser,
     prelude: BatchPrelude<R>,
     commands: readonly PlanCommand[],
-    access: ResourceAccess,
-    credential: CredentialPair | null,
+    expectedAccess: ResourceAccess,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
-    return this.execute(projectId, actorId, commands, access, credential, prelude);
+    return this.execute(
+      projectId,
+      { kind: 'human', principal: actor, expectedAccess },
+      commands,
+      prelude,
+    );
   }
 
   /**
@@ -320,12 +339,11 @@ export class PlanCommandRunner {
    * `DirectoryService.addWithin` and its siblings.
    */
   runDirectoryWithin(
-    actorId: string,
+    actor: AuthenticatedUser,
     commands: readonly PlanCommand[],
-    access: ResourceAccess,
+    expectedAccess: ResourceAccess,
   ): Promise<ScopedBatchOutcome> {
-    // A directory batch claims nothing, so it reads no credential pin.
-    return this.execute(null, actorId, commands, access, null);
+    return this.execute(null, { kind: 'human', principal: actor, expectedAccess }, commands);
   }
 
   /**
@@ -335,8 +353,8 @@ export class PlanCommandRunner {
    * command in it has no project to land in and refuses the batch as
    * `project_required` at its index.
    */
-  runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<BatchOutcome> {
-    return this.execute(null, actorId, commands, LEGACY_ACCESS, null).then(legacyOutcome);
+  runDirectory(actorId: string, commands: readonly PlanCommand[]): Promise<ScopedBatchOutcome> {
+    return this.execute(null, { kind: 'legacy', actorId }, commands);
   }
 
   /**
@@ -368,27 +386,27 @@ export class PlanCommandRunner {
    */
   private execute(
     projectId: string | null,
-    actorId: string,
+    caller: CommandCaller,
     commands: readonly PlanCommand[],
-    access: ResourceAccess,
-    credential: CredentialPair | null,
   ): Promise<ScopedBatchOutcome>;
   private execute<R>(
     projectId: string | null,
-    actorId: string,
+    caller: CommandCaller,
     commands: readonly PlanCommand[],
-    access: ResourceAccess,
-    credential: CredentialPair | null,
     prelude: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>>;
   private async execute<R>(
     projectId: string | null,
-    actorId: string,
+    caller: CommandCaller,
     commands: readonly PlanCommand[],
-    access: ResourceAccess,
-    credential: CredentialPair | null,
     prelude?: BatchPrelude<R>,
   ): Promise<ScopedBatchOutcome | PreludeRefusal<R>> {
+    // Proof: removing this branch admitted the real direct read-only runner in command-current-authority.controller.db.test.ts.
+    if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
+      return { ok: false, error: 'insufficient_scope' };
+    const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
+    const credential =
+      caller.kind === 'human' ? credentialPairOf(caller.principal.authentication) : null;
     // This batch's own collector and its own graph over it. Two batches never
     // share either, and no route's graph is built over this one.
     // Proof: reusing a constructor-owned collector made compose.test.ts receive
@@ -401,6 +419,10 @@ export class PlanCommandRunner {
     const done = await this.opts.transaction
       .run<Applied>(
         async (scope): Promise<CommandDecision<Applied>> => {
+          // Proof: using request access instead admitted queued revoked batch, directory, prelude and direct calls (HTTP current-authority matrix).
+          const resolved = await scope.resolveAccess(caller);
+          if (!resolved.ok) return { commit: false, value: resolved };
+          const access = resolved.access;
           if (access.kind === 'scoped') {
             // Proof: skipping this admission made `answers 404 alike for a foreign
             // and an absent project` in `command-organization.controller.db.test.ts`
@@ -446,7 +468,7 @@ export class PlanCommandRunner {
             // Proof: running the batch past a refused prelude set the allowance to
             // 30 in `writes no allowance when the rename is refused`
             // (step-allowance-edit.controller.db.test.ts); watched 2026-09-28.
-            const preludeRefusal = prelude === undefined ? null : await prelude(graph);
+            const preludeRefusal = prelude === undefined ? null : await prelude(graph, access);
             if (preludeRefusal !== null) {
               return { commit: false, value: { ok: false, prelude: preludeRefusal } };
             }
@@ -524,35 +546,30 @@ export class PlanCommandRunner {
     return { ok: true, results: done.result, ...state };
   }
 
-  undo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, LEGACY_ACCESS, 'undo', (graph) =>
-      graph.workItems.undo(projectId, actorId),
-    );
+  undo(projectId: string, actorId: string): Promise<ScopedUndoOutcome> {
+    return this.walk(projectId, { kind: 'legacy', actorId }, 'undo');
   }
 
-  redo(projectId: string, actorId: string): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, LEGACY_ACCESS, 'redo', (graph) =>
-      graph.workItems.redo(projectId, actorId),
-    );
+  redo(projectId: string, actorId: string): Promise<ScopedUndoOutcome> {
+    return this.walk(projectId, { kind: 'legacy', actorId }, 'redo');
   }
 
-  /**
-   * {@link undo} through the caller's access. Under scoped access the project
-   * and role are checked in the unit of work, the entry may not write a row of
-   * another project, and a replay that leaves the project referencing
-   * anything outside the organization is rolled back as `not_found`.
-   */
-  undoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, access, 'undo', (graph) =>
-      graph.workItems.undoWithin(projectId, actorId, access),
-    );
+  /** Replays only under the principal's current authority in the writer's turn. */
+  undoWithin(
+    projectId: string,
+    actor: AuthenticatedUser,
+    expectedAccess: ResourceAccess,
+  ): Promise<ScopedUndoOutcome> {
+    return this.walk(projectId, { kind: 'human', principal: actor, expectedAccess }, 'undo');
   }
 
-  /** {@link redo} through the caller's access; see {@link undoWithin}. */
-  redoWithin(projectId: string, actorId: string, access: ResourceAccess): Promise<UndoOutcome> {
-    return this.walk(projectId, actorId, access, 'redo', (graph) =>
-      graph.workItems.redoWithin(projectId, actorId, access),
-    );
+  /** Reapplies only under the principal's current authority in the writer's turn. */
+  redoWithin(
+    projectId: string,
+    actor: AuthenticatedUser,
+    expectedAccess: ResourceAccess,
+  ): Promise<ScopedUndoOutcome> {
+    return this.walk(projectId, { kind: 'human', principal: actor, expectedAccess }, 'redo');
   }
 
   /**
@@ -563,18 +580,25 @@ export class PlanCommandRunner {
    */
   private async walk(
     projectId: string,
-    actorId: string,
-    access: ResourceAccess,
+    caller: CommandCaller,
     journal: 'undo' | 'redo',
-    step: (graph: PlanCommandServices) => Promise<UndoOutcome>,
-  ): Promise<UndoOutcome> {
+  ): Promise<ScopedUndoOutcome> {
+    // Proof: removing this branch let the direct read-only undo/redo assertion receive ok:true (current-authority HTTP suite).
+    if (caller.kind === 'human' && !caller.principal.scopes.includes('write'))
+      return { ok: false, error: 'insufficient_scope' };
+    const actorId = caller.kind === 'human' ? caller.principal.id : caller.actorId;
     const collector = new AnnouncementCollector(this.opts.announcements);
     let grant: GrantedAdmission | null = null;
     // The step's own broadcast is collected rather than sent, for the reason
     // `execute` gives: the push happens after the turn is let go.
     const walked = await this.opts.transaction
-      .run<Collected<UndoOutcome>>(
-        async (scope): Promise<CommandDecision<Collected<UndoOutcome>>> => {
+      .run<Collected<ScopedUndoOutcome>>(
+        async (scope): Promise<CommandDecision<Collected<ScopedUndoOutcome>>> => {
+          // Proof: using request access instead admitted both queued revoked undo and redo (HTTP current-authority matrix).
+          const resolved = await scope.resolveAccess(caller);
+          if (!resolved.ok)
+            return { commit: false, value: { result: resolved, recordings: [], dirty: false } };
+          const access = resolved.access;
           const refuse = (reason: 'not_found' | 'forbidden') => ({
             commit: false as const,
             value: {
@@ -600,7 +624,15 @@ export class PlanCommandRunner {
             admissionOf(access, grant),
           ).services;
           const { workItems } = graph;
-          const collected = await workItems.collect(() => step(graph));
+          const collected = await workItems.collect(() =>
+            caller.kind === 'legacy'
+              ? journal === 'undo'
+                ? workItems.undo(projectId, actorId)
+                : workItems.redo(projectId, actorId)
+              : journal === 'undo'
+                ? workItems.undoWithin(projectId, actorId, access)
+                : workItems.redoWithin(projectId, actorId, access),
+          );
           if (collected.result.ok && access.kind === 'scoped') {
             // A backstop behind `undoWithin`'s own reference check, which refuses
             // every case the suite plants first.
@@ -632,7 +664,7 @@ export class PlanCommandRunner {
                     // memory composition throw `no journal entry id-5` instead
                     // of consuming the committed stale entry (compose.test.ts).
                     // The repair writes no project, so it is granted nothing.
-                    await repair.discardEntry(entryId, collector);
+                    await repair.discardEntry(entryId);
                   },
           };
         },
@@ -764,10 +796,4 @@ export class PlanCommandRunner {
 function admissionOf(access: ResourceAccess, grant: GrantedAdmission | null): EditAdmission {
   if (access.kind === 'legacy') return CREATOR_ADMISSION;
   return grant === null ? NO_ADMISSION : grant.admission;
-}
-
-/** A legacy run can never be refused whole: that refusal exists only under scoped access. */
-function legacyOutcome(outcome: ScopedBatchOutcome): BatchOutcome {
-  if ('refusal' in outcome) throw new Error('a legacy batch was refused as out of scope');
-  return outcome;
 }

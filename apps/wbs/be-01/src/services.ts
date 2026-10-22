@@ -3,7 +3,7 @@ import {
   type Broadcaster,
   type CapacityModeSwitch,
   type Clock,
-  clockOf,
+  type CommandAccess,
   composeServices,
   type OidcVerifier,
   type PlanTransactionalStores,
@@ -59,6 +59,8 @@ export interface OptimizerRuntime {
 }
 
 export interface ServicesOptions {
+  commandAccess: CommandAccess;
+  clock: Clock;
   source: SqliteSource;
   logger: Logger;
   jwtKey: string;
@@ -72,6 +74,7 @@ export interface ServicesOptions {
 }
 
 export interface BeServices extends AccountfulServices {
+  readonly commandAccess: CommandAccess;
   readonly optimizer: OptimizationCoordinator | undefined;
   readonly optimizationLifecycle: OptimizationLifecycle;
   readonly gate: SqliteSource['gate'];
@@ -101,7 +104,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: SharedRunt
 /** Adds be-01's optimizer process adapter around core's single service composition. */
 export function buildServices(options: ServicesOptions): BeServices {
   const { source } = options;
-  const clock = clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() });
+  const clock = options.clock;
   let coordinator: OptimizationCoordinator | undefined;
   const optimized =
     options.optimizer === undefined
@@ -147,6 +150,7 @@ export function buildServices(options: ServicesOptions): BeServices {
     // Proof: omitting installation failed mounted `shared tree and export agree` (start 0 instead of 3).
     source: boundSource,
     runtime: {
+      commandAccess: options.commandAccess,
       clock,
       digest: nodeDigest,
       timers: systemTimers,
@@ -271,6 +275,7 @@ export function buildServices(options: ServicesOptions): BeServices {
   if (publicRanks === undefined) throw new Error('SQLite source omitted its public rank store');
   return {
     ...graph,
+    commandAccess: options.commandAccess,
     optimizer: coordinator,
     // Proof: omitting the unconditional binding left the mounted lifecycle
     // undefined when this process had no active solver runtime.

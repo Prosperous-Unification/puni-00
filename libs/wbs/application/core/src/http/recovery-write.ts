@@ -1,4 +1,8 @@
+import type { AuthenticatedUser } from '@wbs/contracts';
+
 import type { WritingServices } from '../compose';
+import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
+import type { CommandAccess } from '../ports/command-access';
 import { CREATOR_ADMISSION, type EditAdmission, grantAdmission } from '../ports/edit-admission';
 import type {
   BeforeProjectUpdate,
@@ -17,6 +21,7 @@ import {
 
 /** The source capabilities a scoped route needs for one audited dependent write. */
 export interface RecoveryWriteBoundary {
+  readonly commandAccess: CommandAccess;
   readonly uow: UnitOfWork;
   readonly batch: (
     scope: Scope,
@@ -36,16 +41,25 @@ export interface RecoveryWriteBoundary {
  */
 export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
   boundary: RecoveryWriteBoundary,
-  access: ResourceAccess,
+  expectedAccess: ResourceAccess,
   projectId: string,
-  actorId: string,
+  actor: AuthenticatedUser,
   detail: RecoveryAuditDetail,
-  perform: (services: WritingServices) => Promise<T>,
+  perform: (services: WritingServices, access: ResourceAccess) => Promise<T>,
   refuse: (reason: 'not_found' | 'forbidden') => T,
-): Promise<T> {
+): Promise<T | AuthorityRefusal> {
+  const actorId = actor.id;
   const pending: { projectId: string; event: ProjectEvent }[] = [];
   let committed: readonly CommittedProjectEvent[] = [];
-  const outcome = await boundary.uow.run(async (scope) => {
+  const outcome = await boundary.uow.run<T | AuthorityRefusal>(async (scope) => {
+    // Proof: using request access instead returned 200 for queued step revocation in the mounted current-authority matrix.
+    const resolved = await boundary.commandAccess.resolve({
+      kind: 'human',
+      principal: actor,
+      expectedAccess,
+    });
+    if (!resolved.ok) return { commit: false, value: resolved };
+    const access = resolved.access;
     // Proof (2026-09-28): forcing `ordinary` here made `refuses a super-admin
     // revoked after access resolution before step admission` return 200 instead
     // of 403 (1 fail). The earlier force-ordinary mutation made the mounted
@@ -119,7 +133,7 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
         // event failure disappear: DELETE returned 204 instead of 500.
         beforeStepRemoval,
       );
-      const written = await perform(services);
+      const written = await perform(services, access);
       if (written.ok && captureState.before !== null && captureState.organizationId !== null) {
         const capture = scope.fanoutCapture;
         if (capture === undefined) throw new Error('scoped step fan-out capture disappeared');

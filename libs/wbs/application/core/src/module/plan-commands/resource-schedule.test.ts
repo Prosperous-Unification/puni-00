@@ -9,6 +9,7 @@ import type { Scope } from '../../ports/unit-of-work';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
+import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
 import { workItemRow } from '../../testing/work-item-fixture';
 import { createPlanCommandRunner } from './composition';
@@ -64,6 +65,7 @@ async function seeded() {
   );
   if (!bound.ok) throw new Error(`binding was refused: ${bound.reason}`);
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     uow: source.uow,
     announcements: broadcast,
     publicServices: graph,
@@ -73,7 +75,7 @@ async function seeded() {
   const declared = await runner.runDirectory(F, [
     { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },
   ]);
-  if (!declared.ok) throw new Error(`staging was refused: ${declared.reason}`);
+  if (!declared.ok) throw new Error(`staging was refused: ${JSON.stringify(declared)}`);
   const [staging] = declared.results.map(({ id }) => id);
   if (staging === undefined) throw new Error('staging minted no id');
   // Both leaves carry two days on both steps, so each runs four days alone.
@@ -84,7 +86,7 @@ async function seeded() {
       steps.map((stepId) => ({ kind: 'setEstimate' as const, workItemId, stepId, days: TWO_DAYS })),
     ),
   );
-  if (!estimated.ok) throw new Error(`estimates were refused: ${estimated.reason}`);
+  if (!estimated.ok) throw new Error(`estimates were refused: ${JSON.stringify(estimated)}`);
   const tree = async (): Promise<PlanTree> => {
     const read = await graph.workItems.tree(projectId);
     if (read === null || 'kind' in read) throw new Error('the plan read was unavailable');

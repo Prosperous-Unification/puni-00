@@ -28,6 +28,7 @@ import type { SavedPlanService } from './module/saved-plans/saved-plans.feature'
 import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
+import type { CommandAccess } from './ports/command-access';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
@@ -50,6 +51,7 @@ import {
 
 /** Runtime capabilities required by every service composition. */
 export interface RuntimePorts {
+  readonly commandAccess: CommandAccess;
   readonly clock: Clock;
   readonly digest: Digest;
   readonly timers: Timers;
@@ -387,6 +389,7 @@ export function composeServices(
       batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
     }).imports,
     commands: installPlanCommands({
+      commandAccess: runtime.commandAccess,
       batchServices: batch,
       publicServices,
       uow: source.uow,

@@ -100,7 +100,12 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
       gwUrl: 'http://gw.invalid',
       internalAuthSecret: 's'.repeat(32),
       browserSessionAuthority: 'disabled' as const,
-      localIdentity: { id: 'ada', username: 'ada', scopes: ['read', 'write'] },
+      localIdentity: {
+        id: 'ada',
+        username: 'ada',
+        scopes: ['read', 'write'],
+        delegation: { organizationId: 'org-a', audience: 'wbs-be-01/direct' },
+      },
     },
     {
       openSource: openSqliteSource,
@@ -108,16 +113,6 @@ it('boots committed fan-out into cold scoped commands and rank moves', async () 
         const app = buildApp({
           ...options,
           projectAddressSearch: refusingProjectAddressSearch,
-          organizations: {
-            resolve: () =>
-              Promise.resolve({
-                ok: true,
-                access: {
-                  kind: 'scoped',
-                  scope: { organizationId: 'org-a', userId: 'ada', role: 'admin' },
-                },
-              }),
-          },
         });
         app.stop = () => Promise.resolve(app);
         mounted = app;

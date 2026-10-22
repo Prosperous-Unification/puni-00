@@ -10,6 +10,7 @@ import { savePlan } from '../src/module/saved-plans/save-plan';
 import { clockOf } from '../src/ports/clock';
 import { LEGACY_ACCESS } from '../src/ports/organization-access';
 import { expectCreated } from '../src/testing/expect-created';
+import { localCommandAccess } from '../src/testing/organization-access-fixture';
 import { fastScheduler } from '../src/testing/scheduler-fixture';
 
 type OperationName = 'batch' | 'save' | 'replay' | 'retention';
@@ -81,6 +82,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
   const graph = composeServices({
     source,
     runtime: {
+      commandAccess: localCommandAccess,
       clock,
       digest: { sha256: digest },
       timers: { nowMs: () => clock.now(), schedule: () => () => undefined },
@@ -105,6 +107,7 @@ export async function runPortableComposition(): Promise<PortableCompletion> {
     shared,
   });
   const runner = createPlanCommandRunner({
+    commandAccess: localCommandAccess,
     batchServices: graph.batch,
     publicServices: graph,
     uow: graph.uow,

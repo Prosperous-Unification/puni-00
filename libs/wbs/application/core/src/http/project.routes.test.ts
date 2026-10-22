@@ -22,7 +22,15 @@ const request = {
 test('direct project bindings create, read, patch and record opening with admitted actor', async () => {
   const projects = testProjectService();
   const endpoints = projectRoutes(
-    projects,
+    {
+      authorizeRetry: (...args) => projects.authorizeRetry(...args),
+      createWithin: (...args) => projects.createWithin(...args),
+      listWithin: (...args) => projects.listWithin(...args),
+      openWithin: (...args) => projects.openWithin(...args),
+      readWithin: (...args) => projects.readWithin(...args),
+      updateWithin: (id, actor, patch, access) =>
+        projects.updateWithin(id, actor.id, patch, access),
+    },
     legacyOrganizationAccess,
     testWorkItemService(),
     testDirectoryService(),
@@ -69,7 +77,15 @@ test('direct project bindings create, read, patch and record opening with admitt
 test('direct project and export failures propagate without conversion to not_found', async () => {
   const projects = testProjectService();
   const endpoints = projectRoutes(
-    projects,
+    {
+      authorizeRetry: (...args) => projects.authorizeRetry(...args),
+      createWithin: (...args) => projects.createWithin(...args),
+      listWithin: (...args) => projects.listWithin(...args),
+      openWithin: (...args) => projects.openWithin(...args),
+      readWithin: (...args) => projects.readWithin(...args),
+      updateWithin: (id, actor, patch, access) =>
+        projects.updateWithin(id, actor.id, patch, access),
+    },
     legacyOrganizationAccess,
     testWorkItemService(),
     testDirectoryService(),
