@@ -22,10 +22,8 @@ import { eq } from 'drizzle-orm';
 
 import { CalendarMarkerRepository } from './calendar-marker';
 import type { CaptureReadSeam } from './capture-read-seam';
-import {
-  capturedOptimizationReaderOf,
-  type CapturedOptimizationReaderOptions,
-} from './captured-optimization-reader';
+import type { CapturedOptimizationReaderOptions } from './captured-optimization-reader';
+import { capturedSchedulerIn } from './captured-scheduler';
 import { captureConnectedPlanIn, discoverConnectedTopologyIn } from './connected-plan-capture';
 import {
   type Connection,
@@ -278,19 +276,7 @@ export async function readChainSnapshotIn(
     });
   }
   lifetime.assertOpen();
-  const readCaptured =
-    options.optimization === undefined
-      ? undefined
-      : capturedOptimizationReaderOf(db, options.optimization);
-  const scheduler = options.schedulerOf(
-    readCaptured === undefined
-      ? undefined
-      : (ask) => {
-          // Proof: omitted callback guard returned idle cache state after transaction settlement.
-          lifetime.assertOpen();
-          return readCaptured(ask);
-        },
-  );
+  const { scheduler } = capturedSchedulerIn(db, options, lifetime);
   return {
     access,
     mode,
@@ -325,20 +311,7 @@ export async function readChainSnapshotIn(
       if (captured === null) throw new Error('ranked project disappeared inside its snapshot');
       return captured;
     },
-    scheduler: {
-      readResolvedFast: (input) => {
-        lifetime.assertOpen();
-        return scheduler.readResolvedFast(input);
-      },
-      supports: (engine) => {
-        lifetime.assertOpen();
-        return scheduler.supports(engine);
-      },
-      read: (ask) => {
-        lifetime.assertOpen();
-        return scheduler.read(ask);
-      },
-    },
+    scheduler,
   };
 }
 
@@ -617,18 +590,7 @@ async function readConnectedLivePlanIn(
     options.captureRead,
   );
   lifetime.assertOpen();
-  const readCaptured =
-    options.optimization === undefined
-      ? undefined
-      : capturedOptimizationReaderOf(db, options.optimization);
-  const scheduler = options.schedulerOf(
-    readCaptured === undefined
-      ? undefined
-      : (ask) => {
-          lifetime.assertOpen();
-          return readCaptured(ask);
-        },
-  );
+  const { scheduler } = capturedSchedulerIn(db, options, lifetime);
   const projection = deriveConnectedPlan(capture, scheduler, (input) => {
     lifetime.assertOpen();
     return scheduler.readResolvedFast(input);

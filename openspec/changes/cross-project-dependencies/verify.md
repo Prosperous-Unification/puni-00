@@ -1334,3 +1334,71 @@ No migration/schema change: migration lint was not rerun for this correction.
 Full CI, host gate, production composition, borrowed lifetime integration,
 coordinator admission/Retry/restart and terminal event/release remain outside
 this correction and unverified here.
+
+### Task 7.3/7.4 private snapshot scheduler prerequisite — 2026-10-22
+
+Base: `895cb8643ca901b2754dad4e385c2858c05934b3`, isolated clone
+`/tmp/puni-optimizer-runtime-v2`. This bounded packet extracts the existing
+local captured-reader and scheduler lifetime wrappers into private
+`capturedSchedulerIn`. Both production snapshot constructors use that helper
+without its connected argument. Only the focused test passes the explicit
+connected configuration; the helper is absent from the public barrel and
+`SqliteSource` configuration. It does not read environment configuration.
+`services.ts`, optimizer availability, coordinator and external authoring remain
+unchanged. Tasks 7.3 and 7.4 remain unchecked.
+
+The helper borrows the supplied database and existing `ReadSnapshotLifetime`.
+The connected reader uses the real strict durable codec/repository and real
+request preparation; it cannot acquire a fresh connection, settle the caller's
+transaction, write runtime state or survive capability expiry. The fixture's
+rival connection publishes a valid connected success after the first read:
+both isolated and shared observations retain idle, and a subsequent observation
+selects ready. Retained terminal evidence stays boundary-scoped and malformed
+certificate bytes throw. The owner can still query/reuse its database after
+reader expiry. Existing wrapper tests also retain their owned close-on-success,
+refusal and failure checks.
+
+TDD: the initial stub produced **1 pass, 3 fail**: connected capability absent
+in both explicit-opt-in snapshots and retained local callback did not throw.
+Implementation passed those four cases. Expanded coverage and watched faults
+below finish at **10 pass, 0 fail**, 34 assertions.
+
+All fault commands use
+`bun test libs/wbs/adapters/store-sqlite/src/captured-scheduler.db.test.ts -t '<pattern>'`.
+Every fault was restored independently; adjacent `Proof:` comments name the test.
+
+| Injected fault                                                            | Pattern                               | Observed failure                                                                  |
+| ------------------------------------------------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
+| Remove acquisition lifetime check                                         | `expires retained acquisition`        | 1 fail: new scheduler accepted after expiry                                       |
+| Remove local callback lifetime check                                      | `expires retained local callback`     | 1 fail: idle returned after expiry                                                |
+| Remove supports lifetime check                                            | `expires retained supports`           | 1 fail: true returned after expiry                                                |
+| Remove resolved Fast lifetime check                                       | `expires retained resolved Fast`      | 1 fail: schedule returned after expiry                                            |
+| Remove local schedule lifetime check                                      | `expires retained local schedule`     | 1 fail: schedule returned after expiry                                            |
+| Remove connected callback lifetime check                                  | `expires retained connected callback` | 1 fail: idle returned after expiry                                                |
+| Replace supplied connected database with fresh connection to same file    | `connected selections`                | 2 fail: ready instead of idle inside held isolated/shared snapshots               |
+| Insert project update into connected read                                 | `connected selections`                | 2 fail: SQLite `total_changes()` count 1 instead of 0 before rival publication    |
+| Force connected adapter construction with default installed configuration | `without the private`                 | 1 fail: connected capability present without opt-in, with `WBS_LOCAL_SOLVER=true` |
+
+Restored verification:
+
+- `bun test` with the exact files
+  `libs/wbs/adapters/store-sqlite/src/{captured-scheduler.db.test.ts,chain-snapshot.db.test.ts,connected-plan-capture.db.test.ts,connected-live-plan.db.test.ts,connected-optimization-cache.db.test.ts,connected-optimization-reader.test.ts,captured-optimization-reader.db.test.ts}`:
+  **145 passed, 0 failed**, 529 assertions. Includes production connected
+  optimized-engine refusal with zero durable solver/execution allocations.
+- A later rerun of `captured-scheduler.db.test.ts` after test-only lint cleanup:
+  **10 passed, 0 failed**, 34 assertions.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exit 0.
+- `NX_DAEMON=false bunx nx run wbs-store-sqlite:lint`: exit 0 after correcting
+  two test cleanup arrows reported by the first lint run. Nx used its printed
+  in-process fallback because the sandbox refused plugin-worker sockets.
+- Changed files formatted and checked with Prettier; OpenSpec strict validation
+  passed. Normal repository hooks installed before committing.
+
+Limits: this proves the private snapshot-reader boundary, not production connected
+optimization. The combined Fast derivation still refuses required optimized
+connected projects. Exact-question admission and rechecks for initial, queued,
+restart and manual Retry paths; terminal event commit before slot release;
+same-question certificate admission suppression; connected outcome DTOs and final
+runtime composition remain required. No frontend/import/CLI, schema or migration
+changes. Installed solver handshake, Python/model suites, full CI/build, host
+gate, deployment and external-authoring activation were not run in this packet.
