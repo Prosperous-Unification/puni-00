@@ -1305,3 +1305,82 @@ redundant dependency edges and the scope of their proof are recorded explicitly.
 The six affected boot suites passed 85 tests; backend TypeScript and all 268
 OpenSpec validations passed. Task 10.1 remains unchecked; runtime support,
 participant exclusion, deployment activation and exact-SHA host gate remain open.
+
+### Task 8.1 allocation and internal transaction slice — 2026-10-22
+
+Based on `6255ae662`, isolated clone `/tmp/puni-import-transaction`. This is
+Task A of the reviewed import transaction architecture, plus the existing
+internal import consumer and focused SQLite atomicity proofs. Task 8.1 remains
+unchecked. Preparation preserves original internal declaration paths by authored
+ID. `resolveImportDependencies` allocates the complete located relationship set
+in numeric document order, remaps internal project/row/step identities and all
+successors, and preserves the selected external predecessor destination. Internal
+imports now allocate every relationship before their first typed insert.
+
+The mapper's external cases are allocation tests only. Production still refuses
+external declarations with `external_dependencies_inactive` before any directory
+or project write. No active public path, activation or deployment is introduced.
+The post-allocation duplicate test proves the complete packet exposes a collision;
+it does **not** claim the importer invokes final scoped duplicate admission yet.
+
+SQLite tests use the real import module, real `servicesOver` tree announcement,
+real typed stores and the existing outer writer. They persist whole/node/descendant
+selectors with FS/SS/FF relationships, verify fresh IDs and unchanged original
+rows, throw after the second actual relationship write, and refuse labels after
+all three relationships are staged. Failure snapshots include every application
+and migration table, including ownership, directory associations, abbreviation
+allocation, audit, revisions, event log and sequencer; only SQLite implementation
+tables are excluded. Both the actual writer and an independent read connection
+are compared. No tree announcement is replaced with a no-op.
+
+R5 observations, each fault independently restored:
+
+- Retain file row, project or step IDs independently: SQLite allocation case fails.
+- Substitute original external source for selected destination: all three scoped
+  mapping cases fail.
+- Remove required allocation or diagnostic-path guard: its missing-map case fails.
+- Sort paths lexically: the declaration-index case beyond nine fails.
+- Omit relationship persistence: all three SQLite cases fail.
+- Replace outer refusal rollback with commit: label-refusal all-table snapshot fails.
+- Omit catch-path rollback: actual-writer all-table snapshot fails. Initially this
+  mutation survived independent-connection snapshots, because the uncommitted
+  writes remained invisible there. Adding the writer snapshot made it fail; the
+  restored production implementation passes.
+
+The SQLite allocation test was observed red against the old per-edge allocation
+(`Set` size 3, expected 1). Mapper tests were observed red against an empty mapper,
+then passed with the producer implemented. Per-fault logs are retained locally
+at `/tmp/puni-import-proof-*.log`; these are local evidence, not hosted artifacts.
+
+Remaining prerequisites are architecture Tasks B/C: required service capability
+wiring, scoped endpoint authority and shape admission, final full-set duplicate
+and connected-graph admission, bound context/observation expiry, external positive
+SQLite and mounted dormant proofs, and durable fanout ordering for that new path.
+Current import calls carry actor ID and `ResourceAccess`; membership/role are
+rechecked inside the writer, but session/machine/consent identity bindings cannot
+be revalidated there. Carrying `CommandCaller` and resolving current access via
+`CommandAccess` on the borrowed writer remains mandatory before activation.
+Connected export and selected optimization evidence, copy/history, browser,
+full build, CI and host gates are outside this slice and unverified.
+
+Fresh verification in this clone:
+
+```sh
+bun test ./libs/wbs/application/core/src/service/prepare-import.test.ts ./libs/wbs/application/core/src/module/plan-import/module.test.ts ./libs/wbs/application/core/src/module/plan-import/resolve-import-dependencies.test.ts ./libs/wbs/adapters/store-sqlite/src/import-dependencies.db.test.ts ./libs/wbs/adapters/store-sqlite/src/import.service.db.test.ts ./apps/wbs/be-01/src/controller/import-export-organization.controller.db.test.ts ./libs/wbs/adapters/store-memory/src/import.service.test.ts --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:typecheck --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-be-01:typecheck --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint --skipNxCache --outputStyle=static
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-store-sqlite:lint --skipNxCache --outputStyle=static
+./node_modules/.bin/openspec validate cross-project-dependencies --json
+```
+
+The seven exact test files pass **209 tests, 0 failures, 730 assertions**.
+All three configured typechecks and both configured lints pass, uncached.
+Prettier checks all eight changed files and `git diff --check` passes. Initial
+Nx invocation could not use sandbox Unix sockets; explicit in-process plugin
+and daemon settings above produced actual task execution. Initial concurrent
+configured lint attempts exited nonzero without diagnostics; separate reruns
+passed. Existing dependencies are linked from the workspace; a clean frozen
+installation and full host gate were not performed. Mounted failure fixtures
+emit expected application error logs while their assertions pass.

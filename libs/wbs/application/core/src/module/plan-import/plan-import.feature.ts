@@ -17,6 +17,7 @@ import {
   type PreparedWorkItem,
   prepareImport,
 } from './prepare-import';
+import { resolveImportDependencies } from './resolve-import-dependencies';
 
 export interface ImportServiceOptions {
   clock: Clock;
@@ -574,39 +575,17 @@ export class ImportService {
             );
           }
         }
-        for (const relationship of prepared.typedDependencies) {
-          const remapEndpoint = (endpoint: typeof relationship.predecessor) =>
-            endpoint.scope === 'whole'
-              ? {
-                  scope: 'whole' as const,
-                  projectId,
-                  workItemId: resolvedId(
-                    rowsByFileId,
-                    endpoint.workItemId,
-                    'typed dependency work item',
-                  ),
-                }
-              : {
-                  scope: endpoint.scope,
-                  projectId,
-                  workItemId: resolvedId(
-                    rowsByFileId,
-                    endpoint.workItemId,
-                    'typed dependency work item',
-                  ),
-                  stepId: resolvedId(stepsByFileId, endpoint.stepId, 'typed dependency step'),
-                };
-          await writes.addTypedDependency(
-            {
-              id: this.opts.clock.newId(),
-              projectId,
-              predecessor: remapEndpoint(relationship.predecessor),
-              successor: remapEndpoint(relationship.successor),
-              type: relationship.type,
-            },
-            stamp,
-          );
-        }
+        // Proof: the former per-edge allocation failed SQLite `allocates every relationship before the first insert` (2026-10-22).
+        const relationships = resolveImportDependencies(
+          prepared,
+          projectId,
+          rowsByFileId,
+          stepsByFileId,
+          () => this.opts.clock.newId(),
+        );
+        // Proof: omitting persistence failed all three SQLite allocation/atomicity cases (2026-10-22).
+        for (const { relationship } of relationships)
+          await writes.addTypedDependency(relationship, stamp);
         for (const [at, row] of prepared.workItems.entries()) {
           const written = await writes.labelWorkItem(
             resolvedId(rowsByFileId, row.fileId, 'labelled work item'),

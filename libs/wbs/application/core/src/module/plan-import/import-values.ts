@@ -158,6 +158,8 @@ export interface PreparedImport {
   workItems: PreparedWorkItem[];
   dependencies: PreparedDependency[];
   typedDependencies: TypedDependency[];
+  /** Original document paths keyed by authored internal relationship identity. */
+  typedDependencyPaths: ReadonlyMap<string, string>;
   externalDependencies: {
     path: string;
     predecessor: Extract<DocumentV11TypedDependency['predecessor'], { kind: 'external' }>;

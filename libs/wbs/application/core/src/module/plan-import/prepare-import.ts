@@ -635,6 +635,7 @@ export function prepareImport(
     })),
   );
   const typedDependencies: TypedDependency[] = [];
+  const typedDependencyPaths = new Map<string, string>();
   const externalDependencies: PreparedImport['externalDependencies'] = [];
   const relationshipKeys = new Set<string>();
   const leafByFileId = new Map(preparedRows.map(({ fileId, isLeaf }) => [fileId, isLeaf]));
@@ -768,6 +769,7 @@ export function prepareImport(
     if (relationshipKeys.has(key)) return refuses('invalid_typed_dependency', prefix, 'duplicate');
     relationshipKeys.add(key);
     typedDependencies.push(typed);
+    typedDependencyPaths.set(typed.id, prefix);
   }
   const duplicatePath = findImportDependencyDuplicate(
     externalDependencies.map(({ destination, ...relationship }) => ({
@@ -855,6 +857,7 @@ export function prepareImport(
       workItems: preparedRows,
       dependencies,
       typedDependencies,
+      typedDependencyPaths,
       externalDependencies,
       stepByFileId,
       teamByFileId,
