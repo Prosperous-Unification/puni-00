@@ -60,6 +60,18 @@ The durable mcp-01 store SHALL have a versioned, paired migration that adds orga
 - **WHEN** isolation activates, mcp-01 restarts and the client refreshes
 - **THEN** refresh is refused and fresh organization-selecting authorization is required
 
+#### Scenario: Consent between the epoch advance and activation waits
+
+- **GIVEN** the MCP store has advanced its credential epoch and the WBS isolation marker is not yet committed
+- **WHEN** a user completes MCP consent
+- **THEN** the consent is refused as temporarily unavailable and no authorization code is issued
+
+#### Scenario: An advanced store refuses mcp-01 that cannot bind organizations
+
+- **GIVEN** the MCP store is at the advanced credential epoch
+- **WHEN** an mcp-01 process starts without organization authority, or with code that does not understand that epoch
+- **THEN** startup is refused before anything is served
+
 #### Scenario: Old code or direct token cannot bypass cutover
 
 - **GIVEN** a pre-activation authorization code or an unbound direct upstream token

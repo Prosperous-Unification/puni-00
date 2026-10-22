@@ -553,8 +553,17 @@ describe('MCP credential bindings', () => {
   it('refuses to refresh a family issued before the epoch advanced', () => {
     const { path, store } = freshStore();
     store.createFamily(familyInput('family-1'), 'session-1', NOW + 60_000, 'refresh-1');
-    withDb(path, (db) => db.run('UPDATE mcp_credential_epoch SET epoch = 1'));
-    expect(() =>
+    withDb(path, (db) => {
+      db.run('UPDATE mcp_credential_epoch SET epoch = 1');
+      // The store's own reads refuse the stale family first; the trigger is the last line.
+      expect(() =>
+        db.run(
+          "INSERT INTO mcp_session (jti, family_id, expires_at) VALUES ('session-2', 'family-1', ?)",
+          [NOW + 60_000],
+        ),
+      ).toThrow(/mcp_session binding must equal its family and the durable epoch/);
+    });
+    expect(
       store.consumeRefresh(
         'refresh-1',
         'client-1',
@@ -564,7 +573,7 @@ describe('MCP credential bindings', () => {
         NOW + 120_000,
         NOW,
       ),
-    ).toThrow(/mcp_session binding must equal its family and the durable epoch/);
+    ).toEqual({ outcome: 'invalid' });
     expect(store.familyForSession('session-2', NOW)).toBeNull();
     store.close();
   });
@@ -598,7 +607,7 @@ describe('MCP credential epoch at startup', () => {
       "PRAGMA ignore_check_constraints = ON; UPDATE mcp_credential_epoch SET epoch = 'zero'",
       /credential epoch is missing or malformed/,
     ],
-    ['unsupported epoch', 'UPDATE mcp_credential_epoch SET epoch = 1', /epoch 1 needs/],
+    ['unsupported epoch', 'UPDATE mcp_credential_epoch SET epoch = 2', /epoch 2 is newer/],
   ])('refuses startup on a %s without reseeding', (_label, fault, message) => {
     const path = migrated();
     withDb(path, (db) => {
