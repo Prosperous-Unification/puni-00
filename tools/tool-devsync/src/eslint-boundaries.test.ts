@@ -132,6 +132,54 @@ describe('the effective production and test boundaries', () => {
       ).toContain('@nx/enforce-module-boundaries');
   }, 30_000);
 
+  it('Dash executor reaches exactly the contracts alias at its four scoped paths', async () => {
+    const peer = 'apps/twilight-structure/twilight-dash/cli/src/entrypoint.ts';
+    const peerOptions = boundaryOf(await lint.calculateConfigForFile(peer))[1];
+    if (!isRecord(peerOptions)) throw new Error('Dash peer boundary options are malformed');
+    async function executorRuleIds(path: string, alias: string) {
+      const [report] = await lint.lintText(`await import('${alias}');`, { filePath: path });
+      expect(report.fatalErrorCount, `valid parser/config for ${path}`).toBe(0);
+      return report.messages.map((message) => message.ruleId);
+    }
+    for (const path of [
+      'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/activity-executor.test.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/agents/api-model-settings.test.ts',
+    ]) {
+      const options = boundaryOf(await lint.calculateConfigForFile(path))[1];
+      if (!isRecord(options)) throw new Error('Dash executor boundary options are malformed');
+      expect(
+        await executorRuleIds(path, '@twilight-burokrat/contracts'),
+        `admit contracts from ${path}`,
+      ).not.toContain('@nx/enforce-module-boundaries');
+      for (const alias of [
+        '@twilight-burokrat/judge',
+        '@tools/fleet-plan',
+        '../../../../twilight-burokrat/cli/src/contracts',
+      ])
+        expect(await executorRuleIds(path, alias), `reject ${alias} from ${path}`).toContain(
+          '@nx/enforce-module-boundaries',
+        );
+      expect(options['allow']).toEqual(['^@twilight-burokrat/contracts$']);
+      const withoutLocalAlias: Readonly<Record<string, unknown>> = { ...options, allow: [] };
+      expect(withoutLocalAlias).toEqual(peerOptions);
+      expect(
+        importsAlias(await readFile(join(workspace, path), 'utf8'), '@twilight-burokrat/contracts'),
+        `live contracts consumer ${path}`,
+      ).toBe(true);
+    }
+    for (const path of [
+      peer,
+      'apps/twilight-structure/twilight-dash/cli/src/runs/plan-ownership.ts',
+      'apps/twilight-structure/twilight-dash/cli/src/no-ambient-clock.test.ts',
+    ])
+      expect(
+        await executorRuleIds(path, '@twilight-burokrat/contracts'),
+        `reject contracts alias from unlisted peer ${path}`,
+      ).toContain('@nx/enforce-module-boundaries');
+  }, 30_000);
+
   it('a UI kit reaches shared browser code and nothing of a product or of Bun', async () => {
     // The design system's kits are `product:shared ring:adapter runtime:browser`
     // (`openspec/changes/design-system-foundation`): a product may reach them, so

@@ -22,7 +22,7 @@
 
 ## File ownership and validation
 
-All implementation files below live under `apps/twilight-structure/twilight-dash/cli/src/agents/` (currently absent). `activity-executor.ts` owns the port/identity boundary; `api-model-settings.ts` owns selected live configuration; `api-model-turn.ts` owns one SDK dispatch; `api-model-adapter.ts` owns session lifecycle. Tests sit beside their production file. No public index/factory with a throwing placeholder is added in Tasks 1–2.
+All implementation files below live under `apps/twilight-structure/twilight-dash/cli/src/agents/` (currently absent). `activity-executor.ts` owns the port/identity boundary; `api-model-settings.ts` owns selected live configuration; `api-model-turn.ts` owns one SDK dispatch; `api-model-adapter.ts` owns session lifecycle. Tests sit beside their production file. No public index/factory with a throwing placeholder is added in Tasks 1–2. The exact contract-consumer paths also receive scoped import-policy coverage in the existing Dash policy and tool-devsync effective-boundary tests, as assigned below.
 
 Each task runs its focused command and these existing targets after its tests pass:
 
@@ -35,7 +35,7 @@ Record exact commands, changed guard/fault, named failing test, restoration and 
 
 ### Task 1: Shared identities and accepted API configuration
 
-**Files:** Create `agents/activity-executor.ts`, `agents/activity-executor.test.ts`, `agents/api-model-settings.ts`, `agents/api-model-settings.test.ts` under the full directory above. No storage/binding source modifications.
+**Files:** Create `agents/activity-executor.ts`, `agents/activity-executor.test.ts`, `agents/api-model-settings.ts`, `agents/api-model-settings.test.ts` under the full directory above. No storage/binding source modifications. Extend `apps/twilight-structure/twilight-dash/eslint.product.mjs` and `tools/tool-devsync/src/eslint-boundaries.test.ts` only for these four exact contracts-consumer paths.
 
 **Interfaces:**
 
@@ -86,11 +86,19 @@ TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test --preload ./tools/te
 ```
 
 - [ ] **Prove guards on these production functions.** Remove the required-tool guard and observe the missing-tool test fail; permit extra supplied tools and observe exact-dictionary test fail; allow an invalid request epoch/version and observe its boundary test fail; replace detached request copy with freeze(input) and observe caller-mutability test fail. Model lookup/bare-ID negatives use actual accepted-binding and installed registry boundaries. Parent 2.2's prefix-guard-removal example is not a mandate for a redundant adapter guard: do not add one when the registry masks its removal, and do not claim a new adapter R5 proof for an existing boundary. No separate byte-copy safety claim: accepted binding already owns snapshotting.
+- [ ] **Prove the exact contract import boundary.** Extend the existing effective-policy test pattern with a named Dash executor case: all four declared source/test paths admit only the anchored @twilight-burokrat/contracts alias; judge/sibling aliases, relative app imports and unlisted production/test peers remain refused. Preserve inherited constraints. Prepare the real Nx graph first; nonexistent-file parser errors or skipped rules are not policy evidence. Watch removal of this allowance and alias/relative/path widening fail their intended assertions with valid loaded configuration, then restore bytes and record results.
+
+```bash
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx show project twilight-dash --json
+TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test --preload ./tools/test/scratch/preload.ts ./tools/tool-devsync/src/eslint-boundaries.test.ts --test-name-pattern "Dash executor" --timeout=30000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p twilight-dash,tool-devsync --skip-nx-cache
+```
+
 - [ ] **Run focused tests, typecheck and lint green; record evidence for the root-owned bounded commit.** Port/configuration works independently; no adapter execution or durable recovery is claimed.
 
 ### Task 2: A real SDK turn driver with truthful outcomes
 
-**Files:** Create `agents/api-model-turn.ts`, `agents/api-model-turn.test.ts`; consume Task 1 files. No adapter stub or fake-provider production module.
+**Files:** Create `agents/api-model-turn.ts`, `agents/api-model-turn.test.ts`; consume Task 1 files. Extend the existing Dash import policy and effective-boundary case for the new test's direct accepted-binding import; source stays behind Task1 local interfaces. No adapter stub or fake-provider production module.
 
 **Interfaces:**
 
@@ -170,7 +178,7 @@ TOOL_WIKI_TRUSTED_NODE_MODULES="$PWD/node_modules" bun test --preload ./tools/te
 
 ### Task 3: Compose the API-model executor and session lifecycle
 
-**Files:** Create `agents/api-model-adapter.ts`, `agents/api-model-adapter.test.ts`; update only the earlier agent files if a reviewed interface correction is necessary. No CLI/main wiring, provider factory, coordinator or RunStore migration.
+**Files:** Create `agents/api-model-adapter.ts`, `agents/api-model-adapter.test.ts`; update only the earlier agent files if a reviewed interface correction is necessary. Extend the same exact-path import policy/effective-boundary case for these direct contract consumers, with fresh removal/widening proofs. No CLI/main wiring, provider factory, coordinator or RunStore migration.
 
 **Interfaces:**
 
