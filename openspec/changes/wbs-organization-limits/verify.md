@@ -499,5 +499,21 @@ Verdict: merge into the plan branch as is; one S2 and five S3 recordings.
 
 ## Gate output
 
-Pending. To be recorded per slice with `bin/h2puni-gate.sh <sha>` (or h4claw) output, and
-locally with `env -u CLAUDECODE` on the named test files.
+Gate of record for the whole change, on the plan head after slice 5 merged
+(`plan/wbs-organization-limits` = `a098bccfbc19df49ec62c7ebcf875e61467c577c`, main at
+`75585eebd` carried inside it), run on h4claw:
+
+```
+h2puni gate: running on a098bccfbc19df49ec62c7ebcf875e61467c577c
+ NX   Successfully ran targets test, lint, typecheck, build for 49 projects and 9 tasks they depend on
+ NX   Successfully ran targets test, typecheck, build for 2 projects and 4 tasks they depend on
+ NX   Successfully ran target lint:source for project twilight-burokrat
+ NX   Successfully ran target lint for project twilight-dash
+ NX   Successfully ran target solver-image-smoke for project wbs-be-01
+GATE_EXIT=0 end=2026-10-22T17:17:13Z
+```
+
+CI on PR #636 (plan → main) was green on the same head after one rerun of `pixels shard 1/4`,
+which the job's 25-minute cap cancelled after a slow chromium install (issue #654). Merged to
+main as `33685ec480bc996b6d1909156167367af7279941` on 2026-10-22. Per-slice local runs are in
+each slice record above.
