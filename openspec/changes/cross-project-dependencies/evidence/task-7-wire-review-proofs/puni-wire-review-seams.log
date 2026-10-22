@@ -1,0 +1,125 @@
+bun test v1.4.2 (744846f84)
+
+../puni-wire-review-probes/seams.test.ts:
+111 |  const candidate=stage(); (candidate.input.graph.edges as unknown[]).pop();
+112 |  const pair=prepare(candidate);
+113 |  if(pair.pri.kind!=='request'||pair.time.kind!=='request') throw new Error('setup requires requests');
+114 |  const scope=pair.pri.request.scope;
+115 |  const response={wireVersion:5,scope:{kind:scope.kind,projectId:scope.projectId,inputHash:scope.inputHash,questionHash:scope.questionHash},status:'unknown'};
+116 |  expect(parseConnectedSolverResponse(JSON.stringify(response),pair.time.request).ok).toBe(false);
+                                                                                           ^
+error: expect(received).toBe(expected)
+
+Expected: false
+Received: true
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:116:86)
+(fail) different objectives must not share a full question identity [2.96ms]
+116 |  expect(parseConnectedSolverResponse(JSON.stringify(response),pair.time.request).ok).toBe(false);
+117 | });
+118 | test('malformed budget must not produce a prepared boundary terminal', async () => {
+119 |  const pair=prepare(stage(),0);
+120 |  if(pair.pri.kind==='boundary-infeasible') await Bun.write('/tmp/puni-wire-review-malformed-budget.json',JSON.stringify(pair.pri.request));
+121 |  expect(pair.pri.kind).not.toBe('boundary-infeasible');
+                                 ^
+error: expect(received).not.toBe(expected)
+
+Expected: not "boundary-infeasible"
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:121:28)
+(fail) malformed budget must not produce a prepared boundary terminal [0.52ms]
+122 | });
+123 | test('fractional origin must not produce a prepared boundary terminal', async () => {
+124 |  const candidate={...stage(),originOrdinal:0.5};
+125 |  const pair=prepare(candidate);
+126 |  if(pair.pri.kind==='boundary-infeasible') await Bun.write('/tmp/puni-wire-review-malformed-origin.json',JSON.stringify(pair.pri.request));
+127 |  expect(pair.pri.kind).not.toBe('boundary-infeasible');
+                                 ^
+error: expect(received).not.toBe(expected)
+
+Expected: not "boundary-infeasible"
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:127:28)
+(fail) fractional origin must not produce a prepared boundary terminal [0.38ms]
+nonfinite token NaN exit 0 stdout {"scope":{"inputHash":"input","kind":"connected-stage","projectId":"B","questionHash":"question"},"status":"boundary-infeasible","wireVersion":5}
+ stderr 
+131 |  for(const token of ['NaN','1e309']) {
+132 |   const bytes=raw.replace('"finish": 0.2', '"finish": '+token);
+133 |   expect(bytes).not.toBe(raw);
+134 |   const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(bytes)});
+135 |   console.log('nonfinite token',token,'exit',child.exitCode,'stdout',child.stdout.toString(),'stderr',child.stderr.toString());
+136 |   expect(child.exitCode).toBe(64);
+                               ^
+error: expect(received).toBe(expected)
+
+Expected: 64
+Received: 0
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:136:26)
+(fail) installed receiver rejects nonfinite foreign placement [370.10ms]
+invalid budget exit 64 stderr wbs-solver: request does not satisfy #/$defs/request: budgetMs: 0 is less than the minimum of 1
+
+invalid origin exit 64 stderr wbs-solver: request does not satisfy #/$defs/request: scope/originOrdinal: 0.5 is not of type 'integer'
+
+(pass) installed receiver independently rejects malformed terminal requests [798.30ms]
+overflow-float exit 0 stdout {"scope":{"inputHash":"input","kind":"connected-stage","projectId":"B","questionHash":"question"},"status":"boundary-infeasible","wireVersion":5}
+ stderr 
+147 | test('installed receiver rejects exponent-overflow foreign placement', async () => {
+148 |  const raw=await Bun.file('/tmp/puni-wire-installed-connected-request.json').text();
+149 |  const bytes=raw.replace('"finish": 0.2','"finish": 1e309');
+150 |  const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(bytes)});
+151 |  console.log('overflow-float exit',child.exitCode,'stdout',child.stdout.toString(),'stderr',child.stderr.toString());
+152 |  expect(child.exitCode).toBe(64);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 64
+Received: 0
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:152:25)
+(fail) installed receiver rejects exponent-overflow foreign placement [445.83ms]
+bad-witness exit 1 stdout  stderr Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver", line 6, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/tmp/puni-cross-solver-wire/.venv-solver/lib/python3.14/site-packages/wbs_solver/cli.py", line 151, in main
+    response = solve_request(request, config)
+  File "/tmp/puni-cross-solver-wire/.venv-solver/lib/python3.14/site-packages/wbs_solver/solve.py", line 422, in solve_request
+    bound = baseline_bound(request)
+  File "/tmp/puni-cross-solver-wire/.venv-solver/lib/python3.14/site-packages/wbs_solver/solve.py", line 325, in baseline_bound
+    raise RequestRejected("declared feasibleBaselineOffsets violate the full model")
+wbs_solver.validate.RequestRejected: declared feasibleBaselineOffsets violate the full model
+
+154 | test('installed CLI classifies invalid declared witness as bad request', async () => {
+155 |  const request=await Bun.file('/tmp/puni-wire-installed-connected-request.json').json();
+156 |  request.scope.boundaries.pop(); request.feasibleBaselineOffsets={b:0};
+157 |  const child=Bun.spawnSync(['/tmp/puni-cross-solver-wire/.venv-solver/bin/wbs-solver'],{stdin:Buffer.from(JSON.stringify(request))});
+158 |  console.log('bad-witness exit',child.exitCode,'stdout',child.stdout.toString(),'stderr',child.stderr.toString());
+159 |  expect(child.exitCode).toBe(64);
+                              ^
+error: expect(received).toBe(expected)
+
+Expected: 64
+Received: 1
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:159:25)
+(fail) installed CLI classifies invalid declared witness as bad request [428.25ms]
+160 | });
+161 | test('finite unrepresentable connected horizon is a typed preflight failure', () => {
+162 |  const candidate=stage();
+163 |  (candidate.starts as Map<string,number>).set(b,1e15); (candidate.finishes as Map<string,number>).set(b,1e15+1);
+164 |  (candidate.starts as Map<string,number>).set(c,1e15+1); (candidate.finishes as Map<string,number>).set(c,1e15+2);
+165 |  expect(()=>prepare(candidate)).not.toThrow();
+                                          ^
+error: expect(received).not.toThrow()
+
+Error name: "Error"
+Error message: "connected boundary exceeds safe integer range"
+
+      at <anonymous> (/tmp/puni-wire-review-probes/seams.test.ts:165:37)
+(fail) finite unrepresentable connected horizon is a typed preflight failure [0.56ms]
+
+ 1 pass
+ 7 fail
+ 10 expect() calls
+Ran 8 tests across 1 file. [2.17s]

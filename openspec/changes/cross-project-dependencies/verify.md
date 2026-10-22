@@ -505,3 +505,27 @@ no invalid entries. [Exact output](evidence/openspec-all-706e033e0.json.txt).
 This is repository schema validation at that checkpoint, not implementation,
 behavioral gate, final-candidate CI or delivery evidence. Solver source remains
 unintegrated pending independent review and backend compatibility corrections.
+
+## Tasks 7.1–7.2 — solver checkpoint review requires corrections
+
+Owned wire/Python/script checkpoint `05a5b85d5` is committed only in its isolated
+worktree and is **not integrated or approved**. [Author report](evidence/task-7-wire.md),
+[independent review](evidence/task-7-wire-review.md) and [review evidence](evidence/task-7-wire-review-proofs/)
+record the exact 74-file byte set and findings. Original Sol is correcting all
+six findings before re-review.
+
+Astra freshly reproduced the baseline green suites (contracts 512, Python 273,
+protocol 12, domain 1,331 with one existing skip, backend scripts 12), then found
+seven actual assertion failures across eight adversarial cases. PRI and Time
+shared a full question identity; malformed requests could produce prepared
+terminals; Python admitted nonfinite foreign evidence; invalid declared witness
+escaped the modeled CLI exit; finite range overflow bypassed typed preflight.
+The sixth finding is a proof gap: removing Python's foreign-owner predicate left
+all 273 tests passing, while the new real CLI probe detected unsafe acceptance.
+Its initial sandbox setup error is explicitly not counted as a mutation proof.
+
+These findings are independent of the already-known active backend wire-4 fixture
+follow-up and deferred runtime/certificate/publication integration. No full 7.x
+checkbox or WBS solver leaf is complete. The installed runtime smoke establishes
+its observed wire/version behavior only, not the correctness contradicted by the
+adversarial probes. Historical wire files and domain corpus cases were unchanged.
