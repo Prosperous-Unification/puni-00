@@ -97,6 +97,12 @@
       "@wbs/contracts/solver/revalidate-solver-result": [
         "./libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts"
       ],
+      "@wbs/contracts/solver/build-connected-request": [
+        "./libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts"
+      ],
+      "@wbs/contracts/solver/connected-solver-outcome": [
+        "./libs/wbs/domain/contracts/solver/src/connected-solver-outcome.ts"
+      ],
       "@wbs/contracts/solver/solver-exit-outcome": [
         "./libs/wbs/domain/contracts/solver/src/solver-exit-outcome.ts"
       ],
