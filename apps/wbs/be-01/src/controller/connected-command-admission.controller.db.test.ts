@@ -706,30 +706,275 @@ test('structural first-child creation refuses a remote-owned pinned node before 
   expect(effects()).toEqual(before);
 });
 
-test('external endpoint deletion fails closed pending incident lifecycle admission', async () => {
+test('external predecessor deletion returns a modeled conflict without changing any table', async () => {
   const fixture = await open();
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!added.ok) throw new Error('fixture link refused');
+  const before = effects();
+  const refusal = await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
+    service.remove(
+      fixture.predecessor.workItemId,
+      fixture.principal.id,
+      'cascade',
+      fixture.expectedAccess,
+    ),
+  );
+  expect(refusal).toMatchObject({
+    ok: false,
+    reason: 'referenced_by_external_dependency',
+    dependencyIds: [added.value],
+  });
+  expect(effects()).toEqual(before);
+  const mounted = await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+    commands: [
+      {
+        kind: 'patchWorkItem',
+        workItemId: fixture.predecessor.workItemId,
+        patch: { name: 'Roll back this rename' },
+      },
+      { kind: 'deleteWorkItem', workItemId: fixture.predecessor.workItemId, strategy: 'cascade' },
+    ],
+  });
+  expect(mounted.status).toBe(409);
+  expect(await mounted.json()).toMatchObject({
+    error: 'referenced_by_external_dependency',
+    dependencyIds: [added.value],
+    at: 1,
+  });
+  expect(effects()).toEqual(before);
+});
+
+test('undo-create refuses a newly linked outgoing predecessor even when its local revision matches', async () => {
+  const fixture = await open();
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!added.ok) throw new Error('fixture link refused');
+  // Force the local revision back to the create entry's expected value so the
+  // incident policy itself, rather than the ordinary revision guard, is tested.
+  harness.sqlite
+    .query('UPDATE work_item SET revision=0 WHERE id=?')
+    .run(fixture.predecessor.workItemId);
+  harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+  const before = effects();
+  expect(
+    await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
+      service.undoWithin(
+        fixture.predecessor.projectId,
+        fixture.principal.id,
+        fixture.expectedAccess,
+      ),
+    ),
+  ).toMatchObject({ ok: false, reason: 'stale_undo' });
+  expect(effects()).toEqual(before);
+});
+
+test('undo-create refuses a newly linked incoming successor even when its local revision matches', async () => {
+  const fixture = await open();
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!added.ok) throw new Error('fixture link refused');
+  // Select the older create entry while keeping the real link: its later
+  // ordinary successor-owned journal entry would otherwise be undone first.
+  harness.sqlite
+    .query("DELETE FROM command_journal WHERE project_id=? AND kind='add_typed_dependency'")
+    .run(fixture.owner.projectId);
+  harness.sqlite.query('UPDATE work_item SET revision=0 WHERE id=?').run(fixture.owner.workItemId);
+  harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+  const before = effects();
   expect(
     await semantic(fixture, (service) =>
-      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
     ),
-  ).toMatchObject({ ok: true });
-  const before = effects();
-  const failure: unknown = await semantic(fixture, (service) =>
+  ).toMatchObject({ ok: false, reason: 'stale_undo' });
+  expect(effects()).toEqual(before);
+});
+
+for (const strategy of ['cascade', 'promote'] as const) {
+  test(`external predecessor ${strategy} deletion refuses before mutation`, async () => {
+    const fixture = await open();
+    expect(
+      (
+        await fixture.request(`/api/projects/${fixture.predecessor.projectId}/commands`, {
+          commands: [
+            { kind: 'createWorkItem', parentId: fixture.predecessor.workItemId, name: 'Child' },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const added = await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    );
+    if (!added.ok) throw new Error('fixture link refused');
+    const before = effects();
+    expect(
+      await semantic({ ...fixture, owner: fixture.predecessor }, (service) =>
+        service.remove(
+          fixture.predecessor.workItemId,
+          fixture.principal.id,
+          strategy,
+          fixture.expectedAccess,
+        ),
+      ),
+    ).toMatchObject({
+      ok: false,
+      reason: 'referenced_by_external_dependency',
+      dependencyIds: [added.value],
+    });
+    expect(effects()).toEqual(before);
+  });
+}
+
+test('external successor deletion removes its owned incoming link and undo restores its identity', async () => {
+  const fixture = await open();
+  expect(
+    (
+      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+        commands: [{ kind: 'createWorkItem', name: 'Retained owner row' }],
+      })
+    ).status,
+  ).toBe(200);
+  const retained = harness.sqlite
+    .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Retained owner row'")
+    .get();
+  if (retained === null) throw new Error('retained row missing');
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!added.ok) throw new Error('fixture link refused');
+  const dependencyId = added.value;
+  const unrelated = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      ...fixture.input,
+      successor: { ...fixture.input.successor, workItemId: retained.id },
+    }),
+  );
+  if (!unrelated.ok) throw new Error('unrelated fixture link refused');
+  const local = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      ...fixture.input,
+      predecessor: { projectId: fixture.owner.projectId, workItemId: retained.id, scope: 'whole' },
+    }),
+  );
+  if (!local.ok) throw new Error('local fixture link refused');
+  const removed = await semantic(fixture, (service) =>
     service.remove(
       fixture.owner.workItemId,
       fixture.principal.id,
       'cascade',
       fixture.expectedAccess,
     ),
-  ).then(
-    () => null,
-    (error: unknown) => error,
   );
-  expect(failure instanceof Error ? failure.message : failure).toContain(
-    'incident transfer admission',
+  expect(removed).toMatchObject({ ok: true });
+  expect(
+    harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(dependencyId),
+  ).toBeNull();
+  expect(
+    harness.sqlite.query('SELECT id FROM typed_dependency WHERE id=?').get(local.value),
+  ).toBeNull();
+  expect(
+    harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(unrelated.value),
+  ).toEqual({ id: unrelated.value });
+  harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+  const undone = await semantic(fixture, (service) =>
+    service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
   );
+  expect(undone).toMatchObject({ ok: true });
+  expect(
+    harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(dependencyId),
+  ).toEqual({ id: dependencyId });
+  expect(
+    harness.sqlite.query('SELECT id FROM typed_dependency WHERE id=?').get(local.value),
+  ).toEqual({ id: local.value });
+  expect(
+    harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(unrelated.value),
+  ).toEqual({ id: unrelated.value });
+  const redone = await semantic(fixture, (service) =>
+    service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+  );
+  expect(redone).toMatchObject({ ok: true });
+  expect(
+    harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(dependencyId),
+  ).toBeNull();
+  expect(
+    harness.sqlite.query('SELECT id FROM typed_dependency WHERE id=?').get(local.value),
+  ).toBeNull();
+  expect(
+    harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(unrelated.value),
+  ).toEqual({ id: unrelated.value });
+});
+
+test('external successor deletion undo refuses a concurrent predecessor revision', async () => {
+  const fixture = await open();
+  expect(
+    (
+      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+        commands: [{ kind: 'createWorkItem', name: 'Retained owner row' }],
+      })
+    ).status,
+  ).toBe(200);
+  const added = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!added.ok) throw new Error('fixture link refused');
+  expect(
+    await semantic(fixture, (service) =>
+      service.remove(
+        fixture.owner.workItemId,
+        fixture.principal.id,
+        'cascade',
+        fixture.expectedAccess,
+      ),
+    ),
+  ).toMatchObject({ ok: true });
+  harness.sqlite
+    .query('UPDATE work_item SET revision=revision+1 WHERE id=?')
+    .run(fixture.predecessor.workItemId);
+  harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+  const before = effects();
+  expect(
+    await semantic(fixture, (service) =>
+      service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+    ),
+  ).toMatchObject({ ok: false, reason: 'stale_undo' });
   expect(effects()).toEqual(before);
 });
+
+for (const strategy of ['cascade', 'promote'] as const) {
+  test(`external successor ${strategy} deletion removes its owned incoming link`, async () => {
+    const fixture = await open();
+    expect(
+      (
+        await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+          commands: [{ kind: 'createWorkItem', parentId: fixture.owner.workItemId, name: 'Child' }],
+        })
+      ).status,
+    ).toBe(200);
+    const added = await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    );
+    if (!added.ok) throw new Error('fixture link refused');
+    expect(
+      await semantic(fixture, (service) =>
+        service.remove(
+          fixture.owner.workItemId,
+          fixture.principal.id,
+          strategy,
+          fixture.expectedAccess,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(added.value),
+    ).toBeNull();
+    expect(harness.sqlite.query("SELECT id FROM work_item WHERE name='Child'").get() === null).toBe(
+      strategy === 'cascade',
+    );
+  });
+}
 
 test('a connected move refuses making a remote-owned pinned node a parent', async () => {
   const fixture = await open();
@@ -2375,3 +2620,100 @@ test('ordered restore never defers a missing remote row even when replay carries
   ).toMatchObject({ ok: false, reason: 'not_found', detail: null });
   expect(effects()).toEqual(before);
 });
+
+test('mounted predecessor deletion names every incident ID in sorted order', async () => {
+  const fixture = await open();
+  expect(
+    (
+      await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+        commands: [{ kind: 'createWorkItem', name: 'Second successor' }],
+      })
+    ).status,
+  ).toBe(200);
+  const first = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+  );
+  if (!first.ok) throw new Error('first link refused');
+  const secondRow = harness.sqlite
+    .query<{ id: string }, []>("SELECT id FROM work_item WHERE name='Second successor'")
+    .get();
+  if (secondRow === null) throw new Error('second successor missing');
+  const second = await semantic(fixture, (service) =>
+    service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, {
+      ...fixture.input,
+      successor: { ...fixture.input.successor, workItemId: secondRow.id },
+    }),
+  );
+  if (!second.ok) throw new Error('second link refused');
+  const before = effects();
+  const response = await fixture.request(
+    `/api/projects/${fixture.predecessor.projectId}/commands`,
+    {
+      commands: [
+        { kind: 'deleteWorkItem', workItemId: fixture.predecessor.workItemId, strategy: 'cascade' },
+      ],
+    },
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+    error: 'referenced_by_external_dependency',
+    dependencyIds: [first.value, second.value].sort(),
+  });
+  expect(effects()).toEqual(before);
+});
+
+for (const strategy of ['cascade', 'promote'] as const) {
+  test(`successor parent ${strategy} undo redo retains exact external identity`, async () => {
+    const fixture = await open();
+    expect(
+      (
+        await fixture.request(`/api/projects/${fixture.owner.projectId}/commands`, {
+          commands: [
+            { kind: 'createWorkItem', parentId: fixture.owner.workItemId, name: 'Child' },
+            { kind: 'createWorkItem', name: 'Retained sibling' },
+          ],
+        })
+      ).status,
+    ).toBe(200);
+    const linked = await semantic(fixture, (service) =>
+      service.addTypedDependency(fixture.owner.projectId, fixture.principal.id, fixture.input),
+    );
+    if (!linked.ok) throw new Error('fixture link refused');
+    const original = harness.sqlite
+      .query(
+        'SELECT id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type FROM external_dependency WHERE id=?',
+      )
+      .get(linked.value);
+    expect(
+      await semantic(fixture, (service) =>
+        service.remove(
+          fixture.owner.workItemId,
+          fixture.principal.id,
+          strategy,
+          fixture.expectedAccess,
+        ),
+      ),
+    ).toMatchObject({ ok: true });
+    harness.sqlite.query("UPDATE step_blockage_activation SET state='ENABLED' WHERE id=1").run();
+    expect(
+      await semantic(fixture, (service) =>
+        service.undoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      harness.sqlite
+        .query(
+          'SELECT id,predecessor_project_id,successor_project_id,predecessor_work_item_id,successor_work_item_id,predecessor_scope,successor_scope,type FROM external_dependency WHERE id=?',
+        )
+        .get(linked.value),
+    ).toEqual(original);
+    expect(
+      await semantic(fixture, (service) =>
+        service.redoWithin(fixture.owner.projectId, fixture.principal.id, fixture.expectedAccess),
+      ),
+    ).toMatchObject({ ok: true });
+    expect(
+      harness.sqlite.query('SELECT id FROM external_dependency WHERE id=?').get(linked.value),
+    ).toBeNull();
+  });
+}

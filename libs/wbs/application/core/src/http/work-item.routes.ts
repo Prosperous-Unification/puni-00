@@ -280,6 +280,7 @@ function answerBatch(
       };
     case 'descendant_step_on_leaf':
     case 'node_on_parent':
+    case 'referenced_by_external_dependency':
       return {
         ok: false,
         status: 409,

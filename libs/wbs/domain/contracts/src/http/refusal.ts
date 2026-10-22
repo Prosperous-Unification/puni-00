@@ -144,6 +144,7 @@ export type CommandRefusalCode =
   | 'not_a_parent'
   | 'node_on_parent'
   | 'descendant_step_on_leaf'
+  | 'referenced_by_external_dependency'
   | 'unknown_dependency'
   | 'external_dependencies_inactive'
   | 'duplicate_dependency'
@@ -339,7 +340,8 @@ export type CommandRefusalDetail = {
       : // Proof: optional nodes made the missing-detail compiler negative unused (mutation-optional-command-nodes.txt).
         C extends 'referenced_by_step_parallel'
         ? { nodes: { workItemId: string; stepId: string }[] }
-        : C extends 'node_on_parent' | 'descendant_step_on_leaf'
+        : C extends
+              'node_on_parent' | 'descendant_step_on_leaf' | 'referenced_by_external_dependency'
           ? { dependencyIds: string[] }
           : C extends 'in_use'
             ? { usage: DirectoryUsage; counts?: ResourceUsageCounts }

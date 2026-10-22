@@ -116,7 +116,10 @@ export type Refusal =
       reason: 'deadline_before_project_start';
       detail: { workItemId: string; projectDayZero: string };
     }
-  | { reason: 'descendant_step_on_leaf' | 'node_on_parent'; detail: { dependencyIds: string[] } }
+  | {
+      reason: 'descendant_step_on_leaf' | 'node_on_parent' | 'referenced_by_external_dependency';
+      detail: { dependencyIds: string[] };
+    }
   | {
       reason: 'referenced_by_step_parallel';
       detail: { nodes: { workItemId: string; stepId: string }[] };

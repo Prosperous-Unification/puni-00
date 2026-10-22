@@ -276,6 +276,11 @@ const batchRefusals = [
         }),
         type({ ...context, error: "'node_on_parent'", dependencyIds: 'string[]' }),
         type({ ...context, error: "'descendant_step_on_leaf'", dependencyIds: 'string[]' }),
+        type({
+          ...context,
+          error: "'referenced_by_external_dependency'",
+          dependencyIds: 'string[]',
+        }),
       ),
     ),
   },

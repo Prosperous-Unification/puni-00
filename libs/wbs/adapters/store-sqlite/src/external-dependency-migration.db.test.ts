@@ -172,6 +172,42 @@ it('protects surviving external successors and permits deleting both ends', asyn
   expect(await repo.removeAllFor(['a', 'b'], stamp)).toEqual([link()]);
 });
 
+it('project persistence refuses a referenced predecessor and permits its deletion after link removal', async () => {
+  const repo = repository();
+  await repo.add(link(), stamp);
+  const before = {
+    project: stored('SELECT id FROM project ORDER BY id'),
+    links: stored('SELECT id FROM external_dependency ORDER BY id'),
+    rows: stored('SELECT id,revision FROM work_item ORDER BY id'),
+  };
+  const sqlite = openDatabase(path);
+  try {
+    expect(() => sqlite.run("DELETE FROM project WHERE id='a'")).toThrow();
+  } finally {
+    sqlite.close();
+  }
+  expect(stored('SELECT id FROM project ORDER BY id')).toEqual(before.project);
+  expect(stored('SELECT id FROM external_dependency ORDER BY id')).toEqual(before.links);
+  expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before.rows);
+  const predecessor = openDatabase(path);
+  try {
+    expect(() => predecessor.run("DELETE FROM work_item WHERE id='a'")).toThrow();
+  } finally {
+    predecessor.close();
+  }
+  expect(stored('SELECT id,revision FROM work_item ORDER BY id')).toEqual(before.rows);
+  await repo.remove('external', { ...stamp, at: 3 });
+  const unlinked = openDatabase(path);
+  try {
+    unlinked.run("DELETE FROM step WHERE project_id='a'");
+    unlinked.run("DELETE FROM work_item WHERE id='a'");
+    unlinked.run("DELETE FROM project WHERE id='a'");
+  } finally {
+    unlinked.close();
+  }
+  expect(stored("SELECT id FROM project WHERE id='a'")).toEqual([]);
+});
+
 it('refuses missing work-item and organization evidence on reads', async () => {
   const repo = repository();
   await repo.add(link(), stamp);

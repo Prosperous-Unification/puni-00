@@ -488,6 +488,7 @@ export type DeleteStrategy = 'cascade' | 'promote';
 
 export type WorkItemRefusal =
   | 'external_dependencies_inactive'
+  | 'referenced_by_external_dependency'
   | 'not_found'
   | 'forbidden'
   | 'strategy_required'
@@ -1450,6 +1451,63 @@ export class WorkItemService {
         return cycle === null
           ? null
           : { ok: false, reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' };
+      },
+    );
+  }
+
+  /** Checks every doomed incident under current endpoint read authority before a structural delete. */
+  private deletionIncidents(
+    projectId: string,
+    actorId: string,
+    doomed: readonly string[],
+  ): Promise<
+    | { ok: true; externalBefore: readonly ScopedRevision[]; ownedIncomingIds: readonly string[] }
+    | { ok: false; reason: WorkItemRefusal; dependencyIds?: string[] }
+  > {
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (context) => {
+        const inside = new Set(doomed);
+        const incident = (await this.opts.typedDependencies.listIncident([projectId])).filter(
+          (relationship) =>
+            relationship.predecessor.projectId !== relationship.successor.projectId &&
+            [relationship.predecessor, relationship.successor].some(
+              (endpoint) => endpoint.projectId === projectId && inside.has(endpoint.workItemId),
+            ),
+        );
+        const checked = await this.typedEvidence(context, projectId, incident);
+        if (!checked.ok) return checked;
+        const outgoing = incident
+          .filter(
+            (relationship) =>
+              relationship.predecessor.projectId === projectId &&
+              inside.has(relationship.predecessor.workItemId) &&
+              !(
+                relationship.successor.projectId === projectId &&
+                inside.has(relationship.successor.workItemId)
+              ),
+          )
+          .map((relationship) => relationship.id)
+          .sort();
+        // Proof: disabling this refusal made the admitted predecessor-delete test
+        // throw at the later graph guard instead of returning its exact modeled
+        // conflict; watched with the real SQLite UoW, 2026-10-22.
+        if (outgoing.length > 0)
+          return {
+            ok: false,
+            reason: 'referenced_by_external_dependency',
+            dependencyIds: outgoing,
+          };
+        const ownedIncomingIds = incident
+          .filter(
+            (relationship) =>
+              relationship.projectId === projectId && inside.has(relationship.successor.workItemId),
+          )
+          .map((relationship) => relationship.id)
+          .sort();
+        return { ok: true, externalBefore: checked.externalBefore, ownedIncomingIds };
       },
     );
   }
@@ -4296,6 +4354,8 @@ export class WorkItemService {
     // exact leaf/cascade or promote-policy tests; early lookup broke missing/auth/
     // strategy precedence, and late lookup changed the statement snapshot, 2026-10-17.
     const doomed = children.length === 0 || strategy === 'cascade' ? subtreeOf(rows, id) : [id];
+    const incidents = await this.deletionIncidents(workItem.projectId, actorId, doomed);
+    if (!incidents.ok) return incidents;
     const parallels = await this.opts.stepParallels.listByWorkItems(workItem.projectId, doomed);
     if (parallels.length > 0) {
       return {
@@ -4699,6 +4759,9 @@ export class WorkItemService {
       }
       await this.announceTree(workItem.projectId);
       await this.record(workItem.projectId, stamp, 'delete', label, {
+        // Proof: replacing both delete before-images with [] made the admitted
+        // successor delete fail exact journal coverage and roll back (2026-10-22).
+        externalBefore: incidents.externalBefore,
         // Proof: the demand hand-up left out of the forward, `hands the last
         // child’s demand back up when its delete promotes the parent` read no
         // demand after the redo; left out of the inverse, its undo read the
@@ -4882,6 +4945,9 @@ export class WorkItemService {
     await this.opts.workItems.remove([id], promoted, stamp);
     await this.announceTree(workItem.projectId);
     await this.record(workItem.projectId, stamp, 'delete', label, {
+      // Proof: replacing both delete before-images with [] made the admitted
+      // successor delete fail exact journal coverage and roll back (2026-10-22).
+      externalBefore: incidents.externalBefore,
       forward: withRemovedTyped(
         {
           do: 'delete_subtree',
@@ -7923,6 +7989,33 @@ export class WorkItemService {
     }
     const root = rows.find((row) => row.id === command.rootId);
     if (root === undefined) throw new Error('delete root disappeared after its existence check');
+    // Proof: bypassing this replay admission made undo-create with a newly
+    // linked predecessor throw at the later graph guard rather than return
+    // stale_undo; watched against the admitted SQLite UoW, 2026-10-22.
+    const incidents = await this.deletionIncidents(projectId, stamp.by, command.remove);
+    if (!incidents.ok) {
+      if (incidents.reason === 'referenced_by_external_dependency') {
+        const dependencyIds = incidents.dependencyIds;
+        if (dependencyIds === undefined)
+          throw new Error('incident refusal is missing relationship ids');
+        return {
+          ok: false,
+          detail: `relationship ${dependencyIds.join(', ')} now references a removed predecessor.`,
+        };
+      }
+      return {
+        ok: false,
+        detail: `incident endpoint admission refused: ${incidents.reason}.`,
+      };
+    }
+    // Proof: omitting this residual-set guard let undo-create delete a newly
+    // authored incoming relationship absent from its journal; watched against
+    // real SQLite with the create entry selected and local revision aligned.
+    if (incidents.ownedIncomingIds.length > 0)
+      return {
+        ok: false,
+        detail: `relationship ${incidents.ownedIncomingIds.join(', ')} was added after this command.`,
+      };
     // Proof: removing this binding accepted persisted metadata naming a different removal parent (200 vs 500); watched 2026-10-14.
     if (command.deletionState !== undefined && command.deletionState.parentId !== root.parentId)
       throw new Error('journal deletion state names the wrong removal parent');

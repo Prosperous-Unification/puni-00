@@ -747,3 +747,22 @@ all eight hashes matched the frozen packet. Integrated selected suites passed
 170/170 (529 assertions), and uncached configured core/store/backend Nx
 typechecks plus both module-check dependencies ran and passed. The final
 CI/host gate remains pending.
+
+## Task 4.4 — incident deletion/history bounded slice, corrected
+
+The [first review](evidence/task-4-incident-initial-review.md) rejected a
+production TypeScript narrowing error. The [corrected packet](evidence/task-4-incident-v2-packet.md),
+[Astra re-review](evidence/task-4-incident-v2-review.md) and
+[ten-file manifest](evidence/task-4-incident-v2-sha256.txt) cover modeled
+predecessor 409 with sorted link IDs, successor-owned link deletion and exact
+undo/redo identities. The reviewer ran 1,589 source tests, configured
+core/contracts/backend typechecks and four-package lint; all passed after the
+correction. On integration, nine packet files match their frozen hashes and
+`work-item.resource.ts` additionally retains four explicit connected-consumer
+refusals from the independently reviewed live packet. The bounded slice does
+not complete 4.4: first-child hand-down, compound replay and the remaining
+authority/graph negatives remain open. Production external authoring is still
+dormant. After three-way integration with the live packet, the real SQLite
+focus passed 136/136 (1,630 assertions), and uncached configured
+core/contracts/backend Nx typechecks plus module-check dependencies passed.
+The final CI/host gate remains pending.

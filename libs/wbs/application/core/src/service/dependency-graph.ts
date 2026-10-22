@@ -226,21 +226,6 @@ export class DependencyGraphGuard {
     dependencyIds: string[];
   } | null> {
     this.assertOwner(projectId);
-    if (change.rows !== undefined) {
-      const projected = new Set(change.rows.map((row) => row.id));
-      const current = await this.reader.read([projectId]);
-      this.assertOwner(projectId);
-      if (
-        current.external.some((relationship) =>
-          [relationship.predecessor, relationship.successor].some(
-            (endpoint) => endpoint.projectId === projectId && !projected.has(endpoint.workItemId),
-          ),
-        )
-      )
-        throw new Error(
-          'external dependency endpoint lifecycle requires incident transfer admission',
-        );
-    }
     const { withoutStepId: _withoutStepId, ...replacement } = change;
     const captured = await this.reader.read([projectId], [{ ...replacement, projectId }]);
     this.assertOwner(projectId);

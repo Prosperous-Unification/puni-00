@@ -199,7 +199,11 @@ export class CommandContext {
   }
 
   private refuseOutcome(outcome: ServiceRefusal): never {
-    if (outcome.reason === 'descendant_step_on_leaf' || outcome.reason === 'node_on_parent') {
+    if (
+      outcome.reason === 'descendant_step_on_leaf' ||
+      outcome.reason === 'node_on_parent' ||
+      outcome.reason === 'referenced_by_external_dependency'
+    ) {
       // Proof: bypassing this guard made the command-boundary negative throw
       // CommandRefused instead of naming absent relationship ids; watched 2026-09-27.
       if (outcome.dependencyIds === undefined)
