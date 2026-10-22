@@ -4904,3 +4904,20 @@ and existing coordinator policy. Independent mutated wiring, guard, close and
 recapture receipts and the unproven final-composite distinction are recorded in
 the report. No full host gate or installed Python/image acceptance ran here;
 parent 7.3/7.4 and external authoring activation remain open.
+
+### Combined integration receipts (2026-10-23)
+
+After independent Astra review, the plan-wide rollback preflight, backend
+pre-migration admission and initial connected live admission were integrated
+with the production composition on this branch. The combined rollback suite
+passed **180/180 tests, 913 assertions** (`/tmp/puni-integrated-p1-tests.log`),
+the combined startup boot suite passed **20/20, 76 assertions**
+(`/tmp/puni-integrated-premigration-boot.log`), and the six-file connected
+regression passed **99/99, 767 assertions**
+(`/tmp/puni-integrated-live-tests.log`). OpenSpec validated all **270** items
+after both startup and live-admission integrations
+(`/tmp/puni-integrated-live-openspec.json`). The full repository format check
+passed before those two packets (`/tmp/puni-integrated-format.log`); their
+changed paths passed normal commit hooks. These focused receipts do not replace
+the exact-head CI and canonical h2puni gate. Parent activation, deployment and
+connected optimizer tasks remain open.
