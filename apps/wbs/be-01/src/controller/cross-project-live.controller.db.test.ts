@@ -763,3 +763,198 @@ test('mounted shared connected calendar range leaves no partial forecast display
   expect(tree.body).not.toHaveProperty('elsewhereHolders');
   expect(tree.body).not.toHaveProperty('resourceLabels');
 });
+
+test.each([
+  'calendar',
+  'calendar_range',
+  'adapter_missing',
+  'connected_optimization_not_supported',
+] as const)(
+  'mounted isolated-capacity load and space preserve connected unavailability (%s)',
+  async (reason) => {
+    const { remote, target } = await open({
+      withOptimizer: reason === 'connected_optimization_not_supported',
+    });
+    shareAna(remote, target);
+    // Isolated capacity uses real connected tree reads, not the unsupported shared aggregate.
+    harness.sqlite.run("UPDATE organization SET shared_people=0 WHERE id='org-a'");
+    if (reason === 'calendar')
+      harness.sqlite.query('UPDATE project SET start_date=NULL WHERE id=?').run(remote.projectId);
+    else if (reason === 'calendar_range')
+      harness.sqlite
+        .query('UPDATE estimate SET optimistic=100000000,realistic=100000000,pessimistic=100000000')
+        .run();
+    else
+      harness.sqlite
+        .query("UPDATE project SET schedule_engine='optimized',optimization_enabled=1 WHERE id=?")
+        .run(target.projectId);
+    const missing =
+      reason === 'calendar'
+        ? {
+            kind: 'dependency_calendar_missing',
+            projects: [
+              {
+                projectId: remote.projectId,
+                abbreviation: 'REM',
+                name: 'Remote',
+              },
+            ],
+          }
+        : reason === 'calendar_range'
+          ? 'calendar_range'
+          : {
+              kind: 'engine_unavailable',
+              engine: 'optimized',
+              projects: [target.projectId],
+              reason,
+            };
+    const load = await harness.call(
+      'ada',
+      'GET',
+      '/api/people/ana/load?from=2026-10-19&to=2026-10-30',
+    );
+    expect(load.status).toBe(200);
+    expect(load.body).toMatchObject({
+      projects: [],
+      overlaps: [],
+      undated: [],
+      unavailable: expect.arrayContaining([
+        {
+          projectId: target.projectId,
+          name: 'Target',
+          reason:
+            reason === 'calendar'
+              ? 'dependency_calendar_missing'
+              : reason === 'calendar_range'
+                ? 'calendar_range'
+                : 'engine_unavailable',
+        },
+      ]) as unknown,
+    });
+    const organization = await harness.call(
+      'ada',
+      'GET',
+      '/api/people/load?from=2026-10-19&to=2026-10-30',
+    );
+    expect(organization.status).toBe(200);
+    expect(organization.body).toMatchObject({
+      people: [
+        {
+          id: 'ana',
+          weeks: [
+            { booked: 0, overlapping: 0 },
+            { booked: 0, overlapping: 0 },
+          ],
+        },
+      ],
+      unavailable: expect.arrayContaining([
+        {
+          projectId: target.projectId,
+          name: 'Target',
+          reason:
+            reason === 'calendar'
+              ? 'dependency_calendar_missing'
+              : reason === 'calendar_range'
+                ? 'calendar_range'
+                : 'engine_unavailable',
+        },
+      ]) as unknown,
+    });
+    const space = await harness.call(
+      'ada',
+      'GET',
+      `/api/spaces/all/roll-ups?projectIds=${target.projectId}`,
+    );
+    expect(space.status).toBe(200);
+    expect(space.body).toMatchObject({
+      rollUps: {
+        [target.projectId]: {
+          kind: 'rolled_up',
+          status: 'ready',
+          dates: null,
+          displayed: null,
+          finalTotal: reason === 'calendar_range' ? 100000000 : 2.5,
+          counts: { leaves: 1, estimated: 1, byStatus: { ready: 1 } },
+          scheduleError: missing,
+          waitingForPerson: 0,
+          waitingForCapacity: 0,
+        },
+      },
+    });
+    if (reason === 'calendar') {
+      for (const start of ['2026-10-19', null]) {
+        harness.sqlite
+          .query('UPDATE project SET start_date=?,revision=revision+1 WHERE id=?')
+          .run(start, remote.projectId);
+        const refreshedLoad = await harness.call(
+          'ada',
+          'GET',
+          '/api/people/ana/load?from=2026-10-19&to=2026-10-30',
+        );
+        const refreshedSpace = await harness.call(
+          'ada',
+          'GET',
+          `/api/spaces/all/roll-ups?projectIds=${target.projectId}`,
+        );
+        expect(refreshedLoad.status).toBe(200);
+        expect(refreshedSpace.status).toBe(200);
+        if (start !== null) {
+          expect(refreshedLoad.body).toMatchObject({
+            projects: expect.arrayContaining([
+              {
+                projectId: target.projectId,
+                name: 'Target',
+                rank: 2,
+                engine: 'fast',
+                bookings: [
+                  {
+                    workItemId: target.workItemId,
+                    number: '010',
+                    name: 'Target row',
+                    stepId: target.stepId,
+                    width: 1,
+                    startsOn: '2026-10-20',
+                    endsOn: '2026-10-22',
+                  },
+                ],
+              },
+            ]) as unknown,
+            unavailable: [],
+          });
+          expect(refreshedSpace.body).toMatchObject({
+            rollUps: {
+              [target.projectId]: {
+                scheduleError: null,
+                displayed: 'fast',
+                dates: {
+                  startsOn: '2026-10-20',
+                  endsOn: '2026-10-22',
+                },
+              },
+            },
+          });
+        } else {
+          expect(refreshedLoad.body).toMatchObject({
+            projects: [],
+            unavailable: expect.arrayContaining([
+              {
+                projectId: target.projectId,
+                name: 'Target',
+                reason: 'dependency_calendar_missing',
+              },
+            ]) as unknown,
+          });
+          expect(refreshedSpace.body).toMatchObject({
+            rollUps: {
+              [target.projectId]: {
+                scheduleError: missing,
+                displayed: null,
+                dates: null,
+              },
+            },
+          });
+        }
+      }
+    }
+  },
+);

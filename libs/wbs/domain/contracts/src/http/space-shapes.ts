@@ -3,6 +3,7 @@ import { type } from 'arktype';
 import { defineEndpointShape } from './endpoint-shape';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { project } from './project-response';
+import { scheduleError } from './schedule-error-shape';
 import { requestSchema, responseSchema } from './schema-shape';
 
 /**
@@ -237,10 +238,10 @@ const rolledUp = type({
   status:
     "'unknown' | 'draft' | 'ready' | 'in_progress' | 'blocked_by_proxy' | 'on_hold' | 'blocked' | 'done'",
   counts: { byStatus: statusCounts, leaves: 'number', estimated: 'number' },
-  scheduleError: 'string | null',
+  scheduleError,
   waitingForPerson: 'number',
   waitingForCapacity: 'number',
-  displayed: 'string',
+  displayed: 'string | null',
   projectRevision: 'number',
   seq: 'number',
 });
