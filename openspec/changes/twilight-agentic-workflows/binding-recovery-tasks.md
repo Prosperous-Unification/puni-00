@@ -22,6 +22,14 @@
 - Retain raw stdout/stderr, exit/duration/command metadata and original/mutant/restored identities for every new invocation/fault in own task-1-evidence. Before the final focused run request root source/index/HEAD hold; capture all tracked source/mode hashes, complete staged mode/blob/path identity, full status and HEAD before/after, with raw index hash separately. Include untracked new source paths explicitly. No unreported capture gap.
 - Focus final new/neighbor files, four devsync policy suites, uncached Burokrat lint:source/typecheck, Dash lint/typecheck, tool-devsync lint/typecheck and changed-file format/diff. No full package/backend/RunStore/browser/host/CI repeat unless a named concrete concern justifies it. No independent helper release; final cohesive review/exact-SHA canonical gate/applicable CI remain open.
 
+**Authorized exact fixture correction:** `tools/tool-devsync/src/workspace-targets.test.ts`,
+only the Dash case's WBS-contracts dependency expectation false-to-true and an
+adjacent observed-failure comment. That edge predates binding recovery. Preserve
+Burokrat's separate negative, Navigator and WBS-validation assertions. Keep the
+failed four-suite result and first freeze, then run the complete corrected file
+and relevant uncached devsync pair under a second freeze; do not repeat unchanged
+source/policy/static suites.
+
 ### Task 1: Recover retained manifest bindings through their owners
 
 **Create production:** `apps/twilight-structure/twilight-dash/cli/src/runs/manifest-binding.ts`.
@@ -79,7 +87,7 @@ In the artifact loop, snapshot originals before a later await; after collecting 
 complete per-path sources, compare the owner's full acceptance:
 
 ```ts
-const bytes = (await artifacts.readArtifact(reference)).slice();
+const bytes = new Uint8Array(await artifacts.readArtifact(reference));
 const accepted = acceptWorkflowBinding(checked, sources);
 if (canonicalJson(accepted.snapshot) !== manifest.canonicalBinding)
   throw new Error('retained binding acceptance does not match manifest');

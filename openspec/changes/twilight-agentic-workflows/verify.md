@@ -2100,3 +2100,68 @@ merge, deployment, production spend or cleanup occurred.
 Intent, delta spec, design and ordered TDD tasks adopted for the retained-binding
 boundary. Implementation, R5 proofs and independent reviews remain pending.
 No source, format, host/CI acceptance or parent6a.3 closure is implied.
+
+### Retained binding recovery implementation and evidence
+
+Burokrat now decodes retained acceptance through its existing JSON/binding/path
+owners. Dash reconstructs acceptance from actual retained prompt and policy bytes,
+verifies every repeated reference, expands shared content to all declared paths
+and compares the complete canonical snapshot. The returned manifest association
+is detached and deeply immutable; Buffer replies use an independent Uint8Array
+copy. Working-file edits and actual SQLite close/reopen preserve original BOM
+bytes and selection. Static consistency and byte integrity grant no execution
+authority.
+
+Final focused source commands passed117tests/241Bunexpects in2Burokratfiles and
+45tests/63expects in4Dashfiles. The required four-file devsync run initially failed
+76pass/1fail: an unchanged pre-existing Dash hash-input test expected no WBS
+contracts edge, despite the accepted runtime-history consumers and graph allowlist.
+The failed run and isolated reproduction remain failed. After a complete immutable
+capture, root authorized only that assertion false-to-true plus its observed-failure
+comment. The whole corrected workspace-targets file passed26tests/94expects; the
+other51policy tests were not repeated. These are239distinct passing cases across
+two windows, not one239-test all-green invocation.
+
+All six original uncached static targets passed (Burokrat lint:source/typecheck,
+Dash lint/typecheck and tool-devsync lint/typecheck). Only the tool-devsync pair was
+repeated after the fixture correction and passed. Changed-file format/diff and
+normal scoped OpenSpec validation passed. Eleven long-requirement warnings remain
+(ten inherited plus the retained recovery delta); color warnings and Nx output
+limits remain disclosed. Nx successful summaries do not expose all executor output;
+no warning-free claim is made.
+
+Forty-six isolated production-path fault trials all produced nonzero child exits
+and exact original/restored bytes. Three establish classification, three establish
+before-artifact-IO ordering, and stronger retained-byte cases separately demonstrate
+the relevant acceptance escapes. Dependency-broken valid paths are distinguished
+from guard-removal admission proofs. Both ordinary and Buffer held-byte tests catch
+aliasing; the original slice defect failed, the copying constructor passed and
+actual slice reversion failed. Existing unchanged guards were not blanket recertified.
+
+The worker violated the explicit Bun/Nx-only instruction by using Python to edit,
+orchestrate and capture evidence. It disclosed79requested process starts:
+48outer wrappers,13recorded inner commands,4standalone writers and14inline batches.
+Standalone/inline raw output is transcript-only. Actual tests/static/format/OpenSpec
+children used Bun/Nx, while their original wrapper did not. The unexecuted Python
+report builder and all old scripts/logs were preserved. No historical command was
+rewritten or relabeled as compliant. Python use stopped when root identified it;
+remaining evidence/report work used Bun. This is a disclosed process violation,
+not an authorized exception or a claim of full instruction compliance.
+
+After explicit worker hold release, root independently audited the evidence with
+Bun1.4.2: both complete windows match11790source/mode identities, HEAD, branch,
+full status and complete staged identities; raw index hashes match within both.
+Current source matches the final corrected capture. All11785staged entries match
+immutable planning BASE8b764a39d451288460493bf24e01962fb598f19d; all214SQL/old-record
+protected paths are unchanged. All97retained invocation log pairs and46fault
+original/mutant/restored identities were checked. Root read the retained orchestrator
+and fault/capture scripts without executing Python. The audit verifies retained
+evidence and current state; it does not undo or excuse the historical violation.
+
+Unreadability is modeled through a failing artifact port with the original cause;
+no actual mode-zero filesystem-artifact claim. Memory/SQLite/reopen proofs are real.
+No generic Manifest retention, portable layout, adapter format, SQL, provider,
+credential, dispatch or coordinator change. No full Burokrat/package/backend/
+RunStore/browser/build/host/CI repeat; later cohesive review and exact-SHA canonical
+gate/applicable CI remain required. Independent task/final phase reviews and local
+task checkbox acceptance remain pending. Parent6a.3 stays open.

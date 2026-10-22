@@ -115,6 +115,15 @@ export default ({
       rules: boundary(['^@twilight-burokrat/contracts$']),
     },
     {
+      // Proof: F35/F36/F37 widened alias/relative/path scope and their effective-policy denials failed.
+      // F38 removed this allowance; actual reader/shared-contract source lint refused both contracts imports.
+      files: [
+        'apps/twilight-structure/twilight-dash/cli/src/runs/manifest-binding.ts',
+        'apps/twilight-structure/twilight-dash/cli/src/runs/testing/manifest-binding-contract.ts',
+      ],
+      rules: boundary(['^@twilight-burokrat/contracts$']),
+    },
+    {
       files: [
         'apps/twilight-structure/twilight-dash/cli/src/runs/record-codecs.ts',
         'apps/twilight-structure/twilight-dash/cli/src/runs/plan-admission.ts',
