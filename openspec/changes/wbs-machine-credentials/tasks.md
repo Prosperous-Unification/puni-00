@@ -61,18 +61,18 @@ slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secr
 
 ## 2. Admin routes and audit
 
-- [ ] 2.1 Audit vocabulary widening: migration `widen_organization_audit_machine_credentials`
+- [x] 2.1 Audit vocabulary widening: migration `widen_organization_audit_machine_credentials`
       (compatible table rebuild, precedent `20261012090200`), `ORGANIZATION_AUDIT_ACTIONS`
       and subject kinds, `down.sql` refusing while a new-action row exists — test:
       `machine-credential-audit-migration.db.test.ts` forward, the outgoing release's
       `restricted_project_recovery` write, an unknown action refused, rollback refused over
       one row; negative: replace the guard CHECK with `CHECK (1)` and `migration-lint.test.ts`
       reports the destructive statement; watched.
-- [ ] 2.2 Red: endpoint shapes in `@wbs/contracts` (`/api/organization/machine-credentials`
+- [x] 2.2 Red: endpoint shapes in `@wbs/contracts` (`/api/organization/machine-credentials`
       list with `?personId=`, create, `:id/rotate`, `DELETE :id`) with the member policy of
       A7 and refusal bodies; OpenAPI
       emit diff; MCP tool count moves by four — test: the shape tests and the emit golden.
-- [ ] 2.3 Green: create and list for `api_key` in `@wbs/core` and store-sqlite, one
+- [x] 2.3 Green: create and list for `api_key` in `@wbs/core` and store-sqlite, one
       transaction with the audit row naming the issuer, secret returned once, digest stored,
       `name_taken`, `unknown_person`, `person_not_bound`, `account_not_member`, a member
       accepted for their own agent and `403 forbidden` for a stranger's, a member's list
@@ -81,13 +81,14 @@ slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secr
       each; negatives: write the audit row outside the transaction and the "audit cannot be
       written" scenario stores a credential; drop the own-account predicate and the
       stranger's-agent case creates; watched.
-- [ ] 2.4 Rotate and revoke (A11, A15, A22), members for their own agents only: second
+- [x] 2.4 Rotate and revoke (A11, A15, A22), members for their own agents only: second
       secret under the unchanged credential id, previous `expires_at = now + 24 h`,
       `rotation_in_progress`, `rotation_at_issuer`, revoke ends both, `404 not_found` on a
       stranger's or revoked credential — test: the two-secrets-then-one scenario with an
-      injected clock, revoke mid-window; negative: drop the `expires_at` predicate from
-      the live-secrets read and the T0 + 25 h case admits the old secret; watched.
-- [ ] 2.5 Person usage: `pinnedCredentials` becomes `machineCredentials`; `deletePerson`
+      injected clock, revoke mid-window; negative: replace the secret-expiry predicate of
+      `matchesProof` (`@wbs/domain` `machine-credential.ts`) with `true` and the T0 + 25 h case
+      admits the old secret; watched.
+- [x] 2.5 Person usage: `pinnedCredentials` becomes `machineCredentials`; `deletePerson`
       `in_use` and cascade; `patchPerson` unbind/rebind refused `in_use` — test: the
       directory conformance cases updated and the rebind case added; negative: skip the
       usage read on `patchPerson` and a bound person with a live credential is unbound;
@@ -98,10 +99,35 @@ slice 5 adds with its first caller. The `wbs_mk_` pattern of the `plaintext-secr
       `parseMachineKey` accepts only the lowercase UUID shape, while the table's id CHECK
       admits any 36 characters of `[0-9a-f-]`. Slice 2 may tighten that CHECK in its own
       migration.
-- [ ] 2.6 Last use: `touchLastUsed` once per minute per credential in the request path,
+- [x] 2.6 Last use: `touchLastUsed` once per minute per credential in the request path,
       listed as `lastUsedAt` — test: two requests twenty seconds apart write once;
       negative: make the write swallow its error and the "store read-only" case answers 200
       with a stale list instead of a server error; watched.
+
+Slice 2 as built (2026-10-22, PR into `plan/wbs-machine-credentials`, stacked on slice 1):
+
+- 2.1 admits all five actions and both subject kinds of A17 in one rebuild
+  (`20261022110000_widen_organization_audit_machine_credentials`), so slice 5's trusted-issuer
+  acts need no second rebuild. The task-2.5 id note is met by
+  `20261022110100_check_machine_credential_id`: two triggers holding the id to the lowercase
+  UUID shape, additive where a tightened CHECK would need a table rebuild.
+- 2.2 keeps the four routes out of the MCP tools (mcp-01 `EXCLUDED_PATHS`, like provisioning
+  tokens): every delegation is refused `insufficient_scope` on them, so the tool count does not
+  move. The create body accepts `source: 'api_key'` only until slice 5 adds `oidc`.
+- 2.3 refuses a viewer `403 forbidden` on every route (the spec sentence now says so). The
+  administration port is `MachineCredentialAdministration`, SQLite only, like `MachineCredentials`.
+- 2.4 ends every secret on revoke (`expires_at = now`) besides `revoked_at`.
+- 2.5 adds `machineCredentials` beside `pinnedCredentials` (both optional on the wire) instead of
+  renaming it: operator pins still exist until slice 4 removes them and their count. The
+  cascade writes one `machine_credential_revoked` row per live credential and deletes every
+  credential row of the person, revoked ones included, because `person_id` has no `ON DELETE`.
+- 2.6 was built and its negatives observed in slice 1; slice 2 lists `lastUsedAt`.
+- Review fixes (A24, assumed): a cascade removing machine credentials needs the revoke route's
+  reach (admin, a member for their own agent, never a delegation or a machine credential), else
+  `forbidden`. A kind change of a person with a live credential is refused `in_use`. A
+  secret-shaped name is refused `400 invalid_body`, and no audit detail carries the name.
+
+See `verify.md`, "Slice 2 record".
 
 ## 3. The MCP consent source (A8, A20)
 

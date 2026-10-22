@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it } from 'bun:test';
 const APP_ROOT = dirname(fileURLToPath(new URL('../package.json', import.meta.url)));
 const MIGRATIONS = join(APP_ROOT, 'drizzle');
 const MACHINE_CREDENTIAL = '20261022100000_add_machine_credential';
+const AUDIT_WIDENING = '20261022110000_widen_organization_audit_machine_credentials';
+const ID_SHAPE = '20261022110100_check_machine_credential_id';
 const TABLES = ['organization_trusted_issuer', 'machine_credential', 'machine_credential_secret'];
 const CREDENTIAL = '00000000-0000-4000-8000-000000000001';
 const roots: string[] = [];
@@ -111,7 +113,7 @@ describe(MACHINE_CREDENTIAL, () => {
       run(dbPath, [
         "INSERT INTO machine_credential (id, organization_id, person_id, issued_by, name, created_at, source) VALUES ('NOT-A-UUID', 'org-a', 'claire', 'dany', 'x', 1, 'api_key')",
       ]);
-    }).toThrow(/CHECK/);
+    }).toThrow(/CHECK|lowercase UUID/);
   });
 
   // Proof: the partial pair index made non-unique made this store the second
@@ -137,7 +139,9 @@ describe(MACHINE_CREDENTIAL, () => {
     const down = await rollBack(root, dbPath, baseline());
     expect(down.stderr).toBe('');
     expect(down.exitCode).toBe(0);
-    expect(down.stdout).toContain(`rolled back: ${MACHINE_CREDENTIAL}`);
+    expect(down.stdout).toContain(
+      `rolled back: ${ID_SHAPE}, ${AUDIT_WIDENING}, ${MACHINE_CREDENTIAL}`,
+    );
     for (const table of TABLES) expect(tablesOf(dbPath)).not.toContain(table);
     runMigrations(dbPath, join(root, 'drizzle'));
     for (const table of TABLES) expect(tablesOf(dbPath)).toContain(table);

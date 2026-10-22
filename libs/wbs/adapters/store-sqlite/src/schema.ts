@@ -3356,7 +3356,9 @@ export const savedPlanOrganization = sqliteTable(
  * `20260927220000_add_organization_audit`. `subject_id` references nothing
  * so the record outlives its subject. `20261012090200_widen_organization_audit`
  * widened the vocabulary for enterprise SSO and made the table append-only
- * through triggers, which this declaration cannot express.
+ * through triggers, which this declaration cannot express;
+ * `20261022110000_widen_organization_audit_machine_credentials` added the
+ * machine-credential and trusted-issuer acts.
  */
 export const organizationAudit = sqliteTable(
   'organization_audit',
@@ -3375,11 +3377,11 @@ export const organizationAudit = sqliteTable(
   (t) => [
     check(
       'organization_audit_action',
-      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed')`,
+      sql`${t.action} IN ('restricted_project_recovery', 'sso_connection_created', 'sso_connection_updated', 'sso_connection_deleted', 'sso_connection_proven', 'sso_enforcement_changed', 'provisioning_token_issued', 'provisioning_token_rotated', 'provisioning_token_revoked', 'scim_user_provisioned', 'scim_user_updated', 'scim_user_deprovisioned', 'pending_membership_activated', 'session_policy_changed', 'machine_credential_created', 'machine_credential_rotated', 'machine_credential_revoked', 'trusted_issuer_registered', 'trusted_issuer_removed')`,
     ),
     check(
       'organization_audit_subject_kind',
-      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy')`,
+      sql`${t.subjectKind} IN ('project', 'sso_connection', 'provisioning_token', 'scim_user', 'session_policy', 'machine_credential', 'trusted_issuer')`,
     ),
     index('organization_audit_organization_created').on(t.organizationId, t.createdAt),
   ],
@@ -3487,9 +3489,10 @@ export const organizationTrustedIssuer = sqliteTable(
  * record pinned to one person, recording the account that issued it. Which of
  * the pair, trusted issuer and family columns are set is fixed by `source`
  * (the migration's `machine_credential_source_columns` CHECK). The id is a
- * lowercase UUID because an API key carries it in the clear (A22). Added by
- * `20261022100000_add_machine_credential`, whose `down.sql` refuses while any
- * row exists.
+ * lowercase UUID because an API key carries it in the clear (A22), held to
+ * that shape by `20261022110100_check_machine_credential_id`'s triggers. Added
+ * by `20261022100000_add_machine_credential`, whose `down.sql` refuses while
+ * any row exists.
  */
 export const machineCredential = sqliteTable(
   'machine_credential',

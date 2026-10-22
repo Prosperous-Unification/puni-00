@@ -25,6 +25,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     kind: 'mutation',
   },
   {
+    operationId: 'deleteApiOrganizationMachine-credentialsById',
+    method: 'DELETE',
+    path: '/api/organization/machine-credentials/:id',
+    kind: 'mutation',
+  },
+  {
     operationId: 'deleteApiOrganizationProvisioningTokensById',
     method: 'DELETE',
     path: '/api/organization/provisioning-tokens/:id',
@@ -123,6 +129,12 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'getApiOrganizationProject-rank',
     method: 'GET',
     path: '/api/organization/project-rank',
+    kind: 'read',
+  },
+  {
+    operationId: 'getApiOrganizationMachine-credentials',
+    method: 'GET',
+    path: '/api/organization/machine-credentials',
     kind: 'read',
   },
   {
@@ -404,6 +416,18 @@ export const ORGANIZATION_ROUTE_INVENTORY = [
     operationId: 'postApiOrganizationProjectsByIdRank',
     method: 'POST',
     path: '/api/organization/projects/:id/rank',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationMachine-credentials',
+    method: 'POST',
+    path: '/api/organization/machine-credentials',
+    kind: 'mutation',
+  },
+  {
+    operationId: 'postApiOrganizationMachine-credentialsByIdRotate',
+    method: 'POST',
+    path: '/api/organization/machine-credentials/:id/rotate',
     kind: 'mutation',
   },
   {

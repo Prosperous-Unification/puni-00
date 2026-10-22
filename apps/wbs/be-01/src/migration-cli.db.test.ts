@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261022100000_add_machine_credential');
+    expect(baselineLedger.at(-1)?.name).toBe('20261022110100_check_machine_credential_id');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1147,7 +1147,9 @@ describe('migration deploy entrypoints', () => {
           name !== '20261019130100_add_external_identity_person' &&
           name !== '20261020120000_add_resources' &&
           name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022100000_add_machine_credential',
+          name !== '20261022100000_add_machine_credential' &&
+          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
+          name !== '20261022110100_check_machine_credential_id',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1204,7 +1206,9 @@ describe('migration deploy entrypoints', () => {
       ledger.filter(
         ({ name }) =>
           name !== '20261020130000_add_claim_occupancy' &&
-          name !== '20261022100000_add_machine_credential',
+          name !== '20261022100000_add_machine_credential' &&
+          name !== '20261022110000_widen_organization_audit_machine_credentials' &&
+          name !== '20261022110100_check_machine_credential_id',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1240,7 +1244,9 @@ describe('migration deploy entrypoints', () => {
     ])
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
-    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe('20261022100000_add_machine_credential');
+    expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
+      '20261022110100_check_machine_credential_id',
+    );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
 

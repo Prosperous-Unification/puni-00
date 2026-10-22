@@ -142,6 +142,8 @@ describe('scoped solution links', () => {
   describe('the rollback', () => {
     it('rolls back while nothing is linked before activation', () => {
       expect(rollbackTo(path, FOLDER, AUDIT)).toEqual([
+        '20261022110100_check_machine_credential_id',
+        '20261022110000_widen_organization_audit_machine_credentials',
         '20261022100000_add_machine_credential',
         '20261020130000_add_claim_occupancy',
         '20261020120000_add_resources',

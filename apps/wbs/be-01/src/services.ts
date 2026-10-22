@@ -70,6 +70,11 @@ export interface ServicesOptions {
   passwordSessions?: boolean;
   localIdentity?: AuthenticatedUser;
   optimizer?: OptimizerRuntime;
+  /**
+   * The clock's time source; `Date.now` unless a test fixes it to pin a
+   * machine key's rotation window from the route to its verification.
+   */
+  now?: () => number;
 }
 
 export interface BeServices extends AccountfulServices {
@@ -102,7 +107,8 @@ export function servicesOver(stores: PlanTransactionalStores, shared: SharedRunt
 /** Adds be-01's optimizer process adapter around core's single service composition. */
 export function buildServices(options: ServicesOptions): BeServices {
   const { source } = options;
-  const clock = clockOf({ now: () => Date.now(), newId: () => crypto.randomUUID() });
+  const now = options.now ?? (() => Date.now());
+  const clock = clockOf({ now, newId: () => crypto.randomUUID() });
   let coordinator: OptimizationCoordinator | undefined;
   const optimized =
     options.optimizer === undefined

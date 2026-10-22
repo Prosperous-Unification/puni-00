@@ -49,6 +49,8 @@ describe('email verification migration', () => {
 
   it('rolls down before activation without evidence', () => {
     expect(rollbackTo(path, FOLDER, PREVIOUS)).toEqual([
+      '20261022110100_check_machine_credential_id',
+      '20261022110000_widen_organization_audit_machine_credentials',
       '20261022100000_add_machine_credential',
       '20261020130000_add_claim_occupancy',
       '20261020120000_add_resources',

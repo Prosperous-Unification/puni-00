@@ -169,7 +169,19 @@ export class SqliteOrganizationAccess implements OrganizationAccess {
     const role = organizationRoleOf(read.role, principal.authentication);
     return {
       ok: true,
-      access: { kind: 'scoped', scope: { organizationId, userId, role } },
+      access: {
+        kind: 'scoped',
+        scope: {
+          organizationId,
+          userId,
+          role,
+          // Proof: without this flag, `refuses a machine key's cascade over its
+          // own person` (`machine-credential-admin.controller.db.test.ts`)
+          // removed the person and revoked its credential (200); watched
+          // 2026-10-22.
+          ...(principal.delegation === undefined ? {} : { delegated: true as const }),
+        },
+      },
     };
   }
 }

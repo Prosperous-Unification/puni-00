@@ -18,6 +18,11 @@ export const REQUEST_BODIES: Readonly<Record<string, unknown>> = {
     loginSlug: 'route-probe',
   },
   'patchApiOrganizationSso-connectionsById': { loginSlug: 'route-probe' },
+  'postApiOrganizationMachine-credentials': {
+    source: 'api_key',
+    name: 'route-probe',
+    personId: 'route-probe',
+  },
   postApiOnboardingEmailChallenges: { email: 'test@example.org' },
   postApiOnboardingEmailChallengesConfirm: { email: 'test@example.org', token: 'invalid' },
   postApiOrganizationInvitations: { email: 'test@example.org', role: 'viewer' },

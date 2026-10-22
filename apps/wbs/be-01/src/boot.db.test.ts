@@ -661,6 +661,47 @@ describe('bootBe01', () => {
     expect((await list(`wbs_scim_${'D'.repeat(43)}`))?.status).toBe(401);
   });
 
+  it('serves machine credential administration from the shared database once activated', async () => {
+    const dir = tempDir('wbs-machine-credential-boot-');
+    const dbPath = join(dir, 'test.db');
+    runMigrations(dbPath, FOLDER);
+    const seed = openDatabase(dbPath);
+    try {
+      seed.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ('ada', 'ada', 'x', 1)",
+      );
+      seed.run("INSERT INTO organization (id, name, created_at) VALUES ('org-a', 'A', 1)");
+      seed.run(
+        "INSERT INTO organization_membership (organization_id, user_id, role, created_at) VALUES ('org-a', 'ada', 'admin', 1)",
+      );
+      seed.run(
+        "UPDATE organization_activation SET state = 'activated', activated_at = 5 WHERE singleton = 1",
+      );
+    } finally {
+      seed.close();
+    }
+    let administration: Parameters<typeof buildApp>[0]['machineCredentials'];
+    running = await bootBe01(bootOptions(dbPath, 0), {
+      openSource: openSqliteSource,
+      makeApp: (options) => {
+        administration = options.machineCredentials;
+        const app = buildApp(options);
+        app.stop = () => Promise.resolve(app);
+        return app;
+      },
+      startListener: (_app, _port, ready) => {
+        ready();
+      },
+    });
+    if (administration === undefined) throw new Error('boot did not wire machine credentials');
+    expect(
+      await administration.list('org-a', 'ada', { includeRevoked: false }, Date.now()),
+    ).toEqual([]);
+    expect(
+      await administration.list('org-a', 'nobody', { includeRevoked: false }, Date.now()),
+    ).toBe('forbidden');
+  });
+
   it('codes the steps an older writer left uncoded once it has migrated', async () => {
     const dir = tempDir('wbs-backfill-boot-');
     const dbPath = join(dir, 'test.db');
