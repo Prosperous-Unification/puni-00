@@ -1,7 +1,8 @@
 import { CREATOR_ADMISSION, type OptimizedScheduleAdapter } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { builtByNonOwner, MAX_ESTIMATE_DAYS, type Schedule, schedule } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it } from 'bun:test';
@@ -51,7 +52,7 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const capacity = testCapacityService();
   const priorityBands = testPriorityBandService();
   const projects = new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(plan.stores),
+    dependencyContext: createLocalDependencyContext(plan.stores),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -62,6 +63,8 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
   const workItems =
     optimized === undefined
       ? new WorkItemService({
+          dependencyContext: createLocalDependencyContext(plan.stores),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,
@@ -69,6 +72,8 @@ function buildHarness(optimized?: OptimizedScheduleAdapter['readCaptured']) {
           scheduler: plan.scheduler,
         })
       : new WorkItemService({
+          dependencyContext: createLocalDependencyContext(plan.stores),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           clock: testClock,
           ...plan.stores,

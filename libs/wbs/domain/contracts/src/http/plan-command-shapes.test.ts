@@ -235,3 +235,21 @@ test('retains the nullable deadline wire field without taking over date semantic
     expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
   }
 });
+
+test('retains explicitly scoped typed endpoints on the wire', async () => {
+  const command = {
+    kind: 'addTypedDependency',
+    predecessor: { projectId: 'predecessor-project', scope: 'whole', workItemId: 'a' },
+    successor: { projectId: 'owner', scope: 'node', stepNodeId: 'sn1.b.s' },
+    type: 'FS',
+  } as const;
+  expect(await validateSchema(planCommandSchema, command)).toEqual({ value: command });
+  expect(
+    (
+      await validateSchema(planCommandSchema, {
+        ...command,
+        predecessor: { ...command.predecessor, projectId: 7 },
+      })
+    ).issues,
+  ).toBeDefined();
+});

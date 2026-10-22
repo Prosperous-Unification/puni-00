@@ -11,6 +11,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { fastScheduler } from '../testing/scheduler-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
+import { createLocalDependencyContext } from './dependency-context';
 import { prepareCapturedScheduleParts, prepareScheduleParts } from './schedule-parts';
 
 const stamp = { at: 1, by: 'owner' };
@@ -107,6 +108,7 @@ describe('shared live and captured preparation', () => {
       const { source, project } = await seedPreparation(method, rounding, anchor, held);
       try {
         const graph = servicesOver(source.stores, {
+          dependencyContext: createLocalDependencyContext(source.stores),
           admission: CREATOR_ADMISSION,
           clock: testClock,
           broadcast: recordingBroadcaster(),

@@ -194,6 +194,7 @@ const batchRefusals = [
         // A typed dependency whose endpoints resolve a step node onto itself.
         type({ ...context, error: "'self_node'" }),
         type({ ...context, error: "'not_a_parent'" }),
+        type({ ...context, error: "'external_dependencies_inactive'" }),
         type({ ...context, error: "'duplicate_dependency'" }),
         type({ ...context, error: "'too_large'" }),
         // `setStatus` refusals (`add-work-item-statuses`).
@@ -544,7 +545,10 @@ const undoRefusals = [
   {
     status: 409,
     schema: responseSchema(
-      type({ error: "'nothing_to_undo' | 'stale_undo'", detail: 'string | null' }),
+      type({
+        error: "'nothing_to_undo' | 'stale_undo' | 'external_dependencies_inactive'",
+        detail: 'string | null',
+      }),
     ),
   },
 ] as const;

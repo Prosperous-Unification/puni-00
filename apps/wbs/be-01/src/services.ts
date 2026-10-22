@@ -1,3 +1,4 @@
+import { createLocalDependencyContext } from '@wbs/core';
 import {
   type AccountfulServices,
   type Broadcaster,
@@ -95,6 +96,7 @@ export interface SharedRuntime {
 export function servicesOver(stores: PlanTransactionalStores, shared: SharedRuntime) {
   return coreServicesOver(stores, {
     admission: CREATOR_ADMISSION,
+    dependencyContext: createLocalDependencyContext(stores),
     clock: shared.clock,
     broadcast: shared.broadcast,
     scheduler: shared.optimized.scheduler,

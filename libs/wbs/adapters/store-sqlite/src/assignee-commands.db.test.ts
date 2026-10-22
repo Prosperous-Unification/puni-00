@@ -6,6 +6,7 @@ import type { Scope, Source, TransactionalStores } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -68,6 +69,7 @@ async function seeded(store: (typeof STORES)[number]) {
     clock: testClock,
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   for (const id of [F, G]) {
@@ -104,7 +106,11 @@ async function seeded(store: (typeof STORES)[number]) {
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        ...options,
+        broadcast: announcements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+      }),
   });
   const tree = await runner.run(projectId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },

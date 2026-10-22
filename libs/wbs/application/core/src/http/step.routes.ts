@@ -45,6 +45,7 @@ function addedReply(outcome: StepOutcome | AuthorityRefusal): HttpReply<typeof a
       return { ok: false, status: 422, body: { error: outcome.reason } };
     case 'invalid_estimate_unit':
       return { ok: false, status: 422, body: { error: outcome.reason } };
+    case 'dependency_cycle':
     case 'code_taken':
       return { ok: false, status: 409, body: { error: outcome.reason } };
     default:
@@ -62,6 +63,7 @@ function renamedReply(outcome: StepUnitOutcome | AuthorityRefusal): HttpReply<ty
       return { ok: false, status: 409, body: { error: 'estimates_present', count: outcome.count } };
     case 'invalid_estimate_unit':
       return { ok: false, status: 422, body: { error: 'invalid_estimate_unit' } };
+    case 'dependency_cycle':
     case 'invalid_code':
     case 'reserved_code':
     case 'code_taken':

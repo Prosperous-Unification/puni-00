@@ -267,6 +267,10 @@ const GRAPH_AFFECTING_KINDS: ReadonlySet<PlanCommandKind> = new Set([
   'setEstimate',
   'clearEstimate',
   'addDependency',
+  'removeDependency',
+  'addTypedDependency',
+  'updateTypedDependency',
+  'removeTypedDependency',
 ]);
 
 /**
@@ -433,11 +437,12 @@ export class PlanCommandRunner {
             if (refusal !== null) return { commit: false, value: { ok: false, refusal } };
             if (projectId !== null) grant = grantAdmission(projectId, actorId);
           }
-          const workingPlan = scope.openCommandGraph(
+          const workingPlan = scope.openCommandGraph(projectId, collector, {
             projectId,
-            collector,
-            admissionOf(access, grant),
-          );
+            actorId,
+            access,
+            admission: admissionOf(access, grant),
+          });
           // Proof: building from publicServices let the refused write survive:
           // expected [], received ["rolled back"] (2026-09-09).
           // Proof: caching the first graph made the subsequent batch omit `later`:
@@ -618,55 +623,62 @@ export class PlanCommandRunner {
             if (refusal !== null) return refuse(refusal);
             grant = grantAdmission(projectId, actorId);
           }
-          const graph = scope.openCommandGraph(
-            null,
-            collector,
-            admissionOf(access, grant),
-          ).services;
-          const { workItems } = graph;
-          const collected = await workItems.collect(() =>
-            caller.kind === 'legacy'
-              ? journal === 'undo'
-                ? workItems.undo(projectId, actorId)
-                : workItems.redo(projectId, actorId)
-              : journal === 'undo'
-                ? workItems.undoWithin(projectId, actorId, access)
-                : workItems.redoWithin(projectId, actorId, access),
-          );
-          if (collected.result.ok && access.kind === 'scoped') {
-            // A backstop behind `undoWithin`'s own reference check, which refuses
-            // every case the suite plants first.
-            // Proof: skipping this closure check together with that reference
-            // check made `rolls back an undo that would restore a foreign label`
-            // in `command-organization.controller.db.test.ts` answer 200 instead
-            // of 404; watched 2026-09-27.
-            const crossing = await scope.listCrossReferenceKinds(
-              projectId,
-              access.scope.organizationId,
+          const graph = scope.openCommandGraph(null, collector, {
+            projectId,
+            actorId,
+            access,
+            admission: admissionOf(access, grant),
+          });
+          try {
+            const { workItems } = graph.services;
+            const collected = await workItems.collect(() =>
+              caller.kind === 'legacy'
+                ? journal === 'undo'
+                  ? workItems.undo(projectId, actorId)
+                  : workItems.redo(projectId, actorId)
+                : journal === 'undo'
+                  ? workItems.undoWithin(projectId, actorId, access)
+                  : workItems.redoWithin(projectId, actorId, access),
             );
-            if (crossing.length > 0) return refuse('not_found');
+            if (collected.result.ok && access.kind === 'scoped') {
+              // A backstop behind `undoWithin`'s own reference check, which refuses
+              // every case the suite plants first.
+              // Proof: skipping this closure check together with that reference
+              // check made `rolls back an undo that would restore a foreign label`
+              // in `command-organization.controller.db.test.ts` answer 200 instead
+              // of 404; watched 2026-09-27.
+              const crossing = await scope.listCrossReferenceKinds(
+                projectId,
+                access.scope.organizationId,
+              );
+              if (crossing.length > 0) return refuse('not_found');
+            }
+            if (collected.result.ok) return { commit: true, value: collected };
+            const entryId = collected.result.entryId;
+            return {
+              commit: false,
+              value: { ...collected, dirty: false },
+              // The discard the refusal owes, in the one window it can be made: the
+              // service's own went back with the rollback, and a discard issued
+              // after `run` returns would be a second batch queueing behind this
+              // one (D28).
+              //
+              afterRollback:
+                entryId === undefined
+                  ? undefined
+                  : async (repair) => {
+                      // Proof: discarding through the rolled-back graph made the
+                      // memory composition throw `no journal entry id-5` instead
+                      // of consuming the committed stale entry (compose.test.ts).
+                      // The repair writes no project, so it is granted nothing.
+                      await repair.discardEntry(entryId);
+                    },
+            };
+          } finally {
+            // Proof: missing close made both real SQLite replay-settlement tests
+            // retain usable capabilities before the writer observation ended.
+            graph.close();
           }
-          if (collected.result.ok) return { commit: true, value: collected };
-          const entryId = collected.result.entryId;
-          return {
-            commit: false,
-            value: { ...collected, dirty: false },
-            // The discard the refusal owes, in the one window it can be made: the
-            // service's own went back with the rollback, and a discard issued
-            // after `run` returns would be a second batch queueing behind this
-            // one (D28).
-            //
-            afterRollback:
-              entryId === undefined
-                ? undefined
-                : async (repair) => {
-                    // Proof: discarding through the rolled-back graph made the
-                    // memory composition throw `no journal entry id-5` instead
-                    // of consuming the committed stale entry (compose.test.ts).
-                    // The repair writes no project, so it is granted nothing.
-                    await repair.discardEntry(entryId);
-                  },
-          };
         },
         () => grant?.expire(),
       )
@@ -758,7 +770,7 @@ export class PlanCommandRunner {
       // also omitting addDependency from this runner guard made it receive 200
       // instead of 409. Both faults restored; watched 2026-09-28.
       if (projectId !== null && GRAPH_AFFECTING_KINDS.has(command.kind)) {
-        const cycle = await graph.workItems.findDependencyCycle(projectId);
+        const cycle = await graph.workItems.findDependencyCycle(projectId, actorId);
         if (cycle !== null) {
           context.refuse({ reason: cycle.kind === 'self_node' ? 'self_node' : 'cycle' });
         }

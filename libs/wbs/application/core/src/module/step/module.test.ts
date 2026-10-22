@@ -5,7 +5,7 @@ import { DiBag } from 'di-bag';
 
 import { clockOf } from '../../ports/clock';
 import { NO_ADMISSION } from '../../ports/edit-admission';
-import { DependencyGraphGuard } from '../../service/dependency-graph';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { installStep } from './check';
 import { STEP_LABEL } from './contract';
@@ -30,7 +30,7 @@ async function seeded() {
       steps: source.stores.steps,
       clock: clockOf({ now: () => 2, newId: () => `step-${String(++next)}` }),
       broadcast,
-      dependencyGraph: new DependencyGraphGuard(source.stores),
+      dependencyContext: createLocalDependencyContext(source.stores),
     },
   };
 }
@@ -45,7 +45,7 @@ const hostRequirements = () => {
     broadcast: DiBag.createProvider(() => recordingBroadcaster(), {
       factoryReturnKind: 'sync-value',
     }),
-    dependencyGraph: DiBag.createProvider(() => new DependencyGraphGuard(source.stores), {
+    dependencyContext: DiBag.createProvider(() => createLocalDependencyContext(source.stores), {
       factoryReturnKind: 'sync-value',
     }),
     beforeRemove: DiBag.createProvider(() => undefined, { factoryReturnKind: 'sync-value' }),
@@ -162,8 +162,8 @@ describe('the Step module', () => {
       }) as unknown as { buildContainer: () => { resolve: (key: string) => unknown } };
     const host = partial.buildContainer();
 
-    // Proof: removing dependencyGraph from both module provider inputs and options made this
+    // Proof: removing dependencyContext from both module provider inputs and options made this
     // assertion fail (10 pass, 2 fail across the two module suites): resolution did not refuse it.
-    expect(() => host.resolve('steps')).toThrow('dependency "dependencyGraph" is not registered');
+    expect(() => host.resolve('steps')).toThrow('dependency "dependencyContext" is not registered');
   });
 });

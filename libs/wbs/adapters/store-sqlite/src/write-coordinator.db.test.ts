@@ -14,7 +14,8 @@ import { StepService } from '@wbs/core';
 import { WorkItemService } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
@@ -160,6 +161,14 @@ beforeEach(async () => {
     journal: new CommandJournalRepository(db, OPEN),
     stepParallels: buildStores(db, OPEN).stepParallels,
     broadcast,
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: suspendingWorkItems,
+      estimates: new EstimateRepository(db, OPEN),
+      dependencies: new DependencyRepository(db, OPEN),
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
   };
   // The batch's own stores, over an open gate: `sqliteUnitOfWork` holds the
   // turn for them. The suspending work-item store above is one of these.
@@ -192,7 +201,7 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({
+      dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
         projects: projectStore,
       }),
@@ -201,7 +210,7 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
-      dependencyGraph: new DependencyGraphGuard({
+      dependencyContext: createLocalDependencyContext({
         ...buildStores(db, OPEN),
         projects: projectStore,
       }),
@@ -230,7 +239,10 @@ beforeEach(async () => {
   // The route's own service, built exactly as `buildServices` builds it: the
   // step store on the process connection, and no knowledge of the batch at all.
   steps = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
+    dependencyContext: createLocalDependencyContext({
+      ...buildStores(db, OPEN),
+      projects: projectStore,
+    }),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -238,7 +250,10 @@ beforeEach(async () => {
   });
 
   const created = await new ProjectService({
-    dependencyGraph: new DependencyGraphGuard({ ...buildStores(db, OPEN), projects: projectStore }),
+    dependencyContext: createLocalDependencyContext({
+      ...buildStores(db, OPEN),
+      projects: projectStore,
+    }),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),

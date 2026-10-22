@@ -30,7 +30,7 @@ import { ProjectRepository } from '../repository/project';
 import { scheduleInputHash } from '../repository/schedule-input-hash';
 import { buildServices } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { optimizerWiring } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -810,7 +810,7 @@ class Toggle implements Command {
   async run(model: Model, world: World): Promise<void> {
     note(this.enabled ? 'enable' : 'cancel');
     const service = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(
+      dependencyContext: sqliteDependencyContext(
         world.connections.west,
         new ProjectRepository(world.connections.west, OPEN),
       ),
@@ -1091,7 +1091,7 @@ describe('OptimizationCoordinator production SQLite model', () => {
       expect(world.attempts).toHaveLength(2);
       expect(world.attempts.every((attempt) => attempt.verdicts.length === 0)).toBe(true);
       const service = new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(
+        dependencyContext: sqliteDependencyContext(
           world.connections.west,
           new ProjectRepository(world.connections.west, OPEN),
         ),

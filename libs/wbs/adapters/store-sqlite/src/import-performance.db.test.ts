@@ -13,6 +13,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createImportService } from '@wbs/core/module/plan-import/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { planDocumentFixture } from '@wbs/core/testing/plan-document-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
@@ -130,6 +131,7 @@ test('measures preparation and admitted SQLite work separately for exactly 500 r
           clock,
           broadcast,
           scheduler: fastScheduler,
+          dependencyContext: createLocalDependencyContext(scope.stores),
         }),
     });
 

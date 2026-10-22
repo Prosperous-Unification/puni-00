@@ -24,7 +24,7 @@ import { TEST_JWT_KEY } from '../testing/auth-fixture';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -180,7 +180,7 @@ describe('the calendar-marker routes', () => {
       passwords: bunPasswordHasher,
     });
     const projectService = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
+      dependencyContext: sqliteDependencyContext(db, projects),
       clock: testClock,
       projects,
       broadcast,

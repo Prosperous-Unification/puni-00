@@ -531,3 +531,60 @@ describe('demand replay vocabulary', () => {
       expect(() => readCommand({ ...restore, demands })).toThrow(/restore holds/);
   });
 });
+
+it('requires exact external revision coverage across both nested journal directions', async () => {
+  const { externalAddressesOf, requireExternalRevisions } = await import('./compensating');
+  const dependency = {
+    id: 'd',
+    projectId: 'owner',
+    predecessor: { projectId: 'remote', scope: 'whole' as const, workItemId: 'a' },
+    successor: { projectId: 'owner', scope: 'whole' as const, workItemId: 'b' },
+    type: 'FS' as const,
+  };
+  const commands: CompensatingCommand[] = [
+    {
+      do: 'batch',
+      steps: [
+        { do: 'add_typed_dependency', dependency },
+        { do: 'patch', workItemId: 'foreign-unrelated', patch: { name: 'x' } },
+      ],
+    },
+    { do: 'remove_typed_dependency', dependency },
+  ];
+  expect(externalAddressesOf(commands, 'owner')).toEqual([
+    { projectId: 'remote', workItemId: 'a' },
+  ]);
+  const metadata = {
+    expected: [{ projectId: 'remote', workItemId: 'a', revision: 4 }],
+    from: [{ projectId: 'remote', workItemId: 'a', revision: 3 }],
+  };
+  expect(
+    requireExternalRevisions(
+      { expected: {}, from: {}, externalRevisions: metadata },
+      'owner',
+      commands,
+    ),
+  ).toEqual(metadata);
+  expect(() => requireExternalRevisions({ expected: {}, from: {} }, 'owner', commands)).toThrow(
+    'external revision',
+  );
+  for (const externalRevisions of [
+    null,
+    { expected: [], from: [] },
+    { expected: [...metadata.expected, ...metadata.expected], from: metadata.from },
+    { expected: [{ projectId: 'owner', workItemId: 'b', revision: 4 }], from: metadata.from },
+    { expected: metadata.expected, from: [] },
+    { expected: [{ ...metadata.expected[0], revision: -1 }], from: metadata.from },
+  ]) {
+    expect(() =>
+      requireExternalRevisions(
+        readPreconditions({ expected: {}, from: {}, externalRevisions }),
+        'owner',
+        commands,
+      ),
+    ).toThrow();
+  }
+  const references = referencesOf(commands[0]);
+  expect(references.workItems).toEqual(['foreign-unrelated']);
+  expect(references.scopedEndpoints).toEqual([dependency.predecessor, dependency.successor]);
+});

@@ -191,6 +191,16 @@ export * from './ports/chain-snapshot-store';
 export * from './ports/claim-store';
 export * from './ports/command-access';
 export * from './ports/demand-store';
+export type {
+  CommandGraphAuthority,
+  DependencyContext,
+  DependencyEndpointEvidence,
+  EndpointEvidence,
+  ScopedRevision,
+  ServiceDependencyContext,
+  WorkItemAddress,
+} from './ports/dependency-context';
+export { withDependencyContext } from './ports/dependency-context';
 export * from './ports/project-address-search';
 export * from './ports/resource-capacity-store';
 export * from './ports/shared-people-restore-approvals';
@@ -199,6 +209,7 @@ export * from './ports/step-blockage-store';
 export * from './ports/step-parallel-store';
 export * from './service/connected-dependency-graph';
 export type { ConnectedPlanCapture } from './service/connected-plan-values';
+export { createLocalDependencyContext } from './service/dependency-context';
 export { captureLocalTypedDependency } from './service/local-typed-dependency';
 export * from './service/numbered-work-item';
 export * from './service/optimizer-trigger-broadcaster';

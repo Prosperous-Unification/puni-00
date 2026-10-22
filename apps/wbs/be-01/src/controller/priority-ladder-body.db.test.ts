@@ -22,7 +22,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -122,7 +122,7 @@ describe('setPriorityBands on POST /api/projects/:id/commands', () => {
     });
     const writing = {
       projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projectStore),
+        dependencyContext: sqliteDependencyContext(db, projectStore),
         clock: testClock,
         projects: projectStore,
         broadcast: recordingBroadcaster(),

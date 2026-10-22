@@ -382,3 +382,17 @@ it('reobserves staged estimate anchors and project reach between cycle evaluatio
   scope.facts.set('a', { ...a, reach: 'whole-item' });
   expect((await scope.reader.findCycle(['a']))?.kind).toBe('cycle');
 });
+
+it('the service guard follows remote-owned outgoing incidents and applies only owner step removal', async () => {
+  const { DependencyGraphGuard } = await import('./dependency-graph');
+  const scope = observation();
+  scope.relationships.push(link('ab', 'a', 'b'), link('ba', 'b', 'a'));
+  const guard = new DependencyGraphGuard(scope.reader, 'a', () => {
+    scope.authority.assertActive();
+  });
+  expect(await guard.findCycle('a')).not.toBeNull();
+  expect(scope.calls).toContain('incident:b');
+  expect(await guard.findStepReferences('a', 'b-first')).toEqual([]);
+  scope.expire();
+  expect(guard.findCycle('a')).rejects.toThrow('expired observation');
+});

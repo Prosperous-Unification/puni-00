@@ -9,6 +9,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -34,6 +35,7 @@ async function seeded() {
   const clock = clockOf({ now: () => 2, newId: () => `item-${String(++next)}` });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
+      dependencyContext: createLocalDependencyContext(stores),
       admission: CREATOR_ADMISSION,
       clock,
       broadcast,
@@ -64,6 +66,7 @@ const hostRequirements = () => {
   const clock = clockOf({ now: () => 0, newId: () => 'unused' });
   const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
     servicesOver(stores, {
+      dependencyContext: createLocalDependencyContext(stores),
       admission: CREATOR_ADMISSION,
       clock,
       broadcast,
@@ -259,6 +262,7 @@ describe('a step allowance edit over the memory source', () => {
     const clock = clockOf({ now: () => 2, newId: () => crypto.randomUUID() });
     const graphOver = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock,
         broadcast,

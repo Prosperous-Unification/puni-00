@@ -11,6 +11,7 @@ import {
   normalizeCommand,
   type PlanCommand,
 } from '../../service/command-normalizers';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -34,7 +35,10 @@ async function seeded() {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
@@ -79,7 +83,11 @@ async function seeded() {
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, claims: bound(scope.stores.claims) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const demands = () => source.stores.demands.listByProject(projectId);

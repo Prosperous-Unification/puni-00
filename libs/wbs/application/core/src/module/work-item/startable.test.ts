@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { WorkItem } from '../../ports/work-item-store';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -22,6 +23,7 @@ const OPS = 'team-ops';
 async function seeded() {
   const source = openMemorySource();
   const graph = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast: recordingBroadcaster(),

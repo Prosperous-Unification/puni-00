@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import type { UndoOutcome } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { expectCreated } from '@wbs/core/testing/expect-created';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -34,7 +36,7 @@ import { AvailableWorkItemService as WorkItemService } from '../testing/availabl
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -123,12 +125,20 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: workItemStore,
+      estimates: estimateStore,
+      dependencies: dependencyStore,
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,

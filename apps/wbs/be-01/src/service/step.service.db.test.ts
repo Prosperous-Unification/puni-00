@@ -11,6 +11,8 @@ import { ReplayBuffer } from '@wbs/core/module/realtime/replay-buffer';
 import { ReplayOrchestrator } from '@wbs/core/module/realtime/replay-orchestrator';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { systemTimers } from '@wbs/runtime-portable';
 import { PushClient } from '@wbs/runtime-portable';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
@@ -47,7 +49,7 @@ import { SubtreeRepository, WorkItemRepository } from '../repository/work-item';
 import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { directoryWith, personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -119,7 +121,7 @@ beforeEach(async () => {
   directory = new DirectoryRepository(db, OPEN);
   broadcast = recordingBroadcaster();
   steps = new StepService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     steps: stepStore,
@@ -139,7 +141,7 @@ beforeEach(async () => {
   );
 
   const created = await new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -249,7 +251,7 @@ describe('StepService.rename', () => {
 
   it('refuses a step that belongs to another project', async () => {
     const other = await new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),
@@ -322,7 +324,7 @@ describe('StepService.remove', () => {
   it('refuses a blockage arriving after the fast usage count', async () => {
     const blockages = new StepBlockageRepository(db, OPEN);
     const service = new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast,
@@ -552,7 +554,7 @@ describe('StepService.remove', () => {
     // still refuse: it was never consent to take anything, and what it would
     // take is a trio nobody has been shown.
     const service = new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: storeWith({
@@ -581,7 +583,7 @@ describe('StepService.remove', () => {
     // move for a write nobody made.
     let winnerRevision: number | undefined;
     const service = new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: storeWith({
@@ -647,6 +649,14 @@ describe('a step removed between the check and the write', () => {
       },
     });
     return new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projectStore,
+        workItems: new WorkItemRepository(db, OPEN),
+        estimates: vanishing,
+        dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -698,6 +708,14 @@ describe('a step removed between the check and the write', () => {
     // reads the person inside its own transaction — but the thing being
     // asserted is unchanged: `writeNamingStep` must not claim the step.
     const workItems = new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projectStore,
+        workItems: new WorkItemRepository(db, OPEN),
+        estimates: estimates,
+        dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -751,7 +769,7 @@ describe('step events', () => {
     // only moment that can tell the two orders apart.
     const watching = watchingBroadcaster();
     const service = new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -773,7 +791,7 @@ describe('step events', () => {
       now: Date.now,
     });
     const durable = new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: stepStore,
@@ -859,7 +877,7 @@ for (const cascade of [false, true]) {
 it('refuses sparse parallelism inserted after the fast usage count', async () => {
   const parallels = new StepParallelRepository(db, OPEN);
   const service = new StepService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast,
@@ -888,7 +906,7 @@ it('authorizes before consulting sparse step references', async () => {
   );
   let removals = 0;
   const service = new StepService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast,

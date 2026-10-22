@@ -11,7 +11,7 @@ import type {
 import { StepService } from '../module/step/step.resource';
 import type { EditAdmission } from '../ports/edit-admission';
 import { LEGACY_ACCESS } from '../ports/organization-access';
-import { DependencyGraphGuard } from '../service/dependency-graph';
+import { createLocalDependencyContext } from '../service/dependency-context';
 import type { PlanCommand } from '../service/plan-command';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
@@ -115,7 +115,7 @@ test('scoped step service cannot borrow a recovery grant for another project, ac
         steps: stored,
         broadcast,
         clock: testClock,
-        dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects }),
+        dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects }),
         recoveryAdmission: admission,
       });
       retained = service;
@@ -167,7 +167,7 @@ async function fixture(restricted = false) {
   const addWrite = spyOn(stored, 'add');
   const broadcast = recordingBroadcaster();
   const service = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     steps: stored,
@@ -303,7 +303,7 @@ test('typed name bindings preserve every modeled service refusal without a statu
 test('typed removal carries every usage field and only literal true confirms cascade', async () => {
   const { projects, stored, broadcast } = await fixture();
   const service = new StepService({
-    dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: projects }),
+    dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: projects }),
     clock: testClock,
     projects,
     broadcast,

@@ -3,7 +3,7 @@ import { inMemoryProjects, projectRow } from '@wbs/store-memory/project-fixture'
 import { expect, spyOn, test } from 'bun:test';
 
 import { ProjectService } from '../module/project/project.resource';
-import { DependencyGraphGuard } from '../service/dependency-graph';
+import { createLocalDependencyContext } from '../service/dependency-context';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { legacyOrganizationAccess } from '../testing/organization-access-fixture';
@@ -42,7 +42,7 @@ test('direct solution binding reads the exact slug and complete project with ord
   await store.create(project, steps, { at: 1, by: 'owner' });
   const [endpoint] = solutionRoutes(
     new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: store }),
+      dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: store }),
       clock: testClock,
       projects: store,
       broadcast: recordingBroadcaster(),
@@ -66,7 +66,7 @@ test('direct solution binding preserves unknown project and step store failures'
   );
   const [endpoint] = solutionRoutes(
     new ProjectService({
-      dependencyGraph: new DependencyGraphGuard({ ...inMemoryStores(), projects: store }),
+      dependencyContext: createLocalDependencyContext({ ...inMemoryStores(), projects: store }),
       clock: testClock,
       projects: store,
       broadcast: recordingBroadcaster(),

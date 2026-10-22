@@ -1,6 +1,7 @@
 import { canWriteInOrganization, type OrganizationScope } from '@wbs/domain';
 
 import type { CommandAccess } from '../../ports/command-access';
+import type { CommandGraphAuthority, DependencyContext } from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectCrossReferenceKind, RecoveryAuditDetail } from '../../ports/project-values';
@@ -15,6 +16,7 @@ export type AdmittedGraphFactory<G> = (
   scope: Scope,
   broadcast: Broadcaster,
   admission: EditAdmission,
+  dependencies: DependencyContext,
 ) => G;
 
 /**
@@ -111,7 +113,7 @@ export interface CommandAdmission {
   openCommandGraph(
     projectId: string | null,
     broadcast: Broadcaster,
-    admission: EditAdmission,
+    authority: CommandGraphAuthority,
   ): OpenCommandGraph;
 }
 

@@ -7,6 +7,7 @@ import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { ScheduleRead } from '../../ports/scheduler';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -26,7 +27,10 @@ async function seeded(fault?: 'refuse' | 'throw') {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: OWNER, username: OWNER, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: OWNER },
@@ -61,7 +65,11 @@ async function seeded(fault?: 'refuse' | 'throw') {
             },
           },
         },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   const snapshot = () =>

@@ -1,10 +1,12 @@
 import { openMemorySource } from '@wbs/store-memory';
+import { projectRow } from '@wbs/store-memory/project-fixture';
 import { describe, expect, it } from 'bun:test';
 
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
@@ -216,6 +218,7 @@ describe('the admitted working batch baseline', () => {
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock: testClock,
         broadcast,
@@ -380,6 +383,7 @@ describe('the admitted working batch baseline', () => {
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock: testClock,
         broadcast,
@@ -429,6 +433,7 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const graph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -467,6 +472,7 @@ describe('the admitted working batch baseline', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -558,6 +564,7 @@ describe('targeted working-plan refreshes', () => {
   it('reloads every loaded collection and keeps unloaded collections lazy after a global write', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -667,6 +674,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -709,6 +717,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -758,6 +767,7 @@ describe('targeted working-plan refreshes', () => {
   it('keeps a newly added edge in authoritative order and returned edges detached', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -828,6 +838,7 @@ describe('targeted working-plan refreshes', () => {
   it('refreshes every restore-related collection and preserves borrowed before-images', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -982,6 +993,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1068,6 +1080,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1169,6 +1182,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1247,6 +1261,7 @@ describe('targeted working-plan refreshes', () => {
     const source = openMemorySource();
     const direct = silentBroadcaster();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: direct,
@@ -1332,6 +1347,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value after a modeled set refusal', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -1401,6 +1417,7 @@ describe('working plan value failures', () => {
   it('does not advance a retained value before a throwing mutation succeeds', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -1470,6 +1487,7 @@ describe('working plan value failures', () => {
   it('does not advance retained edges before throwing dependency mutations succeed', async () => {
     const source = openMemorySource();
     const publicGraph = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock: testClock,
       broadcast: silentBroadcaster(),
@@ -1534,4 +1552,72 @@ describe('working plan value failures', () => {
       await source.close();
     }
   });
+});
+
+it('refreshes only retained owner rows after external typed writes and representation changes', async () => {
+  const source = openMemorySource();
+  await source.stores.projects.create(projectRow({ id: 'a', ownerId: OWNER }), [], {
+    at: 1,
+    by: OWNER,
+  });
+  await source.stores.projects.create(projectRow({ id: 'b', ownerId: OWNER }), [], {
+    at: 1,
+    by: OWNER,
+  });
+  for (const row of [
+    workItemRow({ id: 'A', projectId: 'a' }),
+    workItemRow({ id: 'B', projectId: 'b' }),
+    workItemRow({ id: 'C', projectId: 'b', position: 20 }),
+  ])
+    await source.stores.workItems.insert(row, [], { at: 1, by: OWNER });
+  const changed = await source.uow
+    .run(async (scope) => {
+      const workItems = new Proxy(scope.stores.workItems, {
+        get(target, key) {
+          if (key === 'listByIds')
+            return async (owner: string, ids: readonly string[]) => {
+              if (ids.includes('A'))
+                throw new Error('retained owner refresh requested a remote identity');
+              return target.listByIds(owner, ids);
+            };
+          const member: unknown = Reflect.get(target, key);
+          if (typeof member === 'function')
+            return (...args: unknown[]): unknown => Reflect.apply(member, target, args);
+          return member;
+        },
+      });
+      const plan = createWorkingPlan({ stores: { ...scope.stores, workItems } }, 'b');
+      try {
+        expect((await plan.stores.workItems.listByProject('b')).map((row) => row.id)).toEqual([
+          'B',
+          'C',
+        ]);
+        const relationship = {
+          id: 'external',
+          projectId: 'b',
+          predecessor: { projectId: 'a', scope: 'whole' as const, workItemId: 'A' },
+          successor: { projectId: 'b', scope: 'whole' as const, workItemId: 'B' },
+          type: 'FS' as const,
+        };
+        await plan.stores.typedDependencies.add(relationship, { at: 2, by: OWNER });
+        await plan.stores.typedDependencies.update(
+          { ...relationship, predecessor: { projectId: 'b', scope: 'whole', workItemId: 'C' } },
+          { at: 3, by: OWNER },
+        );
+        await plan.stores.typedDependencies.update(relationship, { at: 4, by: OWNER });
+        await plan.stores.typedDependencies.remove(relationship.id, { at: 5, by: OWNER });
+        expect(await plan.stores.workItems.listByProject('b')).toEqual(
+          await scope.stores.workItems.listByProject('b'),
+        );
+        expect(await refusesCall(() => plan.stores.workItems.listByIds('a', ['A']))).toBe(true);
+        return { commit: true, value: undefined };
+      } finally {
+        plan.close();
+      }
+    })
+    .then(
+      () => null,
+      (cause: unknown) => cause,
+    );
+  expect(changed).toBeNull();
 });

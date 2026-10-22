@@ -6838,9 +6838,9 @@ describe('buildServices', () => {
         uow: services.uow,
         publicServices: services,
         announcements: services.announcements,
-        batchServices: (scope, broadcast, admission) => {
+        batchServices: (scope, broadcast, admission, dependencies) => {
           retained.admission = admission;
-          return services.batch(scope, broadcast, admission);
+          return services.batch(scope, broadcast, admission, dependencies);
         },
         committedFanout: {
           now: () => 100,

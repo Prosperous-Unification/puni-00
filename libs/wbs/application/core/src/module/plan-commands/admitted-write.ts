@@ -19,6 +19,7 @@ export type AdmittedWriteDecision<T> = { commit: true; value: T } | { commit: fa
 /** One admitted route write over a mapped graph, with no source capability. */
 export interface AdmittedWriteTransaction {
   run<T>(
+    projectId: string,
     caller: CommandCaller,
     broadcast: Broadcaster,
     act: (services: AdmittedServices, access: ResourceAccess) => Promise<AdmittedWriteDecision<T>>,
@@ -44,6 +45,7 @@ export interface AdmittedWriteOptions {
  */
 export function admittedWrites(options: AdmittedWriteOptions) {
   const admit = async <T extends { ok: boolean }>(
+    projectId: string,
     actor: AuthenticatedUser,
     expectedAccess: ResourceAccess,
     act: (graph: AdmittedServices, access: ResourceAccess) => Promise<T>,
@@ -52,6 +54,7 @@ export function admittedWrites(options: AdmittedWriteOptions) {
     if (!actor.scopes.includes('write')) return { ok: false, error: 'insufficient_scope' };
     const collector = new AnnouncementCollector(options.announcements);
     const outcome = await options.transaction.run<T>(
+      projectId,
       { kind: 'human', principal: actor, expectedAccess },
       collector,
       async (graph, access) => {
@@ -69,7 +72,7 @@ export function admittedWrites(options: AdmittedWriteOptions) {
       patch: Parameters<ProjectService['updateWithin']>[2],
       expectedAccess: ResourceAccess,
     ) =>
-      admit(actor, expectedAccess, (graph, access) =>
+      admit(projectId, actor, expectedAccess, (graph, access) =>
         graph.projects.updateWithin(projectId, actor.id, patch, access),
       ),
     removeStepWithin: (
@@ -79,7 +82,7 @@ export function admittedWrites(options: AdmittedWriteOptions) {
       cascade: boolean,
       expectedAccess: ResourceAccess,
     ) =>
-      admit(actor, expectedAccess, (graph, access) =>
+      admit(projectId, actor, expectedAccess, (graph, access) =>
         graph.steps.removeWithin(projectId, stepId, actor.id, cascade, access),
       ),
   };

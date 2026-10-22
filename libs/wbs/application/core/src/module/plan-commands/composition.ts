@@ -1,4 +1,5 @@
 import type { CommandAccess, CommandCaller } from '../../ports/command-access';
+import type { DependencyContext } from '../../ports/dependency-context';
 import { type EditAdmission, NO_ADMISSION } from '../../ports/edit-admission';
 import type { CapturedFanout } from '../../ports/fanout-capture-store';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from '../../ports/fanout-capture-store';
@@ -10,6 +11,7 @@ import {
   type CommittedProjectEvent,
   recordCommittedFanout,
 } from '../../service/committed-fanout';
+import { createDependencyContext } from '../../service/dependency-context';
 import {
   type AdmittedGraphFactory,
   AdmittedScope,
@@ -49,6 +51,7 @@ export interface AdmittedWriteSource {
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
   ) => AdmittedServices;
@@ -66,84 +69,110 @@ export function commandTransaction(
     run: async (act, settled) => {
       let committed: readonly CommittedProjectEvent[] = [];
       const value = await uow.run(async (rawScope) => {
-        const scope = new AdmittedScope(rawScope);
-        const captureState: { before: CapturedFanout | null; organizationId: string | null } = {
-          before: null,
-          organizationId: null,
+        let observing = true;
+        const assertObservation = () => {
+          if (!observing) throw new Error('command dependency observation is closed');
         };
-        const resources: CommandAdmission = {
-          resolveAccess: (caller) => commandAccess.resolve(caller),
-          refuseOutsideScope: async (...args) => {
-            const refusal = await scope.refuseOutsideScope(...args);
-            if (refusal !== null) return refusal;
-            captureState.organizationId = args[2].organizationId;
-            const capture = rawScope.fanoutCapture;
-            if (capture === undefined) {
-              // Legacy fixtures have no live-plan source; a shared production source must fail closed.
-              if (rawScope.stores.livePlans !== undefined)
-                throw new Error('shared fan-out capture is missing');
-              return null;
-            }
-            captureState.before = await capture.capture(captureState.organizationId);
-            if (captureState.before.observation.mode === 'shared' && committedFanout === undefined)
-              throw new Error('committed fan-out delivery is missing');
-            return null;
-          },
-          listCrossReferenceKinds: (...args) => scope.listCrossReferenceKinds(...args),
-          openCommandGraph: (projectId, broadcast, admission) => {
-            const workingPlan =
-              projectId === null ? undefined : createWorkingPlan(rawScope, projectId);
-            try {
-              return {
-                services: factory(
-                  workingPlan === undefined ? rawScope : { stores: workingPlan.stores },
-                  broadcast,
-                  admission,
-                ),
-                close: () => workingPlan?.close(),
-              };
-            } catch (cause) {
-              workingPlan?.close();
-              throw cause;
-            }
-          },
-        };
-        const decision = await act(resources);
-        if (decision.commit) {
-          if (captureState.before !== null && captureState.organizationId !== null) {
-            const capture = rawScope.fanoutCapture;
-            if (capture === undefined) throw new Error('shared fan-out capture disappeared');
-            const after = await capture.capture(captureState.organizationId);
-            if (captureState.before.observation.mode === 'shared') {
-              if (committedFanout === undefined)
+        try {
+          const scope = new AdmittedScope(rawScope);
+          const captureState: { before: CapturedFanout | null; organizationId: string | null } = {
+            before: null,
+            organizationId: null,
+          };
+          const resources: CommandAdmission = {
+            resolveAccess: (caller) => commandAccess.resolve(caller),
+            refuseOutsideScope: async (...args) => {
+              const refusal = await scope.refuseOutsideScope(...args);
+              if (refusal !== null) return refusal;
+              captureState.organizationId = args[2].organizationId;
+              const capture = rawScope.fanoutCapture;
+              if (capture === undefined) {
+                // Legacy fixtures have no live-plan source; a shared production source must fail closed.
+                if (rawScope.stores.livePlans !== undefined)
+                  throw new Error('shared fan-out capture is missing');
+                return null;
+              }
+              captureState.before = await capture.capture(captureState.organizationId);
+              if (
+                captureState.before.observation.mode === 'shared' &&
+                committedFanout === undefined
+              )
                 throw new Error('committed fan-out delivery is missing');
-              // Proof: deferring this record until after the UoW returned let
-              // a second-recipient insert failure leave command, history and
-              // first event/sequence persisted instead of rolling back.
-              committed = await recordCommittedFanout(
-                rawScope.stores.eventLog,
-                captureState.before,
-                after,
-                () => committedFanout.now(),
+              return null;
+            },
+            listCrossReferenceKinds: (...args) => scope.listCrossReferenceKinds(...args),
+            openCommandGraph: (projectId, broadcast, authority) => {
+              assertObservation();
+              if (projectId !== null && projectId !== authority.projectId)
+                throw new Error('retained project does not match dependency owner');
+              const dependencies = createDependencyContext(
+                rawScope.stores,
+                authority,
+                assertObservation,
               );
+              const workingPlan =
+                projectId === null ? undefined : createWorkingPlan(rawScope, projectId);
+              try {
+                return {
+                  services: factory(
+                    workingPlan === undefined ? rawScope : { stores: workingPlan.stores },
+                    broadcast,
+                    authority.admission,
+                    dependencies.context,
+                  ),
+                  close: () => {
+                    dependencies.close();
+                    workingPlan?.close();
+                  },
+                };
+              } catch (cause) {
+                dependencies.close();
+                workingPlan?.close();
+                throw cause;
+              }
+            },
+          };
+          const decision = await act(resources);
+          if (decision.commit) {
+            if (captureState.before !== null && captureState.organizationId !== null) {
+              const capture = rawScope.fanoutCapture;
+              if (capture === undefined) throw new Error('shared fan-out capture disappeared');
+              const after = await capture.capture(captureState.organizationId);
+              if (captureState.before.observation.mode === 'shared') {
+                if (committedFanout === undefined)
+                  throw new Error('committed fan-out delivery is missing');
+                // Proof: deferring this record until after the UoW returned let
+                // a second-recipient insert failure leave command, history and
+                // first event/sequence persisted instead of rolling back.
+                committed = await recordCommittedFanout(
+                  rawScope.stores.eventLog,
+                  captureState.before,
+                  after,
+                  () => committedFanout.now(),
+                );
+              }
             }
+            return decision;
           }
-          return decision;
+          if (decision.afterRollback === undefined) return { commit: false, value: decision.value };
+          return {
+            commit: false,
+            value: decision.value,
+            afterRollback: async (repairScope: Scope) => {
+              const repair: CommandRepair = {
+                discardEntry: async (entryId) => {
+                  // Proof: omitting this discard made the next undo remain stale instead of nothing_to_undo (compose.test.ts).
+                  await repairScope.stores.journal.discard(entryId);
+                },
+              };
+              await decision.afterRollback?.(repair);
+            },
+          };
+        } finally {
+          // Proof: command-observation-close bypass failed `command observation closes escaped capabilities on success`'s selected assertion
+          // (actual SQLite boundary; watched 2026-10-22).
+          observing = false;
         }
-        if (decision.afterRollback === undefined) return { commit: false, value: decision.value };
-        return {
-          commit: false,
-          value: decision.value,
-          afterRollback: async (repairScope: Scope) => {
-            const repair: CommandRepair = {
-              discardEntry: async (entryId) => {
-                // Proof: omitting this discard made the next undo remain stale instead of nothing_to_undo (compose.test.ts).
-                await repairScope.stores.journal.discard(entryId);
-              },
-            };
-            await decision.afterRollback?.(repair);
-          },
-        };
       });
       // Proof: omitting this settlement callback kept a scoped execute/undo/redo
       // grant live while a second writer entered during held recipient delivery.
@@ -161,6 +190,7 @@ export function commandTransaction(
 export function createAdmittedWrites(source: AdmittedWriteSource) {
   const transaction: AdmittedWriteTransaction = {
     run: async <T>(
+      projectId: string,
       caller: CommandCaller,
       broadcast: Broadcaster,
       act: (
@@ -221,30 +251,51 @@ export function createAdmittedWrites(source: AdmittedWriteSource) {
         };
         // Proof: independently omitting project or bare-step hook made mounted
         // fan-out receive 3/4 or 2/3 recipient rows; both faults were watched.
-        const decision = await act(
-          source.batch(scope, broadcast, NO_ADMISSION, beforeProjectUpdate, beforeStepRemoval),
-          resolved.access,
+        const dependencies = createDependencyContext(
+          scope.stores,
+          {
+            projectId,
+            actorId: caller.kind === 'human' ? caller.principal.id : caller.actorId,
+            access: resolved.access,
+            admission: NO_ADMISSION,
+          },
+          () => undefined,
         );
-        if (
-          decision.commit &&
-          captureState.before !== null &&
-          captureState.organizationId !== null
-        ) {
-          const capture = scope.fanoutCapture;
-          if (capture === undefined) throw new Error('admitted fan-out capture disappeared');
-          const after = await capture.capture(captureState.organizationId);
-          if (captureState.before.observation.mode === 'shared') {
-            const delivery = source.committedFanout;
-            if (delivery === undefined) throw new Error('admitted fan-out delivery is missing');
-            committed = await recordCommittedFanout(
-              scope.stores.eventLog,
-              captureState.before,
-              after,
-              () => delivery.now(),
-            );
+        try {
+          const decision = await act(
+            source.batch(
+              scope,
+              broadcast,
+              NO_ADMISSION,
+              dependencies.context,
+              beforeProjectUpdate,
+              beforeStepRemoval,
+            ),
+            resolved.access,
+          );
+          if (
+            decision.commit &&
+            captureState.before !== null &&
+            captureState.organizationId !== null
+          ) {
+            const capture = scope.fanoutCapture;
+            if (capture === undefined) throw new Error('admitted fan-out capture disappeared');
+            const after = await capture.capture(captureState.organizationId);
+            if (captureState.before.observation.mode === 'shared') {
+              const delivery = source.committedFanout;
+              if (delivery === undefined) throw new Error('admitted fan-out delivery is missing');
+              committed = await recordCommittedFanout(
+                scope.stores.eventLog,
+                captureState.before,
+                after,
+                () => delivery.now(),
+              );
+            }
           }
+          return decision;
+        } finally {
+          dependencies.close();
         }
-        return decision;
       });
       if (committed.length > 0) {
         if (source.committedFanout === undefined)

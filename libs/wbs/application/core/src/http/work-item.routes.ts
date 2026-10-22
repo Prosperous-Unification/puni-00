@@ -115,6 +115,7 @@ function answerUndo(outcome: ScopedUndoOutcome): HttpReply<typeof undoProject> {
       return { ok: false, status: 403, body: { error: outcome.reason } };
     case 'not_found':
       return { ok: false, status: 404, body: { error: outcome.reason } };
+    case 'external_dependencies_inactive':
     case 'nothing_to_undo':
     case 'stale_undo':
       return { ok: false, status: 409, body: { error: outcome.reason, detail: outcome.detail } };
@@ -328,6 +329,7 @@ function answerBatch(
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'self_node':
     case 'not_a_parent':
+    case 'external_dependencies_inactive':
     case 'duplicate_dependency':
       return { ok: false, status: 409, body: { ...context, error: outcome.reason } };
     case 'too_large':

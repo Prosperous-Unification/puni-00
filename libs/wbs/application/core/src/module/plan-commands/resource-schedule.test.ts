@@ -6,6 +6,7 @@ import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { PlanTree } from '../../ports/plan-tree';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -33,7 +34,10 @@ async function seeded() {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
@@ -70,7 +74,11 @@ async function seeded() {
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        ...options,
+        broadcast: announcements,
+      }),
   });
   const declared = await runner.runDirectory(F, [
     { kind: 'createResource', name: 'staging', resourceKind: 'exclusive', unitLabel: 'env' },

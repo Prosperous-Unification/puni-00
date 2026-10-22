@@ -27,7 +27,7 @@ import { type RecordingBroadcaster, recordingBroadcaster } from '../testing/broa
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { testDirectoryService } from '../testing/directory-fixture';
 import {
   refusingEmailVerification,
@@ -116,7 +116,7 @@ describe('the saved-plan routes', () => {
     const connection = openConnection(path);
     const projects = new ProjectRepository(connection.db, OPEN);
     const projectService = new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(connection.db, projects),
+      dependencyContext: sqliteDependencyContext(connection.db, projects),
       clock: testClock,
       projects,
       broadcast,

@@ -7,7 +7,9 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -38,7 +40,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testCalendarMarkerService } from '../testing/calendar-marker-fixture';
 import { inMemoryCapacity, testCapacityService } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import {
   refusingEmailVerification,
   refusingInvitations,
@@ -110,19 +112,27 @@ beforeEach(async () => {
     stepParallels: testStepParallels(),
     calendarMarkers: testCalendarMarkerService(),
     projects: new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
+      dependencyContext: sqliteDependencyContext(db, projects),
       clock: testClock,
       projects,
       broadcast: recordingBroadcaster(),
     }),
     steps: new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projects),
+      dependencyContext: sqliteDependencyContext(db, projects),
       clock: testClock,
       projects,
       steps: stepStore,
       broadcast: recordingBroadcaster(),
     }),
     workItems: new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: new EstimateRepository(db, OPEN),
+        dependencies: new DependencyRepository(db, OPEN),
+        typedDependencies: new TypedDependencyRepository(db, OPEN),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,

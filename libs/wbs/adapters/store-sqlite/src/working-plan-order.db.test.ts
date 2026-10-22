@@ -17,6 +17,7 @@ import {
 } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { fastScheduler } from '@wbs/core/testing/scheduler-fixture';
 import { workItemRow } from '@wbs/core/testing/work-item-fixture';
@@ -96,6 +97,7 @@ async function sqliteEstimateRunner(name: string) {
     clock,
     broadcast: silentBroadcaster,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   });
   const runner = createPlanCommandRunner({
     commandAccess: localCommandAccess,
@@ -108,6 +110,7 @@ async function sqliteEstimateRunner(name: string) {
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(scope.stores),
       }),
   });
   return {
@@ -395,6 +398,7 @@ it('advances SQLite assignment and directory cascades before the next runner com
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const assignmentObservations: { retained: number | undefined; stored: number | undefined }[] =
@@ -604,6 +608,7 @@ it('rolls back a successful directory write when its retained reload fails', asy
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const runner = createPlanCommandRunner({
@@ -864,6 +869,7 @@ it('keeps SQLite work-item order authoritative immediately after a runner insert
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     const admitted = captureAdmittedStores(source.uow);
@@ -1005,6 +1011,7 @@ it('refreshes a dependency survivor before the next runner command and preserves
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let retainedBeforeNext: number | undefined;
@@ -1130,6 +1137,7 @@ it('keeps every SQLite value group in source order after runner sets populate an
         clock,
         broadcast,
         scheduler: fastScheduler,
+        dependencyContext: createLocalDependencyContext(stores),
       });
     const publicGraph = compose(source.stores, silentBroadcaster);
     let observations = 0;

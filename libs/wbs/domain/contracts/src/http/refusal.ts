@@ -145,6 +145,7 @@ export type CommandRefusalCode =
   | 'node_on_parent'
   | 'descendant_step_on_leaf'
   | 'unknown_dependency'
+  | 'external_dependencies_inactive'
   | 'duplicate_dependency'
   | 'unsupported_relationship_type'
   | 'too_large'
@@ -490,6 +491,7 @@ type BareRefusalCode =
   | 'token_limit';
 
 type SharedCommandCode =
+  | 'external_dependencies_inactive'
   | 'not_found'
   | 'forbidden'
   | 'name_required'
@@ -538,6 +540,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
       | { nodes: { workItemId: string; stepId: string }[] }
       | CommandRefusalDetail['referenced_by_step_parallel'];
     estimates_present: { count: number };
+    external_dependencies_inactive:
+      { detail: string | null } | CommandRefusalDetail['external_dependencies_inactive'];
     nothing_to_undo: { detail: string | null };
     stale_undo: { detail: string | null };
     stale_address_revision: { addressRevision: string };

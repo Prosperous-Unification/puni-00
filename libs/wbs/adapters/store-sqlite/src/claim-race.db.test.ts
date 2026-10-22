@@ -6,6 +6,7 @@ import type { ClaimStore, PlanCommand, Scope } from '@wbs/core';
 import { CREATOR_ADMISSION, LEGACY_ACCESS } from '@wbs/core';
 import { servicesOver } from '@wbs/core/compose';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { recordingBroadcaster } from '@wbs/core/testing/broadcast-fixture';
 import { testClock } from '@wbs/core/testing/clock-fixture';
 import { expectCreated } from '@wbs/core/testing/expect-created';
@@ -55,6 +56,7 @@ async function seeded(hold?: Hold) {
     clock: testClock,
     broadcast,
     scheduler: fastScheduler,
+    dependencyContext: createLocalDependencyContext(source.stores),
   };
   const graph = servicesOver(source.stores, options);
   for (const id of [F, G]) {
@@ -99,7 +101,11 @@ async function seeded(hold?: Hold) {
     batchServices: (scope: Scope, announcements) =>
       servicesOver(
         { ...scope.stores, claims: withIdentity(scope.stores.claims, () => acting) },
-        { ...options, broadcast: announcements },
+        {
+          ...options,
+          broadcast: announcements,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        },
       ),
   });
   /** One batch as `actor`; the identity wrapper reads the actor of the batch that started last. */

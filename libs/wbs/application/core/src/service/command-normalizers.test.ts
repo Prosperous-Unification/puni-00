@@ -222,3 +222,55 @@ describe('a claim’s resources (wbs-resources R4)', () => {
     ).toThrow('resources_must_be_at_most_50');
   });
 });
+
+describe('scoped typed endpoint addresses', () => {
+  const normalize = (predecessor: unknown) =>
+    commandNormalizers.addTypedDependency({
+      kind: 'addTypedDependency',
+      predecessor,
+      successor: { scope: 'whole', workItemId: 'successor' },
+      type: 'FS',
+    } as never).predecessor;
+
+  test('preserves an explicit project for every endpoint spelling', () => {
+    for (const endpoint of [
+      { scope: 'whole', workItemId: 'predecessor' },
+      { scope: 'node', workItemId: 'predecessor', stepId: 'design' },
+      { scope: 'descendant-step', workItemId: 'predecessor', stepId: 'design' },
+    ] as const) {
+      expect(normalize({ ...endpoint, projectId: 'remote' })).toEqual({
+        ...endpoint,
+        projectId: 'remote',
+      });
+      expect(normalize(endpoint)).toEqual(endpoint);
+    }
+    expect(normalize({ scope: 'node', stepNodeId: nodeId, projectId: 'remote' })).toEqual({
+      scope: 'node',
+      projectId: 'remote',
+      workItemId: '11111111-1111-4111-8111-111111111111',
+      stepId: '22222222-2222-4222-8222-222222222222',
+    });
+  });
+
+  test('refuses malformed project addresses and explicitly scoped batch aliases', () => {
+    for (const projectId of ['', ' ', 7, null]) {
+      expect(() => normalize({ scope: 'whole', workItemId: 'w', projectId })).toThrow(
+        'invalid_typed_endpoint',
+      );
+    }
+    for (const scope of ['whole', 'node', 'descendant-step']) {
+      expect(() =>
+        normalize({
+          scope,
+          workItemRef: 'named',
+          stepId: scope === 'whole' ? undefined : 's',
+          projectId: 'owner',
+        }),
+      ).toThrow('invalid_typed_endpoint');
+    }
+    expect(normalize({ scope: 'whole', workItemRef: 'REMOTE-001' })).toEqual({
+      scope: 'whole',
+      workItemRef: 'REMOTE-001',
+    });
+  });
+});

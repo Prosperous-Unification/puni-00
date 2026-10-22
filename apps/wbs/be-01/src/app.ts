@@ -1,4 +1,5 @@
 import type { SessionFeatures } from '@wbs/contracts';
+import type { DependencyContext } from '@wbs/core';
 import type { CommandAccess } from '@wbs/core';
 import type { StepParallelStore } from '@wbs/core';
 import type {
@@ -331,6 +332,7 @@ export interface AppOptions {
       scope: Scope,
       broadcast: Broadcaster,
       admission: EditAdmission,
+      dependencies: DependencyContext,
       beforeProjectUpdate?: BeforeProjectUpdate,
       beforeStepRemoval?: BeforeStepRemoval,
     ) => WritingServices;

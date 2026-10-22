@@ -4,7 +4,6 @@ import {
   type DependencyReach,
   expandToLeaves,
   findStepNodeCycle,
-  hasCycle,
   indexTree,
   resolveStepNodeGraph,
   type StepNodeCycle,
@@ -13,12 +12,13 @@ import {
   type TypedDependency,
 } from '@wbs/domain';
 
-import { slicesOf } from '../module/work-item/work-item.resource';
-import type { DependencyStore, StoredDependency } from '../ports/dependency-store';
-import type { EstimateStore, StoredEstimate } from '../ports/estimate-store';
-import type { ProjectStore } from '../ports/project-store';
-import type { TypedDependencyStore } from '../ports/typed-dependency-store';
-import type { WorkItem, WorkItemStore } from '../ports/work-item-store';
+import type { StoredDependency } from '../ports/dependency-store';
+import type { StoredEstimate } from '../ports/estimate-store';
+import type { StoredTypedDependency } from '../ports/typed-dependency-store';
+import type { WorkItem } from '../ports/work-item-store';
+import type { ConnectedDependencyGraphReader } from './connected-dependency-graph';
+import { resolveConnectedDependencyGraph } from './connected-dependency-graph';
+import { slicesOf } from './schedule-slices';
 
 /**
  * Everything the combined step-node graph is built from: the tree, the
@@ -161,89 +161,134 @@ function prepareDependencyGraph(
   return { tree: index, slicesByLeaf: byLeaf, graph };
 }
 
-/** What a proposed change replaces in the stored state before the graph is asked. */
-export interface DependencyGraphChange {
-  readonly reach?: DependencyReach;
-  /** A step about to be removed: its column and every estimate on it go. */
+/** Complete proposed owner facts; omitted fields retain current transaction evidence. */
+export interface DependencyGraphChange extends Partial<Omit<DependencyGraphState, 'typed'>> {
   readonly withoutStepId?: string;
-  /** Proposed legacy links before a write, including the one being added. */
-  readonly legacy?: readonly StoredDependency[];
-  readonly typed?: readonly TypedDependency[];
-}
-
-/** The stores the combined graph is read from. */
-export interface DependencyGraphStores {
-  readonly projects: ProjectStore;
-  readonly workItems: WorkItemStore;
-  readonly estimates: EstimateStore;
-  readonly dependencies: DependencyStore;
-  readonly typedDependencies: TypedDependencyStore;
+  readonly typed?: readonly StoredTypedDependency[];
 }
 
 /**
- * Reads one project's combined dependency graph from its stores and asks
- * {@link findDependencyGraphCycle} of it, with a proposed change applied first
- * when a caller validates before it writes.
- *
- * A project with no typed dependency is asked the cheaper, equivalent
- * question: whether its legacy links can be ordered at leaf level. A
- * legacy-only step-node cycle is exactly a leaf-level cycle, because a legacy
- * link leaves the predecessor's reached node and enters the successor's first,
- * and every leaf's first node reaches its reached node through its own chain;
- * estimates, steps and reach move only the reached node, so they cannot open or
- * close one. It is still asked rather than skipped: an undo of a move replays
- * without `canReparent`, and a legacy link another actor drew meanwhile can
- * make the replayed tree cyclic.
+ * The service facade over fresh connected transaction evidence. Every call
+ * follows both incident directions, including projects with no owned links.
+ * Overrides replace only this graph owner's facts, never remote state.
  */
 export class DependencyGraphGuard {
-  constructor(private readonly stores: DependencyGraphStores) {}
+  constructor(
+    private readonly reader: ConnectedDependencyGraphReader,
+    private readonly projectId: string | null,
+    private readonly assertActive: () => void,
+  ) {}
+
+  private assertOwner(projectId: string): void {
+    this.assertActive();
+    if (projectId !== this.projectId) throw new Error('dependency graph owner mismatch');
+  }
 
   async findCycle(
     projectId: string,
     change: DependencyGraphChange = {},
   ): Promise<StepNodeCycle | null> {
-    const typed = change.typed ?? (await this.stores.typedDependencies.listByProject(projectId));
-    if (typed.length === 0) {
-      const [rows, legacy] = await Promise.all([
-        this.stores.workItems.listByProject(projectId),
-        this.stores.dependencies.listByProject(projectId),
-      ]);
-      // Proof: `return null` here in place of the leaf-level question made
-      // `refuses an undo of a move that a legacy link made cyclic` fail on
-      // `Expected: 409, Received: 200`; watched 2026-09-27.
-      return hasCycle(indexTree(rows), legacy) ? { kind: 'cycle', relationshipIds: [] } : null;
-    }
-    const project = await this.stores.projects.findById(projectId);
-    if (project === null) throw new Error(`project ${projectId} vanished while its graph was read`);
-    const [rows, steps, estimates, legacy] = await Promise.all([
-      this.stores.workItems.listByProject(projectId),
-      this.stores.projects.stepsOf(projectId),
-      this.stores.estimates.listByProject(projectId),
-      this.stores.dependencies.listByProject(projectId),
-    ]);
-    const without = change.withoutStepId;
-    return findDependencyGraphCycle({
-      rows,
-      steps: steps.filter((step) => step.id !== without),
-      estimates: estimates.filter((estimate) => estimate.stepId !== without),
-      // Proof: ignoring the proposed legacy set made `refuses a direct legacy
-      // write that closes a typed SS cycle` receive `{ ok: true, value: null }`
-      // instead of `cycle`; watched 2026-09-28.
-      legacy: change.legacy ?? legacy,
-      typed,
-      reach: change.reach ?? project.depReach,
-    });
+    this.assertOwner(projectId);
+    const { withoutStepId, ...replacement } = change;
+    const captured = await this.reader.read([projectId], [{ ...replacement, projectId }]);
+    this.assertOwner(projectId);
+    const proposed =
+      withoutStepId === undefined
+        ? captured
+        : {
+            ...captured,
+            projects: captured.projects.map((project) =>
+              project.projectId !== projectId
+                ? project
+                : {
+                    ...project,
+                    state: {
+                      ...project.state,
+                      steps: project.state.steps.filter((step) => step.id !== withoutStepId),
+                      estimates: project.state.estimates.filter(
+                        (estimate) => estimate.stepId !== withoutStepId,
+                      ),
+                    },
+                  },
+            ),
+          };
+    const cycle = findStepNodeCycle(resolveConnectedDependencyGraph(proposed).graph);
+    this.assertOwner(projectId);
+    return cycle;
   }
 
-  /** The typed dependencies whose node or descendant-step endpoint names `stepId`. */
-  async findStepReferences(projectId: string, stepId: string): Promise<string[]> {
-    const typed = await this.stores.typedDependencies.listByProject(projectId);
-    return typed
-      .filter((dependency) =>
-        [dependency.predecessor, dependency.successor].some(
-          (endpoint) => endpoint.scope !== 'whole' && endpoint.stepId === stepId,
-        ),
+  /** Modeled endpoint defects in the owner tree a structural write would leave. */
+  async findEndpointConflict(
+    projectId: string,
+    change: DependencyGraphChange = {},
+  ): Promise<{
+    reason: 'node_on_parent' | 'descendant_step_on_leaf';
+    dependencyIds: string[];
+  } | null> {
+    this.assertOwner(projectId);
+    if (change.rows !== undefined) {
+      const projected = new Set(change.rows.map((row) => row.id));
+      const current = await this.reader.read([projectId]);
+      this.assertOwner(projectId);
+      if (
+        current.external.some((relationship) =>
+          [relationship.predecessor, relationship.successor].some(
+            (endpoint) => endpoint.projectId === projectId && !projected.has(endpoint.workItemId),
+          ),
+        )
       )
-      .map((dependency) => dependency.id);
+        throw new Error(
+          'external dependency endpoint lifecycle requires incident transfer admission',
+        );
+    }
+    const { withoutStepId: _withoutStepId, ...replacement } = change;
+    const captured = await this.reader.read([projectId], [{ ...replacement, projectId }]);
+    this.assertOwner(projectId);
+    const owner = captured.projects.find((project) => project.projectId === projectId);
+    if (owner === undefined) throw new Error('structural graph owner evidence is missing');
+    const held = new Set(owner.state.rows.map((row) => row.id));
+    const parents = new Set(
+      owner.state.rows.flatMap((row) => (row.parentId === null ? [] : [row.parentId])),
+    );
+    const relationships = [
+      ...captured.external,
+      ...owner.state.typed.map((relationship) => ({
+        ...relationship,
+        predecessor: { ...relationship.predecessor, projectId },
+        successor: { ...relationship.successor, projectId },
+      })),
+    ];
+    const defects = new Map<'node_on_parent' | 'descendant_step_on_leaf', string[]>();
+    for (const relationship of relationships)
+      for (const endpoint of [relationship.predecessor, relationship.successor]) {
+        if (endpoint.projectId !== projectId) continue;
+        if (!held.has(endpoint.workItemId))
+          throw new Error(
+            'external dependency endpoint lifecycle requires incident transfer admission',
+          );
+        // Proof: endpoint-shape bypass failed `structural first-child creation`'s selected assertion
+        // (actual SQLite boundary; watched 2026-10-22).
+        // Proof: endpoint-shape bypass failed `last-child deletion refuses`'s selected assertion
+        // (actual SQLite boundary; watched 2026-10-22).
+        const reason =
+          endpoint.scope === 'node' && parents.has(endpoint.workItemId)
+            ? 'node_on_parent'
+            : endpoint.scope === 'descendant-step' && !parents.has(endpoint.workItemId)
+              ? 'descendant_step_on_leaf'
+              : null;
+        if (reason !== null) defects.set(reason, [...(defects.get(reason) ?? []), relationship.id]);
+      }
+    this.assertOwner(projectId);
+    for (const [reason, dependencyIds] of defects)
+      return { reason, dependencyIds: [...new Set(dependencyIds)].sort() };
+    return null;
+  }
+
+  /** Incident node/descendant endpoints naming this exact project's step. */
+  async findStepReferences(projectId: string, stepId: string): Promise<string[]> {
+    this.assertOwner(projectId);
+    const references = await this.reader.findStepReferences(projectId, stepId);
+    this.assertOwner(projectId);
+    return references;
   }
 }

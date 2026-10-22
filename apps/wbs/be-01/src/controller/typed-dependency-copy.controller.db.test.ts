@@ -7,8 +7,9 @@ import { DirectoryService } from '@wbs/core/module/directory/directory.resource'
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { DependencyEndpoint } from '@wbs/domain';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
@@ -80,7 +81,7 @@ beforeEach(() => {
   const dependencies = new DependencyRepository(db, OPEN);
   typed = new TypedDependencyRepository(db, OPEN);
   const directory = new DirectoryRepository(db, OPEN);
-  const dependencyGraph = new DependencyGraphGuard({
+  const dependencyContext = createLocalDependencyContext({
     projects,
     workItems,
     estimates,
@@ -101,16 +102,24 @@ beforeEach(() => {
       clock: testClock,
       projects,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     steps: new StepService({
       clock: testClock,
       projects,
       steps,
       broadcast: recordingBroadcaster(),
-      dependencyGraph,
+      dependencyContext,
     }),
     workItems: new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies: typed,
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -169,6 +178,14 @@ beforeEach(() => {
       batch: (scope, broadcast) => ({
         ...writing,
         workItems: new WorkItemService({
+          dependencyContext: createLocalDependencyContext({
+            projects: scope.stores.projects,
+            workItems: scope.stores.workItems,
+            estimates: scope.stores.estimates,
+            dependencies: scope.stores.dependencies,
+            typedDependencies: scope.stores.typedDependencies,
+          }),
+          externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
           admission: CREATOR_ADMISSION,
           scheduler: fastScheduler,
           clock: testClock,

@@ -17,6 +17,8 @@ import type {
 } from '../../index';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { resolveDependencyGraph } from '../../service/dependency-graph';
 import { projectNodeReadings } from '../../service/node-readings';
 import { AvailableWorkItemService as WorkItemService } from '../../testing/available-work-item-service';
@@ -62,6 +64,8 @@ beforeEach(async () => {
   // one store swapped for a broken one, which is how they drive a failure the
   // real stores cannot produce.
   serviceOptions = {
+    dependencyContext: createLocalDependencyContext(harness.stores),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     clock: testClock,
     ...harness.stores,
@@ -963,8 +967,8 @@ describe('dependencies', () => {
       pessimistic: 3,
     });
     const linked = await service.addTypedDependency(projectId, OWNER, {
-      predecessor: { scope: 'node', workItemId: source, stepId },
-      successor: { scope: 'node', workItemId: downstream, stepId },
+      predecessor: { projectId, scope: 'node', workItemId: source, stepId },
+      successor: { projectId, scope: 'node', workItemId: downstream, stepId },
       type: 'FS',
     });
     if (!linked.ok) throw new Error(`typed dependency refused: ${linked.reason}`);

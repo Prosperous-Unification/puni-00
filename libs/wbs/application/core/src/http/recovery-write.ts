@@ -3,6 +3,7 @@ import type { AuthenticatedUser } from '@wbs/contracts';
 import type { WritingServices } from '../compose';
 import type { AuthorityRefusal } from '../module/plan-commands/plan-commands.feature';
 import type { CommandAccess } from '../ports/command-access';
+import type { DependencyContext } from '../ports/dependency-context';
 import { CREATOR_ADMISSION, type EditAdmission, grantAdmission } from '../ports/edit-admission';
 import type {
   BeforeProjectUpdate,
@@ -18,6 +19,7 @@ import {
   type CommittedProjectEvent,
   recordCommittedFanout,
 } from '../service/committed-fanout';
+import { createDependencyContext } from '../service/dependency-context';
 
 /** The source capabilities a scoped route needs for one audited dependent write. */
 export interface RecoveryWriteBoundary {
@@ -27,6 +29,7 @@ export interface RecoveryWriteBoundary {
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
   ) => WritingServices;
@@ -121,38 +124,48 @@ export async function runRecoveryWrite<T extends { readonly ok: boolean }>(
             return { ok: true };
           }
         : undefined;
-      const services = boundary.batch(
-        scope,
-        {
-          publish: (subscription, event) => {
-            pending.push({ projectId: subscription, event });
-            return Promise.resolve();
-          },
-          latestSeq: (subscription) => boundary.announcements.latestSeq(subscription),
-        },
-        grant?.admission ?? CREATOR_ADMISSION,
-        undefined,
-        // Proof: omitting this recovery-specific binding made injected second
-        // event failure disappear: DELETE returned 204 instead of 500.
-        beforeStepRemoval,
+      const dependencies = createDependencyContext(
+        scope.stores,
+        { projectId, actorId, access, admission: grant?.admission ?? CREATOR_ADMISSION },
+        () => undefined,
       );
-      const written = await perform(services, access);
-      if (written.ok && captureState.before !== null && captureState.organizationId !== null) {
-        const capture = scope.fanoutCapture;
-        if (capture === undefined) throw new Error('scoped step fan-out capture disappeared');
-        const after = await capture.capture(captureState.organizationId);
-        if (captureState.before.observation.mode === 'shared') {
-          const delivery = boundary.committedFanout;
-          if (delivery === undefined) throw new Error('scoped step fan-out delivery is missing');
-          committed = await recordCommittedFanout(
-            scope.stores.eventLog,
-            captureState.before,
-            after,
-            () => delivery.now(),
-          );
+      try {
+        const services = boundary.batch(
+          scope,
+          {
+            publish: (subscription, event) => {
+              pending.push({ projectId: subscription, event });
+              return Promise.resolve();
+            },
+            latestSeq: (subscription) => boundary.announcements.latestSeq(subscription),
+          },
+          grant?.admission ?? CREATOR_ADMISSION,
+          dependencies.context,
+          undefined,
+          // Proof: omitting this recovery-specific binding made injected second
+          // event failure disappear: DELETE returned 204 instead of 500.
+          beforeStepRemoval,
+        );
+        const written = await perform(services, access);
+        if (written.ok && captureState.before !== null && captureState.organizationId !== null) {
+          const capture = scope.fanoutCapture;
+          if (capture === undefined) throw new Error('scoped step fan-out capture disappeared');
+          const after = await capture.capture(captureState.organizationId);
+          if (captureState.before.observation.mode === 'shared') {
+            const delivery = boundary.committedFanout;
+            if (delivery === undefined) throw new Error('scoped step fan-out delivery is missing');
+            committed = await recordCommittedFanout(
+              scope.stores.eventLog,
+              captureState.before,
+              after,
+              () => delivery.now(),
+            );
+          }
         }
+        return { commit: written.ok, value: written };
+      } finally {
+        dependencies.close();
       }
-      return { commit: written.ok, value: written };
     } finally {
       grant?.expire();
     }

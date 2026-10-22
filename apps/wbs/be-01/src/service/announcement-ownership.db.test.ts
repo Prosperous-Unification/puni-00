@@ -7,7 +7,7 @@ import { clockOf } from '@wbs/core';
 import { createPlanCommandRunner } from '@wbs/core/module/plan-commands/composition';
 import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-commands.feature';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
@@ -104,7 +104,7 @@ beforeEach(async () => {
     { at: 1, by: ownerId },
   );
   const created = await new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(stores),
+    dependencyContext: createLocalDependencyContext(stores),
     clock: testClock,
     projects: stores.projects,
     broadcast,

@@ -19,6 +19,7 @@ import type { Source } from '../ports/source';
 import type { TransactionalStores } from '../ports/stores';
 import type { UnitOfWork } from '../ports/unit-of-work';
 import type { WorkItemStore } from '../ports/work-item-store';
+import { createLocalDependencyContext } from '../service/dependency-context';
 import { type RecordingBroadcaster, recordingBroadcaster } from './broadcast-fixture';
 import { planDocumentFixture } from './plan-document-fixture';
 import { fastScheduler } from './scheduler-fixture';
@@ -48,6 +49,7 @@ function importService(
     announcements,
     batchServices: (scope, broadcast) =>
       servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
         admission: CREATOR_ADMISSION,
         clock,
         broadcast,
@@ -245,6 +247,7 @@ async function exportDocument(
   const clock = clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() });
   const broadcast = recordingBroadcaster();
   const graph = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock,
     broadcast,
@@ -1512,6 +1515,7 @@ export function importServiceSourceContract(
         if (!imported.ok) throw new Error(`import refused at ${imported.path}`);
 
         const graph = servicesOver(source.stores, {
+          dependencyContext: createLocalDependencyContext(source.stores),
           admission: CREATOR_ADMISSION,
           clock: clockOf({ now: () => STAMP.at, newId: () => crypto.randomUUID() }),
           broadcast: recordingBroadcaster(),

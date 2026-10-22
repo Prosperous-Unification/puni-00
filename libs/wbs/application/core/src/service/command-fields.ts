@@ -678,8 +678,15 @@ export function normalizeTypedEndpoint(raw: unknown) {
   if (!isDependencyEndpointScope(scope)) {
     throw new CommandNormalizationError('invalid_typed_endpoint');
   }
+  const projectId = endpointText(raw, 'projectId');
   const workItemId = endpointText(raw, 'workItemId');
   const workItemRef = endpointText(raw, 'workItemRef');
+  // Proof: before this guard, scoped aliases and blank project IDs normalized in
+  // `refuses malformed project addresses and explicitly scoped batch aliases`.
+  // Proof: scoped-alias-admission bypass failed `mounted scoped-alias`'s selected assertion
+  // (actual SQLite boundary; watched 2026-10-22).
+  if (projectId !== undefined && (projectId.trim().length === 0 || workItemRef !== undefined))
+    throw new CommandNormalizationError('invalid_typed_endpoint');
   const stepId = endpointText(raw, 'stepId');
   const stepNodeId = endpointText(raw, 'stepNodeId');
   if (scope === 'whole') {
@@ -690,7 +697,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
       stepNodeId !== undefined
     )
       throw new CommandNormalizationError('invalid_typed_endpoint');
-    return present({ scope, workItemId, workItemRef });
+    return present({ scope, projectId, workItemId, workItemRef });
   }
   if (scope === 'node' && stepNodeId !== undefined) {
     if (workItemId !== undefined || workItemRef !== undefined || stepId !== undefined)
@@ -702,7 +709,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
           ? 'unknown_step_node_encoding'
           : 'invalid_step_node_id',
       );
-    return { scope, ...parsed.ref };
+    return present({ scope, projectId, ...parsed.ref });
   }
   if (
     (workItemId === undefined) === (workItemRef === undefined) ||
@@ -710,7 +717,7 @@ export function normalizeTypedEndpoint(raw: unknown) {
     stepNodeId !== undefined
   )
     throw new CommandNormalizationError('invalid_typed_endpoint');
-  return present({ scope, workItemId, workItemRef, stepId });
+  return present({ scope, projectId, workItemId, workItemRef, stepId });
 }
 
 export function normalizedRef(value: unknown) {

@@ -8,6 +8,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS, type ResourceAccess } from '../../ports/organization-access';
 import type { Broadcaster } from '../../ports/project-event';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { planDocumentFixture } from '../../testing/plan-document-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -29,6 +30,7 @@ const requirements = () => {
     announcements: recordingBroadcaster(),
     batchServices: (scope: Scope, broadcast: Broadcaster) =>
       servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
         admission: CREATOR_ADMISSION,
         clock,
         broadcast,
@@ -60,6 +62,7 @@ const completeHost = () =>
       batchServices: DiBag.createProvider(
         () => (scope: Scope, broadcast: Broadcaster) =>
           servicesOver(scope.stores, {
+            dependencyContext: createLocalDependencyContext(scope.stores),
             admission: CREATOR_ADMISSION,
             clock: clockOf({ now: () => STAMP_AT, newId: () => 'id' }),
             broadcast,

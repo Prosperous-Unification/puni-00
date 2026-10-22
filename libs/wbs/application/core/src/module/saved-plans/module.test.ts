@@ -7,6 +7,7 @@ import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Digest } from '../../ports/runtime';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { expectCreated } from '../../testing/expect-created';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -30,6 +31,7 @@ async function seeded() {
   let next = 0;
   const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
   const { projects } = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     admission: CREATOR_ADMISSION,
     clock,
     broadcast: recordingBroadcaster(),
@@ -233,6 +235,7 @@ describe('a saved plan and step allowances', () => {
     let next = 0;
     const clock = clockOf({ now: () => STAMP_AT, newId: () => `id-${String(++next)}` });
     const { projects } = servicesOver(source.stores, {
+      dependencyContext: createLocalDependencyContext(source.stores),
       admission: CREATOR_ADMISSION,
       clock,
       broadcast: recordingBroadcaster(),

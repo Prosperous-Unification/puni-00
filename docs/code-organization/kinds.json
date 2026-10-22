@@ -89,7 +89,7 @@
       "path": "libs/wbs/application/core/src/service/dependency-graph.ts",
       "kind": "support",
       "disposition": "shared by the work item, project and step resources; stays in the core's service/ because it reads stores (dependency.ts moved to @wbs/domain without it)",
-      "rationale": "work-item.resource.ts, project.resource.ts and step.resource.ts ask DependencyGraphGuard whether the combined step-node dependency graph their write would leave holds a cycle; it reads the project's stores and holds no clock"
+      "rationale": "WorkItemService, ProjectService and StepService use the same bound DependencyGraphGuard facade over ConnectedDependencyGraphReader; each proposed structural or relationship write reads fresh incident components through the admitted context"
     },
     {
       "path": "libs/wbs/application/core/src/service/directory-usage.ts",
@@ -198,6 +198,78 @@
       "kind": "support",
       "disposition": "application support; move into module/work-item",
       "rationale": "cuts the whole-tree read into one tree-order page with filters and field groups after the work-item resource has applied access, with no store access"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-dependency-graph.ts",
+      "kind": "support",
+      "disposition": "shared transaction dependency graph support for work-item, project and step resources",
+      "rationale": "ConnectedDependencyGraphReader captures incident components through scoped read authority and resolves complete proposed owner facts; it owns no command, store or scheduler"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-plan-calendar.ts",
+      "kind": "support",
+      "disposition": "shared calendar preparation support beside connected-plan",
+      "rationale": "Connected plan preparation resolves and translates each captured project calendar before scheduling and owner projection"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-plan-projection.ts",
+      "kind": "support",
+      "disposition": "shared owner projection support beside connected-plan",
+      "rationale": "Connected schedule restoration and owner projection map qualified identities back into one project without exposing remote work items as local rows"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-plan-values.ts",
+      "kind": "support",
+      "disposition": "shared captured-input vocabulary beside connected-plan",
+      "rationale": "ConnectedPlanCapture names detached organization calendar, project input and relationship evidence consumed by connected preparation"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/connected-plan.ts",
+      "kind": "support",
+      "disposition": "shared connected schedule preparation support for captured live and saved-plan consumers",
+      "rationale": "deriveConnectedPlan assembles qualified graph, calendar and projection inputs from an already captured connected observation without owning admission or a scheduler process"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/dependency-context.ts",
+      "kind": "support",
+      "disposition": "shared per-operation capability composition support for admitted commands and explicit local services",
+      "rationale": "createDependencyContext binds raw transaction reads to the checked owner, actor and observation lifetime; createLocalDependencyContext opens explicit short local observations that refuse external incidents"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/dependency-endpoint-evidence.ts",
+      "kind": "support",
+      "disposition": "shared detached endpoint evidence support owned by dependency-context",
+      "rationale": "createEndpointEvidence authorizes scoped projects before reading exact row, step, label and revision facts, checks continuation lifetime and never exports remote writers or trees"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/local-typed-dependency.ts",
+      "kind": "support",
+      "disposition": "shared local endpoint conversion support beside connected preparation",
+      "rationale": "captureLocalTypedDependency refuses an external row before removing its project qualifiers for local domain resolution"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/project-address-revision.ts",
+      "kind": "support",
+      "disposition": "shared qualified address revision support beside project-address-search",
+      "rationale": "digestQualifiedAddressSpace includes stable project identity and current abbreviation in a detached address-space digest"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/project-address-search.ts",
+      "kind": "support",
+      "disposition": "read observation support shared by project address endpoints",
+      "rationale": "ProjectAddressSearch reads current organization address candidates and query revisions; command transactions independently reauthorize selected stable IDs"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/schedule-parts.ts",
+      "kind": "support",
+      "disposition": "shared schedule preparation support for live and captured plan consumers",
+      "rationale": "prepareScheduleParts and prepareCapturedScheduleParts assemble canonical local slicing, estimates, calendars and domain graph inputs without owning writes or admission"
+    },
+    {
+      "path": "libs/wbs/application/core/src/service/schedule-slices.ts",
+      "kind": "support",
+      "disposition": "shared schedule slicing leaf used by graph guards and schedule preparation",
+      "rationale": "slicesOf converts stored row and estimate facts into canonical domain slices; this leaf prevents the work-item resource and connected preparation from importing each other"
     }
   ]
 }

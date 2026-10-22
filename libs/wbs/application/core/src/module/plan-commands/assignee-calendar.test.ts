@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -29,7 +30,10 @@ async function seeded() {
     broadcast: recordingBroadcaster(),
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   await source.stores.users.create(
     { id: F, username: F, passwordHash: 'x', createdAt: 1 },
     { at: 1, by: F },
@@ -61,7 +65,11 @@ async function seeded() {
     announcements: options.broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        ...options,
+        broadcast: announcements,
+      }),
   });
   const tree = await runner.run(projectId, F, [
     { kind: 'createWorkItem', ref: 'P', name: 'P', parentId: null, afterId: null },

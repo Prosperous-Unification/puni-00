@@ -21,10 +21,12 @@ import type { PlanCommandRunner } from '@wbs/core/module/plan-commands/plan-comm
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import type { CapturedFanout } from '@wbs/core/ports/fanout-capture-store';
 import type { SavedPlanCaptureStore } from '@wbs/core/ports/saved-plan-capture-store';
 import type { UnitOfWork } from '@wbs/core/ports/unit-of-work';
 import { AuthService } from '@wbs/core/service/auth.service';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { ProjectAddressSearch } from '@wbs/core/service/project-address-search';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
@@ -99,7 +101,7 @@ import { TEST_JWT_KEY } from './auth-fixture';
 import { recordingBroadcaster } from './broadcast-fixture';
 import { inMemoryCapacity, testCapacityService } from './capacity-fixture';
 import { testClock } from './clock-fixture';
-import { sqliteDependencyGraph } from './dependency-graph-fixture';
+import { sqliteDependencyContext } from './dependency-graph-fixture';
 import type { FakeOidcProvider } from './fake-oidc-provider';
 import { testHistoryService } from './history-fixture';
 import { testLoginThrottle } from './login-throttle-fixture';
@@ -422,19 +424,27 @@ export class OrganizationHarness {
         clock: testClock,
       }),
       projects: new ProjectService({
-        dependencyGraph: sqliteDependencyGraph(db, projects),
+        dependencyContext: sqliteDependencyContext(db, projects),
         clock: testClock,
         projects,
         broadcast: recordingBroadcaster(),
       }),
       steps: new StepService({
-        dependencyGraph: sqliteDependencyGraph(db, projects),
+        dependencyContext: sqliteDependencyContext(db, projects),
         clock: testClock,
         projects,
         steps: new StepRepository(db, OPEN),
         broadcast: recordingBroadcaster(),
       }),
       workItems: new WorkItemService({
+        dependencyContext: createLocalDependencyContext({
+          projects: projects,
+          workItems: new WorkItemRepository(db, OPEN),
+          estimates: new EstimateRepository(db, OPEN),
+          dependencies: new DependencyRepository(db, OPEN),
+          typedDependencies: new TypedDependencyRepository(db, OPEN),
+        }),
+        externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
         admission: CREATOR_ADMISSION,
         scheduler: fastScheduler,
         clock: testClock,

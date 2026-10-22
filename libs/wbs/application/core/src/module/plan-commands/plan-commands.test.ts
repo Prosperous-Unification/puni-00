@@ -7,6 +7,7 @@ import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import type { Broadcaster } from '../../ports/project-event';
 import type { PlanTransactionalStores } from '../../ports/stores';
 import type { Decision, Scope, UnitOfWork } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import type { PlanCommand } from '../../service/plan-command';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -28,6 +29,7 @@ function silentBroadcaster(): Broadcaster {
 
 const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
   servicesOver(stores, {
+    dependencyContext: createLocalDependencyContext(stores),
     admission: CREATOR_ADMISSION,
     clock: testClock,
     broadcast,
@@ -322,6 +324,7 @@ describe('working plan command before-images', () => {
     const direct = silentBroadcaster();
     const compose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock: testClock,
         broadcast,
@@ -837,6 +840,7 @@ describe('working plan subtree mutations through runner commands', () => {
       });
       const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, {
+          dependencyContext: createLocalDependencyContext(stores),
           admission: CREATOR_ADMISSION,
           clock,
           broadcast,
@@ -1246,6 +1250,7 @@ describe('working plan value mutations through runner commands', () => {
       });
       const orderedCompose = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
         servicesOver(stores, {
+          dependencyContext: createLocalDependencyContext(stores),
           admission: CREATOR_ADMISSION,
           clock: orderedClock,
           broadcast,
@@ -1918,6 +1923,7 @@ async function expectSubtreePlacementFaultRollsBack(
     });
     const composeBatch = (stores: PlanTransactionalStores, broadcast: Broadcaster) =>
       servicesOver(stores, {
+        dependencyContext: createLocalDependencyContext(stores),
         admission: CREATOR_ADMISSION,
         clock,
         broadcast,

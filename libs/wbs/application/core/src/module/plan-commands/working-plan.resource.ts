@@ -290,6 +290,24 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
    * the batch and refuses cross-project and closed access` resolve; each
    * watched failing on 2026-09-27.
    */
+  // Proof: without the project partition, the external-write refresh test hit
+  // its raw-store tripwire: retained owner refresh requested a remote identity.
+  // Proof: owner-refresh-partition bypass failed `refreshes only retained owner rows`'s selected assertion
+  // (service consumer; watched 2026-10-22).
+  const refreshTypedEndpoints = (
+    rows: readonly {
+      predecessor: { projectId: string; workItemId: string };
+      successor: { projectId: string; workItemId: string };
+    }[],
+  ) =>
+    refreshRows([
+      ...new Set(
+        rows
+          .flatMap((row) => [row.predecessor, row.successor])
+          .filter((endpoint) => endpoint.projectId === projectId)
+          .map((endpoint) => endpoint.workItemId),
+      ),
+    ]);
   const typedDependencies: TypedDependencyStore = {
     // Proof: removing the open check or requested-project checks separately made `passes typed links through the batch and refuses cross-project and closed access` resolve forbidden/closed incident calls (2026-10-22).
     listIncident: (requestedProjectIds) => {
@@ -311,7 +329,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     add: async (row, stamp) => {
       assertProject(row.projectId);
       await scope.stores.typedDependencies.add(row, stamp);
-      await refreshRows([row.predecessor.workItemId, row.successor.workItemId]);
+      await refreshTypedEndpoints([row]);
     },
     update: async (row, stamp) => {
       assertProject(row.projectId);
@@ -323,12 +341,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
       await scope.stores.typedDependencies.update(row, stamp);
       // Proof: skipping this refresh made `undoes and redoes a typed update with
       // its exact ID and endpoints` receive 409 instead of 200; watched 2026-09-27.
-      await refreshRows([
-        previous.predecessor.workItemId,
-        previous.successor.workItemId,
-        row.predecessor.workItemId,
-        row.successor.workItemId,
-      ]);
+      await refreshTypedEndpoints([previous, row]);
     },
     remove: async (id, stamp) => {
       assertOpen();
@@ -338,7 +351,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         throw new Error(`typed dependency ${id} is outside project ${projectId}`);
       }
       await scope.stores.typedDependencies.remove(id, stamp);
-      await refreshRows([previous.predecessor.workItemId, previous.successor.workItemId]);
+      await refreshTypedEndpoints([previous]);
     },
     removeAllFor: async (workItemIds, stamp) => {
       assertOpen();
@@ -347,9 +360,7 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
         throw new Error(`typed dependency removal has a work item outside project ${projectId}`);
       }
       const removed = await scope.stores.typedDependencies.removeAllFor(workItemIds, stamp);
-      await refreshRows(
-        removed.flatMap((row) => [row.predecessor.workItemId, row.successor.workItemId]),
-      );
+      await refreshTypedEndpoints(removed);
       return removed;
     },
   };

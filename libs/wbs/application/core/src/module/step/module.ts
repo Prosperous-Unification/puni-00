@@ -30,7 +30,7 @@ export const stepModule = DiBag.createBuilder()
         broadcast,
         clock,
         recoveryAdmission,
-        dependencyGraph,
+        dependencyContext,
         beforeRemove,
       }: {
         projectStore: ProjectStore;
@@ -38,7 +38,7 @@ export const stepModule = DiBag.createBuilder()
         broadcast: Broadcaster;
         clock: Clock;
         recoveryAdmission: EditAdmission | undefined;
-        dependencyGraph: StepServiceOptions['dependencyGraph'];
+        dependencyContext: StepServiceOptions['dependencyContext'];
         beforeRemove: StepServiceOptions['beforeRemove'];
       }): StepServiceOptions => ({
         projects: projectStore,
@@ -50,7 +50,7 @@ export const stepModule = DiBag.createBuilder()
         broadcast,
         clock,
         recoveryAdmission,
-        dependencyGraph,
+        dependencyContext,
         beforeRemove,
       }),
       { factoryReturnKind: 'sync-value' },

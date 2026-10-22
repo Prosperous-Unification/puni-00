@@ -29,8 +29,10 @@ import { installStep } from './module/step/check';
 import { installWorkItem } from './module/work-item/check';
 import type { Clock } from './ports/clock';
 import type { CommandAccess } from './ports/command-access';
+import type { DependencyContext, ServiceDependencyContext } from './ports/dependency-context';
 import { CREATOR_ADMISSION, type EditAdmission, NO_ADMISSION } from './ports/edit-admission';
 import type { EnterpriseConnections } from './ports/enterprise-connections';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from './ports/external-dependency-authoring';
 import type { BeforeProjectUpdate, BeforeStepRemoval } from './ports/fanout-capture-store';
 import type { OidcVerifier } from './ports/oidc-verifier';
 import type { ResourceAccess } from './ports/organization-access';
@@ -43,7 +45,7 @@ import type { PlanTransactionalStores, TransactionalStores } from './ports/store
 import type { Intervals, Timers } from './ports/timers';
 import type { Scope } from './ports/unit-of-work';
 import type { CommittedFanoutDelivery } from './service/committed-fanout';
-import { DependencyGraphGuard } from './service/dependency-graph';
+import { createLocalDependencyContext } from './service/dependency-context';
 import {
   OptimizerTriggerBroadcaster,
   reactToProjectEvent,
@@ -85,6 +87,7 @@ export interface SharedComposition {
 }
 
 export interface ServicesOverOptions {
+  readonly dependencyContext: ServiceDependencyContext;
   readonly clock: Clock;
   readonly broadcast: Broadcaster;
   readonly scheduler: Scheduler;
@@ -113,14 +116,13 @@ export interface ServicesOverOptions {
 export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOverOptions) {
   const { clock, broadcast, scheduler, admission } = shared;
   const recoveryAdmission = shared.recoveryAdmission ?? NO_ADMISSION;
-  const dependencyGraph = new DependencyGraphGuard(stores);
   return {
     projects: installProject({
       clock,
       projects: stores.projects,
       broadcast,
       optimizerAvailable: () => scheduler.supports('optimized'),
-      dependencyGraph,
+      dependencyContext: shared.dependencyContext,
       beforeUpdate: shared.beforeProjectUpdate,
     }).projects,
     capacity: installCapacity({
@@ -151,7 +153,7 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       steps: stores.steps,
       broadcast,
       recoveryAdmission,
-      dependencyGraph,
+      dependencyContext: shared.dependencyContext,
       beforeRemove: shared.beforeStepRemoval,
     }).steps,
     directory: installDirectory({ clock, directory: stores.directory, broadcast }).directory,
@@ -177,6 +179,8 @@ export function servicesOver(stores: PlanTransactionalStores, shared: ServicesOv
       priorityBands: stores.priorityBands,
       subtrees: stores.subtrees,
       journal: stores.journal,
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
+      dependencyContext: shared.dependencyContext,
       broadcast,
       admission,
       scheduler,
@@ -203,6 +207,7 @@ interface CommonServices extends WritingServices {
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
   ) => WritingServices;
@@ -298,6 +303,7 @@ export function composeServices(
     },
   };
   const rawPublicServices = servicesOver(source.stores, {
+    dependencyContext: createLocalDependencyContext(source.stores),
     clock: runtime.clock,
     broadcast: announcements,
     scheduler: runtime.scheduler,
@@ -320,6 +326,7 @@ export function composeServices(
     scope: Scope,
     broadcast: Broadcaster,
     admission: EditAdmission,
+    dependencies: DependencyContext,
     beforeProjectUpdate?: BeforeProjectUpdate,
     beforeStepRemoval?: BeforeStepRemoval,
   ) =>
@@ -337,6 +344,7 @@ export function composeServices(
       schedulerMode: 'capture',
       admission,
       recoveryAdmission: admission,
+      dependencyContext: { kind: 'bound', context: dependencies },
       beforeProjectUpdate,
       beforeStepRemoval,
     });
@@ -386,7 +394,15 @@ export function composeServices(
       // the creator rule admits.
       // Proof: replacing this borrowed directory with the public standalone
       // wrapper made the mounted import hit its bounded nested-owner refusal.
-      batchServices: (scope, broadcast) => batch(scope, broadcast, CREATOR_ADMISSION),
+      batchServices: (scope, broadcast) =>
+        servicesOver(scope.stores, {
+          clock: runtime.clock,
+          broadcast,
+          scheduler: runtime.scheduler,
+          schedulerMode: 'capture',
+          admission: CREATOR_ADMISSION,
+          dependencyContext: createLocalDependencyContext(scope.stores),
+        }),
     }).imports,
     commands: installPlanCommands({
       commandAccess: runtime.commandAccess,

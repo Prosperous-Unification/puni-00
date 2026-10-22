@@ -6,6 +6,7 @@ import {
   type ScopedDependencyEndpoint,
 } from '@wbs/domain';
 
+import type { ScopedRevision, WorkItemAddress } from '../ports/dependency-context';
 import type { ProgressKey, StoredProgress } from '../ports/progress-store';
 import type { StoredAttempt } from '../ports/step-node-attempt-store';
 import type { StoredTypedDependency } from '../ports/typed-dependency-store';
@@ -66,7 +67,13 @@ export function stepOfRevisionKey(key: string): string | null {
  * somebody else did write in between it does not match, is not re-stamped, and
  * refuses. See `openspec/changes/conditional-undo/design.md`.
  */
+export interface ExternalRevisionPreconditions {
+  readonly expected: readonly ScopedRevision[];
+  readonly from: readonly ScopedRevision[];
+}
+
 export interface Preconditions {
+  externalRevisions?: ExternalRevisionPreconditions;
   /** Exact destination progress sets checked before any move replay batch can clear them. */
   moveProgress?: Record<string, StoredProgress[]>;
   /** Immutable units from the original write; absent only in legacy workday-only journals. */
@@ -417,6 +424,9 @@ export function readPreconditions(value: unknown): Preconditions {
     throw new Error(`a journal entry holds no preconditions: ${JSON.stringify(value)}`);
   }
   return {
+    ...('externalRevisions' in value
+      ? { externalRevisions: readExternalRevisions(value.externalRevisions) }
+      : {}),
     expected: readRevisions(value.expected),
     from: readRevisions(value.from),
     ...('moveProgress' in value
@@ -424,6 +434,130 @@ export function readPreconditions(value: unknown): Preconditions {
       : {}),
     ...('estimateUnits' in value ? { estimateUnits: readEstimateUnits(value.estimateUnits) } : {}),
   };
+}
+
+/** Stable pair key; neither row IDs nor display references replace scoped identity. */
+export function scopedRevisionKey(address: WorkItemAddress): string {
+  return JSON.stringify([address.projectId, address.workItemId]);
+}
+
+function readExternalRevisions(value: unknown): ExternalRevisionPreconditions {
+  // Proof: metadata-object-shape bypass failed `replay refuses missing-from trusted`'s selected assertion
+  // (named diagnostic; later guards also refuse; watched 2026-10-22).
+  if (typeof value !== 'object' || value === null || !('expected' in value) || !('from' in value))
+    throw new Error('journal external revisions are malformed');
+  const read = (entries: unknown): ScopedRevision[] => {
+    // Proof: metadata-list-shape bypass failed `replay refuses non-list trusted`'s selected assertion
+    // (named diagnostic; later guards also refuse; watched 2026-10-22).
+    if (!Array.isArray(entries)) throw new Error('journal external revisions are not a list');
+    const revisions: ScopedRevision[] = [];
+    const seen = new Set<string>();
+    const candidates: readonly unknown[] = entries;
+    for (const entry of candidates) {
+      // Proof: metadata-revision-value bypass failed `replay refuses invalid-revision trusted`'s selected assertion
+      // (named diagnostic; later guards also refuse; watched 2026-10-22).
+      if (
+        typeof entry !== 'object' ||
+        entry === null ||
+        !('projectId' in entry) ||
+        !('workItemId' in entry) ||
+        !('revision' in entry) ||
+        typeof entry.projectId !== 'string' ||
+        entry.projectId.length === 0 ||
+        typeof entry.workItemId !== 'string' ||
+        entry.workItemId.length === 0 ||
+        typeof entry.revision !== 'number' ||
+        !Number.isSafeInteger(entry.revision) ||
+        entry.revision < 0
+      )
+        throw new Error('journal external revision is malformed');
+      const key = scopedRevisionKey({ projectId: entry.projectId, workItemId: entry.workItemId });
+      // Proof: metadata-duplicate bypass failed `replay refuses duplicate trusted`'s selected assertion
+      // (named diagnostic; later guards also refuse; watched 2026-10-22).
+      if (seen.has(key)) throw new Error('journal external revisions contain a duplicate');
+      seen.add(key);
+      revisions.push({
+        projectId: entry.projectId,
+        workItemId: entry.workItemId,
+        revision: entry.revision,
+      });
+    }
+    return revisions;
+  };
+  return { expected: read(value.expected), from: read(value.from) };
+}
+
+/** Local typed-add endpoints supplied by an earlier restore in this replay direction. */
+export function restoredTypedAddressesOf(
+  command: CompensatingCommand,
+  ownerId: string,
+): Set<string> {
+  const restored = new Set<string>();
+  const allowed = new Set<string>();
+  const visit = (step: CompensatingCommand): void => {
+    if (step.do === 'batch') {
+      for (const nested of step.steps) visit(nested);
+      return;
+    }
+    if (step.do === 'restore_subtree') {
+      for (const row of step.rows) if (row.projectId === ownerId) restored.add(row.id);
+    }
+    if (step.do === 'add_typed_dependency')
+      for (const endpoint of [step.dependency.predecessor, step.dependency.successor]) {
+        if (endpoint.projectId === ownerId && restored.has(endpoint.workItemId))
+          allowed.add(scopedRevisionKey(endpoint));
+      }
+  };
+  visit(command);
+  return allowed;
+}
+
+/** Exact external address union named by forward and inverse, including nested batches. */
+export function externalAddressesOf(
+  commands: readonly CompensatingCommand[],
+  ownerId: string,
+): WorkItemAddress[] {
+  const addresses = new Map<string, WorkItemAddress>();
+  for (const command of commands)
+    for (const endpoint of referencesOf(command).scopedEndpoints) {
+      if (endpoint.projectId === ownerId) continue;
+      addresses.set(scopedRevisionKey(endpoint), {
+        projectId: endpoint.projectId,
+        workItemId: endpoint.workItemId,
+      });
+    }
+  return [...addresses.values()];
+}
+
+/** Trusted history cannot omit external preconditions or carry extra/local address authority. */
+export function requireExternalRevisions(
+  preconditions: Preconditions,
+  ownerId: string,
+  commands: readonly CompensatingCommand[],
+): ExternalRevisionPreconditions | null {
+  const required = new Set(externalAddressesOf(commands, ownerId).map(scopedRevisionKey));
+  const external = preconditions.externalRevisions;
+  if (external === undefined) {
+    // Proof: missing-external-history-metadata bypass failed `history refuses missing external revision metadata`'s selected assertion
+    // (actual SQLite boundary; watched 2026-10-22).
+    if (required.size > 0) throw new Error('journal external revision coverage is missing');
+    return null;
+  }
+  for (const entries of [external.expected, external.from]) {
+    const keys = new Set(entries.map(scopedRevisionKey));
+    // Proof: metadata-exact-coverage bypass failed `replay refuses omitted trusted`'s selected assertion
+    // (actual SQLite boundary; watched 2026-10-22).
+    // Proof: bypassing this consumer failed `omitted final remote revision`
+    // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
+    if (
+      entries.some((entry) => entry.projectId === ownerId) ||
+      keys.size !== entries.length ||
+      keys.size !== required.size ||
+      [...keys].some((key) => !required.has(key))
+    )
+      throw new Error('journal external revision coverage is not exact');
+  }
+  return external;
 }
 
 /** Validates a present binding map; malformed trusted history never means legacy history. */
@@ -573,14 +707,18 @@ export function touchedBy(command: CompensatingCommand): string[] {
       return [command.successorId, command.predecessorId];
     case 'add_typed_dependency':
     case 'remove_typed_dependency':
-      return [command.dependency.predecessor.workItemId, command.dependency.successor.workItemId];
+      return [command.dependency.predecessor, command.dependency.successor]
+        .filter((endpoint) => endpoint.projectId === command.dependency.projectId)
+        .map((endpoint) => endpoint.workItemId);
     case 'update_typed_dependency':
       return [
         ...new Set([
-          command.from.predecessor.workItemId,
-          command.from.successor.workItemId,
-          command.to.predecessor.workItemId,
-          command.to.successor.workItemId,
+          ...[command.from.predecessor, command.from.successor]
+            .filter((endpoint) => endpoint.projectId === command.from.projectId)
+            .map((endpoint) => endpoint.workItemId),
+          ...[command.to.predecessor, command.to.successor]
+            .filter((endpoint) => endpoint.projectId === command.to.projectId)
+            .map((endpoint) => endpoint.workItemId),
         ]),
       ];
     case 'move':
@@ -661,6 +799,7 @@ export interface CompensatingReferences {
   types: string[];
   systems: string[];
   resources: string[];
+  scopedEndpoints: ScopedDependencyEndpoint[];
 }
 
 /** {@link CompensatingReferences} of one command. */
@@ -676,6 +815,7 @@ export function referencesOf(command: CompensatingCommand): CompensatingReferenc
     types: [],
     systems: [],
     resources: [],
+    scopedEndpoints: [],
   };
   collectReferences(command, found);
   return found;
@@ -710,6 +850,18 @@ function collectReferences(command: CompensatingCommand, found: CompensatingRefe
     ].forEach(onStep);
   }
   switch (command.do) {
+    case 'add_typed_dependency':
+    case 'remove_typed_dependency':
+      found.scopedEndpoints.push(command.dependency.predecessor, command.dependency.successor);
+      return;
+    case 'update_typed_dependency':
+      found.scopedEndpoints.push(
+        command.from.predecessor,
+        command.from.successor,
+        command.to.predecessor,
+        command.to.successor,
+      );
+      return;
     case 'patch': {
       rows(command.workItemId);
       const { patch } = command;

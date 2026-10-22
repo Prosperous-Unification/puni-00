@@ -7,11 +7,16 @@ import {
   isEstimateUnit,
   isReservedStepCode,
   isStepCode,
+  STEP_POSITION_STEP,
   stepIsInUse,
   type StepNodeRef,
 } from '@wbs/domain';
 
 import type { Clock } from '../../ports/clock';
+import {
+  type ServiceDependencyContext,
+  withDependencyContext,
+} from '../../ports/dependency-context';
 import type { EditAdmission } from '../../ports/edit-admission';
 import type { BeforeStepRemoval } from '../../ports/fanout-capture-store';
 import {
@@ -23,7 +28,6 @@ import {
 import type { Broadcaster } from '../../ports/project-event';
 import type { Project, ProjectStore } from '../../ports/project-store';
 import type { Step, StepStore, StepUsageRows } from '../../ports/step-store';
-import type { DependencyGraphGuard } from '../../service/dependency-graph';
 
 export interface StepServiceOptions {
   /** A unit-of-work grant used only for scoped recovery. */
@@ -45,16 +49,11 @@ export interface StepServiceOptions {
    * endpoint and legacy anchor on it, and one removed under a typed endpoint
    * would leave a relationship naming nothing.
    *
-   * Adding a step asks nothing of it. A new step is appended last to every
-   * leaf and no endpoint can name it yet, so the only edge into each new node
-   * is the workflow edge from that leaf's old last node. Every edge that left
-   * the old last node — a whole predecessor, a legacy link reached there —
-   * now leaves the new node instead, one workflow edge later, so contracting
-   * the new node onto the old last one gives back the graph before the add: a
-   * cycle after it was a cycle before it. A stepless project's first step
-   * replaces each leaf's boundary node one for one, which changes no edge.
+   * Creation evaluates the proposed appended step in the same observation.
+   * Appending preserves a valid graph by contraction, but the required read
+   * still refuses corrupt/current cycles and unavailable incident evidence.
    */
-  dependencyGraph: Pick<DependencyGraphGuard, 'findCycle' | 'findStepReferences'>;
+  dependencyContext: ServiceDependencyContext;
   /** Trusted scoped recovery observation seam, after removal preflights. */
   beforeRemove?: BeforeStepRemoval;
 }
@@ -68,7 +67,8 @@ export type StepRefusal =
   | 'invalid_code'
   | 'reserved_code'
   | 'code_taken'
-  | 'invalid_estimate_unit';
+  | 'invalid_estimate_unit'
+  | 'dependency_cycle';
 
 export type StepOutcome = { ok: true; value: Step } | { ok: false; reason: StepRefusal };
 export type StepUnitOutcome =
@@ -241,28 +241,40 @@ export class StepService {
     if (project === null) return { ok: false, reason: 'not_found' };
     if (!this.mayWrite(project, actorId, access)) return { ok: false, reason: 'forbidden' };
 
-    const written = await this.opts.steps.add(
-      code === undefined
-        ? {
-            id: this.clock.newId(),
-            projectId,
-            name: clean,
-            allowancePercent,
-            estimateUnit,
-          }
-        : {
-            id: this.clock.newId(),
-            projectId,
-            name: clean,
-            allowancePercent,
-            code,
-            estimateUnit,
-          },
-      this.clock.stampFor(actorId),
+    return withDependencyContext(
+      this.opts.dependencyContext,
+      projectId,
+      actorId,
+      async (dependencyContext) => {
+        const proposed = {
+          id: this.clock.newId(),
+          projectId,
+          name: clean,
+          allowancePercent,
+          estimateUnit,
+          ...(code === undefined ? {} : { code }),
+        };
+        const steps = await this.opts.projects.stepsOf(projectId);
+        // Proof: bypassing this consumer failed `connected step-add refuses an injected failed graph read`
+        // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+        const cycle = await dependencyContext.graph.findCycle(projectId, {
+          steps: [
+            ...steps,
+            {
+              ...proposed,
+              code: code ?? null,
+              position: Math.max(0, ...steps.map((step) => step.position)) + STEP_POSITION_STEP,
+            },
+          ],
+        });
+        if (cycle !== null) return { ok: false, reason: 'dependency_cycle' };
+        dependencyContext.assertUsable(projectId, actorId);
+        const written = await this.opts.steps.add(proposed, this.clock.stampFor(actorId));
+        if (!written.ok) return { ok: false, reason: written.reason };
+        await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
+        return { ok: true, value: written.step };
+      },
     );
-    if (!written.ok) return { ok: false, reason: written.reason };
-    await this.opts.broadcast.publish(projectId, { type: 'step_added', step: written.step });
-    return { ok: true, value: written.step };
   }
 
   /** Changes an empty step's unit through the store's count-and-write transaction (ADR 0042). */
@@ -364,48 +376,59 @@ export class StepService {
     // Proof: skipping this gate disclosed the sparse policy to a forbidden actor, 2026-10-17.
     if (!gate.ok)
       return { ok: false, reason: gate.reason === 'forbidden' ? 'forbidden' : 'not_found' };
-
-    // Proof: this refusal skipped made the mounted `refuses removing a step a
-    // typed dependency names` fail on `Expected: 409, Received: 500` — the
-    // step's foreign key refused the delete underneath; watched 2026-09-27.
-    const dependencyIds = await this.opts.dependencyGraph.findStepReferences(projectId, stepId);
-    if (dependencyIds.length > 0) {
-      return { ok: false, reason: 'referenced_by_dependency', dependencyIds };
-    }
-    // Proof: this check skipped made the mounted `refuses removing a step that
-    // moves a legacy anchor into a cycle` fail on `Expected: 409, Received:
-    // 204`; watched 2026-09-27.
-    if (
-      (await this.opts.dependencyGraph.findCycle(projectId, { withoutStepId: stepId })) !== null
-    ) {
-      return { ok: false, reason: 'dependency_cycle' };
-    }
-    if (!cascade) {
-      const seen = inUseFrom(await this.opts.steps.usageOf(projectId, stepId), stepId);
-      if (stepIsInUse(seen)) {
-        return { ok: false, reason: 'in_use', inUse: seen };
-      }
-    }
-    if (this.opts.beforeRemove !== undefined) {
-      const observed = await this.opts.beforeRemove(projectId, actorId, access);
-      if (!observed.ok) return observed;
-    }
-    const removed = await this.opts.steps.remove(
+    return withDependencyContext(
+      this.opts.dependencyContext,
       projectId,
-      stepId,
-      cascade,
-      this.clock.stampFor(actorId),
+      actorId,
+      async (dependencyContext) => {
+        // Proof: this refusal skipped made the mounted `refuses removing a step a
+        // typed dependency names` fail on `Expected: 409, Received: 500` — the
+        // step's foreign key refused the delete underneath; watched 2026-09-27.
+        // Proof: bypassing this consumer failed `connected step-references refuses an injected failed graph read`
+        // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+        const dependencyIds = await dependencyContext.graph.findStepReferences(projectId, stepId);
+        if (dependencyIds.length > 0) {
+          return { ok: false, reason: 'referenced_by_dependency', dependencyIds };
+        }
+        // Proof: this check skipped made the mounted `refuses removing a step that
+        // moves a legacy anchor into a cycle` fail on `Expected: 409, Received:
+        // 204`; watched 2026-09-27.
+        if (
+          // Proof: bypassing this consumer failed `connected step-remove refuses an injected failed graph read`
+          // at the actual SQLite refusal assertion; unchanged tables also checked (2026-10-22).
+          (await dependencyContext.graph.findCycle(projectId, { withoutStepId: stepId })) !== null
+        ) {
+          return { ok: false, reason: 'dependency_cycle' };
+        }
+        if (!cascade) {
+          const seen = inUseFrom(await this.opts.steps.usageOf(projectId, stepId), stepId);
+          if (stepIsInUse(seen)) {
+            return { ok: false, reason: 'in_use', inUse: seen };
+          }
+        }
+        if (this.opts.beforeRemove !== undefined) {
+          const observed = await this.opts.beforeRemove(projectId, actorId, access);
+          if (!observed.ok) return observed;
+        }
+        dependencyContext.assertUsable(projectId, actorId);
+        const removed = await this.opts.steps.remove(
+          projectId,
+          stepId,
+          cascade,
+          this.clock.stampFor(actorId),
+        );
+        if (!removed.ok) {
+          if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
+          // Proof: omitted mapping broke both retained sparse service refusals, 2026-10-17.
+          if (removed.reason === 'referenced_by_step_parallel') return removed;
+          // The transaction's own count, not the fast path's: it is the only one
+          // that was still true at the moment the deletes would have run.
+          return { ok: false, reason: 'in_use', inUse: inUseFrom(removed.usage, stepId) };
+        }
+        await this.opts.broadcast.publish(projectId, { type: 'step_removed', stepId });
+        return { ok: true };
+      },
     );
-    if (!removed.ok) {
-      if (removed.reason === 'not_found') return { ok: false, reason: 'not_found' };
-      // Proof: omitted mapping broke both retained sparse service refusals, 2026-10-17.
-      if (removed.reason === 'referenced_by_step_parallel') return removed;
-      // The transaction's own count, not the fast path's: it is the only one
-      // that was still true at the moment the deletes would have run.
-      return { ok: false, reason: 'in_use', inUse: inUseFrom(removed.usage, stepId) };
-    }
-    await this.opts.broadcast.publish(projectId, { type: 'step_removed', stepId });
-    return { ok: true };
   }
 
   /**

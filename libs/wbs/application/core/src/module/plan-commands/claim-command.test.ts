@@ -6,6 +6,7 @@ import type { CredentialPair } from '../../ports/claim-store';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
 import { LEGACY_ACCESS } from '../../ports/organization-access';
 import type { Scope } from '../../ports/unit-of-work';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { testClock } from '../../testing/clock-fixture';
 import { expectCreated } from '../../testing/expect-created';
@@ -56,7 +57,10 @@ async function seeded(identities: Identities = BOUND) {
     broadcast,
     scheduler: fastScheduler,
   };
-  const graph = servicesOver(source.stores, options);
+  const graph = servicesOver(source.stores, {
+    ...options,
+    dependencyContext: createLocalDependencyContext(source.stores),
+  });
   for (const id of [F, G]) {
     await source.stores.users.create(
       { id, username: id, passwordHash: 'x', createdAt: 1 },
@@ -107,7 +111,11 @@ async function seeded(identities: Identities = BOUND) {
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope: Scope, announcements) =>
-      servicesOver(scope.stores, { ...options, broadcast: announcements }),
+      servicesOver(scope.stores, {
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        ...options,
+        broadcast: announcements,
+      }),
   });
   const claims = () => source.stores.claims.listByProject(projectId);
   const progress = () => source.stores.progress.listByProject(projectId);

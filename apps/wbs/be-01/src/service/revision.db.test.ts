@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { StepService } from '@wbs/core/module/step/step.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { expectCreated } from '@wbs/core/testing/expect-created';
 import { DemandRepository, ResourceCapacityRepository } from '@wbs/store-sqlite/resource';
 import { StepBlockageRepository } from '@wbs/store-sqlite/step-blockage';
@@ -32,7 +34,7 @@ import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { inMemoryCapacity } from '../testing/capacity-fixture';
 import { testClock } from '../testing/clock-fixture';
 import { inMemoryCommandJournal } from '../testing/command-journal-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { personAdded } from '../testing/directory-fixture';
 import { inMemoryPriorityBands } from '../testing/priority-band-fixture';
 import { workItemRow } from '../testing/work-item-fixture';
@@ -113,19 +115,27 @@ beforeEach(async () => {
   );
 
   projects = new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
   });
   stepService = new StepService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     steps: new StepRepository(db, OPEN),
     broadcast: recordingBroadcaster(),
   });
   workItems = new WorkItemService({
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: workItemStore,
+      estimates: estimateStore,
+      dependencies: dependencies,
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,

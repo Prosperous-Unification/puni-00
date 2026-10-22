@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { CREATOR_ADMISSION } from '@wbs/core';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { DEFAULT_PRIORITY_BANDS, type PriorityBand, suggestStepCode } from '@wbs/domain';
 import { inMemoryAttempts } from '@wbs/store-memory/attempt-fixture';
 import { inMemoryStepBlockages } from '@wbs/store-memory/step-blockage-fixture';
@@ -300,6 +302,14 @@ describe('a priority ladder moves no date', () => {
     const dependencies = inMemoryDependencies();
     const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies: inMemoryTypedDependencies(),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,
@@ -781,6 +791,14 @@ describe('a priority ladder moves no date', () => {
     const dependencies = inMemoryDependencies();
     const resourceStores = testResourceStores(workItems);
     const service = new WorkItemService({
+      dependencyContext: createLocalDependencyContext({
+        projects: projects,
+        workItems: workItems,
+        estimates: estimates,
+        dependencies: dependencies,
+        typedDependencies: inMemoryTypedDependencies(),
+      }),
+      externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
       admission: CREATOR_ADMISSION,
       scheduler: fastScheduler,
       clock: testClock,

@@ -1,5 +1,7 @@
 import { CREATOR_ADMISSION } from '@wbs/core';
 import type { WorkItemServiceOptions } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { beforeEach, describe, expect, it } from 'bun:test';
 
 import type {
@@ -64,6 +66,8 @@ beforeEach(async () => {
   const harness = inMemoryServices();
   ({ projects, directory } = harness.stores);
   serviceOptions = {
+    dependencyContext: createLocalDependencyContext(harness.stores),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     clock: testClock,
     ...harness.stores,

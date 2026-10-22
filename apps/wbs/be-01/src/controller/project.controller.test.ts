@@ -2,8 +2,9 @@ import { clockOf } from '@wbs/core';
 import { CREATOR_ADMISSION } from '@wbs/core';
 import { ProjectService } from '@wbs/core/module/project/project.resource';
 import { WorkItemService } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
 import { AuthService } from '@wbs/core/service/auth.service';
-import { DependencyGraphGuard } from '@wbs/core/service/dependency-graph';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import { testStepParallels } from '@wbs/store-memory/testing/service-fixtures';
 import { describe, expect, it, spyOn } from 'bun:test';
 
@@ -87,7 +88,7 @@ function buildHarness(
   const broadcast = recordingBroadcaster();
   const plan = buildWorkItemPlan(projectStore);
   const projects = new ProjectService({
-    dependencyGraph: new DependencyGraphGuard(plan.stores),
+    dependencyContext: createLocalDependencyContext(plan.stores),
     projects: projectStore,
     broadcast,
     // Available unless a case says otherwise, because most of this suite is
@@ -105,6 +106,8 @@ function buildHarness(
     }),
   });
   const workItems = new WorkItemService({
+    dependencyContext: createLocalDependencyContext(plan.stores),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     clock: testClock,
     ...plan.stores,

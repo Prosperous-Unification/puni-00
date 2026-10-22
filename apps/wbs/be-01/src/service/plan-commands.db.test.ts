@@ -24,6 +24,8 @@ import {
   WorkItemService,
   type WorkItemServiceOptions,
 } from '@wbs/core/module/work-item/work-item.resource';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '@wbs/core/ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '@wbs/core/service/dependency-context';
 import type { PlanCommand } from '@wbs/core/service/plan-command';
 import { localCommandAccess } from '@wbs/core/testing/organization-access-fixture';
 import {
@@ -65,7 +67,7 @@ import { WorkItemRepository } from '../repository/work-item';
 import { buildStores } from '../services';
 import { recordingBroadcaster } from '../testing/broadcast-fixture';
 import { testClock } from '../testing/clock-fixture';
-import { sqliteDependencyGraph } from '../testing/dependency-graph-fixture';
+import { sqliteDependencyContext } from '../testing/dependency-graph-fixture';
 import { fastScheduler } from './optimizer-wiring';
 
 const FOLDER = new URL('../../drizzle', import.meta.url).pathname;
@@ -132,6 +134,14 @@ beforeEach(async () => {
   );
 
   serviceOptions = {
+    dependencyContext: createLocalDependencyContext({
+      projects: projectStore,
+      workItems: workItemStore,
+      estimates: estimateStore,
+      dependencies: dependencyStore,
+      typedDependencies: new TypedDependencyRepository(db, OPEN),
+    }),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
     clock: testClock,
@@ -191,13 +201,13 @@ beforeEach(async () => {
       broadcast: selectedBroadcast,
     }),
     projects: new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: selectedBroadcast,
     }),
     steps: new StepService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       steps: new StepRepository(db, OPEN),
@@ -226,7 +236,7 @@ beforeEach(async () => {
   };
   runner = createPlanCommandRunner(runnerOptions);
   const created = await new ProjectService({
-    dependencyGraph: sqliteDependencyGraph(db, projectStore),
+    dependencyContext: sqliteDependencyContext(db, projectStore),
     clock: testClock,
     projects: projectStore,
     broadcast: recordingBroadcaster(),
@@ -915,7 +925,7 @@ describe('the priority a create writes', () => {
     // failed on `Expected: 50 / Received: 200`. Watched 2026-08-29.
     const recut = applied(await run([{ kind: 'setPriorityBands', bands: RECUT }, add('w')]));
     const other = await new ProjectService({
-      dependencyGraph: sqliteDependencyGraph(db, projectStore),
+      dependencyContext: sqliteDependencyContext(db, projectStore),
       clock: testClock,
       projects: projectStore,
       broadcast: recordingBroadcaster(),

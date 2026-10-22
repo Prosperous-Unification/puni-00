@@ -43,6 +43,7 @@ const predecessor = {
   'predecessorRef?': 'string',
 } as const;
 const dependencyEndpoint = type({
+  'projectId?': 'string',
   scope: "'whole' | 'node' | 'descendant-step'",
   'workItemId?': 'string',
   'workItemRef?': 'string',

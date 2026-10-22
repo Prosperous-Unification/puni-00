@@ -9,6 +9,8 @@ import { describe, expect, it } from 'bun:test';
 import { servicesOver } from '../../compose';
 import { clockOf } from '../../ports/clock';
 import { CREATOR_ADMISSION } from '../../ports/edit-admission';
+import { INACTIVE_EXTERNAL_DEPENDENCIES } from '../../ports/external-dependency-authoring';
+import { createLocalDependencyContext } from '../../service/dependency-context';
 import { recordingBroadcaster } from '../../testing/broadcast-fixture';
 import { localCommandAccess } from '../../testing/organization-access-fixture';
 import { fastScheduler } from '../../testing/scheduler-fixture';
@@ -66,6 +68,8 @@ async function seeded() {
   let stamps = 0;
   let ids = 0;
   const requirements = {
+    dependencyContext: createLocalDependencyContext(stores),
+    externalDependencyAuthoring: INACTIVE_EXTERNAL_DEPENDENCIES,
     ...stores,
     admission: CREATOR_ADMISSION,
     scheduler: fastScheduler,
@@ -214,7 +218,11 @@ it('reads the admitted sparse store and rolls a preceding patch back with its jo
     announcements: broadcast,
     publicServices: graph,
     batchServices: (scope, announcements) => {
-      return servicesOver(scope.stores, { ...requirements, broadcast: announcements });
+      return servicesOver(scope.stores, {
+        ...requirements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast: announcements,
+      });
     },
   });
   expect(
@@ -346,7 +354,11 @@ it('preserves empty-policy first-child undo and redo', async () => {
     announcements: fixture.broadcast,
     publicServices: graph,
     batchServices: (scope, broadcast) =>
-      servicesOver(scope.stores, { ...fixture.requirements, broadcast }),
+      servicesOver(scope.stores, {
+        ...fixture.requirements,
+        dependencyContext: createLocalDependencyContext(scope.stores),
+        broadcast,
+      }),
   });
   expect((await runner.run('p', 'owner', [{ kind: 'createWorkItem', ...create }])).ok).toBe(true);
   expect(await fixture.stores.workItems.findById('parent')).toMatchObject({
