@@ -529,3 +529,18 @@ follow-up and deferred runtime/certificate/publication integration. No full 7.x
 checkbox or WBS solver leaf is complete. The installed runtime smoke establishes
 its observed wire/version behavior only, not the correctness contradicted by the
 adversarial probes. Historical wire files and domain corpus cases were unchanged.
+
+## Tasks 7.1–7.2 — correction checkpoint awaiting re-review
+
+Isolated solver correction `388fb5410` follows the rejected `05a5b85d5`; neither
+is integrated. [Checkpoint and raw evidence](evidence/task-7-wire-round1.md)
+retain the nine-file source manifest, author-reported restored checks
+(Python276, contracts516, installedCLI3/36), and actual failing fault-test output.
+A giant finite JSON integer initially escaped as `OverflowError`; the amended
+source and rebuilt installed runtime now refuse it as exit64 in those checks.
+
+Independent Astra re-review has already reproduced a new packaging defect:
+the new validator reads a schema relative to a bundled module, but the required
+asset is not shipped. Root reproduced the bundled local import's ENOENT/exit1.
+Final review remains pending, and this record does not approve the checkpoint
+or complete any full7.x task, backend compatibility gate, rollout or deployment.

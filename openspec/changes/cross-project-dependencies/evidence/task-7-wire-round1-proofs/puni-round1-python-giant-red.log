@@ -1,0 +1,41 @@
+
+> nx run wbs-solver-py:test
+
+> python3 -m unittest discover -s tests -t tests
+
+.............................wbs-solver: unexpected arguments ['--search-workers', '0']; usage: wbs-solver [--version | --search-workers COUNT [--child-deadline-epoch-ms EPOCH_MS]]
+...wbs-solver: empty request: expected one JSON object on stdin
+.................F..................................................................................................................................................................................................................................
+======================================================================
+FAIL: test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization (test_connected.ConnectedStage.test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/tests/test_connected.py", line 249, in test_cli_rejects_non_json_constants_exponent_overflow_and_unsafe_quantization
+    self.assertEqual(child.returncode, 64, child.stderr)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 1 != 64 : b'Traceback (most recent call last):\n  File "<frozen runpy>", line 203, in _run_module_as_main\n  File "<frozen runpy>", line 88, in _run_code\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/__main__.py", line 8, in <module>\n    raise SystemExit(main())\n                     ~~~~^^\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/cli.py", line 145, in main\n    request = validate_request(read_request(sys.stdin.buffer))\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/validate.py", line 452, in validate_request\n    check_cross_field(request)\n    ~~~~~~~~~~~~~~~~~^^^^^^^^^\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/validate.py", line 379, in check_cross_field\n    check_connected_scope(request, key_set)\n    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File "/tmp/puni-cross-solver-wire/libs/wbs/adapters/solver-py/src/wbs_solver/validate.py", line 417, in check_connected_scope\n    if (not math.isfinite(scaled_start) or not math.isfinite(scaled_finish)\n                                               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^\nOverflowError: int too large to convert to float\n'
+
+----------------------------------------------------------------------
+Ran 276 tests in 40.445s
+
+FAILED (failures=1)
+Warning: command "python3 -m unittest discover -s tests -t tests" exited with non-zero status code
+
+
+ NX   Running target test for project wbs-solver-py failed
+
+Failed tasks:
+
+- wbs-solver-py:test
+
+Hint: run the command with --verbose for more details.
+
+  Run duration:      40.9s
+  Cache:             Skipped (--skip-nx-cache)
+  Critical path:     40.9s (1 task)
+  Recoverable time:  <1ms
+
+  Recommendations:
+    - Cache: drop --skip-nx-cache to restore unchanged tasks instantly.
+    - Speed up or split the longest tasks on the critical path:
+        wbs-solver-py:test    40.9s

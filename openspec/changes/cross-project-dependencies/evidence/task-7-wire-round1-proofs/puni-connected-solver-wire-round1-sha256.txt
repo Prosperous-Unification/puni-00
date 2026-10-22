@@ -1,0 +1,9 @@
+cda1549b9463958b79f9ce53946260b77f6791df1d215e586ec2b0cc0ec4dfd7  libs/wbs/adapters/solver-py/src/wbs_solver/cli.py
+c0445fffd95761160b2dfd30669cd411cfd42b067157146e87268f8b4893b347  libs/wbs/adapters/solver-py/src/wbs_solver/solve.py
+e1b4c74f13cf2bbec8081fc6721994f27c48754a21fe5d3e8e50f9871d6eaf98  libs/wbs/adapters/solver-py/src/wbs_solver/validate.py
+aae9c1ba398ec20e1705a66383457f88a67b41f50ed2edbd3a722516c6f73a95  libs/wbs/adapters/solver-py/tests/test_connected.py
+e0c488c44ed7f2b3a9b96a5b87d14edca412e268f59bfd9738996bc10f87fed2  libs/wbs/domain/contracts/solver/src/build-connected-solver-request.ts
+28025d895a8442d87a46f23ac7505f8e71fadac64e225ebaedb76a7a14f10c8f  libs/wbs/domain/contracts/solver/src/connected-boundaries.test.ts
+ce2498eddbdf0bd2cc41bb0a4ed602ce28a452341e087b75d4a0bc134442c124  libs/wbs/domain/contracts/solver/src/connected-boundaries.ts
+3cdee71c0bca5ec22c64dfe76351374d2dec4d41a76361f1beb734d05cf11c4a  libs/wbs/domain/contracts/solver/src/revalidate-solver-result.ts
+c5816aee1bd763001416d933ed4502705cc6a86f7823db08bcc509c45448830d  libs/wbs/domain/contracts/solver/src/validate-connected-solver-request.ts
