@@ -793,3 +793,70 @@ for (const [boundary, capability, reason] of [
     });
   });
 }
+
+test('finish-step listener failure cannot swallow malformed reported SDK usage', async () => {
+  const model = new MockLanguageModelV4({
+    doStream: response([...text('Partial'), finish('stop', usage(-1, 30))]),
+  });
+  const options = fixture(model);
+  const failure = await runApiModelTurn({
+    ...options,
+    onPart: (part) => {
+      options.parts.push(part);
+      if (part.type === 'finish-step') throw new Error('secret finish-step listener');
+    },
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ActivityDispatchError);
+  if (!(failure instanceof ActivityDispatchError)) throw new Error('expected dispatch failure');
+  expect(failure.identity).toEqual(options.identity);
+  expect(failure.cause).toBeInstanceOf(Error);
+  expect(options.signal.aborted).toBe(true);
+  expect(options.parts.map((part) => part.type)).toContain('finish-step');
+  expect(model.doStreamCalls).toHaveLength(1);
+});
+
+test('unexpected rejected reader still throws original cause after listener failure', async () => {
+  const cause = new Error('secret unexpected reader after listener');
+  const model = new MockLanguageModelV4({ doStream: rejectStream(cause) });
+  const options = fixture(model);
+  const failure = await runApiModelTurn({
+    ...options,
+    onPart: (part) => {
+      options.parts.push(part);
+      if (part.type === 'text-delta') throw new Error('secret listener');
+    },
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ActivityDispatchError);
+  if (!(failure instanceof ActivityDispatchError)) throw new Error('expected dispatch failure');
+  expect(failure.cause).toBe(cause);
+  expect(failure.identity).toEqual(options.identity);
+  expect(options.signal.aborted).toBe(true);
+  expect(model.doStreamCalls).toHaveLength(1);
+});
+
+test('owned cancellation reason after listener failure retains observer uncertainty', async () => {
+  const cancellation = new Error('secret owned cancellation');
+  const model = new MockLanguageModelV4({ doStream: rejectStream(cancellation) });
+  const options = fixture(model);
+  const dispatched = await runApiModelTurn({
+    ...options,
+    abort: () => {
+      options.controller.abort(cancellation);
+    },
+    onPart: (part) => {
+      options.parts.push(part);
+      if (part.type === 'text-delta') throw new Error('secret listener');
+    },
+  });
+  expect(dispatched).toMatchObject({
+    kind: 'unresolved',
+    reason: 'observer_failed',
+    identity: options.identity,
+    usage: { kind: 'unknown', reason: 'interrupted-before-usage' },
+  });
+  expect(options.signal.aborted).toBe(true);
+  expect(options.signal.reason).toBe(cancellation);
+  expect(model.doStreamCalls).toHaveLength(1);
+  expect(dispatched).not.toHaveProperty('responseMessages');
+  expect(JSON.stringify(options.parts)).not.toContain('secret');
+});

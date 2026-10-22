@@ -60,6 +60,7 @@ function measureUsage(steps: readonly LanguageModelUsage[]): Usage {
  * Executes one admitted turn through the real SDK loop and one observed UI conversion stream.
  * The caller owns immutable validated request/identity, exclusive session dispatch, and cancellation.
  * Unresolved turns carry no history append and do not establish backend quiescence.
+ * Listener uncertainty applies to modeled transport/cancellation; malformed records and unexpected reader errors still throw.
  * @throws {@link ActivityDispatchError} retaining known correlation and original private cause for unexpected SDK/tool failures or malformed usage.
  */
 export async function runApiModelTurn(options: {
@@ -251,8 +252,10 @@ export async function runApiModelTurn(options: {
     // Proof: dropping retained listener cleanup returned observer_failed and lost the original plus cleanup aggregate.
     if (observerCleanup !== undefined)
       throw new ActivityDispatchError(identity, observerCleanup.cause);
-    // Proof: dropping listener priority reported transport_lost for a rejected reader after the listener threw.
-    if (observerFailed) return unresolved('observer_failed');
+    // Proof: broadening this predicate swallowed real negative usage and unexpected reader errors after listener failure.
+    // Proof: removing API-call or owned-cancellation matching lost the corresponding observer_failed outcome.
+    if (observerFailed && (APICallError.isInstance(cause) || Object.is(cause, signal.reason)))
+      return unresolved('observer_failed');
     const cancellation = abortAfterFailure(cause);
     // Proof: skipping failed reader cleanup propagation lost both causes for API and unexpected stream errors.
     if (cancellation.didFail) throw new ActivityDispatchError(identity, cancellation.cause);
