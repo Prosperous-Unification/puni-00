@@ -1010,3 +1010,16 @@ connected calendar-range refusal. The same packet evidence now records the real
 shared-person regression and watched final-availability guard removal. Holder
 transfer and catalog attachment now require the final presented schedule to be
 available; broader integration obligations remain open.
+
+### Task 8.4 bounded unavailable-tree consumer compatibility — 2026-10-22
+
+The [consumer packet](evidence/task-8-4-unavailable-consumers.md) records exact
+space availability evidence, nullable connected displayed engine, coarse load
+reason mapping, uncached connected isolated-capacity readings and their watched
+production faults. The eight-suite regression run passed 96 tests/490 assertions;
+the strengthened mounted recovery cases passed 4 tests/48 assertions. Core and
+backend TypeScript and strict change validation passed. Named TypeScript lint
+passed with a fresh Nx graph. Prettier and `git diff --check` passed for this
+packet. Shared connected aggregate production support and the frontend reason
+presenter remain outside this packet; tasks 8.4 and 9.2 stay unchecked. Full CI
+and the exact-SHA host gate remain pending.
