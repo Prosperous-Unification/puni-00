@@ -1760,10 +1760,12 @@ does not freshly recertify every unchanged guard. The initial receiver fault dri
 post-observation validator searched the wrong error substring and itself failed
 after three actual semantic failures and exact restoration/green. Corrected validation
 read those retained logs without a redundant fault rerun; both driver versions and
-the error remain recorded.
+the diagnostic explanation remain recorded; the original raw thrown-error transcript was not separately retained.
 
 No complete SQLite/storage or ordinary suite was repeated. Exact candidate host/CI,
 latest-main organization-limit integration, authenticated transport, trusted sender
 artifact decoding, durable intent/history, host ordering, I1/S0/S7a and activation
 remain open. The parent change is not ready to archive. All earlier packet acceptance
 records remain historical; they do not certify this candidate.
+
+Independent Task1 review approved source `eb502c97081f73e5554dd82e7a63f50a241d7065` for spec compliance and task quality, with no Critical/Important findings. Reviewer independently matched all six source hashes, moved body tokens and eight fault/restoration identities, and checked real replay/write consequences. Exactly local slices1.1–1.4 are complete;1.5 and parent5.4 remain open. Whole-packet triage carries three Minor findings: the digest mismatch fixture uses a non-64-hex string; color-environment noise; ten unchanged OpenSpec warnings. Missing original driver-level raw error transcript limits that diagnostic reconstruction, while semantic failures and exact restored green are verified. Exact-head host/CI, latest-main reconciliation and all broader workflow acceptance remain open.
