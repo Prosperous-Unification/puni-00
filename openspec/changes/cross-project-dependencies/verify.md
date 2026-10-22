@@ -1283,3 +1283,54 @@ this packet did not independently remutate every shared old predicate.
 Coordinator admission, terminal event-before-release, Retry, restart, frontend outcomes,
 installed solver handshake, Python/model suites, full CI and host gate are outside this packet.
 Tasks 7.3 and 7.4 remain unchecked and connected runtime capability remains unavailable.
+
+### Task 7.3/7.4 durable repository review correction — 2026-10-22
+
+Addressed the P2 finding in `/tmp/puni-optimizer-durable-review.md` against
+`47a7cb6f9`. Replayed the retained reviewer fixture as temporary
+`connected-durable-review.db.test.ts`: the original code produced **1 pass, 2 fail**
+with `connected outcome lacks payload`; the truncated-JSON control passed. Missing
+cache payload and missing failed reason escaped before the modeled corruption catch,
+so an admitted replacement could not retire those older diagnostics.
+
+Moved both missing-field checks into the existing recoverable cache decoding boundary.
+Retained certificate decoding remains outside that boundary and still throws on damaged
+terminal evidence. Unknown stored enum validation likewise remains outside it.
+No task checkbox or production composition changed; tasks 7.3/7.4 remain open.
+
+Added ten production repository/adapter regressions covering missing `ok` payload,
+missing ordinary `plan-infeasible` payload, missing failed reason, truncated `ok`
+payload and truncated ordinary infeasible payload. Each fault checks repository
+`corrupt`, expired captured `corrupt`, live captured `retrying`, unchanged diagnostic
+on reads, and admitted replacement by one exact decoded boundary certificate with
+no surviving cache diagnostic. The first red run was **4 pass, 6 fail**; the four
+truncated-payload controls already passed. Corrected run: **10 pass, 0 fail**.
+The independent reviewer reproduction then passed **3/3**; its temporary copied
+fixture was removed.
+
+Watched R5 faults, restored independently:
+
+- Injected an early missing-payload throw before the cache recovery boundary.
+  `bun test libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts -t 'missing.*payload.*(repository|terminal)'`
+  failed **4/4**: both missing `ok`/ordinary-infeasible read cases and admitted
+  replacements threw `injected missing payload bypass`.
+- Injected an early missing-failed-reason throw before that boundary.
+  `bun test libs/wbs/adapters/store-sqlite/src/connected-optimization-cache.db.test.ts -t 'missing failed reason.*(repository|terminal)'`
+  failed **2/2**: repository/captured read and exact admitted replacement both
+  threw `injected missing reason bypass`.
+- The adjacent production `Proof:` comment names these observed faults. All
+  injected throws were removed before the restored full focused run.
+
+Fresh restored verification:
+
+- Same ten-suite focused command as the bounded repository packet above:
+  **189 passed, 0 failed**, 1,447 assertions, including all prior 179 cases.
+- `bunx tsc --build --force libs/wbs/adapters/store-sqlite/tsconfig.json`: exit 0.
+- `NX_DAEMON=false bunx nx run wbs-store-sqlite:lint`: exit 0.
+- Changed source/test and this record formatted and checked with Prettier.
+- `bunx openspec validate cross-project-dependencies --strict`: valid.
+
+No migration/schema change: migration lint was not rerun for this correction.
+Full CI, host gate, production composition, borrowed lifetime integration,
+coordinator admission/Retry/restart and terminal event/release remain outside
+this correction and unverified here.

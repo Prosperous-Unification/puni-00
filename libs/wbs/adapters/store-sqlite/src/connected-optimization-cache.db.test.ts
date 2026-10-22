@@ -557,3 +557,71 @@ it('different current input hash cannot make another captured stage pending', ()
       .time.state,
   ).toBe('idle');
 });
+
+const damagedCacheRows = [
+  { label: 'missing ok payload', status: 'ok', payload: null },
+  { label: 'missing ordinary infeasible payload', status: 'plan-infeasible', payload: null },
+  { label: 'missing failed reason', status: 'failed', payload: null },
+  { label: 'truncated ok payload', status: 'ok', payload: '{' },
+  { label: 'truncated ordinary infeasible payload', status: 'plan-infeasible', payload: '{' },
+] as const;
+for (const fault of damagedCacheRows) {
+  function injectCacheFault(question: ReturnType<typeof captureConnectedQuestion>): void {
+    const sqlite = openDatabase(path);
+    try {
+      // The production CHECK normally prevents this row; fault injection exercises damaged-state recovery.
+      sqlite.run('PRAGMA ignore_check_constraints=ON');
+      sqlite.run(
+        'INSERT INTO optimized_schedule_cache(project_id,input_hash,objective,contract_version,budget_ms,generation,status,result_json,failure_reason,created_at) VALUES(?,?,?,?,?,1,?,?,NULL,1)',
+        [
+          question.projectId,
+          question.inputHash,
+          question.objective,
+          question.contractVersion,
+          question.budgetMs,
+          fault.status,
+          fault.payload,
+        ],
+      );
+    } finally {
+      sqlite.close();
+    }
+  }
+  it(`models ${fault.label} as corruption through repository and captured reads`, () => {
+    const attempt = write();
+    injectCacheFault(attempt.questions.time);
+    const before = attempt.db.select().from(optimizedScheduleCache).all();
+    const observed = readConnectedOptimizationPair(attempt.db, { questions: attempt.questions });
+    expect(observed.variants.time.kind).toBe('corrupt');
+    const expired = connectedCapturedOptimizationReaderOf(attempt.db, {
+      ...installed,
+      now: () => 3000,
+    });
+    expect(
+      expired.readConnectedCaptured({ stage: stage(), enabled: true, objective: 'time' }).variants
+        .time.state,
+    ).toBe('corrupt');
+    const live = connectedCapturedOptimizationReaderOf(attempt.db, { ...installed, now: () => 12 });
+    expect(
+      live.readConnectedCaptured({ stage: stage(), enabled: true, objective: 'time' }).variants.time
+        .state,
+    ).toBe('retrying');
+    expect(attempt.db.select().from(optimizedScheduleCache).all()).toEqual(before);
+  });
+  it(`replaces an older ${fault.label} with exact admitted terminal evidence`, () => {
+    const attempt = write(true);
+    injectCacheFault(attempt.questions.time);
+    expect(
+      attempt.db.transaction((tx) => storeConnectedOptimizationOutcomeIn(tx, attempt.write)),
+    ).toBe('stored');
+    expect(attempt.db.select().from(optimizedScheduleCache).all()).toHaveLength(0);
+    const retained = attempt.db.select().from(optimizationBoundaryCertificate).all();
+    expect(retained).toHaveLength(1);
+    if (attempt.outcome.kind !== 'boundary-infeasible') throw Error('fixture');
+    expect(JSON.parse(retained[0].certificateJson)).toEqual(attempt.outcome.certificate);
+    expect(
+      readConnectedOptimizationPair(attempt.db, { questions: attempt.questions }).variants.time
+        .kind,
+    ).toBe('boundary-infeasible');
+  });
+}

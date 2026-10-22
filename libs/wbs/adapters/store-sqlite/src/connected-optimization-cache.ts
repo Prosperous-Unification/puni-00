@@ -149,16 +149,18 @@ function readOutcome(db: Reader, question: ConnectedQuestion): ConnectedCachedOu
   }
   if (cached === undefined) return { kind: 'miss' };
   const row = toOptimizedScheduleCacheRow(cached);
-  if (row.status === 'failed') {
-    if (row.failureReason === null) throw new Error('connected failure lacks reason');
-    return {
-      kind: 'failed',
-      outcome: { kind: 'failed', reason: row.failureReason },
-      createdAt: row.createdAt,
-    };
-  }
-  if (row.resultJson === null) throw new Error('connected outcome lacks payload');
+  // Proof: moving missing payload/reason checks outside this recovery boundary failed the
+  // missing-cache repository/captured-read and exact admitted terminal replacement cases.
   try {
+    if (row.status === 'failed') {
+      if (row.failureReason === null) throw new Error('connected failure lacks reason');
+      return {
+        kind: 'failed',
+        outcome: { kind: 'failed', reason: row.failureReason },
+        createdAt: row.createdAt,
+      };
+    }
+    if (row.resultJson === null) throw new Error('connected outcome lacks payload');
     if (row.status === 'plan-infeasible')
       return {
         kind: 'plan-infeasible',
