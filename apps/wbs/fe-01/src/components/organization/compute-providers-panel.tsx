@@ -274,6 +274,7 @@ export function ComputeProvidersPanel({
     return () => {
       version.current++;
       isPending.current = false;
+      setIsSending(false);
     };
   }, [refresh, observe]);
   if (fault !== null) throw fault;

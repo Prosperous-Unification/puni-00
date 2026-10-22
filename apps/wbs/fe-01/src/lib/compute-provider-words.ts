@@ -35,7 +35,7 @@ export function providerKindName(kind: ComputeProviderKind): string {
  * text WBS never dials (P2).
  */
 export const LOCATOR_HINTS: Readonly<Record<ComputeProviderKind, string>> = {
-  ssh_host: 'The SSH user and host Dash reaches it as, such as puni1@h4claw.',
+  ssh_host: 'The SSH user and host Dash reaches it as, such as agent@build-host-1.',
   docker: 'The Docker context Dash runs against, such as default or build-box.',
   kubernetes: 'The kube context and namespace, such as prod/agents. Dash cannot report for it yet.',
   puni_pool: 'A name for the PUNI pool slot. Nothing reports for it yet.',

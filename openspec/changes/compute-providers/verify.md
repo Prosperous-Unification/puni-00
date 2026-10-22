@@ -568,7 +568,7 @@ Commands after the review fixes (2026-10-23, `env -u CLAUDECODE`):
 
 ### Slice 5: fe-01 panel, resources section, refusal copy (2026-10-23)
 
-Branch `feat/compute-providers-5` from `feat/compute-providers-3` at `6b0d580fa`. Implemented
+Branch `feat/compute-providers-5` from `6b0d580fa`, the head of PR #662 (`feat/compute-providers-3`), which the `plan/compute-providers` head carries once #662 merges. Implemented
 tasks 5.1 and 5.2; 5.3 (the directory row chip) is not done. No be-01 change.
 
 What landed:
@@ -709,3 +709,41 @@ Not run or not finished:
 - `tool-devsync:test` was not run.
 - The e2e specs whose tab lists gained `Resources` (`project-settings.spec.ts`,
   `settings-layout.spec.ts`) were not run locally; CI's `pixels` job runs them.
+
+### Slice 5 review (Fable, 2026-10-23, PR #664)
+
+No S1. Fixed on the same PR:
+
+- S2-1 (lost update): the section held an adoption across rereads, so Undo could write the old
+  number over another writer's. The adoption is now dropped by `read` once the declared number
+  differs, and the Undo block renders only while the declared number equals the adopted one.
+- S2-2: the 30 s clock is tested. With `setInterval` faked, a report 10 s inside the boundary
+  reads `measured`, then `stale` 30 s later, without a reread.
+- S2-3, S2-4: spec and design P7 now say Adopt is the explicit `setResourceCapacity` any project
+  writer could send, offered in the UI to organization admins only. Undo is a compensating write,
+  offered while the declared value still equals the adopted one. An admin sees the kind and name;
+  a member or a viewer sees the reference unnamed.
+- S2-5: a failed instances read for an admin (5xx or a refusal other than `forbidden`) renders
+  as an alert with Retry.
+- S3: the providers panel's cleanup also clears `isSending`. The resources `write` fences its
+  failure and refusal arms by generation. `@wbs/domain/compute-provider` is in
+  `tsconfig.base.json`, as precedent 574427f34 put the other subpaths there. The locator hint
+  uses `agent@build-host-1`.
+
+| Fault injected (watched 2026-10-23)                                         | Observed failing test                                                            |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| both adoption guards removed (the drop in `read` and the render comparison) | `offers no undo once another writer stated a different number` (Undo over 20 GB) |
+| the 30 s `setInterval` replaced by a no-op timeout                          | `goes stale on its own clock without a reread` (`measured` for `stale`)          |
+| a failed instances read treated as `unnamed`                                | `renders a failed instances read with retry, and recovers` (no alert)            |
+
+Either adoption guard alone hides Undo, so only the pair was watched.
+
+Remaining S3s, recorded and not fixed:
+
+- Refresh in the providers panel discards an open edit draft or a removal confirmation.
+- In the Resources section, refusals that mean access was lost (session ended, organization
+  changed) render as in-section sentences instead of giving the page up.
+- On a phone the seventh settings tab sits on its own row.
+- The section's clock does not pause on `visibilitychange`.
+- Later refinement: carry `provider { kind, name }` on the resources read, so a member sees
+  which instance fulfils a resource.

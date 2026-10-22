@@ -52,7 +52,11 @@ type View =
       providers: ProviderChoice;
     };
 
-/** An adoption that landed, held until undone, superseded, or the section is reread from elsewhere. */
+/**
+ * An adoption that landed. Held while the project's declared number is still
+ * the adopted one: a reread that finds another number (someone else stated
+ * it since) drops it, so Undo never writes the old number over theirs.
+ */
 interface Adoption {
   readonly resourceId: string;
   readonly name: string;
@@ -168,13 +172,14 @@ export function ResourcesPanel({
             return unreachable(instances);
         }
       }
+      const declared = new Map(
+        listed.body.capacities.map((entry) => [entry.resourceId, entry.units]),
+      );
+      setAdoption((current) =>
+        current !== null && declared.get(current.resourceId) !== current.units ? null : current,
+      );
       setNow(Date.now());
-      setView({
-        kind: 'ready',
-        resources: listed.body.resources,
-        declared: new Map(listed.body.capacities.map((entry) => [entry.resourceId, entry.units])),
-        providers,
-      });
+      setView({ kind: 'ready', resources: listed.body.resources, declared, providers });
     },
     [client, projectId, isOrganization],
   );
@@ -195,6 +200,8 @@ export function ResourcesPanel({
     if (!shown) return;
     setMessage('');
     observe(refresh(), 'read');
+    // Proof: 2026-10-23, without this interval `goes stale on its own clock
+    // without a reread` kept reading `measured` 30 s past the boundary.
     const tick = setInterval(() => {
       setNow(Date.now());
     }, TICK_MS);
@@ -228,12 +235,14 @@ export function ResourcesPanel({
           if (version === generation.current) await read(version);
           return true;
         case 'failure':
-          if (reply.failure.code !== 'cancelled') setMessage(failureMessage(reply.failure));
+          if (version === generation.current && reply.failure.code !== 'cancelled')
+            setMessage(failureMessage(reply.failure));
           return false;
         case 'refusal':
           // Proof: 2026-10-23, treating a refused adopt as landed failed `says a
           // refused adopt in place and offers no undo`: the undo line appeared.
-          setMessage(batchRefusalSentence(reply.body, after.resourceName));
+          if (version === generation.current)
+            setMessage(batchRefusalSentence(reply.body, after.resourceName));
           return false;
         default:
           return unreachable(reply);
@@ -322,7 +331,24 @@ export function ResourcesPanel({
         </div>
       )}
       {view.kind === 'ready' && view.providers.kind === 'unavailable' && (
-        <p className="text-muted-foreground m-0 text-sm">{view.providers.message}</p>
+        // Proof: 2026-10-23, reading a failed instances read as `unnamed`
+        // failed `renders a failed instances read with retry, and recovers`.
+        <div className="flex flex-col gap-2">
+          <p role="alert" className="text-destructive m-0 text-sm">
+            {view.providers.message}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="self-start"
+            disabled={busy}
+            onClick={() => {
+              observe(refresh(), 'retry');
+            }}
+          >
+            Retry resources
+          </Button>
+        </div>
       )}
       {view.kind === 'ready' &&
         (view.resources.length === 0 ? (
@@ -343,7 +369,15 @@ export function ResourcesPanel({
                 providers={view.providers}
                 now={now}
                 busy={busy}
-                adoption={adoption?.resourceId === resource.id ? adoption : null}
+                adoption={
+                  // Proof: 2026-10-23, with both this comparison and the drop in
+                  // `read` removed, `offers no undo once another writer stated a
+                  // different number` showed Undo over the other writer's 20 GB.
+                  adoption?.resourceId === resource.id &&
+                  view.declared.get(resource.id) === adoption.units
+                    ? adoption
+                    : null
+                }
                 onAdopt={(units) => {
                   observe(adopt(resource, units, view.declared.get(resource.id) ?? null), 'adopt');
                 }}

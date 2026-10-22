@@ -247,6 +247,45 @@ describe('resources section states', () => {
   });
 });
 
+describe('resources section clock', () => {
+  it('goes stale on its own clock without a reread', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: NOW });
+    const sent = stubServer({
+      [READ]: [
+        readOf([
+          resourceOf({ report: measured({ observedAt: NOW - 3 * CADENCE_S * 1000 + 10_000 }) }),
+        ]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(ram.getAttribute('data-report')).toBe('measured');
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(ram.getAttribute('data-report')).toBe('stale');
+    expect(sent.filter((request) => request.route === READ)).toHaveLength(1);
+  });
+});
+
+describe('resources section instances read', () => {
+  it('renders a failed instances read with retry, and recovers', async () => {
+    stubServer({
+      [READ]: [readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }])],
+      [PROVIDERS]: [() => answer(500, {}), providersOf(h2puni)],
+    });
+    mount();
+    const ram = await row('h2puni ram');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/./);
+    expect(within(ram).queryByRole('combobox')).toBeNull();
+    expect(within(ram).queryByRole('button', { name: /Adopt/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry resources' }));
+    expect(await within(ram).findByLabelText('Compute provider of h2puni ram')).toHaveValue('cp-1');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
 describe('resources section writes', () => {
   it('adopts once however often it is clicked, and undo restores the declared number', async () => {
     const onChanged = vi.fn(() => Promise.resolve());
@@ -285,6 +324,39 @@ describe('resources section writes', () => {
       { commands: [{ kind: 'setResourceCapacity', resourceId: 'r1', units: 15 }] },
       { commands: [{ kind: 'setResourceCapacity', resourceId: 'r1', units: 12 }] },
     ]);
+  });
+
+  it('offers no undo once another writer stated a different number', async () => {
+    const sent = stubServer({
+      [READ]: [
+        readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 12 }]),
+        readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 15 }]),
+        readOf([resourceOf({ report: measured() })], [{ resourceId: 'r1', units: 20 }]),
+      ],
+      [PROVIDERS]: [providersOf(h2puni)],
+      [PLAN]: [applied],
+    });
+    const panelShown = (shown: boolean) => (
+      <OrganizationResourcesProvider scope={scope}>
+        <ResourcesPanel
+          projectId="p1"
+          shown={shown}
+          onChanged={() => Promise.resolve()}
+          onDirtyChange={() => undefined}
+        />
+      </OrganizationResourcesProvider>
+    );
+    const mounted = renderBare(panelShown(true));
+    const ram = await row('h2puni ram');
+    fireEvent.click(within(ram).getByRole('button', { name: /^Adopt 15 GB/ }));
+    expect(await within(ram).findByRole('status')).toBeDefined();
+    // Somebody else states 20 GB; the tab is shown again and rereads.
+    mounted.rerender(panelShown(false));
+    mounted.rerender(panelShown(true));
+    expect(await within(ram).findByText('20 GB')).toBeDefined();
+    expect(within(ram).queryByRole('status')).toBeNull();
+    expect(within(ram).queryByRole('button', { name: /^Undo adopting/ })).toBeNull();
+    expect(plans(sent)).toHaveLength(1);
   });
 
   it('undoes an adoption over an unstated capacity by clearing it', async () => {
