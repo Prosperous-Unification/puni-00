@@ -836,3 +836,17 @@ v11 external import returns a typed dormant 409 before writes. Connected export,
 positive external import, current authority/graph admission, fanout and
 Navigator v11 support remain open; task 8.1 is unchecked. Final CI and host gate
 are pending.
+
+## Task 7.3 — bounded connected optimization stage builder
+
+The corrected stage packet is integrated as two commits. Its [independent Astra
+review](evidence/task-7-optimized-stages-review.md) approved the bounded pure
+stage construction/selection after the first packet's empty-local stale-placement
+bypass was fixed. The [source evidence](evidence/connected-optimization-core.md)
+records watched membership, placement-key, foreign replay and empty-graph faults,
+including the limits of redundant ownership checks. After integration, the three
+focused suites passed 108/108 (284 assertions) and the configured core TypeScript
+build passed. An initial sandboxed build failed only with TS5033 write denial and
+is not counted. Runtime adapter/hash/certificate, final publication, durable
+terminal state, Retry and restart remain open; 7.3/7.4 are unchecked. Final CI
+and exact-SHA host gate remain pending.
