@@ -31,6 +31,7 @@ export * from './http/project-shapes';
 export * from './http/provisioning-token-shapes';
 export * from './http/refusal';
 export * from './http/resource-shapes';
+export * from './http/runtime-command-shapes';
 export * from './http/saved-plan-shapes';
 export * from './http/schema-shape';
 export * from './http/session-policy-shapes';

@@ -90,6 +90,7 @@ import {
   rotateProvisioningToken,
 } from './provisioning-token-shapes';
 import { readProjectResources } from './resource-shapes';
+import { runtimeCommandShapes } from './runtime-command-shapes';
 import {
   compareSavedPlans,
   deleteSavedPlan,
@@ -135,7 +136,7 @@ import {
 } from './work-item-shapes';
 
 /** Migrated HTTP declarations; legacy families join this table as their handlers migrate. */
-export const httpShapes = [
+const ordinaryHttpShapes = [
   health,
   metrics,
   registerPassword,
@@ -249,3 +250,8 @@ export const httpShapes = [
   issueMcpDelegation,
   readMcpAuthority,
 ] as const;
+
+export const httpShapes: readonly [...typeof ordinaryHttpShapes, ...typeof runtimeCommandShapes] = [
+  ...ordinaryHttpShapes,
+  ...runtimeCommandShapes,
+];

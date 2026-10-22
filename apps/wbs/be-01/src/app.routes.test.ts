@@ -218,8 +218,15 @@ const SIGNED_IN_OPERATIONS = [
   'getApiWork-item-types',
   'postApiOrganizationActive',
 ] as const;
-const READ_SCOPE_OPERATIONS = ['getApiProjectsByIdExport', 'getPlansBy-solutionBySlug'] as const;
+const READ_SCOPE_OPERATIONS = [
+  'getApiProjectsByIdExport',
+  'getPlansBy-solutionBySlug',
+  'lookupRuntimeReceipt',
+  'readRuntimeState',
+] as const;
 const WRITE_SCOPE_OPERATIONS = [
+  'acquireRuntimeAuthority',
+  'applyRuntimeCommands',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationInvitationsById',
   'deleteApiOrganizationMembersByUserId',
@@ -302,6 +309,8 @@ const ALWAYS_ORIGIN_OPERATIONS = [
   'postApiOrganizationJoinRequestsByIdDeny',
 ] as const;
 const COOKIE_ORIGIN_OPERATIONS = [
+  'acquireRuntimeAuthority',
+  'applyRuntimeCommands',
   'deleteApiOrganizationDomainsById',
   'deleteApiOrganizationMembersByUserId',
   'deleteApiOrganizationProvisioningTokensById',
@@ -350,6 +359,8 @@ const COOKIE_ORIGIN_OPERATIONS = [
   'putApiOrganizationSession-policy',
 ] as const;
 const NO_ORIGIN_OPERATIONS = [
+  'lookupRuntimeReceipt',
+  'readRuntimeState',
   'postInternalGatewayProjectBrowserAccess',
   'getApiAuthLinkAuth0Callback',
   'getApiAuthLogin',

@@ -1116,3 +1116,77 @@ review does not recertify their entire fault matrices. Only Task5 is accepted;
 mounted HTTP/client/readiness and final receiver gates remain open. Commit hooks
 also passed plaintext-secrets, formatting and lint; migration hooks were not
 applicable, and external Tool Wiki activation remains absent (`certified:false`).
+
+### Receiver Task6 — mounted HTTP/client and readiness candidate
+
+All four final routes use the shared declarations, existing identity/organization
+policies and admitted current authorization. The mounted runner receives the real
+Digest. Complete wire validation precedes personId/context projection; mutations
+and lookup require explicit pins. Command refusal translation validates against
+its existing declaration before preserving correlated status/detail. The client
+uses the existing shape-derived transport and response classifier.
+
+Boot now awaits configured migration/StepBlockage/backfill/local identity and
+actual runtime ledger inspection before retention/listener startup, using explicit
+DI promise dependencies. Optimizer/proof workers follow successful listening;
+owned resources retain reverse disposal and partial-acquisition cleanup. Explicit
+local startup migrations may complete before a later occupied-port failure.
+Deployed startup does not implicitly migrate or repair runtime state.
+
+Fresh covering command:
+
+```sh
+bun test ./apps/wbs/be-01/src/boot.db.test.ts ./apps/wbs/be-01/src/domain-proof.boot.db.test.ts ./apps/wbs/be-01/src/runtime-command.boot.db.test.ts ./apps/wbs/be-01/src/controller/runtime-command.controller.db.test.ts ./apps/wbs/be-01/src/app.routes.test.ts ./apps/wbs/be-01/src/controller/organization-context.controller.db.test.ts ./apps/wbs/be-01/src/controller/claim-identity.controller.db.test.ts ./libs/wbs/domain/contracts/src/http/runtime-command-shapes.test.ts ./libs/wbs/domain/contracts/src/http/runtime-command-client.test.ts ./libs/wbs/domain/contracts/src/http/document-from-shapes.test.ts --timeout=10000
+NX_DAEMON=false NX_ISOLATE_PLUGINS=false ./node_modules/.bin/nx run-many -t typecheck,lint -p wbs-contracts,wbs-core,wbs-be-01,wbs-store-sqlite,wbs-store-memory --skip-nx-cache
+```
+
+Observed124 tests/1956 assertions across10 files pass in20.71s; all12 scoped
+lint/typecheck tasks pass in1m43s. Final focused35 tests/161 assertions pass.
+After mechanical test-helper naming cleanup, affected backend21 tests/121
+assertions pass in6.61s and its three static targets pass in56.7s. These runs
+overlap; their counts are not additive. Edited-file formatting and diff checks
+pass. Actual OpenAPI emission confirms the four exact method/path/operationId
+pairs and required pins. OpenSpec passes one change with zero errors and10
+long-requirement warnings; historical seven-warning shorthand was corrected.
+
+The mounted tests use real SQLite/authority/claim/write paths. They commit then
+lose only the transport reply, close/reopen the source, lookup the full acceptance
+and exactly replay with unchanged journal/state/basis. Delayed old-generation
+dispatch refuses after takeover; absence before fencing stays inconclusive.
+Unused down/up and fully reconstructed valid tables change the pin before old
+receipt absence/replay. Current auth before replay, foreign/absent project
+indistinguishability, legacy refusal, strict input and existing holder/resource
+semantics remain covered. Client cancellation, malformed replies and unexpected
+status remain transport failures rather than inferred nonacceptance. Boot tests
+hold real inspection, observe no early listener/timer/optimizer/proof worker,
+then validate healthy startup, missing/corrupt ledger failure, pending migration,
+occupied-port ownership and cleanup after actual socket acquisition.
+
+R5 evidence contains17 numbered fault families plus repeated/strengthened trials.
+Each mutation restores exact bytes in finally; the byte-observation pass records
+restored=true throughout, followed by aggregate GREEN. This is not17 unique new
+guards or immediate RED/GREEN pairs. Actual failures include early listener/timer
+startup, unknown wire-key acceptance, malformed successful client receipts,
+old-ledger acquisition acceptance, old-pin state/absence misclassification and
+duplicate-query acceptance/classification. Missing wire pin instead reaches the
+strict application parser (500 instead of boundary400); removed identity reaches
+the missing-principal backstop (500 instead of401). Refusal/parser guards and the
+unexpected-status guard prove named diagnostics while mounted/client backstops
+still reject. Removing Digest proves the actual mounted composition requirement.
+These are not represented as unsafe acceptance cases.
+
+Initial auth mutation failed fixture setup; a reworked real-ledger/authority
+fixture then reached the intended anonymous assertion. The first status fault
+survived through a later classifier; the strengthened test observes its actual
+unexpected_status→invalid_response change. The first retention fault hit listener
+ordering first; reordered observations directly expose retention.start. All
+historical logs remain retained and excluded from stronger claims. Initial TDD
+and fixture/static iterations are preserved, including corrected migration-marker
+fixture and genuine mounted404-before-implementation RED.
+
+Full commands, trial classifications and restoration records remain under
+`.superpowers/sdd/receiver-tasks/task-6-report.md` and `task-6-evidence/`.
+Independent Task6 review, full receiver review/build, CI and exact-SHA host gate
+remain pending. These checks do not prove Dash durable intent/pin/grant storage,
+credential retrieval, executor quiescence, session ordering or CTT settlement;
+parent5/6a.5–7 are not wholly complete. No live deployment or model call occurred.

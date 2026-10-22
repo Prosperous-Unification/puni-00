@@ -484,9 +484,23 @@ type BareRefusalCode =
   | 'sso_connection_not_found'
   // Provisioning tokens (`organization-scim`): two tokens already live
   // (`sso_connection_unproven` above also refuses a token).
-  | 'token_limit';
+  | 'token_limit'
+  | 'runtime_scope_unavailable'
+  | 'runtime_generation_conflict'
+  | 'runtime_authority_stale'
+  | 'runtime_revision_conflict'
+  | 'runtime_claim_mismatch'
+  | 'runtime_claim_unmanaged'
+  | 'runtime_attempt_bound'
+  | 'runtime_command_conflict'
+  | 'runtime_ledger_mismatch'
+  | 'runtime_receipt_not_found'
+  | 'runtime_command_target_mismatch'
+  | 'runtime_command_not_supported';
 
 type SharedCommandCode =
+  | 'person_not_bound'
+  | 'credential_not_for_person'
   | 'not_found'
   | 'forbidden'
   | 'name_required'
@@ -527,6 +541,8 @@ export type RefusalDetail = Record<BareRefusalCode, undefined> &
     unknown_team: undefined | CommandRefusalDetail['unknown_team'];
     /** Bare from the by-person read; with its command context from a batch. */
     unknown_person: undefined | CommandRefusalDetail['unknown_person'];
+    person_not_bound: undefined | CommandRefusalDetail['person_not_bound'];
+    credential_not_for_person: undefined | CommandRefusalDetail['credential_not_for_person'];
     in_use: { inUse: StepInUse } | CommandRefusalDetail['in_use'];
     /** The typed dependencies naming a step that a removal would take away. */
     referenced_by_dependency: { dependencyIds: string[] };
