@@ -3398,3 +3398,103 @@ Typecheck: passed. `git diff --check`: passed. Test output is in local scratch
 recorded above; this correction reruns focused tests/typecheck and normal staged
 lint/format hooks, not the canonical host gate. B2's detached converter and real
 SQLite fixture remain deferred; task 8.3 stays unchecked.
+
+## Saved comparison C1 pure projection (2026-10-22)
+
+Bounded packet based on `2335bac3b50f9cc43d0b94ec1c471eecf798719e`, in isolated
+`/tmp/puni-saved-comparison-c`. This is the dormant pure part of Slice C from
+`/tmp/puni-saved-writer-next.md`; task 8.3 and the complete Slice C remain open.
+
+`SavedComparisonSide` and `summarizeSavedComparisonSide` accept a resolved
+`PlanSide` and its requested source. They retain schedule presence/absence,
+legacy unknown provenance, explicit input9 local provenance, or captured
+connected project labels, mode, placement state, idle labels and stage outcomes.
+Ready summaries retain captured question hash, proof and actual chosen decision;
+boundary infeasibility remains distinct from plan infeasibility and does not erase
+a valid schedule. Exact canonical stage bytes and foreign pre-selection positions
+come from `readSavedCanonicalStage`, never the final composite or live optimizer
+view. Frozen detached summaries survive caller mutation. No store, scheduler,
+directory, shelf or current-settings capability is accepted.
+
+The public compare HTTP shape is unchanged. This helper is not called by the
+production compare route yet. Writer/compose/current behavior and v8/v1 active
+writers remain unchanged. The domain barrel now exposes the existing frozen
+stage decoder and historical detachment helper to this application projection.
+
+### Fresh checks
+
+- TDD red: `bun test libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts`
+  initially failed because the projection module did not exist (0 pass, 1 fail,
+  1 module-load error). After implementation the frozen-output assertion also
+  failed until the projection used historical detachment. Final focused run:
+  **16 pass, 0 fail, 32 assertions**.
+- `bun test libs/wbs/application/core/src/module/saved-plans/saved-plan-comparison.test.ts libs/wbs/application/core/src/module/saved-plans/versioned-saved-plan-body.test.ts libs/wbs/domain/domain/src/saved-plan/connected-history.test.ts libs/wbs/domain/domain/src/saved-plan/versioned-plan-input.test.ts libs/wbs/domain/domain/src/saved-plan/diff-plans.test.ts`:
+  **115 pass, 0 fail, 325 assertions**.
+- `bunx tsc --project libs/wbs/application/core/src/module/saved-plans/tsconfig.json --pretty false`:
+  exit 0 after typed-fixture fixes.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:typecheck`:
+  executed all 17 module checks and the forced project build; exit 0, 0/2 cache hits.
+  The initial command without these environment variables exited 0 after socket
+  refusal without running the target; that attempt is **not** passing evidence.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-domain:lint`:
+  exit 0, 0/1 cache hits.
+- Changed-file ESLint over both projection files and domain saved-plan barrel:
+  exit 0 after resolving import-order and optional-chain diagnostics. Initial
+  runs before Nx populated the graph skipped module-boundary rules; the final
+  run had no skipped-rule warning.
+- `./node_modules/.bin/openspec validate --all --json`: 268 items passed, 0 failed;
+  existing long-requirement warnings remain.
+- First `wbs-core:lint` attempt exited 1 after 46.2 seconds, without an ESLint
+  diagnostic. It ran concurrently with module typechecks. This exit alone does
+  not establish a resource cause or passing lint. Sequential retry recorded below.
+
+### Watched pure-path faults — provisional until mounted
+
+Nine independent mutations each produced exit 1 and a named failed test, then
+were restored. Logs and exact observed failures are in
+`evidence/task-8-comparison-projection/{mutations.json,*.log.txt}`.
+
+| Injected fault                                                      | Observed failed projection test                                                              |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Remove missing project-label guard                                  | `refuses missing captured project labels rather than inventing them`                         |
+| Remove missing row-label guard                                      | `refuses missing captured row labels rather than inventing them`                             |
+| Remove missing step-label guard                                     | `refuses missing captured step labels rather than inventing them`                            |
+| Omit foreign fixed members                                          | `retains captured context and exact stage boundaries when the diff is empty`                 |
+| Substitute actual final composite offsets for pre-selection offsets | same empty-diff boundary test; B's later choice changes B after A observed it                |
+| Relabel boundary terminal as plan infeasibility                     | `preserves boundary and plan terminal outcomes distinctly without losing a present schedule` |
+| Infer local provenance for legacy input                             | `marks legacy input unknown while explicit input9 local stays local`                         |
+| Remove frozen historical detachment                                 | `detaches summaries from caller changes and never needs live capabilities`                   |
+| Substitute a generated hash for canonical bytes                     | empty-diff exact-boundary test                                                               |
+
+These invoke the real pure production projector with captured fixture evidence;
+they do **not** establish mounted read/compare/HTTP or real-save lifecycle proof.
+The fixtures validate frozen stage/selection evidence, but their target HTTP
+schedule payload is structural-only; no new mounted body-integrity claim is made.
+
+### Explicitly deferred C2 and integration checks
+
+- Update required `sides: {left,right}` server HTTP shapes, generated client types,
+  frontend API/state and rendered compare/panel together. Preserve shelf names
+  solely for pickers. No required field is optionalized by C1.
+- Mounted complete SQL-injected equal saved/saved, unavailable/unavailable,
+  legacy/connected, and saved-only comparisons with poisoned live capabilities
+  and absent foreign projects. C1's signature excludes live capabilities but
+  this is not a poisoned mounted-port test.
+- Assert exactly one current capture for backend current/current and reuse its
+  summary on both sides; ordinary saved/current stays v8/v1 until activation.
+- Render empty-diff captured scope, fixed boundary, unknown legacy provenance,
+  absent reason and scoped boundary-infeasible wording with preserved valid
+  schedule and no history Retry action.
+- Mount each fault individually: drop sides on empty diff, remove a fixed member,
+  use final composite positions, label terminal whole-plan infeasible, and make
+  a required summary field optional. Required generated-client/rendered tests
+  and mounted label-guard negatives remain unverified.
+- No frontend, controller/database, immutable-save lifecycle, build, secrets scan,
+  migration lint or canonical host gate was run for this dormant pure packet.
+  The integrator still owes `bin/h2puni-gate.sh <candidate-sha>` (or documented h4
+  equivalent) and its printed actual SHA before claiming the feature complete.
+
+Sequential lint retry after typechecks completed:
+`NX_DAEMON=false NX_ISOLATE_PLUGINS=false bunx nx run wbs-core:lint` executed the
+whole core ESLint target and passed, exit 0, 39.5 seconds, 0/1 cache hits. The first
+non-diagnostic failure is retained above rather than reclassified as passing.
