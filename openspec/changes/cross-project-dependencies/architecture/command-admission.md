@@ -232,3 +232,10 @@ Required tests and independent R5 faults:
 - Mounted production remains dormant. Assert that a valid external request cannot commit and then fail its post-commit tree announcement. Local mounted commands and ordinary isolated/shared source captures keep their existing tests; no scheduling mock establishes external mounted success.
 
 No implementation, behavioral tests, mutations, formatting/typechecking or host gate was run for this ruling. Read-only source/test/design inspection and Git identity/status commands were run. The capture source was actively changing; no claim is made about its final review, tests or merged state. Final mounted positives, connected fanout/live projections, incident lifecycle beyond typed links, transfer/copy/saved consumers, optimization and the semantic activation/deploy barrier remain explicitly unverified.
+
+## Process and local context construction
+
+The [owner-bound context ruling](command-local-context.md) resolves process service
+construction before an owner or actor is known. Use its required bound-or-local-only
+context source and per-operation local lifetime; all admitted transaction, endpoint,
+history and dormant-authoring rules above remain binding.
