@@ -584,6 +584,26 @@ test('connected response parser requires the exact captured question identity', 
     status: 'unknown',
   };
   expect(parseConnectedSolverResponse(JSON.stringify(response), pair.pri.request).ok).toBe(true);
+  for (const path of [
+    'wireVersion',
+    'status',
+    'scope',
+    'scope.kind',
+    'scope.projectId',
+    'scope.inputHash',
+    'scope.questionHash',
+  ]) {
+    const omitted = structuredClone(response) as Record<string, unknown>;
+    const segments = path.split('.');
+    const owner = segments.length === 1 ? omitted : (omitted['scope'] as Record<string, unknown>);
+    Reflect.deleteProperty(owner, segments.at(-1)!);
+    // Proof: each omitted connected response version or identity member makes
+    // the production decoder refuse an otherwise valid unknown response.
+    expect(parseConnectedSolverResponse(JSON.stringify(omitted), pair.pri.request)).toMatchObject({
+      ok: false,
+      failure: 'schema-violation',
+    });
+  }
   expect(
     parseConnectedSolverResponse(
       JSON.stringify({
@@ -715,6 +735,151 @@ test('boundary projection retains every resolved pair of a multi-step authored r
     [b, aSecond],
     [bSecond, aSecond],
   ]);
+});
+
+test('external FS targets the second selected-project step', () => {
+  const candidate = stage();
+  const second = sliceKey('b', 'second');
+  (candidate.input.slices as unknown[]).splice(2, 0, {
+    workItemId: 'b',
+    stepId: 'second',
+    days: 0.5,
+    width: 1,
+    personId: null,
+    poolIds: [],
+  });
+  (candidate.input.graph.nodes as unknown[]).push({
+    kind: 'step',
+    ref: { workItemId: 'b', stepId: 'second' },
+    at: 1,
+  });
+  (candidate.starts as Map<string, number>).set(second, 0.2);
+  (candidate.finishes as Map<string, number>).set(second, 0.7);
+  (candidate.input.graph.edges as unknown[]).splice(0, 2, {
+    predecessor: { leafId: 'a', at: 0 },
+    successor: { leafId: 'b', at: 1 },
+    provenance: 'authored',
+    relationshipId: 'ab',
+    type: 'FS',
+  });
+  const pair = buildConnectedSolverRequestPair(
+    candidate,
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
+    { solverVersion: '0.4.0', budgetMs: 1000 },
+  );
+  expect(pair.pri.kind).toBe('request');
+  if (pair.pri.kind !== 'request') throw new Error(`unexpected ${pair.pri.kind}`);
+  const request = pair.pri.request;
+  expect(request.scope.boundaries).toHaveLength(1);
+  expect(request.scope.boundaries[0]).toMatchObject({
+    type: 'FS',
+    direction: 'incoming',
+    localKey: second,
+    minimumStartUnits: 10,
+  });
+  expect(request.scope.boundaries[0].localKey).not.toBe(b);
+  const response = { wireVersion: 5 as const, scope: request.scope, status: 'unknown' as const };
+  expect(revalidateConnectedSolverResult(candidate, request, response)).toMatchObject({
+    ok: true,
+    published: false,
+  });
+  const omitted = structuredClone(request);
+  Object.assign(omitted.scope, { boundaries: [] });
+  // Proof: removing the second-step FS boundary makes this production revalidation refuse unknown.
+  expect(revalidateConnectedSolverResult(candidate, omitted, response)).toMatchObject({
+    ok: false,
+    failure: 'malformed-request',
+  });
+});
+
+test('each connected request boundary and version member is required on the production path', () => {
+  const candidate = stage();
+  (candidate.starts as Map<string, number>).set(c, 1.3);
+  (candidate.finishes as Map<string, number>).set(c, 2.3);
+  (candidate as { mode: 'shared' | 'isolated' }).mode = 'shared';
+  (candidate.input.slices[0] as { personId: string | null }).personId = 'ana';
+  (candidate.input.slices[1] as { personId: string | null }).personId = 'ana';
+  const pair = buildConnectedSolverRequestPair(
+    candidate,
+    { inputHash: 'input', questionHashes: { pri: 'question-pri', time: 'question-time' } },
+    { solverVersion: '0.4.0', budgetMs: 1000 },
+  );
+  expect(pair.pri.kind).toBe('request');
+  if (pair.pri.kind !== 'request') throw new Error(`unexpected ${pair.pri.kind}`);
+  const request = pair.pri.request;
+  const response = { wireVersion: 5 as const, scope: request.scope, status: 'unknown' as const };
+  expect(revalidateConnectedSolverResult(candidate, request, response)).toMatchObject({ ok: true });
+
+  const paths = [
+    'wireVersion',
+    'contractVersion',
+    'solverVersion',
+    'objective',
+    'budgetMs',
+    'stageBudgetSplit',
+    'quantum',
+    'horizonUnits',
+    'slices',
+    'edges',
+    'pools',
+    'resources',
+    'elsewhere',
+    'scope',
+    'movementReferenceOffsets',
+    'feasibleBaselineOffsets',
+    'seedOffsets',
+    'scope.kind',
+    'scope.projectId',
+    'scope.inputHash',
+    'scope.questionHash',
+    'scope.originOrdinal',
+    'scope.projects',
+    'scope.fixed',
+    'scope.boundaries',
+    'scope.occupancy',
+    'scope.projects.0.projectId',
+    'scope.projects.0.rank',
+    'scope.projects.0.anchorOrdinal',
+    'scope.fixed.0.projectId',
+    'scope.fixed.0.key',
+    'scope.fixed.0.start',
+    'scope.fixed.0.finish',
+    'scope.boundaries.0.localKey',
+    'scope.boundaries.0.foreignProjectId',
+    'scope.boundaries.0.foreignKey',
+    'scope.boundaries.0.relationshipId',
+    'scope.boundaries.0.type',
+    'scope.boundaries.0.direction',
+    'scope.boundaries.0.minimumStartUnits',
+    'scope.boundaries.1.localKey',
+    'scope.boundaries.1.foreignProjectId',
+    'scope.boundaries.1.foreignKey',
+    'scope.boundaries.1.relationshipId',
+    'scope.boundaries.1.type',
+    'scope.boundaries.1.direction',
+    'scope.boundaries.1.maximumStartUnits',
+    'scope.occupancy.0.personId',
+    'scope.occupancy.0.projectId',
+    'scope.occupancy.0.key',
+    'scope.occupancy.0.start',
+    'scope.occupancy.0.finish',
+  ];
+  for (const path of paths) {
+    const omitted = structuredClone(request) as unknown as Record<string, unknown>;
+    const segments = path.split('.');
+    let owner: Record<string, unknown> = omitted;
+    for (const segment of segments.slice(0, -1)) {
+      owner = owner[segment] as Record<string, unknown>;
+    }
+    Reflect.deleteProperty(owner, segments.at(-1)!);
+    // Proof: deleting each named member of an otherwise valid prepared request
+    // makes the production request validator refuse it before solver dispatch.
+    expect(() => {
+      validateConnectedSolverRequest(
+        omitted as unknown as Parameters<typeof validateConnectedSolverRequest>[0],
+      );
+    }).toThrow(/wire 5/);
+  }
 });
 
 test('connected revalidation refuses a missing boundary or altered foreign holder even on unknown', () => {
