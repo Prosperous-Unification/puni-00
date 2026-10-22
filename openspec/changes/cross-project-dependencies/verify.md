@@ -2586,3 +2586,5 @@ OpenSpec `validate --all --json` passed **268 / 268**. Outputs are retained as
 `regression.log.txt`, `nx.log.txt` and `openspec.log.txt` in the review evidence
 directory. The unchanged active-writer golden tests passed; no host gate,
 deployment, public activation or runtime resource wiring is claimed.
+
+Kubernetes prepared-only ownership evidence is recorded in [verify-k8s-storage-ownership.md](verify-k8s-storage-ownership.md). It adds no controller mutation, drain, release journal field or release dispatch, and does not complete B2 or tasks 10.1/10.2. Conditional suspension, post-patch crash acknowledgment, exact-owned Job/Pod drain and all release interval/restoration/admission work remain open.

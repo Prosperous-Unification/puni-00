@@ -425,3 +425,20 @@ The Kubernetes adapter SHALL provide a bounded read-only storage inspection that
 
 - **WHEN** the PVC/PV, policy, backend, Flux or source-controller identity or template changes between inspections, or storage identity changes during inventory
 - **THEN** repeated inspection refuses and returns no fresh observational evidence
+
+### Requirement: Kubernetes prepared ownership preserves original controller history
+
+The Kubernetes ownership preparation primitive SHALL seal only prepared history, binding the transaction and cluster to the exact storage identity, configured Flux topology and UID, required backup CronJob UID and resourceVersion, template hash, fresh ownership token and distinct absent/false/true original suspension. Loaded history SHALL refuse unsupported stages, malformed or extra fields, altered canonical bytes/hash, inconsistent disposition and foreign identities before a cluster call. A configured Flux unit SHALL be suspended; an explicit validated local topology SHALL record null Flux.
+
+Preparation SHALL re-read stable identities and templates, permit resourceVersion progress alone, assert current Lease before observation and before checkpoint, and await the caller's durable enclosing-record checkpoint before returning. Missing, unreadable, malformed, deleting or already-tokened controllers SHALL refuse. Restart validation SHALL compare fresh original controller state under current Lease without resealing or replacing history. These primitives SHALL NOT suspend or drain controllers, establish a stopped-storage interval, persist release state, invoke scans or authorize migration, rollout, restoration or rollback.
+
+#### Scenario: Original suspension survives durable preparation
+
+- **WHEN** the backup suspension field is absent, false or true
+- **THEN** durable prepared history preserves that exact distinction and records whether a change would be requested
+- **AND** failed or unfinished durable checkpoint cannot return prepared ownership
+
+#### Scenario: Original controller state changes after interruption
+
+- **WHEN** resumed prepared history has corrupt bytes or a foreign target, or fresh cluster, storage, Flux, backup UID, template, suspension or ownership annotation differs
+- **THEN** validation refuses without replacing the original snapshot, patching a controller or invoking recovery

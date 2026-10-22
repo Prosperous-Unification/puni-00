@@ -127,25 +127,10 @@ function classifyAccess(value: unknown): 'absent' | 'readonly' | 'writable' {
   return writable ? 'writable' : 'readonly';
 }
 
-/**
- * Reads the bounded standard Kubernetes storage owners without selectors. Rechecks exact PVC/PV,
- * stopped/suspended owner identities and templates against prior evidence. Kubernetes omits zero
- * optional status counters; the status object and desired replica count remain required. This readback alone
- * does not establish a continuously enforced interval, suspend/drain owners, persist ownership,
- * prove Lease authority or admit scans. Live readers and unknown source controllers also refuse
- * until runtime read-only proof and transaction ownership are supplied by the caller.
- */
-export async function inspectStorageFence(
-  options: StorageFenceOptions,
-  call: ReadCall,
-  expected?: StorageFence,
-): Promise<StorageFence> {
-  const namespace = readText(options.namespace, 'backend namespace');
-  async function get(resource: string, scope: string | null = namespace): Promise<unknown> {
-    return JSON.parse(
-      await call([...(scope === null ? [] : ['-n', scope]), 'get', resource, '-o', 'json']),
-    ) as unknown;
-  }
+async function readBoundStorage(
+  namespace: string,
+  get: (resource: string, scope?: string | null) => Promise<unknown>,
+) {
   const pvc = readIdentity(await get('pvc/wbs-data'), 'wbs-data', namespace);
   const pvcSpec = readFields(pvc.fields['spec'], 'PVC spec');
   // Proof: removing Bound refusal admitted the Pending PVC fixture.
@@ -165,6 +150,57 @@ export async function inspectStorageFence(
     claim['uid'] !== pvc.uid
   )
     throw new Error('PV is not bound to the observed PVC UID');
+  return {
+    storage: {
+      namespace,
+      pvcName: 'wbs-data',
+      pvcUid: pvc.uid,
+      volumeName,
+      pvUid: pv.uid,
+      databasePath: '/data/wbs.sqlite',
+    } satisfies StorageIdentity,
+    pvc,
+    pv,
+  };
+}
+
+/** Reads bound PVC/PV identities without requiring stopped backend or suspended backup. */
+export async function inspectStorageIdentity(
+  namespace: string,
+  call: ReadCall,
+): Promise<StorageIdentity> {
+  readText(namespace, 'backend namespace');
+  const observed = await readBoundStorage(
+    namespace,
+    async (resource, scope = namespace) =>
+      JSON.parse(
+        await call([...(scope === null ? [] : ['-n', scope]), 'get', resource, '-o', 'json']),
+      ) as unknown,
+  );
+  return observed.storage;
+}
+
+/**
+ * Reads the bounded standard Kubernetes storage owners without selectors. Rechecks exact PVC/PV,
+ * stopped/suspended owner identities and templates against prior evidence. Kubernetes omits zero
+ * optional status counters; the status object and desired replica count remain required. This readback alone
+ * does not establish a continuously enforced interval, suspend/drain owners, persist ownership,
+ * prove Lease authority or admit scans. Live readers and unknown source controllers also refuse
+ * until runtime read-only proof and transaction ownership are supplied by the caller.
+ */
+export async function inspectStorageFence(
+  options: StorageFenceOptions,
+  call: ReadCall,
+  expected?: StorageFence,
+): Promise<StorageFence> {
+  const namespace = readText(options.namespace, 'backend namespace');
+  async function get(resource: string, scope: string | null = namespace): Promise<unknown> {
+    return JSON.parse(
+      await call([...(scope === null ? [] : ['-n', scope]), 'get', resource, '-o', 'json']),
+    ) as unknown;
+  }
+  const { storage, pvc, pv } = await readBoundStorage(namespace, get);
+  const volumeName = storage.volumeName;
   const policy = readIdentity(
     await get('networkpolicy/wbs-backend-writers'),
     'wbs-backend-writers',
@@ -327,14 +363,7 @@ export async function inspectStorageFence(
   controllers.sort((a, b) => `${a.kind}/${a.name}`.localeCompare(`${b.kind}/${b.name}`));
   templates.sort((a, b) => canonical(a).localeCompare(canonical(b)));
   const fence: StorageFence = {
-    storage: {
-      namespace,
-      pvcName: 'wbs-data',
-      pvcUid: pvc.uid,
-      volumeName,
-      pvUid: pv.uid,
-      databasePath: '/data/wbs.sqlite',
-    },
+    storage,
     policyUid: policy.uid,
     backendUid: backend.uid,
     fluxUid,
