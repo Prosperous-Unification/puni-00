@@ -194,8 +194,9 @@ policy panel, shown to `admin` and `super_admin` (the read's `forbidden` renders
 as absent, not as an error, for a member who reaches the page), with states loading,
 failure (with the failure message and reload) and ready. Ready lists one row per cap:
 "Agent persons 7 of 8", "Concurrent claims 12 of 200", and under "Capacity units per
-resource (cap 64)" one line per listed resource, "h2puni ram 48 of 64 GB"; a count at or
-over its cap is marked exceeded, and a `source: 'default'` read says "deployment default".
+resource (cap 64)" one line per listed resource, "h2puni ram 48 of 64 GB"; a count at its
+cap is marked "At the cap" and one above it "Exceeded", and a `source: 'default'` read says
+"deployment default".
 There is no edit control (L12). Refusal copy on the actions: a refused claim in the table and
 in the startable surfaces reads "Organization limit: 200 of 200 concurrent claims"; the
 people page's kind change reads "Organization limit: 8 of 8 agent persons"; the project

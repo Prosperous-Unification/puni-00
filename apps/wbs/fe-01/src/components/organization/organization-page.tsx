@@ -10,6 +10,7 @@ import { CredentialRefusalState } from './credential-refusal-state';
 import { DomainsPanel } from './domains-panel';
 import { InvitationsPanel } from './invitations-panel';
 import { JoinRequestsPanel } from './join-requests-panel';
+import { LimitsSlot } from './limits-panel';
 import { MembersPanel } from './members-panel';
 import { type AccessLoss, lossCopy } from './organization-access';
 import { ProvisioningTokensPanel } from './provisioning-tokens-panel';
@@ -64,6 +65,8 @@ export function OrganizationPage({
               <SsoConnectionsPanel onAccessLost={setLoss} />
               {/* Proof: omitting this panel failed the session-policy composition test (2026-10-13). */}
               <SessionPolicyPanel onAccessLost={setLoss} />
+              {/* Proof: 2026-10-22, omitting this slot failed `composes the limits panel for an admin`. */}
+              <LimitsSlot onAccessLost={setLoss} />
               {/* Proof: omitted composition failed the mounted provisioning-token composition test (2026-10-15). */}
               <ProvisioningTokensPanel onAccessLost={setLoss} />
               {/*
