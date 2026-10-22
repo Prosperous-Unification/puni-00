@@ -2246,3 +2246,23 @@ now without a retroactive sealing claim. Original report and all raw evidence re
 Independent task reviews, coherent Attempt2/claim/history/format3 implementation and whole
 phase acceptance remain pending. This source commit closes no local or parent checkbox and
 certifies no external ordering, exact write/release, full gate, main integration or deployment.
+
+### Portable codec review proof correction
+
+Task review approved code quality and found two missing R5 negatives for the completed
+and unresolved outer reply freezes. The original implementer removed each outer freeze
+separately; the existing frozen-state assertion failed with2 and58Bunexpects. Both exact
+source restorations preceded the next trial. Two adjacent Proof comments now record those
+observations; no functional statements, tests, assertions or time limits changed.
+
+The full codec file passed10tests/351expects; exact-file ESLint, format and diff checks
+passed. Root's independent post-release audit matched11797trackedsource/mode identities,
+all11797staged entries against immutableb0f496c32, full HEAD/branch/status/rawindex and
+final before/after captures. Only the two-comment source path differs;11796other tracked
+paths are unchanged. All737prior evidence files retain hashes/modes/lengths, and the
+original47023-byte report prefix remains unchanged; the fix report is append-only.
+
+Both new trials are actual isolated assertion failures, bringing retained totals to69
+trials/41valid proofs/28unproved originals. Original failed combined runs, focused coverage
+and unknown timeout causes remain unchanged. No broad checks were repeated for comments.
+Scoped re-review and Task1closure remain pending; Task2 and all parent/full gates stay open.

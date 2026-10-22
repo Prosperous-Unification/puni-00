@@ -197,6 +197,7 @@ export function snapshotTurnReply(input: unknown): TurnReply {
   const identity = freezeIdentity(reply.identity);
   switch (reply.kind) {
     case 'completed':
+      // Proof: R1-F01 removed only the completed outer reply freeze; 'complete reply snapshots freeze and detach every branch while callers remain editable' failed its frozen-state assertion.
       // Proof: F27S/F28S removed outcome/usage freeze; 'complete reply snapshots freeze and detach every branch while callers remain editable' failed.
       return Object.freeze({
         ...reply,
@@ -210,6 +211,7 @@ export function snapshotTurnReply(input: unknown): TurnReply {
       // Proof: F29S removed reply freeze; the complete-reply caller-mutability test failed.
       return Object.freeze({ ...reply, identity });
     case 'unresolved':
+      // Proof: R1-F02 removed only the unresolved outer reply freeze; 'complete reply snapshots freeze and detach every branch while callers remain editable' failed its frozen-state assertion.
       // Proof: F30S removed usage freeze; the complete-reply caller-mutability test failed.
       return Object.freeze({ ...reply, identity, usage: Object.freeze({ ...reply.usage }) });
   }
