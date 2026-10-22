@@ -266,3 +266,25 @@ The published command limit SHALL remain 200. Canonical runtime requests, HTTP c
 
 - **WHEN** a semantically valid ordinary batch contains 201 commands
 - **THEN** its existing too_many_commands refusal identifies index 200 before any command applies
+
+### Requirement: Retained runtime requests and receipts have shared correspondence checks
+
+For already boundary-validated runtime values, contracts SHALL compare a receipt with the complete retained request scope, ledger, command, expected digest and request-derived acceptance. The receiver SHALL consume the same identity and acceptance predicates. Existing decoding, storage, permission and digest checks SHALL remain. A matching receipt SHALL NOT alone establish authenticity, current authority or effect success.
+
+#### Scenario: A complete receipt matches its retained request
+
+- **WHEN** authority, claim or ordered-write acceptance identifies the same scoped request and independently computed digest
+- **THEN** the shared predicate returns true using the existing receiver acceptance rules
+- **AND** receiver-generated claim IDs and distinct actor-account/person identities do not invent request preconditions
+
+#### Scenario: An otherwise valid receipt identifies something else
+
+- **WHEN** any scope identity, ledger, command, digest, request-known claim/execution field, authority or applied sequence disagrees
+- **THEN** the shared predicate returns false
+- **AND** the receiver still refuses corrupted retained acceptance before returning a success
+
+#### Scenario: Historical matching acceptance is inspected
+
+- **WHEN** all retained fields match an earlier accepted request
+- **THEN** correspondence does not refresh a current grant or authorize another effect
+- **AND** authenticated transport and existing current permission checks remain separate requirements

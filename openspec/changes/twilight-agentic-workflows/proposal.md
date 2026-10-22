@@ -12,7 +12,8 @@ LangGraph, infrastructure and a Backlog.md migration before a working execution 
   and referenced prompt/tool-policy versions for each run.
 - **WBS bridge:** guarded claims, progress, measures and exact-authority release under a fleet
   credential, with typed refusals. Shared canonical request identity lets a durable sender
-  retain the exact payload identified by a receiver receipt.
+  retain the exact payload identified by a receiver receipt. Shared correspondence checks bind
+  the complete returned receipt to that retained request.
 - **S7a coordinator:** unified CTT hints, deferral and summary over a linear compatibility
   workflow; abstract RunStore/ArtifactStore ports; intent/outbox reconciliation and safe
   recovery of surviving workers or uncertain effects. SQLite is the current adapter choice;

@@ -291,3 +291,7 @@ pins/grant mappings and executor/coordinator integration remain separate prerequ
 ## Portable runtime request identity
 
 The bounded [runtime request design](runtime-request-design.md) publishes the existing receiver codec for a durable bridge while preserving bytes, limits and admission. Sender retention, acceptance authentication and host orchestration remain later work.
+
+## Portable runtime receipt correspondence
+
+The bounded [receipt design](runtime-receipt-design.md) shares complete content matching and existing identity predicates for the receiver and future durable sender. Authenticated transport, trusted artifact decoding and sender persistence remain separate.

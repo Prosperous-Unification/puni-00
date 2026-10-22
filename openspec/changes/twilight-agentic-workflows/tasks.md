@@ -76,6 +76,10 @@ adapters, durable coordinator dispatch, S0.08 recovery or S7a.
       [runtime request tasks](runtime-request-tasks.md); packet acceptance does not complete
       the sender/outbox, receipt authentication or durable coordinator.
 
+- [ ] 5.4 Publish complete shared receipt correspondence through
+      [receipt tasks](runtime-receipt-tasks.md); matching content does not establish
+      transport authenticity, current authority or durable sender acceptance.
+
 ## 6a. Safe initial coordinator (S7a; required before deployment/dogfood)
 
 Tasks 6a.1–6a.2 are expanded in [storage tasks](storage-tasks.md), implementing the
