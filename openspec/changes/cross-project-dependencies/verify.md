@@ -4921,3 +4921,25 @@ passed before those two packets (`/tmp/puni-integrated-format.log`); their
 changed paths passed normal commit hooks. These focused receipts do not replace
 the exact-head CI and canonical h2puni gate. Parent activation, deployment and
 connected optimizer tasks remain open.
+
+### Generated MCP node/alias parity follow-up (2026-10-23)
+
+The [bounded MCP node parity report](evidence/mcp-node-command-parity/report.md)
+extends the real generated SDK→MCP→HTTP/migrated SQLite fixture to remote FS
+node encodings and a batch-local dotted successor alias. HTTP and MCP assert
+identical durable endpoint identities, schedule and journal effects, and
+whole-store rollback with no pushes on wrong remote step/scope, explicit
+project-plus-alias and later-command refusals. Production external authoring
+remains inactive; this packet uses the established synthetic active fixture.
+
+The configured MCP suite passed **550/550 tests, 3,141 assertions**; its
+focused packet passed **26/26, 188 assertions**. Independent Astra review
+reproduced both, plus MCP lint/typecheck, backend typecheck, scoped lint and
+OpenSpec validation. Eight restored fault receipts are in the report; the
+wrong-step and scope faults prove loss of typed refusal through HTTP 500, not
+unsafe commits. An initial 15-second fixture readiness run failed under
+concurrent load. The final bounded 25-second readiness and 45-second test
+limits passed, including a 1 ms readiness timeout that reaps the child. A
+reviewer-found trailing space in its raw fault log was removed before
+integration; committed-range `git diff --check` then passed. Tasks 3.2/4.2,
+activation, exact-head host gate and full delivery checks remain open.
