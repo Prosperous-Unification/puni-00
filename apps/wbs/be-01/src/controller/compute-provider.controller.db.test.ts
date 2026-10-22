@@ -332,6 +332,23 @@ describe('provider instance administration', () => {
     ]);
   });
 
+  // Proof: with the empty-patch check removed from the route, `{}` answered
+  // 200 instead of 400; with the secret check
+  // removed from the PATCH route, the secret-shaped name answered 500;
+  // watched 2026-10-22.
+  it('refuses an empty patch and a secret-shaped name or locator, writing nothing', async () => {
+    const id = await registered('dany', 'h4claw');
+    for (const body of [{}, { name: 'wbs_mk_leaked' }, { locator: 'auth0|tenant|subject' }])
+      expect(await h.call('dany', 'PATCH', `${PATH}/${id}`, body)).toEqual({
+        status: 400,
+        body: { error: 'invalid_body' },
+      });
+    expect(rows('SELECT name, locator FROM compute_provider')).toEqual([
+      { name: 'h4claw', locator: 'puni1@h4claw' },
+    ]);
+    expect(auditRows().map((row) => row.action)).toEqual(['compute_provider_registered']);
+  });
+
   // Proof: with the organization predicate dropped from `ownProvider`, Dany's
   // patch renamed B's instance (200); watched 2026-10-22.
   it("answers another organization's instance unknown_provider on patch and delete", async () => {
@@ -441,6 +458,31 @@ describe("a resource's provider reference", () => {
     const answer = await reference('dany', ram, { providerId: 5 });
     expect(answer.status).toBe(400);
     expect(providerOf(ram)).toBeNull();
+  });
+
+  // Proof: with the usage read answering null for `providerId`, the in_use
+  // counts of the referenced resource named no instance; watched 2026-10-22.
+  it("names the resource's instance when its removal is refused in_use", async () => {
+    const h4claw = await registered('dany', 'h4claw');
+    await reference('dany', ram, { providerId: h4claw });
+    await h.call('dany', 'POST', `/api/projects/${projectA}/commands`, {
+      commands: [
+        { kind: 'setResourceCapacity', resourceId: ram, units: 15 },
+        { kind: 'setResourceCapacity', resourceId: staging, units: 1 },
+      ],
+    });
+    const remove = (resourceId: string) =>
+      h.call('dany', 'POST', '/api/directory/commands', {
+        commands: [{ kind: 'deleteResource', resourceId }],
+      });
+    expect(await remove(ram)).toMatchObject({
+      status: 409,
+      body: { error: 'in_use', counts: { capacities: 1, providerId: h4claw } },
+    });
+    expect(await remove(staging)).toMatchObject({
+      status: 409,
+      body: { error: 'in_use', counts: { capacities: 1, providerId: null } },
+    });
   });
 
   it('drops the old instance report when the reference moves', async () => {

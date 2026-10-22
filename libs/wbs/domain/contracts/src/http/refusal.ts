@@ -267,6 +267,12 @@ export interface ResourceUsageCounts {
   demands: number;
   capacities: number;
   occupancies: number;
+  /**
+   * The provider instance the resource names, whose reference and report a
+   * confirmed removal takes with it (`compute-providers` P3), or null.
+   * Optional on the wire: an outgoing be-01 mid-swap names none.
+   */
+  providerId?: string | null;
 }
 
 /** Both affected-project and directory-member lists are present, including when empty. */

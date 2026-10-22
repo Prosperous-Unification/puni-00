@@ -669,5 +669,7 @@ function resourceUsageOf(tables: MemoryResourceTables, resourceId: string) {
       .map(({ projectId, units }) => ({ projectId, units }))
       .sort((left, right) => left.projectId.localeCompare(right.projectId)),
     occupancies: 0,
+    // The memory twin holds no provider instance (`compute-providers` P3).
+    providerId: null,
   };
 }

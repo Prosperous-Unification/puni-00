@@ -8,7 +8,7 @@ import type { DelegationIssuer } from '@wbs/core';
 import type { AuthenticatedUser } from '@wbs/core/service/auth.service';
 import type { Logger } from '@wbs/observability';
 import {
-  ComputeProviderRepository,
+  computeProvidersOver,
   ConsentCredentialRepository,
   currentMembershipAccess,
   DomainClaimRepository,
@@ -497,10 +497,7 @@ export async function bootBe01(
               // administration from the shared database once activated`
               // (boot.db.test.ts) throw `boot did not wire compute providers`;
               // watched 2026-10-22.
-              computeProviders: {
-                administration: new ComputeProviderRepository(db, services.gate),
-                reports: new ComputeProviderRepository(db, services.gate),
-              },
+              computeProviders: computeProvidersOver(db, services.gate),
               onboarding: new OnboardingRepository(db, services.gate),
               emailVerification: new EmailVerificationRepository(db, services.gate),
               invitations: new InvitationRepository(db, services.gate),

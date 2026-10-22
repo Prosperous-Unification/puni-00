@@ -298,6 +298,8 @@ export interface ResourceUsageRows {
   demands: readonly Demand[];
   capacities: readonly { projectId: string; units: number }[];
   occupancies: number;
+  /** The provider instance the resource names, or null (`compute-providers` P3). */
+  providerId: string | null;
 }
 
 /** What a resource removal's own transaction decided; `in_use` carries what it read. */

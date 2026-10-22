@@ -89,9 +89,11 @@ to 1,000,000,000 in the resource's unit label, or `{ kind: 'unreachable', reason
 reason of 1 to 200 characters; anything else SHALL be `400 invalid_body`. WBS SHALL keep one
 report per resource: a body whose `observedAt` is newer than the stored one replaces it and
 answers `200` with the stored report (instance, outcome, `observedAt`, `cadenceSeconds`,
-`reportedBy` person, `reportedAt`); the same body again answers `200` and changes nothing; an
-`observedAt` older than the stored one SHALL be refused `409 report_superseded` carrying the
-stored `observedAt`. The canonical schedule input and its hash, `decideClaim`,
+`reportedBy` person, `reportedAt`); the same body again from the same reporter answers `200`
+and changes nothing; an `observedAt` older than the stored one SHALL be refused
+`409 report_superseded` carrying the stored `observedAt`, and so SHALL a report at the stored
+`observedAt` that differs from it in any field, including one from a different reporting person
+with an otherwise identical body: the first report of an instant stands. The canonical schedule input and its hash, `decideClaim`,
 `refuseOccupancy`, the startable read, the plan export and the plan document SHALL NOT read or
 carry a report or a `providerId`.
 
@@ -124,8 +126,12 @@ carry a report or a `providerId`.
 
 ### Requirement: Declared capacity is shown with the measured figure and adopted only by an explicit command
 
-`GET /api/projects/:id/resources` SHALL carry, per resource, `providerId` and, when a report
-exists, `report` as stored. The project settings resources section and the directory page
+`GET /api/projects/:id/resources` SHALL carry, per resource, `providerId`; a resource that
+names an instance SHALL also carry, when a report exists, `report` as stored, and always
+`measurement { declared, measured, measuredAt, state }`: this project's stated units or null,
+the latest measured capacity or null, the latest report's `observedAt` or null, and `state`
+one of `no_report`, `measured`, `unreachable` or `stale` (`stale` once
+`now - observedAt > 3 × cadenceSeconds`, whatever the outcome). The project settings resources section and the directory page
 SHALL show, beside a capacity whose resource names an instance, the instance's kind and name
 and the report in one of the rendered states: `no report yet`, `measured <capacity> <unit>,
 <usage> in use, <age>`, `unreachable <age>: <reason>`, each marked `stale` once

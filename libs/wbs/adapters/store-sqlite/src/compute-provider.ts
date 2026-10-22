@@ -247,6 +247,9 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
       if (role !== 'admin') return { kind: role };
       const before = ownProvider(tx, organizationId, id);
       if (before === undefined) return { kind: 'unknown_provider' };
+      // Proof: with this check removed, `renames and relocates an instance
+      // with its audit row` in `compute-provider.controller.db.test.ts`
+      // failed on the unique index with 500 instead of 409; watched 2026-10-22.
       if (patch.name !== undefined && isNameTaken(tx, organizationId, patch.name, id))
         return { kind: 'name_taken' };
       tx.update(computeProvider)
@@ -304,6 +307,10 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
       // removed it without cascade (204 instead of 409); watched 2026-10-22.
       if (fulfilled.length > 0 && !cascade)
         return { kind: 'in_use', resources: fulfilled } as const;
+      // Proof: with this clearing removed, `refuses removing a fulfilling
+      // instance unless cascade` in `compute-provider.controller.db.test.ts`
+      // answered the cascade 500 on the foreign key instead of 204; watched
+      // 2026-10-22.
       tx.update(resource)
         .set({ providerId: null, ...auditOnUpdate(act.stamp) })
         .where(eq(resource.providerId, id))
@@ -417,4 +424,10 @@ export class ComputeProviderRepository implements ComputeProviderAdministration,
       return readings;
     });
   }
+}
+
+/** One {@link ComputeProviderRepository} serving both ports, as be-01 composes them. */
+export function computeProvidersOver(db: SQLiteBunDatabase, gate: Gate) {
+  const repository = new ComputeProviderRepository(db, gate);
+  return { administration: repository, reports: repository };
 }

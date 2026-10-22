@@ -121,8 +121,8 @@ data, it moves no revision, it is not undoable, and it must be writable by a mac
 holds no project.
 
 **P6. The report's principal must be a machine credential pinned to an `agent` person of the
-provider's organization.** The route carries the identity policy and a new `machine-agent`
-policy: a browser session, a delegation or any principal whose `authentication.kind` is not
+provider's organization.** The route carries the identity policy, and its handler checks
+the principal (a handler check, not a new policy kind): a browser session, a delegation or any principal whose `authentication.kind` is not
 `machine` is `403 not_an_agent_principal`; a machine principal whose pinned person's kind is
 `person` is `403 not_an_agent_principal` too (the refusal names which). The credential's
 organization must own the instance and the resource, else `404 unknown_provider` (no leak

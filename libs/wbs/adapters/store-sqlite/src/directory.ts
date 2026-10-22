@@ -965,6 +965,9 @@ export class DirectoryRepository implements DirectoryStore {
             .set({ providerId, ...auditOnUpdate(stamp) })
             .where(eq(resource.id, resourceId))
             .run();
+          // Proof: with this deletion removed, `drops the old instance report
+          // when the reference moves` in `compute-provider.controller.db.test.ts`
+          // kept one report; watched 2026-10-22.
           tx.delete(resourceCapacityReport)
             .where(eq(resourceCapacityReport.resourceId, resourceId))
             .run();
@@ -1070,6 +1073,11 @@ export class DirectoryRepository implements DirectoryStore {
       .where(eq(projectResourceCapacity.resourceId, resourceId))
       .orderBy(asc(projectResourceCapacity.projectId))
       .all();
+    const referenced = reader
+      .select({ providerId: resource.providerId })
+      .from(resource)
+      .where(eq(resource.id, resourceId))
+      .get();
     const occupying = reader
       .select({ workItemId: claim.workItemId })
       .from(claimOccupancy)
@@ -1085,6 +1093,12 @@ export class DirectoryRepository implements DirectoryStore {
       // `refuses deleting a resource a claim holds` (resource-occupancy.db.test.ts)
       // deleted it; watched 2026-10-20.
       occupancies: new Set(occupying.map(({ workItemId }) => workItemId)).size,
+      // A resource read away mid-removal names no instance; the removal's own
+      // not-found answer covers it.
+      // Proof: with null answered here, `names the resource's instance when
+      // its removal is refused in_use` in `compute-provider.controller.db.test.ts`
+      // read `providerId: null`; watched 2026-10-22.
+      providerId: referenced?.providerId ?? null,
     };
   }
 

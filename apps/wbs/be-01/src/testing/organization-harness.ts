@@ -32,7 +32,7 @@ import { AuthService } from '@wbs/core/service/auth.service';
 import type { CapacityMode } from '@wbs/domain';
 import { createLogger } from '@wbs/observability';
 import {
-  ComputeProviderRepository,
+  computeProvidersOver,
   currentMembershipAccess,
   DomainClaimRepository,
   EmailVerificationRepository,
@@ -473,10 +473,7 @@ export class OrganizationHarness {
         canonicalUserName: (raw) => canonicalOidcEmail(raw),
       },
       machineCredentials: new MachineCredentialAdministrationRepository(db, gate),
-      computeProviders: {
-        administration: new ComputeProviderRepository(db, gate),
-        reports: new ComputeProviderRepository(db, gate),
-      },
+      computeProviders: computeProvidersOver(db, gate),
       onboarding: new OnboardingRepository(db, OPEN),
       emailVerification: new EmailVerificationRepository(db, OPEN),
       invitations: new InvitationRepository(db, OPEN),
@@ -704,10 +701,7 @@ export class OrganizationHarness {
       domains: new DomainClaimRepository(source.db, services.gate),
       enterpriseConnections: new EnterpriseConnectionRepository(source.db, services.gate),
       machineCredentials: new MachineCredentialAdministrationRepository(source.db, services.gate),
-      computeProviders: {
-        administration: new ComputeProviderRepository(source.db, services.gate),
-        reports: new ComputeProviderRepository(source.db, services.gate),
-      },
+      computeProviders: computeProvidersOver(source.db, services.gate),
       ...(trustedIssuers === undefined
         ? {}
         : {

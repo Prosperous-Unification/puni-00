@@ -98,6 +98,12 @@ R5 proofs, each fault injected, the named test watched failing, the fault revert
 | MCP exclusions                                       | admin entries removed / report entry removed                    | the four admin tools / the `putApiCompute-providers…` tool exposed              |
 | P4: a report never plans                             | SQLite capacity read prefers `capacity_units`                   | schedule hash moved; with the read asserts removed the 12 GB claim answered 409 |
 | P4: export never carries the reference               | resource read selects `provider_id`, document rows spread whole | the export after the reference differed from before                             |
+| PATCH refuses an empty patch (review S2-4)           | check removed                                                   | `{}` answered 200 instead of 400                                                |
+| PATCH refuses a secret-shaped name or locator (S2-4) | check removed                                                   | 500 instead of 400                                                              |
+| `in_use` names the resource's instance (S2-3)        | usage read answers null                                         | `counts.providerId` read null                                                   |
+| `update`'s `name_taken`                              | check removed                                                   | 500 instead of 409                                                              |
+| a moved reference drops the old report               | deletion removed                                                | one report kept                                                                 |
+| cascade clears the references                        | clearing removed                                                | cascade answered 500 (foreign key) instead of 204                               |
 
 Unverified or not done in slice 1:
 
@@ -106,8 +112,6 @@ Unverified or not done in slice 1:
   transaction by construction only.
 - The instance store has no memory twin (the memory composition holds no instance,
   `NO_COMPUTE_PROVIDERS`); only `setResourceProvider` is in the conformance suite.
-- The directory usage (`in_use` detail) does not carry `providerId` (spec
-  `resource-directory`); the resources read does.
 - The adopt action (P7) is slice 5; nothing adopts a measurement.
 - `browser-lifecycle.mounted-process.db.test.ts` `mounted worker protocol buffers…` fails
   here and on `main` at `e2ae536b2` alike (worker exit 143 under a 5 s timeout); unrelated.
@@ -123,3 +127,34 @@ Commands, run 2026-10-22 in `/home/df/wd/puni/wt-compute-providers-1` with `env 
 - `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`: exit 0; no new file lies under a module index (only `libs/wbs/adapters/store-memory/src/README.md` reports review debt, unchanged).
 - `bunx openspec validate --all --json`: 268 of 268 passed.
 - fe-01 changed only in `plan-refusal.ts` (three refusal codes the contract now carries); `vitest run src/components/wbs/attempt-actions.test.tsx`: 7 pass. The full fe-01 suite was not run.
+
+### Slice 1 review (Fable, 2026-10-22, PR #651)
+
+Verdict "merge as is". Closed on the same PR:
+
+- S2-4: the PATCH route's empty-patch and secret-shaped checks gained a production-path negative
+  each (rows above).
+- S2-3: the directory usage carries the reference: a `deleteResource` refused `in_use` names the
+  instance in `counts.providerId` (null when none; optional on the wire for an outgoing be-01).
+  The `resource-directory` delta spec says where.
+- S2-2: design P6 and task 1.4 now say the report route checks the machine principal in its
+  handler, not through a new policy kind. The `compute-provider` delta spec states
+  `measurement { declared, measured, measuredAt, state }` and that a same-body report from a
+  different reporter at the stored `observedAt` is `409 report_superseded` (the sender is part of
+  the identity of a report; the first report of an instant stands).
+- S3: tasks 1.2 and 1.3 reworded to what shipped; `Proof:` comments added beside `update`'s
+  `name_taken`, `setResourceProvider`'s report deletion and `remove`'s cascade clearing (rows
+  above); be-01 composes one `ComputeProviderRepository` for both ports
+  (`computeProvidersOver`).
+
+Recorded, not changed:
+
+- S2-1, forward risk: the limits plan also rebuilds `organization_audit`
+  (`20261022130100`). Whichever rebuild lands second, when this plan rebases on `main` after the
+  limits plan, its CHECK lists must be a superset of both vocabularies and its `down.sql` must
+  restore the earlier plan's table exactly.
+- S3: `decideCapacityReport` answers `personKind: 'person'` as a literal, correct while
+  `PERSON_KINDS` has two members; `withProviderReadings` throws (500) if a listed resource is
+  deleted between the planned read and the readings; the legacy `patchResource` path announces
+  twice when it sets a reference and renames; fe-01 `plan-refusal.ts` passes the three new codes
+  through unrendered, and their copy is slice 5's.

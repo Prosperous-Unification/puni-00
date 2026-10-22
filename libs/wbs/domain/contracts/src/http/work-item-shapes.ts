@@ -265,7 +265,13 @@ const batchRefusals = [
         error: "'in_use'",
         usage,
         // Present on a resource removal (`wbs-resources` R8), absent on every other.
-        'counts?': { demands: 'number', capacities: 'number', occupancies: 'number' },
+        'counts?': {
+          demands: 'number',
+          capacities: 'number',
+          occupancies: 'number',
+          // `compute-providers` P3; absent from an outgoing be-01 mid-swap.
+          'providerId?': 'string | null',
+        },
       }),
     ),
   },

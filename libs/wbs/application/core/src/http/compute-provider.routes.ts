@@ -84,6 +84,10 @@ export function computeProviderRoutes(
     bind(
       updateComputeProvider,
       async ({ principal, params, body }): Promise<HttpReply<typeof updateComputeProvider>> => {
+        // Proof: with this check removed, `refuses an empty patch and a
+        // secret-shaped name or locator, writing nothing` in
+        // `compute-provider.controller.db.test.ts` answered 500; watched
+        // 2026-10-22.
         if (
           (body.name !== undefined && isSecretShaped(body.name)) ||
           (body.locator !== undefined && isSecretShaped(body.locator))
@@ -93,6 +97,8 @@ export function computeProviderRoutes(
         if (typeof organizationId !== 'string') return organizationId;
         // A patch naming neither field is a client fault, refused after the
         // organization context so a stale context is still answered first.
+        // Proof: with this check removed, the same test's `{}` answered 200
+        // instead of 400; watched 2026-10-22.
         if (body.name === undefined && body.locator === undefined) return invalidBody;
         const updated = await administration.update(
           organizationId,
