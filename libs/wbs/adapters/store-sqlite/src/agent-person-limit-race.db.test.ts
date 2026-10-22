@@ -90,6 +90,8 @@ function runnerWith(hold: Hold) {
         return reading;
       },
       readConcurrentClaimCap: (organizationId) => gauge.readConcurrentClaimCap(organizationId),
+      readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
+        gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
     };
   };
   return createPlanCommandRunner({

@@ -84,3 +84,51 @@ export function refuseLimit(request: LimitCrossed): LimitCrossed | null {
     );
   return current + added > cap ? { cap, current, added } : null;
 }
+
+/**
+ * A capacity statement past the organization's cap (L2, L9): the resource,
+ * the cap, the units its **other** projects state (`declared`) and the units
+ * this project would state (`asked`).
+ */
+export interface CapacityLimitCrossed {
+  readonly resourceId: string;
+  readonly cap: number;
+  readonly declared: number;
+  readonly asked: number;
+}
+
+/**
+ * Whether a project raising its statement of `resourceId` from `held` units
+ * (0 when unstated) to `asked` crosses the organization's cap: {@link refuseLimit}
+ * over `declared + asked`, `declared` being every other project's units, so
+ * the project's own statement is replaced rather than counted twice. A
+ * statement that does not raise (`asked <= held`: restating, lowering, a 0
+ * where nothing was stated) is never refused, even above a lowered cap (L11).
+ *
+ * @throws as {@link refuseLimit} does for a malformed cap or sum, and when
+ * `held` or `asked` is not a non-negative integer.
+ *
+ * Proof, each watched 2026-10-22: with the raise test dropped,
+ * `never refuses restating or lowering, even above a lowered cap` and the
+ * property failed in organization-limits.test.ts (11 pass, 2 fail), and
+ * `applies lowering and restating under a cap lowered below them` with one
+ * more in capacity-limit.controller.db.test.ts (9 pass, 2 fail); with `held`
+ * added to `declared`, `replaces the project’s own units rather than counting
+ * them twice` and the property failed (11 pass, 2 fail).
+ */
+export function refuseCapacityStatement(request: {
+  readonly resourceId: string;
+  readonly cap: number;
+  readonly declared: number;
+  readonly held: number;
+  readonly asked: number;
+}): CapacityLimitCrossed | null {
+  const { resourceId, cap, declared, held, asked } = request;
+  if (!Number.isSafeInteger(held) || held < 0 || !Number.isSafeInteger(asked) || asked < 0)
+    throw new Error(
+      `a capacity statement needs whole units, not ${String(held)} and ${String(asked)}`,
+    );
+  if (asked <= held) return null;
+  const crossed = refuseLimit({ cap, current: declared, added: asked });
+  return crossed === null ? null : { resourceId, cap, declared, asked };
+}

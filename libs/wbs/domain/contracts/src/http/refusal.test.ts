@@ -73,6 +73,17 @@ export function refusalTypeCases() {
   expectTypeOf<CommandRefusal>({ error: 'claim_limit', at: 0, kind: 'claimWorkItem', cap: 40 });
   // @ts-expect-error The claim cap is a batch refusal only, never a bare one.
   expectTypeOf<Refusal>({ error: 'claim_limit', cap: 40, current: 40 });
+  const statedPast = { resourceId: 'ram', cap: 64, declared: 48, asked: 32 };
+  expectTypeOf<CommandRefusal>({
+    error: 'capacity_limit',
+    at: 0,
+    kind: 'setResourceCapacity',
+    ...statedPast,
+  });
+  // The plan import names the numbers without a command position.
+  expectTypeOf<Refusal>({ error: 'capacity_limit', ...statedPast });
+  // @ts-expect-error A capacity cap refusal always names the other projects' units.
+  expectTypeOf<Refusal>({ error: 'capacity_limit', resourceId: 'ram', cap: 64, asked: 32 });
   // @ts-expect-error An arbitrary detail bag is not a directory refusal.
   expectTypeOf<Refusal>({ error: 'taken', at: 0, kind: 'createTeam', arbitrary: true });
   expectTypeOf<CommandRefusal>({

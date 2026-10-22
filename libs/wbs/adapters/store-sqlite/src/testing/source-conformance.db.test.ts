@@ -787,6 +787,11 @@ async function openSqliteLimitsCase(
           sql`INSERT INTO project_organization (resource_id, organization_id) VALUES (${projectId}, ${organizationId})`,
         );
       },
+      ownResource: (resourceId, organizationId) => {
+        seeded.db.run(
+          sql`INSERT INTO resource_organization (resource_id, organization_id, name) VALUES (${resourceId}, ${organizationId}, ${resourceId})`,
+        );
+      },
       setCaps: (organizationId, caps) => {
         seeded.db.run(
           sql`INSERT INTO organization_limits (organization_id, max_agent_persons, max_concurrent_claims, max_capacity_units_per_resource, created_at) VALUES (${organizationId}, ${caps.maxAgentPersons}, ${caps.maxConcurrentClaims}, ${caps.maxCapacityUnitsPerResource}, 1)`,

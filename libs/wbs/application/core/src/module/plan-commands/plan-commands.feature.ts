@@ -147,7 +147,12 @@ export type Refusal =
   /** One more agent person than the organization's cap allows (`wbs-organization-limits` L9). */
   | { reason: 'agent_person_limit'; detail: { cap: number; current: number; added: number } }
   /** One more bound claim than the organization's cap allows (`wbs-organization-limits` L9). */
-  | { reason: 'claim_limit'; detail: { cap: number; current: number } };
+  | { reason: 'claim_limit'; detail: { cap: number; current: number } }
+  /** More stated units of a resource than the organization's cap allows (`wbs-organization-limits` L9). */
+  | {
+      reason: 'capacity_limit';
+      detail: { resourceId: string; cap: number; declared: number; asked: number };
+    };
 /** A runtime refusal always carries its command index and recognized kind. */
 export type BatchRefusal = { ok: false; at: number; kind: PlanCommandKind } & Refusal;
 export type ServiceRefusal =

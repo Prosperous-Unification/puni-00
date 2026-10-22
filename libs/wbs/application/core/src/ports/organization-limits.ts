@@ -48,4 +48,17 @@ export interface OrganizationLimitGauge {
    * transaction has written.
    */
   readConcurrentClaimCap(organizationId: string): Promise<CapReading>;
+  /**
+   * The organization's effective `maxCapacityUnitsPerResource` and, as
+   * `current`, the units of `resourceId` its projects other than
+   * `exceptProjectId` state, summed (L2): what a capacity write to
+   * `exceptProjectId` adds its own units to, so the project's own statement
+   * never counts against itself. 0 when no other project states it, and 0 for
+   * a resource the organization does not own (L16).
+   */
+  readCapacityCap(
+    organizationId: string,
+    resourceId: string,
+    exceptProjectId: string,
+  ): Promise<CapReading>;
 }

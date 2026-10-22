@@ -490,6 +490,9 @@ export function createWorkingPlan(scope: Scope, projectId: string): WorkingPlan 
     // Proof: with this getter left out, every activated claim of
     // claim-limit.controller.db.test.ts threw "a bound claim was added under
     // scoped access without organization limits" (1 pass, 11 fail); watched 2026-10-22.
+    // A capacity statement reads the same getter: with it left out, every
+    // activated statement case of capacity-limit.controller.db.test.ts threw
+    // (2 pass, 9 fail); watched 2026-10-22.
     get organizationLimits() {
       assertOpen();
       return scope.stores.organizationLimits;

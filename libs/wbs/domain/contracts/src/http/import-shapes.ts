@@ -1,7 +1,7 @@
 import { type } from 'arktype';
 
 import { defineEndpointShape } from './endpoint-shape';
-import { limitCrossed } from './organization-limits-shapes';
+import { capacityLimitCrossed, limitCrossed } from './organization-limits-shapes';
 import { organizationContextRefusal, organizationRefusal } from './organization-refusal';
 import { planDocumentRequest } from './plan-document-shapes';
 import { responseSchema } from './schema-shape';
@@ -80,6 +80,16 @@ export const importProject = defineEndpointShape({
     {
       status: 409,
       schema: responseSchema(type({ error: "'agent_person_limit'", ...limitCrossed })),
+    },
+    // The import would state more units of a resource than the organization's
+    // cap allows (`wbs-organization-limits` L9); nothing is written.
+    // Proof: with this arm's code replaced, `refuses an import stating past
+    // the cap, writing nothing` and the other import refusal
+    // (capacity-limit.controller.db.test.ts) answered 500 "returned an
+    // undeclared refusal" (9 pass, 2 fail); watched 2026-10-22.
+    {
+      status: 409,
+      schema: responseSchema(type({ error: "'capacity_limit'", ...capacityLimitCrossed })),
     },
   ],
   document: {

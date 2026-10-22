@@ -53,7 +53,10 @@ export interface MemoryLimitReads {
  * instead of triples made `organizationLimits.readConcurrentClaimCap:bound-triples`
  * read 4 for A; dropping the project's organization test made it read 3, B's
  * claim among them; dropping the kind test made
- * `organizationLimits.readAgentPersonCap:organization-scope` read 3 agents.
+ * `organizationLimits.readAgentPersonCap:organization-scope` read 3 agents;
+ * dropping the resource's organization test, the excepted-project test or the
+ * project's organization test from `readCapacityCap` each failed
+ * `organizationLimits.readCapacityCap:per-resource-except-project`.
  */
 export function inMemoryOrganizationLimitGauge(
   reads: MemoryLimitReads,
@@ -85,6 +88,21 @@ export function inMemoryOrganizationLimitGauge(
       return Promise.resolve({
         cap: capsOf(organizationId).maxConcurrentClaims,
         current: triples.size,
+      });
+    },
+    readCapacityCap(organizationId, resourceId, exceptProjectId): Promise<CapReading> {
+      let current = 0;
+      if (reads.directory.organizationOf.get(resourceId) === organizationId)
+        for (const stated of reads.directory.resources.capacities.values())
+          if (
+            stated.resourceId === resourceId &&
+            stated.projectId !== exceptProjectId &&
+            reads.limits.projectOrganization.get(stated.projectId) === organizationId
+          )
+            current += stated.units;
+      return Promise.resolve({
+        cap: capsOf(organizationId).maxCapacityUnitsPerResource,
+        current,
       });
     },
   };

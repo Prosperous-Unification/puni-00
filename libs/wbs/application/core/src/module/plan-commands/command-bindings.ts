@@ -233,6 +233,21 @@ export class CommandContext {
         detail: { cap: outcome.cap, current: outcome.current, added: outcome.added },
       });
     }
+    if (outcome.reason === 'capacity_limit') {
+      // Proof: with `declared` replaced by 0 here, `refuses a statement past
+      // the cap, naming the four numbers and writing nothing`
+      // (capacity-limit.controller.db.test.ts) and three more named declared 0
+      // (7 pass, 4 fail); watched 2026-10-22.
+      return this.refuse({
+        reason: outcome.reason,
+        detail: {
+          resourceId: outcome.resourceId,
+          cap: outcome.cap,
+          declared: outcome.declared,
+          asked: outcome.asked,
+        },
+      });
+    }
     if (outcome.reason === 'in_use') {
       // Proof: with the counts dropped here, `refuses removing a demanded resource,
       // naming 2 demands, 0 capacities, 0 occupancies` (resource-command.test.ts)
@@ -693,6 +708,7 @@ export function bindCommands(graph: PlanCommandServices): CommandBindings {
           context.actorId,
           context.required(command.resourceId, command.resourceRef),
           command.units,
+          context.access,
         ),
       );
       return { ...context.plain(), kind: command.kind };

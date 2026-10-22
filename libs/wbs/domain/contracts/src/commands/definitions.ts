@@ -331,7 +331,7 @@ export const commandDefinitions = {
     schema: type({ kind: "'setResourceCapacity'", ...resource, units: 'number | null' }),
     scope: 'project',
     description:
-      'How many units of a resource this project’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity.',
+      'How many units of a resource this project’s plan may use: a whole number from 0; null means unstated and constrains nothing. Not journalled, like setCapacity. Raising a statement so that the organization’s projects would state more units of this resource than its cap allows is refused capacity_limit, naming resourceId, cap, declared (the units its other projects state) and asked; the whole batch writes nothing. Clearing, restating or lowering never is.',
   }),
   setDemand: defineCommand('setDemand', {
     schema: type({ kind: "'setDemand'", ...target, ...resource, units: 'number | null' }),

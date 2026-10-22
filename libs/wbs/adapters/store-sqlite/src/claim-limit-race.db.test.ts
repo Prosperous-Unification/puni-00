@@ -117,6 +117,8 @@ async function seeded(cap: number, leafCount: number, counting: { source: CountS
         }
         return counting.source === 'turn' ? reading : { ...reading, current: staleCount };
       },
+      readCapacityCap: (organizationId, resourceId, exceptProjectId) =>
+        gauge.readCapacityCap(organizationId, resourceId, exceptProjectId),
     };
   };
   const runner = createPlanCommandRunner({

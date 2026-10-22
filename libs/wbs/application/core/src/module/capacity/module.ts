@@ -3,6 +3,7 @@ import { DiBag } from 'di-bag';
 import type { CapacityStore } from '../../ports/capacity-store';
 import type { Clock } from '../../ports/clock';
 import type { EditAdmission } from '../../ports/edit-admission';
+import type { OrganizationLimitGauge } from '../../ports/organization-limits';
 import type { Broadcaster } from '../../ports/project-event';
 import type { ProjectStore } from '../../ports/project-store';
 import type { ResourceCapacityStore } from '../../ports/resource-capacity-store';
@@ -30,6 +31,7 @@ export const capacityModule = DiBag.createBuilder()
         projectStore,
         capacityStore,
         resourceCapacityStore,
+        organizationLimits,
         broadcast,
         editAdmission,
         clock,
@@ -37,6 +39,8 @@ export const capacityModule = DiBag.createBuilder()
         projectStore: ProjectStore;
         capacityStore: CapacityStore;
         resourceCapacityStore: ResourceCapacityStore;
+        /** Null where the graph's stores carry no organization limits (public graph, legacy fixtures). */
+        organizationLimits: OrganizationLimitGauge | null;
         broadcast: Broadcaster;
         editAdmission: EditAdmission;
         clock: Clock;
@@ -44,6 +48,9 @@ export const capacityModule = DiBag.createBuilder()
         projects: projectStore,
         capacity: capacityStore,
         resourceCapacity: resourceCapacityStore,
+        // Proof: with this spread removed, every activated statement case of
+        // capacity-limit.controller.db.test.ts threw (2 pass, 9 fail); watched 2026-10-22.
+        ...(organizationLimits === null ? {} : { organizationLimits }),
         // Proof (2026-09-24): handing the resource
         // `{ ...broadcast, publish: () => Promise.resolve() }` instead of the supplied
         // broadcaster left `announces a capacity write through the broadcaster installCapacity wires`

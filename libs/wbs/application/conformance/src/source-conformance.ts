@@ -157,6 +157,10 @@ export function existingStoreRegistrations(
             family: 'organizationLimits' as const,
             caseId: 'organizationLimits.readConcurrentClaimCap:bound-triples' as const,
           },
+          {
+            family: 'organizationLimits' as const,
+            caseId: 'organizationLimits.readCapacityCap:per-resource-except-project' as const,
+          },
         ]
       : organizationLimitRegistrations(openers.organizationLimits)),
     ...userRegistrations(openers.users),
