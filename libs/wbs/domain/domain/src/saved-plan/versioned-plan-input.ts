@@ -187,6 +187,7 @@ export function upgradeLocalPlanInputV8(body: Record<string, unknown>): Record<s
 /**
  * Links target input identities and owned facts to the same captured component.
  * Exact membership preserves branches and unused steps as well as scheduled leaves.
+ * Shared names, calendars, step codes/positions and holds must describe the same capture.
  * The history decoder has already verified component ownership and target presence.
  */
 function assertConnectedTargetInput(
@@ -213,6 +214,33 @@ function assertConnectedTargetInput(
   requireHistory(
     input.steps.length === targetSteps.length && targetSteps.every((step) => steps.has(step.id)),
     'target_steps',
+    '$.steps',
+  );
+  const target = projects.at(0);
+  // Proof: independently omitting project, row or step metadata equality returned 200 in mounted read/compare negatives (2026-10-22).
+  requireHistory(
+    input.project.name === target?.name &&
+      input.project.startDate === target.startDate &&
+      input.project.timezone === target.timezone,
+    'target_metadata',
+    '$.project',
+  );
+  requireHistory(
+    targetWorkItems.every((row) => {
+      const local = workItems.get(row.id);
+      return local?.name === row.name && local.hold === row.hold;
+    }),
+    'target_metadata',
+    '$.workItems',
+  );
+  requireHistory(
+    targetSteps.every((step) => {
+      const local = input.steps.find((entry) => entry.id === step.id);
+      return (
+        local?.name === step.name && local.code === step.code && local.position === step.position
+      );
+    }),
+    'target_metadata',
     '$.steps',
   );
   // Proof: omission accepted foreign row/step owners in mounted value, measure
@@ -265,7 +293,7 @@ function assertConnectedTargetInput(
 
 /**
  * Decodes supported bodies without rewriting stored bytes or their hash.
- * Connected inputs require exact target row/step membership, matching parents and
+ * Connected inputs require exact target row/step membership, matching metadata/parents and
  * target-owned facts; captured context cannot stand in for unrelated local rows.
  */
 export function readSavedPlanInput(body: unknown, version: number): CanonicalPlanInputV9 {

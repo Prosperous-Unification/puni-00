@@ -5,7 +5,7 @@ import { planFixtureRows } from './plan-fixture';
 export function connectedHistoryFixture() {
   const steps = [
     { id: 'design', code: null, name: 'Design', position: 0 },
-    { id: 'test', code: 20, name: 'Test', position: 1 },
+    { id: 'test', code: 'test', name: 'Test', position: 1 },
   ];
   const span = (start: number, finish: number) => ({
     duration: finish - start,
@@ -67,7 +67,7 @@ export function connectedHistoryFixture() {
     qualifiedReference: null,
     isLeaf: workItemId !== 'root',
   });
-  const build = { id: 'build', code: 10, name: 'Build', position: 0 };
+  const build = { id: 'build', code: 'build', name: 'Build', position: 0 };
   const relationships = [
     {
       id: 'fs',
@@ -298,6 +298,13 @@ export function connectedHistoryFixture() {
         objective: 'time',
         format: 'connected-stage-v1',
         stageBytes: aBytes,
+        observation: {
+          inputHash: 'input',
+          contractVersion: '1',
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        },
         variants: {
           pri: { state: 'pending' },
           time: {
@@ -321,6 +328,7 @@ export function connectedHistoryFixture() {
         objective: 'pri',
         format: 'connected-stage-v1',
         stageBytes: stageBytes('B', 1),
+        observation: null,
         variants: null,
         selected: null,
       },
@@ -361,7 +369,7 @@ export function connectedPlanFixtureRows(history: SavedConnectedDependencyHistor
     steps: target.steps.map((step) => ({
       ...planFixtureRows.steps[0],
       ...step,
-      code: step.code === null ? null : String(step.code),
+      code: step.code,
     })),
     stepValues: [],
     stepBlockages: [],

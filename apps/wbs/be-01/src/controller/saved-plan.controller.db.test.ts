@@ -540,6 +540,7 @@ describe('the saved-plan routes', () => {
     id: string,
     inputBytes: string,
     scheduleBytes: string | null,
+    absentReason = 'unavailable',
   ) => {
     const inputHash = await bodySha256(nodeDigest, inputBytes);
     const scheduleHash =
@@ -554,7 +555,7 @@ describe('the saved-plan routes', () => {
         schedule_sha256 = ${quote(scheduleHash)}, schedule_input_sha256 = ${quote(scheduleBytes === null ? null : inputHash)},
         schedule_bytes = ${scheduleBytes === null ? 'NULL' : String(new TextEncoder().encode(scheduleBytes).length)},
         scheduler_algorithm_id = ${quote(scheduleBytes === null ? null : 'connected-selection-v1:retired')},
-        schedule_absent_reason = ${quote(scheduleBytes === null ? 'unavailable' : null)} WHERE id = ${quote(id)}`);
+        schedule_absent_reason = ${quote(scheduleBytes === null ? absentReason : null)} WHERE id = ${quote(id)}`);
       historical.db.run(
         `UPDATE saved_plan_body SET bytes = ${quote(inputBytes)} WHERE saved_plan_id = ${quote(id)} AND kind = 'input'`,
       );
@@ -598,7 +599,11 @@ describe('the saved-plan routes', () => {
     const renamed = savedConnectedHistoryFixture(projectId);
     if (renamed.input.dependencyHistory.kind !== 'connected')
       throw new Error('fixture requires connected context');
-    Reflect.set(renamed.input.dependencyHistory.projects[1], 'name', 'Beta at a later capture');
+    const foreign = renamed.input.dependencyHistory.projects.find(
+      (project) => project.projectId !== projectId,
+    );
+    if (foreign === undefined) throw new Error('foreign fixture required');
+    Reflect.set(foreign, 'name', 'Beta at a later capture');
     await replaceSavedBodies(renamedId, JSON.stringify(renamed.input), scheduleBytes);
     const changed = await as(
       tokens['ada'],
@@ -609,6 +614,110 @@ describe('the saved-plan routes', () => {
       diff: { input: [{ path: 'dependencyHistory.projects' }], schedule: [] },
     });
   });
+
+  it.each([
+    ['numeric step code', 'input', 'shape', '$.dependencyHistory'],
+    ['missing step code', 'input', 'shape', '$.dependencyHistory'],
+    ['target project metadata', 'input', 'target_metadata', '$.project'],
+    ['target row metadata', 'input', 'target_metadata', '$.workItems'],
+    ['target step metadata', 'input', 'target_metadata', '$.steps'],
+    ['target project date', 'input', 'target_metadata', '$.project'],
+    ['target project timezone', 'input', 'target_metadata', '$.project'],
+    ['target row hold', 'input', 'target_metadata', '$.workItems'],
+    ['target step code', 'input', 'target_metadata', '$.steps'],
+    ['target step position', 'input', 'target_metadata', '$.steps'],
+    ['observation identity', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation contractVersion', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation budgetMs', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation quantum', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation wireVersion', 'schedule', 'observation_identity', '$.stages.variants'],
+    ['observation absence', 'schedule', 'observation_presence', '$.stages.observation'],
+    ['header algorithm', 'schedule', 'algorithm_identity', '$.algorithmId'],
+    ['missing calendar reason', 'schedule', 'absence_reason', '$.placementState'],
+    ['absence reason', 'schedule', 'absence_reason', '$.placementState'],
+  ] as const)(
+    'refuses codec fit fault %s on read and both compare sides',
+    async (fault, body, code, path) => {
+      const id = await savedIdOf(await save('ada'));
+      const healthyId = await savedIdOf(await save('ada'));
+      const captured = savedConnectedHistoryFixture(projectId);
+      const history = captured.input.dependencyHistory;
+      if (history.kind !== 'connected') throw new Error('connected fixture required');
+      const stage = captured.schedule.connection.stages[0];
+      if (fault === 'numeric step code' || fault === 'missing step code') {
+        const foreign = history.projects.find((project) => project.projectId !== projectId);
+        if (foreign === undefined) throw new Error('foreign fixture required');
+        const corruptCode = (step: object) =>
+          fault === 'numeric step code'
+            ? Reflect.set(step, 'code', 20)
+            : Reflect.deleteProperty(step, 'code');
+        corruptCode(foreign.steps[0]);
+        for (const relationship of history.relationships)
+          for (const end of [relationship.predecessor, relationship.successor])
+            if (end.projectId === foreign.projectId && end.step !== null) corruptCode(end.step);
+      }
+      if (fault === 'target project metadata')
+        Reflect.set(captured.input.project, 'name', 'contradiction');
+      if (fault === 'target row metadata')
+        Reflect.set(captured.input.workItems[0], 'name', 'contradiction');
+      if (fault === 'target step metadata')
+        Reflect.set(captured.input.steps[0], 'name', 'contradiction');
+      if (fault === 'target project date')
+        Reflect.set(captured.input.project, 'startDate', '2026-10-02');
+      if (fault === 'target project timezone')
+        Reflect.set(captured.input.project, 'timezone', 'Europe/Kyiv');
+      if (fault === 'target row hold') Reflect.set(captured.input.workItems[0], 'hold', 'blocked');
+      if (fault === 'target step code')
+        Reflect.set(captured.input.steps[0], 'code', 'contradiction');
+      if (fault === 'target step position') Reflect.set(captured.input.steps[0], 'position', 10);
+
+      if (fault === 'observation identity')
+        Reflect.set(stage, 'observation', {
+          inputHash: 'wrong',
+          contractVersion: '1',
+          budgetMs: 100,
+          quantum: 1,
+          wireVersion: 1,
+        });
+      for (const field of ['contractVersion', 'budgetMs', 'quantum', 'wireVersion'] as const) {
+        if (fault === `observation ${field}`) {
+          if (stage.observation === null) throw new Error('observation required');
+          Reflect.set(stage.observation, field, field === 'contractVersion' ? 'retired-other' : 2);
+        }
+      }
+      if (fault === 'observation absence')
+        Reflect.set(captured.schedule.connection.stages[1], 'observation', stage.observation);
+      if (fault === 'header algorithm')
+        captured.schedule.algorithmId = 'different-retired-algorithm';
+      if (fault === 'absence reason')
+        Reflect.set(history, 'placementState', { kind: 'unavailable', reason: 'cycle' });
+      if (fault === 'missing calendar reason')
+        Reflect.set(history, 'placementState', {
+          kind: 'dependency_calendar_missing',
+          projects: [{ projectId: 'B', abbreviation: 'B', name: 'Beta' }],
+        });
+      await replaceSavedBodies(
+        id,
+        JSON.stringify(captured.input),
+        fault === 'absence reason' || fault === 'missing calendar reason'
+          ? null
+          : JSON.stringify(captured.schedule),
+        fault === 'missing calendar reason' ? 'infeasible' : 'unavailable',
+      );
+      const refusal = { reason: 'body_invalid', savedPlanId: id, body, code, path };
+      const response = await as(tokens['ada'], `/api/saved-plans/${id}`);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toEqual({ error: 'corrupt', refusal });
+      for (const [left, right] of [
+        [id, healthyId],
+        [healthyId, id],
+      ]) {
+        const compared = await compareOf('ada', left, right);
+        expect(compared.status).toBe(422);
+        expect(compared.body).toEqual({ error: 'corrupt', savedPlanId: id, refusal });
+      }
+    },
+  );
 
   it.each([
     [
@@ -947,11 +1056,11 @@ describe('the saved-plan routes', () => {
       kind: 'unavailable',
       reason: 'cycle',
     });
-    await replaceSavedBodies(id, JSON.stringify(captured.input), null);
+    await replaceSavedBodies(id, JSON.stringify(captured.input), null, 'infeasible');
     const unavailable = await as(tokens['ada'], `/api/saved-plans/${id}`);
     expect(unavailable.status).toBe(200);
     expect(await unavailable.json()).toMatchObject({
-      savedPlan: { schedule: { present: false, absentReason: 'unavailable' } },
+      savedPlan: { schedule: { present: false, absentReason: 'infeasible' } },
     });
   });
 

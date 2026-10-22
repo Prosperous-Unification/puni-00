@@ -16,7 +16,8 @@ const status =
 const step = type({
   '+': 'reject',
   id: 'string',
-  code: 'number | null',
+  // Proof: accepting numeric or absent codes returned 200 in mounted codec-fit read/compare negatives (2026-10-22).
+  code: 'string | null',
   name: 'string',
   position: 'number',
 });

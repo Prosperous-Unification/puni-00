@@ -68,7 +68,9 @@ const read = (inputBytes: string, scheduleBytes: string | null, projectId = 'A')
     'saved',
     projectId,
     { version: 9, bytes: inputBytes },
-    scheduleBytes === null ? null : { version: 2, bytes: scheduleBytes },
+    scheduleBytes === null
+      ? { present: false, absentReason: 'unavailable' }
+      : { present: true, version: 2, bytes: scheduleBytes, algorithmId: schedule.algorithmId },
   );
 
 describe('new saved body integrity', () => {
@@ -354,7 +356,7 @@ describe('new saved body integrity', () => {
         'saved',
         'A',
         { version: 9, bytes: JSON.stringify(unavailable) },
-        { version: 1, bytes: '{}' },
+        { present: true, version: 1, bytes: '{}', algorithmId: 'legacy' },
       ),
     ).toMatchObject({ reason: 'body_invalid', body: 'schedule' });
     const local = canonicalisePlanInputV9(planFixtureRows, { kind: 'local' });
@@ -363,7 +365,7 @@ describe('new saved body integrity', () => {
         'saved',
         'p1',
         { version: 9, bytes: JSON.stringify(local) },
-        { version: 1, bytes: 'legacy bytes stay opaque' },
+        { present: true, version: 1, bytes: 'legacy bytes stay opaque', algorithmId: 'legacy' },
       ),
     ).toBeNull();
   });

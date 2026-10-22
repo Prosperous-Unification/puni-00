@@ -241,36 +241,51 @@ export function verifySavedPlanBodies(
   savedPlanId: string,
   projectId: string,
   input: { readonly version: number; readonly bytes: string },
-  schedule: { readonly version: number; readonly bytes: string } | null,
+  schedule:
+    | {
+        readonly present: true;
+        readonly version: number;
+        readonly bytes: string;
+        readonly algorithmId: string;
+      }
+    | { readonly present: false; readonly absentReason: string },
 ): SavedPlanIntegrityRefusal | null {
   assertKnownBodyVersion(savedPlanId, 'input', input.version, SUPPORTED_INPUT_BODY_VERSIONS);
-  if (schedule !== null)
+  if (schedule.present)
     assertKnownBodyVersion(
       savedPlanId,
       'schedule',
       schedule.version,
       SUPPORTED_SCHEDULE_BODY_VERSIONS,
     );
-  if (input.version < 9 && (schedule === null || schedule.version === 1)) return null;
+  if (input.version < 9 && (!schedule.present || schedule.version === 1)) return null;
   let body: SavedPlanBodyKind = 'input';
   try {
     const parsed = readSavedPlanInput(JSON.parse(input.bytes), input.version);
     if (parsed.project.id !== projectId) throw new SavedHistoryError('target', '$.project.id');
     body = 'schedule';
-    if (
-      parsed.dependencyHistory.kind === 'connected' &&
-      schedule !== null &&
-      schedule.version !== 2
-    )
+    if (parsed.dependencyHistory.kind === 'connected' && schedule.present && schedule.version !== 2)
       throw new SavedHistoryError('connected_schedule_version', '$.version');
     const connected =
-      schedule?.version === 2 ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes)) : null;
+      schedule.present && schedule.version === 2
+        ? readSavedConnectedScheduleBody(JSON.parse(schedule.bytes))
+        : null;
+    // Proof: omitting algorithm equality returned 200 for a mismatched retired header in mounted read/compare (2026-10-22).
+    if (connected !== null && schedule.present && connected.algorithmId !== schedule.algorithmId)
+      throw new SavedHistoryError('algorithm_identity', '$.algorithmId');
     // Proof: bypassing cross-body validation returned 200 for the mounted local-input/
     // connected-schedule fault (omit-cross-body-validation.log.txt).
     validateSavedConnectedHistory(
       parsed.dependencyHistory,
       connected === null ? null : connected.connection,
     );
+    if (parsed.dependencyHistory.kind === 'connected' && !schedule.present) {
+      const placement = parsed.dependencyHistory.placementState;
+      const reason = placement.kind === 'unavailable' ? 'infeasible' : 'unavailable';
+      // Proof: omission admitted cycle/unavailable and missing-calendar/infeasible header contradictions in mounted read/compare (2026-10-22).
+      if (schedule.absentReason !== reason)
+        throw new SavedHistoryError('absence_reason', '$.placementState');
+    }
     // Proof: bypassing target validation returned 200 for missing target membership and
     // altered target placement in the mounted DB suite (omit-target-validation.log.txt).
     if (connected !== null && parsed.dependencyHistory.kind === 'connected')

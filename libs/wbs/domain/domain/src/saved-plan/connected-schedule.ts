@@ -210,6 +210,14 @@ const optimizationStage = type({
   objective: "'pri' | 'time'",
   format: "'connected-stage-v1'",
   stageBytes: 'string',
+  observation: type({
+    '+': 'reject',
+    inputHash: 'string',
+    contractVersion: 'string',
+    budgetMs: 'number > 0',
+    quantum: 'number > 0',
+    wireVersion: 'number.integer > 0',
+  }).or('null'),
   variants: type({ '+': 'reject', pri: variant, time: variant }).or('null'),
   selected: "'pri' | 'time' | null",
 });
@@ -228,7 +236,7 @@ const evidence = type({
 export type SavedPlacement = Historical<typeof placement.infer>;
 /** Captured objective/candidate/certificate union independent of core ports. */
 export type SavedOptimizationVariant = Historical<typeof variant.infer>;
-/** Exact pre-selection stage bytes and both objective outcomes; array order records execution. */
+/** Exact pre-selection bytes, retained observation configuration and both objective outcomes; order records execution. */
 export type SavedOptimizationStage = Historical<typeof optimizationStage.infer>;
 /** Connected selected schedule evidence, independent of any current scheduler runtime. */
 export type SavedConnectedScheduleEvidence = Historical<typeof evidence.infer>;
@@ -462,6 +470,12 @@ export function readSavedConnectedScheduleEvidence(raw: unknown): SavedConnected
         ? stage.objective
         : null;
     requireHistory(stage.selected === selectedObjective, 'selected_objective', '$.stages.selected');
+    // Proof: omitting presence equality admitted an observed Fast stage with null variants in mounted read/compare (2026-10-22).
+    requireHistory(
+      (stage.observation === null) === (stage.variants === null),
+      'observation_presence',
+      '$.stages.observation',
+    );
     if (stage.variants === null) continue;
     for (const objective of ['pri', 'time'] as const) {
       const variant = stage.variants[objective];
@@ -474,6 +488,17 @@ export function readSavedConnectedScheduleEvidence(raw: unknown): SavedConnected
           // Codec evidence only: omitting byte equality admitted the mismatched-stage candidate; production save/read proof remains pending.
           question.stageBytes === stage.stageBytes,
         'question_identity',
+        '$.stages.variants',
+      );
+      // Proof: omitting configuration equality admitted inputHash/contract/budget/quantum/wire mismatches in mounted read/compare (2026-10-22).
+      requireHistory(
+        stage.observation !== null &&
+          question.inputHash === stage.observation.inputHash &&
+          question.contractVersion === stage.observation.contractVersion &&
+          question.budgetMs === stage.observation.budgetMs &&
+          question.quantum === stage.observation.quantum &&
+          question.wireVersion === stage.observation.wireVersion,
+        'observation_identity',
         '$.stages.variants',
       );
       requireHistory(

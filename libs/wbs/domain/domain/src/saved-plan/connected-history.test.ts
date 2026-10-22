@@ -327,6 +327,7 @@ describe('reviewed historical stage invariants', () => {
           {
             ...stage,
             engine: isFast ? 'fast' : 'optimized',
+            observation: isFast ? stage.observation : null,
             variants: isFast ? stage.variants : null,
             selected: null,
           },
@@ -413,7 +414,9 @@ test.each(['disabled observed', 'enabled optimized unobserved'])(
     const captured = readSavedConnectedScheduleEvidence({
       ...evidence,
       stages: evidence.stages.map((stage) =>
-        stage.projectId === 'A' && enabled ? { ...stage, variants: null, selected: null } : stage,
+        stage.projectId === 'A' && enabled
+          ? { ...stage, observation: null, variants: null, selected: null }
+          : stage,
       ),
     });
     expect(() => {
@@ -421,3 +424,31 @@ test.each(['disabled observed', 'enabled optimized unobserved'])(
     }).toThrow('stage_enablement');
   },
 );
+
+test.each([
+  { state: 'pending' },
+  { state: 'failed', reason: 'timeout' },
+  { state: 'corrupt', message: 'captured corruption' },
+])('retains observation configuration for $state without invented questions', (variant) => {
+  const { evidence } = connectedHistoryFixture();
+  const captured = readSavedConnectedScheduleEvidence({
+    ...evidence,
+    stages: evidence.stages.map((stage, index) =>
+      index === 0
+        ? {
+            ...stage,
+            selected: null,
+            variants: { pri: variant, time: variant },
+          }
+        : stage,
+    ),
+  });
+  expect(captured.stages[0]?.observation).toEqual({
+    inputHash: 'input',
+    contractVersion: '1',
+    budgetMs: 100,
+    quantum: 1,
+    wireVersion: 1,
+  });
+  expect(captured.stages[0]?.variants).toEqual({ pri: variant, time: variant });
+});

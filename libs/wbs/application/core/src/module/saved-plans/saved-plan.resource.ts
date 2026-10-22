@@ -229,8 +229,13 @@ async function readOfStored(
     header.projectId,
     { version: header.inputSchemaVersion, bytes: inputBytes },
     schedule.schedule.present
-      ? { version: schedule.schedule.body.schemaVersion, bytes: schedule.schedule.body.bytes }
-      : null,
+      ? {
+          present: true,
+          version: schedule.schedule.body.schemaVersion,
+          bytes: schedule.schedule.body.bytes,
+          algorithmId: schedule.schedule.algorithmId,
+        }
+      : { present: false, absentReason: schedule.schedule.absentReason },
   );
   if (shapeRefusal !== null) return { outcome: 'corrupt', refusal: shapeRefusal };
 
