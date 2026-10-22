@@ -52,7 +52,12 @@ for (const name of ['Predecessor', 'Successor']) {
         'INSERT INTO estimate(work_item_id,step_id,optimistic,realistic,pessimistic) VALUES (?,?,1,1,1)',
       )
       .run(row.id, step.id);
-  endpoints.push({ projectId: project.id, workItemId: row.id, scope: 'whole' as const });
+  endpoints.push({
+    projectId: project.id,
+    workItemId: row.id,
+    scope: 'whole' as const,
+    steps: steps.map(({ id }) => id),
+  });
 }
 const predecessor = endpoints.at(0);
 const successor = endpoints.at(1);
@@ -83,9 +88,15 @@ const backend = Bun.serve({
         relationship: sqlite.query('SELECT * FROM external_dependency').get(),
         journal: sqlite
           .query(
-            'SELECT preconditions FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
+            'SELECT preconditions,payload FROM command_journal WHERE project_id=? ORDER BY seq DESC LIMIT 1',
           )
           .get(successor.projectId),
+        staged: sqlite
+          .query(
+            "SELECT id,project_id AS projectId,revision FROM work_item WHERE name='Staged successor'",
+          )
+          .get(),
+        localRelationships: sqlite.query('SELECT * FROM typed_dependency').all(),
         journalCount: sqlite.query('SELECT id FROM command_journal').all().length,
         revisions: sqlite.query('SELECT revision FROM work_item ORDER BY id').all(),
         effects: sqlite

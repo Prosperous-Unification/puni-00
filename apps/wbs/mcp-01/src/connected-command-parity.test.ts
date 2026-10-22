@@ -7,6 +7,7 @@ import { createServer } from './server';
 import type { WbsRequest } from './wbs-client';
 
 interface FixtureFaults {
+  readinessTimeout?: number;
   onSpawn?: (backend: ParityBackend) => void;
   readDocument?: typeof readDocument;
   closeClient?: (client: Client) => Promise<void>;
@@ -75,7 +76,7 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
             printed += new TextDecoder().decode(chunk.value);
           }
         })(),
-        15_000,
+        faults.readinessTimeout ?? 25_000,
         'parity backend readiness timed out',
       );
     } finally {
@@ -149,7 +150,12 @@ async function openFixture(active = true, scopes = ['read', 'write'], faults: Fi
         throw new Error('MCP text missing');
       return { isError: reply.isError, text: part.text };
     };
-    const command = { kind: 'addTypedDependency', predecessor, successor, type: 'FS' };
+    const command = {
+      kind: 'addTypedDependency',
+      predecessor: wholeEndpoint(predecessor),
+      successor: wholeEndpoint(successor),
+      type: 'FS',
+    };
     return {
       predecessor,
       successor,
@@ -248,16 +254,19 @@ interface Endpoint {
   projectId: string;
   workItemId: string;
   scope: 'whole';
+  steps: string[];
 }
 interface Snapshot {
   pushes: string[];
   relationship: ({ id: string } & Record<string, unknown>) | null;
-  journal: { preconditions: string } | null;
+  journal: { preconditions: string; payload: string } | null;
+  staged: { id: string; projectId: string; revision: number } | null;
+  localRelationships: unknown[];
   journalCount: number;
   revisions: unknown;
   effects: unknown;
 }
-setDefaultTimeout(30_000);
+setDefaultTimeout(45_000);
 
 // Proof: dropping nested projectId in wbs-client.ts failed MCP add with 404; replacing
 // command-bindings minted id failed the response/SQLite identity assertion; omitting
@@ -342,8 +351,8 @@ for (const transport of ['HTTP', 'MCP'] as const) {
           {
             id: relationship.id,
             type: 'FS',
-            predecessor: { endpoint: predecessor, revision: 1 },
-            successor: { endpoint: successor, revision: 1 },
+            predecessor: { endpoint: wholeEndpoint(predecessor), revision: 1 },
+            successor: { endpoint: wholeEndpoint(successor), revision: 1 },
           },
         ],
       };
@@ -526,3 +535,242 @@ async function readFailure(operation: Promise<unknown>): Promise<Error> {
   }
   throw new Error('expected the operation to reject');
 }
+
+function wholeEndpoint({ projectId, workItemId, scope }: Endpoint) {
+  return { projectId, workItemId, scope };
+}
+
+function nodeCommands(fixture: Awaited<ReturnType<typeof openFixture>>, encoded = false) {
+  const remoteStep = fixture.predecessor.steps.at(-1);
+  const ownerStep = fixture.successor.steps.at(0);
+  if (remoteStep === undefined || ownerStep === undefined) throw new Error('fixture steps missing');
+  const predecessor = encoded
+    ? {
+        projectId: fixture.predecessor.projectId,
+        scope: 'node',
+        stepNodeId: `sn1.${fixture.predecessor.workItemId}.${remoteStep}`,
+      }
+    : { ...wholeEndpoint(fixture.predecessor), scope: 'node', stepId: remoteStep };
+  return [
+    { kind: 'createWorkItem', ref: 'REMOTE.010', name: 'Staged successor' },
+    { kind: 'setStatus', workItemRef: 'REMOTE.010', status: 'ready' },
+    {
+      kind: 'setEstimate',
+      workItemRef: 'REMOTE.010',
+      stepId: ownerStep,
+      days: { optimistic: 1, realistic: 1, pessimistic: 1 },
+    },
+    {
+      kind: 'addTypedDependency',
+      type: 'FS',
+      predecessor,
+      successor: { scope: 'node', workItemRef: 'REMOTE.010', stepId: ownerStep },
+    },
+  ];
+}
+
+async function submit(
+  fixture: Awaited<ReturnType<typeof openFixture>>,
+  transport: 'HTTP' | 'MCP',
+  commands: unknown[],
+) {
+  if (transport === 'HTTP') {
+    const reply = await fixture.http(
+      'POST',
+      `/api/projects/${fixture.successor.projectId}/commands`,
+      { commands },
+    );
+    return { status: reply.status, text: JSON.stringify(reply.body) };
+  }
+  const reply = await fixture.call('postApiProjectsByIdCommands', {
+    id: fixture.successor.projectId,
+    commands,
+  });
+  return { status: reply.isError === true ? 0 : 200, text: reply.text };
+}
+
+// Proof: dropping nested projectId forwarding, forcing owner project binding, or
+// skipping dotted alias lookup each failed the MCP split-node success (2026-10-23).
+for (const transport of ['HTTP', 'MCP'] as const) {
+  for (const encoded of [false, true]) {
+    test(`${transport} node ${encoded ? 'encoded' : 'split'} binds dotted successor alias and derives FS placement`, async () => {
+      const fixture = await openFixture();
+      try {
+        const commands = nodeCommands(fixture, encoded);
+        const before = await fixture.inspect();
+        const reply = await submit(fixture, transport, commands);
+        expect(reply.status).toBe(200);
+        const snapshot = await fixture.inspect();
+        const { staged, relationship, journal } = snapshot;
+        if (staged === null || relationship === null || journal === null)
+          throw new Error('node commit missing');
+        expect(JSON.parse(reply.text)).toMatchObject({
+          results: [
+            { index: 0, id: staged.id },
+            { index: 1 },
+            { index: 2 },
+            { index: 3, id: relationship.id },
+          ],
+        });
+        expect(staged).toMatchObject({ projectId: fixture.successor.projectId, revision: 3 });
+        const predecessor = {
+          ...wholeEndpoint(fixture.predecessor),
+          scope: 'node',
+          stepId: fixture.predecessor.steps.at(-1),
+        };
+        const successor = {
+          projectId: fixture.successor.projectId,
+          workItemId: staged.id,
+          scope: 'node',
+          stepId: fixture.successor.steps.at(0),
+        };
+        expect(relationship).toMatchObject({
+          predecessor_project_id: predecessor.projectId,
+          predecessor_work_item_id: predecessor.workItemId,
+          predecessor_scope: 'node',
+          predecessor_step_id: predecessor.stepId,
+          successor_project_id: successor.projectId,
+          successor_work_item_id: staged.id,
+          successor_scope: 'node',
+          successor_step_id: successor.stepId,
+          type: 'FS',
+        });
+        expect(snapshot.localRelationships).toEqual([]);
+        expect(snapshot.journalCount).toBe(before.journalCount + 1);
+        expect(journal.payload).toContain(staged.id);
+        expect(journal.payload).not.toContain('REMOTE.010');
+        expect(JSON.parse(journal.preconditions)).toMatchObject({
+          externalRevisions: {
+            from: [
+              { projectId: predecessor.projectId, workItemId: predecessor.workItemId, revision: 0 },
+            ],
+            expected: [
+              { projectId: predecessor.projectId, workItemId: predecessor.workItemId, revision: 1 },
+            ],
+          },
+        });
+        const reading = await fixture.call('getApiProjectsByIdWork-items', {
+          id: successor.projectId,
+        });
+        expect(reading.isError).not.toBe(true);
+        const tree = JSON.parse(reading.text) as { workItems: { id: string }[] };
+        // Remote's two serial one-day steps finish at 2; the staged one-day node follows.
+        expect(tree.workItems.find(({ id }) => id === staged.id)).toMatchObject({
+          revision: 3,
+          schedule: { earliestStart: 2, earliestFinish: 3 },
+        });
+        expect(tree).toMatchObject({
+          scheduleError: null,
+          connectedDependencies: [
+            {
+              id: relationship.id,
+              type: 'FS',
+              predecessor: { endpoint: predecessor, revision: 1 },
+              successor: { endpoint: successor, revision: 3 },
+            },
+          ],
+        });
+        const direct = await fixture.http('GET', `/api/projects/${successor.projectId}/work-items`);
+        expect(direct.status).toBe(200);
+        expect(direct.body).toEqual(tree);
+        if (transport === 'MCP')
+          expect(fixture.forwarded.find(({ method }) => method === 'POST')?.body).toBe(
+            JSON.stringify({ commands }),
+          );
+        expect(snapshot.pushes.length).toBeGreaterThan(0);
+      } finally {
+        await fixture.close();
+      }
+    });
+  }
+  // Proof: bypassing explicit-project alias refusal or dormant authoring made the
+  // selected MCP refusal succeed. Skipping remote step identity or leaf scope
+  // checks lost typed refusal and raised HTTP 500; all watched 2026-10-23.
+  for (const fault of [
+    'remote-step',
+    'descendant-leaf',
+    'explicit-remote-alias',
+    'explicit-owner-alias',
+    'later-command',
+    'dormant',
+  ] as const) {
+    test(`${transport} node ${fault} refuses atomically with all staged effects rolled back`, async () => {
+      const fixture = await openFixture(fault !== 'dormant');
+      try {
+        const commands: Record<string, unknown>[] = nodeCommands(fixture);
+        const last = commands.at(-1);
+        if (last === undefined) throw new Error('node command missing');
+        if (fault === 'remote-step')
+          last['predecessor'] = {
+            ...wholeEndpoint(fixture.predecessor),
+            scope: 'node',
+            stepId: fixture.successor.steps.at(0),
+          };
+        if (fault === 'descendant-leaf')
+          last['predecessor'] = {
+            ...wholeEndpoint(fixture.predecessor),
+            scope: 'descendant-step',
+            stepId: fixture.predecessor.steps.at(-1),
+          };
+        if (fault === 'explicit-remote-alias' || fault === 'explicit-owner-alias')
+          last['successor'] = {
+            projectId:
+              fault === 'explicit-owner-alias'
+                ? fixture.successor.projectId
+                : fixture.predecessor.projectId,
+            scope: 'node',
+            workItemRef: 'REMOTE.010',
+            stepId: fixture.successor.steps.at(0),
+          };
+        if (fault === 'later-command')
+          commands.push({
+            kind: 'patchWorkItem',
+            workItemId: 'missing-row',
+            patch: { name: 'Invalid' },
+          });
+        const before = (await fixture.inspect()).effects;
+        const reply = await submit(fixture, transport, commands);
+        expect(reply.status).not.toBe(200);
+        const expectedStatus =
+          fault === 'remote-step' || fault === 'later-command'
+            ? 404
+            : fault.startsWith('explicit-')
+              ? 400
+              : 409;
+        if (transport === 'HTTP') expect(reply.status).toBe(expectedStatus);
+        else expect(reply.text).toContain(`HTTP ${String(expectedStatus)}`);
+        if (fault === 'remote-step') expect(reply.text).toContain('not_found');
+        if (fault === 'descendant-leaf') expect(reply.text).toContain('not_a_parent');
+        if (fault === 'dormant') expect(reply.text).toContain('external_dependencies_inactive');
+        if (!fault.startsWith('explicit-'))
+          expect(reply.text).toContain(`"at":${String(fault === 'later-command' ? 4 : 3)}`);
+        const after = await fixture.inspect();
+        expect(after.effects).toEqual(before);
+        expect(after.pushes).toEqual([]);
+      } finally {
+        await fixture.close();
+      }
+    });
+  }
+}
+
+// Proof: bypassing outer setup cleanup left the child alive after the injected
+// readiness deadline; the reaped-child assertion failed (2026-10-23).
+test('readiness deadline failure reaps the child before returning', async () => {
+  let backend: ParityBackend | undefined;
+  try {
+    const failure = await readFailure(
+      openFixture(true, ['read', 'write'], {
+        readinessTimeout: 1,
+        onSpawn: (child) => {
+          backend = child;
+        },
+      }),
+    );
+    expect(failure.message).toContain('parity backend readiness timed out');
+    if (backend === undefined) throw new Error('fixture child was not spawned');
+    expectReaped(backend);
+  } finally {
+    await rescueChild(backend);
+  }
+});
