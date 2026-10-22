@@ -1,10 +1,11 @@
-import type {
-  AuditedAct,
-  MachineCredentialActorRefusal,
-  TrustedIssuerAdministration,
-  TrustedIssuerDraft,
-  TrustedIssuerRegistrationRefusal,
-  TrustedIssuerSummary,
+import {
+  type AuditedAct,
+  type MachineCredentialActorRefusal,
+  MAX_TRUSTED_ISSUERS,
+  type TrustedIssuerAdministration,
+  type TrustedIssuerDraft,
+  type TrustedIssuerRegistrationRefusal,
+  type TrustedIssuerSummary,
 } from '@wbs/core';
 import { and, asc, count, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite';
@@ -64,12 +65,18 @@ function liveCredentialCounts(tx: Transaction, ids: readonly string[]): Map<stri
   return counts;
 }
 
+/** @throws on a registration without an audience, which its triggers refuse (trusted state). */
+function audienceOf(row: TrustedIssuerRow): string {
+  if (row.defaultAudience === null) throw new Error(`trusted issuer ${row.id} has no audience`);
+  return row.defaultAudience;
+}
+
 function summaryOf(row: TrustedIssuerRow, machineCredentials: number): TrustedIssuerSummary {
   return {
     id: row.id,
     issuer: row.issuer,
     jwksUri: row.jwksUri,
-    defaultAudience: row.defaultAudience,
+    audience: audienceOf(row),
     ssoConnectionId: row.ssoConnectionId,
     createdAt: row.createdAt,
     createdBy: row.createdBy,
@@ -77,13 +84,16 @@ function summaryOf(row: TrustedIssuerRow, machineCredentials: number): TrustedIs
   };
 }
 
-/** The registration refusal the organization's records give `issuer` now, or null. */
+/** The registration refusal the deployment's records give this registration now, or null. */
 function registrationRefusal(
   tx: Transaction,
   organizationId: string,
   actorId: string,
-  issuer: string,
-  ssoConnectionId: string | null,
+  {
+    issuer,
+    audience,
+    ssoConnectionId,
+  }: Parameters<TrustedIssuerAdministration['checkRegistration']>[2],
 ): TrustedIssuerRegistrationRefusal | null {
   const role = administering(tx, organizationId, actorId);
   if (role !== 'admin') return role;
@@ -122,7 +132,31 @@ function registrationRefusal(
       ),
     )
     .get();
-  return taken === undefined ? null : 'issuer_taken';
+  if (taken !== undefined) return 'issuer_taken';
+  const claimed = tx
+    .select({ id: organizationTrustedIssuer.id })
+    .from(organizationTrustedIssuer)
+    .where(
+      and(
+        eq(organizationTrustedIssuer.issuer, issuer),
+        eq(organizationTrustedIssuer.defaultAudience, audience),
+      ),
+    )
+    .get();
+  // Proof: with this refusal removed, `refuses a second organization the same
+  // issuer and audience` in `trusted-issuer.controller.db.test.ts` failed on
+  // the unique index with 500 instead of 409; watched 2026-10-22.
+  if (claimed !== undefined) return 'audience_taken';
+  const held = tx
+    .select({ n: count() })
+    .from(organizationTrustedIssuer)
+    .where(eq(organizationTrustedIssuer.organizationId, organizationId))
+    .get();
+  // Proof: with this refusal removed, `refuses a ninth trusted issuer` in
+  // `trusted-issuer.controller.db.test.ts` registered it (201); watched
+  // 2026-10-22.
+  if ((held?.n ?? 0) >= MAX_TRUSTED_ISSUERS) return 'trusted_issuer_limit';
+  return null;
 }
 
 /**
@@ -170,12 +204,11 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
   async checkRegistration(
     organizationId: string,
     actorId: string,
-    issuer: string,
-    ssoConnectionId: string | null,
+    registration: Parameters<TrustedIssuerAdministration['checkRegistration']>[2],
   ): Promise<TrustedIssuerRegistrationRefusal | 'ready'> {
     await Promise.resolve();
     return this.db.transaction(
-      (tx) => registrationRefusal(tx, organizationId, actorId, issuer, ssoConnectionId) ?? 'ready',
+      (tx) => registrationRefusal(tx, organizationId, actorId, registration) ?? 'ready',
     );
   }
 
@@ -192,13 +225,7 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
     act: AuditedAct,
   ): ReturnType<TrustedIssuerAdministration['register']> {
     return writeImmediately(this.db, this.gate, (tx) => {
-      const refused = registrationRefusal(
-        tx,
-        organizationId,
-        actorId,
-        draft.issuer,
-        draft.ssoConnectionId,
-      );
+      const refused = registrationRefusal(tx, organizationId, actorId, draft);
       if (refused !== null) return { kind: refused };
       tx.insert(organizationTrustedIssuer)
         .values({
@@ -206,7 +233,7 @@ export class TrustedIssuerAdministrationRepository implements TrustedIssuerAdmin
           organizationId,
           issuer: draft.issuer,
           jwksUri: draft.jwksUri,
-          defaultAudience: draft.defaultAudience,
+          defaultAudience: draft.audience,
           ssoConnectionId: draft.ssoConnectionId,
           ...auditOnCreate(act.stamp),
         })

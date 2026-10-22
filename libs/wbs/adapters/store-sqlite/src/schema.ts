@@ -3473,6 +3473,10 @@ export const organizationTrustedIssuer = sqliteTable(
       .references(() => organization.id),
     issuer: text('issuer').notNull(),
     jwksUri: text('jwks_uri').notNull(),
+    /**
+     * The audience every token of this registration must carry (A25), named
+     * `default_audience` since slice 1; required by triggers.
+     */
     defaultAudience: text('default_audience'),
     ssoConnectionId: text('sso_connection_id').references(() => organizationSsoConnection.id),
     createdAt: integer('created_at').notNull(),
@@ -3481,6 +3485,9 @@ export const organizationTrustedIssuer = sqliteTable(
   (t) => [
     uniqueIndex('organization_trusted_issuer_issuer').on(t.organizationId, t.issuer),
     index('organization_trusted_issuer_by_issuer').on(t.issuer),
+    // A25: one `(issuer, audience)` across the deployment; the audience is
+    // required by `20261022120000_scope_trusted_issuer_audience`'s triggers.
+    uniqueIndex('organization_trusted_issuer_audience').on(t.issuer, t.defaultAudience),
   ],
 );
 
@@ -3521,8 +3528,11 @@ export const machineCredential = sqliteTable(
     ...auditColumnsBesidesCreatedAt(),
   },
   (t) => [
-    uniqueIndex('machine_credential_pair')
-      .on(t.issuer, t.subject)
+    // One subject per trusted issuer row (A25,
+    // `20261022120000_scope_trusted_issuer_audience`), replacing the
+    // deployment-wide `(issuer, subject)` pair.
+    uniqueIndex('machine_credential_trusted_subject')
+      .on(t.trustedIssuerId, t.subject)
       .where(sql`${t.source} = 'oidc'`),
     uniqueIndex('machine_credential_family')
       .on(t.mcpFamilyId)

@@ -63,8 +63,9 @@ function openHarness(): OrganizationHarness {
   });
 }
 
+/** Registers as `username`, with the audience `aud-<username>` unless `body` names one. */
 function register(username: string, body: Record<string, unknown>): Promise<Answer> {
-  return h.call(username, 'POST', PATH, body);
+  return h.call(username, 'POST', PATH, { audience: `aud-${username}`, ...body });
 }
 
 function issuerRows(): unknown[] {
@@ -120,13 +121,13 @@ async function createOidc(trustedIssuerId: string, subject: string, name: string
 
 describe('registering a trusted issuer', () => {
   it('discovers once, lists the jwks_uri and audits the registration', async () => {
-    const registered = await register('dany', { issuer: ci.url, defaultAudience: 'wbs' });
+    const registered = await register('dany', { issuer: ci.url, audience: 'wbs:org:org-a' });
     expect(registered).toMatchObject({
       status: 201,
       body: {
         issuer: ci.url,
         jwksUri: ci.jwksUri,
-        defaultAudience: 'wbs',
+        audience: 'wbs:org:org-a',
         ssoConnectionId: null,
         createdBy: h.userId('dany'),
         machineCredentials: 0,
@@ -148,7 +149,8 @@ describe('registering a trusted issuer', () => {
     });
     const detail = JSON.parse(audit[0]?.detail ?? '{}') as Record<string, unknown>;
     expect(detail).toMatchObject({ issuer: ci.url, jwksUri: ci.jwksUri });
-    expect(detail).not.toHaveProperty('defaultAudience');
+    expect(detail).not.toHaveProperty('audience');
+    expect(audit[0]?.detail).not.toContain('wbs:org:org-a');
   });
 
   // Proof: with `trustedIssuerDiscovery`'s catch rethrowing, the unroutable
@@ -221,6 +223,65 @@ describe('registering a trusted issuer', () => {
         body: { error: 'invalid_body' },
       });
     expect(issuerRows()).toEqual([]);
+  });
+
+  it('refuses a body without an audience', async () => {
+    expect(await h.call('dany', 'POST', PATH, { issuer: ci.url })).toEqual({
+      status: 400,
+      body: { error: 'invalid_body' },
+    });
+    expect(await h.call('dany', 'POST', PATH, { issuer: ci.url, audience: '' })).toEqual({
+      status: 400,
+      body: { error: 'invalid_body' },
+    });
+    expect(ci.discoveryFetches).toBe(0);
+  });
+
+  it('refuses an issuer on a literal IP or a private name, fetching nothing', async () => {
+    for (const issuer of [
+      'https://127.0.0.1',
+      'https://10.0.0.8/realm',
+      'https://169.254.169.254',
+      'https://[::1]',
+      'https://[fd00::1]',
+      'https://localhost',
+      'https://metadata.internal',
+      'https://printer.local',
+      'https://app.localhost',
+    ])
+      expect(await register('dany', { issuer })).toEqual({
+        status: 400,
+        body: { error: 'invalid_body' },
+      });
+    expect(issuerRows()).toEqual([]);
+  });
+
+  // Proof: with the `audience_taken` refusal removed from
+  // `registrationRefusal`, this answered 500 on the unique index instead of
+  // 409; watched 2026-10-22.
+  it('refuses a second organization the same issuer and audience', async () => {
+    expect((await register('dany', { issuer: ci.url, audience: 'shared' })).status).toBe(201);
+    expect(await register('bob', { issuer: ci.url, audience: 'shared' })).toEqual({
+      status: 409,
+      body: { error: 'audience_taken' },
+    });
+    expect((await register('bob', { issuer: ci.url, audience: 'wbs:org:org-b' })).status).toBe(201);
+    expect(issuerRows()).toHaveLength(2);
+  });
+
+  // Proof: with the `trusted_issuer_limit` refusal removed, the ninth
+  // registered (201); watched 2026-10-22.
+  it('refuses a ninth trusted issuer', async () => {
+    for (let n = 0; n < 8; n += 1) {
+      const each = await issuers.add(`many-${String(n)}-${crypto.randomUUID().slice(0, 6)}.test`);
+      expect((await register('dany', { issuer: each.url })).status).toBe(201);
+    }
+    expect(await register('dany', { issuer: ci.url })).toEqual({
+      status: 409,
+      body: { error: 'trusted_issuer_limit' },
+    });
+    expect(ci.discoveryFetches).toBe(0);
+    expect(issuerRows()).toHaveLength(8);
   });
 
   it('registers on a proven OIDC connection of the organization', async () => {
@@ -338,7 +399,7 @@ describe('who may administer trusted issuers', () => {
     for (const username of ['mem', 'vic'])
       for (const [method, path, body] of [
         ['GET', PATH, undefined],
-        ['POST', PATH, { issuer: ci.url }],
+        ['POST', PATH, { issuer: ci.url, audience: 'x' }],
         ['DELETE', `${PATH}/${id}`, undefined],
       ] as const)
         expect(await h.call(username, method, path, body)).toEqual({
@@ -358,7 +419,7 @@ describe('who may administer trusted issuers', () => {
     });
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
-      ['POST', PATH, { issuer: ci.url }],
+      ['POST', PATH, { issuer: ci.url, audience: 'x' }],
       ['DELETE', `${PATH}/${id}`, undefined],
     ] as const)
       expect(await h.callWith(key, method, path, body)).toEqual({
@@ -376,7 +437,7 @@ describe('who may administer trusted issuers', () => {
     h.member('org-a', 'dany', 'super_admin');
     for (const [method, path, body] of [
       ['GET', PATH, undefined],
-      ['POST', PATH, { issuer: ci.url }],
+      ['POST', PATH, { issuer: ci.url, audience: 'x' }],
       ['DELETE', `${PATH}/${crypto.randomUUID()}`, undefined],
     ] as const)
       expect(await h.call('dany', method, path, body)).toEqual({

@@ -322,19 +322,19 @@ What was built:
 
 Commands and fresh results after the merge, `CLAUDECODE` unset:
 
-| Command                                                                                                    | Result                                             |
-| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `bunx nx run wbs-be-01:typecheck --skip-nx-cache`                                                          | exit 0                                             |
-| `bunx nx run wbs-be-01:lint --skip-nx-cache`; `eslint` and `prettier` on every changed file (lefthook)     | exit 0                                             |
-| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                               | 3183 pass, 3 skip, 0 fail across 217 files (913 s) |
-| `bun test` the four machine-credential and trusted-issuer controller files                                 | 92 pass, 0 fail                                    |
-| `bun test` `libs/wbs/adapters/auth` (whole library)                                                        | 115 pass, 0 fail across 9 files                    |
-| `bun test` `libs/wbs/domain/contracts` (whole library)                                                     | 495 pass, 0 fail across 51 files                   |
-| `bun test` core `module/authentication`, `src/http`, `src/ports`, `compose.test.ts`                        | 95 pass, 0 fail across 25 files                    |
-| `bun test` store-sqlite `machine-credential*`, `organization-audit*`, `organization-access*`, `directory*` | 29 pass, 0 fail across 3 files                     |
-| `bun test` mcp-01 `openapi-tools`, `generated-document`, `shape-document`, `calendar-marker-shapes`        | 50 pass, 0 fail                                    |
-| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                | exit 0, 40 indexes                                 |
-| `bunx openspec validate --all --json`                                                                      | exit 0; 266 items, 266 passed                      |
+| Command                                                                                                    | Result                                               |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `bunx nx run wbs-be-01:typecheck --skip-nx-cache`                                                          | exit 0                                               |
+| `bunx nx run wbs-be-01:lint --skip-nx-cache`; `eslint` and `prettier` on every changed file (lefthook)     | exit 0                                               |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                               | 3183 pass, 3 skip, 0 fail across 217 files (913 s)   |
+| `bun test` the four machine-credential and trusted-issuer controller files                                 | 92 pass, 0 fail                                      |
+| `bun test` `libs/wbs/adapters/auth` (whole library)                                                        | 115 pass, 0 fail across 9 files                      |
+| `bun test` `libs/wbs/domain/contracts` (whole library)                                                     | 495 pass, 0 fail across 51 files                     |
+| `bun test` core `module/authentication`, `src/http`, `src/ports`, `compose.test.ts`                        | 95 pass, 0 fail across 25 files                      |
+| `bun test` store-sqlite `machine-credential*`, `organization-audit*`, `organization-access*`, `directory*` | 29 pass, 0 fail across 3 files                       |
+| `bun test` mcp-01 `openapi-tools`, `generated-document`, `shape-document`, `calendar-marker-shapes`        | 50 pass, 0 fail                                      |
+| `bun apps/twilight-structure/twilight-burokrat/cli/src/cli.ts check-indexes working . HEAD`                | exit 0, 39 indexes (first written as 40: a miscount) |
+| `bunx openspec validate --all --json`                                                                      | exit 0; 266 items, 266 passed                        |
 
 Not run, by the laptop RAM cap: the full `store-sqlite`, `core` and `mcp-01` suites and every
 workspace-wide target; CI runs them. No migration changed, so migration lint was not rerun.
@@ -383,6 +383,114 @@ removed, and the test watched passing again (2026-10-22).
 | mcp-01 `EXCLUDED_PATHS` (each of the two entries)          | removed in turn                  | `keeps trusted issuer administration out of the generated MCP tools`           | tools exposed                     |
 | `boot.ts` verification binding                             | renamed away                     | `refuses a stranger issuer's JWT invalid_token once booted`                    | authenticated as null             |
 | `boot.ts` administration binding                           | renamed away                     | `serves trusted issuer administration from the shared database once activated` | throws: not wired                 |
+
+## Slice 2 workspace gate fix (2026-10-22)
+
+The workspace gate on `5f63bdd77` failed `wbs-core:typecheck:module` and
+`wbs-store-sqlite:typecheck` (TS2554). Five test callers of `DirectoryStore.removePerson`
+still passed three arguments after A24 added `reach`: `claim.db.test.ts`,
+`resource-occupancy.db.test.ts`, `working-plan-directory.test.ts` (twice) and
+`work-item.resource.test.ts`. Each now passes `{ kind: 'every' }`. Lesson: a changed shared
+signature needs every library typecheck target that compiles its callers, tests included, not
+only `wbs-be-01:typecheck`, which does not compile library tests.
+
+Fresh results (`CLAUDECODE` unset):
+
+- `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain --skip-nx-cache`: all six targets succeed.
+- The same for `wbs-conformance,wbs-runtime-portable,wbs-mcp-01,wbs-gw-01,wbs-auth,wbs-realtime,wbs-be-01`: all eight targets succeed (`wbs-be-01:typecheck` and `:typecheck:module` included).
+- `bun test` `claim.db.test.ts`, `resource-occupancy.db.test.ts`: 81 pass, 0 fail. `working-plan-directory.test.ts`, `work-item.resource.test.ts`: 133 pass, 0 fail.
+- `tool-devsync:test` was not touched here; it also fails on #628, and slice 1's worker owns it.
+
+## Slice 5 review (Fable, 2026-10-22): merge after fixes, fixed
+
+No S1. Decision **A25** (the coordinator's, for Dany; design.md A25, spec and tasks 5.5 and
+5.6 amended): a trusted issuer registration requires an `audience`, unique with its issuer URL
+across the deployment (`409 audience_taken`); a subject is unique per registration, so
+`subject_taken` consults no other organization; verification selects the registration by
+`(iss, aud)` (none or more than one match: `invalid_token`, no fetch), then the credential by
+`(registration, sub)`, and always checks `aud`. A credential's own `audience` narrows: its
+token carries both. Migration `20261022120000_scope_trusted_issuer_audience` (additive: two
+unique indexes, two triggers holding the audience non-null, and the deployment-wide
+`machine_credential_pair` dropped; no rebuild) with a `down.sql` refusing while two
+organizations bind one subject.
+
+The review's MUST and SHOULD items, as built:
+
+- S2-3: negatives for the algorithm allow-list, the non-empty `sub`, the `jwks_uri` length, a
+  non-200 key set and both 5 s timeouts (a never-answering fetch with a 50 ms override).
+- S3-1: `requiredClaims: ['exp', 'sub']` and a remaining lifetime of at most one hour. This is
+  checked as `exp - now`, not jose's `maxTokenAge`, because that one requires `iat`.
+- S3-2: eight trusted issuers per organization (`409 trusted_issuer_limit`); a 30 s
+  cooldown after a failed key-set fetch.
+- S3-3: `isPublicIssuerUrl` (core `ports/trusted-issuers.ts`) refuses literal IPv4/IPv6
+  hosts, `localhost` and `.internal`/`.local`/`.localhost` names, both for the registered
+  issuer (`400 invalid_body`) and for the discovered `jwks_uri` (`issuer_unreachable`).
+  DNS rebinding is left to TLS certificate validation (JSDoc). Bodies are read through a
+  streaming cap: 64 KB for discovery, 256 KB for a key set.
+- S3-4: `NO_PENDING_MEMBERSHIPS`'s JSDoc restored in `app.ts`.
+
+Recorded, not fixed (S3-5, S3-6):
+
+- Production `OidcRouteOptions.issuer` comes from real discovery, which is untested: every
+  fixture stubs it. A rejected memoised discovery in `oidcTokenVerifierFromEnv` stays
+  rejected until restart, as the configured verifier's always has.
+- Indexes are 39, not 40.
+- Delegations on the trusted-issuer routes are covered transitively: they share
+  `sessionOrganizationOf` with the credential routes, whose test covers a delegation; the
+  trusted-issuer test covers a machine key.
+- 5.4 (a real GitHub Actions token on dev) stays open. It now also needs `audience` set on
+  the workflow's token request.
+- `browser-lifecycle.mounted-process.db.test.ts` failed one to three timing cases in two runs
+  under a host load of 12 (other agents) and passed 11 of 11 alone. The fresh full run below
+  passed it. It is untouched by this slice.
+
+Merged `origin/feat/wbs-machine-credentials-2` at `d026dabfc` (the library-typecheck fix);
+`verify.md` conflicted and keeps both records.
+
+Fresh results on the merged tree (`CLAUDECODE` unset):
+
+| Command                                                                                                                                          | Result                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `bunx nx run wbs-be-01:test --skip-nx-cache`                                                                                                     | 3193 pass, 3 skip, 0 fail across 218 files (927 s) |
+| `bunx nx run wbs-be-01:typecheck --skip-nx-cache`, `:lint --skip-nx-cache`                                                                       | exit 0                                             |
+| `bunx nx run-many -t typecheck,typecheck:module -p wbs-core,wbs-store-sqlite,wbs-contracts,wbs-store-memory,wbs-domain,wbs-auth --skip-nx-cache` | all succeed                                        |
+| `bun test` the four `tool-devsync` boundary, targets, retired-roots and toolchain-pins tests                                                     | 78 pass, 0 fail                                    |
+| `bun test` `@wbs/auth` (whole library)                                                                                                           | 124 pass, 0 fail                                   |
+| `bun test` `@wbs/contracts` (whole library)                                                                                                      | 495 pass, 0 fail                                   |
+| `bun test` core `module/authentication`, `src/http`, `src/ports`, `compose.test.ts`                                                              | 95 pass, 0 fail                                    |
+| `bun test` the 31 store-sqlite migration-ledger tests and `machine-credential*`                                                                  | 611 pass, 0 fail across 32 files                   |
+| `bun test` the four mcp-01 shape and tool tests                                                                                                  | 50 pass, 0 fail                                    |
+| `migration-lint.ts` on `20261022120000_scope_trusted_issuer_audience/migration.sql`                                                              | exit 0                                             |
+| `check-indexes working . HEAD`                                                                                                                   | exit 0, 39 indexes                                 |
+| `bunx openspec validate --all --json`                                                                                                            | 266 of 266 passed                                  |
+
+### Review fix failure proofs
+
+Each fault was injected into the production path, the named test watched failing, the fault
+removed, and the test watched passing again (2026-10-22).
+
+| Check (file)                                         | Fault injected               | Test that observed the failure                                               | Result                                   |
+| ---------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------- |
+| `TrustedIssuerKeySets.verify` `algorithms`           | option removed               | `refuses alg none and an HS256 token signed with a published oct key`        | `JOSENotSupported` thrown, not `invalid` |
+| `verify` non-empty `sub`                             | check removed                | `refuses an empty sub`                                                       | verified, subject `''`                   |
+| `verify` `requiredClaims` `exp`                      | `exp` dropped                | `refuses a token without exp or living longer than an hour`                  | verified                                 |
+| `verify` one-hour lifetime                           | check neutralized            | same                                                                         | ten-year token verified                  |
+| `fetchKeySet` status 200                             | check removed                | `refuses a key set answered by a redirect or a 404, and reports it`          | 500-status key set verified              |
+| `verify` 30 s failure cooldown                       | short-circuit removed        | `fetches a failing key set at most once per cooldown`                        | 3 fetches, not 2                         |
+| `fetchKeySet` timeout race                           | race removed                 | `ends a key-set fetch that never answers at its timeout`                     | hung past 2 s                            |
+| `discover` timeout race                              | race removed                 | `ends a discovery that never answers at its timeout`                         | hung past 2 s                            |
+| `cappedJson` body cap                                | cap removed                  | `refuses a key set larger than its cap`                                      | verified                                 |
+| `discover` `jwks_uri` length                         | bound removed                | `answers unreachable for every document it cannot use`                       | 2049-char URI discovered                 |
+| `discover` `isPublicIssuerUrl`                       | check neutralized            | same                                                                         | plain-HTTP URI discovered                |
+| `trusted-issuer.routes.ts` public host               | check removed                | `refuses an issuer on a literal IP or a private name, fetching nothing`      | 409 `issuer_unreachable`, not 400        |
+| store `audience_taken`                               | refusal removed              | `refuses a second organization the same issuer and audience`                 | 500 on the unique index                  |
+| store `trusted_issuer_limit`                         | refusal removed              | `refuses a ninth trusted issuer`                                             | registered, 201                          |
+| `authenticateTrustedIssuerToken` single registration | `length > 1` dropped         | `refuses a token naming two organizations' audiences`                        | admitted as A, 200                       |
+| `authenticateTrustedIssuerToken` credential audience | registration's audience only | `refuses a wrong audience, the credential audience winning over the default` | 200                                      |
+| store `createOidc` subject per registration          | predicate → the issuer URL   | `binds one subject in two organizations through one shared issuer URL`       | B refused 409 `subject_taken`            |
+| migration audience trigger                           | `WHEN 0`                     | `refuses a trusted issuer without an audience`                               | stored                                   |
+| migration subject index                              | made non-unique              | `keeps one subject per trusted issuer, and lets two issuers share it`        | stored                                   |
+| `down.sql` guard                                     | inserts 0                    | `refuses rollback while two organizations bind one subject`                  | failed on the bare index, guard unnamed  |
 
 ## Gate output
 

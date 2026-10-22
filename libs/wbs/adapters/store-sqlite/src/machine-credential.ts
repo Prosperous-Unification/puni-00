@@ -2,6 +2,7 @@ import {
   LAST_USED_RESOLUTION_MS,
   type MachineCredentials,
   type OidcCredentialRecord,
+  type TrustedIssuerRegistration,
 } from '@wbs/core';
 import type { MachineCredentialRecord, MachineCredentialSource } from '@wbs/domain';
 import { and, eq, isNull, lte, or } from 'drizzle-orm';
@@ -76,35 +77,44 @@ export class MachineCredentialRepository implements MachineCredentials {
     };
   }
 
-  async trustedKeySetsOf(issuer: string): Promise<readonly string[]> {
+  /**
+   * @throws when a registration's audience is null, which its triggers
+   * refuse (trusted state).
+   */
+  async trustedRegistrationsOf(issuer: string): Promise<readonly TrustedIssuerRegistration[]> {
     await Promise.resolve();
     return this.db
-      .selectDistinct({ jwksUri: organizationTrustedIssuer.jwksUri })
+      .select({
+        id: organizationTrustedIssuer.id,
+        organizationId: organizationTrustedIssuer.organizationId,
+        audience: organizationTrustedIssuer.defaultAudience,
+        jwksUri: organizationTrustedIssuer.jwksUri,
+      })
       .from(organizationTrustedIssuer)
       .where(eq(organizationTrustedIssuer.issuer, issuer))
-      .orderBy(organizationTrustedIssuer.jwksUri)
+      .orderBy(organizationTrustedIssuer.id)
       .all()
-      .map(({ jwksUri }) => jwksUri);
+      .map((row) => {
+        if (row.audience === null) throw new Error(`trusted issuer ${row.id} has no audience`);
+        return { ...row, audience: row.audience };
+      });
   }
 
   /**
-   * One read of the credential joined to its person's binding and to the
-   * trusted issuer it names, which must be of the credential's own
-   * organization and carry the same issuer URL (task 5.2a: no foreign key
-   * ties the two organizations, so this read does).
+   * One read of the credential joined to its person's binding and to its
+   * trusted issuer, which must be of the credential's own organization and
+   * carry the credential's issuer URL (task 5.2a: no foreign key ties the two
+   * organizations, so this read does).
    *
    * @throws on a malformed stored source or time.
    */
-  async findByPair(issuer: string, subject: string): Promise<OidcCredentialRecord | null> {
+  async findOidcCredential(
+    trustedIssuerId: string,
+    subject: string,
+  ): Promise<OidcCredentialRecord | null> {
     await Promise.resolve();
     const row = this.db
-      .select({
-        credential: machineCredential,
-        boundAccountId: person.accountId,
-        trustedIssuerId: organizationTrustedIssuer.id,
-        jwksUri: organizationTrustedIssuer.jwksUri,
-        defaultAudience: organizationTrustedIssuer.defaultAudience,
-      })
+      .select({ credential: machineCredential, boundAccountId: person.accountId })
       .from(machineCredential)
       .innerJoin(person, eq(person.id, machineCredential.personId))
       .innerJoin(
@@ -122,7 +132,7 @@ export class MachineCredentialRepository implements MachineCredentials {
       .where(
         and(
           eq(machineCredential.source, 'oidc'),
-          eq(machineCredential.issuer, issuer),
+          eq(machineCredential.trustedIssuerId, trustedIssuerId),
           eq(machineCredential.subject, subject),
         ),
       )
@@ -141,13 +151,7 @@ export class MachineCredentialRepository implements MachineCredentials {
         mcpFamilyId: row.credential.mcpFamilyId,
         secrets: [],
       },
-      trustedIssuerId: row.trustedIssuerId,
-      jwksUri: row.jwksUri,
-      // Proof: answering `row.defaultAudience` alone made `refuses a wrong
-      // audience, the credential audience winning over the default`
-      // (oidc-credential.controller.db.test.ts) admit a token for the
-      // default audience; watched 2026-10-22.
-      audience: row.credential.audience ?? row.defaultAudience,
+      audience: row.credential.audience,
     };
   }
 

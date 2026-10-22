@@ -119,7 +119,6 @@ import {
 import { type Provisioning, REFUSE_PROVISIONING } from './runtime/provisioning';
 import type { WritingServices } from './services';
 
-/** A composition without SCIM: no record can be pending, so no sign-in activates one. */
 /**
  * Discovery for an app composed without trusted issuers: never reached,
  * because the inactive administration refuses every registration before it.
@@ -128,6 +127,7 @@ const UNUSED_DISCOVERY: TrustedIssuerDiscovery = {
   discover: () => Promise.reject(new Error('trusted issuers are not composed in this app')),
 };
 
+/** A composition without SCIM: no record can be pending, so no sign-in activates one. */
 const NO_PENDING_MEMBERSHIPS: Pick<ScimUsers, 'activate'> = {
   activate: () => Promise.resolve([]),
 };

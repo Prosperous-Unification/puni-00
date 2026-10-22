@@ -305,7 +305,7 @@ describe('migration deploy entrypoints', () => {
     cpSync(MIGRATIONS, migrations, { recursive: true });
     runMigrations(dbPath, MIGRATIONS);
     const baselineLedger = migrationLedgerAt(dbPath);
-    expect(baselineLedger.at(-1)?.name).toBe('20261022110100_check_machine_credential_id');
+    expect(baselineLedger.at(-1)?.name).toBe('20261022120000_scope_trusted_issuer_audience');
     const baselineSchema = schemaAt(dbPath);
     const sqlite = openDatabase(dbPath);
     try {
@@ -1149,7 +1149,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261020130000_add_claim_occupancy' &&
           name !== '20261022100000_add_machine_credential' &&
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
-          name !== '20261022110100_check_machine_credential_id',
+          name !== '20261022110100_check_machine_credential_id' &&
+          name !== '20261022120000_scope_trusted_issuer_audience',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1208,7 +1209,8 @@ describe('migration deploy entrypoints', () => {
           name !== '20261020130000_add_claim_occupancy' &&
           name !== '20261022100000_add_machine_credential' &&
           name !== '20261022110000_widen_organization_audit_machine_credentials' &&
-          name !== '20261022110100_check_machine_credential_id',
+          name !== '20261022110100_check_machine_credential_id' &&
+          name !== '20261022120000_scope_trusted_issuer_audience',
       ),
     );
     const after = openDatabase(dbPath);
@@ -1245,7 +1247,7 @@ describe('migration deploy entrypoints', () => {
       expect(reversed).not.toContain(`CREATE TABLE \`${table}\``);
     runMigrations(dbPath, MIGRATIONS);
     expect(migrationLedgerAt(dbPath).at(-1)?.name).toBe(
-      '20261022110100_check_machine_credential_id',
+      '20261022120000_scope_trusted_issuer_audience',
     );
     expect(schemaAt(dbPath).join('\n')).toContain('CREATE TABLE `work_item_resource_demand`');
   }, 60_000);
