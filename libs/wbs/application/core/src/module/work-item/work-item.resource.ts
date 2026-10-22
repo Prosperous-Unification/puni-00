@@ -8238,6 +8238,8 @@ export class WorkItemService {
    * Replays historical rows under their surviving destination after existing refusals.
    * Retained destination policy refuses as stale history; trusted sparse failures throw
    * before any restore writes so the runner preserves the original journal.
+   * Outside legacy edges are admitted against the projected tree in journal order;
+   * the graph guard and writes share that selection and report omitted edges.
    */
   private async applyRestore(
     projectId: string,
@@ -8272,6 +8274,25 @@ export class WorkItemService {
       ),
     );
     const legacy = await this.opts.dependencies.listByProject(projectId);
+    const projectedLegacy = [...legacy, ...command.internalDependencies];
+    const externalDependencies: StoredDependency[] = [];
+    const skipped: string[] = [];
+    for (const edge of command.externalDependencies) {
+      const refusal = canDepend(
+        projectedTree,
+        projectedLegacy,
+        edge.predecessorId,
+        edge.successorId,
+      );
+      // Proof: bypassing this selection failed both missing-endpoint restores and
+      // the newly cyclic outside-edge restore (1 pass / 3 fail, 2026-10-22).
+      if (refusal !== null) {
+        skipped.push(refusal);
+        continue;
+      }
+      externalDependencies.push(edge);
+      projectedLegacy.push(edge);
+    }
     // Proof: bypassing this consumer failed `connected replay-restore refuses`
     // at its real SQLite refusal assertion; zero partial effects also checked (2026-10-22).
     const structural = await this.structuralRefusal(projectId, stamp.by, {
@@ -8283,7 +8304,7 @@ export class WorkItemService {
         ),
         ...command.estimates,
       ],
-      legacy: [...legacy, ...command.internalDependencies, ...command.externalDependencies],
+      legacy: projectedLegacy,
     });
     if (structural !== null)
       return {
@@ -8421,19 +8442,7 @@ export class WorkItemService {
       await this.opts.attempts.raiseIssued(marks.filter((mark) => held.has(mark.stepId)));
     }
 
-    // The edges that leave the branch, one at a time and through the same
-    // guard an ordinary request goes through. This is the one part of a
-    // restore that can come back incomplete, and it says so rather than
-    // pretending otherwise.
-    const after = await this.opts.workItems.listByProject(projectId);
-    const skipped: string[] = [];
-    for (const edge of command.externalDependencies) {
-      const current = await this.opts.dependencies.listByProject(projectId);
-      const refusal = canDepend(after, current, edge.predecessorId, edge.successorId);
-      if (refusal !== null) {
-        skipped.push(refusal);
-        continue;
-      }
+    for (const edge of externalDependencies) {
       await this.opts.dependencies.add(
         {
           id: this.clock.newId(),
