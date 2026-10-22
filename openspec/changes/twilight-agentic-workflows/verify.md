@@ -845,3 +845,10 @@ Burokrat typecheck (1.4 s), source lint (36.7 s), affected-file Prettier check a
 git diff --check pass. The ambient color-environment warning remains disclosed.
 Root read the complete fix report, source diff, regression/mutation logs and final
 check output. Scoped re-review remains pending; no Task 1 acceptance is claimed here.
+
+Scoped re-review of c54d20e57..6acadfde1 closed I1 and found no new Critical/Important
+breakage. It inspected the exact regression, guard-removal/restoration and final check
+artifacts without rerunning the suite. Binding Task 1's six slice boxes are accepted.
+Parent tasks 1.1–1.2 and broader I1 remain open until their remaining acceptance work;
+Task 2 now supplies real prompt bytes, immutable acceptance and the filesystem/YAML loader.
+The minor ambient color warning remains disclosed as an invocation-environment issue.
